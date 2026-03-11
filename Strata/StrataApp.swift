@@ -1,10 +1,3 @@
-//
-//  StrataApp.swift
-//  Strata
-//
-//  Created by Jayden Betts on 3/5/26.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,7 +5,9 @@ import SwiftData
 struct StrataApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Habit.self,
+            HabitLog.self,
+            MoodLog.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -23,9 +18,14 @@ struct StrataApp: App {
         }
     }()
 
+    @State private var eventKitService = EventKitService()
+    @State private var healthKitService = HealthKitService()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainAppView()
+                .environment(eventKitService)
+                .environment(healthKitService)
         }
         .modelContainer(sharedModelContainer)
     }

@@ -1,0 +1,52 @@
+import SwiftUI
+
+struct XPBarView: View {
+    let level: Int
+    let title: String
+    let progress: Double
+    let xpInto: Int
+    let xpTotal: Int
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("Lv.\(level)")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color(hex: 0x648BF2))
+
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("\(xpInto)/\(xpTotal) XP")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.08))
+
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0x648BF2), Color(hex: 0xA689FA)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * max(progress, 0.02))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: progress)
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
