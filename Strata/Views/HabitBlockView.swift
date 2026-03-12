@@ -40,43 +40,43 @@ struct HabitBlockView: View {
             .padding(6)
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
-        // Subtle 3D volume overlay
+        // 1. Subtle volume gradient
         .overlay(
             LinearGradient(
-                colors: [.white.opacity(0.12), .clear, .black.opacity(0.08)],
+                colors: [.white.opacity(0.1), .clear, .black.opacity(0.05)],
                 startPoint: .top,
                 endPoint: .bottom
             )
         )
-        // Refined top ledge
+        // 2. Top highlight
         .overlay(
             Rectangle()
                 .fill(
                     LinearGradient(
-                        colors: [.white.opacity(0.25), .white.opacity(0.05)],
+                        colors: [.white.opacity(0.4), .clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 8),
+                .frame(height: 6),
             alignment: .top
         )
-        // 1.5px top highlight — inner stroke tracing top edge
+        // 3. Specular gradient border
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [.white.opacity(0.5), .clear, .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        colors: [.white.opacity(0.7), .white.opacity(0.1), .black.opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1.5
+                    lineWidth: 1
                 )
         )
-        // Master clip
+        // 4. Master clip
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        // Soft resting shadow
-        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+        // 5. Soft drop shadow
+        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         .onTapGesture(perform: onTap)
     }
 

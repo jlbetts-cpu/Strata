@@ -76,7 +76,8 @@ struct TimelineHabitRow: View {
                         .foregroundStyle(.white)
 
                     if let time = habit.scheduledTime {
-                        Text(Self.format12Hour(time))
+                        let end = Self.endTime(time, durationMinutes: habit.blockSize.durationMinutes)
+                        Text("\(Self.format12Hour(time)) – \(Self.format12Hour(end))")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white.opacity(0.7))
                     }
@@ -207,6 +208,17 @@ struct TimelineHabitRow: View {
     }
 
     // MARK: - Time Formatting
+
+    /// Computes end time from a start "HH:mm" string + duration in minutes.
+    static func endTime(_ startStr: String, durationMinutes: CGFloat) -> String {
+        let parts = startStr.split(separator: ":")
+        guard let h = Int(parts[0]) else { return startStr }
+        let m = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        let totalMinutes = h * 60 + m + Int(durationMinutes)
+        let endH = (totalMinutes / 60) % 24
+        let endM = totalMinutes % 60
+        return String(format: "%02d:%02d", endH, endM)
+    }
 
     /// Converts "14:00" → "2:00 PM"
     static func format12Hour(_ timeStr: String) -> String {

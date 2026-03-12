@@ -51,8 +51,7 @@ struct ContentView: View {
                         TowerTabView(
                             towerVM: towerVM,
                             gamificationVM: gamificationVM,
-                            onBlockTap: handleBlockTap,
-                            onIncompleteComplete: handleHabitComplete
+                            onBlockTap: handleBlockTap
                         )
                     case .tasks:
                         tasksPlaceholder
@@ -117,8 +116,7 @@ struct ContentView: View {
         timelineVM.loadToday(habits: habits, logs: logs)
         gamificationVM.recalculate(from: logs)
 
-        // Build tower with both incomplete and completed
-        towerVM.buildTower(from: logs, incompleteHabits: timelineVM.incompleteToday)
+        towerVM.buildTower(from: logs)
 
         // Check for level up
         if gamificationVM.showLevelUp {
@@ -153,7 +151,7 @@ struct ContentView: View {
         // Rebuild tower with animation -- new block cascades in
         withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
             timelineVM.loadToday(habits: habits, logs: logs)
-            towerVM.buildTower(from: logs, incompleteHabits: timelineVM.incompleteToday)
+            towerVM.buildTower(from: logs)
         }
 
         gamificationVM.recalculate(from: logs)

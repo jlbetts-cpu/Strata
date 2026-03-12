@@ -4,7 +4,6 @@ import SwiftData
 struct TowerView: View {
     let towerVM: TowerViewModel
     let onBlockTap: (PlacedBlock) -> Void
-    let onIncompleteComplete: (Habit) -> Void
 
     var body: some View {
         GeometryReader { geo in
@@ -18,18 +17,7 @@ struct TowerView: View {
                     // Grid background column guides
                     gridLines(cellSize: cellSize, gridW: gridW, gridH: gridH)
 
-                    // Incomplete blocks (muted, at top)
-                    ForEach(towerVM.incompleteBlocks) { block in
-                        let f = block.frame(cellSize: cellSize)
-                        IncompleteBlockView(
-                            habit: block.habit,
-                            frame: f,
-                            onComplete: { onIncompleteComplete(block.habit) }
-                        )
-                        .offset(x: f.minX, y: f.minY)
-                    }
-
-                    // Completed blocks (vivid, below) with cascade animation
+                    // Completed blocks with cascade animation
                     ForEach(towerVM.placedBlocks) { block in
                         let f = block.frame(cellSize: cellSize)
                         CascadeBlockView(

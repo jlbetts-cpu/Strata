@@ -54,11 +54,11 @@ final class TowerViewModel {
 
     // MARK: - Build Unified Grid
 
-    func buildTower(from logs: [HabitLog], incompleteHabits: [Habit]) {
+    func buildTower(from logs: [HabitLog]) {
         // Boolean grid matrix: grid[row][col] = true means occupied
         var grid = [[Bool]]()
 
-        // 1. Place completed blocks first (solid foundation), oldest first so newest land on top
+        // Place completed blocks (solid foundation), oldest first so newest land on top
         let completedLogs = logs
             .filter { $0.completed && $0.habit != nil }
             .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
@@ -88,28 +88,10 @@ final class TowerViewModel {
         previousBlockIDs = newIDs
 
         placedBlocks = placed
+        incompleteBlocks = []
 
-        // Compute per-column sky exposure using completed-only grid (before incomplete blocks)
+        // Compute per-column sky exposure
         blockExposure = computeExposure(placed: placed, grid: grid)
-
-        // 2. Place incomplete blocks on top (muted, above completed)
-        var incomplete: [PlacedIncompleteBlock] = []
-        for habit in incompleteHabits {
-            let colSpan = habit.blockSize.columnSpan
-            let rowSpan = habit.blockSize.rowSpan
-
-            if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid) {
-                incomplete.append(PlacedIncompleteBlock(
-                    id: habit.id,
-                    habit: habit,
-                    column: pos.column,
-                    row: pos.row,
-                    columnSpan: colSpan,
-                    rowSpan: rowSpan
-                ))
-            }
-        }
-        incompleteBlocks = incomplete
 
         totalRows = grid.count
 

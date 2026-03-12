@@ -5,7 +5,6 @@ struct TowerTabView: View {
     let towerVM: TowerViewModel
     let gamificationVM: GamificationViewModel
     let onBlockTap: (PlacedBlock) -> Void
-    let onIncompleteComplete: (Habit) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,17 +17,20 @@ struct TowerTabView: View {
                 xpTotal: gamificationVM.xpForCurrentLevel
             )
 
-            // Tower + Altimeter
+            // Tower + Scrubber
             HStack(alignment: .top, spacing: 4) {
                 TowerView(
                     towerVM: towerVM,
-                    onBlockTap: onBlockTap,
-                    onIncompleteComplete: onIncompleteComplete
+                    onBlockTap: onBlockTap
                 )
 
-                AltimeterView(
+                TowerScrubberView(
+                    towerContentHeight: GridConstants.gridHeight(rows: towerVM.totalRows, cellSize: 80),
+                    scrollOffset: 0,
+                    viewportHeight: UIScreen.main.bounds.height,
                     heightMeters: towerVM.altimeterHeight,
-                    peakRows: towerVM.peakCompletedHeight
+                    topInset: 44,
+                    onScrub: { _ in }
                 )
                 .frame(width: 40)
             }
