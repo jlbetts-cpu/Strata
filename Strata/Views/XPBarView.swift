@@ -11,18 +11,18 @@ struct XPBarView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("Lv.\(level)")
-                    .font(.subheadline)
+                    .font(Typography.bodyMedium)
                     .fontWeight(.bold)
                     .foregroundStyle(Color(hex: 0x648BF2))
 
                 Text(title)
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Text("\(xpInto)/\(xpTotal) XP")
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }

@@ -18,19 +18,19 @@ struct CompletedHabitRow: View {
                     .frame(width: 36, height: 36)
 
                 Image(systemName: "checkmark")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.title)
-                    .font(.subheadline)
+                    .font(Typography.bodyMedium)
                     .fontWeight(.medium)
 
                 if let completedAt = log.completedAt {
                     Text(completedAt, style: .time)
-                        .font(.caption2)
+                        .font(Typography.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -40,7 +40,7 @@ struct CompletedHabitRow: View {
             // XP badge
             if let xp = log.pendingXP {
                 Text(log.xpCollected ? "\(xp) XP" : "+\(xp)")
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(log.xpCollected ? Color.secondary : style.gradientBottom)
                     .padding(.horizontal, 8)
@@ -56,7 +56,7 @@ struct CompletedHabitRow: View {
             // Undo button
             Button(action: onUndo) {
                 Image(systemName: "arrow.uturn.backward")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
             }
         }

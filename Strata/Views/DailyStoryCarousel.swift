@@ -51,13 +51,14 @@ struct DailyStoryCarousel: View {
     }
 
     private func decodeVisibleImages() {
-        for block in blocks where decodedImages[block.id] == nil {
-            guard let data = block.log.imageData else { continue }
-            Task.detached {
-                guard let img = UIImage(data: data) else { return }
-                await MainActor.run {
-                    decodedImages[block.id] = img
-                }
+        guard let activeID = activeBlockID ?? blocks.first?.id,
+              let block = blocks.first(where: { $0.id == activeID }),
+              decodedImages[block.id] == nil,
+              let data = block.log.imageData else { return }
+        Task.detached {
+            guard let img = UIImage(data: data) else { return }
+            await MainActor.run {
+                decodedImages[block.id] = img
             }
         }
     }
@@ -87,13 +88,13 @@ struct DailyStoryCarousel: View {
                             .frame(width: 8, height: 8)
 
                         Text(block.habit.title)
-                            .font(.headline)
+                            .font(Typography.headerMedium)
                             .foregroundStyle(.white)
                     }
 
                     // Date
                     Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                        .font(.subheadline)
+                        .font(Typography.bodyMedium)
                         .foregroundStyle(.white.opacity(0.6))
                 }
 
@@ -133,7 +134,7 @@ struct DailyStoryCarousel: View {
 
             // Caption dock — sits at bottom, keyboard pushes it up
             TextField("Add a note...", text: captionBinding(for: block))
-                .font(.system(size: 15, weight: .regular))
+                .font(Typography.headerSmall)
                 .foregroundStyle(.white)
                 .tint(.white)
                 .padding(.horizontal, 16)

@@ -31,19 +31,19 @@ struct IncompleteHabitRow: View {
 
                 // Size indicator
                 Text(sizeText)
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(style.text.opacity(holdProgress > 0.5 ? 1 : 0.5))
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.title)
-                    .font(.subheadline)
+                    .font(Typography.bodyMedium)
                     .fontWeight(.medium)
 
                 if let time = habit.scheduledTime {
                     Text(time)
-                        .font(.caption2)
+                        .font(Typography.caption2)
                         .foregroundStyle(.secondary)
                 }
             }

@@ -23,18 +23,18 @@ struct BlockDetailSheet: View {
                     // Header
                     VStack(spacing: 6) {
                         Text(block.habit.title)
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(Typography.appTitle)
                             .foregroundStyle(.white)
 
                         if let completedAt = block.log.completedAt {
                             Text(completedAt.formatted(.dateTime.month(.wide).day().hour().minute()))
-                                .font(.system(size: 14, weight: .medium))
+                                .font(Typography.bodyMedium)
                                 .foregroundStyle(.white.opacity(0.7))
                         }
 
                         // Category pill
                         Text(block.habit.category.rawValue.capitalized)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 5)
@@ -122,7 +122,7 @@ struct BlockDetailSheet: View {
                         .foregroundStyle(.white.opacity(0.8))
 
                     Text("Add Proof of Work")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(Typography.blockTitle)
                         .foregroundStyle(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity)
@@ -143,11 +143,11 @@ struct BlockDetailSheet: View {
     private func statPill(label: String, value: String) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(Typography.headerMedium)
                 .foregroundStyle(.white)
 
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(Typography.caption2)
                 .foregroundStyle(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity)

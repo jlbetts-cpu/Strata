@@ -32,8 +32,7 @@ struct HabitBlockView: View {
 
                 if let pendingXP = block.log.pendingXP, !block.log.xpCollected {
                     Text("+\(pendingXP) XP")
-                        .font(.caption2)
-                        .fontWeight(.bold)
+                        .font(Typography.caption2)
                         .foregroundStyle(style.text.opacity(0.9))
                 }
             }
@@ -82,9 +81,9 @@ struct HabitBlockView: View {
 
     private var blockFont: Font {
         switch block.habit.blockSize {
-        case .small: return .caption2
-        case .medium: return .caption
-        case .hard: return .subheadline
+        case .small: return Typography.caption2
+        case .medium: return Typography.caption
+        case .hard: return Typography.bodyMedium
         }
     }
 }
@@ -150,9 +149,9 @@ struct IncompleteBlockView: View {
 
     private var blockFont: Font {
         switch habit.blockSize {
-        case .small: return .caption2
-        case .medium: return .caption
-        case .hard: return .subheadline
+        case .small: return Typography.caption2
+        case .medium: return Typography.caption
+        case .hard: return Typography.bodyMedium
         }
     }
 }

@@ -48,11 +48,12 @@ struct TowerScrubberView: View {
     var body: some View {
         ZStack(alignment: .top) {
             Text(meterLabel)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.primary.opacity(0.8))
+                .font(Typography.bodySmall)
+                .foregroundStyle(Color.primary)
                 .frame(width: pillWidth, height: pillHeight)
+                .background(Color(.systemBackground).opacity(0.3))
                 .glassEffect(.regular, in: .capsule)
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
                 .offset(y: pillOffset)
                 .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: pillOffset)
         }
@@ -63,7 +64,12 @@ struct TowerScrubberView: View {
                 .onChanged { drag in
                     isScrubbing = true
                     let fraction = min(1, max(0, drag.location.y / trackHeight))
+                    let oldFraction = scrubFraction
                     scrubFraction = fraction
+                    // Tick haptic on meaningful scrub movement
+                    if abs(fraction - oldFraction) > 0.02 {
+                        HapticsEngine.tick()
+                    }
                     onScrub(fraction)
                 }
                 .onEnded { _ in

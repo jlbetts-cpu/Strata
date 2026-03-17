@@ -32,13 +32,13 @@ struct LevelUpOverlay: View {
 
                 VStack(spacing: 8) {
                     Text("LEVEL UP")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .fontWeight(.black)
                         .tracking(4)
                         .foregroundStyle(.white.opacity(0.7))
 
                     Text("\(level)")
-                        .font(.system(size: 72, weight: .black, design: .rounded))
+                        .font(Font.custom("FamiljenGrotesk-Medium", size: 72))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color(hex: 0x648BF2), Color(hex: 0xA689FA)],
@@ -48,14 +48,14 @@ struct LevelUpOverlay: View {
                         )
 
                     Text(title)
-                        .font(.title3)
+                        .font(Typography.headerLarge)
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
                 }
                 .opacity(textOpacity)
 
                 Text("Tap to continue")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.white.opacity(0.4))
                     .opacity(textOpacity)
             }

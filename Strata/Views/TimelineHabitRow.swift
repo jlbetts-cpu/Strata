@@ -46,81 +46,117 @@ struct TimelineHabitRow: View {
         let isMorphing = state == .morphingAndDropping
 
         return ZStack {
-            // Background shape
-            RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous)
-                .fill(style.gradient)
-
-            // Gloss overlay — fades out during morph
+            // Swipe reveal icons behind the block
             if !isMorphing {
-                VStack(spacing: 0) {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.18), Color.white.opacity(0)],
-                                startPoint: .top,
-                                endPoint: .center
+                HStack {
+                    // Complete icon (revealed on right swipe)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.green)
+                        .opacity(swipeOffset > 30 ? min(Double(swipeOffset - 30) / 90.0, 1.0) : 0)
+                        .padding(.leading, 16)
+
+                    Spacer()
+
+                    // Skip icon (revealed on left swipe)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.gray)
+                        .opacity(swipeOffset < -30 ? min(Double(-swipeOffset - 30) / 90.0, 1.0) : 0)
+                        .padding(.trailing, 16)
+                }
+                .frame(height: rowHeight)
+            }
+
+            // Main block content
+            ZStack {
+                // Background shape
+                RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous)
+                    .fill(style.gradient)
+
+                // Gloss overlay — fades out during morph
+                if !isMorphing {
+                    VStack(spacing: 0) {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.18), Color.white.opacity(0)],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                )
                             )
-                        )
-                        .frame(height: rowHeight * 0.5)
-                    Spacer(minLength: 0)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .transition(.opacity)
-            }
-
-            // Text + checkbox content — fades out during morph
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(habit.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-
-                    if let time = habit.scheduledTime {
-                        let end = Self.endTime(time, durationMinutes: habit.blockSize.durationMinutes)
-                        Text("\(Self.format12Hour(time)) – \(Self.format12Hour(end))")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .frame(height: rowHeight * 0.5)
+                        Spacer(minLength: 0)
                     }
-                }
-                .padding(.leading, 14)
-
-                Spacer()
-
-                // Completion toggle
-                Button {
-                    guard state == .incomplete else { return }
-                    beginCompletion()
-                } label: {
-                    checkCircle
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .padding(.trailing, 6)
-            }
-            .opacity(isMorphing ? 0 : 1)
-
-            // Block title that appears during morph (mimics tower block label)
-            if isMorphing {
-                Text(habit.title)
-                    .font(habit.blockSize == .small ? .caption2 : .subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.65)
-                    .padding(6)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .transition(.opacity)
+                }
+
+                // Text + checkbox content — fades out during morph
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(habit.title)
+                            .font(Typography.bodyMedium)
+                            .foregroundStyle(.white)
+
+                        if let time = habit.scheduledTime {
+                            let end = Self.endTime(time, durationMinutes: habit.blockSize.durationMinutes)
+                            Text("\(Self.format12Hour(time)) – \(Self.format12Hour(end))")
+                                .font(Typography.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(.leading, 14)
+
+                    Spacer()
+
+                    // Completion toggle
+                    Button {
+                        guard state == .incomplete else { return }
+                        beginCompletion()
+                    } label: {
+                        checkCircle
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .padding(.trailing, 6)
+                }
+                .opacity(isMorphing ? 0 : 1)
+
+                // Block title that appears during morph (mimics tower block label)
+                if isMorphing {
+                    Text(habit.title)
+                        .font(habit.blockSize == .small ? .caption2 : .subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.65)
+                        .padding(6)
+                        .transition(.opacity)
+                }
             }
+            .frame(
+                width: isMorphing ? morphWidth : nil,
+                height: isMorphing ? morphHeight : rowHeight
+            )
+            .frame(maxWidth: isMorphing ? nil : .infinity, alignment: .leading)
+            .clipShape(RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous))
+            .offset(x: swipeOffset, y: isMorphing ? 800 : 0)
+            // Rubber-band stretch on right swipe
+            .scaleEffect(
+                x: swipeOffset > 0 ? 1.0 + min(swipeOffset / 800, 0.08) : 1.0,
+                y: 1.0,
+                anchor: .leading
+            )
         }
         .frame(
             width: isMorphing ? morphWidth : nil,
             height: isMorphing ? morphHeight : rowHeight
         )
         .frame(maxWidth: isMorphing ? nil : .infinity, alignment: .leading)
-        .clipShape(RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous))
         .shadow(color: style.glow, radius: isMorphing ? 10 : 4, x: 0, y: isMorphing ? 6 : 2)
-        .offset(x: swipeOffset, y: isMorphing ? 800 : 0)
-        .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 300.0) : 1.0)
+        .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
         .scaleEffect(isMorphing ? 0.9 : 1.0)
         .gesture(
             state == .incomplete
@@ -132,14 +168,22 @@ struct TimelineHabitRow: View {
                     }
                 }
                 .onEnded { value in
-                    if abs(value.translation.width) > 120 {
-                        // Swipe threshold met — dismiss
-                        let direction: CGFloat = value.translation.width > 0 ? 1 : -1
+                    if value.translation.width > 120 {
+                        // Swipe RIGHT = complete
+                        HapticsEngine.snap()
                         withAnimation(.easeIn(duration: 0.2)) {
-                            swipeOffset = direction * 400
+                            swipeOffset = 400
                         }
-                        let gen = UIImpactFeedbackGenerator(style: .light)
-                        gen.impactOccurred()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            isSwiped = true
+                            beginCompletion()
+                        }
+                    } else if value.translation.width < -120 {
+                        // Swipe LEFT = skip
+                        HapticsEngine.snap()
+                        withAnimation(.easeIn(duration: 0.2)) {
+                            swipeOffset = -400
+                        }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                             isSwiped = true
                             onSkip?(habit)

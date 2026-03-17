@@ -4,6 +4,8 @@ enum GridConstants {
     static let columnCount = 4
     static let spacing: CGFloat = 4
     static let cornerRadius: CGFloat = 8
+    static let horizontalPadding: CGFloat = 20
+    static let timelineGutterWidth: CGFloat = 56
 
     // 1 block height = 3 meters for altimeter
     static let metersPerBlock: Double = 3.0

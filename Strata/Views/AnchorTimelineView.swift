@@ -8,7 +8,7 @@ struct AnchorTimelineView: View {
         VStack(alignment: .leading, spacing: 0) {
             if !events.isEmpty {
                 Text("SCHEDULE")
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(.tertiary)
                     .tracking(1)
@@ -26,7 +26,7 @@ struct AnchorTimelineView: View {
 
             if !workouts.isEmpty {
                 Text("WORKOUTS")
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(.tertiary)
                     .tracking(1)
@@ -56,12 +56,12 @@ struct AnchorTimelineView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title)
-                    .font(.subheadline)
+                    .font(Typography.bodyMedium)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
                 Text(event.timeString)
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -82,24 +82,24 @@ struct AnchorTimelineView: View {
                     .frame(width: 36, height: 36)
 
                 Image(systemName: "figure.run")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout.displayName)
-                    .font(.subheadline)
+                    .font(Typography.bodyMedium)
                     .fontWeight(.medium)
 
                 HStack(spacing: 8) {
                     Text("\(workout.durationMinutes) min")
-                        .font(.caption2)
+                        .font(Typography.caption2)
                         .foregroundStyle(.secondary)
 
                     if let cal = workout.calories {
                         Text("\(Int(cal)) kcal")
-                            .font(.caption2)
+                            .font(Typography.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }

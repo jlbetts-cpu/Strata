@@ -53,8 +53,6 @@ struct ContentView: View {
                             gamificationVM: gamificationVM,
                             onBlockTap: handleBlockTap
                         )
-                    case .tasks:
-                        tasksPlaceholder
                     case .journal:
                         journalPlaceholder
                     case .profile:
@@ -171,25 +169,13 @@ struct ContentView: View {
 
     // MARK: - Placeholder Tabs
 
-    private var tasksPlaceholder: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checklist")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("Tasks")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var journalPlaceholder: some View {
         VStack(spacing: 12) {
             Image(systemName: "book.fill")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
             Text("Journal")
-                .font(.headline)
+                .font(Typography.headerMedium)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -201,7 +187,7 @@ struct ContentView: View {
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
             Text("Profile")
-                .font(.headline)
+                .font(Typography.headerMedium)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

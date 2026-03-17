@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import ImageIO
 
 // MARK: - Smart Brick View (Clay Cartridge)
 
@@ -44,7 +45,7 @@ struct FlippableBlockView: View {
 
             // Title — white, bottom-left
             Text(block.habit.title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(Typography.blockTitle)
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 1)
                 .lineLimit(block.rowSpan > 1 ? 3 : 1)
@@ -64,7 +65,7 @@ struct FlippableBlockView: View {
 
                         if isBig {
                             Text("Add Proof")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(Typography.caption)
                                 .foregroundStyle(.white.opacity(0.7))
                         }
                     }
@@ -84,27 +85,26 @@ struct FlippableBlockView: View {
                 endPoint: .bottom
             )
         )
-        // 2. Segmented top highlight
+        // 2. Continuous top ledge highlight
         .overlay(alignment: .top) {
             if displayImage == nil {
-                HStack(spacing: GridConstants.spacing) {
+                HStack(spacing: 0) {
                     ForEach(0..<exposedSegments.count, id: \.self) { i in
                         if exposedSegments[i] {
                             Rectangle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [.white.opacity(0.4), .clear],
+                                        colors: [.white.opacity(0.25), .clear],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
                                 )
-                                .frame(height: 6)
                         } else {
                             Color.clear
-                                .frame(height: 6)
                         }
                     }
                 }
+                .frame(height: 14)
             }
         }
         // 3. Specular gradient border
@@ -147,6 +147,7 @@ struct FlippableBlockView: View {
             }
         }
         .onAppear { loadExistingImage() }
+        .onDisappear { displayImage = nil }
         .onChange(of: selectedItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
         }
@@ -156,12 +157,27 @@ struct FlippableBlockView: View {
 
     private func loadExistingImage() {
         guard let data = block.log.imageData else { return }
+        let targetWidth = width * UIScreen.main.scale
         Task.detached {
-            guard let img = UIImage(data: data) else { return }
+            let thumbnail = Self.downsample(data: data, maxPixelWidth: targetWidth)
             await MainActor.run {
-                displayImage = img
+                displayImage = thumbnail
             }
         }
+    }
+
+    private static func downsample(data: Data, maxPixelWidth: CGFloat) -> UIImage? {
+        let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, options as CFDictionary) else { return nil }
+
+        let downsampleOpts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelWidth,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOpts as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     @MainActor

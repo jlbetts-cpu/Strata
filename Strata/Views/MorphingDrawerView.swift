@@ -74,7 +74,7 @@ struct MorphingDrawerView: View {
 
             HStack {
                 Text("\(incompleteHabits.count) remaining")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(.secondary)
 
@@ -82,7 +82,7 @@ struct MorphingDrawerView: View {
 
                 if !completedToday.isEmpty {
                     Text("\(completedToday.count) done")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(Color(hex: 0x648BF2))
                 }
@@ -98,7 +98,7 @@ struct MorphingDrawerView: View {
     private var floatingPoolSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("UP NEXT")
-                .font(.caption2)
+                .font(Typography.caption2)
                 .fontWeight(.bold)
                 .foregroundStyle(.tertiary)
                 .tracking(1)
@@ -126,7 +126,7 @@ struct MorphingDrawerView: View {
                 .padding(.vertical, 4)
 
             Text("COMPLETED")
-                .font(.caption2)
+                .font(Typography.caption2)
                 .fontWeight(.bold)
                 .foregroundStyle(.tertiary)
                 .tracking(1)

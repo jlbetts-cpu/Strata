@@ -398,6 +398,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "STRATA uses your calendar to show scheduled events alongside your habits, helping you plan your day around your commitments.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "STRATA reads your completed workouts to automatically track your health habits and award XP for staying active.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -432,6 +433,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "STRATA uses your calendar to show scheduled events alongside your habits, helping you plan your day around your commitments.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "STRATA reads your completed workouts to automatically track your health habits and award XP for staying active.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

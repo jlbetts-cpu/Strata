@@ -2,14 +2,12 @@ import SwiftUI
 
 enum StrataTab: String, CaseIterable {
     case tower = "Tower"
-    case tasks = "Tasks"
     case journal = "Journal"
     case profile = "Profile"
 
     var icon: String {
         switch self {
         case .tower: return "square.stack.3d.up.fill"
-        case .tasks: return "checklist"
         case .journal: return "book.fill"
         case .profile: return "person.fill"
         }
@@ -18,6 +16,8 @@ enum StrataTab: String, CaseIterable {
 
 struct TabBarView: View {
     @Binding var selectedTab: StrataTab
+
+    private let brandMint = Color(hex: 0x10B77F)
 
     var body: some View {
         HStack {
@@ -33,10 +33,9 @@ struct TabBarView: View {
                             .symbolEffect(.bounce, value: selectedTab == tab)
 
                         Text(tab.rawValue)
-                            .font(.caption2)
-                            .fontWeight(selectedTab == tab ? .semibold : .regular)
+                            .font(Typography.caption2)
                     }
-                    .foregroundStyle(selectedTab == tab ? Color(hex: 0x648BF2) : Color.secondary)
+                    .foregroundStyle(selectedTab == tab ? brandMint : Color.secondary)
                     .frame(maxWidth: .infinity)
                 }
             }

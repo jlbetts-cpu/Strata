@@ -36,7 +36,7 @@ struct WeekStripView: View {
         } label: {
             VStack(spacing: 6) {
                 Text(dayLabels[index])
-                    .font(.caption2)
+                    .font(Typography.caption2)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.secondary)
                     .opacity(isFuture ? 0.5 : 1.0)
@@ -49,7 +49,7 @@ struct WeekStripView: View {
 
                     // Day number
                     Text("\(dayNum)")
-                        .font(.system(size: 14, weight: isSelected ? .bold : .medium, design: .rounded))
+                        .font(Typography.bodyMedium)
                         .foregroundStyle(isSelected ? Color.white : Color.primary)
                         .opacity(isFuture ? 0.4 : 1.0)
 

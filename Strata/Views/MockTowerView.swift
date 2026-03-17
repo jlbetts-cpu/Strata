@@ -36,7 +36,7 @@ struct MockTowerView: View {
                     // Header
                     HStack {
                         Text("STRATA")
-                            .font(.title2)
+                            .font(Typography.appTitle)
                             .fontWeight(.black)
                             .tracking(2)
                             .foregroundStyle(Color(hex: 0x648BF2))
@@ -112,7 +112,7 @@ struct MockTowerView: View {
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
             Text(title)
-                .font(isBig ? .subheadline : .caption2)
+                .font(isBig ? Typography.bodyMedium : Typography.caption2)
                 .fontWeight(.semibold)
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
