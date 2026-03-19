@@ -1,11 +1,58 @@
 import SwiftUI
 
-// MARK: - Completed Block (Vivid)
+// MARK: - Time Formatting Helpers
+
+enum BlockTimeFormatter {
+    /// Computes end time from a start "HH:mm" string + duration in minutes.
+    static func endTime(_ startStr: String, durationMinutes: CGFloat) -> String {
+        let parts = startStr.split(separator: ":")
+        guard !parts.isEmpty, let h = Int(parts[0]) else { return startStr }
+        let m = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        let totalMinutes = h * 60 + m + Int(durationMinutes)
+        let endH = (totalMinutes / 60) % 24
+        let endM = totalMinutes % 60
+        return String(format: "%02d:%02d", endH, endM)
+    }
+
+    /// Converts "14:00" → "2 PM", "14:30" → "2:30 PM"
+    static func format12Hour(_ timeStr: String) -> String {
+        let parts = timeStr.split(separator: ":")
+        guard !parts.isEmpty, let h = Int(parts[0]) else { return timeStr }
+        let m = parts.count > 1 ? String(parts[1]) : "00"
+        let period = h < 12 ? "AM" : "PM"
+        let hour12 = h % 12 == 0 ? 12 : h % 12
+        return m == "00" ? "\(hour12) \(period)" : "\(hour12):\(m) \(period)"
+    }
+
+    /// Formats a Date as "3:30 PM"
+    static func format12Hour(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "h:mm a"
+        return fmt.string(from: date)
+    }
+
+    /// Builds a time range string for a block, e.g. "8–10 AM" or "3:30 PM"
+    static func timeRange(scheduledTime: String?, durationMinutes: CGFloat, completedAt: Date?) -> String? {
+        if let time = scheduledTime {
+            let end = endTime(time, durationMinutes: durationMinutes)
+            return "\(format12Hour(time)) – \(format12Hour(end))"
+        } else if let completed = completedAt {
+            return format12Hour(completed)
+        }
+        return nil
+    }
+}
+
+// MARK: - Completed Block (Flat Squircle)
 
 struct HabitBlockView: View {
     let block: PlacedBlock
     let cellSize: CGFloat
     let onTap: () -> Void
+
+    @State private var tapTrigger: Int = 0
+    @State private var breathePhase: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var style: CategoryStyle {
         block.habit.category.style
@@ -15,77 +62,133 @@ struct HabitBlockView: View {
         block.frame(cellSize: cellSize)
     }
 
+    private var timeText: String? {
+        BlockTimeFormatter.timeRange(
+            scheduledTime: block.habit.scheduledTime,
+            durationMinutes: block.habit.blockSize.durationMinutes,
+            completedAt: block.log.completedAt
+        )
+    }
+
     var body: some View {
         ZStack {
-            // Solid base color — pure category hex
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(style.baseColor)
-
-            // Content
-            VStack(spacing: 2) {
-                Text(block.habit.title)
-                    .font(blockFont)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(style.text)
-                    .lineLimit(block.rowSpan > 1 ? 2 : 1)
-                    .minimumScaleFactor(0.7)
-
-                if let pendingXP = block.log.pendingXP, !block.log.xpCollected {
-                    Text("+\(pendingXP) XP")
-                        .font(Typography.caption2)
-                        .foregroundStyle(style.text.opacity(0.9))
-                }
-            }
-            .padding(6)
-        }
-        .frame(width: blockFrame.width, height: blockFrame.height)
-        // 1. Subtle volume gradient
-        .overlay(
+            // Color fill — gradient from light tint at top to base color
             LinearGradient(
-                colors: [.white.opacity(0.1), .clear, .black.opacity(0.05)],
+                stops: [
+                    .init(color: style.lightTint, location: 0.0),
+                    .init(color: style.baseColor, location: 0.3),
+                    .init(color: style.baseColor, location: 1.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+
+            // Frosted gradient overlay — subtle white mist at the bottom
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .white.opacity(0.20), location: 1.0)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-        )
-        // 2. Top highlight
+
+            // Text content: title + time
+            VStack(alignment: .leading, spacing: 2) {
+                Spacer()
+                Text(block.habit.title)
+                    .font(Typography.bodyMedium)
+                    .tracking(0)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .lineLimit(block.rowSpan > 1 ? 2 : 1)
+                    .minimumScaleFactor(0.65)
+
+                if let time = timeText {
+                    Text(time)
+                        .font(Typography.caption2)
+                        .foregroundStyle(.white.opacity(0.8))
+                } else if let pendingXP = block.log.pendingXP, !block.log.xpCollected {
+                    Text("+\(pendingXP) XP")
+                        .font(Typography.caption2)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .bottomLeading)
+            .padding(.leading, 10)
+            .padding(.bottom, 8)
+            .padding(.trailing, 6)
+        }
+        .frame(width: blockFrame.width, height: blockFrame.height)
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        // Overlay 1: Crisp white border — visible at top, fades toward bottom (breathing shimmer)
         .overlay(
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.4), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(height: 6),
-            alignment: .top
-        )
-        // 3. Specular gradient border
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [.white.opacity(0.7), .white.opacity(0.1), .black.opacity(0.2)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        stops: [
+                            .init(color: .white.opacity(breathePhase ? 0.95 : 0.85), location: 0.0),
+                            .init(color: .white.opacity(0.4), location: 0.4),
+                            .init(color: .white.opacity(0.0), location: 0.75)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     ),
-                    lineWidth: 1
+                    lineWidth: 2.5
                 )
         )
-        // 4. Master clip
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        // 5. Soft drop shadow
-        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-        .onTapGesture(perform: onTap)
-    }
-
-    private var blockFont: Font {
-        switch block.habit.blockSize {
-        case .small: return Typography.caption2
-        case .medium: return Typography.caption
-        case .hard: return Typography.bodyMedium
+        // Overlay 2: Diffused white border — invisible at top, soft glow at bottom
+        .overlay(
+            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .white.opacity(0.0), location: 0.0),
+                            .init(color: .white.opacity(0.35), location: 0.45),
+                            .init(color: .white.opacity(0.6), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 4
+                )
+                .blur(radius: 6)
+        )
+        // Single soft ambient shadow
+        .shadow(
+            color: .black.opacity(GridConstants.shadowOpacity),
+            radius: GridConstants.shadowRadius,
+            x: 0,
+            y: GridConstants.shadowY
+        )
+        // Tap bounce: fast squash → bouncy pop-back
+        .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
+            content
+                .scaleEffect(
+                    x: phase ? GridConstants.tapScaleX : 1.0,
+                    y: phase ? GridConstants.tapScaleY : 1.0
+                )
+                .brightness(phase ? -0.03 : 0)
+        } animation: { phase in
+            phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
+        }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: tapTrigger)
+        .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue)")
+        .accessibilityHint("Tap to expand")
+        .onTapGesture {
+            tapTrigger += 1
+            onTap()
+        }
+        .onAppear {
+            if !reduceMotion {
+                withAnimation(.easeInOut(duration: GridConstants.breatheDuration).repeatForever(autoreverses: true)) {
+                    breathePhase = true
+                }
+            }
         }
     }
+
 }
 
 // MARK: - Incomplete Block (Muted/Outlined)
@@ -107,11 +210,11 @@ struct IncompleteBlockView: View {
         ZStack {
             // Muted background
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(style.gradientBottom.opacity(0.08))
+                .fill(style.darkShade.opacity(0.08))
 
             // Hold progress fill
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(style.gradient.opacity(0.4))
+                .fill(style.baseColor.opacity(0.4))
                 .mask(alignment: .bottom) {
                     Rectangle()
                         .frame(height: frame.height * holdProgress)
@@ -119,19 +222,26 @@ struct IncompleteBlockView: View {
 
             // Border
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(style.gradientBottom.opacity(0.2), lineWidth: 1.5)
+                .stroke(style.darkShade.opacity(0.2), lineWidth: 1.5)
 
             // Label
-            Text(habit.title)
-                .font(blockFont)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.primary.opacity(0.6))
-                .lineLimit(habit.blockSize.rowSpan > 1 ? 2 : 1)
-                .minimumScaleFactor(0.7)
-                .padding(6)
+            VStack(alignment: .leading) {
+                Spacer()
+                Text(habit.title)
+                    .font(blockFont)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.primary.opacity(0.6))
+                    .lineLimit(habit.blockSize.rowSpan > 1 ? 2 : 1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .bottomLeading)
+            .padding(.leading, 10)
+            .padding(.bottom, 8)
+            .padding(.trailing, 6)
         }
         .frame(width: frame.width, height: frame.height)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 1, x: 0, y: 1)
         .contentShape(Rectangle())
         .onLongPressGesture(minimumDuration: holdDuration, perform: {
             let generator = UIImpactFeedbackGenerator(style: .medium)

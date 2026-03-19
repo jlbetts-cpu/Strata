@@ -71,25 +71,14 @@ struct TimelineHabitRow: View {
             // Main block content
             ZStack {
                 // Background shape
-                RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: isMorphing ? GridConstants.cornerRadius : cornerRadius, style: .continuous)
                     .fill(style.gradient)
 
-                // Gloss overlay — fades out during morph
+                // White stroke border
                 if !isMorphing {
-                    VStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.18), Color.white.opacity(0)],
-                                    startPoint: .top,
-                                    endPoint: .center
-                                )
-                            )
-                            .frame(height: rowHeight * 0.5)
-                        Spacer(minLength: 0)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                    .transition(.opacity)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(.white, lineWidth: 2)
+                        .transition(.opacity)
                 }
 
                 // Text + checkbox content — fades out during morph
@@ -106,7 +95,7 @@ struct TimelineHabitRow: View {
                                 .foregroundStyle(.white.opacity(0.7))
                         }
                     }
-                    .padding(.leading, 14)
+                    .padding(.leading, 16)
 
                     Spacer()
 
@@ -141,7 +130,7 @@ struct TimelineHabitRow: View {
                 height: isMorphing ? morphHeight : rowHeight
             )
             .frame(maxWidth: isMorphing ? nil : .infinity, alignment: .leading)
-            .clipShape(RoundedRectangle(cornerRadius: isMorphing ? 20 : cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: isMorphing ? GridConstants.cornerRadius : cornerRadius, style: .continuous))
             .offset(x: swipeOffset, y: isMorphing ? 800 : 0)
             // Rubber-band stretch on right swipe
             .scaleEffect(
@@ -155,9 +144,18 @@ struct TimelineHabitRow: View {
             height: isMorphing ? morphHeight : rowHeight
         )
         .frame(maxWidth: isMorphing ? nil : .infinity, alignment: .leading)
-        .shadow(color: style.glow, radius: isMorphing ? 10 : 4, x: 0, y: isMorphing ? 6 : 2)
+        .shadow(color: .black.opacity(isMorphing ? 0.15 : GridConstants.shadowOpacity),
+                radius: isMorphing ? 2 : GridConstants.shadowRadius, x: 0,
+                y: isMorphing ? 1 : GridConstants.shadowY)
+        .shadow(color: .black.opacity(isMorphing ? 0.10 : 0.05),
+                radius: isMorphing ? 10 : 3, x: 0,
+                y: isMorphing ? 6 : 1)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
         .scaleEffect(isMorphing ? 0.9 : 1.0)
+        .accessibilityLabel(habit.title)
+        .accessibilityHint("Swipe right to complete, swipe left to skip")
+        .accessibilityAction(named: "Complete") { beginCompletion() }
+        .accessibilityAction(named: "Skip") { onSkip?(habit) }
         .gesture(
             state == .incomplete
             ? DragGesture(minimumDistance: 20)
@@ -190,7 +188,7 @@ struct TimelineHabitRow: View {
                         }
                     } else {
                         // Snap back
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             swipeOffset = 0
                         }
                     }
@@ -206,16 +204,16 @@ struct TimelineHabitRow: View {
 
         return ZStack {
             Circle()
-                .stroke(.white.opacity(isChecked ? 0 : 0.6), lineWidth: 1.5)
-                .frame(width: 26, height: 26)
+                .stroke(.white.opacity(isChecked ? 0 : 0.5), lineWidth: 1)
+                .frame(width: 28, height: 28)
 
             Circle()
                 .fill(.white)
-                .frame(width: 26, height: 26)
+                .frame(width: 28, height: 28)
                 .scaleEffect(isChecked ? 1.0 : 0.001)
 
             Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(style.gradientTop)
                 .scaleEffect(isChecked ? 1.0 : 0.001)
         }
@@ -256,7 +254,7 @@ struct TimelineHabitRow: View {
     /// Computes end time from a start "HH:mm" string + duration in minutes.
     static func endTime(_ startStr: String, durationMinutes: CGFloat) -> String {
         let parts = startStr.split(separator: ":")
-        guard let h = Int(parts[0]) else { return startStr }
+        guard !parts.isEmpty, let h = Int(parts[0]) else { return startStr }
         let m = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
         let totalMinutes = h * 60 + m + Int(durationMinutes)
         let endH = (totalMinutes / 60) % 24
@@ -267,7 +265,7 @@ struct TimelineHabitRow: View {
     /// Converts "14:00" → "2:00 PM"
     static func format12Hour(_ timeStr: String) -> String {
         let parts = timeStr.split(separator: ":")
-        guard let h = Int(parts[0]) else { return timeStr }
+        guard !parts.isEmpty, let h = Int(parts[0]) else { return timeStr }
         let m = parts.count > 1 ? String(parts[1]) : "00"
         let period = h < 12 ? "AM" : "PM"
         let hour12 = h % 12 == 0 ? 12 : h % 12

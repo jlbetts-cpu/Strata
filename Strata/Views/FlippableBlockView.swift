@@ -10,7 +10,6 @@ struct FlippableBlockView: View {
     let width: CGFloat
     let height: CGFloat
     let cornerRadius: CGFloat
-    let exposedSegments: [Bool]
     let modelContext: ModelContext
     var onExpandPhoto: ((Data) -> Void)? = nil
 
@@ -18,9 +17,21 @@ struct FlippableBlockView: View {
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var displayImage: UIImage? = nil
     @State private var autoDismissTask: Task<Void, Never>? = nil
+    @State private var tapTrigger: Int = 0
+    @State private var breathePhase: Bool = false
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var style: CategoryStyle { block.habit.category.style }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
+
+    private var timeText: String? {
+        BlockTimeFormatter.timeRange(
+            scheduledTime: block.habit.scheduledTime,
+            durationMinutes: block.habit.blockSize.durationMinutes,
+            completedAt: block.log.completedAt
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -32,28 +43,62 @@ struct FlippableBlockView: View {
                     .frame(width: width, height: height)
                     .clipped()
 
+                // Darker gradient overlay for text legibility
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.5)],
-                    startPoint: .center,
+                    stops: [
+                        .init(color: .clear, location: 0.58),
+                        .init(color: Color(red: 0.22, green: 0.22, blue: 0.22).opacity(0.80), location: 0.81)
+                    ],
+                    startPoint: .top,
                     endPoint: .bottom
                 )
+
             } else {
-                // Solid base color — pure category hex
-                Rectangle()
-                    .fill(style.baseColor)
+                // Color fill — gradient from light tint at top to base color
+                LinearGradient(
+                    stops: [
+                        .init(color: style.lightTint, location: 0.0),
+                        .init(color: style.baseColor, location: 0.3),
+                        .init(color: style.baseColor, location: 1.0)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                // Frosted gradient overlay — subtle white mist at the bottom
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .white.opacity(0.20), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
             }
 
-            // Title — white, bottom-left
-            Text(block.habit.title)
-                .font(Typography.blockTitle)
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 1)
-                .lineLimit(block.rowSpan > 1 ? 3 : 1)
-                .minimumScaleFactor(0.65)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.leading, 12)
-                .padding(.bottom, 12)
-                .opacity(showCameraPrompt ? 0 : 1)
+            // Text content: title + time — white, bottom-left
+            VStack(alignment: .leading, spacing: 2) {
+                Spacer()
+                Text(block.habit.title)
+                    .font(Typography.bodyMedium)
+                    .tracking(0)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .lineLimit(block.rowSpan > 1 ? 3 : 1)
+                    .minimumScaleFactor(0.65)
+
+                if let time = timeText {
+                    Text(time)
+                        .font(Typography.caption2)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.leading, 10)
+            .padding(.bottom, 8)
+            .padding(.trailing, 6)
+            .opacity(showCameraPrompt ? 0 : 1)
 
             // Camera prompt
             if displayImage == nil {
@@ -77,54 +122,61 @@ struct FlippableBlockView: View {
             }
         }
         .frame(width: width, height: height)
-        // 1. Subtle volume gradient
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        // Overlay 1: Crisp white border — visible at top, fades toward bottom (breathing shimmer)
         .overlay(
-            LinearGradient(
-                colors: [.white.opacity(0.1), .clear, .black.opacity(0.05)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        // 2. Continuous top ledge highlight
-        .overlay(alignment: .top) {
-            if displayImage == nil {
-                HStack(spacing: 0) {
-                    ForEach(0..<exposedSegments.count, id: \.self) { i in
-                        if exposedSegments[i] {
-                            Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.white.opacity(0.25), .clear],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        } else {
-                            Color.clear
-                        }
-                    }
-                }
-                .frame(height: 14)
-            }
-        }
-        // 3. Specular gradient border
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [.white.opacity(0.7), .white.opacity(0.1), .black.opacity(0.2)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        stops: [
+                            .init(color: .white.opacity(breathePhase ? 0.95 : 0.85), location: 0.0),
+                            .init(color: .white.opacity(0.4), location: 0.4),
+                            .init(color: .white.opacity(0.0), location: 0.75)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     ),
-                    lineWidth: 1
+                    lineWidth: 2.5
                 )
         )
-        // 4. Master clip
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        // 5. Soft drop shadow
-        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        // Overlay 2: Diffused white border — invisible at top, soft glow at bottom
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .white.opacity(0.0), location: 0.0),
+                            .init(color: .white.opacity(0.35), location: 0.45),
+                            .init(color: .white.opacity(0.6), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 4
+                )
+                .blur(radius: 6)
+        )
+        .shadow(
+            color: .black.opacity(GridConstants.shadowOpacity),
+            radius: GridConstants.shadowRadius,
+            x: 0,
+            y: GridConstants.shadowY
+        )
+        // Tap bounce: fast squash → bouncy pop-back
+        .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
+            content
+                .scaleEffect(
+                    x: phase ? GridConstants.tapScaleX : 1.0,
+                    y: phase ? GridConstants.tapScaleY : 1.0
+                )
+                .brightness(phase ? -0.03 : 0)
+        } animation: { phase in
+            phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
+        }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: tapTrigger)
         .contentShape(Rectangle())
         .onTapGesture {
+            tapTrigger += 1
             if displayImage != nil {
                 if let data = block.log.imageData {
                     onExpandPhoto?(data)
@@ -146,7 +198,14 @@ struct FlippableBlockView: View {
                 }
             }
         }
-        .onAppear { loadExistingImage() }
+        .onAppear {
+            loadExistingImage()
+            if !reduceMotion {
+                withAnimation(.easeInOut(duration: GridConstants.breatheDuration).repeatForever(autoreverses: true)) {
+                    breathePhase = true
+                }
+            }
+        }
         .onDisappear { displayImage = nil }
         .onChange(of: selectedItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
@@ -157,7 +216,7 @@ struct FlippableBlockView: View {
 
     private func loadExistingImage() {
         guard let data = block.log.imageData else { return }
-        let targetWidth = width * UIScreen.main.scale
+        let targetWidth = width * displayScale
         Task.detached {
             let thumbnail = Self.downsample(data: data, maxPixelWidth: targetWidth)
             await MainActor.run {
@@ -166,7 +225,7 @@ struct FlippableBlockView: View {
         }
     }
 
-    private static func downsample(data: Data, maxPixelWidth: CGFloat) -> UIImage? {
+    nonisolated private static func downsample(data: Data, maxPixelWidth: CGFloat) -> UIImage? {
         let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
         guard let source = CGImageSourceCreateWithData(data as CFData, options as CFDictionary) else { return nil }
 

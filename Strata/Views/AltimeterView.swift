@@ -12,6 +12,7 @@ struct TowerScrubberView: View {
 
     @State private var isScrubbing = false
     @State private var scrubFraction: CGFloat = 0
+    @State private var lastHapticTime: Date = .distantPast
 
     private let pillWidth: CGFloat = 36
     private let pillHeight: CGFloat = 40
@@ -59,6 +60,8 @@ struct TowerScrubberView: View {
         }
         .frame(width: pillWidth, height: trackHeight)
         .contentShape(Rectangle())
+        .accessibilityLabel("Tower scrubber, \(meterLabel) tall")
+        .accessibilityHint("Drag to scroll through the tower")
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { drag in
@@ -66,8 +69,11 @@ struct TowerScrubberView: View {
                     let fraction = min(1, max(0, drag.location.y / trackHeight))
                     let oldFraction = scrubFraction
                     scrubFraction = fraction
-                    // Tick haptic on meaningful scrub movement
-                    if abs(fraction - oldFraction) > 0.02 {
+                    // Tick haptic debounced to 0.1s minimum
+                    let now = Date()
+                    if abs(fraction - oldFraction) > 0.02,
+                       now.timeIntervalSince(lastHapticTime) >= 0.1 {
+                        lastHapticTime = now
                         HapticsEngine.tick()
                     }
                     onScrub(fraction)

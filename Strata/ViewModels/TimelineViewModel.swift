@@ -8,7 +8,7 @@ final class TimelineViewModel {
     private(set) var todaysHabits: [Habit] = []
     private(set) var completedToday: [HabitLog] = []
     private(set) var incompleteToday: [Habit] = []
-    private(set) var skippedHabitIDs: Set<UUID> = []
+    private(set) var skippedHabitIDs: Set<UUID> = [] // rebuilt from persisted logs
 
     var currentDateString: String {
         Self.dateString(from: Date())
@@ -39,6 +39,10 @@ final class TimelineViewModel {
         // Separate completed vs incomplete
         let todayLogs = logs.filter { $0.dateString == dateStr && $0.completed }
         let completedHabitIDs = Set(todayLogs.compactMap { $0.habit?.id })
+
+        // Rebuild skipped set from persisted logs
+        let skippedLogs = logs.filter { $0.dateString == dateStr && $0.skipped }
+        skippedHabitIDs = Set(skippedLogs.compactMap { $0.habit?.id })
 
         completedToday = todayLogs
         incompleteToday = scheduled.filter {
@@ -75,7 +79,25 @@ final class TimelineViewModel {
     // MARK: - Skip a Habit
 
     func skipHabit(_ habit: Habit) {
+        guard let context = modelContext else { return }
         skippedHabitIDs.insert(habit.id)
+
+        let dateStr = currentDateString
+        let habitID = habit.id
+        let descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { log in
+                log.dateString == dateStr && log.habit?.id == habitID
+            }
+        )
+
+        if let existing = try? context.fetch(descriptor).first {
+            existing.skipped = true
+        } else {
+            let log = HabitLog(habit: habit, dateString: dateStr)
+            log.skipped = true
+            context.insert(log)
+        }
+        try? context.save()
     }
 
     // MARK: - Undo Completion

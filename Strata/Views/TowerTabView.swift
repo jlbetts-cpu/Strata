@@ -18,23 +18,25 @@ struct TowerTabView: View {
             )
 
             // Tower + Scrubber
-            HStack(alignment: .top, spacing: 4) {
-                TowerView(
-                    towerVM: towerVM,
-                    onBlockTap: onBlockTap
-                )
+            GeometryReader { geo in
+                HStack(alignment: .top, spacing: 4) {
+                    TowerView(
+                        towerVM: towerVM,
+                        onBlockTap: onBlockTap
+                    )
 
-                TowerScrubberView(
-                    towerContentHeight: GridConstants.gridHeight(rows: towerVM.totalRows, cellSize: 80),
-                    scrollOffset: 0,
-                    viewportHeight: UIScreen.main.bounds.height,
-                    heightMeters: towerVM.altimeterHeight,
-                    topInset: 44,
-                    onScrub: { _ in }
-                )
-                .frame(width: 40)
+                    TowerScrubberView(
+                        towerContentHeight: GridConstants.gridHeight(rows: towerVM.totalRows, cellSize: 80),
+                        scrollOffset: 0,
+                        viewportHeight: geo.size.height,
+                        heightMeters: towerVM.altimeterHeight,
+                        topInset: 44,
+                        onScrub: { _ in }
+                    )
+                    .frame(width: 40)
+                }
+                .padding(.horizontal, 12)
             }
-            .padding(.horizontal, 12)
         }
     }
 }

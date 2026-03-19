@@ -19,6 +19,22 @@ enum HapticsEngine {
         gen.impactOccurred()
     }
 
+    /// Soft squishy impact for silicone-style drop landings, scaled by mass
+    static func squish(mass: Int = 1) {
+        let intensity: CGFloat = switch mass {
+        case 1: 0.5
+        case 2: 0.65
+        default: 0.8
+        }
+        let style: UIImpactFeedbackGenerator.FeedbackStyle = switch mass {
+        case 1: .soft
+        case 2: .medium
+        default: .heavy
+        }
+        let gen = UIImpactFeedbackGenerator(style: style)
+        gen.impactOccurred(intensity: intensity)
+    }
+
     /// Rigid impact for drawer toggle and swipe-to-complete
     static func snap() {
         let gen = UIImpactFeedbackGenerator(style: .rigid)

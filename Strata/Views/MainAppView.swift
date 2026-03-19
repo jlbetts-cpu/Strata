@@ -16,24 +16,19 @@ struct MainAppView: View {
         })
     }
 
-    @State private var selectedTab: StrataTab = .tower
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var hasLoadedDemo = false
-    @State private var isTimelineExpanded: Bool = false
+    @State private var selectedDetent: PresentationDetent = SheetContentView.smallDetent
+    @State private var selectedTab: Int = 0
     @State private var hapticLightTrigger = 0
     @State private var hapticMediumTrigger = 0
     @State private var hapticHeavyTrigger = 0
 
-    // Three-phase drop animation
-    enum DropPhase { case falling, impact }
-    @State private var dropPhases: [UUID: DropPhase] = [:]
-
-    // Kinetic ripple: compression wave on impact
-    @State private var ripplingBlockIDs: Set<UUID> = []
-    @State private var rippleIntensity: [UUID: CGFloat] = [:]
-    @State private var landedMassTier: Int = 1
+    @State private var animCoord = TowerAnimationCoordinator()
+    @State private var towerSwayPhase: Bool = false
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
@@ -55,14 +50,11 @@ struct MainAppView: View {
     @State private var isNewHabitMenuOpen: Bool = false
     @State private var newHabitPrefillTime: String? = nil
 
-    // Tower compression on impact
-    @State private var towerCompressionY: CGFloat = 1.0
-
-    // Cascade lock
-    @State private var isCascading = false
-
     // Cached week completed dates
     @State private var weekCompletedDates: Set<String> = []
+
+    // Cached incomplete timeline habits
+    @State private var cachedIncompleteForTimeline: [Habit] = []
 
     // Tower scroll
     @State private var isScrolled: Bool = false
@@ -77,7 +69,7 @@ struct MainAppView: View {
     private let timelineEndHour = 23
 
     // Pinch-to-zoom timeline scale
-    @State private var pixelsPerMinute: CGFloat = 2.0
+    @AppStorage("timelinePixelsPerMinute") private var pixelsPerMinute: Double = 2.0
     @GestureState private var magnifyBy: CGFloat = 1.0
 
     /// Effective scale factor (live during gesture, baked after)
@@ -90,13 +82,44 @@ struct MainAppView: View {
     private let columns = GridConstants.columnCount
     private let cornerRadius: CGFloat = GridConstants.cornerRadius
     private let collapsedHeaderHeight: CGFloat = 74
-    private let bottomBarHeight: CGFloat = 90
 
     var body: some View {
-        GeometryReader { geo in
-            mainContent(geo: geo)
+        Group {
+            switch selectedTab {
+            case 0:
+                GeometryReader { geo in
+                    towerTabContent(geo: geo)
+                }
+            case 1:
+                Text("Coming soon")
+                    .font(Typography.headerLarge)
+                    .foregroundStyle(.secondary)
+            case 2:
+                Text("Coming soon")
+                    .font(Typography.headerLarge)
+                    .foregroundStyle(.secondary)
+            default:
+                EmptyView()
+            }
         }
-        .background(Color(UIColor.systemBackground))
+        // MARK: - Sheet hidden for Figma redesign
+//        .sheet(isPresented: .constant(true)) {
+//            SheetContentView(
+//                selectedDetent: $selectedDetent,
+//                selectedTab: $selectedTab,
+//                weekData: weekData,
+//                timelineContent: AnyView(timelineScrollView)
+//            )
+//            .presentationDetents(
+//                [SheetContentView.smallDetent, SheetContentView.mediumDetent, SheetContentView.largeDetent],
+//                selection: $selectedDetent
+//            )
+//            .presentationDragIndicator(.hidden)
+//            .presentationBackgroundInteraction(.enabled(upThrough: SheetContentView.mediumDetent))
+//            .presentationCornerRadius(28)
+//            .presentationBackground(.clear)
+//            .interactiveDismissDisabled()
+//        }
         .fullScreenCover(isPresented: carouselPresented) {
             DailyStoryCarousel(
                 blocks: todaysPhotoBlocks,
@@ -108,6 +131,9 @@ struct MainAppView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: hapticMediumTrigger)
         .sensoryFeedback(.impact(weight: .heavy, intensity: 1.0), trigger: hapticHeavyTrigger)
         .onAppear(perform: setup)
+        .onChange(of: reduceMotion) { _, newValue in
+            animCoord.reduceMotion = newValue
+        }
         .onChange(of: habits.count) { refreshData() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
             refreshData()
@@ -116,91 +142,84 @@ struct MainAppView: View {
 
     // MARK: - Main Content
 
-    private func mainContent(geo: GeometryProxy) -> some View {
+    private func towerTabContent(geo: GeometryProxy) -> some View {
         let colW = floor(
             (geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns)
         )
+        let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let safeTop = geo.safeAreaInsets.top
 
         return ZStack(alignment: .top) {
+            // Warm background surface
+            WarmBackground()
+                .ignoresSafeArea()
+
             // Layer 1: ScrollView with blocks — fills screen, under safe area
-            if selectedTab == .tower {
-                towerContent(colW: colW, topInset: collapsedHeaderHeight,
-                             safeAreaTop: safeTop, viewportHeight: geo.size.height)
-                    .ignoresSafeArea(.container, edges: .top)
+            towerContent(colW: colW, topInset: collapsedHeaderHeight,
+                         safeAreaTop: safeTop, viewportHeight: geo.size.height)
+                .ignoresSafeArea(.container, edges: .top)
 
-                // Layer 2: Sticky header — outside ScrollView, pinned to top
-                StrataHeaderView(
-                    month: dominantMonth,
-                    day: dominantDay,
-                    isScrolled: isScrolled,
-                    onPlusTap: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            injectDebugBlock()
-                        }
-                    }
-                )
-            } else {
-                Text("Coming soon")
-                    .font(Typography.headerLarge)
-                    .foregroundStyle(.secondary)
+            // MARK: - Header & new habit menu hidden for Figma redesign
+            // Floating + button for debug block injection
+            #if DEBUG
+            Button(action: { injectDebugBlock() }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, safeTop + 12)
+            .padding(.trailing, hPad)
+            #endif
 
-            // Layer 2: Timeline pull-up sheet
-            TimelineSheetView(
-                isExpanded: $isTimelineExpanded,
-                weekData: weekData,
-                timelineContent: AnyView(timelineScrollView),
-                screenHeight: geo.size.height
-            )
-
-            // Layer 4: Liquid glass footer — always visible
-            VStack {
-                Spacer()
-                BottomBarView(
-                    selectedTab: $selectedTab,
-                    onHandleTap: {
-                        withAnimation(.interactiveSpring(response: 0.4, dampingFraction: 0.85)) {
-                            isTimelineExpanded.toggle()
-                        }
-                    }
-                )
-            }
-            .ignoresSafeArea(.container, edges: .bottom)
-
-            // Layer 5: New habit menu (anchored top-right below header)
-            if isNewHabitMenuOpen {
-                Color.black.opacity(0.001)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            isNewHabitMenuOpen = false
-                        }
-                    }
-
-                NewHabitMenu(
-                    isPresented: $isNewHabitMenuOpen,
-                    modelContext: modelContext,
-                    onCreated: {
-                        refreshData()
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                            isTimelineExpanded = true
-                        }
-                    },
-                    prefillTime: newHabitPrefillTime
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.top, safeTop + collapsedHeaderHeight + 8)
-                .padding(.trailing, hPad)
-                .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
-                .zIndex(200)
-            }
+//            StrataHeaderView(
+//                month: dominantMonth,
+//                day: dominantDay,
+//                isScrolled: isScrolled,
+//                gridWidth: gridW,
+//                onPlusTap: {
+//                    #if DEBUG
+//                    injectDebugBlock()
+//                    #endif
+//                }
+//            )
+//
+//            if isNewHabitMenuOpen {
+//                Color.black.opacity(0.001)
+//                    .ignoresSafeArea()
+//                    .onTapGesture {
+//                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+//                            isNewHabitMenuOpen = false
+//                        }
+//                    }
+//
+//                NewHabitMenu(
+//                    isPresented: $isNewHabitMenuOpen,
+//                    modelContext: modelContext,
+//                    onCreated: {
+//                        refreshData()
+//                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+//                            selectedDetent = SheetContentView.largeDetent
+//                        }
+//                    },
+//                    prefillTime: newHabitPrefillTime
+//                )
+//                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+//                .padding(.top, safeTop + collapsedHeaderHeight + 8)
+//                .padding(.trailing, hPad)
+//                .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
+//                .zIndex(200)
+//            }
         }
-        .onChange(of: isTimelineExpanded) { _, expanded in
-            if expanded {
+        .onChange(of: selectedDetent) { oldDetent, newDetent in
+            if newDetent != SheetContentView.smallDetent {
                 scrollToTopTrigger += 1
             }
-            if !expanded && !pendingDrops.isEmpty {
+            if oldDetent == SheetContentView.largeDetent
+                && newDetent != SheetContentView.largeDetent
+                && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
             }
         }
@@ -209,6 +228,11 @@ struct MainAppView: View {
             currentColW = colW
         }
         .onChange(of: geo.size.height) { _, h in screenHeight = h }
+        .onChange(of: geo.size.width) { _, w in
+            currentColW = floor(
+                (w - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+            )
+        }
     }
 
     // MARK: - Dominant Date (Split-Flap)
@@ -220,7 +244,7 @@ struct MainAppView: View {
         guard rowCount > 0, currentColW > 0, screenHeight > 0 else { return Date() }
 
         let cellStride = currentColW + spacing
-        let gridH = CGFloat(rowCount) * currentColW + CGFloat(rowCount - 1) * spacing
+        let _ = CGFloat(rowCount) * currentColW + CGFloat(rowCount - 1) * spacing
 
         let contentTopY = towerScrollOffset
         let viewTop = collapsedHeaderHeight + 20
@@ -233,8 +257,8 @@ struct MainAppView: View {
         let visibleTopInGrid = visibleTopInContent - internalTopPad
         let visibleBottomInGrid = visibleBottomInContent - internalTopPad
 
-        let topGridRow = max(0, Int((gridH - visibleBottomInGrid) / cellStride))
-        let bottomGridRow = min(rowCount - 1, Int((gridH - visibleTopInGrid) / cellStride))
+        let topGridRow = max(0, rowCount - 1 - Int(visibleBottomInGrid / cellStride))
+        let bottomGridRow = min(rowCount - 1, rowCount - 1 - Int(visibleTopInGrid / cellStride))
 
         let visibleBlocks = towerVM.placedBlocks.filter { block in
             block.row >= topGridRow && block.row <= bottomGridRow
@@ -311,147 +335,38 @@ struct MainAppView: View {
     private func setup() {
         timelineVM.modelContext = modelContext
         habitManagerVM.modelContext = modelContext
+        animCoord.reduceMotion = reduceMotion
+        animCoord.lookupMass = { [towerVM] id in
+            towerVM.placedBlocks.first(where: { $0.id == id })?.habit.blockSize.massTier
+        }
+        animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
+            animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
+        }
+        if !reduceMotion {
+            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                towerSwayPhase = true
+            }
+        }
         refreshData()
     }
 
-    private func refreshData() {
+    @discardableResult
+    private func refreshData() -> Set<UUID> {
         timelineVM.loadToday(habits: habits, logs: logs)
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        let droppedIDs: Set<UUID> = withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             towerVM.buildTower(from: logs)
         }
         weekCompletedDates = Set(logs.filter { $0.completed }.map { $0.dateString })
+        recomputeIncompleteTimeline()
 
         // Purge stale animation state
         let validIDs = Set(towerVM.placedBlocks.map(\.id))
-        dropPhases = dropPhases.filter { validIDs.contains($0.key) }
-        rippleIntensity = rippleIntensity.filter { validIDs.contains($0.key) }
-        ripplingBlockIDs = ripplingBlockIDs.intersection(validIDs)
+        animCoord.purgeStaleState(validIDs: validIDs)
+        return droppedIDs
     }
 
-    private func triggerDropAnimation() {
-        let newIDs = towerVM.newlyDroppedIDs
-        guard !newIDs.isEmpty else { return }
-
-        // Determine mass tier from the landed block
-        let mass: Int
-        if let landedID = newIDs.first,
-           let block = towerVM.placedBlocks.first(where: { $0.id == landedID }) {
-            mass = block.habit.blockSize.massTier
-        } else {
-            mass = 1
-        }
-        landedMassTier = mass
-
-        // Mass-variable fall duration
-        let fallDuration: Double = switch mass {
-        case 1: 0.35
-        case 2: 0.45
-        default: 0.6
-        }
-
-        // Mass-variable settle spring
-        let settleResponse: Double = switch mass {
-        case 1: 0.3
-        case 2: 0.45
-        default: 0.6
-        }
-        let settleDamping: Double = switch mass {
-        case 1: 0.6
-        case 2: 0.7
-        default: 0.8
-        }
-
-        // Phase 1: Set blocks to falling (offset -600)
-        for id in newIDs {
-            dropPhases[id] = .falling
-        }
-
-        // Phase 1→2: Animate the fall — heavier = slower
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            withAnimation(.easeIn(duration: fallDuration)) {
-                for id in newIDs {
-                    dropPhases[id] = .impact
-                }
-            }
-        }
-
-        // Phase 2: Impact — mass-variable haptic + ripple + compression
-        let impactTime = 0.02 + fallDuration
-        DispatchQueue.main.asyncAfter(deadline: .now() + impactTime) {
-            // Fire mass-appropriate haptic
-            HapticsEngine.thud(mass: mass)
-
-            if let landedID = newIDs.first {
-                triggerRipple(from: landedID, massTier: mass)
-            }
-
-            // Tower compression spring
-            withAnimation(.spring(response: 0.12, dampingFraction: 0.3)) {
-                towerCompressionY = 0.995 - 0.002 * CGFloat(mass)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                    towerCompressionY = 1.0
-                }
-            }
-        }
-
-        // Phase 3: Settle — heavier blocks settle slower with more momentum
-        DispatchQueue.main.asyncAfter(deadline: .now() + impactTime + 0.08) {
-            withAnimation(.spring(response: settleResponse, dampingFraction: settleDamping)) {
-                for id in newIDs {
-                    dropPhases.removeValue(forKey: id)
-                }
-            }
-        }
-    }
-
-    // MARK: - Kinetic Ripple
-
-    private func triggerRipple(from landedID: UUID, massTier: Int) {
-        guard let landedBlock = towerVM.placedBlocks.first(where: { $0.id == landedID }) else { return }
-        let landedRow = landedBlock.row
-
-        let massMultiplier = CGFloat(massTier)
-
-        // Only ripple the nearest 2 tiers to limit timer/state explosion
-        let blocksBelow = towerVM.placedBlocks.filter { block in
-            block.id != landedID && block.row < landedRow && (landedRow - block.row) <= 2
-        }
-
-        guard !blocksBelow.isEmpty else { return }
-
-        var tiers: [Int: [PlacedBlock]] = [:]
-        for block in blocksBelow {
-            let distance = landedRow - block.row
-            tiers[distance, default: []].append(block)
-        }
-
-        for (distance, tierBlocks) in tiers {
-            let delay = Double(distance) * 0.05
-            let intensity = massMultiplier / max(1, CGFloat(distance) * 0.5)
-            let tierIDs = tierBlocks.map(\.id)
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                // Batch: single state mutation for the whole tier
-                for id in tierIDs {
-                    self.rippleIntensity[id] = intensity
-                }
-                withAnimation(.spring(response: 0.10, dampingFraction: 0.3)) {
-                    self.ripplingBlockIDs.formUnion(tierIDs)
-                }
-
-                // Rebound
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) {
-                        for id in tierIDs {
-                            self.ripplingBlockIDs.remove(id)
-                            self.rippleIntensity.removeValue(forKey: id)
-                        }
-                    }
-                }
-            }
-        }
+    private func enqueueDrop(blockIDs: Set<UUID>) {
+        animCoord.enqueueDrop(blockIDs: blockIDs)
     }
 
     // MARK: - Time-Scaled Timeline
@@ -478,13 +393,13 @@ struct MainAppView: View {
                         HStack(spacing: 0) {
                             Text(formatHour(hour))
                                 .font(Typography.caption2)
-                                .foregroundStyle(Color.primary.opacity(0.6))
+                                .foregroundStyle(Color.primary.opacity(0.4))
                                 .frame(width: gutterWidth, alignment: .trailing)
-                                .padding(.trailing, 12)
+                                .padding(.trailing, 8)
 
                             Rectangle()
-                                .fill(Color.primary.opacity(0.08))
-                                .frame(height: 0.5)
+                                .fill(Color.primary.opacity(0.05))
+                                .frame(height: 0.33)
                         }
                         .id(hour)
                         .offset(y: y - 6)
@@ -492,6 +407,15 @@ struct MainAppView: View {
 
                     // Task blocks — duration-sized, time-positioned, sorted chronologically
                     let sortedTimeline = incompleteForTimeline
+
+                    if sortedTimeline.isEmpty {
+                        Text("No habits scheduled")
+                            .font(Typography.bodyMedium)
+                            .foregroundStyle(Color.primary.opacity(0.3))
+                            .frame(maxWidth: .infinity)
+                            .offset(y: CGFloat(currentHourAnchor - timelineStartHour) * 60.0 * effectiveScale - 20)
+                    }
+
                     ForEach(Array(sortedTimeline.enumerated()), id: \.element.id) { idx, habit in
                         let minutesFromStart = minutesFromStartOfDay(for: habit)
                         let y = minutesFromStart * effectiveScale
@@ -585,9 +509,10 @@ struct MainAppView: View {
             .onAppear {
                 proxy.scrollTo("NowLine", anchor: .center)
             }
-            .onChange(of: isTimelineExpanded) { _, expanded in
-                if expanded {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            .onChange(of: selectedDetent) { _, newDetent in
+                if newDetent == SheetContentView.largeDetent {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 100_000_000)
                         withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo("NowLine", anchor: .center)
                         }
@@ -597,11 +522,13 @@ struct MainAppView: View {
         }
     }
 
-    private var incompleteForTimeline: [Habit] {
+    private var incompleteForTimeline: [Habit] { cachedIncompleteForTimeline }
+
+    private func recomputeIncompleteTimeline() {
         let completedIDs = Set(timelineVM.completedToday.compactMap { $0.habit?.id })
         let pendingIDs = Set(pendingDrops.map(\.id))
         let skippedIDs = timelineVM.skippedHabitIDs
-        return timelineVM.todaysHabits.filter { habit in
+        cachedIncompleteForTimeline = timelineVM.todaysHabits.filter { habit in
             !completedIDs.contains(habit.id) && !pendingIDs.contains(habit.id) && !skippedIDs.contains(habit.id)
         }
         .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
@@ -615,6 +542,8 @@ struct MainAppView: View {
         let totalMinutes = CGFloat((hour - timelineStartHour) * 60 + minute)
         let y = totalMinutes * effectiveScale
 
+        let warmRed = Color(hex: 0xE85D4A)
+
         return HStack(spacing: 0) {
             Text("")
                 .font(Typography.caption2)
@@ -622,15 +551,15 @@ struct MainAppView: View {
                 .padding(.trailing, 8)
 
             Circle()
-                .fill(Color.red)
-                .frame(width: 8, height: 8)
+                .fill(warmRed)
+                .frame(width: 6, height: 6)
 
             Rectangle()
-                .fill(Color.red)
-                .frame(height: 1.5)
+                .fill(warmRed)
+                .frame(height: 1.0)
         }
-        .frame(height: 8)
-        .offset(y: y - 4)
+        .frame(height: 6)
+        .offset(y: y - 3)
     }
 
     // MARK: - Timeline Helpers
@@ -667,42 +596,24 @@ struct MainAppView: View {
     private func cascadeDropPendingBlocks() async {
         let habits = pendingDrops
         pendingDrops = []
-        isCascading = true
+        animCoord.isCascading = true
 
-        // Jump to the top of the tower so the user sees the drops land
         scrollToTopTrigger += 1
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s scroll settle
 
-        // Small delay to let the scroll settle before blocks start falling
-        try? await Task.sleep(nanoseconds: 200_000_000)
-
-        // Drop each block sequentially with a staggered delay
         for (index, habit) in habits.enumerated() {
             timelineVM.completeHabit(habit)
-            refreshData()
-            triggerDropAnimation()
-
+            let droppedIDs = refreshData()
             HapticsEngine.cascade(index: index)
-
-            // Follow the newly dropped block so the view stays locked to the action
-            if let droppedID = towerVM.newlyDroppedIDs.first {
+            if let droppedID = droppedIDs.first {
                 scrollToDropID = droppedID
             }
-
-            // Brief delay between scroll and next drop for smooth tracking
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s scroll settle
-            scrollToTopTrigger += 1
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s between drops
+            enqueueDrop(blockIDs: droppedIDs)
         }
-
-        isCascading = false
+        // animCoord.isCascading cleared by drain loop when it finishes
     }
 
     // MARK: - Tower Content
-
-    /// Flips a grid-space frame so row 0 is at the visual bottom.
-    private func flippedY(for f: CGRect, gridH: CGFloat) -> CGFloat {
-        gridH - f.minY - f.height
-    }
 
     private func towerContent(colW: CGFloat, topInset: CGFloat,
                               safeAreaTop: CGFloat,
@@ -724,37 +635,42 @@ struct MainAppView: View {
                         Color.clear
                             .frame(width: gridW, height: max(gridH, viewportHeight - topInset - 48))
 
-                        ForEach(towerVM.placedBlocks) { block in
+                        let visibleBlocks = visibleTowerBlocks(
+                            colW: colW, gridH: gridH,
+                            viewportHeight: viewportHeight, topInset: topInset
+                        )
+                        ForEach(visibleBlocks) { block in
                             let f = GridConstants.blockFrame(
                                 column: block.column, row: block.row,
                                 columnSpan: block.columnSpan, rowSpan: block.rowSpan,
                                 cellSize: colW
                             )
-                            let phase = dropPhases[block.id]
+                            let phase = animCoord.dropPhases[block.id]
                             let isAnimating = phase != nil
                             let isNew = isAnimating || towerVM.newlyDroppedIDs.contains(block.id)
 
-                            animatedBlock(block: block, frame: f, phase: phase, isNew: isNew)
+                            animatedBlock(block: block, frame: f, phase: phase, isNew: isNew,
+                                         gridH: gridH, safeAreaTop: safeAreaTop)
                                 .id(block.id)
-                                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
+                                .offset(x: f.minX, y: gridH - f.maxY)
                                 .zIndex(isAnimating ? 100 : Double(block.row + 1))
                         }
                     }
-                    .scaleEffect(y: towerCompressionY, anchor: .bottom)
                     .padding(.horizontal, hPad)
                     .padding(.top, safeAreaTop + collapsedHeaderHeight + 20)
                 }
                 .scrollBounceBehavior(.basedOnSize)
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: bottomBarHeight + 16)
-                }
-                .scrollDisabled(isCascading)
-                .defaultScrollAnchor(.bottom)
+                .scrollClipDisabled(true)
+                // Scroll stays enabled during cascade — animations work independently
                 .onScrollGeometryChange(for: CGFloat.self) { geo in
                     geo.contentOffset.y
-                } action: { _, newOffset in
+                } action: { oldOffset, newOffset in
                     towerScrollOffset = newOffset
-                    isScrolled = newOffset > 0
+                    let wasScrolled = oldOffset > 0
+                    let nowScrolled = newOffset > 0
+                    if wasScrolled != nowScrolled {
+                        isScrolled = nowScrolled
+                    }
                 }
                 .onChange(of: scrollToDropID) {
                     if let id = scrollToDropID {
@@ -779,7 +695,7 @@ struct MainAppView: View {
                 heightMeters: towerVM.altimeterHeight,
                 topInset: 44,
                 onScrub: { fraction in
-                    let targetRow = Int(fraction * CGFloat(max(1, towerVM.totalRows)))
+                    let targetRow = Int((1.0 - fraction) * CGFloat(max(1, towerVM.totalRows)))
                     if let block = towerVM.placedBlocks.first(where: { $0.row >= targetRow }) {
                         scrollToDropID = block.id
                     }
@@ -789,6 +705,38 @@ struct MainAppView: View {
             .scaleEffect(towerVM.totalRows > 0 ? 1 : 0.8)
             .animation(.easeOut(duration: 0.3), value: towerVM.totalRows > 0)
             .padding(.trailing, 12)
+        }
+        .safeAreaInset(edge: .bottom) {
+            // Fixed bottom inset while sheet is hidden for Figma redesign
+            Color.clear.frame(height: 20)
+        }
+    }
+
+    // MARK: - Visible Block Culling
+
+    private func visibleTowerBlocks(
+        colW: CGFloat, gridH: CGFloat,
+        viewportHeight: CGFloat, topInset: CGFloat
+    ) -> [PlacedBlock] {
+        let blocks = towerVM.placedBlocks
+        // For small towers, render everything
+        guard blocks.count > 80 else { return blocks }
+
+        let cellStride = colW + spacing
+        guard cellStride > 0 else { return blocks }
+
+        // Visible content range in grid coordinates
+        let visibleTop = -towerScrollOffset - topInset - 200 // buffer
+        let visibleBottom = -towerScrollOffset + viewportHeight + 200
+
+        return blocks.filter { block in
+            // Blocks currently animating must always render
+            if animCoord.dropPhases[block.id] != nil || towerVM.newlyDroppedIDs.contains(block.id) {
+                return true
+            }
+            let blockY = gridH - CGFloat(block.row + block.rowSpan) * cellStride
+            let blockBottom = gridH - CGFloat(block.row) * cellStride
+            return blockBottom >= visibleTop && blockY <= visibleBottom
         }
     }
 
@@ -809,24 +757,63 @@ struct MainAppView: View {
     private func animatedBlock(
         block: PlacedBlock,
         frame f: CGRect,
-        phase: DropPhase?,
-        isNew: Bool
+        phase: TowerAnimationCoordinator.DropPhase?,
+        isNew: Bool,
+        gridH: CGFloat = 0,
+        safeAreaTop: CGFloat = 0
     ) -> some View {
+        let mass = CGFloat(block.habit.blockSize.massTier)
+
         let dropOffset: CGFloat = switch phase {
-        case .falling: -600
-        case .impact: 4
-        case .none: 0
+        case .falling:
+            {
+                let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
+                let blockInScrollContent = paddingTop + (gridH - f.maxY)
+                let dynamicOffset = towerScrollOffset - blockInScrollContent - f.height - 60
+                return min(dynamicOffset, -400)
+            }()
+        case .squash, .stretch, .wobble: CGFloat(0)
+        case .none: CGFloat(0)
         }
 
-        let impactMass = CGFloat(block.habit.blockSize.massTier)
-        let impactScaleX: CGFloat = phase == .impact ? 1.0 + 0.01 * impactMass : 1.0
-        let impactScaleY: CGFloat = phase == .impact ? 1.0 - 0.015 * impactMass : 1.0
+        // Volume-preserving squash-and-stretch (energy-proportional: quadratic in mass)
+        let (impactScaleX, impactScaleY): (CGFloat, CGFloat) = switch phase {
+        case .squash:
+            (1.0 + GridConstants.squashScaleX(mass: mass),
+             1.0 - GridConstants.squashScaleY(mass: mass))
+        case .stretch:
+            (1.0 - GridConstants.stretchScaleX(mass: mass),
+             1.0 + GridConstants.stretchScaleY(mass: mass))
+        default:
+            (1.0, 1.0)
+        }
 
-        let isRippling = ripplingBlockIDs.contains(block.id)
-        let ri = rippleIntensity[block.id] ?? 1.0
-        let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.02 * ri : 1.0
-        let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.06 * ri : 1.0
-        let rippleOffsetY: CGFloat = isRippling ? 2 * ri : 0
+        // Wobble rotation on settle
+        let wobbleDegrees: Double = switch phase {
+        case .wobble:
+            mass >= 2 ? GridConstants.wobbleDegreesHeavy : GridConstants.wobbleDegreesLight
+        default:
+            0
+        }
+
+        // Landing flash on squash impact
+        let flashBrightness: Double = phase == .squash ? 0.06 : 0
+
+        // Phase-aware shadow during drop
+        let (dropShadowRadius, dropShadowY): (CGFloat, CGFloat) = switch phase {
+        case .falling: (12, 8)
+        case .squash: (1, 0.5)
+        case .stretch: (3, 1.5)
+        case .wobble: (4, 2)
+        case .none: (0, 0)
+        }
+
+        // Ripple: volume-preserving compress
+        let isRippling = animCoord.ripplingBlockIDs.contains(block.id)
+        let ri = animCoord.rippleIntensity[block.id] ?? 1.0
+        let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.020 * ri : 1.0
+        let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.035 * ri : 1.0
+        let rippleOffsetY: CGFloat = isRippling ? 1.5 * ri : 0
 
         return ZStack {
             if isNew {
@@ -835,10 +822,23 @@ struct MainAppView: View {
 
             completedBlock(block: block, frame: f)
                 .scaleEffect(x: impactScaleX, y: impactScaleY, anchor: .bottom)
+                .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
+                .brightness(flashBrightness)
+                .shadow(
+                    color: phase != nil ? .black.opacity(0.12) : .clear,
+                    radius: dropShadowRadius,
+                    x: 0,
+                    y: dropShadowY
+                )
                 .offset(y: dropOffset)
         }
         .scaleEffect(x: rippleScaleX, y: rippleScaleY, anchor: .bottom)
         .offset(y: rippleOffsetY)
+        // Idle micro-sway — alive feel when not animating
+        .rotationEffect(
+            .degrees((!reduceMotion && phase == nil && towerSwayPhase) ? 0.12 : ((!reduceMotion && phase == nil) ? -0.12 : 0)),
+            anchor: .bottom
+        )
     }
 
     // MARK: - Live Completed Block
@@ -854,7 +854,6 @@ struct MainAppView: View {
                 width: isExpanded ? expandedW : frame.width,
                 height: isExpanded ? expandedH : frame.height,
                 cornerRadius: isExpanded ? 16 : cornerRadius,
-                exposedSegments: towerVM.exposedSegments(for: block),
                 modelContext: modelContext,
                 onExpandPhoto: { _ in
                     if isExpanded {
@@ -927,17 +926,18 @@ struct MainAppView: View {
 
     private func handleComplete(_ habit: Habit) {
         timelineVM.completeHabit(habit)
-        refreshData()
-        triggerDropAnimation()
+        let droppedIDs = refreshData()
+        enqueueDrop(blockIDs: droppedIDs)
     }
 
     /// Stash a completed habit: play curved arc animation toward date pill, then queue for cascade.
     private func stashAndQueueDrop(_ habit: Habit) {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+        _ = withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             stashedHabitIDs.insert(habit.id)
         }
         // After arc animation finishes, move to pending drops
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
             stashedHabitIDs.remove(habit.id)
             pendingDrops.append(habit)
         }
@@ -951,6 +951,7 @@ struct MainAppView: View {
 
     // MARK: - Debug Block Injection (temporary)
 
+    #if DEBUG
     private func injectDebugBlock() {
         let sizes: [BlockSize] = [.small, .medium, .hard]
         let categories: [HabitCategory] = HabitCategory.allCases
@@ -969,9 +970,10 @@ struct MainAppView: View {
         modelContext.insert(log)
 
         try? modelContext.save()
-        refreshData()
-        triggerDropAnimation()
+        let droppedIDs = refreshData()
+        enqueueDrop(blockIDs: droppedIDs)
     }
+    #endif
 
     private func resetTower() {
         for log in logs { modelContext.delete(log) }
@@ -994,6 +996,20 @@ struct MainAppView: View {
         return towerVM.placedBlocks.filter { block in
             block.log.dateString == dateStr && block.log.imageData != nil
         }
+    }
+}
+
+// MARK: - Warm Background
+
+private struct WarmBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Rectangle().fill(
+            colorScheme == .dark
+                ? Color(red: 0.08, green: 0.08, blue: 0.085)
+                : Color(red: 0.98, green: 0.975, blue: 0.965)
+        )
     }
 }
 

@@ -34,9 +34,6 @@ final class TowerViewModel {
     private(set) var placedBlocks: [PlacedBlock] = []
     private(set) var incompleteBlocks: [PlacedIncompleteBlock] = []
     private(set) var totalRows: Int = 0
-    /// Per-block exposure: maps block ID → set of absolute column indices exposed to sky
-    private(set) var blockExposure: [UUID: Set<Int>] = [:]
-
     // Cascade drop tracking
     private(set) var newlyDroppedIDs: Set<UUID> = []
     private var previousBlockIDs: Set<UUID> = []
@@ -54,7 +51,8 @@ final class TowerViewModel {
 
     // MARK: - Build Unified Grid
 
-    func buildTower(from logs: [HabitLog]) {
+    @discardableResult
+    func buildTower(from logs: [HabitLog]) -> Set<UUID> {
         // Boolean grid matrix: grid[row][col] = true means occupied
         var grid = [[Bool]]()
 
@@ -90,9 +88,6 @@ final class TowerViewModel {
         placedBlocks = placed
         incompleteBlocks = []
 
-        // Compute per-column sky exposure
-        blockExposure = computeExposure(placed: placed, grid: grid)
-
         totalRows = grid.count
 
         // Clear the dropped set after animation window
@@ -103,50 +98,17 @@ final class TowerViewModel {
                 self.newlyDroppedIDs.subtract(droppedCopy)
             }
         }
+
+        return newlyDroppedIDs
     }
 
     func staggerDelay(for block: PlacedBlock) -> Double {
         guard newlyDroppedIDs.contains(block.id) else { return 0 }
         let sortedNew = placedBlocks
             .filter { newlyDroppedIDs.contains($0.id) }
-            .sorted { $0.row < $1.row }
+            .sorted { $0.row > $1.row }
         guard let index = sortedNew.firstIndex(where: { $0.id == block.id }) else { return 0 }
         return Double(index) * 0.05
-    }
-
-    /// Returns a per-segment boolean array for a block's columns.
-    /// A 1-column block gets [Bool]; a 2-column block gets [Bool, Bool], etc.
-    func exposedSegments(for block: PlacedBlock) -> [Bool] {
-        let exposedCols = blockExposure[block.id] ?? []
-        return (0..<block.columnSpan).map { offset in
-            exposedCols.contains(block.column + offset)
-        }
-    }
-
-    // MARK: - Sky Exposure Detection
-
-    /// Per-column exposure: for each block, which of its columns have open sky above.
-    private func computeExposure(
-        placed: [PlacedBlock],
-        grid: [[Bool]]
-    ) -> [UUID: Set<Int>] {
-        var result: [UUID: Set<Int>] = [:]
-
-        for block in placed {
-            let topRow = block.row + block.rowSpan
-            var exposedCols = Set<Int>()
-
-            for c in block.column..<(block.column + block.columnSpan) {
-                if topRow >= grid.count || !grid[topRow][c] {
-                    exposedCols.insert(c)
-                }
-            }
-
-            if !exposedCols.isEmpty {
-                result[block.id] = exposedCols
-            }
-        }
-        return result
     }
 
     // MARK: - Boolean Grid Matrix Packing

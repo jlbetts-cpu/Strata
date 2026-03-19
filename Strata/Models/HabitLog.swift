@@ -20,6 +20,7 @@ final class HabitLog {
     var pendingXP: Int?
     var xpCollected: Bool
     var isBonusBlock: Bool
+    var skipped: Bool = false
 
     init(
         habit: Habit,
@@ -36,6 +37,7 @@ final class HabitLog {
         self.surgeMode = false
         self.xpCollected = false
         self.isBonusBlock = false
+        self.skipped = false
     }
 
     func markCompleted() {
