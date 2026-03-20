@@ -56,7 +56,7 @@ final class TowerAnimationCoordinator {
 
         Task { @MainActor in
             for (distance, tierBlocks) in tiers {
-                let delay = Double(distance) * 0.05
+                let delay = Double(distance) * 0.03
                 let intensity = massMultiplier / (1.0 + pow(CGFloat(distance), 1.5))
                 let tierIDs = tierBlocks.map(\.id)
 
@@ -69,7 +69,7 @@ final class TowerAnimationCoordinator {
                     self.ripplingBlockIDs.formUnion(tierIDs)
                 }
 
-                try? await Task.sleep(nanoseconds: 120_000_000)
+                try? await Task.sleep(nanoseconds: 80_000_000)
                 withAnimation(GridConstants.rippleReleaseSpring) {
                     for id in tierIDs {
                         self.ripplingBlockIDs.remove(id)
@@ -122,7 +122,7 @@ final class TowerAnimationCoordinator {
         // Phase 1: Falling
         for id in blockIDs { dropPhases[id] = .falling }
 
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        try? await Task.sleep(nanoseconds: 8_000_000)
         let curve: Animation = switch mass {
         case 1: .timingCurve(0.36, 0, 1, 1, duration: fallDuration)
         case 2: .timingCurve(0.42, 0, 1, 1, duration: fallDuration)
@@ -142,7 +142,7 @@ final class TowerAnimationCoordinator {
 
         // Phase 2: Squash → Stretch — mass-dependent dwell (heavier = lingers in compression)
         let squashDwell: UInt64 = switch mass {
-        case 1: 40_000_000; case 2: 70_000_000; default: 110_000_000
+        case 1: 60_000_000; case 2: 100_000_000; default: 150_000_000
         }
         try? await Task.sleep(nanoseconds: squashDwell)
         withAnimation(GridConstants.dropStretchSpring) {
@@ -167,7 +167,7 @@ final class TowerAnimationCoordinator {
             for id in blockIDs { dropPhases.removeValue(forKey: id) }
         }
 
-        try? await Task.sleep(nanoseconds: 400_000_000)
+        try? await Task.sleep(nanoseconds: 250_000_000)
     }
 
     /// Callback to look up a block's mass tier by ID. Set by the view.

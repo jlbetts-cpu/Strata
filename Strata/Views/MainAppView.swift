@@ -9,24 +9,25 @@ struct MainAppView: View {
 
     init() {
         let calendar = Calendar.current
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        let weekStartString = TimelineViewModel.dateString(from: startOfWeek)
+        let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let monthStartString = TimelineViewModel.dateString(from: startOfMonth)
         _logs = Query(filter: #Predicate<HabitLog> { log in
-            log.dateString >= weekStartString
+            log.dateString >= monthStartString
         })
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var hasLoadedDemo = false
-    @State private var selectedDetent: PresentationDetent = SheetContentView.smallDetent
-    @State private var selectedTab: Int = 0
+    @State private var selectedTab: StrataTab = .tower
     @State private var hapticLightTrigger = 0
     @State private var hapticMediumTrigger = 0
     @State private var hapticHeavyTrigger = 0
 
+    @State private var towerFilterMode: TowerFilterMode = .day
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerSwayPhase: Bool = false
 
@@ -81,45 +82,60 @@ struct MainAppView: View {
     private let spacing: CGFloat = GridConstants.spacing
     private let columns = GridConstants.columnCount
     private let cornerRadius: CGFloat = GridConstants.cornerRadius
-    private let collapsedHeaderHeight: CGFloat = 74
+    private let collapsedHeaderHeight: CGFloat = 110
+
+    private var filteredLogs: [HabitLog] {
+        let calendar = Calendar.current
+        let now = Date()
+        switch towerFilterMode {
+        case .day:
+            let todayStr = TimelineViewModel.dateString(from: now)
+            return logs.filter { $0.dateString == todayStr }
+        case .week:
+            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+            let weekStartStr = TimelineViewModel.dateString(from: startOfWeek)
+            return logs.filter { $0.dateString >= weekStartStr }
+        case .month:
+            return Array(logs) // Already filtered to current month by @Query
+        }
+    }
 
     var body: some View {
-        Group {
-            switch selectedTab {
-            case 0:
-                GeometryReader { geo in
-                    towerTabContent(geo: geo)
+        ZStack(alignment: .bottom) {
+            // Tab content
+            Group {
+                switch selectedTab {
+                case .tower:
+                    GeometryReader { geo in
+                        towerTabContent(geo: geo)
+                    }
+                case .timeline:
+                    timelineTabContent
                 }
-            case 1:
-                Text("Coming soon")
-                    .font(Typography.headerLarge)
-                    .foregroundStyle(.secondary)
-            case 2:
-                Text("Coming soon")
-                    .font(Typography.headerLarge)
-                    .foregroundStyle(.secondary)
-            default:
-                EmptyView()
+            }
+
+            // Custom bottom bar
+            FloatingBottomBar(
+                selectedTab: $selectedTab,
+                filterMode: $towerFilterMode,
+                isCollapsed: $isScrolled,
+                onAdd: { isNewHabitMenuOpen = true }
+            )
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab == .tower && !pendingDrops.isEmpty {
+                Task { await cascadeDropPendingBlocks() }
             }
         }
-        // MARK: - Sheet hidden for Figma redesign
-//        .sheet(isPresented: .constant(true)) {
-//            SheetContentView(
-//                selectedDetent: $selectedDetent,
-//                selectedTab: $selectedTab,
-//                weekData: weekData,
-//                timelineContent: AnyView(timelineScrollView)
-//            )
-//            .presentationDetents(
-//                [SheetContentView.smallDetent, SheetContentView.mediumDetent, SheetContentView.largeDetent],
-//                selection: $selectedDetent
-//            )
-//            .presentationDragIndicator(.hidden)
-//            .presentationBackgroundInteraction(.enabled(upThrough: SheetContentView.mediumDetent))
-//            .presentationCornerRadius(28)
-//            .presentationBackground(.clear)
-//            .interactiveDismissDisabled()
-//        }
+        .sheet(isPresented: $isNewHabitMenuOpen) {
+            NewHabitMenu(
+                isPresented: $isNewHabitMenuOpen,
+                modelContext: modelContext,
+                onCreated: { refreshData() },
+                prefillTime: newHabitPrefillTime
+            )
+            .presentationDetents([.medium])
+        }
         .fullScreenCover(isPresented: carouselPresented) {
             DailyStoryCarousel(
                 blocks: todaysPhotoBlocks,
@@ -135,6 +151,7 @@ struct MainAppView: View {
             animCoord.reduceMotion = newValue
         }
         .onChange(of: habits.count) { refreshData() }
+        .onChange(of: towerFilterMode) { refreshData() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
             refreshData()
         }
@@ -156,72 +173,38 @@ struct MainAppView: View {
 
             // Layer 1: ScrollView with blocks — fills screen, under safe area
             towerContent(colW: colW, topInset: collapsedHeaderHeight,
-                         safeAreaTop: safeTop, viewportHeight: geo.size.height)
+                         safeAreaTop: safeTop, safeAreaBottom: geo.safeAreaInsets.bottom,
+                         viewportHeight: geo.size.height)
+                .environment(\.towerFilterMode, towerFilterMode)
                 .ignoresSafeArea(.container, edges: .top)
 
-            // MARK: - Header & new habit menu hidden for Figma redesign
-            // Floating + button for debug block injection
             #if DEBUG
-            Button(action: { injectDebugBlock() }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: Circle())
+            HStack(spacing: 8) {
+                Button(action: { removeLastDebugBlock() }) {
+                    Image(systemName: "minus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                Button(action: { injectDebugBlock() }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding(.top, safeTop + 12)
             .padding(.trailing, hPad)
             #endif
 
-//            StrataHeaderView(
-//                month: dominantMonth,
-//                day: dominantDay,
-//                isScrolled: isScrolled,
-//                gridWidth: gridW,
-//                onPlusTap: {
-//                    #if DEBUG
-//                    injectDebugBlock()
-//                    #endif
-//                }
-//            )
-//
-//            if isNewHabitMenuOpen {
-//                Color.black.opacity(0.001)
-//                    .ignoresSafeArea()
-//                    .onTapGesture {
-//                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-//                            isNewHabitMenuOpen = false
-//                        }
-//                    }
-//
-//                NewHabitMenu(
-//                    isPresented: $isNewHabitMenuOpen,
-//                    modelContext: modelContext,
-//                    onCreated: {
-//                        refreshData()
-//                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-//                            selectedDetent = SheetContentView.largeDetent
-//                        }
-//                    },
-//                    prefillTime: newHabitPrefillTime
-//                )
-//                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-//                .padding(.top, safeTop + collapsedHeaderHeight + 8)
-//                .padding(.trailing, hPad)
-//                .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
-//                .zIndex(200)
-//            }
-        }
-        .onChange(of: selectedDetent) { oldDetent, newDetent in
-            if newDetent != SheetContentView.smallDetent {
-                scrollToTopTrigger += 1
-            }
-            if oldDetent == SheetContentView.largeDetent
-                && newDetent != SheetContentView.largeDetent
-                && !pendingDrops.isEmpty {
-                Task { await cascadeDropPendingBlocks() }
-            }
+            AltimeterPill(heightMeters: towerVM.altimeterHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, safeTop + 12)
+                .padding(.trailing, hPad)
+                .opacity(towerVM.totalRows > 0 ? 1 : 0)
         }
         .onAppear {
             screenHeight = geo.size.height
@@ -233,6 +216,71 @@ struct MainAppView: View {
                 (w - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns)
             )
         }
+    }
+
+    // MARK: - Timeline Tab
+
+    private var timelineTabContent: some View {
+        VStack(spacing: 0) {
+            weekProgressHeader
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+
+            Divider()
+
+            timelineScrollView
+        }
+        .background { WarmBackground().ignoresSafeArea() }
+    }
+
+    private var weekProgressHeader: some View {
+        let healthGreen = AppColors.healthGreen
+
+        return HStack(spacing: 0) {
+            ForEach(weekData) { day in
+                VStack(spacing: 6) {
+                    Text(day.dayLabel)
+                        .font(Typography.caption2)
+                        .foregroundStyle(
+                            day.isFuture ? Color.primary.opacity(0.25) : Color.primary.opacity(0.55)
+                        )
+
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                day.isFuture ? Color.primary.opacity(0.06) : Color.primary.opacity(0.08),
+                                lineWidth: 2.5
+                            )
+                            .frame(width: 36, height: 36)
+
+                        if !day.isFuture && day.completionRate > 0 {
+                            Circle()
+                                .trim(from: 0, to: day.completionRate)
+                                .stroke(
+                                    healthGreen,
+                                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                                )
+                                .frame(width: 36, height: 36)
+                                .rotationEffect(.degrees(-90))
+                        }
+
+                        if day.isToday {
+                            Circle()
+                                .fill(healthGreen.opacity(0.12))
+                                .frame(width: 32, height: 32)
+                        }
+
+                        Text("\(day.dayNumber)")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(
+                                day.isFuture ? Color.primary.opacity(0.4) : Color.primary
+                            )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.vertical, 8)
     }
 
     // MARK: - Dominant Date (Split-Flap)
@@ -354,7 +402,7 @@ struct MainAppView: View {
     private func refreshData() -> Set<UUID> {
         timelineVM.loadToday(habits: habits, logs: logs)
         let droppedIDs: Set<UUID> = withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            towerVM.buildTower(from: logs)
+            towerVM.buildTower(from: filteredLogs)
         }
         weekCompletedDates = Set(logs.filter { $0.completed }.map { $0.dateString })
         recomputeIncompleteTimeline()
@@ -451,7 +499,7 @@ struct MainAppView: View {
                         .opacity(isStashed ? 0 : 1)
                         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isStashed)
                         .shadow(
-                            color: isDragging ? Color.black.opacity(0.18) : .clear,
+                            color: isDragging ? Color.black.opacity(GridConstants.adaptiveShadowOpacity(0.18, colorScheme: colorScheme)) : .clear,
                             radius: isDragging ? 12 : 0, y: isDragging ? 4 : 0
                         )
                         .zIndex(isDragging ? 100 : Double(idx))
@@ -509,13 +557,10 @@ struct MainAppView: View {
             .onAppear {
                 proxy.scrollTo("NowLine", anchor: .center)
             }
-            .onChange(of: selectedDetent) { _, newDetent in
-                if newDetent == SheetContentView.largeDetent {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 100_000_000)
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("NowLine", anchor: .center)
-                        }
+            .onChange(of: selectedTab) { _, newTab in
+                if newTab == .timeline {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo("NowLine", anchor: .center)
                     }
                 }
             }
@@ -542,7 +587,7 @@ struct MainAppView: View {
         let totalMinutes = CGFloat((hour - timelineStartHour) * 60 + minute)
         let y = totalMinutes * effectiveScale
 
-        let warmRed = Color(hex: 0xE85D4A)
+        let warmRed = AppColors.warmRed
 
         return HStack(spacing: 0) {
             Text("")
@@ -616,99 +661,76 @@ struct MainAppView: View {
     // MARK: - Tower Content
 
     private func towerContent(colW: CGFloat, topInset: CGFloat,
-                              safeAreaTop: CGFloat,
+                              safeAreaTop: CGFloat, safeAreaBottom: CGFloat,
                               viewportHeight: CGFloat) -> some View {
         let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let rowCount = towerVM.totalRows
         let gridH = rowCount > 0
             ? CGFloat(rowCount) * colW + CGFloat(rowCount - 1) * spacing
             : 0
+        let footerClearance: CGFloat = isScrolled ? 62 : 74 // collapsed: 44 button + 12 pad + 6 gap; expanded: ~56 pill + 12 pad + 6 gap
+        let contentHeight = max(gridH, viewportHeight - topInset - 20 - footerClearance)
 
-        return ZStack(alignment: .trailing) {
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    ZStack(alignment: .topLeading) {
-                        // Top anchor for FAB scroll
-                        Color.clear.frame(height: 1)
-                            .id("TowerTop")
+        return ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                ZStack(alignment: .topLeading) {
+                    // Top anchor for FAB scroll
+                    Color.clear.frame(height: 1)
+                        .id("TowerTop")
 
-                        Color.clear
-                            .frame(width: gridW, height: max(gridH, viewportHeight - topInset - 48))
+                    Color.clear
+                        .frame(width: gridW, height: contentHeight)
 
-                        let visibleBlocks = visibleTowerBlocks(
-                            colW: colW, gridH: gridH,
-                            viewportHeight: viewportHeight, topInset: topInset
+                    let visibleBlocks = visibleTowerBlocks(
+                        colW: colW, gridH: contentHeight,
+                        viewportHeight: viewportHeight, topInset: topInset
+                    )
+                    ForEach(visibleBlocks) { block in
+                        let f = GridConstants.blockFrame(
+                            column: block.column, row: block.row,
+                            columnSpan: block.columnSpan, rowSpan: block.rowSpan,
+                            cellSize: colW
                         )
-                        ForEach(visibleBlocks) { block in
-                            let f = GridConstants.blockFrame(
-                                column: block.column, row: block.row,
-                                columnSpan: block.columnSpan, rowSpan: block.rowSpan,
-                                cellSize: colW
-                            )
-                            let phase = animCoord.dropPhases[block.id]
-                            let isAnimating = phase != nil
-                            let isNew = isAnimating || towerVM.newlyDroppedIDs.contains(block.id)
+                        let phase = animCoord.dropPhases[block.id]
+                        let isAnimating = phase != nil
+                        let isNew = isAnimating || towerVM.newlyDroppedIDs.contains(block.id)
 
-                            animatedBlock(block: block, frame: f, phase: phase, isNew: isNew,
-                                         gridH: gridH, safeAreaTop: safeAreaTop)
-                                .id(block.id)
-                                .offset(x: f.minX, y: gridH - f.maxY)
-                                .zIndex(isAnimating ? 100 : Double(block.row + 1))
-                        }
-                    }
-                    .padding(.horizontal, hPad)
-                    .padding(.top, safeAreaTop + collapsedHeaderHeight + 20)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollClipDisabled(true)
-                // Scroll stays enabled during cascade — animations work independently
-                .onScrollGeometryChange(for: CGFloat.self) { geo in
-                    geo.contentOffset.y
-                } action: { oldOffset, newOffset in
-                    towerScrollOffset = newOffset
-                    let wasScrolled = oldOffset > 0
-                    let nowScrolled = newOffset > 0
-                    if wasScrolled != nowScrolled {
-                        isScrolled = nowScrolled
+                        animatedBlock(block: block, frame: f, phase: phase, isNew: isNew,
+                                     gridH: contentHeight, safeAreaTop: safeAreaTop)
+                            .id(block.id)
+                            .offset(x: f.minX, y: contentHeight - f.maxY)
+                            .zIndex(isAnimating ? 100 : Double(block.row + 1))
                     }
                 }
-                .onChange(of: scrollToDropID) {
-                    if let id = scrollToDropID {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
-                        scrollToDropID = nil
-                    }
-                }
-                .onChange(of: scrollToTopTrigger) {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                        proxy.scrollTo("TowerTop", anchor: .top)
-                    }
+                .padding(.horizontal, hPad)
+                .padding(.top, safeAreaTop + collapsedHeaderHeight + 20)
+                .padding(.bottom, footerClearance)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollClipDisabled(true)
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y
+            } action: { oldOffset, newOffset in
+                towerScrollOffset = newOffset
+                let wasScrolled = oldOffset > 0
+                let nowScrolled = newOffset > 0
+                if wasScrolled != nowScrolled {
+                    isScrolled = nowScrolled
                 }
             }
-
-            // Tower scrubber — scroll indicator + fast scrub
-            TowerScrubberView(
-                towerContentHeight: gridH,
-                scrollOffset: towerScrollOffset,
-                viewportHeight: viewportHeight,
-                heightMeters: towerVM.altimeterHeight,
-                topInset: 44,
-                onScrub: { fraction in
-                    let targetRow = Int((1.0 - fraction) * CGFloat(max(1, towerVM.totalRows)))
-                    if let block = towerVM.placedBlocks.first(where: { $0.row >= targetRow }) {
-                        scrollToDropID = block.id
+            .onChange(of: scrollToDropID) {
+                if let id = scrollToDropID {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo(id, anchor: .center)
                     }
+                    scrollToDropID = nil
                 }
-            )
-            .opacity(towerVM.totalRows > 0 ? 1 : 0)
-            .scaleEffect(towerVM.totalRows > 0 ? 1 : 0.8)
-            .animation(.easeOut(duration: 0.3), value: towerVM.totalRows > 0)
-            .padding(.trailing, 12)
-        }
-        .safeAreaInset(edge: .bottom) {
-            // Fixed bottom inset while sheet is hidden for Figma redesign
-            Color.clear.frame(height: 20)
+            }
+            .onChange(of: scrollToTopTrigger) {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    proxy.scrollTo("TowerTop", anchor: .top)
+                }
+            }
         }
     }
 
@@ -797,7 +819,7 @@ struct MainAppView: View {
         }
 
         // Landing flash on squash impact
-        let flashBrightness: Double = phase == .squash ? 0.06 : 0
+        let flashBrightness: Double = phase == .squash ? 0.12 : 0
 
         // Phase-aware shadow during drop
         let (dropShadowRadius, dropShadowY): (CGFloat, CGFloat) = switch phase {
@@ -811,9 +833,9 @@ struct MainAppView: View {
         // Ripple: volume-preserving compress
         let isRippling = animCoord.ripplingBlockIDs.contains(block.id)
         let ri = animCoord.rippleIntensity[block.id] ?? 1.0
-        let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.020 * ri : 1.0
-        let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.035 * ri : 1.0
-        let rippleOffsetY: CGFloat = isRippling ? 1.5 * ri : 0
+        let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.030 * ri : 1.0
+        let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.050 * ri : 1.0
+        let rippleOffsetY: CGFloat = isRippling ? 2.5 * ri : 0
 
         return ZStack {
             if isNew {
@@ -825,7 +847,7 @@ struct MainAppView: View {
                 .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
                 .brightness(flashBrightness)
                 .shadow(
-                    color: phase != nil ? .black.opacity(0.12) : .clear,
+                    color: phase != nil ? .black.opacity(GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)) : .clear,
                     radius: dropShadowRadius,
                     x: 0,
                     y: dropShadowY
@@ -952,6 +974,18 @@ struct MainAppView: View {
     // MARK: - Debug Block Injection (temporary)
 
     #if DEBUG
+    private func removeLastDebugBlock() {
+        guard let lastLog = logs.filter({ $0.completed })
+            .sorted(by: { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) })
+            .last else { return }
+        if let habit = lastLog.habit {
+            modelContext.delete(habit)
+        }
+        modelContext.delete(lastLog)
+        try? modelContext.save()
+        refreshData()
+    }
+
     private func injectDebugBlock() {
         let sizes: [BlockSize] = [.small, .medium, .hard]
         let categories: [HabitCategory] = HabitCategory.allCases
@@ -1007,7 +1041,7 @@ private struct WarmBackground: View {
     var body: some View {
         Rectangle().fill(
             colorScheme == .dark
-                ? Color(red: 0.08, green: 0.08, blue: 0.085)
+                ? Color(hex: 0x403D39)
                 : Color(red: 0.98, green: 0.975, blue: 0.965)
         )
     }

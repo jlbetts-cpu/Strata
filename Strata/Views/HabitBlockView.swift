@@ -41,6 +41,32 @@ enum BlockTimeFormatter {
         }
         return nil
     }
+
+    /// Converts "2026-03-19" → "3/19"
+    static func dateLabel(from dateString: String) -> String {
+        let parts = dateString.split(separator: "-")
+        guard parts.count == 3,
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else { return dateString }
+        return "\(month)/\(day)"
+    }
+
+    /// Returns the appropriate display text based on filter mode.
+    /// Day → time range, Week/Month → date label.
+    static func displayText(
+        filterMode: TowerFilterMode,
+        dateString: String,
+        scheduledTime: String?,
+        durationMinutes: CGFloat,
+        completedAt: Date?
+    ) -> String? {
+        switch filterMode {
+        case .day:
+            return timeRange(scheduledTime: scheduledTime, durationMinutes: durationMinutes, completedAt: completedAt)
+        case .week, .month:
+            return dateLabel(from: dateString)
+        }
+    }
 }
 
 // MARK: - Completed Block (Flat Squircle)
@@ -53,6 +79,8 @@ struct HabitBlockView: View {
     @State private var tapTrigger: Int = 0
     @State private var breathePhase: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.towerFilterMode) private var towerFilterMode
 
     private var style: CategoryStyle {
         block.habit.category.style
@@ -63,7 +91,9 @@ struct HabitBlockView: View {
     }
 
     private var timeText: String? {
-        BlockTimeFormatter.timeRange(
+        BlockTimeFormatter.displayText(
+            filterMode: towerFilterMode,
+            dateString: block.log.dateString,
             scheduledTime: block.habit.scheduledTime,
             durationMinutes: block.habit.blockSize.durationMinutes,
             completedAt: block.log.completedAt
@@ -157,7 +187,7 @@ struct HabitBlockView: View {
         )
         // Single soft ambient shadow
         .shadow(
-            color: .black.opacity(GridConstants.shadowOpacity),
+            color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),
             radius: GridConstants.shadowRadius,
             x: 0,
             y: GridConstants.shadowY

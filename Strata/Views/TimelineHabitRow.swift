@@ -14,6 +14,7 @@ struct TimelineHabitRow: View {
     @State private var state: TaskState = .incomplete
     @State private var swipeOffset: CGFloat = 0
     @State private var isSwiped = false
+    @Environment(\.colorScheme) private var colorScheme
 
     private var style: CategoryStyle { habit.category.style }
 
@@ -144,10 +145,10 @@ struct TimelineHabitRow: View {
             height: isMorphing ? morphHeight : rowHeight
         )
         .frame(maxWidth: isMorphing ? nil : .infinity, alignment: .leading)
-        .shadow(color: .black.opacity(isMorphing ? 0.15 : GridConstants.shadowOpacity),
+        .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(isMorphing ? 0.15 : GridConstants.shadowOpacity, colorScheme: colorScheme)),
                 radius: isMorphing ? 2 : GridConstants.shadowRadius, x: 0,
                 y: isMorphing ? 1 : GridConstants.shadowY)
-        .shadow(color: .black.opacity(isMorphing ? 0.10 : 0.05),
+        .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(isMorphing ? 0.10 : 0.05, colorScheme: colorScheme)),
                 radius: isMorphing ? 10 : 3, x: 0,
                 y: isMorphing ? 6 : 1)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)

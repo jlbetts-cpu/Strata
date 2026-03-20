@@ -15,10 +15,12 @@ struct NewHabitMenu: View {
     @State private var scheduledDate = Date()
     @State private var useTimePicker = false
     @State private var scheduledTime = Date()
+    @Environment(\.colorScheme) private var colorScheme
 
     private let categories = HabitCategory.allCases
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 16) {
             // Toggle: One-Time Task / Recurring Habit
             HStack(spacing: 0) {
@@ -141,9 +143,7 @@ struct NewHabitMenu: View {
             .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
         }
         .padding(20)
-        .frame(width: 300)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
+        }
         .onAppear {
             if let prefill = prefillTime {
                 useTimePicker = true

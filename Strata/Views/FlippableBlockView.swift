@@ -21,12 +21,16 @@ struct FlippableBlockView: View {
     @State private var breathePhase: Bool = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.towerFilterMode) private var towerFilterMode
 
     private var style: CategoryStyle { block.habit.category.style }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
 
     private var timeText: String? {
-        BlockTimeFormatter.timeRange(
+        BlockTimeFormatter.displayText(
+            filterMode: towerFilterMode,
+            dateString: block.log.dateString,
             scheduledTime: block.habit.scheduledTime,
             durationMinutes: block.habit.blockSize.durationMinutes,
             completedAt: block.log.completedAt
@@ -157,7 +161,7 @@ struct FlippableBlockView: View {
                 .blur(radius: 6)
         )
         .shadow(
-            color: .black.opacity(GridConstants.shadowOpacity),
+            color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),
             radius: GridConstants.shadowRadius,
             x: 0,
             y: GridConstants.shadowY

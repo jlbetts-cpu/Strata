@@ -2,14 +2,19 @@ import SwiftUI
 
 enum StrataTab: String, CaseIterable {
     case tower = "Tower"
-    case journal = "Journal"
-    case profile = "Profile"
+    case timeline = "Timeline"
 
     var icon: String {
         switch self {
         case .tower: return "square.stack.3d.up"
-        case .journal: return "book"
-        case .profile: return "person"
+        case .timeline: return "calendar.day.timeline.leading"
+        }
+    }
+
+    var selectedIcon: String {
+        switch self {
+        case .tower: return "square.stack.3d.up.fill"
+        case .timeline: return "calendar.day.timeline.leading"
         }
     }
 }

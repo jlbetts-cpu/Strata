@@ -23,10 +23,22 @@
 - **Block interaction polish** — Silicone press animation, breathe idle animation, time text on blocks, photo overlay improvements
 - **Timeline zoom persistence** — `@AppStorage` for pixelsPerMinute so zoom level survives app restarts
 - **Warm color palette refinements** — Updated CategoryColors, Typography scale adjustments
+- **Native Liquid Glass tab bar** — Separated "+" button pinned to trailing edge via `role: .search` (Apple Music pattern), renamed Journal → Insights with `chart.bar.xaxis` icon
+
+- **Warm grey color pass** — Replaced all blacks (#000) with warm grey (#403D39), swapped blue accent (#648BF2) → warm grey, removed tab bar scroll gradient, updated AccentColor asset, added filled tab icons for selected state
+- **Filled/hollow tab icons** — Wired `selectedIcon` into tab bar labels so selected tabs show filled icons and unselected show outlines; set `unselectedItemTintColor` to warm grey (#403D39) for consistent tinting
+
+- **Tab bar minimization & tighter grid** — Added `.tabBarMinimizeBehavior(.onScrollDown)` so tab bar auto-shrinks on scroll, softened unselected tab tint to 0.45 opacity, reduced block spacing from 8pt to 4pt
+
+- **Selected tab accent color & labels restored** — Set AccentColor to work blue (`0x40A9FF`) so selected tab icons/labels render in blue instead of warm grey; removed `.labelStyle(.iconOnly)` to restore text labels under all 5 tab icons
+
+- **Tower filter pill (Day/Week/Month)** — Apple Photos-style segmented picker at top of tower tab. Day shows today's blocks with time labels, Week shows current week with date labels (e.g. "3/19"), Month shows full month with date labels. Native `Picker(.segmented)`, environment-driven block text switching, query widened to month with client-side filtering.
+
+- **Dynamic footer clearance** — Made `footerClearance` responsive to tab bar state: 74pt when expanded (icons + labels visible), 62pt when collapsed (scroll), so the last block row always clears the FloatingBottomBar with a consistent gap
 
 ## Next Up
 
 - Dark mode audit across all new opacity values
 - Accessibility review (dynamic type, VoiceOver, reduce motion)
-- Journal tab implementation
+- Insights tab implementation
 - Profile tab implementation

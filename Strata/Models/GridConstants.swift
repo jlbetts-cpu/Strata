@@ -2,9 +2,9 @@ import SwiftUI
 
 enum GridConstants {
     static let columnCount = 4
-    static let spacing: CGFloat = 8
+    static let spacing: CGFloat = 6
     static let cornerRadius: CGFloat = 20
-    static let horizontalPadding: CGFloat = 20
+    static let horizontalPadding: CGFloat = 15
     static let timelineGutterWidth: CGFloat = 56
 
     // 1 block height = 3 meters for altimeter
@@ -17,17 +17,17 @@ enum GridConstants {
     static let strokeWidth: CGFloat = 2.5
 
     // MARK: - Animation Springs
-    static let dropSquashSpring = Animation.spring(response: 0.06, dampingFraction: 0.45)
+    static let dropSquashSpring = Animation.spring(response: 0.12, dampingFraction: 0.45)
     static let dropStretchSpring = Animation.spring(response: 0.20, dampingFraction: 0.42)
     static let dropSettleSpring = Animation.spring(response: 0.35, dampingFraction: 0.60)
     static let rippleCompressSpring = Animation.spring(response: 0.06, dampingFraction: 0.55)
     static let rippleReleaseSpring = Animation.spring(response: 0.35, dampingFraction: 0.60)
 
     // MARK: - Squash & Stretch (energy-proportional: ½mv² → quadratic in mass)
-    static func squashScaleY(mass: CGFloat) -> CGFloat { 0.02 * mass * mass }
-    static func squashScaleX(mass: CGFloat) -> CGFloat { 0.015 * mass * mass }
-    static func stretchScaleY(mass: CGFloat) -> CGFloat { 0.01 * mass * mass }
-    static func stretchScaleX(mass: CGFloat) -> CGFloat { 0.007 * mass * mass }
+    static func squashScaleY(mass: CGFloat) -> CGFloat { 0.03 * mass * mass }
+    static func squashScaleX(mass: CGFloat) -> CGFloat { 0.022 * mass * mass }
+    static func stretchScaleY(mass: CGFloat) -> CGFloat { 0.015 * mass * mass }
+    static func stretchScaleX(mass: CGFloat) -> CGFloat { 0.010 * mass * mass }
 
     // MARK: - Shadow
 
@@ -35,6 +35,11 @@ enum GridConstants {
     static let shadowRadius: CGFloat = 4
     static let shadowY: CGFloat = 2
     static let shadowOpacity: Double = 0.10
+
+    // MARK: - Adaptive Shadow
+    static func adaptiveShadowOpacity(_ base: Double, colorScheme: ColorScheme) -> Double {
+        colorScheme == .dark ? min(base * 3.5, 0.60) : base
+    }
 
     // MARK: - Tap Bounce
     static let tapSquashSpring = Animation.spring(duration: 0.08, bounce: 0.0)

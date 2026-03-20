@@ -44,7 +44,7 @@ struct WeekStripView: View {
                 ZStack {
                     // Background
                     Circle()
-                        .fill(isSelected ? Color(hex: 0x648BF2) : Color.clear)
+                        .fill(isSelected ? AppColors.accentWarm : Color.clear)
                         .frame(width: 36, height: 36)
 
                     // Day number

@@ -17,25 +17,18 @@ struct TowerTabView: View {
                 xpTotal: gamificationVM.xpForCurrentLevel
             )
 
-            // Tower + Scrubber
-            GeometryReader { geo in
-                HStack(alignment: .top, spacing: 4) {
-                    TowerView(
-                        towerVM: towerVM,
-                        onBlockTap: onBlockTap
-                    )
-
-                    TowerScrubberView(
-                        towerContentHeight: GridConstants.gridHeight(rows: towerVM.totalRows, cellSize: 80),
-                        scrollOffset: 0,
-                        viewportHeight: geo.size.height,
-                        heightMeters: towerVM.altimeterHeight,
-                        topInset: 44,
-                        onScrub: { _ in }
-                    )
-                    .frame(width: 40)
-                }
+            // Tower
+            ZStack(alignment: .topTrailing) {
+                TowerView(
+                    towerVM: towerVM,
+                    onBlockTap: onBlockTap
+                )
                 .padding(.horizontal, 12)
+
+                AltimeterPill(heightMeters: towerVM.altimeterHeight)
+                    .padding(.top, 12)
+                    .padding(.trailing, 16)
+                    .opacity(towerVM.totalRows > 0 ? 1 : 0)
             }
         }
     }

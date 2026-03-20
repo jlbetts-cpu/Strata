@@ -9,6 +9,7 @@ struct MorphingDrawerView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var currentSnap: SnapPoint = .dock
     @State private var isDragging = false
+    @Environment(\.colorScheme) private var colorScheme
 
     enum SnapPoint: CGFloat {
         case dock = 76
@@ -57,7 +58,7 @@ struct MorphingDrawerView: View {
                 style: .continuous
             )
         )
-        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: -4)
+        .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)), radius: 16, x: 0, y: -4)
         .gesture(dragGesture)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: currentSnap)
         .animation(.interactiveSpring(response: 0.3), value: dragOffset)
@@ -84,7 +85,7 @@ struct MorphingDrawerView: View {
                     Text("\(completedToday.count) done")
                         .font(Typography.caption)
                         .fontWeight(.medium)
-                        .foregroundStyle(Color(hex: 0x648BF2))
+                        .foregroundStyle(AppColors.accentWarm)
                 }
             }
             .padding(.horizontal, 20)

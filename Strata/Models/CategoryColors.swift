@@ -90,6 +90,16 @@ extension HabitCategory {
     }
 }
 
+// MARK: - App Colors
+
+enum AppColors {
+    static let warmBlack = Color(hex: 0x403D39)
+    static let accentWarm = Color(hex: 0x403D39)
+    static let accentPurple = Color(hex: 0xA689FA)
+    static let healthGreen = Color(hex: 0x34C48B)
+    static let warmRed = Color(hex: 0xE85D4A)
+}
+
 // MARK: - Color Hex Extension
 
 extension Color {

@@ -40,6 +40,7 @@ struct FloatingPlusButton: View {
     let onTap: () -> Void
 
     @State private var isPressed = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Image(systemName: "plus")
@@ -47,7 +48,7 @@ struct FloatingPlusButton: View {
             .foregroundStyle(Color.primary)
             .frame(width: 40, height: 40)
             .glassEffect(.regular, in: .circle)
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 5)
+            .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(0.06, colorScheme: colorScheme)), radius: 10, x: 0, y: 5)
             .scaleEffect(isPressed ? 0.95 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isPressed)
             .onTapGesture {

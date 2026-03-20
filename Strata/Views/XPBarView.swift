@@ -13,7 +13,7 @@ struct XPBarView: View {
                 Text("Lv.\(level)")
                     .font(Typography.bodyMedium)
                     .fontWeight(.bold)
-                    .foregroundStyle(Color(hex: 0x648BF2))
+                    .foregroundStyle(AppColors.accentWarm)
 
                 Text(title)
                     .font(Typography.caption)
@@ -35,7 +35,7 @@ struct XPBarView: View {
                     Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [Color(hex: 0x648BF2), Color(hex: 0xA689FA)],
+                                colors: [AppColors.accentWarm, AppColors.accentPurple],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )

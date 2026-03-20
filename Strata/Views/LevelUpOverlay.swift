@@ -11,7 +11,7 @@ struct LevelUpOverlay: View {
     var body: some View {
         ZStack {
             // Dimmed background
-            Color.black.opacity(0.5)
+            AppColors.warmBlack.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onDismiss)
 
@@ -20,7 +20,7 @@ struct LevelUpOverlay: View {
                 Circle()
                     .stroke(
                         LinearGradient(
-                            colors: [Color(hex: 0x648BF2), Color(hex: 0xA689FA), Color(hex: 0x648BF2)],
+                            colors: [AppColors.accentWarm, AppColors.accentPurple, AppColors.accentWarm],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -41,7 +41,7 @@ struct LevelUpOverlay: View {
                         .font(Font.custom("FamiljenGrotesk-Medium", size: 72))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color(hex: 0x648BF2), Color(hex: 0xA689FA)],
+                                colors: [AppColors.accentWarm, AppColors.accentPurple],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )

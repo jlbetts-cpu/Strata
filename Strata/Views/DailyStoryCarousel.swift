@@ -24,10 +24,10 @@ struct DailyStoryCarousel: View {
                     .scaledToFill()
                     .ignoresSafeArea()
                     .blur(radius: 60)
-                    .overlay(Color.black.opacity(0.7))
+                    .overlay(AppColors.warmBlack.opacity(0.7))
                     .ignoresSafeArea()
             } else {
-                Color.black.ignoresSafeArea()
+                AppColors.warmBlack.ignoresSafeArea()
             }
 
             // Foreground: strict VStack for keyboard avoidance
