@@ -1,16 +1,5 @@
 import SwiftUI
 
-// MARK: - Data Model for Week Progress
-
-struct DayProgressData: Identifiable {
-    let id = UUID()
-    let dayLabel: String
-    let dayNumber: Int
-    let completionRate: Double
-    let isToday: Bool
-    let isFuture: Bool
-}
-
 // MARK: - Legacy HeaderView (used by ContentView)
 
 struct HeaderView: View {
@@ -29,7 +18,7 @@ struct HeaderView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(.ultraThinMaterial)
     }
 }

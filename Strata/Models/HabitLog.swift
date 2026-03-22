@@ -10,12 +10,13 @@ final class HabitLog {
     var completedAt: Date?
     var note: String?
     var caption: String
-    @Attribute(.externalStorage) var imageData: Data?
-    var imageURL: String?
-    var videoURL: String?
-    var imageFlipped: Bool
-    var cropPositionX: Double?
-    var cropPositionY: Double?
+    @Attribute(.externalStorage) var imageData: Data? // Retained temporarily for migration
+    var imageFileName: String?
+    var imageURL: String?       // Deprecated — retained for schema compatibility
+    var videoURL: String?       // Deprecated — retained for schema compatibility
+    var imageFlipped: Bool = false  // Deprecated — retained for schema compatibility
+    var cropPositionX: Double?  // Deprecated — retained for schema compatibility
+    var cropPositionY: Double?  // Deprecated — retained for schema compatibility
     var surgeMode: Bool
     var pendingXP: Int?
     var xpCollected: Bool
@@ -33,7 +34,6 @@ final class HabitLog {
         self.completed = completed
         self.completedAt = completed ? Date() : nil
         self.caption = ""
-        self.imageFlipped = false
         self.surgeMode = false
         self.xpCollected = false
         self.isBonusBlock = false

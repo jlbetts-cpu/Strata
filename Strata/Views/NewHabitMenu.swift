@@ -6,6 +6,7 @@ struct NewHabitMenu: View {
     let modelContext: ModelContext
     let onCreated: () -> Void
     var prefillTime: String? = nil
+    var tower: Tower? = nil
 
     @State private var isOneTime = false
     @State private var title = ""
@@ -31,41 +32,43 @@ struct NewHabitMenu: View {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isOneTime = true }
                 }
             }
-            .padding(3)
+            .padding(4)
             .background(Color.primary.opacity(0.06), in: .capsule)
 
             // Title
             TextField("Habit name", text: $title)
                 .font(Typography.bodyLarge)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             // Category colors
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Category")
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
                     ForEach(categories, id: \.self) { cat in
-                        Circle()
-                            .fill(cat.style.baseColor)
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.primary, lineWidth: selectedCategory == cat ? 2.5 : 0)
-                                    .frame(width: 38, height: 38)
-                            )
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.15)) { selectedCategory = cat }
-                            }
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) { selectedCategory = cat }
+                        } label: {
+                            Circle()
+                                .fill(cat.style.baseColor)
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.primary, lineWidth: selectedCategory == cat ? 2.5 : 0)
+                                        .frame(width: 36, height: 36)
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
 
             // Duration pills
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Duration")
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
@@ -83,31 +86,33 @@ struct NewHabitMenu: View {
                     .font(Typography.bodyMedium)
             } else {
                 // Day-of-week picker
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Days")
                         .font(Typography.bodySmall)
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         ForEach(DayCode.allCases, id: \.self) { day in
                             let isSelected = selectedDays.contains(day)
-                            Text(day.rawValue)
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(isSelected ? .white : Color.primary)
-                                .frame(width: 34, height: 34)
-                                .background(
-                                    isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
-                                    in: Circle()
-                                )
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        if isSelected {
-                                            selectedDays.remove(day)
-                                        } else {
-                                            selectedDays.insert(day)
-                                        }
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if isSelected {
+                                        selectedDays.remove(day)
+                                    } else {
+                                        selectedDays.insert(day)
                                     }
                                 }
+                            } label: {
+                                Text(day.rawValue)
+                                    .font(Typography.bodySmall)
+                                    .foregroundStyle(isSelected ? .white : Color.primary)
+                                    .frame(width: 32, height: 32)
+                                    .background(
+                                        isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
+                                        in: Circle()
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -133,7 +138,7 @@ struct NewHabitMenu: View {
                     .font(Typography.blockTitle)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 16)
                     .background(
                         selectedCategory.style.baseColor,
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -166,7 +171,7 @@ struct NewHabitMenu: View {
         Text(label)
             .font(Typography.bodySmall)
             .foregroundStyle(selected ? .white : Color.primary)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(selected ? selectedCategory.style.baseColor : .clear, in: .capsule)
             .onTapGesture { action() }
@@ -212,6 +217,7 @@ struct NewHabitMenu: View {
             scheduledDate: isOneTime ? TimelineViewModel.dateString(from: scheduledDate) : nil
         )
 
+        habit.tower = tower
         modelContext.insert(habit)
         try? modelContext.save()
 

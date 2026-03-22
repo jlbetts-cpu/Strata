@@ -34,8 +34,10 @@ final class TowerViewModel {
     private(set) var placedBlocks: [PlacedBlock] = []
     private(set) var incompleteBlocks: [PlacedIncompleteBlock] = []
     private(set) var totalRows: Int = 0
+    var isLoading: Bool = true
     // Cascade drop tracking
     private(set) var newlyDroppedIDs: Set<UUID> = []
+    private(set) var staggerDelayCache: [UUID: Double] = [:]
     private var previousBlockIDs: Set<UUID> = []
     private var dropCleanupTask: Task<Void, Never>? = nil
 
@@ -47,6 +49,11 @@ final class TowerViewModel {
     var peakCompletedHeight: Int {
         guard !placedBlocks.isEmpty else { return 0 }
         return placedBlocks.reduce(0) { max($0, $1.row + $1.rowSpan) }
+    }
+
+    func startLoading() {
+        isLoading = true
+        totalRows = 0
     }
 
     // MARK: - Build Unified Grid
@@ -88,7 +95,22 @@ final class TowerViewModel {
         placedBlocks = placed
         incompleteBlocks = []
 
+        // Pre-compute stagger delays (O(1) lookup per block instead of O(n) per call)
+        if !newlyDroppedIDs.isEmpty {
+            let sortedNew = placed
+                .filter { newlyDroppedIDs.contains($0.id) }
+                .sorted { $0.row < $1.row }
+            let count = max(sortedNew.count, 1)
+            staggerDelayCache = [:]
+            for (index, block) in sortedNew.enumerated() {
+                let normalizedIndex = Double(index) / Double(count)
+                let decelerated = pow(normalizedIndex, 0.7)
+                staggerDelayCache[block.id] = min(decelerated * 0.4, 0.4)
+            }
+        }
+
         totalRows = grid.count
+        isLoading = false
 
         // Clear the dropped set after animation window
         if !newlyDroppedIDs.isEmpty {
@@ -96,6 +118,9 @@ final class TowerViewModel {
             Task {
                 try? await Task.sleep(for: .seconds(2.0))
                 self.newlyDroppedIDs.subtract(droppedCopy)
+                for id in droppedCopy {
+                    self.staggerDelayCache.removeValue(forKey: id)
+                }
             }
         }
 
@@ -103,12 +128,7 @@ final class TowerViewModel {
     }
 
     func staggerDelay(for block: PlacedBlock) -> Double {
-        guard newlyDroppedIDs.contains(block.id) else { return 0 }
-        let sortedNew = placedBlocks
-            .filter { newlyDroppedIDs.contains($0.id) }
-            .sorted { $0.row > $1.row }
-        guard let index = sortedNew.firstIndex(where: { $0.id == block.id }) else { return 0 }
-        return Double(index) * 0.05
+        staggerDelayCache[block.id] ?? 0
     }
 
     // MARK: - Boolean Grid Matrix Packing
@@ -150,6 +170,46 @@ final class TowerViewModel {
             // Safety cap to prevent infinite loop on malformed data
             if row > 1000 { return nil }
         }
+    }
+
+    // MARK: - Skeleton Layout
+
+    struct SkeletonBlock: Identifiable {
+        let id: Int
+        let column: Int
+        let row: Int
+        let columnSpan: Int
+        let rowSpan: Int
+    }
+
+    func skeletonLayout(blockCount: Int = 8) -> [SkeletonBlock] {
+        // Deterministic pattern of mixed sizes
+        let sizes: [(col: Int, row: Int)] = [
+            (1, 1), (2, 1), (1, 1), (1, 1),
+            (2, 2), (1, 1), (1, 1), (2, 1),
+            (1, 1), (1, 1), (2, 1), (1, 1)
+        ]
+
+        var grid = [[Bool]]()
+        var blocks: [SkeletonBlock] = []
+
+        for i in 0..<blockCount {
+            let size = sizes[i % sizes.count]
+            let colSpan = size.col
+            let rowSpan = size.row
+
+            if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid) {
+                blocks.append(SkeletonBlock(
+                    id: i,
+                    column: pos.column,
+                    row: pos.row,
+                    columnSpan: colSpan,
+                    rowSpan: rowSpan
+                ))
+            }
+        }
+
+        return blocks
     }
 
     /// Checks whether every cell in the columnSpan × rowSpan region is false (empty).

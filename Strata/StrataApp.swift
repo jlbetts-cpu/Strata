@@ -8,6 +8,7 @@ struct StrataApp: App {
             Habit.self,
             HabitLog.self,
             MoodLog.self,
+            Tower.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -20,6 +21,7 @@ struct StrataApp: App {
 
     @State private var eventKitService = EventKitService()
     @State private var healthKitService = HealthKitService()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -28,5 +30,10 @@ struct StrataApp: App {
                 .environment(healthKitService)
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                try? sharedModelContainer.mainContext.save()
+            }
+        }
     }
 }

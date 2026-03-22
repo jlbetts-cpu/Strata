@@ -10,6 +10,17 @@ enum HabitCategory: String, Codable, CaseIterable {
     case focus
     case social
     case mindfulness
+
+    var iconName: String {
+        switch self {
+        case .health:      return "heart.fill"
+        case .work:        return "briefcase.fill"
+        case .creativity:  return "paintbrush.fill"
+        case .focus:       return "eye.fill"
+        case .social:      return "person.2.fill"
+        case .mindfulness: return "leaf.fill"
+        }
+    }
 }
 
 enum BlockSize: String, Codable, CaseIterable {
@@ -111,6 +122,10 @@ final class Habit {
     var creationXP: Int
     var graceDays: Int
     var timeOfDay: TimeOfDay?
+    var anchorHabitID: UUID?
+    var parentHabitID: UUID?
+    var sortOrder: Int = 0
+    var tower: Tower?
 
     @Relationship(deleteRule: .cascade, inverse: \HabitLog.habit)
     var logs: [HabitLog] = []
@@ -131,7 +146,9 @@ final class Habit {
         scheduledDate: String? = nil,
         todoOrder: Int? = nil,
         graceDays: Int = 1,
-        timeOfDay: TimeOfDay? = .anytime
+        timeOfDay: TimeOfDay? = .anytime,
+        parentHabitID: UUID? = nil,
+        sortOrder: Int = 0
     ) {
         self.id = UUID()
         self.title = title
@@ -147,5 +164,9 @@ final class Habit {
         self.creationXP = Int.random(in: 1...10)
         self.graceDays = graceDays
         self.timeOfDay = timeOfDay
+        self.parentHabitID = parentHabitID
+        self.sortOrder = sortOrder
     }
+
+    var isSubTask: Bool { parentHabitID != nil }
 }

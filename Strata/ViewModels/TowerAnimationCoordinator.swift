@@ -27,6 +27,13 @@ final class TowerAnimationCoordinator {
 
     func enqueueDrop(blockIDs: Set<UUID>) {
         guard !blockIDs.isEmpty else { return }
+        // Immediately set falling phase so blocks render offscreen
+        // on the same frame they enter placedBlocks — prevents flash
+        if !reduceMotion {
+            for id in blockIDs {
+                dropPhases[id] = .falling
+            }
+        }
         pendingDropAnimations.append(blockIDs)
         startDrainIfNeeded()
     }
@@ -44,7 +51,7 @@ final class TowerAnimationCoordinator {
         let massMultiplier = CGFloat(massTier)
 
         let blocksBelow = placedBlocks.filter { block in
-            block.id != landedID && block.row < landedRow && (landedRow - block.row) <= 3
+            block.id != landedID && block.row < landedRow && (landedRow - block.row) <= 6
         }
         guard !blocksBelow.isEmpty else { return }
 
@@ -56,7 +63,7 @@ final class TowerAnimationCoordinator {
 
         Task { @MainActor in
             for (distance, tierBlocks) in tiers {
-                let delay = Double(distance) * 0.03
+                let delay = Double(distance) * 0.05
                 let intensity = massMultiplier / (1.0 + pow(CGFloat(distance), 1.5))
                 let tierIDs = tierBlocks.map(\.id)
 
@@ -89,7 +96,7 @@ final class TowerAnimationCoordinator {
                 let ids = pendingDropAnimations.removeFirst()
                 await triggerDropAnimation(for: ids)
                 if !pendingDropAnimations.isEmpty {
-                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    try? await Task.sleep(nanoseconds: 60_000_000)
                 }
             }
             dropDrainTask = nil
@@ -142,7 +149,7 @@ final class TowerAnimationCoordinator {
 
         // Phase 2: Squash → Stretch — mass-dependent dwell (heavier = lingers in compression)
         let squashDwell: UInt64 = switch mass {
-        case 1: 60_000_000; case 2: 100_000_000; default: 150_000_000
+        case 1: 40_000_000; case 2: 70_000_000; default: 100_000_000
         }
         try? await Task.sleep(nanoseconds: squashDwell)
         withAnimation(GridConstants.dropStretchSpring) {
@@ -151,7 +158,7 @@ final class TowerAnimationCoordinator {
 
         // Phase 3: Stretch → Wobble
         let stretchDwell: UInt64 = switch mass {
-        case 1: 80_000_000; case 2: 120_000_000; default: 160_000_000
+        case 1: 60_000_000; case 2: 80_000_000; default: 120_000_000
         }
         try? await Task.sleep(nanoseconds: stretchDwell)
         withAnimation(GridConstants.wobbleSpring) {
@@ -160,14 +167,14 @@ final class TowerAnimationCoordinator {
 
         // Phase 4: Wobble → Remove (settle to rest)
         let wobbleDwell: UInt64 = switch mass {
-        case 1: 150_000_000; case 2: 220_000_000; default: 300_000_000
+        case 1: 100_000_000; case 2: 160_000_000; default: 220_000_000
         }
         try? await Task.sleep(nanoseconds: wobbleDwell)
         withAnimation(GridConstants.dropSettleSpring) {
             for id in blockIDs { dropPhases.removeValue(forKey: id) }
         }
 
-        try? await Task.sleep(nanoseconds: 250_000_000)
+        try? await Task.sleep(nanoseconds: 120_000_000)
     }
 
     /// Callback to look up a block's mass tier by ID. Set by the view.

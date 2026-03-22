@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
-import ImageIO
 
 // MARK: - Smart Brick View (Clay Cartridge)
 
@@ -11,11 +10,10 @@ struct FlippableBlockView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     let modelContext: ModelContext
-    var onExpandPhoto: ((Data) -> Void)? = nil
+    var onExpandPhoto: ((String) -> Void)? = nil
 
     @State private var showCameraPrompt = false
     @State private var selectedItem: PhotosPickerItem? = nil
-    @State private var displayImage: UIImage? = nil
     @State private var autoDismissTask: Task<Void, Never>? = nil
     @State private var tapTrigger: Int = 0
     @State private var breathePhase: Bool = false
@@ -26,6 +24,7 @@ struct FlippableBlockView: View {
 
     private var style: CategoryStyle { block.habit.category.style }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
+    private var hasImage: Bool { block.log.imageFileName != nil }
 
     private var timeText: String? {
         BlockTimeFormatter.displayText(
@@ -39,19 +38,32 @@ struct FlippableBlockView: View {
 
     var body: some View {
         ZStack {
-            if let image = displayImage {
-                // Photo block
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: width, height: height)
-                    .clipped()
+            if hasImage {
+                // Photo block — loaded via CachedImageView
+                CachedImageView(
+                    fileName: block.log.imageFileName,
+                    width: width,
+                    height: height,
+                    cornerRadius: 0
+                )
 
-                // Darker gradient overlay for text legibility
+                // Subtle warm vignette — safety net for icon on bright photos
+                RadialGradient(
+                    colors: [
+                        .clear,
+                        AppColors.warmBlack.opacity(0.12)
+                    ],
+                    center: UnitPoint(x: 0.5, y: 0.4),
+                    startRadius: min(width, height) * 0.25,
+                    endRadius: max(width, height) * 0.85
+                )
+
+                // Warm dark scrim — gentle fade for text readability
                 LinearGradient(
                     stops: [
-                        .init(color: .clear, location: 0.58),
-                        .init(color: Color(red: 0.22, green: 0.22, blue: 0.22).opacity(0.80), location: 0.81)
+                        .init(color: .clear, location: 0.35),
+                        .init(color: AppColors.warmBlack.opacity(0.45), location: 0.70),
+                        .init(color: AppColors.warmBlack.opacity(0.65), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -81,31 +93,19 @@ struct FlippableBlockView: View {
 
             }
 
-            // Text content: title + time — white, bottom-left
-            VStack(alignment: .leading, spacing: 2) {
-                Spacer()
-                Text(block.habit.title)
-                    .font(Typography.bodyMedium)
-                    .tracking(0)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .lineLimit(block.rowSpan > 1 ? 3 : 1)
-                    .minimumScaleFactor(0.65)
-
-                if let time = timeText {
-                    Text(time)
-                        .font(Typography.caption2)
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.leading, 10)
-            .padding(.bottom, 8)
-            .padding(.trailing, 6)
+            // Text content: title + time + category icon
+            BlockContentOverlay(
+                title: block.habit.title,
+                category: block.habit.category,
+                rowSpan: block.rowSpan,
+                timeText: timeText,
+                pendingXPText: nil,
+                hasImage: hasImage
+            )
             .opacity(showCameraPrompt ? 0 : 1)
 
             // Camera prompt
-            if displayImage == nil {
+            if !hasImage {
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     VStack(spacing: isBig ? 8 : 4) {
                         Image(systemName: "camera.fill")
@@ -159,6 +159,7 @@ struct FlippableBlockView: View {
                     lineWidth: 4
                 )
                 .blur(radius: 6)
+                .compositingGroup()
         )
         .shadow(
             color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),
@@ -181,9 +182,9 @@ struct FlippableBlockView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             tapTrigger += 1
-            if displayImage != nil {
-                if let data = block.log.imageData {
-                    onExpandPhoto?(data)
+            if hasImage {
+                if let fileName = block.log.imageFileName {
+                    onExpandPhoto?(fileName)
                 }
             } else {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -203,63 +204,49 @@ struct FlippableBlockView: View {
             }
         }
         .onAppear {
-            loadExistingImage()
             if !reduceMotion {
-                withAnimation(.easeInOut(duration: GridConstants.breatheDuration).repeatForever(autoreverses: true)) {
-                    breathePhase = true
+                let delay = Double.random(in: 0...0.5)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    let breatheDuration = Double.random(in: 2.7...3.3)
+                    withAnimation(.easeInOut(duration: breatheDuration).repeatForever(autoreverses: true)) {
+                        breathePhase = true
+                    }
                 }
             }
         }
-        .onDisappear { displayImage = nil }
+        .onDisappear {
+            breathePhase = false
+        }
         .onChange(of: selectedItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
         }
     }
 
-    // MARK: - Photo Loading
-
-    private func loadExistingImage() {
-        guard let data = block.log.imageData else { return }
-        let targetWidth = width * displayScale
-        Task.detached {
-            let thumbnail = Self.downsample(data: data, maxPixelWidth: targetWidth)
-            await MainActor.run {
-                displayImage = thumbnail
-            }
-        }
-    }
-
-    nonisolated private static func downsample(data: Data, maxPixelWidth: CGFloat) -> UIImage? {
-        let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
-        guard let source = CGImageSourceCreateWithData(data as CFData, options as CFDictionary) else { return nil }
-
-        let downsampleOpts: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelWidth,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceCreateThumbnailWithTransform: true
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOpts as CFDictionary) else { return nil }
-        return UIImage(cgImage: cgImage)
-    }
+    // MARK: - Photo Capture
 
     @MainActor
     private func loadPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
         guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        guard let img = UIImage(data: data) else { return }
+        guard let img = await Task.detached { UIImage(data: data) }.value else { return }
 
-        let compressed = img.jpegData(compressionQuality: 0.8)
-
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showCameraPrompt = false
-            displayImage = img
+        let (maxDim, quality): (CGFloat, CGFloat) = switch block.habit.blockSize {
+        case .small: (512, 0.70)
+        case .medium: (768, 0.75)
+        case .hard: (1024, 0.80)
         }
+        do {
+            let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showCameraPrompt = false
+            }
+            block.log.imageFileName = fileName
+            try? modelContext.save()
 
-        block.log.imageData = compressed
-        try? modelContext.save()
-
-        let gen = UIImpactFeedbackGenerator(style: .light)
-        gen.impactOccurred()
+            let gen = UIImpactFeedbackGenerator(style: .light)
+            gen.impactOccurred()
+        } catch {
+            // Save failed — silently ignore
+        }
     }
 }

@@ -17,7 +17,8 @@ final class HabitManagerViewModel {
         graceDays: Int = 1,
         timeOfDay: TimeOfDay? = .anytime,
         isTodo: Bool = false,
-        scheduledDate: String? = nil
+        scheduledDate: String? = nil,
+        anchorHabitID: UUID? = nil
     ) {
         guard let context = modelContext else { return }
 
@@ -32,6 +33,7 @@ final class HabitManagerViewModel {
         )
         habit.isTodo = isTodo
         habit.scheduledDate = scheduledDate
+        habit.anchorHabitID = anchorHabitID
 
         context.insert(habit)
         try? context.save()
@@ -41,6 +43,12 @@ final class HabitManagerViewModel {
 
     func deleteHabit(_ habit: Habit) {
         guard let context = modelContext else { return }
+        // Clean up image files before deleting the model
+        for log in habit.logs {
+            if let fileName = log.imageFileName {
+                ImageManager.shared.deleteImage(fileName: fileName)
+            }
+        }
         context.delete(habit)
         try? context.save()
     }
@@ -55,7 +63,8 @@ final class HabitManagerViewModel {
         frequency: [DayCode]? = nil,
         scheduledTime: String? = nil,
         graceDays: Int? = nil,
-        timeOfDay: TimeOfDay? = nil
+        timeOfDay: TimeOfDay? = nil,
+        anchorHabitID: UUID? = nil
     ) {
         if let title { habit.title = title }
         if let category { habit.category = category }
@@ -64,6 +73,7 @@ final class HabitManagerViewModel {
         if let scheduledTime { habit.scheduledTime = scheduledTime }
         if let graceDays { habit.graceDays = graceDays }
         if let timeOfDay { habit.timeOfDay = timeOfDay }
+        if let anchorHabitID { habit.anchorHabitID = anchorHabitID }
 
         try? modelContext?.save()
     }

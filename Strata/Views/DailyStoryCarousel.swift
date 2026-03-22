@@ -7,7 +7,7 @@ struct DailyStoryCarousel: View {
     let modelContext: ModelContext
 
     @Environment(\.dismiss) private var dismissSheet
-    @State private var decodedImages: [UUID: UIImage] = [:]
+    @State private var screenSize: CGSize = .zero
 
     private var activeBlock: PlacedBlock? {
         let id = activeBlockID ?? blocks.first?.id
@@ -15,52 +15,43 @@ struct DailyStoryCarousel: View {
     }
 
     var body: some View {
-        ZStack {
-            // Background: blurred photo filling entire screen
-            if let block = activeBlock,
-               let img = decodedImages[block.id] {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
+        GeometryReader { geo in
+            ZStack {
+                // Background: blurred photo filling entire screen
+                if let block = activeBlock, let fileName = block.log.imageFileName {
+                    CachedImageView(
+                        fileName: fileName,
+                        width: geo.size.width,
+                        height: geo.size.height,
+                        cornerRadius: 0,
+                        fullResolution: true
+                    )
                     .ignoresSafeArea()
                     .blur(radius: 60)
                     .overlay(AppColors.warmBlack.opacity(0.7))
                     .ignoresSafeArea()
-            } else {
-                AppColors.warmBlack.ignoresSafeArea()
-            }
-
-            // Foreground: strict VStack for keyboard avoidance
-            if blocks.isEmpty {
-                Color.clear.onAppear { close() }
-            } else if blocks.count == 1, let block = blocks.first {
-                storyLayout(block: block)
-            } else {
-                TabView(selection: carouselBinding) {
-                    ForEach(blocks) { block in
-                        storyLayout(block: block)
-                            .tag(block.id)
-                    }
+                } else {
+                    AppColors.warmBlack.ignoresSafeArea()
                 }
-                .tabViewStyle(.page(indexDisplayMode: .always))
+
+                // Foreground: strict VStack for keyboard avoidance
+                if blocks.isEmpty {
+                    Color.clear.onAppear { close() }
+                } else if blocks.count == 1, let block = blocks.first {
+                    storyLayout(block: block, screenSize: geo.size)
+                } else {
+                    TabView(selection: carouselBinding) {
+                        ForEach(blocks) { block in
+                            storyLayout(block: block, screenSize: geo.size)
+                                .tag(block.id)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                }
             }
+            .onAppear { screenSize = geo.size }
         }
         .preferredColorScheme(.dark)
-        .onAppear { decodeVisibleImages() }
-        .onChange(of: activeBlockID) { decodeVisibleImages() }
-    }
-
-    private func decodeVisibleImages() {
-        guard let activeID = activeBlockID ?? blocks.first?.id,
-              let block = blocks.first(where: { $0.id == activeID }),
-              decodedImages[block.id] == nil,
-              let data = block.log.imageData else { return }
-        Task.detached {
-            guard let img = UIImage(data: data) else { return }
-            await MainActor.run {
-                decodedImages[block.id] = img
-            }
-        }
     }
 
     // Stable binding
@@ -73,7 +64,7 @@ struct DailyStoryCarousel: View {
 
     // MARK: - Story Layout (VStack)
 
-    private func storyLayout(block: PlacedBlock) -> some View {
+    private func storyLayout(block: PlacedBlock, screenSize: CGSize? = nil) -> some View {
         let style = block.habit.category.style
         let date = block.log.completedAt ?? Date()
 
@@ -95,7 +86,7 @@ struct DailyStoryCarousel: View {
                     // Date
                     Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                         .font(Typography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
 
                 Spacer()
@@ -110,6 +101,8 @@ struct DailyStoryCarousel: View {
                         .frame(width: 36, height: 36)
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Circle())
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -117,17 +110,21 @@ struct DailyStoryCarousel: View {
             Spacer()
 
             // Centered photo
-            if let img = decodedImages[block.id] {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                    )
-                    .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
-                    .padding(.horizontal, 20)
+            if let fileName = block.log.imageFileName {
+                let sz = screenSize ?? self.screenSize
+                CachedImageView(
+                    fileName: fileName,
+                    width: sz.width - 40,
+                    height: sz.height * 0.55,
+                    cornerRadius: 12,
+                    fullResolution: true
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+                .padding(.horizontal, 20)
             }
 
             Spacer()
@@ -138,7 +135,7 @@ struct DailyStoryCarousel: View {
                 .foregroundStyle(.white)
                 .tint(.white)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
                 .glassEffect(.regular, in: .rect(cornerRadius: 12))
                 .submitLabel(.done)
                 .padding(.horizontal, 20)

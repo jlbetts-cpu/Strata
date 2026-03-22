@@ -7,10 +7,11 @@ struct BlockDetailSheet: View {
     let modelContext: ModelContext
 
     @State private var selectedItem: PhotosPickerItem? = nil
-    @State private var displayImage: UIImage? = nil
+    @State private var sheetWidth: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
 
     private var style: CategoryStyle { block.habit.category.style }
+    private var hasImage: Bool { block.log.imageFileName != nil }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -21,7 +22,7 @@ struct BlockDetailSheet: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 24) {
                     // Header
-                    VStack(spacing: 6) {
+                    VStack(spacing: 8) {
                         Text(block.habit.title)
                             .font(Typography.appTitle)
                             .foregroundStyle(.white)
@@ -37,7 +38,7 @@ struct BlockDetailSheet: View {
                             .font(Typography.bodySmall)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
+                            .padding(.vertical, 4)
                             .background(.white.opacity(0.2))
                             .clipShape(Capsule())
                             .padding(.top, 4)
@@ -78,10 +79,16 @@ struct BlockDetailSheet: View {
                     .background(.white.opacity(0.2))
                     .clipShape(Circle())
             }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Circle())
             .padding(.top, 16)
             .padding(.trailing, 20)
         }
-        .onAppear(perform: loadExistingImage)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { newWidth in
+            sheetWidth = newWidth
+        }
         .onChange(of: selectedItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
         }
@@ -91,16 +98,17 @@ struct BlockDetailSheet: View {
 
     @ViewBuilder
     private var proofOfWorkSection: some View {
-        if let image = displayImage {
+        if hasImage {
             // Show the captured photo
             ZStack(alignment: .bottomTrailing) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 320)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
+                CachedImageView(
+                    fileName: block.log.imageFileName,
+                    width: max(sheetWidth - 48, 280),
+                    height: 320,
+                    cornerRadius: 20,
+                    fullResolution: true
+                )
+                .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
 
                 // Replace photo button
                 PhotosPicker(selection: $selectedItem, matching: .images) {
@@ -111,12 +119,14 @@ struct BlockDetailSheet: View {
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Circle())
                 .padding(12)
             }
         } else {
             // Empty state — photo picker placeholder
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                VStack(spacing: 14) {
+                VStack(spacing: 16) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 40, weight: .light))
                         .foregroundStyle(.white.opacity(0.8))
@@ -151,33 +161,30 @@ struct BlockDetailSheet: View {
                 .foregroundStyle(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        .padding(.vertical, 16)
         .background(.white.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    // MARK: - Photo Handling
-
-    private func loadExistingImage() {
-        if let data = block.log.imageData, let img = UIImage(data: data) {
-            displayImage = img
-        }
-    }
+    // MARK: - Photo Capture
 
     @MainActor
     private func loadPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
         guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        guard let img = UIImage(data: data) else { return }
+        guard let img = await Task.detached { UIImage(data: data) }.value else { return }
 
-        // Compress to JPEG to keep storage reasonable
-        let compressed = img.jpegData(compressionQuality: 0.8)
-
-        withAnimation(.easeOut(duration: 0.25)) {
-            displayImage = img
+        let (maxDim, quality): (CGFloat, CGFloat) = switch block.habit.blockSize {
+        case .small: (512, 0.70)
+        case .medium: (768, 0.75)
+        case .hard: (1024, 0.80)
         }
-
-        block.log.imageData = compressed
-        try? modelContext.save()
+        do {
+            let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
+            block.log.imageFileName = fileName
+            try? modelContext.save()
+        } catch {
+            // Save failed — silently ignore
+        }
     }
 }

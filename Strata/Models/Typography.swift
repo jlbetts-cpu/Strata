@@ -14,6 +14,9 @@ enum Typography {
     static let caption = Font.custom("FamiljenGrotesk-Regular", size: 11, relativeTo: .caption)
     static let caption2 = Font.custom("FamiljenGrotesk-Medium", size: 10, relativeTo: .caption2)
     static let blockTitle = Font.custom("FamiljenGrotesk-Medium", size: 16, relativeTo: .body)
+    // Mini block preview (used in MiniBlockPreview.swift)
+    static let miniBlockTitle = Font.custom("FamiljenGrotesk-Medium", size: 9, relativeTo: .caption2)
+    static let miniBlockIcon = Font.custom("FamiljenGrotesk-Medium", size: 8, relativeTo: .caption2)
     static let headerKerning: CGFloat = -0.3  // -2% at ~15pt
     static let titleKerning: CGFloat = -0.68  // -2% at 34pt
 }

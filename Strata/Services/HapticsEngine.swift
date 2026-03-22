@@ -2,6 +2,18 @@ import UIKit
 
 enum HapticsEngine {
     private static let selectionGenerator = UISelectionFeedbackGenerator()
+    private static let lightGenerator = UIImpactFeedbackGenerator(style: .light)
+    private static let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private static let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    private static let rigidGenerator = UIImpactFeedbackGenerator(style: .rigid)
+
+    /// Prime all generators for lower-latency feedback
+    static func prepare() {
+        lightGenerator.prepare()
+        mediumGenerator.prepare()
+        heavyGenerator.prepare()
+        rigidGenerator.prepare()
+    }
 
     /// Light selection tap — scrubber dragging
     static func tick() {
@@ -10,41 +22,36 @@ enum HapticsEngine {
 
     /// Heavy impact for tower block landing, scaled by mass tier
     static func thud(mass: Int = 1) {
-        let style: UIImpactFeedbackGenerator.FeedbackStyle = switch mass {
-        case 1: .light
-        case 2: .medium
-        default: .heavy
+        let gen: UIImpactFeedbackGenerator = switch mass {
+        case 1: lightGenerator
+        case 2: mediumGenerator
+        default: heavyGenerator
         }
-        let gen = UIImpactFeedbackGenerator(style: style)
         gen.impactOccurred()
+        gen.prepare()
     }
 
-    /// Soft squishy impact for silicone-style drop landings, scaled by mass
+    /// Rigid impact for polished resin drop landings, scaled by mass via intensity
     static func squish(mass: Int = 1) {
         let intensity: CGFloat = switch mass {
-        case 1: 0.5
-        case 2: 0.65
-        default: 0.8
+        case 1: 0.45
+        case 2: 0.60
+        default: 0.75
         }
-        let style: UIImpactFeedbackGenerator.FeedbackStyle = switch mass {
-        case 1: .soft
-        case 2: .medium
-        default: .heavy
-        }
-        let gen = UIImpactFeedbackGenerator(style: style)
-        gen.impactOccurred(intensity: intensity)
+        rigidGenerator.impactOccurred(intensity: intensity)
+        rigidGenerator.prepare()
     }
 
     /// Rigid impact for drawer toggle and swipe-to-complete
     static func snap() {
-        let gen = UIImpactFeedbackGenerator(style: .rigid)
-        gen.impactOccurred(intensity: 0.8)
+        rigidGenerator.impactOccurred(intensity: 0.8)
+        rigidGenerator.prepare()
     }
 
     /// Increasing intensity cascade sequence
     static func cascade(index: Int) {
         let intensity = min(1.0, 0.4 + Double(index) * 0.15)
-        let gen = UIImpactFeedbackGenerator(style: .heavy)
-        gen.impactOccurred(intensity: intensity)
+        heavyGenerator.impactOccurred(intensity: intensity)
+        heavyGenerator.prepare()
     }
 }

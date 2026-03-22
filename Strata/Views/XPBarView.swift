@@ -47,6 +47,6 @@ struct XPBarView: View {
             .frame(height: 6)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
     }
 }
