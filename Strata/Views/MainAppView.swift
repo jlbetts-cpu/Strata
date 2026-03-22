@@ -102,17 +102,10 @@ struct MainAppView: View {
         }
     }
 
-    @State private var addTapTrigger: Int = 0
-
-    @State private var showPlanPage = false
+    @State private var showSettings = false
 
     var body: some View {
         mainContent
-            .sheet(isPresented: $showPlanPage) {
-                NavigationStack {
-                    PlanPageView()
-                }
-            }
             .fullScreenCover(isPresented: carouselPresented) {
                 DailyStoryCarousel(
                     blocks: todaysPhotoBlocks,
@@ -138,28 +131,41 @@ struct MainAppView: View {
     }
 
     private var mainContent: some View {
-        ZStack(alignment: .bottomTrailing) {
-            TabView(selection: $selectedTab) {
-                Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
-                    towerTab
-                }
-                Tab("Today", systemImage: "calendar", value: StrataTab.today) {
-                    timelineTabContent
-                }
-                Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
-                    InsightsView()
-                }
-                Tab("Preferences", systemImage: "gearshape", value: StrataTab.preferences) {
-                    SettingsView()
+        TabView(selection: $selectedTab) {
+            Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
+                towerTab
+                    .overlay(alignment: .topLeading) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .padding(.top, safeAreaTop + 48)
+                        .padding(.leading, hPad)
+                    }
+                    .sheet(isPresented: $showSettings) {
+                        NavigationStack {
+                            SettingsView()
+                        }
+                    }
+            }
+            Tab("Today", systemImage: "calendar", value: StrataTab.today) {
+                timelineTabContent
+            }
+            Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
+                NavigationStack {
+                    PlanPageView()
                 }
             }
-            .tabBarMinimizeBehavior(.onScrollDown)
-
-            // Floating + button
-            addButton
-                .padding(.trailing, 20)
-                .padding(.bottom, 70)
+            Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
+                InsightsView()
+            }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
@@ -205,56 +211,48 @@ struct MainAppView: View {
     private func towerTabContent() -> some View {
         let colW = currentColW
 
-        return ZStack(alignment: .top) {
-            // Warm background surface
-            WarmBackground()
-                .ignoresSafeArea()
-
-            // Layer 1: ScrollView with blocks — fills screen, under safe area
-            towerContent(colW: colW, topInset: collapsedHeaderHeight,
-                         safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
-                         viewportHeight: screenHeight)
-                .scaleEffect(y: towerImpactScale, anchor: .bottom)
-                .environment(\.towerFilterMode, towerFilterMode)
-                .ignoresSafeArea(.container, edges: .top)
-
-            #if DEBUG
-            Menu {
-                Button("Add Block", systemImage: "plus") {
-                    injectDebugBlock()
-                }
-                Button("Remove Block", systemImage: "minus") {
-                    removeLastDebugBlock()
-                }
-                Divider()
-                Button("Reset Tower", systemImage: "arrow.counterclockwise", role: .destructive) {
-                    resetTower()
-                }
-            } label: {
-                Text("Debug")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+        return towerContent(colW: colW, topInset: collapsedHeaderHeight,
+                     safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
+                     viewportHeight: screenHeight)
+            .environment(\.towerFilterMode, towerFilterMode)
+            .overlay(alignment: .topTrailing) {
+                AltimeterPill(heightMeters: towerVM.altimeterHeight)
+                    .padding(.top, safeAreaTop + 48)
+                    .padding(.trailing, hPad)
+                    .opacity(towerVM.totalRows > 0 ? 1 : 0)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(.top, safeAreaTop + 12)
-            .padding(.trailing, hPad)
-            #endif
-
-            AltimeterPill(heightMeters: towerVM.altimeterHeight)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.top, safeAreaTop + 48)
-                .padding(.trailing, hPad)
-                .opacity(towerVM.totalRows > 0 ? 1 : 0)
-
-            // Filter pill — top-left of tower screen
-            TowerFilterPill(selection: $towerFilterMode)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .overlay(alignment: .topLeading) {
+                // Filter pill — top-left of tower screen
+                TowerFilterPill(selection: $towerFilterMode)
+                    .padding(.top, safeAreaTop + 12)
+                    .padding(.leading, hPad)
+            }
+            #if DEBUG
+            .overlay(alignment: .topTrailing) {
+                Menu {
+                    Button("Add Block", systemImage: "plus") {
+                        injectDebugBlock()
+                    }
+                    Button("Remove Block", systemImage: "minus") {
+                        removeLastDebugBlock()
+                    }
+                    Divider()
+                    Button("Reset Tower", systemImage: "arrow.counterclockwise", role: .destructive) {
+                        resetTower()
+                    }
+                } label: {
+                    Text("Debug")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
                 .padding(.top, safeAreaTop + 12)
-                .padding(.leading, hPad)
-        }
+                .padding(.trailing, hPad)
+            }
+            #endif
+            .background { WarmBackground().ignoresSafeArea() }
     }
 
     // MARK: - Timeline Tab
@@ -263,7 +261,8 @@ struct MainAppView: View {
         ScheduleTimelineView(
             weekData: weekData,
             selectedDate: $timelineSelectedDate,
-            incompleteHabits: habitsForSelectedDate,
+            allHabits: allHabitsForSelectedDate,
+            completedHabitIDs: completedHabitIDsForSelectedDate,
             isViewingToday: Calendar.current.isDateInToday(timelineSelectedDate),
             isViewingPast: !Calendar.current.isDateInToday(timelineSelectedDate) && timelineSelectedDate < Date(),
             onComplete: { habit in
@@ -276,20 +275,24 @@ struct MainAppView: View {
             onAddHabit: { prefillTime in
                 newHabitPrefillTime = prefillTime
                 isNewHabitMenuOpen = true
-            }
+            },
+            debugTower: towerManager.activeTower
         )
         .onChange(of: timelineSelectedDate) {
             refreshData()
         }
     }
 
-    /// Habits for the currently selected date in the timeline
-    private var habitsForSelectedDate: [Habit] {
+    /// All habits (incomplete + completed) for the selected date
+    private var allHabitsForSelectedDate: [Habit] {
         let calendar = Calendar.current
         let isToday = calendar.isDateInToday(timelineSelectedDate)
 
         if isToday {
-            return incompleteForTimeline
+            // Return ALL today's habits (incomplete + completed) sorted by time
+            return timelineVM.todaysHabits
+                .filter { $0.tower?.id == towerManager.activeTower?.id }
+                .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
         }
 
         let dateStr = TimelineViewModel.dateString(from: timelineSelectedDate)
@@ -318,30 +321,10 @@ struct MainAppView: View {
         }
     }
 
-    // MARK: - Floating Add Button
-
-    private var addButton: some View {
-        Button {
-            addTapTrigger += 1
-            showPlanPage = true
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(.primary)
-                .frame(width: 52, height: 52)
-        }
-        .buttonStyle(.glassProminent)
-        .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(0.08, colorScheme: colorScheme)), radius: 20, y: 8)
-        .shadow(color: .black.opacity(GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)), radius: 4, y: 2)
-        .phaseAnimator([false, true], trigger: addTapTrigger) { content, phase in
-            content.scaleEffect(
-                x: phase ? 1.06 : 1.0,
-                y: phase ? 0.94 : 1.0
-            )
-        } animation: { phase in
-            phase ? .spring(duration: 0.08) : .spring(duration: 0.25, bounce: 0.3)
-        }
-        .sensoryFeedback(.impact(weight: .medium), trigger: addTapTrigger)
+    /// IDs of completed habits for the selected date
+    private var completedHabitIDsForSelectedDate: Set<UUID> {
+        let dateStr = TimelineViewModel.dateString(from: timelineSelectedDate)
+        return Set(logs.filter { $0.dateString == dateStr && $0.completed }.compactMap { $0.habit?.id })
     }
 
     // MARK: - Dominant Date (Split-Flap)
@@ -625,12 +608,11 @@ struct MainAppView: View {
                                          viewportHeight: viewportHeight, topInset: topInset)
                     }
                 }
+                .scaleEffect(y: towerImpactScale, anchor: .bottom)
                 .padding(.horizontal, hPad)
-                .padding(.top, safeAreaTop + collapsedHeaderHeight + 20)
+                .padding(.top, collapsedHeaderHeight + 20)
                 .padding(.bottom, footerClearance)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollClipDisabled(true)
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y

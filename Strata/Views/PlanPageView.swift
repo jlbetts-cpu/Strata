@@ -6,23 +6,30 @@ struct PlanPageView: View {
     @Query private var allHabits: [Habit]
     @State private var viewModel = PlanPageViewModel()
     @FocusState private var isInputFocused: Bool
+    @State private var hasAppeared = false
 
     var body: some View {
         List {
             // MARK: - Input Row
             HStack(spacing: 12) {
-                Circle()
-                    .fill(viewModel.suggestedColor)
-                    .frame(width: 12, height: 12)
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.effectiveCategory)
+                // Category icon circle (matches row indicator)
+                ZStack {
+                    Circle()
+                        .fill(viewModel.suggestedColor)
+                        .frame(width: 20, height: 20)
+                    Image(systemName: viewModel.effectiveCategory.iconName)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .animation(.easeInOut(duration: 0.2), value: viewModel.effectiveCategory)
 
                 TextField("Type a habit or task...", text: $viewModel.newItemText)
                     .font(Typography.bodyLarge)
                     .focused($isInputFocused)
                     .onSubmit {
                         viewModel.commitNewItem(context: modelContext)
-                        // Re-focus for next item (like Apple Notes checklist)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(50))
                             isInputFocused = true
                         }
                     }
@@ -56,6 +63,9 @@ struct PlanPageView: View {
                     },
                     onToggleTodo: {
                         viewModel.toggleTodo(item.habit, context: modelContext)
+                    },
+                    onUpdateTime: { time in
+                        viewModel.updateTime(item.habit, to: time, context: modelContext)
                     }
                 )
                 .listRowSeparator(.hidden)
@@ -99,7 +109,10 @@ struct PlanPageView: View {
         .navigationTitle("Habits")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            isInputFocused = true
+            if !hasAppeared {
+                hasAppeared = true
+                isInputFocused = true
+            }
         }
     }
 }

@@ -23,7 +23,7 @@ These files are touched by multiple bots. **Check this file before modifying sha
 
 | File | Primary Owner | Other Users | Rule |
 |------|--------------|-------------|------|
-| `MainAppView.swift` | Tower Claude | Timeline, Add Task | Now wrapped in NavigationStack (Add Task Claude). "+" pushes PlanPageView via `.navigationDestination`. Coordinate before editing. |
+| `MainAppView.swift` | Tower Claude | Timeline, Add Task | Plan is now a dedicated tab (not a push destination). Gear icon on Tower tab opens settings sheet. Coordinate before editing. |
 | `GridConstants.swift` | Shared | All | Additive changes only. Don't modify existing constants. |
 | `CategoryColors.swift` | Shared | All | Read-only. Don't change colors or styles. |
 | `Typography.swift` | Shared | All | Read-only. Don't change font definitions. |
@@ -42,17 +42,17 @@ These files are touched by multiple bots. **Check this file before modifying sha
 - **Current:** No active work
 
 ### Tower Claude
-- **Completed:** Native TabView migration, MainAppView type-checker fix
+- **Completed:** Native TabView migration, MainAppView type-checker fix, tab bar collapse fix on Tower tab
 - **Current:** No active work
 
 ### Add Task Claude (current)
-- **Completed:** Notes-style PlanPageView (navigation push from +), AllItemsView polish, block time text simplification
-- **Architecture change:** "+" button now pushes PlanPageView via NavigationStack (was sheet). Added `showPlanPage` state + `.navigationDestination` to MainAppView.
+- **Completed:** Notes-style PlanPageView, AllItemsView polish, block time text, definitive overhaul (labeled sections, icon circles, time picker, effort pills, frequency fix, skill compliance), Plan tab replaces "+" button, gear icon for settings
+- **Architecture:** Plan is a dedicated tab. Settings via gear icon sheet on Tower tab. No keyboard toolbar.
 - **Model changes:** Added `parentHabitID`, `sortOrder` to Habit.swift. Added `miniBlockTitle`/`miniBlockIcon` to Typography.swift.
 
 ## Cross-Cutting Concerns
 
 1. **Completion pipeline:** Timeline's `onComplete` → MainAppView's `pendingDrops` → Tower's `cascadeDropPendingBlocks`. Don't change this interface.
-2. **Tab switching:** `selectedTab` in MainAppView drives which tab renders. Don't change the enum.
+2. **Tab switching:** `selectedTab` in MainAppView drives which tab renders. Enum updated to: tower, today, plan, insights (was: tower, today, preferences, insights). Don't change without coordination.
 3. **refreshData():** Called by both timeline (after complete/skip) and tower (after filter change). Don't change signature.
 4. **Image pipeline:** `ImageManager`, `CachedImageView`, `ImageMigrationRunner` — shared infrastructure. Don't modify without coordination.

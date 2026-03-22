@@ -70,6 +70,7 @@ final class PlanPageViewModel {
             title: trimmed,
             category: category,
             blockSize: size,
+            frequency: DayCode.allCases,
             sortOrder: maxOrder + 1
         )
         context.insert(habit)
@@ -122,11 +123,16 @@ final class PlanPageViewModel {
         try? context.save()
     }
 
+    func updateTime(_ habit: Habit, to time: String?, context: ModelContext) {
+        habit.scheduledTime = time
+        try? context.save()
+    }
+
     func toggleTodo(_ habit: Habit, context: ModelContext) {
         habit.isTodo.toggle()
         if habit.isTodo {
             habit.frequency = []
-            habit.scheduledDate = TimelineViewModel.dateString(from: Date())
+            habit.scheduledDate = TimelineViewModel.dateString(from: Date.now)
         } else {
             habit.frequency = DayCode.allCases
             habit.scheduledDate = nil
@@ -151,9 +157,9 @@ final class PlanPageViewModel {
     func scheduleDescription(for habit: Habit) -> String {
         if habit.isTodo {
             guard let dateStr = habit.scheduledDate else { return "One-time" }
-            let today = TimelineViewModel.dateString(from: Date())
+            let today = TimelineViewModel.dateString(from: Date.now)
             if dateStr == today { return "Today" }
-            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date.now)!
             if TimelineViewModel.dateString(from: tomorrow) == dateStr { return "Tomorrow" }
             let parts = dateStr.split(separator: "-")
             guard parts.count == 3, let m = Int(parts[1]), let d = Int(parts[2]) else { return dateStr }

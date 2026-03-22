@@ -6,9 +6,11 @@ struct TimelineHabitRow: View {
     let cornerRadius: CGFloat
     let onComplete: (Habit) -> Void
     var onSkip: ((Habit) -> Void)? = nil
+    /// If true, render in completed/glazed state immediately (for already-completed habits)
+    var isAlreadyCompleted: Bool = false
 
     enum TaskState {
-        case incomplete, glazing, glazed, departing, hidden
+        case incomplete, glazing, glazed
     }
 
     @State private var state: TaskState = .incomplete
@@ -22,30 +24,42 @@ struct TimelineHabitRow: View {
 
     /// Has the ceramic glaze been applied?
     private var isGlazed: Bool {
-        state == .glazing || state == .glazed || state == .departing
+        isAlreadyCompleted || state == .glazing || state == .glazed
     }
 
-    /// Is departing (fade out)?
-    private var isDeparting: Bool { state == .departing }
+    /// Is this row interactive (swipeable, tappable)?
+    private var isInteractive: Bool {
+        !isAlreadyCompleted && state == .incomplete
+    }
 
     var body: some View {
-        if state == .hidden || isSwiped {
-            EmptyView()
-        } else {
-            content
-        }
+        content
+            .onAppear {
+                if isAlreadyCompleted && !reduceMotion {
+                    // Start breathing shimmer for already-completed blocks
+                    let delay = Double.random(in: 0...0.5)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                            breathePhase = true
+                        }
+                    }
+                }
+            }
+            .onDisappear {
+                breathePhase = false
+            }
     }
 
     private var content: some View {
         ZStack {
-            // Swipe reveal icons (only when incomplete)
-            if state == .incomplete {
+            // Swipe reveal icons (only when incomplete and interactive)
+            if isInteractive && !isSwiped {
                 swipeRevealIcons
             }
 
             // Main block
             ZStack {
-                // Background: full category gradient (Structured-style — always colored)
+                // Background: full category gradient (always colored — matte and glazed same fill)
                 LinearGradient(
                     stops: [
                         .init(color: style.lightTint, location: 0.0),
@@ -66,9 +80,9 @@ struct TimelineHabitRow: View {
                     endPoint: .bottom
                 )
 
-                // Border: thin outline when incomplete → progressive dual glow when glazed
+                // Border: thin outline when matte → progressive dual glow when glazed
                 if isGlazed {
-                    // Overlay 1: Crisp top glow (matching HabitBlockView)
+                    // Overlay 1: Crisp top glow
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .stroke(
                             LinearGradient(
@@ -83,7 +97,7 @@ struct TimelineHabitRow: View {
                             lineWidth: 2.5
                         )
 
-                    // Overlay 2: Diffused bottom glow (the ceramic finish)
+                    // Overlay 2: Diffused bottom glow (ceramic finish)
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .stroke(
                             LinearGradient(
@@ -107,7 +121,6 @@ struct TimelineHabitRow: View {
 
                 // Content: icon + text + check circle
                 HStack(spacing: 10) {
-                    // Category icon badge (matching BlockContentOverlay)
                     Image(systemName: habit.category.iconName)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.6))
@@ -138,17 +151,20 @@ struct TimelineHabitRow: View {
                     Spacer()
 
                     // Check circle
-                    Button {
-                        guard state == .incomplete else { return }
-                        beginCompletion()
-                    } label: {
+                    if isInteractive {
+                        Button {
+                            beginCompletion()
+                        } label: {
+                            checkCircle
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .padding(.trailing, 6)
+                    } else {
                         checkCircle
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                            .padding(.trailing, 12)
                     }
-                    .padding(.trailing, 6)
                 }
-                .opacity(isDeparting ? 0 : 1)
             }
             .frame(height: rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,17 +187,13 @@ struct TimelineHabitRow: View {
             color: .black.opacity(GridConstants.adaptiveShadowOpacity(isGlazed ? 0.05 : 0, colorScheme: colorScheme)),
             radius: 3, x: 0, y: 1
         )
-        // Departing animation
-        .scaleEffect(isDeparting ? 0.85 : 1.0)
-        .opacity(isDeparting ? 0 : (swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0))
-        .offset(y: isDeparting ? -16 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isDeparting)
+        .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
         .accessibilityLabel(habit.title)
-        .accessibilityHint("Swipe right to complete, swipe left to skip")
-        .accessibilityAction(named: "Complete") { beginCompletion() }
-        .accessibilityAction(named: "Skip") { onSkip?(habit) }
+        .accessibilityHint(isInteractive ? "Swipe right to complete, swipe left to skip" : "Completed")
+        .accessibilityAction(named: "Complete") { if isInteractive { beginCompletion() } }
+        .accessibilityAction(named: "Skip") { if isInteractive { onSkip?(habit) } }
         .gesture(
-            state == .incomplete
+            isInteractive
             ? DragGesture(minimumDistance: 20)
                 .onChanged { value in
                     if abs(value.translation.width) > abs(value.translation.height) {
@@ -234,10 +246,10 @@ struct TimelineHabitRow: View {
         .frame(height: rowHeight)
     }
 
-    // MARK: - Check Circle (Ring → Filled)
+    // MARK: - Check Circle
 
     private var checkCircle: some View {
-        let isChecked = state != .incomplete
+        let isChecked = isGlazed
 
         return ZStack {
             Circle()
@@ -255,10 +267,10 @@ struct TimelineHabitRow: View {
                 .scaleEffect(isChecked ? 1.0 : 0.001)
                 .rotationEffect(.degrees(isChecked ? 0 : -30))
         }
-        .animation(.spring(response: 0.25, dampingFraction: 0.5), value: state)
+        .animation(.spring(response: 0.25, dampingFraction: 0.5), value: isGlazed)
     }
 
-    // MARK: - Completion: "Glazing" Sequence
+    // MARK: - Completion: Glazing
 
     private func beginCompletion() {
         HapticsEngine.snap()
@@ -276,7 +288,7 @@ struct TimelineHabitRow: View {
         }
 
         Task { @MainActor in
-            // Phase 2: Hold — fully glazed
+            // Phase 2: Settle as glazed
             try? await Task.sleep(nanoseconds: 500_000_000)
 
             let gen = UIImpactFeedbackGenerator(style: .medium)
@@ -284,21 +296,7 @@ struct TimelineHabitRow: View {
 
             state = .glazed
 
-            // Phase 3: Depart
-            try? await Task.sleep(nanoseconds: 300_000_000)
-
-            let gen2 = UIImpactFeedbackGenerator(style: .light)
-            gen2.impactOccurred()
-
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                state = .departing
-            }
-
-            // Phase 4: Hidden
-            try? await Task.sleep(nanoseconds: 350_000_000)
-
-            breathePhase = false
-            state = .hidden
+            // Notify parent — habit is complete, queue for tower
             onComplete(habit)
         }
     }

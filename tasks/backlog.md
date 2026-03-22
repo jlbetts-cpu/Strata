@@ -18,4 +18,3 @@ Future ideas, tech debt, and parking lot items. Not actively being worked on.
 
 - Dark mode audit across all opacity values
 - Accessibility pass (dynamic type, VoiceOver, reduce motion)
-- `tabViewBottomAccessory()` for + button (places accessory above tab bar when expanded, inline when collapsed)

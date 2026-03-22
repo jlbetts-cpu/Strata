@@ -4,12 +4,19 @@ import SwiftData
 struct ScheduleTimelineView: View {
     let weekData: [DayProgressData]
     @Binding var selectedDate: Date
-    let incompleteHabits: [Habit]
+    let allHabits: [Habit]
+    let completedHabitIDs: Set<UUID>
     let isViewingToday: Bool
     let isViewingPast: Bool
     let onComplete: (Habit) -> Void
     let onSkip: (Habit) -> Void
     let onAddHabit: (String?) -> Void
+    var debugTower: Tower? = nil
+
+    /// Incomplete habits only (for empty state logic)
+    private var incompleteHabits: [Habit] {
+        allHabits.filter { !completedHabitIDs.contains($0.id) }
+    }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
@@ -113,6 +120,27 @@ struct ScheduleTimelineView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
+
+                #if DEBUG
+                Menu {
+                    Button("Add Habit", systemImage: "plus") {
+                        injectDebugHabit()
+                    }
+                    Button("Remove Habit", systemImage: "minus") {
+                        removeLastDebugHabit()
+                    }
+                } label: {
+                    Text("Debug")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                #endif
             }
         }
         .background { WarmBackground().ignoresSafeArea() }
@@ -228,13 +256,14 @@ struct ScheduleTimelineView: View {
     // MARK: - Habit Blocks
 
     private var habitBlocks: some View {
-        ForEach(Array(incompleteHabits.enumerated()), id: \.element.id) { idx, habit in
+        ForEach(Array(allHabits.enumerated()), id: \.element.id) { idx, habit in
             let minutesFromStart = minutesFromStartOfDay(for: habit)
             let y = minutesFromStart * effectiveScale
             let durationMins = habit.blockSize.durationMinutes
             let h = max(durationMins * effectiveScale, 56) // 56pt min (research)
             let isDragging = draggingHabitID == habit.id
             let extraY = isDragging ? dragYOffset : 0
+            let isCompleted = completedHabitIDs.contains(habit.id)
 
             HStack(spacing: 0) {
                 Color.clear
@@ -246,9 +275,10 @@ struct ScheduleTimelineView: View {
                         rowHeight: h,
                         cornerRadius: cornerRadius,
                         onComplete: { _ in },
-                        onSkip: { _ in }
+                        onSkip: { _ in },
+                        isAlreadyCompleted: isCompleted
                     )
-                    .opacity(0.5)
+                    .opacity(isCompleted ? 1.0 : 0.5)
                 } else {
                     TimelineHabitRow(
                         habit: habit,
@@ -259,7 +289,8 @@ struct ScheduleTimelineView: View {
                         },
                         onSkip: { skippedHabit in
                             onSkip(skippedHabit)
-                        }
+                        },
+                        isAlreadyCompleted: isCompleted
                     )
                 }
             }
@@ -502,4 +533,50 @@ struct ScheduleTimelineView: View {
             }
         }
     }
+
+    // MARK: - Debug
+
+    #if DEBUG
+    private func injectDebugHabit() {
+        let namesByCategory: [HabitCategory: [String]] = [
+            .health:      ["Morning Run", "Drink Water", "Stretch", "Gym", "Walk 10k Steps", "Sleep by 11"],
+            .work:        ["Deep Work", "Clear Inbox", "Stand-Up", "Code Review", "Ship Feature", "Write Docs"],
+            .creativity:  ["Sketch", "Write 500 Words", "Play Guitar", "Photography", "Design Sprint", "Journaling"],
+            .focus:       ["Read 30 Min", "No Phone Hour", "Pomodoro x4", "Study Session", "Meditate", "Plan Tomorrow"],
+            .social:      ["Call a Friend", "Family Dinner", "Coffee Chat", "Send Thank You", "Team Lunch", "Game Night"],
+            .mindfulness: ["Meditate", "Breathwork", "Gratitude Log", "Body Scan", "Yoga", "Nature Walk"]
+        ]
+        let category = HabitCategory.allCases.randomElement()!
+        let title = namesByCategory[category]!.randomElement()!
+        let size = BlockSize.allCases.randomElement()!
+
+        // Random time between 6AM and 9PM, snapped to 15-min intervals
+        let hour = Int.random(in: 6...21)
+        let minute = [0, 15, 30, 45].randomElement()!
+        let scheduledTime = String(format: "%02d:%02d", hour, minute)
+
+        let habit = Habit(
+            title: title,
+            category: category,
+            blockSize: size,
+            frequency: [DayCode.today()],
+            scheduledTime: scheduledTime
+        )
+        habit.tower = debugTower
+        modelContext.insert(habit)
+        try? modelContext.save()
+    }
+
+    private func removeLastDebugHabit() {
+        // Find incomplete habits for today (no completed log)
+        let todayStr = TimelineViewModel.dateString(from: Date())
+        let todayCode = DayCode.today()
+
+        let todaysHabits = incompleteHabits
+        guard let last = todaysHabits.sorted(by: { $0.createdAt > $1.createdAt }).first else { return }
+
+        modelContext.delete(last)
+        try? modelContext.save()
+    }
+    #endif
 }

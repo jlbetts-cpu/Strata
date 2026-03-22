@@ -23,6 +23,10 @@
 
 ## Changed
 
+- **Plan tab replaces Preferences + floating "+" button** (Add Screen Claude) — 4-tab bar (Tower → Today → Plan → Insights). Preferences moved to gear icon sheet overlay on Tower tab. Removed ZStack wrapper, addButton, showPlanPage state from MainAppView.
+- **Timeline completed-habit rendering** (Timeline Claude) — ScheduleTimelineView accepts allHabits + completedHabitIDs (was incompleteHabits). Completed habits render glazed in-place. Debug menu added to timeline.
+- **TimelineHabitRow completed state** (Timeline Claude) — New `isAlreadyCompleted` param renders glazed ceramic immediately with breathing shimmer. Removed `departing`/`hidden` states. Interactive guard prevents swipe on completed rows.
+- **PlanItemRow time picker + icon circles** (Add Screen Claude) — Added `onUpdateTime` callback, time toggle+picker in expanded options. Category indicators upgraded to 20pt icon circles. Button wrapping replaces onTapGesture. Labeled sections with Gestalt spacing.
 - **Tower block design pass** — Softer shadows, matte ceramic bevels, warm background, 16pt squircle corners.
 - **Block Figma matching (4 rounds)** — Progressive refinement: gradient fill → border glow → top-lit glow → two-overlay progressive border glow + 20% frosted overlay.
 - **Warm grey color pass** — Replaced all blacks (#000) with warm grey (#403D39), updated AccentColor.
@@ -44,14 +48,17 @@
 - **"+" button → NavigationStack push** (Add Screen Claude) — Replaced sheet presentation with NavigationStack wrapper + `.navigationDestination`. "+" now pushes PlanPageView as a full page.
 - **Habit model** (Add Screen Claude) — Added `parentHabitID: UUID?` (sub-task support), `sortOrder: Int` (list ordering), `isSubTask` computed property.
 - **Tower block time text** (Add Screen Claude) — Simplified from "3:15 PM – 3:30 PM" range to single timestamp "3:30 PM". Block size already communicates duration visually.
+- **PlanPage definitive overhaul** (Add Screen Claude) — Labeled sections ("Category", "Effort", "Schedule", "Time") with 24pt Gestalt spacing, no dividers. Row indicators: plain dots → 20pt icon circles (NN/g: 37% faster scanning). Block-shaped effort pills with equal width. Time picker added (Toggle + DatePicker). Category labels under circles. Keyboard toolbar removed. "No days" frequency bug fixed. onTapGesture → Button, DispatchQueue → Task, Date() → Date.now (swiftui-pro skill compliance).
 
 ## Fixed
 
+- **Default frequency for new habits** (Add Screen Claude) — PlanPageViewModel now sets `frequency: DayCode.allCases` (was empty, causing habits to not appear on any day).
 - **Block drop animation flash** — Set `.falling` phase immediately in `enqueueDrop()` so blocks enter render tree already offscreen.
 - **Tower block viewport culling** — Fixed inverted `towerScrollOffset` sign. Lowered culling threshold 80→40 blocks.
 - **Timeline overlapping blocks** (Timeline Claude) — Added `.frame(maxWidth: .infinity)` + trailing padding to row HStack.
 - **Timeline scroll clipping** (Timeline Claude) — Bottom padding 24→100pt for tab bar clearance.
 - **Timeline section header overlap** (Timeline Claude) — Moved section headers into gutter area.
+- **Tab bar collapse on Tower tab** (Tower Claude) — Removed `.scrollBounceBehavior(.basedOnSize)` and flattened ZStack with full-size siblings into `.overlay()` modifiers so tab bar system can identify the primary ScrollView.
 
 ## Removed
 

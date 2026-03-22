@@ -14,4 +14,3 @@
 - [ ] Accessibility review (dynamic type, VoiceOver, reduce motion)
 - [ ] Insights tab content (placeholder view exists)
 - [ ] Settings tab content (placeholder view exists)
-- [ ] Explore `tabViewBottomAccessory()` for + button
