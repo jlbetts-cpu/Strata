@@ -8,6 +8,10 @@ struct BlockDetailSheet: View {
 
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var sheetWidth: CGFloat = 0
+    @State private var showPhotoError = false
+    @ScaledMetric(relativeTo: .caption) private var closeIconSize: CGFloat = GridConstants.iconAction
+    @ScaledMetric(relativeTo: .body) private var heroIconSize: CGFloat = GridConstants.iconHero
+    @ScaledMetric(relativeTo: .caption) private var replaceIconSize: CGFloat = GridConstants.iconAction
     @Environment(\.dismiss) private var dismiss
 
     private var style: CategoryStyle { block.habit.category.style }
@@ -50,19 +54,13 @@ struct BlockDetailSheet: View {
                         .padding(.horizontal, 24)
 
                     // Stats row
-                    if let xp = block.log.pendingXP {
-                        HStack(spacing: 16) {
-                            statPill(label: "XP", value: "+\(xp)")
-                            if block.log.isBonusBlock {
-                                statPill(label: "BONUS", value: "★")
-                            }
-                            statPill(
-                                label: "SIZE",
-                                value: block.habit.blockSize.rawValue.capitalized
-                            )
-                        }
-                        .padding(.horizontal, 24)
+                    HStack(spacing: 16) {
+                        statPill(
+                            label: "SIZE",
+                            value: block.habit.blockSize.rawValue.capitalized
+                        )
                     }
+                    .padding(.horizontal, 24)
 
                     Spacer(minLength: 40)
                 }
@@ -73,7 +71,7 @@ struct BlockDetailSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: closeIconSize, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
                     .background(.white.opacity(0.2))
@@ -84,13 +82,19 @@ struct BlockDetailSheet: View {
             .padding(.top, 16)
             .padding(.trailing, 20)
         }
-        .onGeometryChange(for: CGFloat.self) { proxy in
+        .onGeometryChange(for: CGFloat.self, of: { proxy in
             proxy.size.width
-        } action: { newWidth in
+        }, action: { newWidth in
             sheetWidth = newWidth
-        }
+        })
         .onChange(of: selectedItem) { _, newItem in
+            HapticsEngine.lightTap()
             Task { await loadPhoto(from: newItem) }
+        }
+        .alert("Photo couldn't be saved", isPresented: $showPhotoError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Try again or choose a different photo.")
         }
     }
 
@@ -113,7 +117,7 @@ struct BlockDetailSheet: View {
                 // Replace photo button
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: replaceIconSize, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 36, height: 36)
                         .background(.ultraThinMaterial)
@@ -128,7 +132,7 @@ struct BlockDetailSheet: View {
             PhotosPicker(selection: $selectedItem, matching: .images) {
                 VStack(spacing: 16) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 40, weight: .light))
+                        .font(.system(size: heroIconSize, weight: .light))
                         .foregroundStyle(.white.opacity(0.8))
 
                     Text("Add Proof of Work")
@@ -184,7 +188,7 @@ struct BlockDetailSheet: View {
             block.log.imageFileName = fileName
             try? modelContext.save()
         } catch {
-            // Save failed — silently ignore
+            showPhotoError = true
         }
     }
 }

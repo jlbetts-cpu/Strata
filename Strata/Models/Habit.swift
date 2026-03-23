@@ -42,14 +42,6 @@ enum BlockSize: String, Codable, CaseIterable {
         }
     }
 
-    var baseXP: Int {
-        switch self {
-        case .small: return 10
-        case .medium: return 20
-        case .hard: return 40
-        }
-    }
-
     /// Mass tier for physics: 1 (light), 2 (medium), 3 (heavy)
     var massTier: Int {
         switch self {
@@ -126,6 +118,7 @@ final class Habit {
     var parentHabitID: UUID?
     var sortOrder: Int = 0
     var tower: Tower?
+    var planFolder: PlanFolder?
 
     @Relationship(deleteRule: .cascade, inverse: \HabitLog.habit)
     var logs: [HabitLog] = []
@@ -147,7 +140,6 @@ final class Habit {
         todoOrder: Int? = nil,
         graceDays: Int = 1,
         timeOfDay: TimeOfDay? = .anytime,
-        parentHabitID: UUID? = nil,
         sortOrder: Int = 0
     ) {
         self.id = UUID()
@@ -161,12 +153,9 @@ final class Habit {
         self.isTodo = isTodo
         self.scheduledDate = scheduledDate
         self.todoOrder = todoOrder
-        self.creationXP = Int.random(in: 1...10)
+        self.creationXP = 0
         self.graceDays = graceDays
         self.timeOfDay = timeOfDay
-        self.parentHabitID = parentHabitID
         self.sortOrder = sortOrder
     }
-
-    var isSubTask: Bool { parentHabitID != nil }
 }

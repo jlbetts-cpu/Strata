@@ -37,22 +37,6 @@ struct CompletedHabitRow: View {
 
             Spacer()
 
-            // XP badge
-            if let xp = log.pendingXP {
-                Text(log.xpCollected ? "\(xp) XP" : "+\(xp)")
-                    .font(Typography.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(log.xpCollected ? Color.secondary : style.gradientBottom)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(log.xpCollected
-                                  ? Color.primary.opacity(0.05)
-                                  : style.gradientBottom.opacity(0.12))
-                    )
-            }
-
             // Undo button
             Button(action: onUndo) {
                 Image(systemName: "arrow.uturn.backward")

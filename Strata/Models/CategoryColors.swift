@@ -98,6 +98,10 @@ enum AppColors {
     static let accentPurple = Color(hex: 0xA689FA)
     static let healthGreen = Color(hex: 0x34C48B)
     static let warmRed = Color(hex: 0xE85D4A)
+    /// Ghost block background for incomplete timeline habits (light mode) — 12% luminance contrast to warm background (WCAG AA)
+    static let ghostBase = Color(red: 0.92, green: 0.91, blue: 0.90)
+    /// Ghost block background for incomplete timeline habits (dark mode) — native iOS card color
+    static let ghostBaseDark = Color(uiColor: .secondarySystemGroupedBackground)
 }
 
 // MARK: - Color Hex Extension

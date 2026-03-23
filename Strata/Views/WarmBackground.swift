@@ -6,7 +6,7 @@ struct WarmBackground: View {
     var body: some View {
         Rectangle().fill(
             colorScheme == .dark
-                ? Color(hex: 0x403D39)
+                ? Color(uiColor: .systemBackground)
                 : Color(red: 0.98, green: 0.975, blue: 0.965)
         )
     }

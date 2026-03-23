@@ -119,7 +119,6 @@ final class HabitManagerViewModel {
                     value: -Int.random(in: 1...12),
                     to: date
                 )
-                log.xpCollected = true
                 context.insert(log)
             }
         }

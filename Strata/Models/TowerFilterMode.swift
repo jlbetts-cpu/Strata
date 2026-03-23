@@ -16,4 +16,13 @@ extension EnvironmentValues {
         get { self[TowerFilterModeKey.self] }
         set { self[TowerFilterModeKey.self] = newValue }
     }
+
+    var perfectDayDates: Set<String> {
+        get { self[PerfectDayDatesKey.self] }
+        set { self[PerfectDayDatesKey.self] = newValue }
+    }
+}
+
+private struct PerfectDayDatesKey: EnvironmentKey {
+    static let defaultValue: Set<String> = []
 }

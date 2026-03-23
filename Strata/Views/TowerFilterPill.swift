@@ -1,40 +1,29 @@
 import SwiftUI
 
-struct TowerFilterPill: View {
+struct TowerFilterMenuButton: View {
     @Binding var selection: TowerFilterMode
-    @Namespace private var filterNS
-    @Environment(\.colorScheme) private var colorScheme
 
-    private var iconActive: Color {
-        colorScheme == .dark ? Color(hex: 0xFAFAF6) : Color(hex: 0x2C2A26)
-    }
+    private var isNonDefault: Bool { selection != .day }
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(TowerFilterMode.allCases, id: \.self) { mode in
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                        selection = mode
-                    }
-                } label: {
-                    Text(mode.rawValue)
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(iconActive.opacity(selection == mode ? 1.0 : 0.5))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background {
-                            if selection == mode {
-                                Capsule()
-                                    .fill(iconActive.opacity(0.12))
-                                    .matchedGeometryEffect(id: "activeFilter", in: filterNS)
-                            }
-                        }
+        Menu {
+            Picker(selection: $selection) {
+                ForEach(TowerFilterMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
-                .buttonStyle(.plain)
+            } label: {
+                // Empty — Picker provides the checkmark UI
             }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isNonDefault
+                      ? "line.3.horizontal.decrease.circle.fill"
+                      : "line.3.horizontal.decrease.circle")
+                Text(selection.rawValue)
+                    .font(.subheadline)
+            }
+            .foregroundStyle(.secondary)
         }
-        .padding(4)
-        .glassEffect(.regular, in: .capsule)
+        .onChange(of: selection) { HapticsEngine.tick() }
     }
 }

@@ -9,6 +9,7 @@ struct StrataApp: App {
             HabitLog.self,
             MoodLog.self,
             Tower.self,
+            PlanFolder.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -7,7 +7,7 @@ struct SkeletonBlockView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
             .fill(
                 colorScheme == .dark
                     ? Color(hex: 0x403D39).opacity(0.4)
@@ -15,6 +15,6 @@ struct SkeletonBlockView: View {
             )
             .frame(width: width, height: height)
             .shimmer()
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
     }
 }

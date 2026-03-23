@@ -1,9 +1,15 @@
 import Foundation
 import SwiftData
 
+struct SubTask: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var title: String
+    var completed: Bool = false
+}
+
 @Model
 final class HabitLog {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: UUID = UUID()
     var habit: Habit?
     var dateString: String // YYYY-MM-DD format for easy lookup
     var completed: Bool
@@ -22,13 +28,20 @@ final class HabitLog {
     var xpCollected: Bool
     var isBonusBlock: Bool
     var skipped: Bool = false
+    var subtasks: [SubTask] = []
+
+    var hasDrawerContent: Bool {
+        (note != nil && !note!.isEmpty)
+        || !caption.isEmpty
+        || !subtasks.isEmpty
+        || imageFileName != nil
+    }
 
     init(
         habit: Habit,
         dateString: String,
         completed: Bool = false
     ) {
-        self.id = UUID()
         self.habit = habit
         self.dateString = dateString
         self.completed = completed
@@ -43,22 +56,10 @@ final class HabitLog {
     func markCompleted() {
         completed = true
         completedAt = Date()
-
-        // 5% chance for bonus block
-        let isBonus = Double.random(in: 0...1) < 0.05
-        isBonusBlock = isBonus
-        pendingXP = isBonus ? Int.random(in: 50...100) : Int.random(in: 5...25)
     }
 
     func markIncomplete() {
         completed = false
         completedAt = nil
-        // Preserve pendingXP so it doesn't re-roll on undo/redo
-        xpCollected = false
-        isBonusBlock = false
-    }
-
-    func collectXP() {
-        xpCollected = true
     }
 }

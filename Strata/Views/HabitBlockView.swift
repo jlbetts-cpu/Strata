@@ -24,6 +24,12 @@ enum BlockTimeFormatter {
         return m == "00" ? "\(hour12) \(period)" : "\(hour12):\(m) \(period)"
     }
 
+    static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private static let localeTimeFormatter: DateFormatter = {
         let fmt = DateFormatter()
         fmt.timeStyle = .short
@@ -80,24 +86,29 @@ struct HabitBlockView: View {
     let onTap: () -> Void
 
     @State private var tapTrigger: Int = 0
-    @State private var breathePhase: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
+    @Environment(\.perfectDayDates) private var perfectDayDates
 
     private var style: CategoryStyle {
         block.habit.category.style
     }
 
+    private var borderHighlight: Color { style.lightTint }
+
     private var blockFrame: CGRect {
         block.frame(cellSize: cellSize)
     }
 
-    private var pendingXPString: String? {
-        if let pendingXP = block.log.pendingXP, !block.log.xpCollected {
-            return "+\(pendingXP) XP"
+    private var patinaOpacity: Double {
+        guard towerFilterMode != .day else { return 0 }
+        guard perfectDayDates.contains(block.log.dateString) else { return 0 }
+        guard let blockDate = BlockTimeFormatter.dateFormatter.date(from: block.log.dateString) else {
+            return GridConstants.patinaMaxOpacity
         }
-        return nil
+        let daysAgo = max(0, Calendar.current.dateComponents([.day], from: blockDate, to: Date()).day ?? 0)
+        return min(GridConstants.patinaMaxOpacity, 0.05 + Double(daysAgo) * GridConstants.patinaGrowthRate)
     }
 
     private var timeText: String? {
@@ -117,22 +128,24 @@ struct HabitBlockView: View {
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
                     .init(color: style.baseColor, location: 0.3),
-                    .init(color: style.baseColor, location: 1.0)
+                    .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
 
-            // Frosted gradient overlay — subtle white mist at the bottom
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .white.opacity(0.20), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // Frosted gradient overlay — subtle white mist at the bottom (light mode only)
+            if colorScheme == .light {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .white.opacity(0.20), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
 
             // Text content: title + time + category icon
             BlockContentOverlay(
@@ -140,20 +153,20 @@ struct HabitBlockView: View {
                 category: block.habit.category,
                 rowSpan: block.rowSpan,
                 timeText: timeText,
-                pendingXPText: pendingXPString
+                hasDrawerContent: block.log.hasDrawerContent
             )
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // Overlay 1: Crisp white border — visible at top, fades toward bottom (breathing shimmer)
+        // Overlay 1: Crisp border — visible at top, fades toward bottom
         .overlay(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .stroke(
                     LinearGradient(
                         stops: [
-                            .init(color: .white.opacity(breathePhase ? 0.95 : 0.85), location: 0.0),
-                            .init(color: .white.opacity(0.4), location: 0.4),
-                            .init(color: .white.opacity(0.0), location: 0.75)
+                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
+                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
+                            .init(color: borderHighlight.opacity(0.0), location: 0.75)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -161,15 +174,15 @@ struct HabitBlockView: View {
                     lineWidth: 2.5
                 )
         )
-        // Overlay 2: Diffused white border — invisible at top, soft glow at bottom
+        // Overlay 2: Diffused border — invisible at top, soft glow at bottom
         .overlay(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .stroke(
                     LinearGradient(
                         stops: [
-                            .init(color: .white.opacity(0.0), location: 0.0),
-                            .init(color: .white.opacity(0.35), location: 0.45),
-                            .init(color: .white.opacity(0.6), location: 1.0)
+                            .init(color: borderHighlight.opacity(0.0), location: 0.0),
+                            .init(color: borderHighlight.opacity(0.20), location: 0.45),
+                            .init(color: borderHighlight.opacity(0.35), location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -178,14 +191,25 @@ struct HabitBlockView: View {
                 )
                 .blur(radius: 6)
                 .compositingGroup()
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+                .drawingGroup()
         )
         // Single soft ambient shadow
         .shadow(
-            color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),
-            radius: GridConstants.shadowRadius,
+            color: colorScheme == .dark
+                ? style.glow
+                : .black.opacity(GridConstants.shadowOpacity),
+            radius: colorScheme == .dark ? 8 : GridConstants.shadowRadius,
             x: 0,
-            y: GridConstants.shadowY
+            y: colorScheme == .dark ? 0 : GridConstants.shadowY
         )
+        // Perfect-day golden patina (week/month views only)
+        .overlay {
+            if patinaOpacity > 0 {
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .stroke(GridConstants.patinaGold.opacity(patinaOpacity), lineWidth: 2)
+            }
+        }
         // Tap bounce: fast squash → bouncy pop-back
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content
@@ -197,104 +221,15 @@ struct HabitBlockView: View {
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
-        .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: tapTrigger)
         .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue)")
         .accessibilityHint("Tap to expand")
         .onTapGesture {
+            HapticsEngine.lightTap()
             tapTrigger += 1
             onTap()
         }
-        .onAppear {
-            if !reduceMotion {
-                let delay = Double.random(in: 0...0.5)
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    let breatheDuration = Double.random(in: 2.7...3.3)
-                    withAnimation(.easeInOut(duration: breatheDuration).repeatForever(autoreverses: true)) {
-                        breathePhase = true
-                    }
-                }
-            }
-        }
-        .onDisappear {
-            breathePhase = false
-        }
     }
 
-}
-
-// MARK: - Incomplete Block (Muted/Outlined)
-
-struct IncompleteBlockView: View {
-    let habit: Habit
-    let frame: CGRect
-    let onComplete: () -> Void
-
-    @State private var holdProgress: Double = 0
-
-    private let holdDuration: Double = 0.6
-
-    private var style: CategoryStyle {
-        habit.category.style
-    }
-
-    var body: some View {
-        ZStack {
-            // Muted background
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(style.darkShade.opacity(0.08))
-
-            // Hold progress fill
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(style.baseColor.opacity(0.4))
-                .mask(alignment: .bottom) {
-                    Rectangle()
-                        .frame(height: frame.height * holdProgress)
-                }
-
-            // Border
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(style.darkShade.opacity(0.2), lineWidth: 1.5)
-
-            // Label
-            VStack(alignment: .leading) {
-                Spacer()
-                Text(habit.title)
-                    .font(blockFont)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color.primary.opacity(0.6))
-                    .lineLimit(habit.blockSize.rowSpan > 1 ? 2 : 1)
-                    .minimumScaleFactor(0.7)
-            }
-            .frame(maxWidth: .infinity, alignment: .bottomLeading)
-            .padding(.leading, 12)
-            .padding(.bottom, 8)
-            .padding(.trailing, 8)
-        }
-        .frame(width: frame.width, height: frame.height)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 1, x: 0, y: 1)
-        .contentShape(Rectangle())
-        .onLongPressGesture(minimumDuration: holdDuration, perform: {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            onComplete()
-            withAnimation(.easeOut(duration: 0.3)) { holdProgress = 0 }
-        }, onPressingChanged: { pressing in
-            if pressing {
-                withAnimation(.linear(duration: holdDuration)) { holdProgress = 1.0 }
-            } else {
-                withAnimation(.easeOut(duration: 0.2)) { holdProgress = 0 }
-            }
-        })
-    }
-
-    private var blockFont: Font {
-        switch habit.blockSize {
-        case .small: return Typography.caption2
-        case .medium: return Typography.caption
-        case .hard: return Typography.bodyMedium
-        }
-    }
 }
 
 // MARK: - Shared Block Content Overlay
@@ -304,14 +239,14 @@ struct BlockContentOverlay: View {
     let category: HabitCategory
     let rowSpan: Int
     let timeText: String?
-    let pendingXPText: String?
     var hasImage: Bool = false
+    var hasDrawerContent: Bool = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Category icon — top-left badge
             Image(systemName: category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.60))
                 .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
                 .padding(.leading, 8)
@@ -319,22 +254,17 @@ struct BlockContentOverlay: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             // Title + time — bottom-left
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Spacer()
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(Typography.headerSmall)
                     .foregroundStyle(.white)
                     .lineLimit(rowSpan > 1 ? 2 : 1)
                     .minimumScaleFactor(0.65)
 
                 if let time = timeText {
                     Text(time)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .contentTransition(.interpolate)
-                } else if let xp = pendingXPText {
-                    Text(xp)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(Typography.bodySmall)
                         .foregroundStyle(.white.opacity(0.8))
                         .contentTransition(.interpolate)
                 }
@@ -343,6 +273,27 @@ struct BlockContentOverlay: View {
             .padding(.leading, 8)
             .padding(.bottom, 8)
             .padding(.trailing, 8)
+
+            // Conditional chevron — bottom-center
+            if hasDrawerContent {
+                Image(systemName: "chevron.compact.down")
+                    .font(.system(size: GridConstants.iconSmall))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 4)
+                    .accessibilityLabel("Has additional content")
+            }
+
+            // Photo indicator badge — top-right (Recognition over Recall)
+            if hasImage {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: GridConstants.iconSmall))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(.trailing, 8)
+                    .padding(.top, 8)
+                    .accessibilityLabel("Has photo")
+            }
         }
     }
 }

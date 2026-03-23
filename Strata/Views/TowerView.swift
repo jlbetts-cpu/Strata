@@ -72,7 +72,7 @@ struct CascadeBlockView: View {
             .onAppear {
                 if isNewDrop {
                     withAnimation(
-                        .spring(response: 0.5, dampingFraction: 0.65)
+                        GridConstants.cascadeReveal
                         .delay(staggerDelay)
                     ) {
                         appeared = true

@@ -20,15 +20,30 @@ enum HapticsEngine {
         selectionGenerator.selectionChanged()
     }
 
-    /// Heavy impact for tower block landing, scaled by mass tier
-    static func thud(mass: Int = 1) {
-        let gen: UIImpactFeedbackGenerator = switch mass {
-        case 1: lightGenerator
-        case 2: mediumGenerator
-        default: heavyGenerator
+    /// Light tap for subtle confirmations (photo save, filter change, gear tap)
+    static func lightTap() {
+        lightGenerator.impactOccurred(intensity: 0.5)
+        lightGenerator.prepare()
+    }
+
+    /// Notification success — milestone moments ("All done!", achievements)
+    static func success() {
+        let gen = UINotificationFeedbackGenerator()
+        gen.notificationOccurred(.success)
+    }
+
+    /// Decrescendo reward pattern — level-up celebrations
+    static func reward() {
+        heavyGenerator.impactOccurred(intensity: 1.0)
+        heavyGenerator.prepare()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            mediumGenerator.impactOccurred(intensity: 0.6)
+            mediumGenerator.prepare()
+            try? await Task.sleep(for: .milliseconds(200))
+            lightGenerator.impactOccurred(intensity: 0.3)
+            lightGenerator.prepare()
         }
-        gen.impactOccurred()
-        gen.prepare()
     }
 
     /// Rigid impact for polished resin drop landings, scaled by mass via intensity

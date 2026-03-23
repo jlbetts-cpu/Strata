@@ -17,7 +17,14 @@ struct NewHabitMenu: View {
     @State private var useTimePicker = false
     @State private var scheduledTime = Date()
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var typeSize
 
+    @ScaledMetric(relativeTo: .body) private var circleSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .body) private var hitTarget: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var strokeSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var dayCircleSize: CGFloat = 36
+
+    private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
     private let categories = HabitCategory.allCases
 
     var body: some View {
@@ -26,10 +33,12 @@ struct NewHabitMenu: View {
             // Toggle: One-Time Task / Recurring Habit
             HStack(spacing: 0) {
                 togglePill("Recurring", selected: !isOneTime) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isOneTime = false }
+                    withAnimation(GridConstants.toggleSwitch) { isOneTime = false }
+                    HapticsEngine.tick()
                 }
                 togglePill("One-Time", selected: isOneTime) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isOneTime = true }
+                    withAnimation(GridConstants.toggleSwitch) { isOneTime = true }
+                    HapticsEngine.tick()
                 }
             }
             .padding(4)
@@ -48,21 +57,31 @@ struct NewHabitMenu: View {
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 12)]) {
                     ForEach(categories, id: \.self) { cat in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.15)) { selectedCategory = cat }
+                            withAnimation(GridConstants.crossFade) { selectedCategory = cat }
+                            HapticsEngine.tick()
                         } label: {
-                            Circle()
-                                .fill(cat.style.baseColor)
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary, lineWidth: selectedCategory == cat ? 2.5 : 0)
-                                        .frame(width: 36, height: 36)
-                                )
+                            ZStack {
+                                Circle()
+                                    .fill(cat.style.baseColor)
+                                    .frame(width: circleSize, height: circleSize)
+                                Image(systemName: cat.iconName)
+                                    .font(Typography.bodySmall.weight(.medium))
+                                    .foregroundStyle(.white.opacity(0.9))
+                            }
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary, lineWidth: selectedCategory == cat ? 2.5 : 0)
+                                    .frame(width: strokeSize, height: strokeSize)
+                            )
                         }
                         .buttonStyle(.plain)
+                        .frame(width: hitTarget, height: hitTarget)
+                        .contentShape(Circle())
+                        .accessibilityLabel(cat.rawValue)
+                        .accessibilityAddTraits(selectedCategory == cat ? .isSelected : [])
                     }
                 }
             }
@@ -91,28 +110,31 @@ struct NewHabitMenu: View {
                         .font(Typography.bodySmall)
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 8)]) {
                         ForEach(DayCode.allCases, id: \.self) { day in
                             let isSelected = selectedDays.contains(day)
                             Button {
-                                withAnimation(.easeInOut(duration: 0.15)) {
+                                withAnimation(GridConstants.crossFade) {
                                     if isSelected {
                                         selectedDays.remove(day)
                                     } else {
                                         selectedDays.insert(day)
                                     }
                                 }
+                                HapticsEngine.tick()
                             } label: {
                                 Text(day.rawValue)
                                     .font(Typography.bodySmall)
                                     .foregroundStyle(isSelected ? .white : Color.primary)
-                                    .frame(width: 32, height: 32)
+                                    .frame(width: dayCircleSize, height: dayCircleSize)
                                     .background(
                                         isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
                                         in: Circle()
                                     )
                             }
                             .buttonStyle(.plain)
+                            .frame(width: hitTarget, height: hitTarget)
+                            .contentShape(Circle())
                         }
                     }
                 }
@@ -124,6 +146,7 @@ struct NewHabitMenu: View {
                     .font(Typography.bodyMedium)
             }
             .tint(selectedCategory.style.baseColor)
+            .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
 
             if useTimePicker {
                 DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
@@ -189,7 +212,8 @@ struct NewHabitMenu: View {
                 in: .capsule
             )
             .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.15)) { selectedSize = size }
+                withAnimation(GridConstants.crossFade) { selectedSize = size }
+                HapticsEngine.tick()
             }
     }
 
@@ -224,7 +248,7 @@ struct NewHabitMenu: View {
         HapticsEngine.snap()
         onCreated()
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(GridConstants.toggleSwitch) {
             isPresented = false
         }
     }

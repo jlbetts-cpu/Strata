@@ -8,9 +8,19 @@ struct AllItemsView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Query private var allHabits: [Habit]
     @State private var viewModel = AllItemsViewModel()
+    @State private var habitToDelete: Habit? = nil
+    @State private var pendingDeleteHabit: Habit? = nil
+    @State private var deleteUndoTask: Task<Void, Never>? = nil
 
+    @ScaledMetric(relativeTo: .body) private var circleSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .body) private var hitTarget: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var strokeSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var dayCircleSize: CGFloat = 32
+
+    private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
     private let categories = HabitCategory.allCases
 
     var body: some View {
@@ -21,6 +31,7 @@ struct AllItemsView: View {
 
                 // MARK: - Habits
                 let habits = viewModel.filteredHabits(from: allHabits)
+                    .filter { $0.id != pendingDeleteHabit?.id }
                 if !habits.isEmpty {
                     Section {
                         ForEach(habits, id: \.id) { habit in
@@ -33,7 +44,7 @@ struct AllItemsView: View {
                             .onTapGesture { viewModel.editingHabit = habit }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
-                                    deleteHabit(habit)
+                                    habitToDelete = habit
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -55,6 +66,7 @@ struct AllItemsView: View {
 
                 // MARK: - Tasks
                 let tasks = viewModel.filteredTasks(from: allHabits)
+                    .filter { $0.id != pendingDeleteHabit?.id }
                 if !tasks.isEmpty {
                     Section {
                         ForEach(tasks, id: \.id) { task in
@@ -68,7 +80,7 @@ struct AllItemsView: View {
                             .onTapGesture { viewModel.editingHabit = task }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
-                                    deleteHabit(task)
+                                    habitToDelete = task
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -106,6 +118,22 @@ struct AllItemsView: View {
                         .font(Typography.bodyLarge)
                 }
             }
+            .confirmationDialog(
+                "Delete \"\(habitToDelete?.title ?? "")\"?",
+                isPresented: Binding(
+                    get: { habitToDelete != nil },
+                    set: { if !$0 { habitToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let habit = habitToDelete {
+                        startPendingDelete(habit)
+                    }
+                    habitToDelete = nil
+                }
+                Button("Cancel", role: .cancel) { habitToDelete = nil }
+            }
             .sheet(item: $viewModel.editingHabit) { habit in
                 HabitEditView(
                     habit: habit,
@@ -114,6 +142,28 @@ struct AllItemsView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+            .overlay(alignment: .bottom) {
+                if pendingDeleteHabit != nil {
+                    HStack {
+                        Text("Habit deleted")
+                            .font(Typography.bodySmall)
+                        Spacer()
+                        Button("Undo") {
+                            deleteUndoTask?.cancel()
+                            withAnimation(GridConstants.crossFade) { pendingDeleteHabit = nil }
+                            HapticsEngine.lightTap()
+                        }
+                        .font(Typography.bodySmall)
+                        .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .onAppear {
                 if let prefill = prefillTime {
@@ -144,7 +194,7 @@ struct AllItemsView: View {
                     Circle()
                         .fill(viewModel.effectiveCategory.style.baseColor)
                         .frame(width: 12, height: 12)
-                        .animation(.easeInOut(duration: 0.2), value: viewModel.effectiveCategory)
+                        .animation(GridConstants.crossFade, value: viewModel.effectiveCategory)
 
                     // TextField with subtle container
                     TextField(
@@ -173,7 +223,7 @@ struct AllItemsView: View {
                         // Submit button
                         Button { submitQuickAdd() } label: {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 28))
+                                .font(Typography.headerLarge)
                                 .foregroundStyle(viewModel.effectiveCategory.style.baseColor)
                         }
                         .buttonStyle(.plain)
@@ -188,20 +238,21 @@ struct AllItemsView: View {
                             #selector(UIResponder.resignFirstResponder),
                             to: nil, from: nil, for: nil
                         )
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        withAnimation(GridConstants.gentleReveal) {
                             viewModel.isDetailsExpanded.toggle()
                         }
+                        HapticsEngine.lightTap()
                     } label: {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(Typography.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(viewModel.isDetailsExpanded ? 180 : 0))
-                            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isDetailsExpanded)
+                            .animation(GridConstants.gentleReveal, value: viewModel.isDetailsExpanded)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(viewModel.isDetailsExpanded ? "Collapse options" : "More options")
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.quickAddTitle)
+                .animation(GridConstants.gentleReveal, value: viewModel.quickAddTitle)
 
                 // Expanded details
                 if viewModel.isDetailsExpanded {
@@ -221,14 +272,16 @@ struct AllItemsView: View {
             // Type toggle
             HStack(spacing: 0) {
                 togglePill("Recurring", selected: !viewModel.quickAddIsTask) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(GridConstants.toggleSwitch) {
                         viewModel.quickAddIsTask = false
                     }
+                    HapticsEngine.tick()
                 }
                 togglePill("One-Time", selected: viewModel.quickAddIsTask) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(GridConstants.toggleSwitch) {
                         viewModel.quickAddIsTask = true
                     }
+                    HapticsEngine.tick()
                 }
             }
             .padding(6)
@@ -254,8 +307,8 @@ struct AllItemsView: View {
                     title: viewModel.quickAddTitle.isEmpty ? "Preview" : viewModel.quickAddTitle
                 )
                 .frame(width: 80, height: 80)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.effectiveSize)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.effectiveCategory)
+                .animation(GridConstants.gentleReveal, value: viewModel.effectiveSize)
+                .animation(GridConstants.gentleReveal, value: viewModel.effectiveCategory)
             }
 
             // Category picker with icons
@@ -264,29 +317,30 @@ struct AllItemsView: View {
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 4) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 4)]) {
                     ForEach(categories, id: \.self) { cat in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(GridConstants.crossFade) {
                                 viewModel.quickAddCategory = cat
                             }
+                            HapticsEngine.tick()
                         } label: {
                             ZStack {
                                 Circle()
                                     .fill(cat.style.baseColor)
-                                    .frame(width: 36, height: 36)
+                                    .frame(width: circleSize, height: circleSize)
                                 Image(systemName: cat.iconName)
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(Typography.bodySmall.weight(.medium))
                                     .foregroundStyle(.white.opacity(0.9))
                             }
                             .overlay(
                                 Circle()
                                     .stroke(Color.primary, lineWidth: viewModel.effectiveCategory == cat ? 2.5 : 0)
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: strokeSize, height: strokeSize)
                             )
                         }
                         .buttonStyle(.plain)
-                        .frame(width: 44, height: 44)
+                        .frame(width: hitTarget, height: hitTarget)
                         .contentShape(Circle())
                         .accessibilityLabel(cat.rawValue)
                         .accessibilityAddTraits(viewModel.effectiveCategory == cat ? .isSelected : [])
@@ -307,29 +361,30 @@ struct AllItemsView: View {
                         .font(Typography.bodySmall)
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 0) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 0)]) {
                         ForEach(DayCode.allCases, id: \.self) { day in
                             let isSelected = viewModel.quickAddDays.contains(day)
                             Button {
-                                withAnimation(.easeInOut(duration: 0.15)) {
+                                withAnimation(GridConstants.crossFade) {
                                     if isSelected {
                                         viewModel.quickAddDays.remove(day)
                                     } else {
                                         viewModel.quickAddDays.insert(day)
                                     }
                                 }
+                                HapticsEngine.tick()
                             } label: {
                                 Text(day.rawValue)
                                     .font(Typography.bodySmall)
                                     .foregroundStyle(isSelected ? .white : Color.primary)
-                                    .frame(width: 32, height: 32)
+                                    .frame(width: dayCircleSize, height: dayCircleSize)
                                     .background(
                                         isSelected ? viewModel.effectiveCategory.style.baseColor : Color.primary.opacity(0.06),
                                         in: Circle()
                                     )
                             }
                             .buttonStyle(.plain)
-                            .frame(width: 44, height: 44)
+                            .frame(width: hitTarget, height: hitTarget)
                             .contentShape(Circle())
                             .accessibilityLabel(day.rawValue)
                             .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -344,6 +399,7 @@ struct AllItemsView: View {
                     .font(Typography.bodyMedium)
             }
             .tint(viewModel.effectiveCategory.style.baseColor)
+            .onChange(of: viewModel.quickAddUseTime) { _, _ in HapticsEngine.tick() }
 
             if viewModel.quickAddUseTime {
                 DatePicker("Time", selection: $viewModel.quickAddTime, displayedComponents: .hourAndMinute)
@@ -368,7 +424,7 @@ struct AllItemsView: View {
             .disabled(viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             .opacity(viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
             .saturation(viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            .animation(GridConstants.crossFade, value: viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty)
 
             // Reassurance copy (shame-free design)
             Text("You can always change this later")
@@ -435,9 +491,10 @@ struct AllItemsView: View {
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
         .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(GridConstants.crossFade) {
                 viewModel.quickAddBlockSize = size
             }
+            HapticsEngine.tick()
         }
     }
 
@@ -451,6 +508,22 @@ struct AllItemsView: View {
             #selector(UIResponder.resignFirstResponder),
             to: nil, from: nil, for: nil
         )
+    }
+
+    private func startPendingDelete(_ habit: Habit) {
+        withAnimation(.easeInOut(duration: 0.2)) { pendingDeleteHabit = habit }
+        deleteUndoTask?.cancel()
+        deleteUndoTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(GridConstants.crossFade) {
+                if let h = pendingDeleteHabit {
+                    deleteHabit(h)
+                }
+                pendingDeleteHabit = nil
+            }
+        }
+        HapticsEngine.snap()
     }
 
     private func deleteHabit(_ habit: Habit) {

@@ -14,10 +14,14 @@ final class TimelineViewModel {
         Self.dateString(from: Date())
     }
 
+    private static let dateStringFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     static func dateString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        dateStringFormatter.string(from: date)
     }
 
     // MARK: - Load Today's Data
@@ -119,12 +123,24 @@ final class TimelineViewModel {
         }
     }
 
-    // MARK: - Collect XP
+    // MARK: - Undo Skip
 
-    func collectXP(for log: HabitLog) {
+    func undoSkip(_ habit: Habit) {
         guard let context = modelContext else { return }
-        log.collectXP()
-        try? context.save()
+        skippedHabitIDs.remove(habit.id)
+
+        let dateStr = currentDateString
+        let habitID = habit.id
+        let descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { log in
+                log.dateString == dateStr && log.habit?.id == habitID
+            }
+        )
+
+        if let existing = try? context.fetch(descriptor).first {
+            existing.skipped = false
+            try? context.save()
+        }
     }
 
     // MARK: - Time-Gated Visibility
@@ -133,7 +149,7 @@ final class TimelineViewModel {
     static func effectiveHour(for habit: Habit) -> Double? {
         if let timeStr = habit.scheduledTime {
             let parts = timeStr.split(separator: ":")
-            guard let h = Double(parts[0]) else { return nil }
+            guard !parts.isEmpty, let h = Double(parts[0]) else { return nil }
             let m = parts.count > 1 ? (Double(parts[1]) ?? 0) / 60.0 : 0
             return h + m
         }
@@ -158,5 +174,16 @@ final class TimelineViewModel {
     var completionRate: Double {
         guard !todaysHabits.isEmpty else { return 0 }
         return Double(completedToday.count) / Double(todaysHabits.count)
+    }
+
+    // MARK: - Tower Vitality (Peripheral Pulse — Proposal C)
+
+    /// Rolling vitality score (0.0 = dormant, 0.5 = neutral, 1.0 = thriving)
+    /// Based on today's completion rate. Tower Claude can use this for ambient visual treatment.
+    /// - 0.0-0.3: dormant (desaturated, still, "resting")
+    /// - 0.3-0.7: neutral (standard appearance)
+    /// - 0.7-1.0: thriving (warm, breathing, alive)
+    var towerVitality: Double {
+        completionRate
     }
 }

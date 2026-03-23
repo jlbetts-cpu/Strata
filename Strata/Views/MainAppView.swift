@@ -24,23 +24,21 @@ struct MainAppView: View {
     @State private var towerManager = TowerManager()
     @State private var hasLoadedDemo = false
     @State private var selectedTab: StrataTab = .tower
-    @State private var hapticLightTrigger = 0
-    @State private var hapticMediumTrigger = 0
-    @State private var hapticHeavyTrigger = 0
-
     @State private var towerFilterMode: TowerFilterMode = .day
     @State private var animCoord = TowerAnimationCoordinator()
-    @State private var towerSwayPhase: Bool = false
     @State private var towerImpactScale: CGFloat = 1.0
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
 
-    // Daily Story carousel
-    @State private var activeCarouselBlockID: UUID? = nil
-
     // In-place block expansion
     @State private var expandedBlockID: UUID? = nil
+    @Namespace private var blockExpansion
+
+    // Block tap discovery hint
+    @AppStorage("hasSeenBlockTapHint") private var hasSeenBlockTapHint = false
+    @State private var showBlockTapHint = false
+    @State private var hintBlockID: UUID? = nil
 
     // New habit menu
     @State private var isNewHabitMenuOpen: Bool = false
@@ -50,6 +48,19 @@ struct MainAppView: View {
     @State private var visibleSkeletonCount: Int = 0
     @State private var skeletonBuildTask: Task<Void, Never>?
     @State private var reloadTask: Task<Void, Never>?
+    @State private var hintDismissTask: Task<Void, Never>?
+
+    // Timer guard (Phase 1D)
+    @State private var lastLogCount: Int = 0
+    @State private var lastCompletionDate: Date? = nil
+    @State private var refreshTask: Task<Void, Never>?
+
+    // Cached timeline computed properties (Phase 2A/2B)
+    @State private var cachedAllHabitsForSelectedDate: [Habit] = []
+    @State private var cachedCompletedHabitIDsForSelectedDate: Set<UUID> = []
+    @State private var cachedSkippedHabitIDsForSelectedDate: Set<UUID> = []
+    @State private var cachedDailyPhotoBlocks: [PlacedBlock] = []
+    @State private var cachedHabitPhotoBlocks: [PlacedBlock] = []
 
     // Timeline selected date (defaults to today)
     @State private var timelineSelectedDate: Date = Date()
@@ -63,6 +74,7 @@ struct MainAppView: View {
     // Cached computed properties
     @State private var cachedFilteredLogs: [HabitLog] = []
     @State private var cachedWeekData: [DayProgressData] = []
+    @State private var perfectDayDates: Set<String> = []
 
     // Tower scroll
     @State private var isScrolled: Bool = false
@@ -70,7 +82,10 @@ struct MainAppView: View {
     @State private var scrollToTopTrigger = 0
     @State private var towerScrollOffset: CGFloat = 0
     @State private var screenHeight: CGFloat = 0
-    @State private var currentColW: CGFloat = 0
+    @State private var currentColW: CGFloat = floor(
+        (UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2 - GridConstants.spacing * CGFloat(GridConstants.columnCount - 1))
+        / CGFloat(GridConstants.columnCount)
+    )
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
 
@@ -78,21 +93,21 @@ struct MainAppView: View {
     private let spacing: CGFloat = GridConstants.spacing
     private let columns = GridConstants.columnCount
     private let cornerRadius: CGFloat = GridConstants.cornerRadius
-    private let collapsedHeaderHeight: CGFloat = 110
+    private let collapsedHeaderHeight: CGFloat = 0
 
     private var filteredLogs: [HabitLog] { cachedFilteredLogs }
 
-    private func recomputeFilteredLogs() {
+    private func recomputeFilteredLogs(logsByDate: [String: [HabitLog]]) {
         let calendar = Calendar.current
         let now = Date()
         switch towerFilterMode {
         case .day:
             let todayStr = TimelineViewModel.dateString(from: now)
-            cachedFilteredLogs = logs.filter { $0.dateString == todayStr }
+            cachedFilteredLogs = logsByDate[todayStr] ?? []
         case .week:
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
             let weekStartStr = TimelineViewModel.dateString(from: startOfWeek)
-            cachedFilteredLogs = logs.filter { $0.dateString >= weekStartStr }
+            cachedFilteredLogs = logsByDate.flatMap { key, value in key >= weekStartStr ? value : [] }
         case .month:
             cachedFilteredLogs = Array(logs)
         }
@@ -106,59 +121,81 @@ struct MainAppView: View {
 
     var body: some View {
         mainContent
-            .fullScreenCover(isPresented: carouselPresented) {
-                DailyStoryCarousel(
-                    blocks: todaysPhotoBlocks,
-                    activeBlockID: $activeCarouselBlockID,
-                    modelContext: modelContext
-                )
-            }
-            .sensoryFeedback(.impact(weight: .light), trigger: hapticLightTrigger)
-            .sensoryFeedback(.impact(weight: .medium), trigger: hapticMediumTrigger)
-            .sensoryFeedback(.impact(weight: .heavy, intensity: 1.0), trigger: hapticHeavyTrigger)
             .onAppear(perform: setup)
             .onChange(of: reduceMotion) { _, newValue in
                 animCoord.reduceMotion = newValue
             }
-            .onChange(of: habits.count) { guard !towerVM.isLoading else { return }; refreshData() }
+            .onChange(of: habits.count) { guard !towerVM.isLoading else { return }; scheduleRefresh() }
             .onChange(of: towerFilterMode) {
-                reloadTowerWithAnimation()
+                reloadTowerForFilterChange()
+            }
+            .onChange(of: expandedBlockID) {
+                if let expandedID = expandedBlockID,
+                   let block = towerVM.placedBlocks.first(where: { $0.id == expandedID }) {
+                    cachedDailyPhotoBlocks = towerVM.placedBlocks.filter {
+                        $0.log.dateString == block.log.dateString && $0.log.imageFileName != nil
+                    }
+                    // Journey filmstrip: same habit, any date, has photo, sorted recent-first
+                    cachedHabitPhotoBlocks = towerVM.placedBlocks
+                        .filter { $0.habit.id == block.habit.id && $0.log.imageFileName != nil }
+                        .sorted { ($0.log.completedAt ?? .distantPast) > ($1.log.completedAt ?? .distantPast) }
+                        .prefix(30)
+                        .map { $0 }
+                } else {
+                    cachedDailyPhotoBlocks = []
+                    cachedHabitPhotoBlocks = []
+                }
             }
             .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
                 guard !towerVM.isLoading else { return }
-                refreshData()
+                let currentCount = logs.count
+                // Only refresh if log count changed (avoids O(n) max scan on every tick)
+                if currentCount != lastLogCount {
+                    refreshData()
+                }
             }
     }
 
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
-                towerTab
-                    .overlay(alignment: .topLeading) {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .padding(10)
-                                .background(.ultraThinMaterial, in: Circle())
+                NavigationStack {
+                    towerTab
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                Text(towerDateString)
+                                    .font(.headline)
+                            }
+                            ToolbarItem(placement: .topBarLeading) {
+                                TowerFilterMenuButton(selection: $towerFilterMode)
+                            }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    HapticsEngine.lightTap()
+                                    showSettings = true
+                                } label: {
+                                    Image(systemName: "gearshape")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
-                        .padding(.top, safeAreaTop + 48)
-                        .padding(.leading, hPad)
-                    }
-                    .sheet(isPresented: $showSettings) {
-                        NavigationStack {
-                            SettingsView()
-                        }
-                    }
+                }
+                .sheet(isPresented: $showSettings) {
+                    NavigationStack { SettingsView() }
+                }
             }
             Tab("Today", systemImage: "calendar", value: StrataTab.today) {
-                timelineTabContent
+                NavigationStack {
+                    timelineTabContent
+                        .navigationTitle("Today")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
             }
             Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
                 NavigationStack {
                     PlanPageView()
+                        .environment(\.switchTab, { selectedTab = $0 })
                 }
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
@@ -190,6 +227,10 @@ struct MainAppView: View {
         floor((totalWidth - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns))
     }
 
+    private func flippedY(for f: CGRect, gridH: CGFloat) -> CGFloat {
+        gridH - f.minY - f.height
+    }
+
     private var geometryTracker: some View {
         GeometryReader { geo in
             Color.clear
@@ -208,6 +249,13 @@ struct MainAppView: View {
         }
     }
 
+    private var towerDateString: String {
+        Date().formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
+
+    private var todayCompletedCount: Int { timelineVM.completedToday.count }
+    private var todayTotalCount: Int { timelineVM.todaysHabits.count }
+
     private func towerTabContent() -> some View {
         let colW = currentColW
 
@@ -215,20 +263,9 @@ struct MainAppView: View {
                      safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
                      viewportHeight: screenHeight)
             .environment(\.towerFilterMode, towerFilterMode)
-            .overlay(alignment: .topTrailing) {
-                AltimeterPill(heightMeters: towerVM.altimeterHeight)
-                    .padding(.top, safeAreaTop + 48)
-                    .padding(.trailing, hPad)
-                    .opacity(towerVM.totalRows > 0 ? 1 : 0)
-            }
-            .overlay(alignment: .topLeading) {
-                // Filter pill — top-left of tower screen
-                TowerFilterPill(selection: $towerFilterMode)
-                    .padding(.top, safeAreaTop + 12)
-                    .padding(.leading, hPad)
-            }
+            .environment(\.perfectDayDates, perfectDayDates)
             #if DEBUG
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .topLeading) {
                 Menu {
                     Button("Add Block", systemImage: "plus") {
                         injectDebugBlock()
@@ -248,11 +285,49 @@ struct MainAppView: View {
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                 }
-                .padding(.top, safeAreaTop + 12)
-                .padding(.trailing, hPad)
+                .padding(.top, 8)
+                .padding(.leading, hPad)
             }
             #endif
+            .overlay(alignment: .bottom) {
+                if towerFilterMode == .day,
+                   let nextHabit = incompleteForTimeline.first {
+                    TowerNextUpPill(
+                        habitTitle: nextHabit.title,
+                        category: nextHabit.category,
+                        onTap: {
+                            HapticsEngine.lightTap()
+                            selectedTab = .today
+                        }
+                    )
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(GridConstants.gentleReveal, value: incompleteForTimeline.first?.id)
+                }
+            }
             .background { WarmBackground().ignoresSafeArea() }
+            .overlay {
+                if let expandedID = expandedBlockID,
+                   let block = towerVM.placedBlocks.first(where: { $0.id == expandedID }) {
+                    // Blur scrim
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                        .onTapGesture { dismissCard() }
+                        .transition(.opacity)
+                        .accessibilityHidden(true)
+
+                    // Floating card
+                    BlockExpansionCard(
+                        block: block,
+                        dailyPhotoBlocks: cachedDailyPhotoBlocks,
+                        habitPhotoBlocks: cachedHabitPhotoBlocks,
+                        namespace: blockExpansion,
+                        modelContext: modelContext,
+                        onDismiss: { dismissCard() }
+                    )
+                }
+            }
     }
 
     // MARK: - Timeline Tab
@@ -261,8 +336,9 @@ struct MainAppView: View {
         ScheduleTimelineView(
             weekData: weekData,
             selectedDate: $timelineSelectedDate,
-            allHabits: allHabitsForSelectedDate,
-            completedHabitIDs: completedHabitIDsForSelectedDate,
+            allHabits: cachedAllHabitsForSelectedDate,
+            completedHabitIDs: cachedCompletedHabitIDsForSelectedDate,
+            skippedHabitIDs: cachedSkippedHabitIDsForSelectedDate,
             isViewingToday: Calendar.current.isDateInToday(timelineSelectedDate),
             isViewingPast: !Calendar.current.isDateInToday(timelineSelectedDate) && timelineSelectedDate < Date(),
             onComplete: { habit in
@@ -270,32 +346,48 @@ struct MainAppView: View {
             },
             onSkip: { habit in
                 timelineVM.skipHabit(habit)
-                refreshData()
+                scheduleRefresh()
+            },
+            onUndo: { habit in
+                timelineVM.undoCompletion(habit)
+                scheduleRefresh()
+            },
+            onUndoSkip: { habit in
+                timelineVM.undoSkip(habit)
+                scheduleRefresh()
             },
             onAddHabit: { prefillTime in
                 newHabitPrefillTime = prefillTime
                 isNewHabitMenuOpen = true
             },
+            onEditInPlan: { _ in
+                selectedTab = .plan
+            },
+            towerBlockCount: towerVM.placedBlocks.count,
             debugTower: towerManager.activeTower
         )
         .onChange(of: timelineSelectedDate) {
-            refreshData()
+            scheduleRefresh()
         }
     }
 
-    /// All habits (incomplete + completed) for the selected date
-    private var allHabitsForSelectedDate: [Habit] {
+    private func recomputeTimelineHabits(logsByDate: [String: [HabitLog]]) {
         let calendar = Calendar.current
         let isToday = calendar.isDateInToday(timelineSelectedDate)
+        let dateStr = TimelineViewModel.dateString(from: timelineSelectedDate)
+
+        // Completed + skipped IDs — O(1) lookup then small-array filter
+        let dateLogs = logsByDate[dateStr] ?? []
+        cachedCompletedHabitIDsForSelectedDate = Set(dateLogs.filter { $0.completed }.compactMap { $0.habit?.id })
+        cachedSkippedHabitIDsForSelectedDate = Set(dateLogs.filter { $0.skipped }.compactMap { $0.habit?.id })
 
         if isToday {
-            // Return ALL today's habits (incomplete + completed) sorted by time
-            return timelineVM.todaysHabits
+            cachedAllHabitsForSelectedDate = timelineVM.todaysHabits
                 .filter { $0.tower?.id == towerManager.activeTower?.id }
                 .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
+            return
         }
 
-        let dateStr = TimelineViewModel.dateString(from: timelineSelectedDate)
         let weekday = calendar.component(.weekday, from: timelineSelectedDate)
         let dayCode = DayCode.from(weekday: weekday)
         let isPast = timelineSelectedDate < Date()
@@ -309,70 +401,13 @@ struct MainAppView: View {
         }
 
         if isPast {
-            // Past: show all scheduled habits (completed ones will show as completed)
-            return scheduled.sorted {
+            cachedAllHabitsForSelectedDate = scheduled.sorted {
                 (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0)
             }
         } else {
-            // Future: show scheduled, filter out already-completed
-            let completedIDs = Set(logs.filter { $0.dateString == dateStr && $0.completed }.compactMap { $0.habit?.id })
-            return scheduled.filter { !completedIDs.contains($0.id) }
+            cachedAllHabitsForSelectedDate = scheduled.filter { !cachedCompletedHabitIDsForSelectedDate.contains($0.id) }
                 .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
         }
-    }
-
-    /// IDs of completed habits for the selected date
-    private var completedHabitIDsForSelectedDate: Set<UUID> {
-        let dateStr = TimelineViewModel.dateString(from: timelineSelectedDate)
-        return Set(logs.filter { $0.dateString == dateStr && $0.completed }.compactMap { $0.habit?.id })
-    }
-
-    // MARK: - Dominant Date (Split-Flap)
-
-    private var dominantVisibleDate: Date {
-        guard !towerVM.placedBlocks.isEmpty else { return Date() }
-
-        let rowCount = towerVM.totalRows
-        guard rowCount > 0, currentColW > 0, screenHeight > 0 else { return Date() }
-
-        let cellStride = currentColW + spacing
-
-        let contentTopY = towerScrollOffset
-        let viewTop = collapsedHeaderHeight + 20
-        let viewBottom = screenHeight
-
-        let internalTopPad = collapsedHeaderHeight + 20
-        let visibleTopInContent = viewTop - contentTopY
-        let visibleBottomInContent = viewBottom - contentTopY
-
-        let visibleTopInGrid = visibleTopInContent - internalTopPad
-        let visibleBottomInGrid = visibleBottomInContent - internalTopPad
-
-        let topGridRow = max(0, rowCount - 1 - Int(visibleBottomInGrid / cellStride))
-        let bottomGridRow = min(rowCount - 1, rowCount - 1 - Int(visibleTopInGrid / cellStride))
-
-        let visibleBlocks = towerVM.placedBlocks.filter { block in
-            block.row >= topGridRow && block.row <= bottomGridRow
-        }
-
-        guard !visibleBlocks.isEmpty else { return Date() }
-
-        // Count occurrences of each dateString — pick the mode (most frequent)
-        var counts: [String: Int] = [:]
-        for block in visibleBlocks {
-            counts[block.log.dateString, default: 0] += 1
-        }
-
-        // Break ties by most recent date
-        let dominant = counts.max { a, b in
-            if a.value != b.value { return a.value < b.value }
-            return a.key < b.key
-        }?.key
-
-        if let dominant, let date = Self.dateStringFormatter.date(from: dominant) {
-            return date
-        }
-        return Date()
     }
 
     private static let dateStringFormatter: DateFormatter = {
@@ -380,14 +415,6 @@ struct MainAppView: View {
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
-
-    private var dominantMonth: String {
-        dominantVisibleDate.formatted(.dateTime.month(.abbreviated))
-    }
-
-    private var dominantDay: String {
-        String(Calendar.current.component(.day, from: dominantVisibleDate))
-    }
 
     // MARK: - Week Progress Data
 
@@ -399,6 +426,34 @@ struct MainAppView: View {
         let weekDates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
         let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
 
+        // Single pass: group logs by dateString for counts + per-habit status
+        var completedByDate: [String: Int] = [:]
+        var skippedByDate: [String: Int] = [:]
+        var completedIDsByDate: [String: Set<UUID>] = [:]
+        var skippedIDsByDate: [String: Set<UUID>] = [:]
+        for log in logs {
+            if log.completed {
+                completedByDate[log.dateString, default: 0] += 1
+                if let hid = log.habit?.id { completedIDsByDate[log.dateString, default: []].insert(hid) }
+            }
+            if log.skipped {
+                skippedByDate[log.dateString, default: 0] += 1
+                if let hid = log.habit?.id { skippedIDsByDate[log.dateString, default: []].insert(hid) }
+            }
+        }
+
+        // Single pass: group habits by DayCode + date for todos
+        let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
+        var habitsByDayCode: [DayCode: [Habit]] = [:]
+        var todosByDate: [String: [Habit]] = [:]
+        for habit in towerHabits {
+            if habit.isTodo {
+                if let d = habit.scheduledDate { todosByDate[d, default: []].append(habit) }
+            } else {
+                for code in habit.frequency { habitsByDayCode[code, default: []].append(habit) }
+            }
+        }
+
         cachedWeekData = weekDates.enumerated().map { index, date in
             let dayNum = calendar.component(.day, from: date)
             let isToday = calendar.isDateInToday(date)
@@ -407,14 +462,24 @@ struct MainAppView: View {
             let weekday = calendar.component(.weekday, from: date)
             let dayCode = DayCode.from(weekday: weekday)
 
-            let scheduledForDay = habits.filter { habit in
-                if habit.isTodo {
-                    return habit.scheduledDate == dateStr
-                }
-                return habit.frequency.contains(dayCode)
-            }
-            let total = scheduledForDay.count
-            let completed = logs.filter { $0.dateString == dateStr && $0.completed }.count
+            // Per-day habit list for Week Matrix
+            let dayHabits = (habitsByDayCode[dayCode] ?? []) + (todosByDate[dateStr] ?? [])
+            let completedIDs = completedIDsByDate[dateStr] ?? []
+            let skippedIDs = skippedIDsByDate[dateStr] ?? []
+
+            let habitSummaries = dayHabits.map { habit in
+                HabitSummary(
+                    id: habit.id,
+                    category: habit.category,
+                    isCompleted: completedIDs.contains(habit.id),
+                    isSkipped: skippedIDs.contains(habit.id),
+                    effectiveHour: TimelineViewModel.effectiveHour(for: habit)
+                )
+            }.sorted { ($0.effectiveHour ?? 24) < ($1.effectiveHour ?? 24) }
+
+            let total = dayHabits.count
+            let completed = completedByDate[dateStr] ?? 0
+            let skipped = skippedByDate[dateStr] ?? 0
             let rate = total > 0 ? Double(completed) / Double(total) : 0
 
             return DayProgressData(
@@ -422,8 +487,12 @@ struct MainAppView: View {
                 dayLabel: dayLabels[index],
                 dayNumber: dayNum,
                 completionRate: rate,
+                completedCount: completed,
+                skippedCount: skipped,
+                totalCount: total,
                 isToday: isToday,
-                isFuture: isFuture
+                isFuture: isFuture,
+                habits: habitSummaries
             )
         }
     }
@@ -436,14 +505,15 @@ struct MainAppView: View {
             visibleSkeletonCount = 8
             return
         }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+        // Skeleton pop-in — bouncier than gentleReveal for playful stagger effect
+        withAnimation(GridConstants.skeletonPop) {
             visibleSkeletonCount = 1
         }
         skeletonBuildTask = Task { @MainActor in
             for i in 2...8 {
                 try? await Task.sleep(for: .milliseconds(50))
                 guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                withAnimation(GridConstants.skeletonPop) {
                     visibleSkeletonCount = i
                 }
             }
@@ -463,7 +533,7 @@ struct MainAppView: View {
         reloadTask = Task {
             let loadStart = ContinuousClock.now
             guard !Task.isCancelled else { return }
-            _ = withAnimation(.spring(response: 0.55, dampingFraction: 0.9)) {
+            _ = withAnimation(GridConstants.layoutReflow) {
                 refreshData()
             }
             let elapsed = ContinuousClock.now - loadStart
@@ -471,6 +541,14 @@ struct MainAppView: View {
             try? await Task.sleep(for: remaining)
             guard !Task.isCancelled else { return }
             stopSkeletonBuildUp()
+        }
+    }
+
+    /// Lightweight reload for filter changes — cross-dissolve, no skeleton
+    private func reloadTowerForFilterChange() {
+        HapticsEngine.lightTap()
+        _ = withAnimation(GridConstants.layoutReflow) {
+            refreshData()
         }
     }
 
@@ -494,14 +572,9 @@ struct MainAppView: View {
                 towerImpactScale = 1.0 - compression
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                withAnimation(GridConstants.naturalSettle) {
                     towerImpactScale = 1.0
                 }
-            }
-        }
-        if !reduceMotion {
-            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
-                towerSwayPhase = true
             }
         }
         startSkeletonBuildUp()
@@ -509,27 +582,94 @@ struct MainAppView: View {
             let loadStart = ContinuousClock.now
             // Migrate existing imageData blobs to file system
             await ImageMigrationRunner.migrateIfNeeded(context: modelContext)
-            _ = withAnimation(.spring(response: 0.55, dampingFraction: 0.9)) {
+            _ = withAnimation(GridConstants.layoutReflow) {
                 refreshData()
             }
             let elapsed = ContinuousClock.now - loadStart
             let remaining = max(.zero, .milliseconds(300) - elapsed)
             try? await Task.sleep(for: remaining)
             stopSkeletonBuildUp()
+
+            // Block tap discovery hint for existing users
+            if !hasSeenBlockTapHint && !towerVM.placedBlocks.isEmpty {
+                hintBlockID = towerVM.placedBlocks.last?.id
+                try? await Task.sleep(for: .seconds(1.0))
+                withAnimation(GridConstants.gentleReveal) { showBlockTapHint = true }
+                hasSeenBlockTapHint = true
+                hintDismissTask = Task {
+                    try? await Task.sleep(for: .seconds(3.0))
+                    withAnimation(GridConstants.crossFade) { showBlockTapHint = false; hintBlockID = nil }
+                }
+            }
+        }
+    }
+
+    private func recomputePerfectDayDates() {
+        let calendar = Calendar.current
+        let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
+
+        var completedByDate: [String: Int] = [:]
+        for log in cachedFilteredLogs where log.completed {
+            completedByDate[log.dateString, default: 0] += 1
+        }
+
+        var result: Set<String> = []
+        for (dateStr, completedCount) in completedByDate {
+            if let date = Self.dateStringFormatter.date(from: dateStr) {
+                let weekday = calendar.component(.weekday, from: date)
+                let dayCode = DayCode.from(weekday: weekday)
+                let scheduledCount = towerHabits.filter { habit in
+                    if habit.isTodo { return habit.scheduledDate == dateStr }
+                    return habit.frequency.contains(dayCode)
+                }.count
+                if scheduledCount > 0 && completedCount >= scheduledCount {
+                    result.insert(dateStr)
+                }
+            }
+        }
+        perfectDayDates = result
+    }
+
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
+            refreshData()
         }
     }
 
     @discardableResult
     private func refreshData() -> Set<UUID> {
-        recomputeFilteredLogs()
+        // Single-pass log index — O(n) once, then O(1) lookups downstream
+        var logsByDate: [String: [HabitLog]] = [:]
+        var allCompletedDateStrings: Set<String> = []
+        var maxCompletedAt: Date? = nil
+        for log in logs {
+            logsByDate[log.dateString, default: []].append(log)
+            if log.completed {
+                allCompletedDateStrings.insert(log.dateString)
+                if let at = log.completedAt, (maxCompletedAt == nil || at > maxCompletedAt!) {
+                    maxCompletedAt = at
+                }
+            }
+        }
+
+        recomputeFilteredLogs(logsByDate: logsByDate)
         recomputeWeekData()
+        recomputePerfectDayDates()
         let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
         timelineVM.loadToday(habits: towerHabits, logs: logs)
-        let droppedIDs: Set<UUID> = withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        recomputeTimelineHabits(logsByDate: logsByDate)
+        let droppedIDs: Set<UUID> = withAnimation(GridConstants.heavySettle) {
             towerVM.buildTower(from: filteredLogs)
         }
-        weekCompletedDates = Set(logs.filter { $0.completed }.map { $0.dateString })
+        weekCompletedDates = allCompletedDateStrings
         recomputeIncompleteTimeline()
+
+        // Update timer guard values from index (avoid redundant O(n) scan)
+        lastLogCount = logs.count
+        lastCompletionDate = maxCompletedAt
 
         // Purge stale animation state
         let validIDs = Set(towerVM.placedBlocks.map(\.id))
@@ -576,6 +716,18 @@ struct MainAppView: View {
             enqueueDrop(blockIDs: droppedIDs)
         }
         // animCoord.isCascading cleared by drain loop when it finishes
+
+        // Block tap discovery hint (one-time, after first drop)
+        if !hasSeenBlockTapHint && !habits.isEmpty {
+            hintBlockID = towerVM.placedBlocks.last?.id
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(GridConstants.gentleReveal) { showBlockTapHint = true }
+            hasSeenBlockTapHint = true
+            hintDismissTask = Task {
+                try? await Task.sleep(for: .seconds(3.0))
+                withAnimation(GridConstants.crossFade) { showBlockTapHint = false; hintBlockID = nil }
+            }
+        }
     }
 
     // MARK: - Tower Content
@@ -588,9 +740,6 @@ struct MainAppView: View {
         let gridH = rowCount > 0
             ? CGFloat(rowCount) * colW + CGFloat(rowCount - 1) * spacing
             : 0
-        let footerClearance: CGFloat = 16
-        let contentHeight = max(gridH, viewportHeight - topInset - 20 - footerClearance)
-
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -599,21 +748,39 @@ struct MainAppView: View {
                         .id("TowerTop")
 
                     Color.clear
-                        .frame(width: gridW, height: contentHeight)
+                        .frame(width: gridW, height: max(gridH, 1))
 
                     if towerVM.isLoading {
-                        skeletonGrid(colW: colW, contentHeight: contentHeight)
+                        skeletonGrid(colW: colW, gridH: gridH)
+                    } else if towerVM.totalRows == 0 {
+                        // Ghost tower empty state
+                        ghostTowerEmptyState(colW: colW, gridH: gridH)
                     } else {
-                        placedBlocksGrid(colW: colW, contentHeight: contentHeight,
+                        // Ground plane at tower foundation
+                        towerGroundPlane(gridW: gridW, gridH: gridH)
+
+                        placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset)
+
+                        // Block count below ground plane (building foundation label)
+                        if towerVM.placedBlocks.count > 0 {
+                            Text("\(towerVM.placedBlocks.count) blocks")
+                                .font(Typography.caption)
+                                .foregroundStyle(.primary.opacity(0.3))
+                                .contentTransition(.numericText())
+                                .frame(width: gridW, alignment: .center)
+                                .offset(y: gridH + 16)
+                        }
                     }
                 }
                 .scaleEffect(y: towerImpactScale, anchor: .bottom)
                 .padding(.horizontal, hPad)
-                .padding(.top, collapsedHeaderHeight + 20)
-                .padding(.bottom, footerClearance)
+                .padding(.bottom, 8)
+                .frame(
+                    minHeight: viewportHeight - safeAreaTop,
+                    alignment: .bottom
+                )
             }
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
             } action: { oldOffset, newOffset in
@@ -635,7 +802,7 @@ struct MainAppView: View {
                 }
             }
             .onChange(of: scrollToTopTrigger) {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                withAnimation(GridConstants.heavySettle) {
                     proxy.scrollTo("TowerTop", anchor: .top)
                 }
             }
@@ -643,8 +810,9 @@ struct MainAppView: View {
     }
 
     @ViewBuilder
-    private func skeletonGrid(colW: CGFloat, contentHeight: CGFloat) -> some View {
+    private func skeletonGrid(colW: CGFloat, gridH: CGFloat) -> some View {
         let skeletons = towerVM.skeletonLayout()
+        ZStack(alignment: .topLeading) {
         ForEach(skeletons.prefix(visibleSkeletonCount)) { skel in
             let f = GridConstants.blockFrame(
                 column: skel.column, row: skel.row,
@@ -652,7 +820,7 @@ struct MainAppView: View {
                 cellSize: colW
             )
             SkeletonBlockView(width: f.width, height: f.height)
-                .offset(x: f.minX, y: contentHeight - f.maxY)
+                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
                 .transition(
                     .asymmetric(
                         insertion: .scale(scale: 0.3, anchor: .bottom).combined(with: .opacity),
@@ -660,15 +828,26 @@ struct MainAppView: View {
                     )
                 )
         }
+        }
     }
 
     @ViewBuilder
-    private func placedBlocksGrid(colW: CGFloat, contentHeight: CGFloat,
+    private func placedBlocksGrid(colW: CGFloat, gridH: CGFloat,
                                    viewportHeight: CGFloat, topInset: CGFloat) -> some View {
         let visibleBlocks = visibleTowerBlocks(
-            colW: colW, gridH: contentHeight,
+            colW: colW, gridH: gridH,
             viewportHeight: viewportHeight, topInset: topInset
         )
+        ZStack(alignment: .topLeading) {
+            blockForEach(visibleBlocks: visibleBlocks, colW: colW, gridH: gridH)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tower grid, \(towerVM.placedBlocks.count) blocks")
+    }
+
+    @ViewBuilder
+    private func blockForEach(visibleBlocks: [PlacedBlock], colW: CGFloat,
+                               gridH: CGFloat) -> some View {
         ForEach(visibleBlocks) { block in
             let f = GridConstants.blockFrame(
                 column: block.column, row: block.row,
@@ -681,10 +860,12 @@ struct MainAppView: View {
             let stagger = towerVM.staggerDelay(for: block)
 
             animatedBlock(block: block, frame: f, phase: phase, isNew: isNew,
-                         gridH: contentHeight, safeAreaTop: safeAreaTop)
+                         gridH: gridH, safeAreaTop: safeAreaTop)
+                .frame(width: f.width, height: f.height)
                 .id(block.id)
-                .offset(x: f.minX, y: contentHeight - f.maxY)
+                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
                 .zIndex(isAnimating ? 100 : Double(block.row + 1))
+                .accessibilitySortPriority(-Double(block.row))
                 .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
         }
     }
@@ -697,14 +878,14 @@ struct MainAppView: View {
     ) -> [PlacedBlock] {
         let blocks = towerVM.placedBlocks
         // For small towers, render everything
-        guard blocks.count > 40 else { return blocks }
+        guard blocks.count > 30 else { return blocks }
 
         let cellStride = colW + spacing
         guard cellStride > 0 else { return blocks }
 
         // Visible content range in grid coordinates
-        let visibleTop = towerScrollOffset - topInset - 200 // buffer
-        let visibleBottom = towerScrollOffset + viewportHeight + 200
+        let visibleTop = towerScrollOffset - topInset - 150 // buffer
+        let visibleBottom = towerScrollOffset + viewportHeight + 150
 
         return blocks.filter { block in
             // Blocks currently animating must always render
@@ -717,6 +898,52 @@ struct MainAppView: View {
         }
     }
 
+    // MARK: - Tower Ground Plane
+
+    private func towerGroundPlane(gridW: CGFloat, gridH: CGFloat) -> some View {
+        // Momentum Ground Glow — warms toward green as daily completions accumulate
+        // Research: Goal Gradient Effect (Hull 1932, Kivetz 2006)
+        let warmth = min(1.0, Double(todayCompletedCount) / Double(max(todayTotalCount, 1)))
+        let neutralColor = colorScheme == .dark ? Color.primary.opacity(0.08) : AppColors.warmBlack.opacity(0.15)
+        let glowColor = AppColors.healthGreen.opacity(warmth * 0.35)
+
+        return ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: neutralColor, location: 0.3),
+                    .init(color: neutralColor, location: 0.7),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: gridW, height: 3)
+
+            // Green warmth overlay — blends in as completions increase
+            if warmth > 0 {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: glowColor, location: 0.25),
+                        .init(color: glowColor, location: 0.75),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: gridW, height: 3)
+                .blur(radius: 5)
+                .animation(GridConstants.progressFill, value: warmth)
+            }
+        }
+        .shadow(
+            color: colorScheme == .dark ? Color.primary.opacity(0.06) : AppColors.warmBlack.opacity(0.12),
+            radius: 4, x: 0, y: 2
+        )
+        .offset(y: gridH)
+    }
+
     // MARK: - Ghost Slot
 
     private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
@@ -727,6 +954,42 @@ struct MainAppView: View {
                     .stroke(Color.white.opacity(0.2), lineWidth: 1)
             )
             .frame(width: width, height: height)
+    }
+
+    // MARK: - Ghost Tower Empty State
+
+    @ViewBuilder
+    private func ghostTowerEmptyState(colW: CGFloat, gridH: CGFloat) -> some View {
+        let ghosts = towerVM.skeletonLayout(blockCount: 5)
+        ForEach(ghosts) { skel in
+            let f = GridConstants.blockFrame(
+                column: skel.column, row: skel.row,
+                columnSpan: skel.columnSpan, rowSpan: skel.rowSpan,
+                cellSize: colW
+            )
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .frame(width: f.width, height: f.height)
+                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
+        }
+
+        VStack(spacing: 12) {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: GridConstants.iconEmptyState, weight: .light))
+                .foregroundStyle(.primary.opacity(0.25))
+            Text("Your tower starts here")
+                .font(Typography.headerMedium)
+                .foregroundStyle(.primary.opacity(0.6))
+            Text("Complete a habit on the Today tab\nto place your first block")
+                .font(Typography.bodySmall)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Animated Block Wrapper
@@ -811,91 +1074,48 @@ struct MainAppView: View {
         }
         .scaleEffect(x: rippleScaleX, y: rippleScaleY, anchor: .bottom)
         .offset(y: rippleOffsetY)
-        // Idle micro-sway — alive feel when not animating
-        .rotationEffect(
-            .degrees((!reduceMotion && phase == nil && towerSwayPhase) ? 0.12 : ((!reduceMotion && phase == nil) ? -0.12 : 0)),
-            anchor: .bottom
-        )
     }
 
     // MARK: - Live Completed Block
 
     private func completedBlock(block: PlacedBlock, frame: CGRect) -> some View {
         let isExpanded = expandedBlockID == block.id
-        let expandedW = CGFloat(columns) * frame.width / CGFloat(block.columnSpan)
-        let expandedH = frame.height * 2.5
 
-        return ZStack {
-            FlippableBlockView(
-                block: block,
-                width: isExpanded ? expandedW : frame.width,
-                height: isExpanded ? expandedH : frame.height,
-                cornerRadius: isExpanded ? 16 : cornerRadius,
-                modelContext: modelContext,
-                onExpandPhoto: { _ in
-                    if isExpanded {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            activeCarouselBlockID = block.id
-                        }
-                    }
-                }
-            )
-
-            // Expanded detail overlay
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(block.habit.category.style.baseColor)
-                            .frame(width: 10, height: 10)
-
-                        Text(block.habit.title)
-                            .font(Typography.headerLarge)
-                            .foregroundStyle(.white)
-                    }
-
-                    if let time = block.log.completedAt {
-                        Text("Completed \(time.formatted(date: .omitted, time: .shortened))")
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-
-                    Text("+\(block.habit.blockSize.baseXP) XP")
-                        .font(Typography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.9))
-
-                    if block.log.imageFileName != nil {
-                        Text("Tap photo to expand")
-                            .font(Typography.caption)
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-        .frame(
-            width: isExpanded ? expandedW : frame.width,
-            height: isExpanded ? expandedH : frame.height
-        )
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isExpanded)
-        .onTapGesture {
-            if block.log.imageFileName != nil && !isExpanded {
-                // Photo blocks: open carousel on tap (unchanged behavior)
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    activeCarouselBlockID = block.id
-                }
-            } else {
-                // Toggle expansion
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    if expandedBlockID == block.id {
-                        expandedBlockID = nil
-                    } else {
+        return FlippableBlockView(
+            block: block,
+            width: frame.width,
+            height: frame.height,
+            cornerRadius: cornerRadius,
+            modelContext: modelContext,
+            onTap: {
+                if !isExpanded {
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.heavySettle) {
                         expandedBlockID = block.id
                     }
                 }
             }
+        )
+        .matchedGeometryEffect(id: block.id, in: blockExpansion)
+        .opacity(isExpanded ? 0 : 1)
+        .overlay {
+            if showBlockTapHint && hintBlockID == block.id {
+                Text("Tap to explore")
+                    .font(Typography.caption)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func dismissCard() {
+        HapticsEngine.tick()
+        try? modelContext.save()
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.heavySettle) {
+            expandedBlockID = nil
         }
     }
 
@@ -971,21 +1191,6 @@ struct MainAppView: View {
         refreshData()
     }
 
-    // MARK: - Daily Story Carousel
-
-    private var carouselPresented: Binding<Bool> {
-        Binding(
-            get: { activeCarouselBlockID != nil },
-            set: { if !$0 { activeCarouselBlockID = nil } }
-        )
-    }
-
-    private var todaysPhotoBlocks: [PlacedBlock] {
-        let dateStr = timelineVM.currentDateString
-        return towerVM.placedBlocks.filter { block in
-            block.log.dateString == dateStr && block.log.imageFileName != nil
-        }
-    }
 }
 
 #Preview {

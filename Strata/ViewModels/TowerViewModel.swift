@@ -109,7 +109,21 @@ final class TowerViewModel {
             }
         }
 
-        totalRows = grid.count
+        totalRows = placed.isEmpty ? 0 : placed.map { $0.row + $0.rowSpan }.max()!
+
+        #if DEBUG
+        // Validate: no two blocks overlap in the grid
+        var validationGrid = Array(repeating: Array(repeating: false, count: GridConstants.columnCount), count: totalRows)
+        for block in placed {
+            for r in block.row..<(block.row + block.rowSpan) {
+                for c in block.column..<(block.column + block.columnSpan) {
+                    assert(!validationGrid[r][c], "Block overlap at (\(c), \(r))")
+                    validationGrid[r][c] = true
+                }
+            }
+        }
+        #endif
+
         isLoading = false
 
         // Clear the dropped set after animation window
