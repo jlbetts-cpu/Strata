@@ -18,27 +18,45 @@ struct MainAppView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
     @State private var hasLoadedDemo = false
     @State private var selectedTab: StrataTab = .tower
-    @State private var towerFilterMode: TowerFilterMode = .day
+    @State private var towerFilterMode: TowerFilterMode = .week
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerImpactScale: CGFloat = 1.0
+    @State private var motionCoord = DeviceMotionCoordinator()
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
+
+    // Block flyaway bridge (Today → Tower visual connection)
+    @State private var flyawayActive: Bool = false
+    @State private var flyawayCategory: HabitCategory? = nil
+    @State private var flyawayLanded: Bool = false
 
     // In-place block expansion
     @State private var expandedBlockID: UUID? = nil
     @Namespace private var blockExpansion
 
-    // Block tap discovery hint
+    // Onboarding
+    @StateObject private var onboarding = OnboardingState()
+
+    // Block tap discovery hint (legacy — replaced by onboarding.hasSeenFirstBlockHint)
     @AppStorage("hasSeenBlockTapHint") private var hasSeenBlockTapHint = false
     @State private var showBlockTapHint = false
     @State private var hintBlockID: UUID? = nil
+
+    // First block magic (Phase 5 — Murdock 1962 primacy effect)
+    @AppStorage("hasSeenFirstDrop") private var hasSeenFirstDrop = false
+    @State private var showFirstBlockLabel = false
+
+    // Tower Aurora (Phase 5 — Skinner 1938 variable reward)
+    @AppStorage("lastAuroraWeek") private var lastAuroraWeek: Int = 0
+    @State private var showAurora = false
 
     // New habit menu
     @State private var isNewHabitMenuOpen: Bool = false
@@ -75,6 +93,7 @@ struct MainAppView: View {
     @State private var cachedFilteredLogs: [HabitLog] = []
     @State private var cachedWeekData: [DayProgressData] = []
     @State private var perfectDayDates: Set<String> = []
+    @State private var cachedStreaks: [UUID: Int] = [:]
 
     // Tower scroll
     @State private var isScrolled: Bool = false
@@ -82,10 +101,7 @@ struct MainAppView: View {
     @State private var scrollToTopTrigger = 0
     @State private var towerScrollOffset: CGFloat = 0
     @State private var screenHeight: CGFloat = 0
-    @State private var currentColW: CGFloat = floor(
-        (UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2 - GridConstants.spacing * CGFloat(GridConstants.columnCount - 1))
-        / CGFloat(GridConstants.columnCount)
-    )
+    @State private var currentColW: CGFloat = 82 // Default for iPhone 15 Pro — geometryTracker recalculates on appear
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
 
@@ -127,6 +143,7 @@ struct MainAppView: View {
             }
             .onChange(of: habits.count) { guard !towerVM.isLoading else { return }; scheduleRefresh() }
             .onChange(of: towerFilterMode) {
+                cachedTowerTitle = computeTowerTitle()
                 reloadTowerForFilterChange()
             }
             .onChange(of: expandedBlockID) {
@@ -147,11 +164,21 @@ struct MainAppView: View {
                 }
             }
             .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+                guard scenePhase == .active else { return }
                 guard !towerVM.isLoading else { return }
                 let currentCount = logs.count
                 // Only refresh if log count changed (avoids O(n) max scan on every tick)
                 if currentCount != lastLogCount {
                     refreshData()
+                }
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { !onboarding.hasSeenWelcome },
+                set: { if !$0 { onboarding.hasSeenWelcome = true } }
+            )) {
+                WelcomeView {
+                    onboarding.hasSeenWelcome = true
+                    selectedTab = .today
                 }
             }
     }
@@ -164,32 +191,71 @@ struct MainAppView: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .principal) {
-                                Text(towerDateString)
+                                Text(cachedTowerTitle)
                                     .font(.headline)
+                                    .contentTransition(.interpolate)
+                                    .animation(GridConstants.crossFade, value: towerFilterMode)
                             }
                             ToolbarItem(placement: .topBarLeading) {
                                 TowerFilterMenuButton(selection: $towerFilterMode)
                             }
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    HapticsEngine.lightTap()
-                                    showSettings = true
-                                } label: {
-                                    Image(systemName: "gearshape")
-                                        .foregroundStyle(.secondary)
+                                HStack(spacing: 16) {
+                                    Button {
+                                        HapticsEngine.lightTap()
+                                        isNewHabitMenuOpen = true
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(AppColors.accentWarm)
+                                    }
+                                    Button {
+                                        HapticsEngine.lightTap()
+                                        showSettings = true
+                                    } label: {
+                                        Image(systemName: "gearshape")
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
                 }
                 .sheet(isPresented: $showSettings) {
-                    NavigationStack { SettingsView() }
+                    NavigationStack {
+                        SettingsView(
+                            onboarding: onboarding,
+                            onResetAllData: { resetTower() }
+                        )
+                    }
+                }
+                .sheet(isPresented: $isNewHabitMenuOpen) {
+                    NewHabitMenu(
+                        isPresented: $isNewHabitMenuOpen,
+                        modelContext: modelContext,
+                        onCreated: { scheduleRefresh() },
+                        prefillTime: newHabitPrefillTime,
+                        tower: towerManager.activeTower
+                    )
                 }
             }
+            .badge(pendingDrops.count)
             Tab("Today", systemImage: "calendar", value: StrataTab.today) {
                 NavigationStack {
                     timelineTabContent
                         .navigationTitle("Today")
                         .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    HapticsEngine.lightTap()
+                                    isNewHabitMenuOpen = true
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(AppColors.accentWarm)
+                                }
+                            }
+                        }
                 }
             }
             Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
@@ -199,20 +265,61 @@ struct MainAppView: View {
                 }
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
-                InsightsView()
+                NavigationStack {
+                    InsightsView(habits: Array(habits), logs: Array(logs))
+                }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .onChange(of: selectedTab) { _, newTab in
+            HapticsEngine.tick()
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
             }
             if newTab != .today {
                 timelineSelectedDate = Date()
             }
+            // Device parallax — start on Tower, stop on leave
+            if newTab == .tower && !reduceMotion {
+                motionCoord.start()
+            } else {
+                motionCoord.stop()
+            }
+            // Tower Aurora check — 3+ perfect days this week, once per week
+            if newTab == .tower && towerVM.totalRows > 0 {
+                let currentWeek = Calendar.current.component(.weekOfYear, from: Date())
+                let todayStr = TimelineViewModel.dateString(from: Date())
+                let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+                let recentPerfectDays = perfectDayDates.filter { dateStr in
+                    guard let date = Self.dateStringFormatter.date(from: dateStr) else { return false }
+                    return date >= weekStart && dateStr <= todayStr
+                }.count
+                if recentPerfectDays >= 3 && lastAuroraWeek != currentWeek {
+                    lastAuroraWeek = currentWeek
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(500))
+                        showAurora = true
+                    }
+                }
+            }
         }
         .onChange(of: towerManager.activeTower?.id) {
             reloadTowerWithAnimation()
+        }
+        // Block flyaway bridge — mini block flies from Today to Tower tab
+        .overlay {
+            if flyawayActive, let category = flyawayCategory {
+                FlyawayBlockView(category: category, landed: $flyawayLanded)
+                    .onChange(of: flyawayLanded) { _, landed in
+                        if landed {
+                            HapticsEngine.squish(mass: 1)
+                            SoundEngine.blockImpact(mass: 1)
+                            flyawayActive = false
+                            flyawayLanded = false
+                        }
+                    }
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -249,8 +356,22 @@ struct MainAppView: View {
         }
     }
 
-    private var towerDateString: String {
-        Date().formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    @State private var cachedTowerTitle: String = ""
+
+    private func computeTowerTitle() -> String {
+        switch towerFilterMode {
+        case .day:
+            return "Today"
+        case .week:
+            let calendar = Calendar.current
+            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+            let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? Date()
+            let startStr = startOfWeek.formatted(.dateTime.month(.abbreviated).day())
+            let endStr = endOfWeek.formatted(.dateTime.month(.abbreviated).day())
+            return "\(startStr) – \(endStr)"
+        case .month:
+            return Date().formatted(.dateTime.month(.wide))
+        }
     }
 
     private var todayCompletedCount: Int { timelineVM.completedToday.count }
@@ -326,6 +447,7 @@ struct MainAppView: View {
                         modelContext: modelContext,
                         onDismiss: { dismissCard() }
                     )
+                    .onAppear { HapticsEngine.lightTap() }
                 }
             }
     }
@@ -342,6 +464,8 @@ struct MainAppView: View {
             isViewingToday: Calendar.current.isDateInToday(timelineSelectedDate),
             isViewingPast: !Calendar.current.isDateInToday(timelineSelectedDate) && timelineSelectedDate < Date(),
             onComplete: { habit in
+                flyawayCategory = habit.category
+                if !reduceMotion { flyawayActive = true }
                 pendingDrops.append(habit)
             },
             onSkip: { habit in
@@ -364,7 +488,9 @@ struct MainAppView: View {
                 selectedTab = .plan
             },
             towerBlockCount: towerVM.placedBlocks.count,
-            debugTower: towerManager.activeTower
+            onboarding: onboarding,
+            debugTower: towerManager.activeTower,
+            cachedStreaks: cachedStreaks
         )
         .onChange(of: timelineSelectedDate) {
             scheduleRefresh()
@@ -385,6 +511,12 @@ struct MainAppView: View {
             cachedAllHabitsForSelectedDate = timelineVM.todaysHabits
                 .filter { $0.tower?.id == towerManager.activeTower?.id }
                 .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
+            // Compute streaks for today's habits (reuses existing @Query logs)
+            let streakVM = StreakViewModel()
+            let logsArray = Array(logs)
+            cachedStreaks = Dictionary(uniqueKeysWithValues:
+                cachedAllHabitsForSelectedDate.map { ($0.id, streakVM.calculateStreak(for: $0, logs: logsArray)) }
+            )
             return
         }
 
@@ -523,7 +655,9 @@ struct MainAppView: View {
     private func stopSkeletonBuildUp() {
         skeletonBuildTask?.cancel()
         skeletonBuildTask = nil
-        visibleSkeletonCount = 0
+        withAnimation(GridConstants.crossFade) {
+            visibleSkeletonCount = 0
+        }
     }
 
     private func reloadTowerWithAnimation() {
@@ -556,6 +690,7 @@ struct MainAppView: View {
 
     private func setup() {
         HapticsEngine.prepare()
+        cachedTowerTitle = computeTowerTitle()
         towerManager.ensureDefaultTower(context: modelContext)
         towerManager.loadActiveTower(context: modelContext)
         timelineVM.modelContext = modelContext
@@ -566,6 +701,7 @@ struct MainAppView: View {
         }
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
+            SoundEngine.blockImpact(mass: mass) // Bimodal: haptic + audio (Vroomen 2000)
             // Tower compression pulse — global impact response
             let compression: CGFloat = mass >= 2 ? 0.004 : 0.002
             withAnimation(.easeOut(duration: 0.06)) {
@@ -574,6 +710,27 @@ struct MainAppView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 withAnimation(GridConstants.naturalSettle) {
                     towerImpactScale = 1.0
+                }
+            }
+        }
+        // Post-cascade settle — the tower exhales (Gestalt Pragnanz closure)
+        animCoord.onAllDropsComplete = { [self] in
+            guard !reduceMotion else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                towerImpactScale = 1.02
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                    towerImpactScale = 1.0
+                }
+
+                // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
+                let todayStr = TimelineViewModel.dateString(from: Date())
+                if towerFilterMode == .day && perfectDayDates.contains(todayStr) {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    HapticsEngine.reward()
+                    animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
                 }
             }
         }
@@ -702,18 +859,32 @@ struct MainAppView: View {
         let habits = pendingDrops
         pendingDrops = []
         animCoord.isCascading = true
+        let isFirstDrop = !hasSeenFirstDrop && !habits.isEmpty
+
+        // First block: zoom in for drama (Murdock 1962 primacy effect)
+        if isFirstDrop && !reduceMotion {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                towerImpactScale = 1.08
+            }
+            try? await Task.sleep(for: .milliseconds(400))
+        }
 
         scrollToTopTrigger += 1
         try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s scroll settle
 
-        for (index, habit) in habits.enumerated() {
+        // Mutate data for all habits first, then rebuild once (Fix 1: N→1 rebuilds)
+        for habit in habits {
             timelineVM.completeHabit(habit)
-            let droppedIDs = refreshData()
-            HapticsEngine.cascade(index: index)
-            if let droppedID = droppedIDs.first {
-                scrollToDropID = droppedID
-            }
-            enqueueDrop(blockIDs: droppedIDs)
+        }
+        let droppedIDs = refreshData()
+
+        if let firstDropped = droppedIDs.first {
+            scrollToDropID = firstDropped
+        }
+
+        // Enqueue individually for sequential animation (coordinator drains with 60ms gaps)
+        for droppedID in droppedIDs {
+            enqueueDrop(blockIDs: [droppedID])
         }
         // animCoord.isCascading cleared by drain loop when it finishes
 
@@ -726,6 +897,30 @@ struct MainAppView: View {
             hintDismissTask = Task {
                 try? await Task.sleep(for: .seconds(3.0))
                 withAnimation(GridConstants.crossFade) { showBlockTapHint = false; hintBlockID = nil }
+            }
+        }
+
+        // First Block Magic — the most polished 3 seconds in the app
+        if isFirstDrop {
+            hasSeenFirstDrop = true
+            HapticsEngine.reward()
+
+            try? await Task.sleep(for: .seconds(reduceMotion ? 0.5 : 1.5))
+
+            if !reduceMotion {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                    towerImpactScale = 1.0
+                }
+            }
+
+            // "Your first block." — shows in ALL motion modes
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 800))
+            withAnimation(GridConstants.gentleReveal) {
+                showFirstBlockLabel = true
+            }
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(GridConstants.crossFade) {
+                showFirstBlockLabel = false
             }
         }
     }
@@ -771,9 +966,28 @@ struct MainAppView: View {
                                 .frame(width: gridW, alignment: .center)
                                 .offset(y: gridH + 16)
                         }
+
+                        // "Your first block." — primacy effect spotlight
+                        if showFirstBlockLabel {
+                            Text("Your first block.")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(.primary.opacity(0.5))
+                                .frame(width: gridW, alignment: .center)
+                                .offset(y: gridH + 40)
+                                .transition(.opacity)
+                        }
                     }
                 }
                 .scaleEffect(y: towerImpactScale, anchor: .bottom)
+                // Device parallax — tower shifts with phone tilt (Harrison 2011)
+                .rotation3DEffect(.degrees(motionCoord.pitch * 2.5), axis: (1, 0, 0), perspective: 0.8)
+                .rotation3DEffect(.degrees(motionCoord.roll * 2.5), axis: (0, 1, 0), perspective: 0.8)
+                // Tower Aurora — rare, earned, beautiful (Skinner 1938)
+                .overlay {
+                    if showAurora && !reduceMotion {
+                        TowerAuroraView(isActive: $showAurora)
+                    }
+                }
                 .padding(.horizontal, hPad)
                 .padding(.bottom, 8)
                 .frame(
@@ -839,36 +1053,61 @@ struct MainAppView: View {
             viewportHeight: viewportHeight, topInset: topInset
         )
         ZStack(alignment: .topLeading) {
-            blockForEach(visibleBlocks: visibleBlocks, colW: colW, gridH: gridH)
+            TowerBlocksForEach(
+                visibleBlocks: visibleBlocks, animCoord: animCoord, towerVM: towerVM,
+                colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
+                collapsedHeaderHeight: collapsedHeaderHeight,
+                towerScrollOffset: towerScrollOffset,
+                cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
+                showBlockTapHint: showBlockTapHint, hintBlockID: hintBlockID,
+                blockExpansionNamespace: blockExpansion,
+                reduceMotion: reduceMotion, colorScheme: colorScheme,
+                onTapExpandBlock: { id in
+                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
+                        expandedBlockID = id
+                    }
+                }
+            )
+
+            // Ghost block preview — shows where next completion will land (Kliegel 2008)
+            if towerFilterMode == .day && !animCoord.isCascading {
+                if let nextHabit = cachedIncompleteForTimeline.first,
+                   let pos = towerVM.computeGhostPosition(for: nextHabit.blockSize) {
+                    let ghostFrame = GridConstants.blockFrame(
+                        column: pos.column, row: pos.row,
+                        columnSpan: nextHabit.blockSize.columnSpan,
+                        rowSpan: nextHabit.blockSize.rowSpan,
+                        cellSize: colW
+                    )
+                    TimelineView(.animation(minimumInterval: 1.0 / 10, paused: false)) { timeline in
+                        let elapsed = timeline.date.timeIntervalSinceReferenceDate
+                        let pulse = (sin(elapsed * .pi) + 1) / 2
+                        let opacity = reduceMotion ? GridConstants.ghostBlockOpacity :
+                            GridConstants.ghostBlockPulseMin +
+                            (GridConstants.ghostBlockPulseMax - GridConstants.ghostBlockPulseMin) * pulse
+
+                        ZStack {
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .fill(nextHabit.category.style.baseColor.opacity(opacity))
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .strokeBorder(
+                                    nextHabit.category.style.baseColor.opacity(0.2),
+                                    style: StrokeStyle(lineWidth: 2, dash: [GridConstants.ghostBlockDashLength])
+                                )
+                            Image(systemName: nextHabit.category.iconName)
+                                .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
+                                .foregroundStyle(nextHabit.category.style.baseColor.opacity(0.25))
+                        }
+                        .frame(width: ghostFrame.width, height: ghostFrame.height)
+                        .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
+                    }
+                }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tower grid, \(towerVM.placedBlocks.count) blocks")
     }
 
-    @ViewBuilder
-    private func blockForEach(visibleBlocks: [PlacedBlock], colW: CGFloat,
-                               gridH: CGFloat) -> some View {
-        ForEach(visibleBlocks) { block in
-            let f = GridConstants.blockFrame(
-                column: block.column, row: block.row,
-                columnSpan: block.columnSpan, rowSpan: block.rowSpan,
-                cellSize: colW
-            )
-            let phase = animCoord.dropPhases[block.id]
-            let isAnimating = phase != nil
-            let isNew = isAnimating || towerVM.newlyDroppedIDs.contains(block.id)
-            let stagger = towerVM.staggerDelay(for: block)
-
-            animatedBlock(block: block, frame: f, phase: phase, isNew: isNew,
-                         gridH: gridH, safeAreaTop: safeAreaTop)
-                .frame(width: f.width, height: f.height)
-                .id(block.id)
-                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
-                .zIndex(isAnimating ? 100 : Double(block.row + 1))
-                .accessibilitySortPriority(-Double(block.row))
-                .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
-        }
-    }
 
     // MARK: - Visible Block Culling
 
@@ -889,7 +1128,7 @@ struct MainAppView: View {
 
         return blocks.filter { block in
             // Blocks currently animating must always render
-            if animCoord.dropPhases[block.id] != nil || towerVM.newlyDroppedIDs.contains(block.id) {
+            if animCoord.activelyAnimatingIDs.contains(block.id) || towerVM.newlyDroppedIDs.contains(block.id) {
                 return true
             }
             let blockY = gridH - CGFloat(block.row + block.rowSpan) * cellStride
@@ -944,17 +1183,6 @@ struct MainAppView: View {
         .offset(y: gridH)
     }
 
-    // MARK: - Ghost Slot
-
-    private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
-            .frame(width: width, height: height)
-    }
 
     // MARK: - Ghost Tower Empty State
 
@@ -988,133 +1216,234 @@ struct MainAppView: View {
                 .font(Typography.bodySmall)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            Button {
+                HapticsEngine.lightTap()
+                selectedTab = .today
+            } label: {
+                Text("Go to Today")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(AppColors.accentWarm, in: Capsule())
+            }
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Animated Block Wrapper
+    // MARK: - Tower Block Views (Extracted for observation isolation)
 
-    private func animatedBlock(
-        block: PlacedBlock,
-        frame f: CGRect,
-        phase: TowerAnimationCoordinator.DropPhase?,
-        isNew: Bool,
-        gridH: CGFloat = 0,
-        safeAreaTop: CGFloat = 0
-    ) -> some View {
-        let mass = CGFloat(block.habit.blockSize.massTier)
+    private struct TowerBlocksForEach: View {
+        let visibleBlocks: [PlacedBlock]
+        let animCoord: TowerAnimationCoordinator
+        let towerVM: TowerViewModel
+        let colW: CGFloat
+        let gridH: CGFloat
+        let safeAreaTop: CGFloat
+        let collapsedHeaderHeight: CGFloat
+        let towerScrollOffset: CGFloat
+        let cornerRadius: CGFloat
+        let expandedBlockID: UUID?
+        let showBlockTapHint: Bool
+        let hintBlockID: UUID?
+        let blockExpansionNamespace: Namespace.ID
+        let reduceMotion: Bool
+        let colorScheme: ColorScheme
+        let onTapExpandBlock: (UUID) -> Void
 
-        let dropOffset: CGFloat = switch phase {
-        case .falling:
-            {
-                let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
-                let blockInScrollContent = paddingTop + (gridH - f.maxY)
-                let dynamicOffset = towerScrollOffset - blockInScrollContent - f.height - 60
-                return min(dynamicOffset, -400)
-            }()
-        case .squash, .stretch, .wobble: CGFloat(0)
-        case .none: CGFloat(0)
+        var body: some View {
+            ForEach(visibleBlocks) { block in
+                let f = GridConstants.blockFrame(
+                    column: block.column, row: block.row,
+                    columnSpan: block.columnSpan, rowSpan: block.rowSpan,
+                    cellSize: colW
+                )
+                let animState = animCoord.state(for: block.id)
+                let isNewlyDropped = towerVM.newlyDroppedIDs.contains(block.id)
+                let stagger = towerVM.staggerDelay(for: block)
+
+                AnimatedBlockView(
+                    block: block, frame: f, animState: animState,
+                    isNewlyDropped: isNewlyDropped, staggerDelay: stagger,
+                    gridH: gridH, safeAreaTop: safeAreaTop,
+                    collapsedHeaderHeight: collapsedHeaderHeight,
+                    towerScrollOffset: towerScrollOffset,
+                    cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
+                    showBlockTapHint: showBlockTapHint, hintBlockID: hintBlockID,
+                    blockExpansionNamespace: blockExpansionNamespace,
+                    reduceMotion: reduceMotion, colorScheme: colorScheme,
+                    onTapExpandBlock: onTapExpandBlock
+                )
+                .equatable()
+                .frame(width: f.width, height: f.height)
+                .id(block.id)
+                .offset(x: f.minX, y: gridH - f.minY - f.height)
+                .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
+                .accessibilitySortPriority(-Double(block.row))
+                .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
+            }
+        }
+    }
+
+    private struct AnimatedBlockView: View, Equatable {
+        let block: PlacedBlock
+        let frame: CGRect
+        let animState: BlockAnimationState
+        let isNewlyDropped: Bool
+        let staggerDelay: Double
+        let gridH: CGFloat
+        let safeAreaTop: CGFloat
+        let collapsedHeaderHeight: CGFloat
+        let towerScrollOffset: CGFloat
+        let cornerRadius: CGFloat
+        let expandedBlockID: UUID?
+        let showBlockTapHint: Bool
+        let hintBlockID: UUID?
+        let blockExpansionNamespace: Namespace.ID
+        let reduceMotion: Bool
+        let colorScheme: ColorScheme
+        let onTapExpandBlock: (UUID) -> Void
+
+        @Environment(\.modelContext) private var modelContext
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.block.id == rhs.block.id
+            && lhs.frame == rhs.frame
+            && lhs.isNewlyDropped == rhs.isNewlyDropped
+            && lhs.gridH == rhs.gridH
+            && lhs.towerScrollOffset == rhs.towerScrollOffset
+            && lhs.expandedBlockID == rhs.expandedBlockID
+            && lhs.showBlockTapHint == rhs.showBlockTapHint
+            && lhs.hintBlockID == rhs.hintBlockID
+            && lhs.reduceMotion == rhs.reduceMotion
+            && lhs.colorScheme == rhs.colorScheme
         }
 
-        // Volume-preserving squash-and-stretch (energy-proportional: quadratic in mass)
-        let (impactScaleX, impactScaleY): (CGFloat, CGFloat) = switch phase {
-        case .squash:
-            (1.0 + GridConstants.squashScaleX(mass: mass),
-             1.0 - GridConstants.squashScaleY(mass: mass))
-        case .stretch:
-            (1.0 - GridConstants.stretchScaleX(mass: mass),
-             1.0 + GridConstants.stretchScaleY(mass: mass))
-        default:
-            (1.0, 1.0)
-        }
+        var body: some View {
+            let phase = animState.dropPhase
+            let isAnimating = phase != nil
+            let isNew = isAnimating || isNewlyDropped
+            let mass = CGFloat(block.habit.blockSize.massTier)
 
-        // Wobble rotation on settle
-        let wobbleDegrees: Double = switch phase {
-        case .wobble:
-            mass >= 2 ? GridConstants.wobbleDegreesHeavy : GridConstants.wobbleDegreesLight
-        default:
-            0
-        }
-
-        // Landing flash on squash impact
-        let flashBrightness: Double = phase == .squash ? 0.06 : 0
-
-        // Phase-aware shadow during drop
-        let (dropShadowRadius, dropShadowY): (CGFloat, CGFloat) = switch phase {
-        case .falling: (12, 8)
-        case .squash: (1, 0.5)
-        case .stretch: (3, 1.5)
-        case .wobble: (4, 2)
-        case .none: (0, 0)
-        }
-
-        // Ripple: volume-preserving compress
-        let isRippling = animCoord.ripplingBlockIDs.contains(block.id)
-        let ri = animCoord.rippleIntensity[block.id] ?? 1.0
-        let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.030 * ri : 1.0
-        let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.050 * ri : 1.0
-        let rippleOffsetY: CGFloat = isRippling ? 2.5 * ri : 0
-
-        return ZStack {
-            if isNew {
-                ghostSlot(width: f.width, height: f.height)
+            let dropOffset: CGFloat = switch phase {
+            case .falling:
+                {
+                    let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
+                    let blockInScrollContent = paddingTop + (gridH - frame.maxY)
+                    let dynamicOffset = towerScrollOffset - blockInScrollContent - frame.height - 60
+                    return min(dynamicOffset, -400)
+                }()
+            case .squash, .stretch, .wobble: CGFloat(0)
+            case .none: CGFloat(0)
             }
 
-            completedBlock(block: block, frame: f)
+            let (impactScaleX, impactScaleY): (CGFloat, CGFloat) = switch phase {
+            case .squash:
+                (1.0 + GridConstants.squashScaleX(mass: mass),
+                 1.0 - GridConstants.squashScaleY(mass: mass))
+            case .stretch:
+                (1.0 - GridConstants.stretchScaleX(mass: mass),
+                 1.0 + GridConstants.stretchScaleY(mass: mass))
+            default: (1.0, 1.0)
+            }
+
+            let wobbleDegrees: Double = switch phase {
+            case .wobble: mass >= 2 ? GridConstants.wobbleDegreesHeavy : GridConstants.wobbleDegreesLight
+            default: 0
+            }
+
+            let flashBrightness: Double = phase == .squash ? 0.06 : 0
+
+            let (dropShadowRadius, dropShadowY): (CGFloat, CGFloat) = switch phase {
+            case .falling: (12, 8)
+            case .squash: (1, 0.5)
+            case .stretch: (3, 1.5)
+            case .wobble: (4, 2)
+            case .none: (0, 0)
+            }
+
+            let isRippling = animState.isRippling
+            let ri = animState.rippleIntensity
+            let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.030 * ri : 1.0
+            let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.050 * ri : 1.0
+            let rippleOffsetY: CGFloat = isRippling ? 2.5 * ri : 0
+
+            let isExpanded = expandedBlockID == block.id
+
+            ZStack {
+                if isNew {
+                    ghostSlot(width: frame.width, height: frame.height)
+                }
+
+                FlippableBlockView(
+                    block: block,
+                    width: frame.width,
+                    height: frame.height,
+                    cornerRadius: cornerRadius,
+                    modelContext: modelContext,
+                    onTap: {
+                        if !isExpanded {
+                            onTapExpandBlock(block.id)
+                        }
+                    }
+                )
+                .matchedGeometryEffect(id: block.id, in: blockExpansionNamespace)
+                .opacity(isExpanded ? 0 : 1)
+                .overlay {
+                    if showBlockTapHint && hintBlockID == block.id {
+                        Text("Tap to explore")
+                            .font(Typography.caption)
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                            .allowsHitTesting(false)
+                    }
+                }
                 .scaleEffect(x: impactScaleX, y: impactScaleY, anchor: .bottom)
                 .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
                 .brightness(flashBrightness)
                 .shadow(
-                    color: phase != nil ? .black.opacity(GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)) : .clear,
-                    radius: dropShadowRadius,
+                    color: phase != nil ? .black.opacity(
+                        GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)
+                    ) : .clear,
+                    radius: dropShadowRadius, x: 0, y: dropShadowY
+                )
+                // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
+                .shadow(
+                    color: colorScheme == .dark ? .clear : .black.opacity(0.04),
+                    radius: GridConstants.shadowRadius + CGFloat(block.row) * GridConstants.depthShadowScale,
                     x: 0,
-                    y: dropShadowY
+                    y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale
                 )
                 .offset(y: dropOffset)
+            }
+            .scaleEffect(x: rippleScaleX, y: rippleScaleY, anchor: .bottom)
+            .offset(y: rippleOffsetY)
+            // Jubilation wave — rotation, lift, glow (perfect day celebration)
+            .rotationEffect(.degrees(animState.jubilationWobble))
+            .offset(y: animState.jubilationLift)
+            .brightness(animState.jubilationGlow)
         }
-        .scaleEffect(x: rippleScaleX, y: rippleScaleY, anchor: .bottom)
-        .offset(y: rippleOffsetY)
-    }
 
-    // MARK: - Live Completed Block
-
-    private func completedBlock(block: PlacedBlock, frame: CGRect) -> some View {
-        let isExpanded = expandedBlockID == block.id
-
-        return FlippableBlockView(
-            block: block,
-            width: frame.width,
-            height: frame.height,
-            cornerRadius: cornerRadius,
-            modelContext: modelContext,
-            onTap: {
-                if !isExpanded {
-                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.heavySettle) {
-                        expandedBlockID = block.id
-                    }
-                }
-            }
-        )
-        .matchedGeometryEffect(id: block.id, in: blockExpansion)
-        .opacity(isExpanded ? 0 : 1)
-        .overlay {
-            if showBlockTapHint && hintBlockID == block.id {
-                Text("Tap to explore")
-                    .font(Typography.caption)
-                    .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                    .allowsHitTesting(false)
-            }
+        private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+                .frame(width: width, height: height)
         }
     }
 
     private func dismissCard() {
         HapticsEngine.tick()
         try? modelContext.save()
-        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.heavySettle) {
+        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
             expandedBlockID = nil
         }
     }
@@ -1180,17 +1509,174 @@ struct MainAppView: View {
     #endif
 
     private func resetTower() {
-        for log in logs {
+        // 1. Delete all image files from disk (must read file names before deleting entities)
+        let allLogs = (try? modelContext.fetch(FetchDescriptor<HabitLog>())) ?? []
+        for log in allLogs {
             if let fileName = log.imageFileName {
                 ImageManager.shared.deleteImage(fileName: fileName)
             }
-            modelContext.delete(log)
         }
-        for habit in habits { modelContext.delete(habit) }
+
+        // 2. Batch-delete all SwiftData entities
+        try? modelContext.delete(model: HabitLog.self)
+        try? modelContext.delete(model: Habit.self)
+        try? modelContext.delete(model: PlanFolder.self)
+        try? modelContext.delete(model: MoodLog.self)
+        try? modelContext.delete(model: Tower.self)
         try? modelContext.save()
+
+        // 3. Reset UserDefaults (onboarding, tower selection, hints, plan prefs)
+        for key in [
+            "activeTowerID",
+            "onb_welcome", "onb_hold", "onb_skip", "onb_firstBlock",
+            "onb_nlp", "onb_drag", "onb_photo", "onb_week",
+            "onb_contextMenu", "onb_sessionCount",
+            "hasSeenBlockTapHint", "hasCompletedFirstHabit",
+            "sectionExpanded", "smartViewOverrides", "planSortMode"
+        ] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+
+        // 4. Reset in-memory @AppStorage / @StateObject properties
+        hasSeenBlockTapHint = false
+        onboarding.hasSeenWelcome = false
+        onboarding.hasSeenHoldHint = false
+        onboarding.hasSeenSkipHint = false
+        onboarding.hasSeenFirstBlockHint = false
+        onboarding.hasSeenNLPHint = false
+        onboarding.hasSeenDragHint = false
+        onboarding.hasSeenPhotoHint = false
+        onboarding.hasSeenWeekHint = false
+        onboarding.hasSeenContextMenuHint = false
+        onboarding.sessionCount = 0
+        onboarding.dismissHint()
+
+        // 5. Reset in-memory view state
+        pendingDrops = []
+        expandedBlockID = nil
+        showBlockTapHint = false
+        hintBlockID = nil
+        animCoord.reset()
+        selectedTab = .tower
+
+        // 6. Re-create fresh default tower and set as active
+        towerManager.ensureDefaultTower(context: modelContext)
+        towerManager.loadActiveTower(context: modelContext)
+
+        // 7. Rebuild all derived state from now-empty database
         refreshData()
     }
 
+}
+
+// MARK: - Block Flyaway (Today → Tower visual bridge)
+
+private struct FlyawayBlockView: View {
+    let category: HabitCategory
+    @Binding var landed: Bool
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        let t = progress
+        // Parabolic arc: rises slightly (peak at t≈0.3), then descends toward Tower tab
+        let arcX = -140 * t
+        let arcY = -60 * t + 380 * t * t
+        let scale = 1.0 - t * 0.7
+
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(category.style.gradient)
+            .frame(width: 32, height: 32)
+            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+            .scaleEffect(scale)
+            .offset(x: arcX, y: arcY)
+            .opacity(1.0 - t * 0.4)
+            .onAppear {
+                withAnimation(GridConstants.blockFlyaway) {
+                    progress = 1.0
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    landed = true
+                }
+            }
+    }
+}
+
+// MARK: - Tower Aurora (rare, earned, beautiful — Skinner 1938)
+
+private struct TowerAuroraView: View {
+    @Binding var isActive: Bool
+    @State private var startTime: Date?
+
+    private let duration: TimeInterval = 2.5
+
+    var body: some View {
+        GeometryReader { geo in
+            let height = geo.size.height
+            let width = geo.size.width
+
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { timeline in
+                let elapsed = startTime.map { timeline.date.timeIntervalSince($0) } ?? 0
+                let progress = min(elapsed / duration, 1.0)
+                let fade = max(0, 1.0 - max(0, progress - 0.6) / 0.4)
+
+                let sway1 = sin(elapsed * 1.5) * 15
+                let sway2 = sin(elapsed * 2.0 + 1) * 12
+                let sway3 = sin(elapsed * 2.5 + 2) * 8
+
+                ZStack {
+                    // Cool curtain (teal → blue) — lower altitude, faster
+                    Ellipse()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.06, green: 0.72, blue: 0.50).opacity(0.18 * fade),
+                                    Color(red: 0.25, green: 0.66, blue: 1.0).opacity(0.14 * fade)
+                                ],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(width: width * 0.85, height: 140)
+                        .blur(radius: 30)
+                        .offset(x: -width * 0.08 + sway1, y: height * (1.0 - progress * 1.2))
+
+                    // Warm curtain (purple → magenta) — higher altitude, slower
+                    Ellipse()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.69, green: 0.61, blue: 0.98).opacity(0.15 * fade),
+                                    Color(red: 0.93, green: 0.52, blue: 0.71).opacity(0.12 * fade)
+                                ],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(width: width * 0.7, height: 110)
+                        .blur(radius: 25)
+                        .offset(x: width * 0.12 + sway2, y: height * (1.0 - progress * 1.05) - 40)
+
+                    // Gold accent shimmer — fastest, thinnest
+                    Ellipse()
+                        .fill(GridConstants.patinaGold.opacity(0.10 * fade))
+                        .frame(width: width * 0.5, height: 70)
+                        .blur(radius: 15)
+                        .offset(x: sway3, y: height * (1.0 - progress * 1.35) + 20)
+                }
+            }
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .onAppear {
+            startTime = Date()
+            HapticsEngine.reward()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(Int(duration * 1000)))
+                SoundEngine.allClearChime()
+                try? await Task.sleep(for: .seconds(1))
+                isActive = false
+            }
+        }
+    }
 }
 
 #Preview {

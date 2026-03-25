@@ -30,6 +30,35 @@ struct NewHabitMenu: View {
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 16) {
+            // Live block preview — shows what tower block will look like (Norton 2012 IKEA Effect)
+            HStack {
+                Spacer()
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .fill(selectedCategory.style.gradient)
+                    .frame(
+                        width: CGFloat(selectedSize.columnSpan) * 44,
+                        height: CGFloat(selectedSize.rowSpan) * 44
+                    )
+                    .overlay {
+                        VStack(spacing: 2) {
+                            Image(systemName: selectedCategory.iconName)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white)
+                            if !title.isEmpty {
+                                Text(title)
+                                    .font(Typography.caption2)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                    .animation(GridConstants.motionSmooth, value: selectedCategory)
+                    .animation(GridConstants.motionSmooth, value: selectedSize)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+
             // Toggle: One-Time Task / Recurring Habit
             HStack(spacing: 0) {
                 togglePill("Recurring", selected: !isOneTime) {
@@ -51,51 +80,83 @@ struct NewHabitMenu: View {
                 .padding(.vertical, 12)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            // Category colors
+            // Category — mini clay blocks (Lakoff & Johnson 1980 — visual metaphor continuity)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Category")
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 12)]) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget + 8), spacing: isAccessibilitySize ? 8 : 12)]) {
                     ForEach(categories, id: \.self) { cat in
                         Button {
                             withAnimation(GridConstants.crossFade) { selectedCategory = cat }
                             HapticsEngine.tick()
                         } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(cat.style.baseColor)
+                            VStack(spacing: 4) {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(cat.style.gradient)
                                     .frame(width: circleSize, height: circleSize)
-                                Image(systemName: cat.iconName)
-                                    .font(Typography.bodySmall.weight(.medium))
-                                    .foregroundStyle(.white.opacity(0.9))
+                                    .overlay {
+                                        Image(systemName: cat.iconName)
+                                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.white)
+                                    }
+                                    .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                                Text(cat.rawValue.capitalized)
+                                    .font(Typography.caption2)
+                                    .foregroundStyle(selectedCategory == cat ? .primary : .secondary)
                             }
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.primary, lineWidth: selectedCategory == cat ? 2.5 : 0)
-                                    .frame(width: strokeSize, height: strokeSize)
-                            )
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 2)
+                            .background {
+                                if selectedCategory == cat {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(cat.style.baseColor.opacity(0.1))
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
-                        .frame(width: hitTarget, height: hitTarget)
-                        .contentShape(Circle())
                         .accessibilityLabel(cat.rawValue)
                         .accessibilityAddTraits(selectedCategory == cat ? .isSelected : [])
                     }
                 }
             }
 
-            // Duration pills
+            // Duration — block proportions (Treisman 1980 — pre-attentive processing)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Duration")
                     .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 8) {
-                    durationPill("15 min", size: .small)
-                    durationPill("30 min", size: .medium)
-                    durationPill("60 min", size: .hard)
+                HStack(spacing: 12) {
+                    ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
+                        Button {
+                            withAnimation(GridConstants.crossFade) { selectedSize = size }
+                            HapticsEngine.tick()
+                        } label: {
+                            VStack(spacing: 4) {
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(selectedCategory.style.gradient)
+                                    .frame(
+                                        width: CGFloat(size.columnSpan) * 20,
+                                        height: CGFloat(size.rowSpan) * 20
+                                    )
+                                Text(size.rawValue.capitalized)
+                                    .font(Typography.caption2)
+                                Text("\(size.durationMinutes)m")
+                                    .font(Typography.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                            .background {
+                                if selectedSize == size {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(selectedCategory.style.baseColor.opacity(0.1))
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 
@@ -153,24 +214,37 @@ struct NewHabitMenu: View {
                     .font(Typography.bodyMedium)
             }
 
-            // Create button
+            // "Stack it" button — looks like a block, verb matches tower metaphor
             Button {
                 createHabit()
             } label: {
-                Text("Create")
-                    .font(Typography.blockTitle)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        selectedCategory.style.baseColor,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(.white.opacity(0.3))
+                        .frame(width: 16, height: 16)
+                    Text("Stack it")
+                        .fontWeight(.semibold)
+                }
+                .font(Typography.blockTitle)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    selectedCategory.style.gradient,
+                    in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                )
+                .shadow(color: selectedCategory.style.baseColor.opacity(0.3), radius: 8, y: 4)
             }
             .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
             .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
         }
         .padding(20)
+        }
+        // Ambient category tint — sheet breathes with your choice
+        .background {
+            selectedCategory.style.baseColor.opacity(0.04)
+                .ignoresSafeArea()
+                .animation(GridConstants.motionSmooth, value: selectedCategory)
         }
         .onAppear {
             if let prefill = prefillTime {

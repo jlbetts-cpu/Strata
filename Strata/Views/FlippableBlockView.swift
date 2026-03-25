@@ -12,6 +12,7 @@ struct FlippableBlockView: View {
     var onTap: (() -> Void)? = nil
 
     @State private var tapTrigger: Int = 0
+    @State private var isPressed: Bool = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -22,6 +23,9 @@ struct FlippableBlockView: View {
     private var borderHighlight: Color { style.lightTint }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
     private var hasImage: Bool { block.log.imageFileName != nil }
+    private var massTier: CGFloat { CGFloat(block.habit.blockSize.massTier) }
+    private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }
+    private var tapSquashY: CGFloat { 0.97 + (massTier - 1) * 0.006 }
 
     private var patinaOpacity: Double {
         guard towerFilterMode != .day else { return 0 }
@@ -120,8 +124,8 @@ struct FlippableBlockView: View {
                 .stroke(
                     LinearGradient(
                         stops: [
-                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
+                            .init(color: borderHighlight.opacity(hasImage ? 0.75 : 0.55), location: 0.0),
+                            .init(color: borderHighlight.opacity(hasImage ? 0.35 : 0.20), location: 0.4),
                             .init(color: borderHighlight.opacity(0.0), location: 0.75)
                         ],
                         startPoint: .top,
@@ -130,26 +134,7 @@ struct FlippableBlockView: View {
                     lineWidth: 2.5
                 )
         )
-        // Overlay 2: Diffused border — invisible at top, soft glow at bottom
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.0), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.45),
-                            .init(color: borderHighlight.opacity(0.35), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 4
-                )
-                .blur(radius: 6)
-                .compositingGroup()
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .drawingGroup()
-        )
+        // Diffused border removed — single crisp border is sufficient for clay depth
         .shadow(
             color: colorScheme == .dark
                 ? style.glow
@@ -165,17 +150,30 @@ struct FlippableBlockView: View {
                     .stroke(GridConstants.patinaGold.opacity(patinaOpacity), lineWidth: 2)
             }
         }
+        .drawingGroup()
         // Tap bounce: fast squash → bouncy pop-back
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content
                 .scaleEffect(
-                    x: phase ? GridConstants.tapScaleX : 1.0,
-                    y: phase ? GridConstants.tapScaleY : 1.0
+                    x: phase ? tapSquashX : 1.0,
+                    y: phase ? tapSquashY : 1.0
                 )
                 .brightness(phase ? -0.03 : 0)
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
+        // Press highlight — instant touch-down feedback (Norman 1988)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isPressed { withAnimation(GridConstants.microResponse) { isPressed = true } }
+                }
+                .onEnded { _ in
+                    withAnimation(GridConstants.microResponse) { isPressed = false }
+                }
+        )
+        .brightness(isPressed ? 0.06 : 0)
+        .scaleEffect(isPressed ? 0.98 : 1.0)
         .contentShape(Rectangle())
         .onTapGesture {
             HapticsEngine.lightTap()

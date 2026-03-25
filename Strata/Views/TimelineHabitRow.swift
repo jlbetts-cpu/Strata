@@ -10,6 +10,9 @@ struct TimelineHabitRow: View {
     var onUndoSkip: ((Habit) -> Void)? = nil
     var isAlreadyCompleted: Bool = false
     var isAlreadySkipped: Bool = false
+    var photoFileName: String? = nil
+    var completionProgress: Double = 0  // 0.0→1.0, fraction of day's habits completed
+    var currentStreak: Int = 0          // Current streak for milestone detection
 
     enum TaskState {
         case incomplete, filling, completed, skipped
@@ -23,6 +26,11 @@ struct TimelineHabitRow: View {
     @State private var completionTask: Task<Void, Never>? // Cancellable completion sequence
     @State private var holdProgress: CGFloat = 0 // Fluid Fill: press-to-complete progress
     @State private var isHolding: Bool = false
+    @State private var lastSwipeThreshold: Int = 0 // Progressive haptic chain tracking
+    @State private var lastHoldThreshold: Int = 0  // Hold gesture ratchet tracking
+    @State private var completionBounce: Bool = false
+    @State private var streakBadgeVisible: Bool = false
+    @State private var streakMilestone: Int = 0
     private let holdDuration: TimeInterval = 0.6 // Fogg's Tiny Habits: deliberate but not slow
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,6 +58,35 @@ struct TimelineHabitRow: View {
     /// Choose animation based on reduceMotion
     private func anim(_ animation: Animation) -> Animation {
         reduceMotion ? GridConstants.motionReduced : animation
+    }
+
+    // MARK: - Momentum Escalation (Hull's Goal Gradient)
+
+    private var escalatedFillDuration: TimeInterval {
+        switch completionProgress {
+        case 0..<0.3:  return GridConstants.fillSweepDuration
+        case 0.3..<0.6: return GridConstants.fillSweepEarly
+        case 0.6..<0.9: return GridConstants.fillSweepMedium
+        default:        return GridConstants.fillSweepFast
+        }
+    }
+
+    private var escalatedBounceAmplitude: CGFloat {
+        switch completionProgress {
+        case 0..<0.3:  return 1.015
+        case 0.3..<0.6: return 1.02
+        case 0.6..<0.9: return 1.025
+        default:        return 1.03
+        }
+    }
+
+    private var escalatedPitchShift: Double {
+        switch completionProgress {
+        case 0..<0.3:  return 0
+        case 0.3..<0.6: return 50
+        case 0.6..<0.9: return 100
+        default:        return 150
+        }
     }
 
     var body: some View {
@@ -95,11 +132,39 @@ struct TimelineHabitRow: View {
 
             GeometryReader { geo in
                 ZStack {
-                    // GHOST BASE (always present)
-                    ghostBackground
-                    style.baseColor.opacity(0.08)
+                    // PROTO-BLOCK BASE — muted tower gradient (Lakoff 1980: visual metaphor continuity)
+                    LinearGradient(
+                        stops: [
+                            .init(color: style.lightTint, location: 0.0),
+                            .init(color: style.baseColor, location: 0.3),
+                            .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .opacity(0.15)
+
+                    // Frosted overlay (light mode)
+                    if colorScheme == .light {
+                        LinearGradient(
+                            stops: [.init(color: .clear, location: 0.0), .init(color: .white.opacity(0.10), location: 1.0)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    }
+
+                    // Crisp top-lit border (matches tower blocks)
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(style.baseColor.opacity(colorScheme == .dark ? 0.4 : 0.6), lineWidth: 2)
+                        .stroke(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: style.lightTint.opacity(0.35), location: 0.0),
+                                    .init(color: style.lightTint.opacity(0.15), location: 0.4),
+                                    .init(color: style.lightTint.opacity(0.0), location: 0.75)
+                                ],
+                                startPoint: .top, endPoint: .bottom
+                            ),
+                            lineWidth: 1.5
+                        )
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {
@@ -165,17 +230,18 @@ struct TimelineHabitRow: View {
 
                     // Skipped hash overlay (diagonal lines — universal "crossed out" metaphor)
                     if isSkipped {
-                        Path { path in
-                            let step: CGFloat = 12
-                            var x: CGFloat = -rowHeight
-                            let width = geo.size.width
-                            while x < width + rowHeight {
-                                path.move(to: CGPoint(x: x, y: rowHeight))
-                                path.addLine(to: CGPoint(x: x + rowHeight, y: 0))
+                        Canvas { context, size in
+                            let step: CGFloat = 10
+                            let opacity = colorScheme == .dark ? 0.18 : 0.14
+                            var x: CGFloat = -size.height
+                            while x < size.width + size.height {
+                                var path = Path()
+                                path.move(to: CGPoint(x: x, y: size.height))
+                                path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                                context.stroke(path, with: .color(.primary.opacity(opacity)), lineWidth: 1)
                                 x += step
                             }
                         }
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                     }
 
                     // CONTENT — dual-layer "slice" during fill
@@ -218,20 +284,26 @@ struct TimelineHabitRow: View {
                     guard isInteractive else { return }
                     if isPressing {
                         isHolding = true
+                        lastHoldThreshold = 0
                         HapticsEngine.lightTap()
                         withAnimation(.linear(duration: holdDuration)) {
                             holdProgress = 1.0
                         }
-                        // Halfway haptic
+                        // Ratcheting haptic chain — tick every 15% of hold progress
                         completionTask = Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(Int(holdDuration * 500)))
-                            guard !Task.isCancelled, isHolding else { return }
-                            HapticsEngine.tick()
+                            let stepMs = Int(holdDuration * 150) // 15% interval in ms
+                            for step in 1...6 { // 15%, 30%, 45%, 60%, 75%, 90%
+                                try? await Task.sleep(for: .milliseconds(stepMs))
+                                guard !Task.isCancelled, isHolding else { return }
+                                lastHoldThreshold = step
+                                HapticsEngine.tick()
+                            }
                         }
                     } else {
                         // Released early — snap back
                         completionTask?.cancel()
                         isHolding = false
+                        lastHoldThreshold = 0
                         withAnimation(anim(GridConstants.motionSnappy)) {
                             holdProgress = 0
                         }
@@ -240,6 +312,7 @@ struct TimelineHabitRow: View {
                     // Hold completed — trigger full completion
                     isHolding = false
                     holdProgress = 0
+                    lastHoldThreshold = 0
                     beginCompletion()
                 })
             }
@@ -251,12 +324,32 @@ struct TimelineHabitRow: View {
                 y: 1.0,
                 anchor: .leading
             )
+            // Completion settle bounce — escalates with momentum (Hull 1932)
+            .scaleEffect(x: 1.0, y: completionBounce ? escalatedBounceAmplitude : 1.0, anchor: .bottom)
         }
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Streak milestone badge overlay
+        .overlay(alignment: .trailing) {
+            if streakBadgeVisible {
+                Text(streakMilestone == 66 ? "Habit Formed!" : "\(streakMilestone)")
+                    .font(Typography.bodySmall)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(GridConstants.patinaGold, in: Capsule())
+                    .transition(.scale.combined(with: .opacity))
+                    .padding(.trailing, 12)
+            }
+        }
         .shadow(
-            color: .black.opacity(GridConstants.adaptiveShadowOpacity(isCompleted ? GridConstants.shadowOpacity : 0, colorScheme: colorScheme)),
-            radius: GridConstants.shadowRadius, x: 0, y: GridConstants.shadowY
+            color: .black.opacity(GridConstants.adaptiveShadowOpacity(
+                isCompleted ? GridConstants.shadowOpacity : GridConstants.shadowOpacity * 0.7,
+                colorScheme: colorScheme)),
+            radius: isCompleted ? GridConstants.shadowRadius : GridConstants.shadowRadius * 0.7,
+            x: 0,
+            y: isCompleted ? GridConstants.shadowY : GridConstants.shadowY * 0.7
         )
         // Completed: dim background layers only (text stays crisp at full opacity for WCAG AA)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
@@ -271,9 +364,23 @@ struct TimelineHabitRow: View {
                 .onChanged { value in
                     if abs(value.translation.width) > abs(value.translation.height) {
                         swipeOffset = value.translation.width
+
+                        // Progressive haptic chain — escalating feedback as threshold approaches
+                        let threshold = max(90, rowHeight * 1.3)
+                        let progress = abs(value.translation.width) / threshold
+                        let tier = Int(progress * 4) // 0=0%, 1=25%, 2=50%, 3=75%
+                        if tier > lastSwipeThreshold && tier <= 3 {
+                            lastSwipeThreshold = tier
+                            if tier <= 2 {
+                                HapticsEngine.tick()
+                            } else {
+                                HapticsEngine.lightTap()
+                            }
+                        }
                     }
                 }
                 .onEnded { value in
+                    lastSwipeThreshold = 0 // Reset progressive chain
                     let threshold = max(90, rowHeight * 1.3) // Fitts' Law: consistent across block sizes
                     if value.translation.width > threshold {
                         HapticsEngine.snap()
@@ -334,15 +441,17 @@ struct TimelineHabitRow: View {
         let isSkippedState = isSkipped
 
         return ZStack {
+            // Unfilled ring: white glass circle (visible on any category color)
             Circle()
                 .stroke(
-                    isChecked ? Color.clear : (isSkippedState ? Color.primary.opacity(0.2) : style.baseColor.opacity(0.5)),
+                    isChecked ? Color.clear : (isSkippedState ? Color.primary.opacity(0.2) : Color.white.opacity(0.6)),
                     lineWidth: 2
                 )
                 .frame(width: 24, height: 24)
 
+            // Filled state: solid white circle
             Circle()
-                .fill(isChecked ? Color.white : (isSkippedState ? Color.primary.opacity(0.15) : style.baseColor))
+                .fill(isChecked ? Color.white : (isSkippedState ? Color.primary.opacity(0.15) : Color.white))
                 .frame(width: 24, height: 24)
                 .scaleEffect(isChecked || isSkippedState ? 1.0 : 0.001)
 
@@ -432,6 +541,18 @@ struct TimelineHabitRow: View {
 
             Spacer()
 
+            // Photo thumbnail (if photo exists and not skipped)
+            if let photo = photoFileName, !isSkipped {
+                CachedImageView(
+                    fileName: photo,
+                    width: rowHeight - 16,
+                    height: rowHeight - 16,
+                    cornerRadius: cornerRadius - 4
+                )
+                .opacity(isComp ? 0.8 : 1.0)
+                .padding(.trailing, 4)
+            }
+
             // Reserve space for check circle (44pt) to match layout with the actual button
             Color.clear.frame(width: 50, height: 44)
         }
@@ -442,25 +563,30 @@ struct TimelineHabitRow: View {
     private func beginCompletion() {
         completionTask?.cancel()
 
-        // Phase 1: Check circle fills (only the circle moves, block is STILL)
+        // Phase 1: Check circle fills — escalated haptic (Hull's Goal Gradient)
         withAnimation(anim(GridConstants.motionSnappy)) {
             state = .filling
         }
-        HapticsEngine.snap()
+        switch completionProgress {
+        case 0..<0.3:  HapticsEngine.lightTap()
+        case 0.3..<0.6: HapticsEngine.lightTap()
+        case 0.6..<0.9: HapticsEngine.snap()
+        default:        HapticsEngine.success()
+        }
 
-        // Phases 2-3 in a cancellable Task
+        // Phases 2-4 in a cancellable Task
         completionTask = Task { @MainActor in
-            // Phase 2: Color sweeps left-to-right
+            // Phase 2: Color sweeps — escalated duration
             let sweepDelay: Int = reduceMotion ? 50 : 250
             try? await Task.sleep(for: .milliseconds(sweepDelay))
             guard !Task.isCancelled else { return }
 
-            withAnimation(anim(.easeInOut(duration: GridConstants.fillSweepDuration))) {
+            withAnimation(anim(.easeInOut(duration: escalatedFillDuration))) {
                 fillProgress = 1.0
             }
 
             // Phase 3: Settle into completed state
-            let settleDelay: Int = reduceMotion ? 100 : 450
+            let settleDelay: Int = reduceMotion ? 100 : Int(escalatedFillDuration * 1000 + 50)
             try? await Task.sleep(for: .milliseconds(settleDelay))
             guard !Task.isCancelled else { return }
 
@@ -472,7 +598,49 @@ struct TimelineHabitRow: View {
 
             onComplete(habit)
 
-            // Drift Reward: ~25% chance of delayed aesthetic surprise
+            // Completion sound — category-tuned, pitch-escalated
+            SoundEngine.completionTone(category: habit.category, pitchShift: escalatedPitchShift)
+
+            // Phase 4: Completion settle bounce (mirrors tower squash-stretch)
+            if !reduceMotion {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+                withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+                    completionBounce = true
+                }
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    completionBounce = false
+                }
+            }
+
+            // Phase 5: Streak milestone celebration (Lally et al. 2010)
+            let milestone = [66, 30, 14, 7].first { currentStreak >= $0 && currentStreak < $0 + 1 }
+            if let milestone {
+                streakMilestone = milestone
+                if milestone == 66 {
+                    HapticsEngine.reward()
+                    SoundEngine.allClearChime()
+                    try? await Task.sleep(for: .milliseconds(300))
+                    guard !Task.isCancelled else { return }
+                    HapticsEngine.reward()
+                } else {
+                    HapticsEngine.reward()
+                    SoundEngine.completionTone(category: habit.category, pitchShift: 200)
+                }
+                withAnimation(GridConstants.celebrationBurst) {
+                    streakBadgeVisible = true
+                }
+                let badgeDuration = milestone == 66 ? 3000 : 2000
+                try? await Task.sleep(for: .milliseconds(badgeDuration))
+                guard !Task.isCancelled else { return }
+                withAnimation(GridConstants.crossFade) {
+                    streakBadgeVisible = false
+                }
+            }
+
+            // Drift Reward: ~25% chance of delayed aesthetic surprise (Skinner variable ratio)
             guard !Task.isCancelled, !reduceMotion, Double.random(in: 0...1) < 0.25 else { return }
             let driftDelay = Int(Double.random(in: 1500...4000))
             try? await Task.sleep(for: .milliseconds(driftDelay))

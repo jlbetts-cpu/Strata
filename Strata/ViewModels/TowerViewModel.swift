@@ -34,6 +34,7 @@ final class TowerViewModel {
     private(set) var placedBlocks: [PlacedBlock] = []
     private(set) var incompleteBlocks: [PlacedIncompleteBlock] = []
     private(set) var totalRows: Int = 0
+    private(set) var currentGrid: [[Bool]] = []
     var isLoading: Bool = true
     // Cascade drop tracking
     private(set) var newlyDroppedIDs: Set<UUID> = []
@@ -94,6 +95,7 @@ final class TowerViewModel {
 
         placedBlocks = placed
         incompleteBlocks = []
+        currentGrid = grid
 
         // Pre-compute stagger delays (O(1) lookup per block instead of O(n) per call)
         if !newlyDroppedIDs.isEmpty {
@@ -143,6 +145,13 @@ final class TowerViewModel {
 
     func staggerDelay(for block: PlacedBlock) -> Double {
         staggerDelayCache[block.id] ?? 0
+    }
+
+    // MARK: - Ghost Block Preview (Kliegel 2008 — external prospective memory aid)
+
+    func computeGhostPosition(for blockSize: BlockSize) -> (column: Int, row: Int)? {
+        var gridCopy = currentGrid
+        return findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &gridCopy)
     }
 
     // MARK: - Boolean Grid Matrix Packing

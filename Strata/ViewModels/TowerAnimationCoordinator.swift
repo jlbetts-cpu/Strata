@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Per-block animation state — each instance is its own @Observable,
+/// so mutations only invalidate views that read THIS specific instance.
+@Observable
+final class BlockAnimationState {
+    var dropPhase: TowerAnimationCoordinator.DropPhase? = nil
+    var isRippling: Bool = false
+    var rippleIntensity: CGFloat = 1.0
+    // Jubilation wave (perfect day celebration)
+    var jubilationWobble: Double = 0
+    var jubilationLift: CGFloat = 0
+    var jubilationGlow: Double = 0
+}
+
 /// Manages all tower drop, ripple, and compression animation state.
 @Observable
 @MainActor
@@ -11,10 +24,10 @@ final class TowerAnimationCoordinator {
         case wobble
     }
 
-    var dropPhases: [UUID: DropPhase] = [:]
-    var ripplingBlockIDs: Set<UUID> = []
-    var rippleIntensity: [UUID: CGFloat] = [:]
+    private(set) var blockStates: [UUID: BlockAnimationState] = [:]
+    private(set) var activelyAnimatingIDs: Set<UUID> = []
     var isCascading = false
+    var isJubilating = false
     var landedMassTier: Int = 1
 
     private var pendingDropAnimations: [Set<UUID>] = []
@@ -22,6 +35,13 @@ final class TowerAnimationCoordinator {
 
     /// Whether reduce motion is enabled — set by the view on appear / change.
     var reduceMotion = false
+
+    func state(for id: UUID) -> BlockAnimationState {
+        if let existing = blockStates[id] { return existing }
+        let new = BlockAnimationState()
+        blockStates[id] = new
+        return new
+    }
 
     // MARK: - Public API
 
@@ -31,7 +51,8 @@ final class TowerAnimationCoordinator {
         // on the same frame they enter placedBlocks — prevents flash
         if !reduceMotion {
             for id in blockIDs {
-                dropPhases[id] = .falling
+                state(for: id).dropPhase = .falling
+                activelyAnimatingIDs.insert(id)
             }
         }
         pendingDropAnimations.append(blockIDs)
@@ -39,9 +60,18 @@ final class TowerAnimationCoordinator {
     }
 
     func purgeStaleState(validIDs: Set<UUID>) {
-        dropPhases = dropPhases.filter { validIDs.contains($0.key) }
-        rippleIntensity = rippleIntensity.filter { validIDs.contains($0.key) }
-        ripplingBlockIDs = ripplingBlockIDs.intersection(validIDs)
+        blockStates = blockStates.filter { validIDs.contains($0.key) }
+        activelyAnimatingIDs.formIntersection(validIDs)
+    }
+
+    func reset() {
+        dropDrainTask?.cancel()
+        dropDrainTask = nil
+        pendingDropAnimations = []
+        blockStates.removeAll()
+        activelyAnimatingIDs.removeAll()
+        isCascading = false
+        landedMassTier = 1
     }
 
     func triggerRipple(from landedID: UUID, massTier: Int, placedBlocks: [PlacedBlock]) {
@@ -70,20 +100,118 @@ final class TowerAnimationCoordinator {
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
                 for id in tierIDs {
-                    self.rippleIntensity[id] = intensity
+                    self.state(for: id).rippleIntensity = intensity
                 }
                 withAnimation(GridConstants.rippleCompressSpring) {
-                    self.ripplingBlockIDs.formUnion(tierIDs)
+                    for id in tierIDs {
+                        self.state(for: id).isRippling = true
+                    }
                 }
 
                 try? await Task.sleep(nanoseconds: 80_000_000)
                 withAnimation(GridConstants.rippleReleaseSpring) {
                     for id in tierIDs {
-                        self.ripplingBlockIDs.remove(id)
-                        self.rippleIntensity.removeValue(forKey: id)
+                        self.state(for: id).isRippling = false
+                        self.state(for: id).rippleIntensity = 1.0
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Jubilation Wave (Perfect Day Celebration)
+
+    func triggerJubilation(placedBlocks: [PlacedBlock]) {
+        guard !isJubilating, !reduceMotion else { return }
+        isJubilating = true
+
+        let maxRow = placedBlocks.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
+        let rowDelay: Double = 0.07
+
+        Task { @MainActor in
+            // === OUTGOING WAVE (bottom → top) ===
+            for row in 0...maxRow {
+                let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
+
+                // Sway right + lift + glow
+                withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = 2.0
+                        s.jubilationLift = -4
+                        s.jubilationGlow = 0.06
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
+
+                // Sway left
+                withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                    for block in rowBlocks {
+                        state(for: block.id).jubilationWobble = -2.0
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
+
+                // Small sway right + reduce
+                withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = 1.0
+                        s.jubilationLift = -2
+                        s.jubilationGlow = 0.03
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.5 * 1_000_000_000))
+
+                // Settle
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = 0
+                        s.jubilationLift = 0
+                        s.jubilationGlow = 0
+                    }
+                }
+
+                // Ascending glissando
+                let pitch = Double(row) * (150.0 / Double(max(maxRow, 1)))
+                SoundEngine.completionTone(category: .health, pitchShift: pitch)
+
+                if row == maxRow / 2 { HapticsEngine.lightTap() }
+                if row == maxRow { HapticsEngine.success() }
+            }
+
+            // === RETURN WAVE (top → bottom, half amplitude) ===
+            try? await Task.sleep(for: .milliseconds(200))
+
+            for row in stride(from: maxRow, through: 0, by: -1) {
+                let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
+
+                withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = -1.0
+                        s.jubilationLift = -2
+                        s.jubilationGlow = 0.03
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.6 * 1_000_000_000))
+
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = 0
+                        s.jubilationLift = 0
+                        s.jubilationGlow = 0
+                    }
+                }
+
+                let pitch = 200.0 - Double(row) * (150.0 / Double(max(maxRow, 1)))
+                SoundEngine.completionTone(category: .health, pitchShift: pitch)
+            }
+
+            try? await Task.sleep(for: .milliseconds(400))
+            isJubilating = false
         }
     }
 
@@ -101,6 +229,7 @@ final class TowerAnimationCoordinator {
             }
             dropDrainTask = nil
             isCascading = false
+            onAllDropsComplete?() // Tower settle moment (Gestalt closure)
         }
     }
 
@@ -109,7 +238,10 @@ final class TowerAnimationCoordinator {
 
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.2)) {
-                for id in blockIDs { dropPhases.removeValue(forKey: id) }
+                for id in blockIDs {
+                    state(for: id).dropPhase = nil
+                }
+                activelyAnimatingIDs.subtract(blockIDs)
             }
             return
         }
@@ -127,7 +259,7 @@ final class TowerAnimationCoordinator {
         }
 
         // Phase 1: Falling
-        for id in blockIDs { dropPhases[id] = .falling }
+        for id in blockIDs { state(for: id).dropPhase = .falling }
 
         try? await Task.sleep(nanoseconds: 8_000_000)
         let curve: Animation = switch mass {
@@ -136,7 +268,7 @@ final class TowerAnimationCoordinator {
         default: .timingCurve(0.50, 0, 1, 1, duration: fallDuration)
         }
         withAnimation(curve) {
-            for id in blockIDs { dropPhases[id] = .squash }
+            for id in blockIDs { state(for: id).dropPhase = .squash }
         }
 
         try? await Task.sleep(nanoseconds: UInt64(fallDuration * 1_000_000_000))
@@ -153,7 +285,7 @@ final class TowerAnimationCoordinator {
         }
         try? await Task.sleep(nanoseconds: squashDwell)
         withAnimation(GridConstants.dropStretchSpring) {
-            for id in blockIDs { dropPhases[id] = .stretch }
+            for id in blockIDs { state(for: id).dropPhase = .stretch }
         }
 
         // Phase 3: Stretch → Wobble
@@ -162,7 +294,7 @@ final class TowerAnimationCoordinator {
         }
         try? await Task.sleep(nanoseconds: stretchDwell)
         withAnimation(GridConstants.wobbleSpring) {
-            for id in blockIDs { dropPhases[id] = .wobble }
+            for id in blockIDs { state(for: id).dropPhase = .wobble }
         }
 
         // Phase 4: Wobble → Remove (settle to rest)
@@ -171,7 +303,10 @@ final class TowerAnimationCoordinator {
         }
         try? await Task.sleep(nanoseconds: wobbleDwell)
         withAnimation(GridConstants.dropSettleSpring) {
-            for id in blockIDs { dropPhases.removeValue(forKey: id) }
+            for id in blockIDs {
+                state(for: id).dropPhase = nil
+            }
+            activelyAnimatingIDs.subtract(blockIDs)
         }
 
         try? await Task.sleep(nanoseconds: 120_000_000)
@@ -182,4 +317,7 @@ final class TowerAnimationCoordinator {
 
     /// Callback when a block impacts. Used for ripple trigger. Set by the view.
     var onImpact: ((UUID, Int) -> Void)?
+
+    /// Callback when all pending drops complete. Used for tower settle. Set by the view.
+    var onAllDropsComplete: (() -> Void)?
 }

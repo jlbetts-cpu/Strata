@@ -86,6 +86,7 @@ struct HabitBlockView: View {
     let onTap: () -> Void
 
     @State private var tapTrigger: Int = 0
+    @State private var isPressed: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
@@ -96,6 +97,9 @@ struct HabitBlockView: View {
     }
 
     private var borderHighlight: Color { style.lightTint }
+    private var massTier: CGFloat { CGFloat(block.habit.blockSize.massTier) }
+    private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }
+    private var tapSquashY: CGFloat { 0.97 + (massTier - 1) * 0.006 }
 
     private var blockFrame: CGRect {
         block.frame(cellSize: cellSize)
@@ -174,26 +178,7 @@ struct HabitBlockView: View {
                     lineWidth: 2.5
                 )
         )
-        // Overlay 2: Diffused border — invisible at top, soft glow at bottom
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.0), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.45),
-                            .init(color: borderHighlight.opacity(0.35), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 4
-                )
-                .blur(radius: 6)
-                .compositingGroup()
-                .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-                .drawingGroup()
-        )
+        // Diffused border removed — single crisp border is sufficient for clay depth (Apple HIG: one treatment per element)
         // Single soft ambient shadow
         .shadow(
             color: colorScheme == .dark
@@ -210,17 +195,30 @@ struct HabitBlockView: View {
                     .stroke(GridConstants.patinaGold.opacity(patinaOpacity), lineWidth: 2)
             }
         }
+        .drawingGroup()
         // Tap bounce: fast squash → bouncy pop-back
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content
                 .scaleEffect(
-                    x: phase ? GridConstants.tapScaleX : 1.0,
-                    y: phase ? GridConstants.tapScaleY : 1.0
+                    x: phase ? tapSquashX : 1.0,
+                    y: phase ? tapSquashY : 1.0
                 )
                 .brightness(phase ? -0.03 : 0)
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
+        // Press highlight — instant touch-down feedback (Norman 1988)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isPressed { withAnimation(GridConstants.microResponse) { isPressed = true } }
+                }
+                .onEnded { _ in
+                    withAnimation(GridConstants.microResponse) { isPressed = false }
+                }
+        )
+        .brightness(isPressed ? 0.06 : 0)
+        .scaleEffect(isPressed ? 0.98 : 1.0)
         .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue)")
         .accessibilityHint("Tap to expand")
         .onTapGesture {
@@ -247,7 +245,7 @@ struct BlockContentOverlay: View {
             // Category icon — top-left badge
             Image(systemName: category.iconName)
                 .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.60))
+                .foregroundStyle(.white)
                 .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
                 .padding(.leading, 8)
                 .padding(.top, 8)
@@ -265,7 +263,7 @@ struct BlockContentOverlay: View {
                 if let time = timeText {
                     Text(time)
                         .font(Typography.bodySmall)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.white.opacity(0.6))
                         .contentTransition(.interpolate)
                 }
             }
@@ -278,22 +276,12 @@ struct BlockContentOverlay: View {
             if hasDrawerContent {
                 Image(systemName: "chevron.compact.down")
                     .font(.system(size: GridConstants.iconSmall))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.white.opacity(0.6))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 4)
                     .accessibilityLabel("Has additional content")
             }
 
-            // Photo indicator badge — top-right (Recognition over Recall)
-            if hasImage {
-                Image(systemName: "photo.fill")
-                    .font(.system(size: GridConstants.iconSmall))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.trailing, 8)
-                    .padding(.top, 8)
-                    .accessibilityLabel("Has photo")
-            }
         }
     }
 }

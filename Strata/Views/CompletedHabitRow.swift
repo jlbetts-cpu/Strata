@@ -13,7 +13,7 @@ struct CompletedHabitRow: View {
         HStack(spacing: 12) {
             // Completed block indicator
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall, style: .continuous)
                     .fill(style.gradient)
                     .frame(width: 36, height: 36)
 
@@ -46,5 +46,15 @@ struct CompletedHabitRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall, style: .continuous)
+                .fill(.clear)
+                .shadow(
+                    color: .black.opacity(GridConstants.shadowOpacity * 0.5),
+                    radius: GridConstants.shadowRadius * 0.5,
+                    x: 0, y: GridConstants.shadowY * 0.5
+                )
+        )
+        .transition(.opacity.combined(with: .offset(y: -8)))
     }
 }

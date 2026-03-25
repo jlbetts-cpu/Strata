@@ -2,8 +2,10 @@ import SwiftUI
 
 enum GridConstants {
     static let columnCount = 4
-    static let spacing: CGFloat = 8
+    static let spacing: CGFloat = 10
     static let cornerRadius: CGFloat = 16
+    static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
+    static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
     static let horizontalPadding: CGFloat = 16
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
@@ -122,10 +124,23 @@ enum GridConstants {
     /// Fill sweep duration
     static let fillSweepDuration: TimeInterval = 0.4
 
-    /// Toggle/picker transitions (NewHabitMenu, HabitEditView, AllItemsView)
+    /// Toggle/picker transitions (NewHabitMenu, PlanItemRow)
     static let toggleSwitch = Animation.spring(response: 0.30, dampingFraction: 0.80)
     /// Skeleton pop-in during loading
     static let skeletonPop = Animation.spring(response: 0.35, dampingFraction: 0.65)
+
+    // MARK: - Card Detail (Tower Claude)
+
+    /// Card open/close morph — snappy, no overshoot (Apple .snappy damping)
+    static let cardMorph = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    /// Card content fade-in — slightly softer for staggered entrance
+    static let cardReveal = Animation.spring(response: 0.40, dampingFraction: 0.88)
+    /// Expansion card corner radius
+    static let cardCornerRadius: CGFloat = 20
+    /// Expansion card internal content padding (Apple HIG expanded card standard)
+    static let cardContentPadding: CGFloat = 20
+    /// Expansion card content group spacing
+    static let cardContentSpacing: CGFloat = 16
 
     // MARK: - Filmstrip
     static let filmstripThumbnailSize: CGFloat = 56
@@ -145,4 +160,32 @@ enum GridConstants {
     static let patinaMaxOpacity: Double = 0.15
     static let patinaGrowthRate: Double = 0.02
     static let patinaGold = Color(red: 0.95, green: 0.80, blue: 0.40)
+
+    // MARK: - Celebration (Phase 2)
+    static let celebrationBurst = Animation.spring(response: 0.30, dampingFraction: 0.45)
+    static let confettiDuration: TimeInterval = 2.0
+    static let confettiParticleCount: Int = 24
+    static let blockFlyaway = Animation.spring(response: 0.55, dampingFraction: 0.70)
+
+    // MARK: - Momentum Escalation
+    static let fillSweepFast: TimeInterval = 0.28
+    static let fillSweepMedium: TimeInterval = 0.32
+    static let fillSweepEarly: TimeInterval = 0.36
+
+    // MARK: - Spatial Tower (Phase 3)
+    static let depthShadowScale: CGFloat = 0.3
+    static let depthShadowYScale: CGFloat = 0.15
+    static let breathingCycleDuration: TimeInterval = 3.0
+    static let breathingIntensity: Double = 0.015
+    static let ghostBlockOpacity: Double = 0.06
+    static let ghostBlockPulseMin: Double = 0.04
+    static let ghostBlockPulseMax: Double = 0.10
+    static let ghostBlockDashLength: CGFloat = 4
+
+    // MARK: - Connected Flow (Phase 4)
+    static let staggerInterval: TimeInterval = 0.04
+    static let staggerMax: TimeInterval = 0.4
+    static let entranceOffset: CGFloat = 12
+    static let ambientGlowCycle: TimeInterval = 2.5
+    static let ambientGlowIntensity: Double = 0.08
 }

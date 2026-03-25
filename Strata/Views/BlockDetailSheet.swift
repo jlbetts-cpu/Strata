@@ -91,10 +91,13 @@ struct BlockDetailSheet: View {
             HapticsEngine.lightTap()
             Task { await loadPhoto(from: newItem) }
         }
-        .alert("Photo couldn't be saved", isPresented: $showPhotoError) {
+        .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
             Button("OK", role: .cancel) {}
-        } message: {
+        }, message: {
             Text("Try again or choose a different photo.")
+        })
+        .onChange(of: showPhotoError) { _, isError in
+            if isError { HapticsEngine.error() }
         }
     }
 

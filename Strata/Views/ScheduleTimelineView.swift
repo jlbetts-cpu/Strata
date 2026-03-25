@@ -17,7 +17,9 @@ struct ScheduleTimelineView: View {
     let onAddHabit: (String?) -> Void
     var onEditInPlan: ((Habit) -> Void)? = nil
     var towerBlockCount: Int = 0
+    var onboarding: OnboardingState? = nil
     var debugTower: Tower? = nil
+    var cachedStreaks: [UUID: Int] = [:]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
@@ -28,16 +30,21 @@ struct ScheduleTimelineView: View {
     @State private var habitToSchedule: Habit? = nil
     @State private var unscheduledCollapsed: Bool = false
     @AppStorage("hasCompletedFirstHabit") private var hasCompletedFirstHabit: Bool = false
-    @State private var viewMode: TimelineViewMode = .day
     @State private var draggingChipID: UUID? = nil
     @State private var isDropTargeted: Bool = false
     @State private var hoverInsertionIndex: Int? = nil
     @State private var hoverTimeLabel: String? = nil
     @State private var rowFrames: [UUID: CGRect] = [:]
+    @State private var recomputeTask: Task<Void, Never>?
+    @State private var cachedCurrentHour: Int = Calendar.current.component(.hour, from: Date())
+    @State private var cachedCurrentMinute: Int = Calendar.current.component(.minute, from: Date())
+    @State private var cachedNowFraction: Double = {
+        let h = Calendar.current.component(.hour, from: Date())
+        let m = Calendar.current.component(.minute, from: Date())
+        return Double(h) + Double(m) / 60.0
+    }()
+    @State private var cachedNextUpID: UUID? = nil
 
-    enum TimelineViewMode: String, CaseIterable {
-        case day, week
-    }
 
     private let cornerRadius: CGFloat = GridConstants.cornerRadius
 
@@ -45,14 +52,67 @@ struct ScheduleTimelineView: View {
 
     @State private var scheduledHabits: [Habit] = []
     @State private var unscheduledHabits: [Habit] = []
+    @State private var effectiveHours: [UUID: Double] = [:]
+    @State private var remainingCount: Int = 0
+    @State private var allTodayCompleted: Bool = false
+    @State private var cachedHeroDate: String = ""
+    @State private var sortedRowMidpoints: [(id: UUID, midY: CGFloat)] = []
+    @State private var detailHabit: Habit? = nil
+    @State private var counterFlash: Bool = false
+    @State private var allClearScale: CGFloat = 0.5
+    @State private var allClearTextOpacity: Double = 0
+    @State private var showConfetti: Bool = false
+    @State private var rowsRevealed: Bool = false
+    @State private var staggerTask: Task<Void, Never>?
+    @State private var isForwardNavigation: Bool = true
+    @State private var completingChipID: UUID? = nil
+    @State private var chipHoldProgress: CGFloat = 0
 
     private func recomputeHabitLists() {
+        // Pre-compute effectiveHour dictionary (avoid O(n log n) string parsing in sort)
+        effectiveHours = Dictionary(uniqueKeysWithValues:
+            allHabits.compactMap { habit -> (UUID, Double)? in
+                guard let hour = TimelineViewModel.effectiveHour(for: habit) else { return nil }
+                return (habit.id, hour)
+            }
+        )
         scheduledHabits = allHabits
             .filter { $0.scheduledTime != nil }
-            .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
+            .sorted { (effectiveHours[$0.id] ?? 0) < (effectiveHours[$1.id] ?? 0) }
         unscheduledHabits = allHabits
             .filter { $0.scheduledTime == nil }
             .sorted { $0.sortOrder < $1.sortOrder }
+
+        // Cache remaining count (avoid O(n) per frame during animation)
+        let all = scheduledHabits + unscheduledHabits
+        remainingCount = all.filter { !completedHabitIDs.contains($0.id) && !skippedHabitIDs.contains($0.id) }.count
+        allTodayCompleted = !all.isEmpty && all.allSatisfy { completedHabitIDs.contains($0.id) }
+
+        // Cache time values (Fix 5: avoid repeated Calendar lookups)
+        cachedCurrentHour = Calendar.current.component(.hour, from: Date())
+        cachedCurrentMinute = Calendar.current.component(.minute, from: Date())
+        cachedNowFraction = Double(cachedCurrentHour) + Double(cachedCurrentMinute) / 60.0
+
+        // Cache nextUpHabitID (Fix 4: O(n) once instead of O(n²) per frame)
+        if isViewingToday {
+            cachedNextUpID = scheduledHabits.first { habit in
+                !completedHabitIDs.contains(habit.id) &&
+                !skippedHabitIDs.contains(habit.id) &&
+                (TimelineViewModel.effectiveHour(for: habit) ?? 0) >= cachedNowFraction - 0.5
+            }?.id
+        } else {
+            cachedNextUpID = nil
+        }
+    }
+
+    /// Debounced recompute — coalesces double-fires from allHabits + completedHabitIDs changing in same cycle
+    private func scheduleRecompute() {
+        recomputeTask?.cancel()
+        recomputeTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
+            recomputeHabitLists()
+        }
     }
 
     /// Progress for selected date
@@ -60,22 +120,8 @@ struct ScheduleTimelineView: View {
         weekData.first { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
 
-    /// Current hour for "now" highlighting
-    private var currentHour: Int {
-        Calendar.current.component(.hour, from: Date())
-    }
-
-    /// Date for hero header — "March 22"
-    private var heroDate: String {
-        selectedDate.formatted(.dateTime.month(.wide).day())
-    }
-
-    /// Vitality score (0.0–1.0) — ambient progress indicator (Goal Gradient Effect, Hull 1932)
-    private var vitality: Double {
-        let total = scheduledHabits.count + unscheduledHabits.count
-        guard total > 0 else { return 0 }
-        return Double(completedHabitIDs.count) / Double(total)
-    }
+    /// Date for hero header — cached to avoid .formatted() on every body eval
+    private var heroDate: String { cachedHeroDate.isEmpty ? selectedDate.formatted(.dateTime.month(.wide).day()) : cachedHeroDate }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -109,14 +155,6 @@ struct ScheduleTimelineView: View {
                         }
 
                         Spacer()
-
-                        Picker("", selection: $viewMode) {
-                            Text("Day").tag(TimelineViewMode.day)
-                            Text("Wk").tag(TimelineViewMode.week)
-                        }
-                        .pickerStyle(.segmented)
-                        .tint(AppColors.accentWarm)
-                        .frame(width: 100)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
@@ -125,57 +163,79 @@ struct ScheduleTimelineView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 8)
                 }
-                // Vitality tint — ambient progress (Goal Gradient Effect, Hull 1932)
-                .background(
-                    AppColors.healthGreen.opacity(vitality * 0.06)
-                        .animation(GridConstants.progressFill, value: vitality)
-                )
 
                 Rectangle()
                     .fill(Color.primary.opacity(0.06))
                     .frame(height: 0.5)
 
-                // Content switches on viewMode
-                if viewMode == .day {
-                    // Day mode (current)
-                    if !unscheduledHabits.isEmpty {
-                        unscheduledSection
+                // Daily schedule
+                if !unscheduledHabits.isEmpty {
+                    unscheduledSection
+                }
+
+                scheduledSection
+                    .id(selectedDate)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: isForwardNavigation ? .trailing : .leading).combined(with: .opacity),
+                        removal: .move(edge: isForwardNavigation ? .leading : .trailing).combined(with: .opacity)
+                    ))
+                    .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: selectedDate)
+                    .onDrop(of: [.text], delegate: makeDropDelegate())
+                    .coordinateSpace(name: "timeline")
+                    .onPreferenceChange(RowFramePreference.self) { frames in
+                        rowFrames = frames
                     }
 
-                    scheduledSection
-                        .onDrop(of: [.text], delegate: makeDropDelegate())
-                        .coordinateSpace(name: "timeline")
-                        .onPreferenceChange(RowFramePreference.self) { frames in
-                            rowFrames = frames
-                        }
-
-                    if allHabits.isEmpty {
-                        fullEmptyState
-                            .padding(.top, 80)
-                    }
-                } else {
-                    // Week mode
-                    weekSummaryView
+                if allHabits.isEmpty {
+                    fullEmptyState
+                        .padding(.top, 80)
                 }
             }
             .padding(.bottom, 100)
             .animation(GridConstants.crossFade, value: selectedDate)
-            .animation(GridConstants.motionSmooth, value: viewMode)
         }
         #if DEBUG
         .overlay(alignment: .topTrailing) { debugMenu }
         #endif
         .background { WarmBackground().ignoresSafeArea() }
-        .onAppear { recomputeHabitLists() }
-        .onChange(of: allHabits) { recomputeHabitLists() }
-        .onChange(of: completedHabitIDs) { recomputeHabitLists() }
-        .onChange(of: viewMode) { HapticsEngine.tick() }
-        .onChange(of: selectedDate) { _, _ in
+        .onAppear {
             recomputeHabitLists()
-            // T10: Reset stale suggestion state on date change
+            cachedHeroDate = selectedDate.formatted(.dateTime.month(.wide).day())
+            // Onboarding: show hold hint when first habit appears
+            if let onb = onboarding, !onb.hasSeenHoldHint, !scheduledHabits.isEmpty {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1500))
+                    if !onb.hasSeenHoldHint {
+                        onb.hasSeenHoldHint = true
+                        onb.showHint(.hold, duration: 5)
+                    }
+                }
+            }
+        }
+        .onChange(of: allHabits) { scheduleRecompute() }
+        .onChange(of: completedHabitIDs) { scheduleRecompute() }
+        .onChange(of: selectedDate) { oldDate, newDate in
+            isForwardNavigation = newDate > oldDate
+            // Reset row stagger for cascade entrance
+            rowsRevealed = false
+            staggerTask?.cancel()
+            staggerTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                rowsRevealed = true
+            }
+            scheduleRecompute()
+            cachedHeroDate = selectedDate.formatted(.dateTime.month(.wide).day())
             showScheduleSuggestion = false
             habitToSchedule = nil
             suggestedTime = ""
+        }
+        .onAppear {
+            staggerTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                rowsRevealed = true
+            }
         }
         .confirmationDialog(
             "Schedule \(habitToSchedule?.title ?? "")",
@@ -192,6 +252,11 @@ struct ScheduleTimelineView: View {
             }
             // Removed misleading "Pick a different time" — only offer the suggested time or cancel
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(item: $detailHabit) { habit in
+            HabitDetailSheet(habit: habit, selectedDate: selectedDate)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -231,7 +296,7 @@ struct ScheduleTimelineView: View {
                 // Horizontal scroll chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(unscheduledHabits) { habit in
+                        ForEach(unscheduledHabits, id: \.id) { habit in
                             unscheduledChip(habit: habit)
                                 .padding(.vertical, 4) // Prevent rotated corners from clipping
                         }
@@ -271,15 +336,24 @@ struct ScheduleTimelineView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .fill(isCompleted ? style.baseColor : Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .stroke(style.baseColor.opacity(isCompleted ? 0.3 : 0.6), lineWidth: 1.5)
         )
 
         return chipLabel
+            // Hold-to-complete fill overlay (Allen 2001 — context-free action)
+            .overlay {
+                if completingChipID == habit.id {
+                    RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                        .fill(style.baseColor.opacity(0.3))
+                        .scaleEffect(x: chipHoldProgress, y: 1.0, anchor: .leading)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
             // Sandbox rotation: ±3° when loose, 0° when picked up
             .rotationEffect(isDragging ? .zero : sandboxRotation(for: habit.id))
             .scaleEffect(isDragging ? 1.06 : 1.0)
@@ -290,60 +364,107 @@ struct ScheduleTimelineView: View {
                 HapticsEngine.snap()
                 return NSItemProvider(object: habit.id.uuidString as NSString)
             }
+            // Hold to complete directly (Barkley 2015 — reduce steps for ADHD)
+            .onLongPressGesture(minimumDuration: 0.6, pressing: { isPressing in
+                if isPressing && !isCompleted {
+                    completingChipID = habit.id
+                    withAnimation(.linear(duration: 0.6)) { chipHoldProgress = 1.0 }
+                    HapticsEngine.lightTap()
+                } else {
+                    completingChipID = nil
+                    withAnimation(GridConstants.motionSnappy) { chipHoldProgress = 0 }
+                }
+            }, perform: {
+                guard !isCompleted else { return }
+                HapticsEngine.snap()
+                SoundEngine.completionTone(category: habit.category)
+                completingChipID = nil
+                chipHoldProgress = 0
+                hasCompletedFirstHabit = true
+                onComplete(habit)
+            })
             // Fallback: tap to suggest slot
             .onTapGesture {
                 HapticsEngine.tick()
                 suggestOpenSlot(for: habit)
             }
             .frame(minHeight: 44)
-            .accessibilityHint("Drag to schedule, or tap for suggested time")
+            .accessibilityLabel("\(habit.title), \(habit.category.rawValue), unscheduled")
+            .accessibilityHint("Hold to complete, drag to schedule, or tap for suggested time")
     }
 
     // MARK: - Scheduled Section (flat list with time labels)
 
-    /// The next incomplete habit (for "Up Next" indicator)
-    private var nextUpHabitID: UUID? {
-        guard isViewingToday else { return nil }
-        let now = Double(currentHour) + Double(Calendar.current.component(.minute, from: Date())) / 60.0
-        return scheduledHabits.first { habit in
-            !completedHabitIDs.contains(habit.id) &&
-            !skippedHabitIDs.contains(habit.id) &&
-            (TimelineViewModel.effectiveHour(for: habit) ?? 0) >= now - 0.5
-        }?.id
-    }
-
     private var scheduledSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             if !scheduledHabits.isEmpty {
+                // Momentum progress for escalation (Hull's Goal Gradient)
+                let completionProgress = allHabits.isEmpty ? 0.0 :
+                    Double(completedHabitIDs.count) / Double(allHabits.count)
+
                 // Remaining = ALL habits (scheduled + unscheduled) neither completed nor skipped
-                let allTodayHabits = scheduledHabits + unscheduledHabits
-                let remaining = allTodayHabits.filter { !completedHabitIDs.contains($0.id) && !skippedHabitIDs.contains($0.id) }.count
-                let allCompleted = allTodayHabits.allSatisfy { completedHabitIDs.contains($0.id) }
+                let remaining = remainingCount
+                let allCompleted = allTodayCompleted
                 if remaining > 0 {
                     Text("\(remaining) remaining")
                         .font(Typography.bodySmall)
-                        .foregroundStyle(Color.primary.opacity(0.5))
-                        .contentTransition(.numericText())
+                        .foregroundStyle(counterFlash ? AppColors.healthGreen : Color.primary.opacity(0.5))
+                        .contentTransition(.numericText(countsDown: true))
                         .animation(GridConstants.motionSmooth, value: remaining)
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                         .padding(.bottom, 12)
+                        .onChange(of: remainingCount) { old, new in
+                            guard new < old else { return }
+                            counterFlash = true
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(400))
+                                withAnimation(GridConstants.motionSnappy) { counterFlash = false }
+                            }
+                        }
                 } else if allCompleted {
-                    // All completed (none just skipped) — celebratory
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(AppColors.healthGreen)
-                        Text("All done!")
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(AppColors.healthGreen.opacity(0.7))
+                    // All completed — CELEBRATION (Peak-End Rule, Kahneman 1993)
+                    VStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(AppColors.healthGreen)
+                                .scaleEffect(allClearScale)
+                            Text("All done!")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(AppColors.healthGreen.opacity(0.7))
+                                .opacity(allClearTextOpacity)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                     .padding(.bottom, 12)
                     .transition(.scale.combined(with: .opacity))
+                    .overlay {
+                        if showConfetti {
+                            AllClearCelebration(
+                                isActive: $showConfetti,
+                                completedCategories: Array(Set(allHabits
+                                    .filter { completedHabitIDs.contains($0.id) }
+                                    .map(\.category)))
+                            )
+                        }
+                    }
                     .onAppear {
-                        HapticsEngine.success()
+                        HapticsEngine.reward()
+                        SoundEngine.allClearChime()
+                        if !reduceMotion {
+                            withAnimation(GridConstants.elasticPop) { allClearScale = 1.0 }
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(200))
+                                withAnimation(GridConstants.gentleReveal) { allClearTextOpacity = 1.0 }
+                                try? await Task.sleep(for: .milliseconds(100))
+                                showConfetti = true
+                            }
+                        } else {
+                            allClearScale = 1.0
+                            allClearTextOpacity = 1.0
+                        }
                     }
                 } else {
                     // Mix of completed + skipped — neutral closure
@@ -362,7 +483,9 @@ struct ScheduleTimelineView: View {
                 }
 
                 // Habit rows with time labels
-                ForEach(scheduledHabits) { habit in
+                // Pre-build index dictionary (O(n) once, instead of O(n²) inside ForEach)
+                let indexByID = Dictionary(uniqueKeysWithValues: scheduledHabits.enumerated().map { ($1.id, $0) })
+                ForEach(scheduledHabits, id: \.id) { habit in
                     let isCompleted = completedHabitIDs.contains(habit.id)
                     let isSkipped = skippedHabitIDs.contains(habit.id)
                     let blockHeight: CGFloat = {
@@ -373,7 +496,7 @@ struct ScheduleTimelineView: View {
                         }
                     }()
                     let isNow = isCurrentHabit(habit)
-                    let isNextUp = habit.id == nextUpHabitID
+                    let isNextUp = habit.id == cachedNextUpID
 
                     HStack(alignment: .top, spacing: 0) {
                         // Time label + "NEXT" badge
@@ -417,14 +540,24 @@ struct ScheduleTimelineView: View {
                                 onUndoSkip(habit)
                             },
                             isAlreadyCompleted: isCompleted,
-                            isAlreadySkipped: isSkipped
+                            isAlreadySkipped: isSkipped,
+                            photoFileName: habit.logs.first { $0.dateString == TimelineViewModel.dateString(from: selectedDate) }?.imageFileName,
+                            completionProgress: completionProgress,
+                            currentStreak: cachedStreaks[habit.id] ?? 0
                         )
                         .opacity(isViewingPast && !isCompleted && !isSkipped ? 0.5 : 1.0)
                     }
                     // Cross-tab navigation: Edit in Plan (Pirolli & Card 1999 — information scent)
                     .contextMenu {
+                        Button {
+                            HapticsEngine.lightTap()
+                            detailHabit = habit
+                        } label: {
+                            Label("View Details", systemImage: "info.circle")
+                        }
                         if let onEdit = onEditInPlan {
                             Button {
+                                HapticsEngine.lightTap()
                                 onEdit(habit)
                             } label: {
                                 Label("Edit in Plan", systemImage: "list.bullet.clipboard")
@@ -441,11 +574,33 @@ struct ScheduleTimelineView: View {
                     // Timeline Parting: push rows apart when chip hovers
                     .offset(y: {
                         guard let hover = hoverInsertionIndex else { return CGFloat(0) }
-                        let sortedIDs = scheduledHabits.map(\.id)
-                        let myIndex = sortedIDs.firstIndex(of: habit.id) ?? 0
+                        let myIndex = indexByID[habit.id] ?? 0
                         return myIndex >= hover ? CGFloat(44) : CGFloat(0)
                     }())
                     .animation(GridConstants.motionSmooth, value: hoverInsertionIndex)
+                    // Staggered row entrance (Shapiro 2015 — anticipatory design)
+                    .opacity(rowsRevealed ? 1 : 0)
+                    .offset(y: rowsRevealed ? 0 : GridConstants.entranceOffset)
+                    .animation(
+                        reduceMotion ? .none :
+                        GridConstants.gentleReveal.delay(min(Double(indexByID[habit.id] ?? 0) * GridConstants.staggerInterval, GridConstants.staggerMax)),
+                        value: rowsRevealed
+                    )
+                    // Next-up ambient glow (Posner 1980 — attentional cueing)
+                    .overlay {
+                        if isNextUp && isViewingToday && !reduceMotion {
+                            TimelineView(.animation(minimumInterval: 0.1, paused: false)) { timeline in
+                                let t = timeline.date.timeIntervalSinceReferenceDate
+                                let breath = sin(t / GridConstants.ambientGlowCycle * 2 * .pi)
+                                let glowOpacity = 0.10 + breath * GridConstants.ambientGlowIntensity
+
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                    .stroke(habit.category.style.baseColor.opacity(glowOpacity), lineWidth: 2)
+                                    .padding(.horizontal, 16)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
 
                     // Insertion indicator at hover point with time preview
                     if let hover = hoverInsertionIndex,
@@ -459,7 +614,7 @@ struct ScheduleTimelineView: View {
                                     .foregroundStyle(AppColors.healthGreen)
                                     .frame(width: 56, alignment: .trailing)
                             }
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall)
                                 .stroke(AppColors.healthGreen.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                                 .frame(height: 4)
                         }
@@ -467,14 +622,12 @@ struct ScheduleTimelineView: View {
                         .transition(.opacity)
                     }
 
-                    // First-launch hint below the first incomplete habit
-                    if isNextUp && isViewingToday && !hasCompletedFirstHabit {
-                        Text("Swipe right to complete →")
-                            .font(Typography.caption)
-                            .foregroundStyle(Color.primary.opacity(0.35))
+                    // Onboarding: hold-to-complete hint on first incomplete habit
+                    if isNextUp && isViewingToday && onboarding?.activeHint == .hold {
+                        OnboardingHintView(text: "Hold to finish →")
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.bottom, 4)
-                            .transition(.opacity)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
             } else if unscheduledHabits.isEmpty {
@@ -492,7 +645,7 @@ struct ScheduleTimelineView: View {
 
                     Image(systemName: "arrow.up")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.2))
+                        .foregroundStyle(Color.primary.opacity(0.25))
                         .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
@@ -507,9 +660,8 @@ struct ScheduleTimelineView: View {
         guard !completedHabitIDs.contains(habit.id) else { return false }
         guard isViewingToday else { return false }
         guard let hour = TimelineViewModel.effectiveHour(for: habit) else { return false }
-        let now = Double(currentHour) + Double(Calendar.current.component(.minute, from: Date())) / 60.0
         let duration = habit.blockSize.durationMinutes / 60.0
-        return now >= hour && now < hour + duration
+        return cachedNowFraction >= hour && cachedNowFraction < hour + duration
     }
 
     // MARK: - Suggest Open Slot
@@ -541,7 +693,7 @@ struct ScheduleTimelineView: View {
         }
         busyRanges.sort { $0.start < $1.start }
 
-        let nowMinutes = currentHour * 60 + Calendar.current.component(.minute, from: Date())
+        let nowMinutes = cachedCurrentHour * 60 + cachedCurrentMinute
         var searchStart = dayStart
 
         for busy in busyRanges {
@@ -558,7 +710,7 @@ struct ScheduleTimelineView: View {
         }
 
         // Fallback: next hour
-        let h = min(22, currentHour + 1)
+        let h = min(22, cachedCurrentHour + 1)
         return String(format: "%02d:00", h)
     }
 
@@ -594,7 +746,7 @@ struct ScheduleTimelineView: View {
         }
 
         // Pick the best slot (prefer current time-of-day section)
-        let nowMinutes = currentHour * 60 + Calendar.current.component(.minute, from: Date())
+        let nowMinutes = cachedCurrentHour * 60 + cachedCurrentMinute
         let bestSlot = slots.first { $0.start >= nowMinutes } ?? slots.first
 
         if let slot = bestSlot {
@@ -607,7 +759,7 @@ struct ScheduleTimelineView: View {
             showScheduleSuggestion = true
         } else {
             // No gap found — just suggest next hour
-            let h = min(22, currentHour + 1)
+            let h = min(22, cachedCurrentHour + 1)
             suggestedTime = String(format: "%02d:00", h)
             habitToSchedule = habit
             showScheduleSuggestion = true
@@ -646,67 +798,7 @@ struct ScheduleTimelineView: View {
 
     // MARK: - Week Summary View
 
-    private var weekSummaryView: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .top, spacing: 4) {
-                ForEach(weekData) { day in
-                    let isSelected = Calendar.current.isDate(day.date, inSameDayAs: selectedDate)
-
-                    Button {
-                        withAnimation(GridConstants.motionSmooth) {
-                            selectedDate = day.date
-                            viewMode = .day
-                        }
-                        HapticsEngine.tick()
-                    } label: {
-                        VStack(spacing: 4) {
-                            // Habit matrix sparkline (chronologically sorted top→bottom)
-                            if !day.habits.isEmpty {
-                                habitMatrix(for: day)
-                            } else if !day.isFuture {
-                                Text("—")
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(Color.primary.opacity(0.15))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(day.isToday ? AppColors.healthGreen.opacity(0.06) : Color.clear)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-        }
-    }
-
-    // MARK: - Habit Matrix (per-day blocks in week view)
-
-    @ViewBuilder
-    private func habitMatrix(for day: DayProgressData) -> some View {
-        let columns = [GridItem(.adaptive(minimum: 16), spacing: 3)]
-        LazyVGrid(columns: columns, spacing: 3) {
-            ForEach(day.habits) { habit in
-                let isDone = habit.isCompleted || habit.isSkipped
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(isDone ? habit.category.style.baseColor : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(habit.category.style.baseColor.opacity(isDone ? 0 : 0.5), lineWidth: 1)
-                    )
-                    .frame(width: 16, height: 16)
-                    .overlay {
-                        Image(systemName: habit.category.iconName)
-                            .font(.system(size: 8))
-                            .foregroundStyle(isDone ? .white.opacity(0.8) : habit.category.style.baseColor.opacity(0.5))
-                    }
-            }
-        }
-    }
+    // Week view removed — weekly analytics belong in Insights tab (Nielsen 1994 Heuristic #8)
 
     // MARK: - Timeline Parting DropDelegate
 

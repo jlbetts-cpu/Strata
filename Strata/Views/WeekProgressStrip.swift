@@ -5,6 +5,7 @@ struct WeekProgressStrip: View {
     @Binding var selectedDate: Date
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared: Bool = false
 
     private let healthGreen = AppColors.healthGreen
 
@@ -29,10 +30,25 @@ struct WeekProgressStrip: View {
                         }
                     )
                     .frame(maxWidth: .infinity)
+                    // Cascade entrance — left to right
+                    .opacity(appeared ? 1 : 0)
+                    .scaleEffect(appeared ? 1 : 0.85)
+                    .animation(
+                        reduceMotion ? .none :
+                        GridConstants.gentleReveal.delay(Double(weekData.firstIndex(where: { $0.id == day.id }) ?? 0) * 0.03),
+                        value: appeared
+                    )
                 }
             }
         }
         .padding(.vertical, 8)
+        .onAppear {
+            guard !appeared else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                appeared = true
+            }
+        }
     }
 }
 
@@ -81,7 +97,7 @@ private struct DayCircleView: View {
                 Text(day.dayLabel)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(
-                        day.isFuture ? Color.primary.opacity(0.35) : Color.primary.opacity(0.55)
+                        day.isFuture ? Color.primary.opacity(0.3) : Color.primary.opacity(0.55)
                     )
 
                 ZStack {

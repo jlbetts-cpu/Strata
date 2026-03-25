@@ -63,6 +63,18 @@ enum HapticsEngine {
         rigidGenerator.prepare()
     }
 
+    /// Warning feedback — drag below threshold, failed action
+    static func warning() {
+        let gen = UINotificationFeedbackGenerator()
+        gen.notificationOccurred(.warning)
+    }
+
+    /// Error feedback — operation failed (photo save, network)
+    static func error() {
+        let gen = UINotificationFeedbackGenerator()
+        gen.notificationOccurred(.error)
+    }
+
     /// Increasing intensity cascade sequence
     static func cascade(index: Int) {
         let intensity = min(1.0, 0.4 + Double(index) * 0.15)
