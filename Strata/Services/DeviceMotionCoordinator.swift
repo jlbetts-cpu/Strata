@@ -12,8 +12,10 @@ final class DeviceMotionCoordinator {
         motionManager.deviceMotionUpdateInterval = 1.0 / 20 // 20Hz — smooth, battery-friendly
         motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
             guard let motion, let self else { return }
-            self.pitch = motion.attitude.pitch
-            self.roll = motion.attitude.roll
+            // Low-pass filter: smooths sensor noise for clean parallax
+            let alpha = 0.15
+            self.pitch = self.pitch * (1 - alpha) + motion.attitude.pitch * alpha
+            self.roll = self.roll * (1 - alpha) + motion.attitude.roll * alpha
         }
     }
 

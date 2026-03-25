@@ -60,8 +60,12 @@
   - **NewHabitMenu Premium Refresh** — Live block preview at top morphs in real-time (category color + size proportions). Mini clay blocks replace flat circles for category picker. Block proportion previews replace text pills for duration. "Stack it" button with category gradient + shadow. Ambient category tint on sheet background. (Norton 2012, Lakoff & Johnson 1980, Treisman 1980)
   - Research: Norman (1988), Allen (2001), Barkley (2015), Norton (2012), Lakoff & Johnson (1980), Treisman (1980). 6 citations.
 
+- **Session 2026-03-25: Full App Audit + Remediation** (Architect Claude) — 3-agent parallel audit of every file. Found ~100 issues. Fixed top 10 by impact:
+  - **Batch A (Critical UX):** Tower confetti uses actual completed category colors (was ALL). HabitDetailSheet close button removed (native drag). Check circles unified to 24pt via `GridConstants.checkCircleSize`. Hero date uses `Typography.brandHeroDate` on Today screen.
+  - **Batch B (Animation/Sound):** `celebrationBurst` damping 0.45→0.60 (polished, not frivolous). HapticsEngine: all generators prepared including selection + static notification gen. Device motion low-pass jitter filter (alpha 0.15). Adaptive jubilation timing caps wave at 2.5s regardless of tower height. Removed duplicate `microResponse` spring (= `tapSquashSpring`). Confetti: slower velocity (60-150), rectangular particles with tumble rotation.
+
 ## THE HARMONIOUS DANCE — COMPLETE
-All 5 phases + jubilation wave + polish pass shipped. Total: 5 new files, 27 research citations, 40+ new animation/interaction features across every screen. The app is no longer a collection of screens — it's one continuous experience from "Your first block" to "Tower Aurora."
+All 5 phases + jubilation wave + polish pass + full audit shipped. Total: 5 new files, 27 research citations, 40+ new animation/interaction features across every screen. The app is no longer a collection of screens — it's one continuous experience from "Your first block" to "Tower Aurora."
 
 - **Session 2026-03-24: Full Visual Overhaul** (Atlas / Add Task Claude) — Complete Plan screen redesign session. Key deliverables:
   - **Apple Reminders Dashboard Grid** — 2×2 LazyVGrid of SmartSectionCards with secondarySystemGroupedBackground cards. NavigationLink push to section detail. Today card shows completion progress (done/total). Icon gradient circles.

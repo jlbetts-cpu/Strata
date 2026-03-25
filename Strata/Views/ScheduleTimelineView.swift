@@ -132,7 +132,7 @@ struct ScheduleTimelineView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(heroDate)
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .font(Typography.brandHeroDate)
                                 .foregroundStyle(Color.primary)
                                 .onTapGesture {
                                     guard !isViewingToday else { return }
@@ -377,11 +377,11 @@ struct ScheduleTimelineView: View {
                 ZStack {
                     Circle()
                         .stroke(isCompleted ? Color.clear : Color.white.opacity(0.6), lineWidth: 2)
-                        .frame(width: 22, height: 22)
+                        .frame(width: GridConstants.checkCircleSize, height: GridConstants.checkCircleSize)
                     if isCompleted {
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 22, height: 22)
+                            .frame(width: GridConstants.checkCircleSize, height: GridConstants.checkCircleSize)
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(style.baseColor)

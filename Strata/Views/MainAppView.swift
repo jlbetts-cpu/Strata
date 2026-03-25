@@ -977,7 +977,14 @@ struct MainAppView: View {
                         TowerAuroraView(isActive: $showAurora)
                     }
                     if showTowerConfetti {
-                        AllClearCelebration(isActive: $showTowerConfetti, completedCategories: HabitCategory.allCases)
+                        AllClearCelebration(
+                            isActive: $showTowerConfetti,
+                            completedCategories: Array(Set(
+                                cachedAllHabitsForSelectedDate
+                                    .filter { cachedCompletedHabitIDsForSelectedDate.contains($0.id) }
+                                    .map(\.category)
+                            ))
+                        )
                             .allowsHitTesting(false)
                     }
                 }

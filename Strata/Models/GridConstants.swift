@@ -88,8 +88,6 @@ enum GridConstants {
 
     // MARK: - Semantic Springs (reusable motion vocabulary)
 
-    /// Taps, toggles — matches tapSquashSpring
-    static let microResponse = Animation.spring(duration: 0.06, bounce: 0.0)
     /// Pop-back — matches tapPopSpring
     static let snapBack = Animation.spring(duration: 0.22, bounce: 0.20)
     /// Content appearing
@@ -162,7 +160,7 @@ enum GridConstants {
     static let patinaGold = Color(red: 0.95, green: 0.80, blue: 0.40)
 
     // MARK: - Celebration (Phase 2)
-    static let celebrationBurst = Animation.spring(response: 0.30, dampingFraction: 0.45)
+    static let celebrationBurst = Animation.spring(response: 0.30, dampingFraction: 0.60)
     static let confettiDuration: TimeInterval = 2.0
     static let confettiParticleCount: Int = 24
     static let blockFlyaway = Animation.spring(response: 0.55, dampingFraction: 0.70)
@@ -188,4 +186,7 @@ enum GridConstants {
     static let entranceOffset: CGFloat = 12
     static let ambientGlowCycle: TimeInterval = 2.5
     static let ambientGlowIntensity: Double = 0.08
+
+    // MARK: - UI Elements
+    static let checkCircleSize: CGFloat = 24
 }

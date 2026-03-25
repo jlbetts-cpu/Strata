@@ -13,20 +13,21 @@ struct AllClearCelebration: View {
         let angle: Double     // radians
         let velocity: Double  // pt/s
         let size: CGFloat
+        let rotation: Double  // tumble speed (radians/s)
     }
 
     private var particles: [Particle] {
         let colors = completedCategories.map(\.style.baseColor)
         guard !colors.isEmpty else { return [] }
         var result: [Particle] = []
-        // 4 particles per unique category color
         for color in colors {
             for _ in 0..<4 {
                 result.append(Particle(
                     color: color,
                     angle: Double.random(in: 0...(2 * .pi)),
-                    velocity: Double.random(in: 80...200),
-                    size: CGFloat.random(in: 4...8)
+                    velocity: Double.random(in: 60...150), // Slower: linger for celebration
+                    size: CGFloat.random(in: 4...8),
+                    rotation: Double.random(in: -6...6) // Tumble effect
                 ))
             }
         }
@@ -45,20 +46,23 @@ struct AllClearCelebration: View {
                 for particle in particles {
                     let distance = particle.velocity * elapsed
                     let x = center.x + cos(particle.angle) * distance
-                    let y = center.y + sin(particle.angle) * distance - 30 * elapsed // slight upward bias
+                    let y = center.y + sin(particle.angle) * distance - 20 * elapsed
                     let opacity = max(0, 1.0 - progress)
+                    let tumble = particle.rotation * elapsed
 
                     let rect = CGRect(
                         x: x - particle.size / 2,
                         y: y - particle.size / 2,
                         width: particle.size,
-                        height: particle.size
+                        height: particle.size * 0.6 // Rectangular confetti, not circles
                     )
                     context.opacity = opacity
+                    context.rotate(by: .radians(tumble))
                     context.fill(
-                        Circle().path(in: rect),
+                        RoundedRectangle(cornerRadius: 1).path(in: rect),
                         with: .color(particle.color)
                     )
+                    context.rotate(by: .radians(-tumble)) // Reset rotation for next particle
                 }
             }
             .allowsHitTesting(false)

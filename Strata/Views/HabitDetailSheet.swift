@@ -1,0 +1,212 @@
+import SwiftUI
+import SwiftData
+import PhotosUI
+
+struct HabitDetailSheet: View {
+    let habit: Habit
+    let selectedDate: Date
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var showPhotoError = false
+    @State private var photoRefreshID = UUID()
+
+    private var style: CategoryStyle { habit.category.style }
+    private var coverHeight: CGFloat { todayLog.imageFileName != nil ? 200 : 100 }
+
+    // MARK: - Today's Log
+
+    private var todayLog: HabitLog {
+        let dateStr = TimelineViewModel.dateString(from: selectedDate)
+        if let existing = habit.logs.first(where: { $0.dateString == dateStr }) {
+            return existing
+        }
+        let log = HabitLog(habit: habit, dateString: dateStr)
+        modelContext.insert(log)
+        try? modelContext.save()
+        return log
+    }
+
+    private var noteBinding: Binding<String> {
+        Binding(
+            get: { todayLog.note ?? "" },
+            set: { todayLog.note = $0.isEmpty ? nil : $0; try? modelContext.save() }
+        )
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                // Cover photo area
+                coverPhotoSection
+
+                // Content
+                VStack(alignment: .leading, spacing: 16) {
+                    // Title + time
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Image(systemName: habit.category.iconName)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(style.baseColor)
+                            Text(habit.title)
+                                .font(Typography.headerMedium)
+                                .foregroundStyle(.primary)
+                        }
+
+                        if let time = habit.scheduledTime {
+                            let end = BlockTimeFormatter.endTime(time, durationMinutes: habit.blockSize.durationMinutes)
+                            HStack(spacing: 6) {
+                                Text("\(BlockTimeFormatter.format12Hour(time)) – \(BlockTimeFormatter.format12Hour(end))")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                if habit.blockSize != .small {
+                                    Text(habit.blockSize == .medium ? "30m" : "1h")
+                                        .font(Typography.caption2)
+                                        .foregroundStyle(style.baseColor.opacity(0.6))
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // Notes
+                    TextField("Add a note…", text: noteBinding, axis: .vertical)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(.primary.opacity(0.85))
+                        .lineLimit(1...8)
+
+                    // Subtasks
+                    if !todayLog.subtasks.isEmpty {
+                        Divider()
+                        ForEach(todayLog.subtasks) { subtask in
+                            HStack(spacing: 8) {
+                                Image(systemName: subtask.completed ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(subtask.completed ? style.baseColor : .secondary)
+                                Text(subtask.title)
+                                    .font(Typography.bodySmall)
+                                    .strikethrough(subtask.completed)
+                                    .foregroundStyle(subtask.completed ? .secondary : .primary)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { toggleSubtask(subtask) }
+                        }
+                    }
+
+                    // Close via native sheet drag (consistent with iOS standard)
+                }
+                .padding(20)
+            }
+        }
+        .background(Color(uiColor: .systemBackground))
+        .onChange(of: selectedItem) { _, newItem in
+            HapticsEngine.lightTap()
+            Task { await loadPhoto(from: newItem) }
+        }
+        .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
+            Button("OK", role: .cancel) {}
+        }, message: {
+            Text("Try again or choose a different photo.")
+        })
+    }
+
+    // MARK: - Cover Photo Section
+
+    private var coverPhotoSection: some View {
+        GeometryReader { geo in
+        ZStack(alignment: .bottomLeading) {
+            // Photo or category gradient
+            if let fileName = todayLog.imageFileName {
+                CachedImageView(
+                    fileName: fileName,
+                    width: geo.size.width,
+                    height: coverHeight,
+                    cornerRadius: 0,
+                    fullResolution: false
+                )
+                .id(photoRefreshID)
+            } else {
+                // Proto-block gradient (no photo)
+                LinearGradient(
+                    stops: [
+                        .init(color: style.lightTint, location: 0.0),
+                        .init(color: style.baseColor, location: 0.3),
+                        .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+
+            // Gradient mask — fades photo into sheet background
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: Color(uiColor: .systemBackground), location: 1.0)
+                ],
+                startPoint: .init(x: 0.5, y: 0.6),
+                endPoint: .bottom
+            )
+
+            // PhotosPicker overlay
+            PhotosPicker(selection: $selectedItem, matching: .images) {
+                if todayLog.imageFileName == nil {
+                    VStack(spacing: 6) {
+                        Image(systemName: habit.category.iconName)
+                            .font(.system(size: 28, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("Add Photo")
+                            .font(Typography.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Tap photo to replace
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: coverHeight)
+        .clipped()
+        } // GeometryReader
+        .frame(height: coverHeight)
+    }
+
+    // MARK: - Actions
+
+    private func toggleSubtask(_ subtask: SubTask) {
+        guard let idx = todayLog.subtasks.firstIndex(where: { $0.id == subtask.id }) else { return }
+        todayLog.subtasks[idx].completed.toggle()
+        try? modelContext.save()
+        HapticsEngine.tick()
+    }
+
+    @MainActor
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+        guard let img = await Task.detached { UIImage(data: data) }.value else { return }
+
+        let (maxDim, quality): (CGFloat, CGFloat) = switch habit.blockSize {
+        case .small: (512, 0.70)
+        case .medium: (768, 0.75)
+        case .hard: (1024, 0.80)
+        }
+        do {
+            let fileName = try await ImageManager.shared.save(image: img, for: todayLog.id, maxDimension: maxDim, quality: quality)
+            todayLog.imageFileName = fileName
+            try? modelContext.save()
+            photoRefreshID = UUID()
+            HapticsEngine.snap()
+        } catch {
+            showPhotoError = true
+        }
+    }
+}

@@ -126,7 +126,7 @@ final class TowerAnimationCoordinator {
         isJubilating = true
 
         let maxRow = placedBlocks.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
-        let rowDelay: Double = 0.07
+        let rowDelay = min(0.07, 2.5 / Double(max(maxRow, 10))) // Adaptive: caps wave at ~2.5s
 
         Task { @MainActor in
             // === OUTGOING WAVE (bottom → top) — 4 oscillations, ±3.5° ===

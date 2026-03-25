@@ -6,13 +6,16 @@ enum HapticsEngine {
     private static let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
     private static let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
     private static let rigidGenerator = UIImpactFeedbackGenerator(style: .rigid)
+    private static let notificationGenerator = UINotificationFeedbackGenerator()
 
     /// Prime all generators for lower-latency feedback
     static func prepare() {
+        selectionGenerator.prepare()
         lightGenerator.prepare()
         mediumGenerator.prepare()
         heavyGenerator.prepare()
         rigidGenerator.prepare()
+        notificationGenerator.prepare()
     }
 
     /// Light selection tap — scrubber dragging
@@ -28,8 +31,8 @@ enum HapticsEngine {
 
     /// Notification success — milestone moments ("All done!", achievements)
     static func success() {
-        let gen = UINotificationFeedbackGenerator()
-        gen.notificationOccurred(.success)
+        notificationGenerator.notificationOccurred(.success)
+        notificationGenerator.prepare()
     }
 
     /// Decrescendo reward pattern — level-up celebrations
@@ -65,14 +68,14 @@ enum HapticsEngine {
 
     /// Warning feedback — drag below threshold, failed action
     static func warning() {
-        let gen = UINotificationFeedbackGenerator()
-        gen.notificationOccurred(.warning)
+        notificationGenerator.notificationOccurred(.warning)
+        notificationGenerator.prepare()
     }
 
     /// Error feedback — operation failed (photo save, network)
     static func error() {
-        let gen = UINotificationFeedbackGenerator()
-        gen.notificationOccurred(.error)
+        notificationGenerator.notificationOccurred(.error)
+        notificationGenerator.prepare()
     }
 
     /// Increasing intensity cascade sequence
