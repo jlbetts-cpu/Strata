@@ -18,7 +18,7 @@ struct ScheduleTimelineView: View {
     var onEditInPlan: ((Habit) -> Void)? = nil
     var towerBlockCount: Int = 0
     var onboarding: OnboardingState? = nil
-    var debugTower: Tower? = nil
+    // debugTower removed — debug tools in Settings only
     var cachedStreaks: [UUID: Int] = [:]
 
     @Environment(\.modelContext) private var modelContext
@@ -65,8 +65,8 @@ struct ScheduleTimelineView: View {
     @State private var rowsRevealed: Bool = false
     @State private var staggerTask: Task<Void, Never>?
     @State private var isForwardNavigation: Bool = true
-    @State private var completingChipID: UUID? = nil
-    @State private var chipHoldProgress: CGFloat = 0
+    @State private var showManualTimePicker: Bool = false
+    @State private var manualScheduleTime: Date = Date()
 
     private func recomputeHabitLists() {
         // Pre-compute effectiveHour dictionary (avoid O(n log n) string parsing in sort)
@@ -194,9 +194,6 @@ struct ScheduleTimelineView: View {
             .padding(.bottom, 100)
             .animation(GridConstants.crossFade, value: selectedDate)
         }
-        #if DEBUG
-        .overlay(alignment: .topTrailing) { debugMenu }
-        #endif
         .background { WarmBackground().ignoresSafeArea() }
         .onAppear {
             recomputeHabitLists()
@@ -213,7 +210,7 @@ struct ScheduleTimelineView: View {
             }
         }
         .onChange(of: allHabits) { scheduleRecompute() }
-        .onChange(of: completedHabitIDs) { scheduleRecompute() }
+        .onChange(of: completedHabitIDs) { recomputeHabitLists() } // Immediate — no debounce (Card 1991: <100ms)
         .onChange(of: selectedDate) { oldDate, newDate in
             isForwardNavigation = newDate > oldDate
             // Reset row stagger for cascade entrance
@@ -250,8 +247,39 @@ struct ScheduleTimelineView: View {
                     }
                 }
             }
-            // Removed misleading "Pick a different time" — only offer the suggested time or cancel
+            Button("Pick a different time...") {
+                showManualTimePicker = true
+            }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showManualTimePicker) {
+            if let habit = habitToSchedule {
+                NavigationStack {
+                    DatePicker("Schedule time", selection: $manualScheduleTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .navigationTitle("Pick a time")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    let cal = Calendar.current
+                                    let h = cal.component(.hour, from: manualScheduleTime)
+                                    let m = cal.component(.minute, from: manualScheduleTime)
+                                    habit.scheduledTime = String(format: "%02d:%02d", h, m)
+                                    try? modelContext.save()
+                                    HapticsEngine.snap()
+                                    showManualTimePicker = false
+                                    habitToSchedule = nil
+                                }
+                            }
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { showManualTimePicker = false }
+                            }
+                        }
+                }
+                .presentationDetents([.medium])
+            }
         }
         .sheet(item: $detailHabit) { habit in
             HabitDetailSheet(habit: habit, selectedDate: selectedDate)
@@ -320,10 +348,9 @@ struct ScheduleTimelineView: View {
     private func unscheduledChip(habit: Habit) -> some View {
         let style = habit.category.style
         let isCompleted = completedHabitIDs.contains(habit.id)
-        let isDragging = draggingChipID == habit.id
 
-        // Chip label (shared between drag and tap)
-        let chipLabel = HStack(spacing: 6) {
+        return HStack(spacing: 8) {
+            // Content first (reading order — left to right)
             Image(systemName: habit.category.iconName)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(isCompleted ? .white.opacity(0.7) : style.baseColor)
@@ -332,6 +359,36 @@ struct ScheduleTimelineView: View {
                 .font(Typography.bodySmall)
                 .foregroundStyle(isCompleted ? .white : Color.primary)
                 .lineLimit(1)
+
+            Spacer()
+
+            // Check circle — RIGHT side, matches scheduled rows (Fitts 1954, Nielsen 1994)
+            Button {
+                if isCompleted {
+                    HapticsEngine.tick()
+                    onUndo(habit)
+                } else {
+                    HapticsEngine.snap()
+                    SoundEngine.completionTone(category: habit.category)
+                    hasCompletedFirstHabit = true
+                    onComplete(habit)
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .stroke(isCompleted ? Color.clear : Color.white.opacity(0.6), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                    if isCompleted {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(style.baseColor)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -343,54 +400,16 @@ struct ScheduleTimelineView: View {
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
                 .stroke(style.baseColor.opacity(isCompleted ? 0.3 : 0.6), lineWidth: 1.5)
         )
-
-        return chipLabel
-            // Hold-to-complete fill overlay (Allen 2001 — context-free action)
-            .overlay {
-                if completingChipID == habit.id {
-                    RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                        .fill(style.baseColor.opacity(0.3))
-                        .scaleEffect(x: chipHoldProgress, y: 1.0, anchor: .leading)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-            // Sandbox rotation: ±3° when loose, 0° when picked up
-            .rotationEffect(isDragging ? .zero : sandboxRotation(for: habit.id))
-            .scaleEffect(isDragging ? 1.06 : 1.0)
-            .animation(GridConstants.naturalSettle, value: isDragging)
-            // Primary: drag to schedule
-            .onDrag {
-                draggingChipID = habit.id
-                HapticsEngine.snap()
-                return NSItemProvider(object: habit.id.uuidString as NSString)
-            }
-            // Hold to complete directly (Barkley 2015 — reduce steps for ADHD)
-            .onLongPressGesture(minimumDuration: 0.6, pressing: { isPressing in
-                if isPressing && !isCompleted {
-                    completingChipID = habit.id
-                    withAnimation(.linear(duration: 0.6)) { chipHoldProgress = 1.0 }
-                    HapticsEngine.lightTap()
-                } else {
-                    completingChipID = nil
-                    withAnimation(GridConstants.motionSnappy) { chipHoldProgress = 0 }
-                }
-            }, perform: {
-                guard !isCompleted else { return }
-                HapticsEngine.snap()
-                SoundEngine.completionTone(category: habit.category)
-                completingChipID = nil
-                chipHoldProgress = 0
-                hasCompletedFirstHabit = true
-                onComplete(habit)
-            })
-            // Fallback: tap to suggest slot
-            .onTapGesture {
-                HapticsEngine.tick()
-                suggestOpenSlot(for: habit)
-            }
-            .frame(minHeight: 44)
-            .accessibilityLabel("\(habit.title), \(habit.category.rawValue), unscheduled")
-            .accessibilityHint("Hold to complete, drag to schedule, or tap for suggested time")
+        // Tap chip body to schedule (with time choice)
+        .onTapGesture {
+            guard !isCompleted else { return }
+            HapticsEngine.tick()
+            habitToSchedule = habit
+            suggestOpenSlot(for: habit)
+        }
+        .frame(minHeight: 44)
+        .accessibilityLabel("\(habit.title), \(habit.category.rawValue), unscheduled")
+        .accessibilityHint("Tap circle to complete, or tap chip to schedule")
     }
 
     // MARK: - Scheduled Section (flat list with time labels)
@@ -456,9 +475,9 @@ struct ScheduleTimelineView: View {
                         if !reduceMotion {
                             withAnimation(GridConstants.elasticPop) { allClearScale = 1.0 }
                             Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(200))
-                                withAnimation(GridConstants.gentleReveal) { allClearTextOpacity = 1.0 }
                                 try? await Task.sleep(for: .milliseconds(100))
+                                withAnimation(GridConstants.gentleReveal) { allClearTextOpacity = 1.0 }
+                                try? await Task.sleep(for: .milliseconds(50))
                                 showConfetti = true
                             }
                         } else {
@@ -896,69 +915,7 @@ struct ScheduleTimelineView: View {
         }
     }
 
-    // MARK: - Debug
-
-    #if DEBUG
-    private var debugMenu: some View {
-        Menu {
-            Button("Add Scheduled Habit", systemImage: "plus") {
-                injectDebugHabit(scheduled: true)
-            }
-            Button("Add Unscheduled Habit", systemImage: "plus.circle") {
-                injectDebugHabit(scheduled: false)
-            }
-            Button("Remove Last Habit", systemImage: "minus") {
-                removeLastDebugHabit()
-            }
-        } label: {
-            Text("Debug")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
-        }
-        .padding(.top, 8)
-        .padding(.trailing, 16)
-    }
-
-    private func injectDebugHabit(scheduled: Bool) {
-        let namesByCategory: [HabitCategory: [String]] = [
-            .health:      ["Morning Run", "Drink Water", "Stretch", "Gym", "Walk 10k Steps", "Sleep by 11"],
-            .work:        ["Deep Work", "Clear Inbox", "Stand-Up", "Code Review", "Ship Feature", "Write Docs"],
-            .creativity:  ["Sketch", "Write 500 Words", "Play Guitar", "Photography", "Design Sprint", "Journaling"],
-            .focus:       ["Read 30 Min", "No Phone Hour", "Pomodoro x4", "Study Session", "Meditate", "Plan Tomorrow"],
-            .social:      ["Call a Friend", "Family Dinner", "Coffee Chat", "Send Thank You", "Team Lunch", "Game Night"],
-            .mindfulness: ["Meditate", "Breathwork", "Gratitude Log", "Body Scan", "Yoga", "Nature Walk"]
-        ]
-        let category = HabitCategory.allCases.randomElement()!
-        let title = namesByCategory[category]!.randomElement()!
-        let size = BlockSize.allCases.randomElement()!
-
-        let scheduledTime: String? = scheduled ? {
-            let hour = Int.random(in: 6...21)
-            let minute = [0, 15, 30, 45].randomElement()!
-            return String(format: "%02d:%02d", hour, minute)
-        }() : nil
-
-        let habit = Habit(
-            title: title,
-            category: category,
-            blockSize: size,
-            frequency: [DayCode.today()],
-            scheduledTime: scheduledTime
-        )
-        habit.tower = debugTower
-        modelContext.insert(habit)
-        try? modelContext.save()
-    }
-
-    private func removeLastDebugHabit() {
-        guard let last = allHabits.sorted(by: { $0.createdAt > $1.createdAt }).first else { return }
-        modelContext.delete(last)
-        try? modelContext.save()
-    }
-    #endif
+    // Debug tools moved to Settings
 }
 
 // MARK: - Timeline Parting Drop Delegate

@@ -2,102 +2,58 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-enum FilmstripMode: String, CaseIterable {
-    case today = "Today"
-    case journey = "Journey"
-}
+// FilmstripMode removed — Hick's Law: one photo source, no picker needed
 
 struct BlockExpansionCard: View {
     let block: PlacedBlock
     let dailyPhotoBlocks: [PlacedBlock]
-    let habitPhotoBlocks: [PlacedBlock]
     let namespace: Namespace.ID
     let modelContext: ModelContext
     let onDismiss: () -> Void
 
     @State private var showContent = false
-    @State private var selectedPhotoLogID: UUID? = nil
-    @State private var filmstripMode: FilmstripMode = .today
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoError = false
     @GestureState private var dragOffset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
-    private var style: CategoryStyle { selectedLog.habit?.category.style ?? block.habit.category.style }
-    private let cardWidth: CGFloat = UIScreen.main.bounds.width - 48
-    private var heroHeight: CGFloat { min(CGFloat(block.rowSpan) * 80 * 2.0, 280) }
+    private var style: CategoryStyle { block.habit.category.style }
+    @State private var cardWidth: CGFloat = 353
+    private var heroHeight: CGFloat { min(CGFloat(block.rowSpan) * 80 * 2.0, 300) }
 
-    private var selectedLog: HabitLog {
-        if let logID = selectedPhotoLogID {
-            let source = filmstripMode == .journey ? habitPhotoBlocks : dailyPhotoBlocks
-            if let photoBlock = source.first(where: { $0.log.id == logID }) {
-                return photoBlock.log
-            }
-        }
-        return block.log
-    }
-
-    private var selectedHabit: Habit {
-        if let logID = selectedPhotoLogID {
-            let source = filmstripMode == .journey ? habitPhotoBlocks : dailyPhotoBlocks
-            if let photoBlock = source.first(where: { $0.log.id == logID }) {
-                return photoBlock.habit
-            }
-        }
-        return block.habit
-    }
-
-    private var activeFilmstripBlocks: [PlacedBlock] {
-        filmstripMode == .journey ? habitPhotoBlocks : dailyPhotoBlocks
-    }
+    private var currentLog: HabitLog { block.log }
+    private var currentHabit: Habit { block.habit }
 
     private var noteBinding: Binding<String> {
         Binding(
-            get: { selectedLog.note ?? "" },
-            set: { selectedLog.note = $0.isEmpty ? nil : $0 }
+            get: { currentLog.note ?? "" },
+            set: { currentLog.note = $0.isEmpty ? nil : $0 }
         )
     }
 
+    // MARK: - Body
+
     var body: some View {
         VStack(spacing: 0) {
-            // Hero area — ZStack for morph anchor + photo overlay + capture
+            // Hero area — swipeable carousel (replaces filmstrip thumbnails)
             ZStack {
-                FlippableBlockView(
-                    block: block,
-                    width: cardWidth,
-                    height: heroHeight,
-                    cornerRadius: 20,
-                    modelContext: modelContext
-                )
-                .matchedGeometryEffect(id: block.id, in: namespace)
-                .opacity(selectedPhotoLogID == nil ? 1 : 0)
-                .allowsHitTesting(false)
+                // Invisible anchor for matchedGeometryEffect morph animation
+                Color.clear
+                    .frame(width: cardWidth, height: heroHeight)
+                    .matchedGeometryEffect(id: block.id, in: namespace)
 
-                if let logID = selectedPhotoLogID {
-                    let source = filmstripMode == .journey ? habitPhotoBlocks : dailyPhotoBlocks
-                    if let photoBlock = source.first(where: { $0.log.id == logID }),
-                       let fileName = photoBlock.log.imageFileName {
-                        CachedImageView(
-                            fileName: fileName,
-                            width: cardWidth,
-                            height: heroHeight,
-                            cornerRadius: 20,
-                            fullResolution: true
-                        )
-                        .transition(.opacity.animation(GridConstants.crossFade))
-                        .allowsHitTesting(false)
-                    }
-                }
+                // Single hero — this block only, no carousel
+                heroSlide(for: block)
 
-                // Photo capture overlay — shown when no photo on this block
-                if block.log.imageFileName == nil && selectedPhotoLogID == nil {
+                // Photo capture overlay — shown when no photo on current block
+                if block.log.imageFileName == nil {
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         VStack(spacing: 8) {
                             Image(systemName: "camera.fill")
                                 .font(.title2.weight(.light))
                                 .foregroundStyle(.white.opacity(0.85))
-                            Text("Add Proof")
+                            Text("Add Photo")
                                 .font(Typography.caption)
                                 .foregroundStyle(.white.opacity(0.7))
                         }
@@ -108,89 +64,27 @@ struct BlockExpansionCard: View {
                 }
             }
             .frame(width: cardWidth, height: heroHeight)
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous))
 
             // Content area
             if showContent {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: GridConstants.cardContentSpacing) {
                     // Title + category + time
                     HStack {
-                        Image(systemName: selectedHabit.category.iconName)
+                        Image(systemName: currentHabit.category.iconName)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(style.baseColor)
-                        Text(selectedHabit.title)
-                            .font(Typography.headerMedium)
+                        Text(currentHabit.title)
+                            .font(Typography.brandCardTitle)
                             .foregroundStyle(.primary)
                         Spacer()
-                        if let time = selectedLog.completedAt {
+                        if let time = currentLog.completedAt {
                             Text(time, style: .time)
                                 .font(Typography.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .animation(GridConstants.crossFade, value: selectedPhotoLogID)
-
-                    // Filmstrip mode toggle — only when Journey data exists
-                    if !habitPhotoBlocks.isEmpty {
-                        Picker("", selection: $filmstripMode) {
-                            ForEach(FilmstripMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: filmstripMode) {
-                            HapticsEngine.tick()
-                            // Reset selection when switching modes
-                            withAnimation(GridConstants.crossFade) {
-                                selectedPhotoLogID = nil
-                            }
-                        }
-                    }
-
-                    // Filmstrip — horizontal thumbnails
-                    if !activeFilmstripBlocks.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: GridConstants.filmstripSpacing) {
-                                ForEach(activeFilmstripBlocks) { photoBlock in
-                                    let isSelected = selectedPhotoLogID == photoBlock.log.id
-                                    let thumbStyle = photoBlock.habit.category.style
-
-                                    VStack(spacing: 4) {
-                                        CachedImageView(
-                                            fileName: photoBlock.log.imageFileName,
-                                            width: GridConstants.filmstripThumbnailSize,
-                                            height: GridConstants.filmstripThumbnailSize,
-                                            cornerRadius: 12
-                                        )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .stroke(
-                                                    isSelected ? thumbStyle.baseColor : .primary.opacity(0.15),
-                                                    lineWidth: isSelected ? 2 : 1
-                                                )
-                                        )
-
-                                        // Date label in Journey mode
-                                        if filmstripMode == .journey {
-                                            Text(BlockTimeFormatter.dateLabel(from: photoBlock.log.dateString))
-                                                .font(Typography.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .onTapGesture {
-                                        HapticsEngine.lightTap()
-                                        withAnimation(GridConstants.crossFade) {
-                                            if isSelected {
-                                                selectedPhotoLogID = nil
-                                            } else {
-                                                selectedPhotoLogID = photoBlock.log.id
-                                            }
-                                        }
-                                    }
-                                    .accessibilityLabel("\(photoBlock.habit.title) photo")
-                                }
-                            }
-                        }
-                    }
+                    .animation(GridConstants.crossFade, value: block.id)
 
                     // Note editor
                     TextField("Add a note…", text: noteBinding, axis: .vertical)
@@ -199,16 +93,41 @@ struct BlockExpansionCard: View {
                         .lineLimit(1...6)
 
                     // Caption
-                    if !selectedLog.caption.isEmpty {
-                        Text(selectedLog.caption)
+                    if !currentLog.caption.isEmpty {
+                        Text(currentLog.caption)
                             .font(Typography.bodySmall)
                             .foregroundStyle(.secondary)
                     }
 
+                    // Photo actions — always available (Norman 1988)
+                    if block.log.imageFileName != nil {
+                        HStack(spacing: 16) {
+                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                                Label("Replace Photo", systemImage: "camera")
+                                    .font(Typography.bodySmall)
+                                    .foregroundStyle(style.baseColor)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                if let fileName = block.log.imageFileName {
+                                    ImageManager.shared.deleteImage(fileName: fileName)
+                                    block.log.imageFileName = nil
+                                    HapticsEngine.lightTap()
+                                }
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                                    .font(Typography.bodySmall)
+                                    .foregroundStyle(.red.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
                     // Subtasks (toggle only)
-                    if !selectedLog.subtasks.isEmpty {
+                    if !currentLog.subtasks.isEmpty {
                         Divider()
-                        ForEach(selectedLog.subtasks) { subtask in
+                        ForEach(currentLog.subtasks) { subtask in
                             HStack(spacing: 8) {
                                 Image(systemName: subtask.completed ? "checkmark.circle.fill" : "circle")
                                     .foregroundStyle(subtask.completed ? style.baseColor : .secondary)
@@ -224,35 +143,36 @@ struct BlockExpansionCard: View {
                         }
                     }
 
-                    Divider()
-
-                    // Close button
-                    Button {
-                        HapticsEngine.lightTap()
-                        onDismiss()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark")
-                                .font(.caption2.weight(.bold))
-                            Text("Close")
-                                .font(Typography.caption)
-                        }
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .accessibilityLabel("Close card")
                 }
-                .padding(16)
-                .transition(.opacity)
+                .padding(.horizontal, GridConstants.cardContentPadding)
+                .padding(.top, GridConstants.cardContentPadding)
+                .padding(.bottom, 16)
+                .transition(.opacity.combined(with: .offset(y: 8)))
             }
         }
         .frame(width: cardWidth)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            if showContent {
+                Button {
+                    HapticsEngine.lightTap()
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 28, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.white)
+                }
+                .padding(12)
+                .accessibilityLabel("Close card")
+                .transition(.opacity)
+            }
+        }
+        .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
         .scrollDismissesKeyboard(.interactively)
         .offset(y: dragOffset)
         .gesture(
@@ -270,13 +190,12 @@ struct BlockExpansionCard: View {
                 }
         )
         .transition(.opacity)
+        .background(GeometryReader { geo in
+            Color.clear.onAppear { cardWidth = geo.size.width }
+        })
         .onAppear {
-            // Auto-select this block's photo if it has one
-            if block.log.imageFileName != nil {
-                selectedPhotoLogID = block.log.id
-            }
-            let delay: Double = reduceMotion ? 0 : 0.15
-            withAnimation(GridConstants.gentleReveal.delay(delay)) {
+            let delay: Double = reduceMotion ? 0 : 0.12
+            withAnimation(GridConstants.cardReveal.delay(delay)) {
                 showContent = true
             }
         }
@@ -284,17 +203,42 @@ struct BlockExpansionCard: View {
             HapticsEngine.lightTap()
             Task { await loadPhoto(from: newItem) }
         }
-        .alert("Photo couldn't be saved", isPresented: $showPhotoError) {
+        .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
             Button("OK", role: .cancel) {}
-        } message: {
+        }, message: {
             Text("Try again or choose a different photo.")
-        }
+        })
         .accessibilityAddTraits(.isModal)
     }
 
+    // MARK: - Hero Slide
+
+    @ViewBuilder
+    private func heroSlide(for photoBlock: PlacedBlock) -> some View {
+        if let fileName = photoBlock.log.imageFileName {
+            CachedImageView(
+                fileName: fileName,
+                width: cardWidth,
+                height: heroHeight,
+                cornerRadius: 0
+            )
+        } else {
+            FlippableBlockView(
+                block: photoBlock,
+                width: cardWidth,
+                height: heroHeight,
+                cornerRadius: 0,
+                modelContext: modelContext
+            )
+            .allowsHitTesting(false)
+        }
+    }
+
+    // MARK: - Subtask Toggle
+
     private func toggleSubtask(_ subtask: SubTask) {
-        guard let idx = selectedLog.subtasks.firstIndex(where: { $0.id == subtask.id }) else { return }
-        selectedLog.subtasks[idx].completed.toggle()
+        guard let idx = currentLog.subtasks.firstIndex(where: { $0.id == subtask.id }) else { return }
+        currentLog.subtasks[idx].completed.toggle()
         try? modelContext.save()
         HapticsEngine.tick()
     }
@@ -316,9 +260,6 @@ struct BlockExpansionCard: View {
             let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
             block.log.imageFileName = fileName
             try? modelContext.save()
-            withAnimation(GridConstants.crossFade) {
-                selectedPhotoLogID = block.log.id
-            }
             HapticsEngine.lightTap()
         } catch {
             showPhotoError = true

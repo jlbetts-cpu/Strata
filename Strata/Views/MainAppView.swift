@@ -57,6 +57,8 @@ struct MainAppView: View {
     // Tower Aurora (Phase 5 — Skinner 1938 variable reward)
     @AppStorage("lastAuroraWeek") private var lastAuroraWeek: Int = 0
     @State private var showAurora = false
+    @State private var showTowerConfetti = false
+    @State private var hasPlayedTodayCelebration = false
 
     // New habit menu
     @State private var isNewHabitMenuOpen: Bool = false
@@ -165,6 +167,7 @@ struct MainAppView: View {
             }
             .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
                 guard scenePhase == .active else { return }
+                hasPlayedTodayCelebration = false
                 guard !towerVM.isLoading else { return }
                 let currentCount = logs.count
                 // Only refresh if log count changed (avoids O(n) max scan on every tick)
@@ -270,7 +273,6 @@ struct MainAppView: View {
                 }
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
         .onChange(of: selectedTab) { _, newTab in
             HapticsEngine.tick()
             if newTab == .tower && !pendingDrops.isEmpty {
@@ -285,18 +287,18 @@ struct MainAppView: View {
             } else {
                 motionCoord.stop()
             }
-            // Tower Aurora check — 3+ perfect days this week, once per week
+            // Tower Aurora check — async to not block tab transition
             if newTab == .tower && towerVM.totalRows > 0 {
-                let currentWeek = Calendar.current.component(.weekOfYear, from: Date())
-                let todayStr = TimelineViewModel.dateString(from: Date())
-                let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-                let recentPerfectDays = perfectDayDates.filter { dateStr in
-                    guard let date = Self.dateStringFormatter.date(from: dateStr) else { return false }
-                    return date >= weekStart && dateStr <= todayStr
-                }.count
-                if recentPerfectDays >= 3 && lastAuroraWeek != currentWeek {
-                    lastAuroraWeek = currentWeek
-                    Task { @MainActor in
+                Task { @MainActor in
+                    let currentWeek = Calendar.current.component(.weekOfYear, from: Date())
+                    let todayStr = TimelineViewModel.dateString(from: Date())
+                    let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+                    let recentPerfectDays = perfectDayDates.filter { dateStr in
+                        guard let date = Self.dateStringFormatter.date(from: dateStr) else { return false }
+                        return date >= weekStart && dateStr <= todayStr
+                    }.count
+                    if recentPerfectDays >= 3 && lastAuroraWeek != currentWeek {
+                        lastAuroraWeek = currentWeek
                         try? await Task.sleep(for: .milliseconds(500))
                         showAurora = true
                     }
@@ -385,31 +387,6 @@ struct MainAppView: View {
                      viewportHeight: screenHeight)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
-            #if DEBUG
-            .overlay(alignment: .topLeading) {
-                Menu {
-                    Button("Add Block", systemImage: "plus") {
-                        injectDebugBlock()
-                    }
-                    Button("Remove Block", systemImage: "minus") {
-                        removeLastDebugBlock()
-                    }
-                    Divider()
-                    Button("Reset Tower", systemImage: "arrow.counterclockwise", role: .destructive) {
-                        resetTower()
-                    }
-                } label: {
-                    Text("Debug")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
-                .padding(.top, 8)
-                .padding(.leading, hPad)
-            }
-            #endif
             .overlay(alignment: .bottom) {
                 if towerFilterMode == .day,
                    let nextHabit = incompleteForTimeline.first {
@@ -442,7 +419,6 @@ struct MainAppView: View {
                     BlockExpansionCard(
                         block: block,
                         dailyPhotoBlocks: cachedDailyPhotoBlocks,
-                        habitPhotoBlocks: cachedHabitPhotoBlocks,
                         namespace: blockExpansion,
                         modelContext: modelContext,
                         onDismiss: { dismissCard() }
@@ -489,11 +465,11 @@ struct MainAppView: View {
             },
             towerBlockCount: towerVM.placedBlocks.count,
             onboarding: onboarding,
-            debugTower: towerManager.activeTower,
             cachedStreaks: cachedStreaks
         )
         .onChange(of: timelineSelectedDate) {
             scheduleRefresh()
+            hasPlayedTodayCelebration = false
         }
     }
 
@@ -529,6 +505,8 @@ struct MainAppView: View {
             if habit.isTodo {
                 return habit.scheduledDate == dateStr
             }
+            // Only show habits that existed on this date
+            guard habit.createdAt <= timelineSelectedDate else { return false }
             return habit.frequency.contains(dayCode)
         }
 
@@ -610,8 +588,10 @@ struct MainAppView: View {
             }.sorted { ($0.effectiveHour ?? 24) < ($1.effectiveHour ?? 24) }
 
             let total = dayHabits.count
-            let completed = completedByDate[dateStr] ?? 0
-            let skipped = skippedByDate[dateStr] ?? 0
+            // Filter to only scheduled habits (prevents inflated ring from other towers)
+            let scheduledIDs = Set(dayHabits.map(\.id))
+            let completed = (completedIDsByDate[dateStr] ?? []).intersection(scheduledIDs).count
+            let skipped = (skippedIDsByDate[dateStr] ?? []).intersection(scheduledIDs).count
             let rate = total > 0 ? Double(completed) / Double(total) : 0
 
             return DayProgressData(
@@ -727,10 +707,19 @@ struct MainAppView: View {
 
                 // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
                 let todayStr = TimelineViewModel.dateString(from: Date())
-                if towerFilterMode == .day && perfectDayDates.contains(todayStr) {
+                if towerFilterMode == .day && perfectDayDates.contains(todayStr) && !hasPlayedTodayCelebration {
+                    hasPlayedTodayCelebration = true
                     try? await Task.sleep(for: .milliseconds(500))
                     HapticsEngine.reward()
                     animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
+                    // Confetti after jubilation wave actually finishes
+                    Task { @MainActor in
+                        while animCoord.isJubilating {
+                            try? await Task.sleep(for: .milliseconds(100))
+                        }
+                        try? await Task.sleep(for: .milliseconds(200))
+                        showTowerConfetti = true
+                    }
                 }
             }
         }
@@ -986,6 +975,10 @@ struct MainAppView: View {
                 .overlay {
                     if showAurora && !reduceMotion {
                         TowerAuroraView(isActive: $showAurora)
+                    }
+                    if showTowerConfetti {
+                        AllClearCelebration(isActive: $showTowerConfetti, completedCategories: HabitCategory.allCases)
+                            .allowsHitTesting(false)
                     }
                 }
                 .padding(.horizontal, hPad)

@@ -16,49 +16,21 @@ struct NewHabitMenu: View {
     @State private var scheduledDate = Date()
     @State private var useTimePicker = false
     @State private var scheduledTime = Date()
+    @State private var graceDays: Int = 2
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
 
     @ScaledMetric(relativeTo: .body) private var circleSize: CGFloat = 36
     @ScaledMetric(relativeTo: .body) private var hitTarget: CGFloat = 44
     @ScaledMetric(relativeTo: .body) private var strokeSize: CGFloat = 40
-    @ScaledMetric(relativeTo: .body) private var dayCircleSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .body) private var dayCircleSize: CGFloat = 32
 
     private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
     private let categories = HabitCategory.allCases
 
     var body: some View {
         ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-            // Live block preview — shows what tower block will look like (Norton 2012 IKEA Effect)
-            HStack {
-                Spacer()
-                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .fill(selectedCategory.style.gradient)
-                    .frame(
-                        width: CGFloat(selectedSize.columnSpan) * 44,
-                        height: CGFloat(selectedSize.rowSpan) * 44
-                    )
-                    .overlay {
-                        VStack(spacing: 2) {
-                            Image(systemName: selectedCategory.iconName)
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white)
-                            if !title.isEmpty {
-                                Text(title)
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(.white.opacity(0.8))
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-                    .animation(GridConstants.motionSmooth, value: selectedCategory)
-                    .animation(GridConstants.motionSmooth, value: selectedSize)
-                Spacer()
-            }
-            .padding(.vertical, 8)
-
+        VStack(alignment: .leading, spacing: 20) {
             // Toggle: One-Time Task / Recurring Habit
             HStack(spacing: 0) {
                 togglePill("Recurring", selected: !isOneTime) {
@@ -80,13 +52,37 @@ struct NewHabitMenu: View {
                 .padding(.vertical, 12)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            // Category — mini clay blocks (Lakoff & Johnson 1980 — visual metaphor continuity)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Category")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(.secondary)
+            // Live block preview — after title so user sees feedback (Norton 2012 IKEA Effect)
+            HStack {
+                Spacer()
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .fill(selectedCategory.style.gradient)
+                    .frame(
+                        width: CGFloat(selectedSize.columnSpan) * 28,
+                        height: CGFloat(selectedSize.rowSpan) * 28
+                    )
+                    .overlay {
+                        VStack(spacing: 2) {
+                            Image(systemName: selectedCategory.iconName)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white)
+                            if !title.isEmpty {
+                                Text(title)
+                                    .font(Typography.caption2)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                    .animation(GridConstants.motionSmooth, value: selectedCategory)
+                    .animation(GridConstants.motionSmooth, value: selectedSize)
+                Spacer()
+            }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget + 8), spacing: isAccessibilitySize ? 8 : 12)]) {
+            // Category — mini clay blocks (Lakoff & Johnson 1980 — visual metaphor continuity)
+            sectionCard("Category") {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: isAccessibilitySize ? 2 : 3), spacing: 12) {
                     ForEach(categories, id: \.self) { cat in
                         Button {
                             withAnimation(GridConstants.crossFade) { selectedCategory = cat }
@@ -105,6 +101,8 @@ struct NewHabitMenu: View {
                                 Text(cat.rawValue.capitalized)
                                     .font(Typography.caption2)
                                     .foregroundStyle(selectedCategory == cat ? .primary : .secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
                             }
                             .padding(.vertical, 6)
                             .padding(.horizontal, 2)
@@ -123,11 +121,7 @@ struct NewHabitMenu: View {
             }
 
             // Duration — block proportions (Treisman 1980 — pre-attentive processing)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Duration")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-
+            sectionCard("Duration") {
                 HStack(spacing: 12) {
                     ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
                         Button {
@@ -143,7 +137,7 @@ struct NewHabitMenu: View {
                                     )
                                 Text(size.rawValue.capitalized)
                                     .font(Typography.caption2)
-                                Text("\(size.durationMinutes)m")
+                                Text(size == .hard ? "1 hour" : "\(Int(size.durationMinutes)) min")
                                     .font(Typography.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -162,16 +156,13 @@ struct NewHabitMenu: View {
 
             // Schedule
             if isOneTime {
-                DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
-                    .font(Typography.bodyMedium)
+                sectionCard("Date") {
+                    DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
+                        .font(Typography.bodyMedium)
+                }
             } else {
-                // Day-of-week picker
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Days")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(.secondary)
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: hitTarget), spacing: isAccessibilitySize ? 8 : 8)]) {
+                sectionCard("Schedule") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
                         ForEach(DayCode.allCases, id: \.self) { day in
                             let isSelected = selectedDays.contains(day)
                             Button {
@@ -202,16 +193,29 @@ struct NewHabitMenu: View {
             }
 
             // Optional time picker
-            Toggle(isOn: $useTimePicker) {
-                Text("Set time")
-                    .font(Typography.bodyMedium)
-            }
-            .tint(selectedCategory.style.baseColor)
-            .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
+            sectionCard("Time") {
+                Toggle(isOn: $useTimePicker) {
+                    Text("Set time")
+                        .font(Typography.bodyMedium)
+                }
+                .tint(selectedCategory.style.baseColor)
+                .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
 
-            if useTimePicker {
-                DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
-                    .font(Typography.bodyMedium)
+                if useTimePicker {
+                    DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
+                        .font(Typography.bodyMedium)
+                }
+            }
+
+            // Grace period (Gardner et al. 2012)
+            if !isOneTime {
+                sectionCard("Grace Period") {
+                    Stepper("\(graceDays) day\(graceDays == 1 ? "" : "s")", value: $graceDays, in: 0...7)
+                        .font(Typography.bodyMedium)
+                    Text("Days you can miss without breaking your streak")
+                        .font(Typography.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // "Stack it" button — looks like a block, verb matches tower metaphor
@@ -293,6 +297,24 @@ struct NewHabitMenu: View {
 
     // MARK: - Create
 
+    // MARK: - Section Card (Wertheimer 1923 — Gestalt Proximity)
+
+    private func sectionCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(Typography.caption)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+            content()
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
+        )
+    }
+
     private func createHabit() {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
@@ -312,7 +334,8 @@ struct NewHabitMenu: View {
             frequency: isOneTime ? [] : Array(selectedDays),
             scheduledTime: timeStr,
             isTodo: isOneTime,
-            scheduledDate: isOneTime ? TimelineViewModel.dateString(from: scheduledDate) : nil
+            scheduledDate: isOneTime ? TimelineViewModel.dateString(from: scheduledDate) : nil,
+            graceDays: isOneTime ? 0 : graceDays
         )
 
         habit.tower = tower

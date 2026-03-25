@@ -10,6 +10,12 @@
 - [x] **Harmonious Dance Phase 4** — SHIPPED: staggered row reveal, week cascade, directional date, next-up glow, completed row polish
 - [x] **Harmonious Dance Phase 5** — SHIPPED: first block magic, tower aurora
 
+## For Add Task Claude (Plan Screen)
+
+- [ ] **Routines tab: add "Done" card** — show completed routines for today (Zeigarnik 1927)
+- [ ] **To-Dos tab: "Tomorrow" card missing** — was visible before, may be hidden by smart visibility. User wants it back.
+- [ ] **"Saved" section: no discoverable UI** — swipe-to-save is hidden. Needs visible affordance.
+
 ## Next Up
 
 - [ ] Reverse-fill for skip — hold + drag left to fill grey R→L (bidirectional intention gesture)

@@ -129,42 +129,50 @@ final class TowerAnimationCoordinator {
         let rowDelay: Double = 0.07
 
         Task { @MainActor in
-            // === OUTGOING WAVE (bottom → top) ===
+            // === OUTGOING WAVE (bottom → top) — 4 oscillations, ±3.5° ===
             for row in 0...maxRow {
                 let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
 
-                // Sway right + lift + glow
-                withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                // Sway RIGHT — big, slow, visible
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.35)) {
+                    for block in rowBlocks {
+                        let s = state(for: block.id)
+                        s.jubilationWobble = 3.5
+                        s.jubilationLift = -6
+                        s.jubilationGlow = 0.08
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
+
+                // Sway LEFT
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.35)) {
+                    for block in rowBlocks {
+                        state(for: block.id).jubilationWobble = -3.5
+                    }
+                }
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
+
+                // Sway RIGHT (decay)
+                withAnimation(.spring(response: 0.30, dampingFraction: 0.45)) {
                     for block in rowBlocks {
                         let s = state(for: block.id)
                         s.jubilationWobble = 2.0
-                        s.jubilationLift = -4
-                        s.jubilationGlow = 0.06
+                        s.jubilationLift = -3
+                        s.jubilationGlow = 0.04
                     }
                 }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
+                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.8 * 1_000_000_000))
 
-                // Sway left
-                withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                // Sway LEFT (final oscillation)
+                withAnimation(.spring(response: 0.30, dampingFraction: 0.50)) {
                     for block in rowBlocks {
-                        state(for: block.id).jubilationWobble = -2.0
-                    }
-                }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
-
-                // Small sway right + reduce
-                withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = 1.0
-                        s.jubilationLift = -2
-                        s.jubilationGlow = 0.03
+                        state(for: block.id).jubilationWobble = -1.0
                     }
                 }
                 try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.5 * 1_000_000_000))
 
                 // Settle
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     for block in rowBlocks {
                         let s = state(for: block.id)
                         s.jubilationWobble = 0

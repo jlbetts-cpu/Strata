@@ -12,7 +12,6 @@ struct FlippableBlockView: View {
     var onTap: (() -> Void)? = nil
 
     @State private var tapTrigger: Int = 0
-    @State private var isPressed: Bool = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -162,18 +161,6 @@ struct FlippableBlockView: View {
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
-        // Press highlight — instant touch-down feedback (Norman 1988)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed { withAnimation(GridConstants.microResponse) { isPressed = true } }
-                }
-                .onEnded { _ in
-                    withAnimation(GridConstants.microResponse) { isPressed = false }
-                }
-        )
-        .brightness(isPressed ? 0.06 : 0)
-        .scaleEffect(isPressed ? 0.98 : 1.0)
         .contentShape(Rectangle())
         .onTapGesture {
             HapticsEngine.lightTap()

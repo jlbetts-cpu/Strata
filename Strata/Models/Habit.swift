@@ -117,6 +117,9 @@ final class Habit {
     var anchorHabitID: UUID?
     var parentHabitID: UUID?
     var sortOrder: Int = 0
+    var isStepCompleted: Bool = false
+    var isInProgress: Bool = false
+    var isSaved: Bool = false
     var tower: Tower?
     var planFolder: PlanFolder?
 
@@ -138,7 +141,7 @@ final class Habit {
         isTodo: Bool = false,
         scheduledDate: String? = nil,
         todoOrder: Int? = nil,
-        graceDays: Int = 1,
+        graceDays: Int = 2,
         timeOfDay: TimeOfDay? = .anytime,
         sortOrder: Int = 0
     ) {
