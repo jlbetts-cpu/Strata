@@ -171,8 +171,8 @@ enum GridConstants {
     static let fillSweepEarly: TimeInterval = 0.36
 
     // MARK: - Spatial Tower (Phase 3)
-    static let depthShadowScale: CGFloat = 0.3
-    static let depthShadowYScale: CGFloat = 0.15
+    static let depthShadowScale: CGFloat = 0.2      // Reduced: stronger base shadow needs less accumulation
+    static let depthShadowYScale: CGFloat = 0.10
     static let breathingCycleDuration: TimeInterval = 3.0
     static let breathingIntensity: Double = 0.015
     static let ghostBlockOpacity: Double = 0.06
@@ -188,5 +188,11 @@ enum GridConstants {
     static let ambientGlowIntensity: Double = 0.08
 
     // MARK: - UI Elements
+    // MARK: - Block Shadow (post-border-removal, stronger)
+    static let blockShadowRadius: CGFloat = 5
+    static let blockShadowY: CGFloat = 2.5
+    static let blockShadowOpacity: Double = 0.12
+    static let blockShadowOpacityDark: Double = 0.20
+
     static let checkCircleSize: CGFloat = 24
 }

@@ -126,29 +126,17 @@ struct HabitBlockView: View {
 
     var body: some View {
         ZStack {
-            // Color fill — gradient from light tint at top to base color
+            // Vertical gradient — top light, natural (Apple HIG)
             LinearGradient(
                 stops: [
-                    .init(color: style.lightTint, location: 0.0),
-                    .init(color: style.baseColor, location: 0.3),
+                    .init(color: style.lightTint.opacity(0.7), location: 0.0),
+                    .init(color: style.baseColor, location: 0.25),
+                    .init(color: style.baseColor, location: 0.7),
                     .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-
-            // Frosted gradient overlay — subtle white mist at the bottom (light mode only)
-            if colorScheme == .light {
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .white.opacity(0.20), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
 
             // Text content: title + time + category icon
             BlockContentOverlay(
@@ -161,37 +149,22 @@ struct HabitBlockView: View {
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // Overlay 1: Crisp border — visible at top, fades toward bottom
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
-                            .init(color: borderHighlight.opacity(0.0), location: 0.75)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 2.5
-                )
-        )
-        // Diffused border removed — single crisp border is sufficient for clay depth (Apple HIG: one treatment per element)
-        // Single soft ambient shadow
+        // No border — iOS 17-18: shadow alone carries depth
+        // Unified shadow (no colored glow in dark mode)
         .shadow(
-            color: colorScheme == .dark
-                ? style.glow
-                : .black.opacity(GridConstants.shadowOpacity),
-            radius: colorScheme == .dark ? 8 : GridConstants.shadowRadius,
+            color: .black.opacity(colorScheme == .dark
+                ? GridConstants.blockShadowOpacityDark
+                : GridConstants.blockShadowOpacity),
+            radius: GridConstants.blockShadowRadius,
             x: 0,
-            y: colorScheme == .dark ? 0 : GridConstants.shadowY
+            y: GridConstants.blockShadowY
         )
-        // Perfect-day golden patina (week/month views only)
+        // Perfect-day patina — golden surface wash (not stroke)
         .overlay {
             if patinaOpacity > 0 {
                 RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .stroke(GridConstants.patinaGold.opacity(patinaOpacity), lineWidth: 2)
+                    .fill(GridConstants.patinaGold.opacity(patinaOpacity * 0.5))
+                    .blendMode(.overlay)
             }
         }
         .drawingGroup()

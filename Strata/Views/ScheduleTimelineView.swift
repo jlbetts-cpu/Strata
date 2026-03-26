@@ -20,6 +20,9 @@ struct ScheduleTimelineView: View {
     var onboarding: OnboardingState? = nil
     // debugTower removed — debug tools in Settings only
     var cachedStreaks: [UUID: Int] = [:]
+    var healthKitProgress: [UUID: Double] = [:]
+    var verifiedHabitIDs: Set<UUID> = []
+    var calendarEvents: [CalendarAnchor] = []
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
@@ -30,6 +33,7 @@ struct ScheduleTimelineView: View {
     @State private var habitToSchedule: Habit? = nil
     @State private var unscheduledCollapsed: Bool = false
     @AppStorage("hasCompletedFirstHabit") private var hasCompletedFirstHabit: Bool = false
+    @AppStorage("hasSeenHealthKitVerification") private var hasSeenHealthKitVerification: Bool = false
     @State private var draggingChipID: UUID? = nil
     @State private var isDropTargeted: Bool = false
     @State private var hoverInsertionIndex: Int? = nil
@@ -93,11 +97,12 @@ struct ScheduleTimelineView: View {
         cachedCurrentMinute = Calendar.current.component(.minute, from: Date())
         cachedNowFraction = Double(cachedCurrentHour) + Double(cachedCurrentMinute) / 60.0
 
-        // Cache nextUpHabitID (Fix 4: O(n) once instead of O(n²) per frame)
+        // Cache nextUpHabitID — skip verified-ready habits (they don't need prompting)
         if isViewingToday {
             cachedNextUpID = scheduledHabits.first { habit in
                 !completedHabitIDs.contains(habit.id) &&
                 !skippedHabitIDs.contains(habit.id) &&
+                !verifiedHabitIDs.contains(habit.id) &&
                 (TimelineViewModel.effectiveHour(for: habit) ?? 0) >= cachedNowFraction - 0.5
             }?.id
         } else {
@@ -412,10 +417,93 @@ struct ScheduleTimelineView: View {
         .accessibilityHint("Tap circle to complete, or tap chip to schedule")
     }
 
+    // MARK: - Calendar Ghost Event Block
+
+    private func calendarGhostBlock(event: CalendarAnchor) -> some View {
+        let eventColor = Color(red: event.colorRed, green: event.colorGreen, blue: event.colorBlue)
+
+        return HStack(alignment: .top, spacing: 0) {
+            // Time label (matches habit row layout)
+            Text(event.timeString)
+                .font(Typography.caption2)
+                .foregroundStyle(Color.primary.opacity(0.35))
+                .frame(width: 56, alignment: .trailing)
+                .padding(.trailing, 12)
+                .padding(.top, 10)
+
+            // Ghost block
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(eventColor)
+                    .frame(width: 6, height: 6)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.title)
+                        .font(Typography.caption)
+                        .foregroundStyle(Color.primary.opacity(0.6))
+                        .lineLimit(1)
+
+                    Text("\(event.timeString) – \(event.endTimeString)")
+                        .font(Typography.caption2)
+                        .foregroundStyle(Color.primary.opacity(0.4))
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .fill(colorScheme == .dark ? AppColors.ghostBaseDark : AppColors.ghostBase)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .stroke(eventColor.opacity(0.5), lineWidth: 1.5)
+            )
+            .opacity(0.6)
+            .allowsHitTesting(false)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: - All-Day Events Banner
+
+    @ViewBuilder
+    private var allDayEventsBanner: some View {
+        let allDay = calendarEvents.filter(\.isAllDay)
+        if !allDay.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(allDay.prefix(3)) { event in
+                    Circle()
+                        .fill(Color(red: event.colorRed, green: event.colorGreen, blue: event.colorBlue))
+                        .frame(width: 6, height: 6)
+                }
+                Text("\(allDay.count) all-day event\(allDay.count == 1 ? "" : "s")")
+                    .font(Typography.caption2)
+                    .foregroundStyle(Color.primary.opacity(0.3))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        }
+    }
+
+    // MARK: - Interleaved Timeline Items
+
+    /// Builds a merged list of habits and calendar events sorted by time
+    private var interleavedCalendarEvents: [CalendarAnchor] {
+        calendarEvents.filter { !$0.isAllDay }
+    }
+
     // MARK: - Scheduled Section (flat list with time labels)
 
     private var scheduledSection: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
+            // All-day events ambient line
+            allDayEventsBanner
+
             if !scheduledHabits.isEmpty {
                 // Momentum progress for escalation (Hull's Goal Gradient)
                 let completionProgress = allHabits.isEmpty ? 0.0 :
@@ -501,9 +589,30 @@ struct ScheduleTimelineView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
 
+                // Calendar ghost events before first habit
+                let timedEvents = interleavedCalendarEvents
+                let firstHabitHour = scheduledHabits.first.flatMap { TimelineViewModel.effectiveHour(for: $0) } ?? 24
+                ForEach(timedEvents.filter { event in
+                    let cal = Calendar.current
+                    let h = Double(cal.component(.hour, from: event.startDate)) + Double(cal.component(.minute, from: event.startDate)) / 60.0
+                    return h < firstHabitHour
+                }) { event in
+                    calendarGhostBlock(event: event)
+                }
+
                 // Habit rows with time labels
                 // Pre-build index dictionary (O(n) once, instead of O(n²) inside ForEach)
                 let indexByID = Dictionary(uniqueKeysWithValues: scheduledHabits.enumerated().map { ($1.id, $0) })
+                // Verified indices for staggered cascade (60ms per row — Material Design stagger research)
+                let verifiedScheduledIndices: [UUID: Int] = {
+                    var dict: [UUID: Int] = [:]
+                    var idx = 0
+                    for h in scheduledHabits where verifiedHabitIDs.contains(h.id)
+                        && !completedHabitIDs.contains(h.id) {
+                        dict[h.id] = idx; idx += 1
+                    }
+                    return dict
+                }()
                 ForEach(scheduledHabits, id: \.id) { habit in
                     let isCompleted = completedHabitIDs.contains(habit.id)
                     let isSkipped = skippedHabitIDs.contains(habit.id)
@@ -562,7 +671,11 @@ struct ScheduleTimelineView: View {
                             isAlreadySkipped: isSkipped,
                             photoFileName: habit.logs.first { $0.dateString == TimelineViewModel.dateString(from: selectedDate) }?.imageFileName,
                             completionProgress: completionProgress,
-                            currentStreak: cachedStreaks[habit.id] ?? 0
+                            currentStreak: cachedStreaks[habit.id] ?? 0,
+                            healthKitProgress: healthKitProgress[habit.id] ?? 0,
+                            isHealthKitVerified: verifiedHabitIDs.contains(habit.id),
+                            verificationDelay: Double(verifiedScheduledIndices[habit.id] ?? 0) * 0.06,
+                            isFirstEverVerification: !hasSeenHealthKitVerification && verifiedHabitIDs.contains(habit.id)
                         )
                         .opacity(isViewingPast && !isCompleted && !isSkipped ? 0.5 : 1.0)
                     }
@@ -648,6 +761,26 @@ struct ScheduleTimelineView: View {
                             .padding(.bottom, 4)
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
+
+                    // Calendar ghost events between this habit and the next
+                    let myIdx = indexByID[habit.id] ?? 0
+                    let myEndHour: Double = {
+                        let h = effectiveHours[habit.id] ?? 0
+                        return h + habit.blockSize.durationMinutes / 60.0
+                    }()
+                    let nextHabitHour: Double = {
+                        if myIdx + 1 < scheduledHabits.count {
+                            return effectiveHours[scheduledHabits[myIdx + 1].id] ?? 24
+                        }
+                        return 24
+                    }()
+                    ForEach(timedEvents.filter { event in
+                        let cal = Calendar.current
+                        let h = Double(cal.component(.hour, from: event.startDate)) + Double(cal.component(.minute, from: event.startDate)) / 60.0
+                        return h >= myEndHour && h < nextHabitHour
+                    }) { event in
+                        calendarGhostBlock(event: event)
+                    }
                 }
             } else if unscheduledHabits.isEmpty {
                 // No habits at all — handled by fullEmptyState
@@ -710,6 +843,12 @@ struct ScheduleTimelineView: View {
                 busyRanges.append((start, end))
             }
         }
+        // Include calendar events as busy ranges
+        for event in calendarEvents where !event.isAllDay {
+            if let range = event.busyRange {
+                busyRanges.append(range)
+            }
+        }
         busyRanges.sort { $0.start < $1.start }
 
         let nowMinutes = cachedCurrentHour * 60 + cachedCurrentMinute
@@ -748,6 +887,12 @@ struct ScheduleTimelineView: View {
                 let start = Int(hour * 60)
                 let end = start + Int(h.blockSize.durationMinutes)
                 busyRanges.append((start, end))
+            }
+        }
+        // Include calendar events as busy ranges
+        for event in calendarEvents where !event.isAllDay {
+            if let range = event.busyRange {
+                busyRanges.append(range)
             }
         }
         busyRanges.sort { $0.start < $1.start }

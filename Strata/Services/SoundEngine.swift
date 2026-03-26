@@ -73,16 +73,11 @@ enum SoundEngine {
         playTone(startFreq: freq, endFreq: freq * 0.6, duration: 0.08, volume: 0.20, decay: true)
     }
 
-    /// C-major arpeggio on all-clear celebration
+    /// Single warm tone — resolved satisfaction (Berlyne 1971, Krumhansl 1990)
     static func allClearChime() {
         guard !isMuted else { return }
-        let notes: [Double] = [523.25, 659.25, 783.99, 1046.50] // C5, E5, G5, C6
-        for (i, freq) in notes.enumerated() {
-            let delay = Double(i) * 0.06
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                playTone(startFreq: freq, endFreq: freq, duration: 0.10, volume: 0.12)
-            }
-        }
+        // G5 (783.99 Hz) — psychologically stable, warm, resolved
+        playTone(startFreq: 783.99, endFreq: 783.99, duration: 0.25, volume: 0.14, decay: true)
     }
 
     // MARK: - Tone Generation

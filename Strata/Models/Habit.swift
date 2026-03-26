@@ -59,6 +59,15 @@ enum BlockSize: String, Codable, CaseIterable {
         case .hard: return 60
         }
     }
+
+    /// Premium effort label — effort ≠ time (Kahneman 2011)
+    var effortLabel: String {
+        switch self {
+        case .small: return "Quick"
+        case .medium: return "Regular"
+        case .hard: return "Deep"
+        }
+    }
 }
 
 enum TimeOfDay: String, Codable, CaseIterable {
@@ -100,7 +109,7 @@ enum DayCode: String, Codable, CaseIterable {
 
 @Model
 final class Habit {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var title: String
     var category: HabitCategory
     var blockSize: BlockSize
@@ -120,6 +129,9 @@ final class Habit {
     var isStepCompleted: Bool = false
     var isInProgress: Bool = false
     var isSaved: Bool = false
+    var healthKitType: String?        // "stepCount", "workout.running", "mindfulSession"
+    var healthKitThreshold: Double?   // 10000 (steps), 30 (minutes), 0 (presence-only)
+    var customDurationMinutes: Int?   // nil = use BlockSize default. Decoupled: effort ≠ duration (Kahneman 2011)
     var tower: Tower?
     var planFolder: PlanFolder?
 
@@ -129,6 +141,11 @@ final class Habit {
     var frequency: [DayCode] {
         get { frequencyRawValues.compactMap { DayCode(rawValue: $0) } }
         set { frequencyRawValues = newValue.map(\.rawValue) }
+    }
+
+    /// Effective duration — custom if set, otherwise BlockSize default
+    var effectiveDurationMinutes: Int {
+        customDurationMinutes ?? Int(blockSize.durationMinutes)
     }
 
     init(

@@ -86,6 +86,18 @@ struct BlockExpansionCard: View {
                     }
                     .animation(GridConstants.crossFade, value: block.id)
 
+                    // HealthKit verification badge
+                    if currentLog.verifiedByHealthKit {
+                        HStack(spacing: 6) {
+                            Image(systemName: "heart.circle")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(AppColors.healthGreen)
+                            Text("Verified by Apple Health")
+                                .font(Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     // Note editor
                     TextField("Add a note…", text: noteBinding, axis: .vertical)
                         .font(Typography.bodySmall)

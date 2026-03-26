@@ -34,12 +34,12 @@ extension HabitCategory {
         switch self {
         case .health:
             return CategoryStyle(
-                baseColor: Color(hex: 0x10B77F),
-                border: Color(hex: 0x0D9A6B),
-                glow: Color(hex: 0x10B77F).opacity(0.30),
+                baseColor: Color(hex: 0x0EAD74),   // Deeper for WCAG contrast
+                border: Color(hex: 0x0B9362),
+                glow: Color(hex: 0x0EAD74).opacity(0.20),
                 text: .white,
-                lightTint: Color(hex: 0x3CCFA0),
-                darkShade: Color(hex: 0x0D9A6B)
+                lightTint: Color(hex: 0x30C494),
+                darkShade: Color(hex: 0x0B9362)
             )
         case .work:
             return CategoryStyle(
@@ -70,12 +70,12 @@ extension HabitCategory {
             )
         case .social:
             return CategoryStyle(
-                baseColor: Color(hex: 0x14D4C1),
-                border: Color(hex: 0x10B3A3),
-                glow: Color(hex: 0x14D4C1).opacity(0.30),
+                baseColor: Color(hex: 0xF97066),   // Coral — 153° from Health, ADHD-safe
+                border: Color(hex: 0xD45E55),
+                glow: Color(hex: 0xF97066).opacity(0.20),
                 text: .white,
-                lightTint: Color(hex: 0x42E0D2),
-                darkShade: Color(hex: 0x10B3A3)
+                lightTint: Color(hex: 0xFB8E86),
+                darkShade: Color(hex: 0xD45E55)
             )
         case .mindfulness:
             return CategoryStyle(
@@ -99,7 +99,7 @@ enum AppColors {
     static let healthGreen = Color(hex: 0x34C48B)
     static let warmRed = Color(hex: 0xE85D4A)
     /// Ghost block background for incomplete timeline habits (light mode) — 12% luminance contrast to warm background (WCAG AA)
-    static let ghostBase = Color(red: 0.92, green: 0.91, blue: 0.90)
+    static let ghostBase = Color(red: 0.90, green: 0.89, blue: 0.88)
     /// Ghost block background for incomplete timeline habits (dark mode) — native iOS card color
     static let ghostBaseDark = Color(uiColor: .secondarySystemGroupedBackground)
 }

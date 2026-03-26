@@ -17,8 +17,12 @@ struct NewHabitMenu: View {
     @State private var useTimePicker = false
     @State private var scheduledTime = Date()
     @State private var graceDays: Int = 2
+    @State private var durationMinutes: Int = 15
+    @State private var selectedHealthKitType: HealthKitHabitType? = nil
+    @State private var healthKitThreshold: Double = 0
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(HealthKitService.self) private var healthKitService
 
     @ScaledMetric(relativeTo: .body) private var circleSize: CGFloat = 36
     @ScaledMetric(relativeTo: .body) private var hitTarget: CGFloat = 44
@@ -29,226 +33,215 @@ struct NewHabitMenu: View {
     private let categories = HabitCategory.allCases
 
     var body: some View {
-        ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-            // Toggle: One-Time Task / Recurring Habit
-            HStack(spacing: 0) {
-                togglePill("Recurring", selected: !isOneTime) {
-                    withAnimation(GridConstants.toggleSwitch) { isOneTime = false }
-                    HapticsEngine.tick()
+        NavigationStack {
+        Form {
+            // Section 1: Basics
+            Section {
+                Picker("Type", selection: $isOneTime) {
+                    Text("Recurring").tag(false)
+                    Text("One-Time").tag(true)
                 }
-                togglePill("One-Time", selected: isOneTime) {
-                    withAnimation(GridConstants.toggleSwitch) { isOneTime = true }
-                    HapticsEngine.tick()
-                }
-            }
-            .padding(4)
-            .background(Color.primary.opacity(0.06), in: .capsule)
+                .pickerStyle(.segmented)
+                .onChange(of: isOneTime) { _, _ in HapticsEngine.tick() }
 
-            // Title
-            TextField("Habit name", text: $title)
-                .font(Typography.bodyLarge)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            // Live block preview — after title so user sees feedback (Norton 2012 IKEA Effect)
-            HStack {
-                Spacer()
-                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .fill(selectedCategory.style.gradient)
-                    .frame(
-                        width: CGFloat(selectedSize.columnSpan) * 28,
-                        height: CGFloat(selectedSize.rowSpan) * 28
-                    )
-                    .overlay {
-                        VStack(spacing: 2) {
-                            Image(systemName: selectedCategory.iconName)
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white)
-                            if !title.isEmpty {
-                                Text(title)
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(.white.opacity(0.8))
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-                    .animation(GridConstants.motionSmooth, value: selectedCategory)
-                    .animation(GridConstants.motionSmooth, value: selectedSize)
-                Spacer()
+                TextField("Title", text: $title)
             }
 
-            // Category — mini clay blocks (Lakoff & Johnson 1980 — visual metaphor continuity)
-            sectionCard("Category") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: isAccessibilitySize ? 2 : 3), spacing: 12) {
-                    ForEach(categories, id: \.self) { cat in
-                        Button {
-                            withAnimation(GridConstants.crossFade) { selectedCategory = cat }
-                            HapticsEngine.tick()
-                        } label: {
-                            VStack(spacing: 4) {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(cat.style.gradient)
-                                    .frame(width: circleSize, height: circleSize)
-                                    .overlay {
-                                        Image(systemName: cat.iconName)
-                                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                                            .foregroundStyle(.white)
-                                    }
-                                    .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-                                Text(cat.rawValue.capitalized)
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(selectedCategory == cat ? .primary : .secondary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.75)
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 2)
-                            .background {
-                                if selectedCategory == cat {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(cat.style.baseColor.opacity(0.1))
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(cat.rawValue)
-                        .accessibilityAddTraits(selectedCategory == cat ? .isSelected : [])
-                    }
-                }
-            }
-
-            // Duration — block proportions (Treisman 1980 — pre-attentive processing)
-            sectionCard("Duration") {
-                HStack(spacing: 12) {
-                    ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
-                        Button {
-                            withAnimation(GridConstants.crossFade) { selectedSize = size }
-                            HapticsEngine.tick()
-                        } label: {
-                            VStack(spacing: 4) {
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(selectedCategory.style.gradient)
-                                    .frame(
-                                        width: CGFloat(size.columnSpan) * 20,
-                                        height: CGFloat(size.rowSpan) * 20
-                                    )
-                                Text(size.rawValue.capitalized)
-                                    .font(Typography.caption2)
-                                Text(size == .hard ? "1 hour" : "\(Int(size.durationMinutes)) min")
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                            .background {
-                                if selectedSize == size {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedCategory.style.baseColor.opacity(0.1))
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            // Schedule
-            if isOneTime {
-                sectionCard("Date") {
-                    DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
-                        .font(Typography.bodyMedium)
-                }
-            } else {
-                sectionCard("Schedule") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
-                        ForEach(DayCode.allCases, id: \.self) { day in
-                            let isSelected = selectedDays.contains(day)
+            // Section 2: Category — horizontal capsule pills
+            Section("Category") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categories, id: \.self) { cat in
                             Button {
-                                withAnimation(GridConstants.crossFade) {
-                                    if isSelected {
-                                        selectedDays.remove(day)
-                                    } else {
-                                        selectedDays.insert(day)
-                                    }
-                                }
+                                withAnimation(GridConstants.crossFade) { selectedCategory = cat }
                                 HapticsEngine.tick()
                             } label: {
-                                Text(day.rawValue)
-                                    .font(Typography.bodySmall)
-                                    .foregroundStyle(isSelected ? .white : Color.primary)
-                                    .frame(width: dayCircleSize, height: dayCircleSize)
-                                    .background(
-                                        isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
-                                        in: Circle()
-                                    )
+                                HStack(spacing: 6) {
+                                    Image(systemName: cat.iconName)
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(cat.rawValue.capitalized)
+                                        .font(Typography.bodySmall)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    selectedCategory == cat
+                                        ? cat.style.baseColor
+                                        : Color.primary.opacity(0.06),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(selectedCategory == cat ? .white : .primary)
                             }
                             .buttonStyle(.plain)
-                            .frame(width: hitTarget, height: hitTarget)
-                            .contentShape(Circle())
+                            .accessibilityLabel(cat.rawValue)
+                            .accessibilityAddTraits(selectedCategory == cat ? .isSelected : [])
                         }
                     }
                 }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
             }
 
-            // Optional time picker
-            sectionCard("Time") {
-                Toggle(isOn: $useTimePicker) {
-                    Text("Set time")
-                        .font(Typography.bodyMedium)
+            // Section 3: Effort — segmented picker (Kahneman 2011: effort ≠ time)
+            Section("Effort") {
+                Picker("Effort", selection: $selectedSize) {
+                    ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
+                        Text(size.effortLabel).tag(size)
+                    }
                 }
-                .tint(selectedCategory.style.baseColor)
-                .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
+                .pickerStyle(.segmented)
+                .onChange(of: selectedSize) { _, newSize in
+                    HapticsEngine.tick()
+                    durationMinutes = Int(newSize.durationMinutes) // Auto-suggest, user can override
+                }
 
+                // Subtle preview — shows what block you're building
+                HStack {
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(selectedCategory.style.gradient)
+                        .frame(
+                            width: CGFloat(selectedSize.columnSpan) * 20,
+                            height: CGFloat(selectedSize.rowSpan) * 20
+                        )
+                        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+                        .animation(GridConstants.motionSmooth, value: selectedSize)
+                        .animation(GridConstants.motionSmooth, value: selectedCategory)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
+
+            // Section 4: Duration (decoupled from effort — Kahneman 2011)
+            Section("Duration") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
+                            Button {
+                                durationMinutes = mins
+                                HapticsEngine.tick()
+                            } label: {
+                                Text(formatDuration(mins))
+                                    .font(Typography.bodySmall)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        durationMinutes == mins
+                                            ? selectedCategory.style.baseColor
+                                            : Color.primary.opacity(0.06),
+                                        in: Capsule()
+                                    )
+                                    .foregroundStyle(durationMinutes == mins ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 0))
+
+                Stepper(formatDuration(durationMinutes), value: $durationMinutes, in: 5...180, step: 5)
+                    .onChange(of: durationMinutes) { _, _ in HapticsEngine.tick() }
+            }
+
+            // Section 5: Schedule
+            if isOneTime {
+                Section("Date") {
+                    DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
+                }
+            } else {
+                Section("Schedule") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(DayCode.allCases, id: \.self) { day in
+                                let isSelected = selectedDays.contains(day)
+                                Button {
+                                    if isSelected { selectedDays.remove(day) }
+                                    else { selectedDays.insert(day) }
+                                    HapticsEngine.tick()
+                                } label: {
+                                    Text(day.rawValue)
+                                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                                        .frame(width: 36, height: 36)
+                                        .background(
+                                            isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
+                                            in: Circle()
+                                        )
+                                        .foregroundStyle(isSelected ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                }
+            }
+
+            // Section 5: Time
+            Section {
+                Toggle("Set time", isOn: $useTimePicker)
+                    .tint(selectedCategory.style.baseColor)
+                    .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
                 if useTimePicker {
                     DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
-                        .font(Typography.bodyMedium)
                 }
             }
 
-            // Grace period (Gardner et al. 2012)
+            // Section 6: Grace period (recurring only)
             if !isOneTime {
-                sectionCard("Grace Period") {
-                    Stepper("\(graceDays) day\(graceDays == 1 ? "" : "s")", value: $graceDays, in: 0...7)
-                        .font(Typography.bodyMedium)
+                Section {
+                    Stepper("\(graceDays) day\(graceDays == 1 ? "" : "s") grace",
+                            value: $graceDays, in: 0...7)
+                } footer: {
                     Text("Days you can miss without breaking your streak")
-                        .font(Typography.caption2)
-                        .foregroundStyle(.secondary)
                 }
             }
 
-            // "Stack it" button — looks like a block, verb matches tower metaphor
-            Button {
-                createHabit()
-            } label: {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(.white.opacity(0.3))
-                        .frame(width: 16, height: 16)
-                    Text("Stack it")
-                        .fontWeight(.semibold)
+            // Section 7: HealthKit (Health + Mindfulness only)
+            if !isOneTime && (selectedCategory == .health || selectedCategory == .mindfulness) {
+                Section {
+                    HStack {
+                        Image(systemName: "heart.circle")
+                            .foregroundStyle(AppColors.healthGreen)
+                        Text("Auto-Verify")
+                        Spacer()
+                        if healthKitService.isAvailable {
+                            Picker("Type", selection: $selectedHealthKitType) {
+                                Text("None").tag(HealthKitHabitType?.none)
+                                ForEach(availableHealthKitTypes, id: \.rawValue) { type in
+                                    Text(type.displayName).tag(Optional(type))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                    if let type = selectedHealthKitType, !type.thresholdPresets.isEmpty {
+                        Picker("Threshold", selection: $healthKitThreshold) {
+                            ForEach(type.thresholdPresets, id: \.value) { preset in
+                                Text(preset.label).tag(preset.value)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text("Automatically verify completion from Apple Health data")
                 }
-                .font(Typography.blockTitle)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    selectedCategory.style.gradient,
-                    in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                )
-                .shadow(color: selectedCategory.style.baseColor.opacity(0.3), radius: 8, y: 4)
             }
-            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
         }
-        .padding(20)
+        .navigationTitle("Add")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    HapticsEngine.lightTap()
+                    isPresented = false
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") { createHabit() }
+                    .fontWeight(.semibold)
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
-        // Ambient category tint — sheet breathes with your choice
-        .background {
-            selectedCategory.style.baseColor.opacity(0.04)
-                .ignoresSafeArea()
-                .animation(GridConstants.motionSmooth, value: selectedCategory)
         }
         .onAppear {
             if let prefill = prefillTime {
@@ -295,7 +288,19 @@ struct NewHabitMenu: View {
             }
     }
 
-    // MARK: - Create
+    // MARK: - Available HealthKit Types
+
+    private var availableHealthKitTypes: [HealthKitHabitType] {
+        switch selectedCategory {
+        case .health:
+            return [.stepCount, .workout, .workoutRunning, .workoutWalking,
+                    .workoutCycling, .workoutSwimming, .workoutStrength, .workoutHIIT]
+        case .mindfulness:
+            return [.mindfulSession, .workoutYoga]
+        default:
+            return []
+        }
+    }
 
     // MARK: - Section Card (Wertheimer 1923 — Gestalt Proximity)
 
@@ -313,6 +318,15 @@ struct NewHabitMenu: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
         )
+    }
+
+    // MARK: - Create
+
+    private func formatDuration(_ mins: Int) -> String {
+        if mins < 60 { return "\(mins)m" }
+        let h = mins / 60
+        let m = mins % 60
+        return m > 0 ? "\(h)h \(m)m" : "\(h)h"
     }
 
     private func createHabit() {
@@ -338,6 +352,22 @@ struct NewHabitMenu: View {
             graceDays: isOneTime ? 0 : graceDays
         )
 
+        // Custom duration (decoupled from effort)
+        let defaultDuration = Int(selectedSize.durationMinutes)
+        if durationMinutes != defaultDuration {
+            habit.customDurationMinutes = durationMinutes
+        }
+
+        // HealthKit auto-verify configuration
+        if let hkType = selectedHealthKitType {
+            habit.healthKitType = hkType.rawValue
+            habit.healthKitThreshold = healthKitThreshold
+            // Request HealthKit access for this type
+            Task {
+                _ = await healthKitService.requestAccess(for: hkType)
+            }
+        }
+
         habit.tower = tower
         modelContext.insert(habit)
         try? modelContext.save()
@@ -347,6 +377,50 @@ struct NewHabitMenu: View {
 
         withAnimation(GridConstants.toggleSwitch) {
             isPresented = false
+        }
+    }
+}
+
+// MARK: - Flow Layout (wrapping horizontal chips)
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

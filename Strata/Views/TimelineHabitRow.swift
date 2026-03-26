@@ -13,6 +13,10 @@ struct TimelineHabitRow: View {
     var photoFileName: String? = nil
     var completionProgress: Double = 0  // 0.0→1.0, fraction of day's habits completed
     var currentStreak: Int = 0          // Current streak for milestone detection
+    var healthKitProgress: Double = 0   // 0.0→1.0, HealthKit verification progress
+    var isHealthKitVerified: Bool = false // Threshold crossed, ready for tap-to-acknowledge
+    var verificationDelay: TimeInterval = 0  // Stagger delay for multi-row cascade (60ms per row — Material Design)
+    var isFirstEverVerification: Bool = false // First-time celebration gate
 
     enum TaskState {
         case incomplete, filling, completed, skipped
@@ -31,6 +35,11 @@ struct TimelineHabitRow: View {
     @State private var completionBounce: Bool = false
     @State private var streakBadgeVisible: Bool = false
     @State private var streakMilestone: Int = 0
+    @State private var verifiedPreFilled: Bool = false  // HealthKit pre-fill state
+    @State private var ringCompletionPop: Bool = false   // 100% ring elastic pop
+    @State private var preFillProgress: CGFloat = 0      // Right-to-left sweep progress
+    @State private var firstVerifyGlowOpacity: CGFloat = 0  // First-time glow pulse
+    @State private var showVerificationTooltip: Bool = false // First-time tooltip
     private let holdDuration: TimeInterval = 0.6 // Fogg's Tiny Habits: deliberate but not slow
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,6 +55,15 @@ struct TimelineHabitRow: View {
     }
 
     private var isFilling: Bool { state == .filling }
+
+    private var isHealthKitHabit: Bool {
+        habit.healthKitType != nil
+    }
+
+    /// Verified-ready: HealthKit crossed threshold, pre-filled, awaiting tap
+    private var isVerifiedReady: Bool {
+        isHealthKitVerified && verifiedPreFilled && !isCompleted
+    }
 
     private var isInteractive: Bool {
         !isAlreadyCompleted && !isAlreadySkipped && state == .incomplete
@@ -108,6 +126,67 @@ struct TimelineHabitRow: View {
                         state = .incomplete
                         isSwiped = false
                     }
+                    // If HealthKit still verified, restore verified-ready state
+                    if isHealthKitVerified {
+                        verifiedPreFilled = true
+                        preFillProgress = 1.0  // Snap — no animation on undo restore
+                    }
+                }
+            }
+            .onChange(of: isHealthKitVerified) { _, verified in
+                if verified && !isCompleted && !verifiedPreFilled {
+                    completionTask = Task { @MainActor in
+                        // Stagger delay for multi-row cascade (60ms per row — Material Design research)
+                        if verificationDelay > 0 {
+                            try? await Task.sleep(for: .milliseconds(Int(verificationDelay * 1000)))
+                            guard !Task.isCancelled else { return }
+                        }
+                        // Ring completion pop
+                        withAnimation(anim(GridConstants.elasticPop)) { ringCompletionPop = true }
+                        HapticsEngine.tick()
+                        // Pre-fill after ring pop settles
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled else { return }
+                        verifiedPreFilled = true
+                        withAnimation(anim(GridConstants.progressFill)) { preFillProgress = 1.0 }
+                        // lightTap only on first row (no delay = first)
+                        if verificationDelay == 0 { HapticsEngine.lightTap() }
+                        // Reset ring pop
+                        try? await Task.sleep(for: .milliseconds(300))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(anim(GridConstants.motionSnappy)) { ringCompletionPop = false }
+                        // First-time verification celebration
+                        if isFirstEverVerification && verificationDelay == 0 {
+                            HapticsEngine.success()
+                            withAnimation(anim(GridConstants.crossFade)) {
+                                showVerificationTooltip = true
+                            }
+                            if !reduceMotion {
+                                firstVerifyGlowOpacity = 0.15
+                                withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                                    firstVerifyGlowOpacity = 0.40
+                                }
+                            }
+                            // Auto-dismiss tooltip after 4s (UX research: 3–5s for short tooltips)
+                            try? await Task.sleep(for: .milliseconds(4000))
+                            guard !Task.isCancelled else { return }
+                            withAnimation(anim(GridConstants.crossFade)) {
+                                showVerificationTooltip = false
+                            }
+                            if !reduceMotion {
+                                withAnimation(.easeOut(duration: 1.0)) {
+                                    firstVerifyGlowOpacity = 0
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .onAppear {
+                // Snap pre-fill for already-verified habits (no animation on appear)
+                if isHealthKitVerified && !isCompleted && !verifiedPreFilled {
+                    verifiedPreFilled = true
+                    preFillProgress = 1.0
                 }
             }
             .onChange(of: isAlreadySkipped) { _, newValue in
@@ -152,19 +231,7 @@ struct TimelineHabitRow: View {
                         )
                     }
 
-                    // Crisp top-lit border (matches tower blocks)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: style.lightTint.opacity(0.35), location: 0.0),
-                                    .init(color: style.lightTint.opacity(0.15), location: 0.4),
-                                    .init(color: style.lightTint.opacity(0.0), location: 0.75)
-                                ],
-                                startPoint: .top, endPoint: .bottom
-                            ),
-                            lineWidth: 1.5
-                        )
+                    // Border removed — iOS 17-18: shadow alone carries depth
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {
@@ -247,6 +314,34 @@ struct TimelineHabitRow: View {
                     // CONTENT — dual-layer "slice" during fill
                     sliceContent(geo: geo)
 
+                    // HealthKit pre-fill overlay (radiates from check circle — right to left)
+                    if preFillProgress > 0 && !isCompleted {
+                        ZStack {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: style.lightTint, location: 0.0),
+                                    .init(color: style.baseColor, location: 0.3),
+                                    .init(color: style.baseColor, location: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0.0),
+                                    .init(color: .white.opacity(0.20), location: 1.0)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
+                        .opacity(0.85)
+                        .mask(alignment: .trailing) {
+                            Rectangle()
+                                .frame(width: geo.size.width * preFillProgress)
+                        }
+                    }
+
                     // Check circle (outside slice — always interactive)
                     HStack {
                         Spacer()
@@ -266,6 +361,9 @@ struct TimelineHabitRow: View {
                                 }
                                 HapticsEngine.lightTap()
                                 onUndoSkip?(habit)
+                            } else if isVerifiedReady {
+                                // Tap-to-acknowledge: single tap fires full completion pipeline
+                                beginCompletion()
                             } else if state == .incomplete {
                                 beginCompletion()
                             }
@@ -279,9 +377,17 @@ struct TimelineHabitRow: View {
                 }
                 .compositingGroup()
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                // First-time verification glow pulse (Apple Watch Breathe cadence)
+                .overlay {
+                    if firstVerifyGlowOpacity > 0 {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(style.baseColor.opacity(firstVerifyGlowOpacity), lineWidth: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
                 // Fluid Fill: press-to-complete on the entire block
                 .onLongPressGesture(minimumDuration: holdDuration, pressing: { isPressing in
-                    guard isInteractive else { return }
+                    guard isInteractive, !isVerifiedReady else { return }
                     if isPressing {
                         isHolding = true
                         lastHoldThreshold = 0
@@ -313,6 +419,7 @@ struct TimelineHabitRow: View {
                     isHolding = false
                     holdProgress = 0
                     lastHoldThreshold = 0
+                    guard !isVerifiedReady else { return }
                     beginCompletion()
                 })
             }
@@ -351,10 +458,34 @@ struct TimelineHabitRow: View {
             x: 0,
             y: isCompleted ? GridConstants.shadowY : GridConstants.shadowY * 0.7
         )
+        // First-time verification tooltip
+        .overlay(alignment: .bottom) {
+            if showVerificationTooltip {
+                HStack(spacing: 4) {
+                    Image(systemName: "heart.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.healthGreen)
+                    Text("Verified by Apple Health")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial, in: Capsule())
+                .transition(.opacity)
+                .offset(y: rowHeight / 2 + 16)
+                .allowsHitTesting(false)
+            }
+        }
         // Completed: dim background layers only (text stays crisp at full opacity for WCAG AA)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
+        // Verified-ready: single tap anywhere completes (no hold needed — HealthKit already proved it)
+        .onTapGesture {
+            guard isVerifiedReady else { return }
+            beginCompletion()
+        }
         .accessibilityLabel(habit.title)
-        .accessibilityHint(isCompleted ? "Completed. Tap checkmark to undo." : (isSkipped ? "Skipped. Tap to undo skip." : "Swipe right to complete, swipe left to skip"))
+        .accessibilityHint(isVerifiedReady ? "Verified by Apple Health. Tap to acknowledge." : (isCompleted ? "Completed. Tap checkmark to undo." : (isSkipped ? "Skipped. Tap to undo skip." : "Swipe right to complete, swipe left to skip")))
         .accessibilityAction(named: "Complete") { if isInteractive { beginCompletion() } }
         .accessibilityAction(named: "Skip") { if isInteractive { onSkip?(habit) } }
         .accessibilityAction(named: "Undo Skip") { if isSkipped { onUndoSkip?(habit) } }
@@ -434,14 +565,15 @@ struct TimelineHabitRow: View {
         .frame(height: rowHeight)
     }
 
-    // MARK: - Check Circle
+    // MARK: - Check Circle (with HealthKit Progress Ring)
 
     private var checkCircle: some View {
         let isChecked = isCompleted || isFilling
         let isSkippedState = isSkipped
+        let showProgressRing = isHealthKitHabit && !isChecked && !isSkippedState && healthKitProgress > 0 && healthKitProgress < 1.0
 
         return ZStack {
-            // Unfilled ring: white glass circle (visible on any category color)
+            // Background ring: white glass circle
             Circle()
                 .stroke(
                     isChecked ? Color.clear : (isSkippedState ? Color.primary.opacity(0.2) : Color.white.opacity(0.6)),
@@ -449,22 +581,34 @@ struct TimelineHabitRow: View {
                 )
                 .frame(width: 24, height: 24)
 
-            // Filled state: solid white circle
+            // HealthKit progress ring — fills clockwise from 12 o'clock (Apple Watch pattern)
+            if showProgressRing {
+                Circle()
+                    .trim(from: 0, to: healthKitProgress)
+                    .stroke(style.baseColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .frame(width: 24, height: 24)
+                    .rotationEffect(.degrees(-90))
+                    .animation(anim(GridConstants.progressFill), value: healthKitProgress)
+            }
+
+            // Filled state: solid white circle (completed or verified-ready checkmark)
             Circle()
-                .fill(isChecked ? Color.white : (isSkippedState ? Color.primary.opacity(0.15) : Color.white))
+                .fill(isChecked || isVerifiedReady ? Color.white : (isSkippedState ? Color.primary.opacity(0.15) : Color.white))
                 .frame(width: 24, height: 24)
-                .scaleEffect(isChecked || isSkippedState ? 1.0 : 0.001)
+                .scaleEffect(isChecked || isSkippedState || isVerifiedReady ? 1.0 : 0.001)
 
             Image(systemName: isSkippedState ? "xmark" : "checkmark")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(
-                    isChecked ? style.baseColor : (isSkippedState ? Color.primary.opacity(0.3) : .white)
+                    isChecked || isVerifiedReady ? style.baseColor : (isSkippedState ? Color.primary.opacity(0.3) : .white)
                 )
-                .scaleEffect(isChecked || isSkippedState ? 1.0 : 0.001)
-                .rotationEffect(.degrees(isChecked || isSkippedState ? 0 : -30))
+                .scaleEffect(isChecked || isSkippedState || isVerifiedReady ? 1.0 : 0.001)
+                .rotationEffect(.degrees(isChecked || isSkippedState || isVerifiedReady ? 0 : -30))
         }
+        .scaleEffect(ringCompletionPop ? 1.15 : 1.0)
         .animation(anim(GridConstants.motionSnappy), value: isChecked)
         .animation(anim(GridConstants.motionSnappy), value: isSkippedState)
+        .animation(anim(GridConstants.motionSnappy), value: isVerifiedReady)
     }
 
     // MARK: - Slice Content (dual-mask progressive reveal)
@@ -562,6 +706,10 @@ struct TimelineHabitRow: View {
 
     private func beginCompletion() {
         completionTask?.cancel()
+
+        // Clear pre-fill state — standard fill sweep takes over
+        verifiedPreFilled = false
+        preFillProgress = 0
 
         // Phase 1: Check circle fills — escalated haptic (Hull's Goal Gradient)
         withAnimation(anim(GridConstants.motionSnappy)) {

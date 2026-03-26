@@ -72,6 +72,44 @@ struct HabitDetailSheet: View {
                         }
                     }
 
+                    // HealthKit verification status + disconnect
+                    if let hkTypeStr = habit.healthKitType,
+                       let hkType = HealthKitHabitType(rawValue: hkTypeStr) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "heart.circle")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(AppColors.healthGreen)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Auto-verifies: \(hkType.displayName)")
+                                        .font(Typography.caption)
+                                    if let threshold = habit.healthKitThreshold, threshold > 0, !hkType.isPresenceBased {
+                                        Text("> \(Int(threshold)) \(hkType.thresholdUnit)")
+                                            .font(Typography.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            Button(role: .destructive) {
+                                habit.healthKitType = nil
+                                habit.healthKitThreshold = nil
+                                try? modelContext.save()
+                                HapticsEngine.lightTap()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 12))
+                                    Text("Disconnect")
+                                        .font(Typography.caption)
+                                }
+                                .foregroundStyle(.red.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
                     Divider()
 
                     // Notes

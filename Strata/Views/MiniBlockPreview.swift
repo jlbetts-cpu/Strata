@@ -56,22 +56,7 @@ struct MiniBlockPreview: View {
         }
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // Crisp border (matches HabitBlockView overlay 1)
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
-                            .init(color: borderHighlight.opacity(0.0), location: 0.75)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1.5
-                )
-        )
+        // Border removed — iOS 17-18: shadow alone carries depth
         .shadow(
             color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),
             radius: GridConstants.shadowRadius,
