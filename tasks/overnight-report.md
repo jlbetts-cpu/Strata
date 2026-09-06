@@ -337,3 +337,63 @@ Four findings that changed the plan:
 Probe screenshot: `tasks/screenshots/probe-tower.png` — bare glyphs on the warm
 ground, warm-black tab bar selection.
 
+## What changed in the header pass
+
+| Commit | Change |
+|---|---|
+| `b3a379f` | Accent → warm near-black; toolbar glass capsules removed; + dropped from Tower; filter is a bare glyph |
+| `1dbf0b4` | One header pattern across five tabs |
+| `49bcced` | The four strips, plus Settings' toggles off purple |
+| `d94def4` | An unlabeled win draws no icon; `TowerHeaderView.swift` deleted |
+
+Debug and Release both `BUILD SUCCEEDED`. Final state:
+`40-final-wins.png`, `41-final-tower.png`, `42-final-today.png`,
+`43-final-plan.png`, `44-final-insights.png`.
+
+### Two regressions I caused and fixed
+
+- Removing the week strip's track ring broke the row's alignment. The track was
+  silently setting each cell's height, so a day with no completion arc collapsed
+  to its numeral and the weekday letters stopped lining up. The cell reserves
+  its box explicitly now.
+- `TimelineHabitRow`'s leading inset was attached to the category icon, so a row
+  for an unlabeled win would have started flush against the screen edge. Moved
+  to the stack.
+
+Both were caught by screenshot, not by the compiler.
+
+### Judgement calls
+
+1. **`iconName` became `String?` rather than returning `""`.** Nineteen render
+   sites; a sentinel would have left one quietly drawing a dot. The compiler
+   named all of them. Cost: three view bodies had to be extracted because the
+   optional pushed them past the type-checker.
+2. **Two menus over `HabitCategory.selectable` use `?? "circle"`** rather than
+   `if let`. They can never see nil, and writing them to handle a case that
+   cannot happen would have been dishonest about the model.
+3. **The destructive row in Settings keeps its red.** That colour is semantic,
+   not decoration — it is the one badge that was doing a job.
+4. **`TowerTier.swift` is now unused** outside its own file. I did NOT delete
+   it: unlike `TowerHeaderView` it is product content (a designed
+   Seedling→Forest progression) rather than chrome, and it may want to come back
+   in Insights or milestones. Sixty lines, no runtime cost. Say the word.
+
+### Left alone, deliberately
+
+- **Plan's `Routines / To-Dos` segmented control.** It is the most "old Apple"
+  element left in the app, and replacing it is the obvious next move — but it
+  was not in the design you approved, which said it stays as the first content
+  row. Not doing it unasked.
+- **Plan's section-tile icon circles** (green star, orange sunrise, grey inbox).
+  Same species as the Settings badges I removed, so the app is now slightly
+  inconsistent on this point. I left them because they are *user data* —
+  `SectionEditSheet` lets you pick each section's icon and colour — so removing
+  them removes a feature rather than some chrome.
+- **`MilestoneCelebration.tierIcon`** is still emoji at 48pt.
+
+### Still not verified
+
+Everything remains simulator-only and untapped — no accessibility permission
+means no interaction. Specifically unverified: how the bare toolbar glyphs feel
+under a finger without their capsule hit area, and the whole thing on iOS 18,
+where the `sharedBackgroundVisibility` branch never runs.
