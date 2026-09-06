@@ -42,10 +42,6 @@ struct TimelineHabitRow: View {
         !isAlreadyCompleted && !isAlreadySkipped && state == .incomplete
     }
 
-    private var ghostBackground: Color {
-        AppColors.ghostBase
-    }
-
     /// Choose animation based on reduceMotion
     private func anim(_ animation: Animation) -> Animation {
         reduceMotion ? GridConstants.motionReduced : animation
@@ -95,10 +91,7 @@ struct TimelineHabitRow: View {
             GeometryReader { geo in
                 ZStack {
                     // GHOST BASE (always present)
-                    ghostBackground
-                    style.baseColor.opacity(0.08)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(style.baseColor.opacity(0.6), lineWidth: 2)
+                    BlockGhostSurface(category: habit.category, cornerRadius: cornerRadius)
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {

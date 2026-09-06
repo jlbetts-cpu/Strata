@@ -140,9 +140,14 @@ Each category color carries psychological meaning aligned with its domain:
 
 | State | Fill | Border | Shadow | Opacity | Saturation |
 |-------|------|--------|--------|---------|-----------|
-| **Incomplete (ghost)** | ghostBase + 8% category wash | Category color 0.5 opacity, 1.5pt | None | 1.0 | 1.0 |
-| **Completed (dimmed)** | Full category gradient | White 0.3, 1.5pt | Ambient (GridConstants) | 0.55 | 0.7 |
-| **Tower block** | Full category gradient | Progressive dual glow + breathing | Dual-layer | 1.0 | 1.0 |
+| **Incomplete (ghost)** | White + category tint 0.14 in the band position | Category color 0.45, 1.5pt | None | 1.0 | 1.0 |
+| **Completed / tower block** | Category gradient + frosted band | White 0.8pt, blurred inside the band | y3/r6/0.15 | 1.0 | 1.0 |
+| **Photo block** | Photo + warm scrim to 0.8, band wash reduced to 0.06 | White 0.8pt, blurred inside the band | y3/r6/0.15 | 1.0 | 1.0 |
+
+All three are `BlockSurface` / `BlockGhostSurface` in `BlockChrome.swift` — do not
+rebuild this chrome inline. The ghost has no shadow and no blurred band: it is not
+standing on anything yet, and blurring a near-white surface with no white rim
+beneath it produces nothing visible.
 
 ---
 

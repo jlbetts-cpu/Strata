@@ -5,8 +5,9 @@ Future ideas, tech debt, and parking lot items. Not actively being worked on.
 ## Tech Debt
 
 - Remove `imageData` from HabitLog schema (migration soak period ongoing)
-- **Dead after the light-only switch:** `AppColors.ghostBaseDark`, `CategoryStyle.glow`,
-  `CategoryStyle.darkShade` (and its `gradientBottom` accessor) have zero callers.
+- **Dead after the light-only switch and the ghost redesign:** `AppColors.ghostBase`,
+  `AppColors.ghostBaseDark`, `CategoryStyle.glow`, `CategoryStyle.darkShade` (and its
+  `gradientBottom` accessor) have zero callers.
   Left in place because coordination.md marks `CategoryColors.swift` read-only —
   needs a Tower Claude pass to remove.
 - **Insights `@Query` is unscoped.** `InsightsView` fetches all `HabitLog`s. Bounding

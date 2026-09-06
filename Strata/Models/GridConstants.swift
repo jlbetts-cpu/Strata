@@ -183,13 +183,31 @@ enum GridConstants {
     static let blockBandBlurRampStart: Double = 0.66
     static let blockBandFeatherStart: Double = 0.74
     static let blockBandFeatherEnd: Double = 0.86
+    /// Ghost (incomplete) tier. The rim carries the category colour instead of
+    /// white, and has to define the shape against a near-white ground on its
+    /// own, so it is heavier than the filled block's 0.8pt white rim.
+    static let blockGhostRimWidth: CGFloat = 1.5
+    static let blockGhostRimOpacity: Double = 0.45
+    /// A preview of the colour the block will become, placed where the filled
+    /// block's frosted band sits so the two states share one anatomy.
+    static let blockGhostTint: Double = 0.14
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
+    /// Reduced wash over photo blocks, for contrast.
+    ///
+    /// A white overlay floors the composite's luminance at its own alpha, so a
+    /// 0.20 wash under white text caps contrast below 4.5:1 no matter how dark
+    /// the scrim beneath it is — AA needs luminance <= 0.183. The source escapes
+    /// this because its text sits near the TOP of the band on a 565pt block,
+    /// where its gradient is only ~3% white; the same text on an 86pt row sits
+    /// at ~90% of the block, where the wash is ~16%. At 0.06 the composite lands
+    /// near 6:1 with the photo scrim below it.
+    static let blockScrimOpacityOverPhoto: Double = 0.06
     /// Photo scrim band, anchored to the bottom edge rather than a proportion of
     /// height. Tall blocks and short ones need the SAME absolute cover under the
     /// title; a percentage ramp puts a 2x1's title in the transition instead.
     /// Capped against block height for 1x1s.
-    static let blockPhotoScrimHeight: CGFloat = 72
+    static let blockPhotoScrimHeight: CGFloat = 76
     /// Drop shadow — Figma 0 10px 20px rgba(0,0,0,0.15), scaled to a ~86pt cell
     static let blockShadowRadius: CGFloat = 6
     static let blockShadowY: CGFloat = 3

@@ -42,7 +42,12 @@ struct FlippableBlockView: View {
     }
 
     var body: some View {
-        BlockSurface(cornerRadius: cornerRadius, showsWash: !hasImage) {
+        BlockSurface(
+            cornerRadius: cornerRadius,
+            washOpacity: hasImage
+                ? GridConstants.blockScrimOpacityOverPhoto
+                : GridConstants.blockScrimOpacity
+        ) {
             ZStack {
                 if hasImage {
                     // Photo block — loaded via CachedImageView
@@ -70,18 +75,27 @@ struct FlippableBlockView: View {
                     // title inside the transition — legibility depends on the text's
                     // distance from the bottom, not on a fraction of height. The
                     // Figma's own solid-block scrim (248:78) is a fixed band too.
+                    // The ramp is anchored to where the TEXT starts, not to a
+                    // fraction of the block. BlockContentOverlay's title + time +
+                    // spacing + bottom padding is ~40pt, so on an 86pt row the text
+                    // begins around 54% of the height — while Figma's proportional
+                    // scrim (245:28) does not reach full dark until 81%, which is
+                    // fine on its 565pt block and leaves the title over open photo
+                    // detail here. Full dark by 45% of the band puts the flat region
+                    // just above the text at every block size.
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         LinearGradient(
                             stops: [
                                 .init(color: .clear, location: 0.0),
-                                .init(color: AppColors.warmBlack.opacity(0.55), location: 0.45),
+                                .init(color: AppColors.warmBlack.opacity(0.45), location: 0.25),
+                                .init(color: AppColors.warmBlack.opacity(0.80), location: 0.45),
                                 .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: min(GridConstants.blockPhotoScrimHeight, height * 0.72))
+                        .frame(height: min(GridConstants.blockPhotoScrimHeight, height * 0.90))
                     }
 
                 } else {

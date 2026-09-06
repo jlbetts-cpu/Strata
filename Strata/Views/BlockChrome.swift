@@ -32,8 +32,9 @@ struct BlockSurface<Fill: View>: View {
     var cornerRadius: CGFloat
     /// Scales rim weight and blur for small surfaces (mini previews, chips).
     var scale: CGFloat = 1.0
-    /// Wash is suppressed where the fill supplies its own scrim (photo blocks).
-    var showsWash: Bool = true
+    /// Wash strength. Photo blocks pass a lower value — see
+    /// blockScrimOpacityOverPhoto for the contrast arithmetic.
+    var washOpacity: Double = GridConstants.blockScrimOpacity
     @ViewBuilder var fill: () -> Fill
 
     private var shape: RoundedRectangle {
@@ -43,7 +44,7 @@ struct BlockSurface<Fill: View>: View {
     /// Colour + wash + rim. One uniform border at one opacity, all round.
     private var surface: some View {
         fill()
-            .overlay { if showsWash { BlockWash() } }
+            .overlay(BlockWash(opacity: washOpacity))
             .clipShape(shape)
             .overlay(
                 shape.strokeBorder(.white, lineWidth: GridConstants.blockRimWidth * scale)
@@ -96,6 +97,59 @@ struct BlockSurface<Fill: View>: View {
     }
 }
 
+/// The incomplete state: the same object, not yet filled.
+///
+/// There is no ghost variant in the Figma, so this is a design decision rather
+/// than a transcription — but it is built from the same anatomy so the two
+/// states read as one thing in two conditions:
+///
+/// - White fill, brighter than the #FBFAF8 ground, so it reads as a clean empty
+///   card. The previous grey (#EBE8E6) sat darker than the page and read as a
+///   muddy slab competing with the saturated blocks around it.
+/// - The rim carries the category colour instead of white. A white rim would be
+///   invisible here — it separates a saturated block from a pale ground, and
+///   there is no saturation to separate.
+/// - A tint of the category colour sits exactly where the filled block's frosted
+///   band sits, previewing the colour the block becomes on completion.
+/// - No shadow and no blurred band. brand.md's ghost tier has no shadow, and
+///   blurring a near-white surface with no white rim beneath produces nothing
+///   visible — it would be cost with no image.
+///
+/// Positive-only, per coordination.md: this is "waiting", not "failed". Nothing
+/// here is dimmed, crossed, or desaturated as a penalty.
+struct BlockGhostSurface: View {
+    var category: HabitCategory
+    var cornerRadius: CGFloat
+    var scale: CGFloat = 1.0
+
+    private var style: CategoryStyle { category.style }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.white
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: BlockWash.bandStart),
+                    .init(color: style.baseColor.opacity(GridConstants.blockGhostTint), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(
+                style.baseColor.opacity(GridConstants.blockGhostRimOpacity),
+                lineWidth: GridConstants.blockGhostRimWidth * scale
+            )
+        )
+    }
+}
+
 /// The frosted wash inside the band.
 ///
 /// The band is the bottom 26% (Figma 255:106 is 145pt on a 565pt block) and its
@@ -106,11 +160,13 @@ struct BlockWash: View {
     /// boundary the blur uses, by construction.
     static let bandStart: Double = 0.74
 
+    var opacity: Double = GridConstants.blockScrimOpacity
+
     var body: some View {
         LinearGradient(
             stops: [
                 .init(color: .clear, location: Self.bandStart),
-                .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
+                .init(color: .white.opacity(opacity), location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom

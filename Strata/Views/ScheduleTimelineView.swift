@@ -274,7 +274,7 @@ struct ScheduleTimelineView: View {
         // ghost keeps the category outline. Label sits above either.
         let styledChip = Group {
             if isCompleted {
-                BlockSurface(cornerRadius: 12, scale: 0.85) {
+                BlockSurface(cornerRadius: GridConstants.cornerRadius, scale: 0.85) {
                     LinearGradient(
                         stops: [
                             .init(color: style.lightTint, location: 0.0),
@@ -289,15 +289,11 @@ struct ScheduleTimelineView: View {
             } else {
                 chipLabel
                     .background(
-                        ZStack {
-                            AppColors.ghostBase
-                            style.baseColor.opacity(0.08)
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(style.baseColor.opacity(0.6), lineWidth: 1.5)
+                        BlockGhostSurface(
+                            category: habit.category,
+                            cornerRadius: GridConstants.cornerRadius,
+                            scale: 0.85
+                        )
                     )
             }
         }
