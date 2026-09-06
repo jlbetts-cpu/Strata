@@ -947,13 +947,22 @@ struct MainAppView: View {
         cachedTowerTitle = computeTowerTitle()
         towerManager.ensureDefaultTower(context: modelContext)
         towerManager.loadActiveTower(context: modelContext)
+        #if DEBUG
+        DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
+        if let tab = DebugHarness.startTab { selectedTab = tab }
+        #endif
         timelineVM.modelContext = modelContext
         habitManagerVM.modelContext = modelContext
 
         // HealthKit setup: sync connected habits and start observers
         syncHealthKitConnectedHabits()
         healthKitService.checkAvailability()
-        if healthKitService.isAvailable {
+        #if DEBUG
+        let mayAskForHealth = !DebugHarness.isActive
+        #else
+        let mayAskForHealth = true
+        #endif
+        if healthKitService.isAvailable && mayAskForHealth {
             Task {
                 await healthKitService.requestAccess()
                 healthKitService.setupObservers()
@@ -1283,9 +1292,30 @@ struct MainAppView: View {
                               viewportHeight: CGFloat) -> some View {
         let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let rowCount = towerVM.totalRows
-        let gridH = rowCount > 0
-            ? CGFloat(rowCount) * colW + CGFloat(rowCount - 1) * spacing
+
+        // The loading skeleton and the empty-state ghosts are laid out by the
+        // same bottom-up `flippedY(for:gridH:)` as real blocks, but they run
+        // when `totalRows` is 0. With `gridH` at 0 every placeholder got a
+        // NEGATIVE y and drew above the container — up over the toolbar and the
+        // status bar. That is the "ghost blocks run off screen" report. So the
+        // placeholders' own layout supplies the height when there are no real
+        // rows to measure.
+        let placeholders: [TowerViewModel.SkeletonBlock] = rowCount > 0
+            ? []
+            : (towerVM.isLoading
+               ? towerVM.skeletonLayout()
+               : towerVM.skeletonLayout(blockCount: 3))
+        let placeholderRows = placeholders.map { $0.row + $0.rowSpan }.max() ?? 0
+        let layoutRows = rowCount > 0 ? rowCount : placeholderRows
+        let gridH = layoutRows > 0
+            ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
             : 0
+        // Everything under the grid — ground plane, tier badge, the transient
+        // first-block label — is drawn with `.offset` from the grid's bottom
+        // edge. `.offset` does not affect layout, so the sizing spacer below
+        // has to be told about it or the container reserves no space for any
+        // of it and it hangs outside the measured bounds.
+        let footerReserve: CGFloat = showFirstBlockLabel ? 84 : 58
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -1294,13 +1324,14 @@ struct MainAppView: View {
                         .id("TowerTop")
 
                     Color.clear
-                        .frame(width: gridW, height: max(gridH, 1))
+                        .frame(width: gridW,
+                               height: max(gridH, 1) + (rowCount > 0 ? footerReserve : 0))
 
                     if towerVM.isLoading {
-                        skeletonGrid(colW: colW, gridH: gridH)
+                        skeletonGrid(skeletons: placeholders, colW: colW, gridH: gridH)
                     } else if towerVM.totalRows == 0 {
                         // Ghost tower empty state
-                        ghostTowerEmptyState(colW: colW, gridH: gridH)
+                        ghostTowerEmptyState(ghosts: placeholders, colW: colW, gridH: gridH)
                     } else {
                         // Ground plane at tower foundation
                         towerGroundPlane(gridW: gridW, gridH: gridH)
@@ -1315,10 +1346,14 @@ struct MainAppView: View {
                             ForEach(Array(stride(from: markerInterval, to: towerVM.totalRows, by: markerInterval)), id: \.self) { row in
                                 let meters = Int(Double(row) * GridConstants.metersPerBlock)
                                 let markerY = gridH - CGFloat(row) * cellStride
+                                // Right-aligned inside the grid: `gridW + 4`
+                                // put these past the screen edge, so the "m"
+                                // was clipped off every marker.
                                 Text("\(meters)m")
                                     .font(Typography.caption2)
                                     .foregroundStyle(.primary.opacity(0.15))
-                                    .offset(x: gridW + 4, y: markerY - 6)
+                                    .frame(width: gridW, alignment: .trailing)
+                                    .offset(y: markerY - 6)
                             }
                         }
 
@@ -1326,11 +1361,13 @@ struct MainAppView: View {
                         if towerVM.placedBlocks.count > 0 {
                             // #93: Tier badge + block count + altimeter
                             let tier = TowerTier.tier(for: towerVM.placedBlocks.count)
+                            let blockCount = towerVM.placedBlocks.count
                             VStack(spacing: 4) {
                                 HStack(spacing: 6) {
-                                    Text(tier.icon)
+                                    Image(systemName: tier.symbolName)
                                         .font(Typography.caption)
-                                    Text("\(towerVM.placedBlocks.count) blocks")
+                                        .foregroundStyle(.primary.opacity(0.3))
+                                    Text("^[\(blockCount) block](inflect: true)")
                                         .font(Typography.caption)
                                         .foregroundStyle(.primary.opacity(0.3))
                                         // #297: Rolling number animation
@@ -1344,19 +1381,20 @@ struct MainAppView: View {
                                 Text(tier.displayName)
                                     .font(Typography.caption2)
                                     .foregroundStyle(.primary.opacity(0.2))
+
+                                // "Your first block." — primacy effect
+                                // spotlight. In the stack rather than at its
+                                // own offset, which drew it over the badge.
+                                if showFirstBlockLabel {
+                                    Text("Your first block.")
+                                        .font(Typography.bodySmall)
+                                        .foregroundStyle(.primary.opacity(0.5))
+                                        .padding(.top, 4)
+                                        .transition(.opacity)
+                                }
                             }
                             .frame(width: gridW, alignment: .center)
                             .offset(y: gridH + 16)
-                        }
-
-                        // "Your first block." — primacy effect spotlight
-                        if showFirstBlockLabel {
-                            Text("Your first block.")
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(.primary.opacity(0.5))
-                                .frame(width: gridW, alignment: .center)
-                                .offset(y: gridH + 40)
-                                .transition(.opacity)
                         }
                     }
                 }
@@ -1382,12 +1420,24 @@ struct MainAppView: View {
                     }
                 }
                 .padding(.horizontal, hPad)
-                // #261: Safe area bottom padding — account for home indicator
-                .padding(.bottom, max(safeAreaBottom, 8))
+                // The tab bar's inset is already applied to this scroll view
+                // by TabView, so adding `safeAreaBottom` here counted it twice.
+                .padding(.bottom, 8)
+                // `viewportHeight` is a GeometryReader size, which already
+                // excludes the safe areas. Subtracting `safeAreaTop` from it
+                // took the top inset off a second time and left that much
+                // dead air under a bottom-aligned tower.
                 .frame(
-                    minHeight: viewportHeight - safeAreaTop,
+                    minHeight: viewportHeight,
                     alignment: .bottom
                 )
+                // Outside the bottom-anchored grid, so it centres on the
+                // viewport rather than on the ghost footing.
+                .overlay {
+                    if !towerVM.isLoading && towerVM.totalRows == 0 {
+                        towerEmptyStateMessage
+                    }
+                }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
@@ -1419,8 +1469,7 @@ struct MainAppView: View {
     }
 
     @ViewBuilder
-    private func skeletonGrid(colW: CGFloat, gridH: CGFloat) -> some View {
-        let skeletons = towerVM.skeletonLayout()
+    private func skeletonGrid(skeletons: [TowerViewModel.SkeletonBlock], colW: CGFloat, gridH: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
         ForEach(skeletons.prefix(visibleSkeletonCount)) { skel in
             let f = GridConstants.blockFrame(
@@ -1593,9 +1642,11 @@ struct MainAppView: View {
 
     // MARK: - Ghost Tower Empty State
 
+    /// The faint footing an empty tower sits on. Blocks only — the invitation
+    /// is `towerEmptyStateMessage`, drawn as a centred overlay, because the two
+    /// were in one ZStack and the copy landed on top of the ghosts.
     @ViewBuilder
-    private func ghostTowerEmptyState(colW: CGFloat, gridH: CGFloat) -> some View {
-        let ghosts = towerVM.skeletonLayout(blockCount: 5)
+    private func ghostTowerEmptyState(ghosts: [TowerViewModel.SkeletonBlock], colW: CGFloat, gridH: CGFloat) -> some View {
         ForEach(ghosts) { skel in
             let f = GridConstants.blockFrame(
                 column: skel.column, row: skel.row,
@@ -1611,7 +1662,9 @@ struct MainAppView: View {
                 .frame(width: f.width, height: f.height)
                 .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
         }
+    }
 
+    private var towerEmptyStateMessage: some View {
         VStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up")
                 .font(.system(size: GridConstants.iconEmptyState, weight: .light))
