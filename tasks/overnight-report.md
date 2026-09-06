@@ -1,6 +1,6 @@
 # Overnight report — 2026-09-06 → 09-07
 
-Status: IN PROGRESS. Written as I go.
+Written as I went. Bad news first.
 
 ## Step 0 — setup finding (read this first)
 
@@ -180,3 +180,131 @@ rows and chips reading as the same object in the same state.
 One follow-on change: the chip's check ring was white, invisible on a white
 card, so it now takes the category colour.
 
+## Steps 3, 4 and 5
+
+**`65e561d` + `7ca50f5` — Step 3, the shared chrome surface.**
+
+`SurfaceCard.swift` gives chrome the block's grammar without giving it a
+block's claim: same warm ground, same radius, a hairline instead of a white
+rim, and explicitly no frosted band and no blurred edge. Alongside it, a radius
+ladder (20 / 12 / 8 / 4, with the field rung set to `blockCornerRadius`) and
+three neutral fills.
+
+Plan is routed through it, and that fixed both of its visible faults — the hard
+white band and the muddy tiles. Compare `04-plan-before.png` with
+`13-plan-after.png`.
+
+**I did NOT rebuild Settings, and you should know why.** The brief names it,
+but `14-settings-before.png` is the least broken of the screens listed: it is a
+SwiftUI `Form`, and iOS 26's inset-grouped Form is already white cards on the
+warm ground. Converting it means rebuilding toggles, navigation links,
+destructive actions and the export sheet as hand-rolled views — a large diff
+across a screen I cannot tap through to verify. Taking the smaller reversible
+option, I aligned its icon-badge radius to the ladder and left the structure
+alone. If you want the full conversion, it is a session of its own with a
+device in hand.
+
+Related: this codebase is **already much more tokenised than the brief assumes.**
+The branch's commit message describes "around seventy hand-picked greys"; on
+current main I found eight literal greys across all the chrome files, and the
+straggler radii were two values (10 and 6). Those are now routed through the
+tokens. The "iOS defaults with opacities sprinkled on" description was true of
+the older snapshot the branch was written against.
+
+**`bdc7575` — Step 4, the add sheet.** Seven sections on screen at once became
+title, category, and two disclosure groups: "When" and "Details", each showing
+what it currently holds ("Every day", "Quick, 15m"). The title takes focus on
+open; arriving from a tapped time slot opens "When" expanded, since that path
+has already answered it. No control changed behaviour — they were regrouped —
+and two now-unreferenced helpers were deleted. The sheet was also rendering on
+the cool system grouped-background grey; it has the warm ground now. See
+`15-addsheet-{before,after}.png`.
+
+**`1879ed6` — a bug found on the way.** Insights' calendar was missing Thursday
+and Saturday: `ForEach(dayLabels, id: \.self)` over
+`["S","M","T","W","T","F","S"]` collapses the duplicate ids. Fixed by indexing.
+`05-insights-before.png` → `16-insights-after.png`.
+
+**Step 5 — `tasks/proposal-today-plan.md`.** Research only; no app code was
+touched for it. It maps what each tab owns by file and view model, isolates the
+overlap (it is narrower than the framing suggests — the sharp part is that
+`habit.scheduledTime` is written from two places with two interaction models),
+gives three options with sizes and risks, and recommends splitting by verb
+rather than merging the tabs, with the reasoning and the one question I cannot
+answer for you.
+
+## Every judgement call, in one place
+
+1. **Did not run `git revert -m 1 952fbb7`.** The build had one real error and
+   one latent one; both were three lines. Reverting the night's work would have
+   been disproportionate.
+2. **Added app code to enable screenshots** (`DebugHarness`, `#if DEBUG`).
+   Without it nothing modal or data-dependent could be photographed, and the
+   whole brief is built on screenshots. It cannot reach a shipped build, and
+   the Release configuration was built to confirm that.
+3. **Unlabeled's completion tone is C4**, the root of the scale the six
+   categories span, rather than borrowing another category's pitch.
+4. **Empty-state ghosts went 5 → 3.** At five the footing filled the viewport
+   and the invitation had nowhere to sit.
+5. **Tier emoji → SF Symbols; milestone emoji left alone.** The tier badge was
+   a one-glyph swap. The milestone tiers are not: bronze/silver/gold would
+   collapse onto one symbol and only colour would separate them. That is a
+   design decision, not a bug fix.
+6. **Did not scale every icon with Dynamic Type.** Glyphs inside fixed
+   containers stay fixed or they burst the shape. Listed in the commit.
+7. **Did not rebuild Settings.** Reasoning above.
+8. **Fixed the Insights calendar** even though it was not in the brief. Two
+   lines, visibly broken, no ambiguity about the right answer.
+
+## What I could NOT verify
+
+- **Anything on a physical device.** All of it is the iPhone 17 Pro simulator,
+  iOS 26.3.
+- **The emoji tofu.** It may be a quirk of this runtime's font set. The SF
+  Symbol change is justified by CLAUDE.md's rule regardless, but do not take
+  "emoji is broken on your phone" from me.
+- **Any interaction.** No accessibility permission means nothing can tap.
+  Everything here is a rendered state, not a flow. In particular: the add
+  sheet's disclosure groups have never been *opened* by a person — I verified
+  they compile, that the collapsed state is correct, and that the summaries
+  compute, but not the expanded layout.
+- **VoiceOver, and Dynamic Type past `accessibility-extra-large`.**
+- **Real data.** Everything is the seeder's fixture. No photos, no HealthKit
+  values, no long titles, no many-month tower.
+
+## Known-imperfect things I am leaving
+
+- **Wins leak into Today's Unscheduled section.** `22-final-today.png` shows
+  "UNSCHEDULED (5)" where all five are completed wins. `QuickWinService.isWin`
+  is the predicate and `ScheduleTimelineView.swift:92` is where it belongs. I
+  left it because it interacts with the Today/Plan decision in the proposal and
+  I did not want to prejudge that.
+- **Dynamic Type breaks Today's layout above ~AX3** — `10-today-dynamictype-after.png`
+  shows "NEXT" wrapping to "NE/XT" and "9:30" to "9:3/0". Pre-existing, and
+  already on your list as "F-10: Time label column width for Dynamic Type
+  (deferred)". The icon work made it more visible, not worse.
+- **The tower's skeleton was still showing 6 seconds after a cold launch** and
+  had settled by 15. The stagger itself is only 350ms, so this is startup cost
+  somewhere else (SwiftData, Spotlight reindex, or simulator cold start). Not
+  isolated.
+- **`MilestoneCelebration.tierIcon`** is still emoji at 48pt, full screen.
+- **Two pre-existing warnings**: `MainAppView.swift:243`, `PlanPageView.swift:417`.
+- **The seeder does not delete `PlanFolder` objects**, so a stray "NEW SECTION"
+  folder persists across seeded runs. Cosmetic, harness-only.
+
+## What I would do next, in order
+
+1. **Decide Today vs Plan** from `tasks/proposal-today-plan.md`. It gates
+   several other things, including the wins-leak fix.
+2. **Fix the wins leak.** Small, and it currently makes Today's counts wrong.
+3. **Look at the add sheet on a device with a finger.** It is the change I am
+   least able to vouch for.
+4. **The app icon** — still the only Phase 1D item, still a design dependency.
+5. **Settings**, if you want it converted, with a device in hand.
+
+## State at the end
+
+- `main` builds. **Debug and Release both `BUILD SUCCEEDED`** on
+  `xcodebuild -scheme Strata -sdk iphonesimulator`.
+- Everything is pushed to `main`. Nothing is parked on a branch.
+- Ten commits, one coherent change each, listed above.
