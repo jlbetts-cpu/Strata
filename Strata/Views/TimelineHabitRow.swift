@@ -130,40 +130,12 @@ struct TimelineHabitRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                            // Same chrome as a tower block, inlined rather than
-                            // via .blockChrome because the rim has to sit inside
-                            // the completion sweep mask and travel with it.
+                            // Same chrome as a tower block. BlockRim is used
+                            // directly rather than the .blockChrome modifier
+                            // because the rim has to sit inside the completion
+                            // sweep mask and travel with the fill.
                             BlockWash()
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .white, location: 0.0),
-                                            .init(color: .white.opacity(0.85), location: 0.45),
-                                            .init(color: .white.opacity(0.0), location: 0.72)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: GridConstants.blockRimWidth
-                                )
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .white.opacity(0.0), location: 0.55),
-                                            .init(color: .white.opacity(0.50), location: 0.78),
-                                            .init(color: .white.opacity(0.95), location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: GridConstants.blockRimGlowWidth
-                                )
-                                .blur(radius: GridConstants.blockRimGlowBlur)
-                                .compositingGroup()
-                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                                .drawingGroup()
+                            BlockRim(cornerRadius: cornerRadius)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {

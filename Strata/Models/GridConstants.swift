@@ -142,9 +142,20 @@ enum GridConstants {
     // rim at 5px on a 562px block (0.9%); at an ~86pt cell that lands near 2pt.
     /// White rim inset inside the block edge (use .strokeBorder, not .stroke)
     static let blockRimWidth: CGFloat = 1.5
-    /// Diffused bottom rim — the soft white bloom under the crisp rim
-    static let blockRimGlowWidth: CGFloat = 3
-    static let blockRimGlowBlur: CGFloat = 4
+    /// Blur applied to the rim inside the band.
+    ///
+    /// Figma blurs 10px against a 5px border on a 562pt block. Strata's blocks
+    /// are 86-180pt, and at that size a 2:1 blur:rim ratio leaves the blurred
+    /// ring with too little peak — the block visibly steps wider below the
+    /// boundary. Measured across three variants at true scale; 2pt holds the
+    /// edge while still dissolving.
+    static let blockRimBlur: CGFloat = 2
+    /// The rim transitions from crisp to blurred across this span, rather than
+    /// at a hard line. Figma cuts hard, which is invisible on a 562pt block and
+    /// a visible ledge on an 86pt one — this is a scale adaptation, not a
+    /// deviation in intent.
+    static let blockRimFeatherStart: Double = 0.68
+    static let blockRimFeatherEnd: Double = 0.82
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
     /// Photo scrim band, anchored to the bottom edge rather than a proportion of
