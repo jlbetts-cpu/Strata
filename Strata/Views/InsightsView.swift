@@ -211,8 +211,12 @@ struct InsightsView: View {
 
             // Day labels
             LazyVGrid(columns: dayColumns, spacing: 0) {
-                ForEach(dayLabels, id: \.self) { label in
-                    Text(label)
+                // Indexed, not `id: \.self`: the labels contain "T" and "S"
+                // twice, and identical ids collapse into one element — the
+                // header rendered as S M T W _ F _, with Thursday and Saturday
+                // simply missing.
+                ForEach(dayLabels.indices, id: \.self) { index in
+                    Text(dayLabels[index])
                         .font(Typography.caption2)
                         .foregroundStyle(Color.primary.opacity(0.4))
                         .frame(maxWidth: .infinity)
