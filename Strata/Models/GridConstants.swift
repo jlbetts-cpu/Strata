@@ -21,6 +21,33 @@ enum GridConstants {
     // Minimum scaffold blocks for new users
     static let minimumScaffoldBlocks = 12
 
+    // MARK: - Radius Ladder
+    //
+    // Derived from what the app already does, not invented: 20 was always
+    // "large surface" (sheets, expansion cards), 14/12/10 were all the same
+    // thing (a form field or well) written three ways, 8 was small controls and
+    // 4 was tiny marks. Nine values collapse to five, and the field rung folds
+    // onto cornerRadius so chrome and blocks agree.
+    /// Sheets, expansion cards — surfaces that become the environment
+    static let radiusSurface: CGFloat = 20
+    /// Form fields, wells, pickers. Same value as cornerRadius by design.
+    static let radiusField: CGFloat = 12
+    /// Small controls, icon wells, drop indicators
+    static let radiusControl: CGFloat = 8
+    /// Tiny marks — heatmap cells, day dots, bars
+    static let radiusMark: CGFloat = 4
+
+    // MARK: - Neutral Fills
+    //
+    // ~70 hand-picked greys collapse to three jobs. Text opacities are NOT in
+    // here: they are a separate axis and changing them risks legibility.
+    /// Input backgrounds and wells (was 0.04 and 0.05, the same intent twice)
+    static let fillWell = Color.primary.opacity(0.04)
+    /// Tracks, capsule grounds, unselected states
+    static let fillTrack = Color.primary.opacity(0.06)
+    /// Hairlines and card strokes
+    static let fillHairline = Color.primary.opacity(0.08)
+
     // MARK: - Stroke
     static let strokeWidth: CGFloat = 2.5
 
