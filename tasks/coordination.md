@@ -1,5 +1,22 @@
 # Strata — Multi-Bot Coordination
 
+## Working agreement with Jayden
+
+**Merge to `main` when the work is done.** He builds from `main` in Xcode, so
+anything left on a feature branch is invisible to him — it reads as "nothing
+changed". Do not park finished work on a branch waiting for approval.
+
+The trade this accepts: `main` can carry code that has not been run yet, because
+agents working in the cloud have no Xcode and cannot compile or launch the app.
+Mitigate it, do not pretend it away:
+
+- One coherent change per commit, so a bad one can be backed out with
+  `git revert <sha>` rather than unpicking a batch.
+- Split additive groundwork (new tokens, new components, no call sites) from the
+  commit that adopts it. The first can never break a build.
+- Say plainly, every time, what was verified and what was not. "Renders
+  correctly" and "compiles" are different claims, and neither is "I ran it".
+
 ## Task Files
 
 | File | Purpose | When to read | When to write |
