@@ -63,17 +63,25 @@ struct FlippableBlockView: View {
                     endRadius: max(width, height) * 0.85
                 )
 
-                // Warm dark scrim over photos — Figma 245:28 holds the image
-                // clear until 58%, then ramps hard to 80% for text legibility
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.58),
-                        .init(color: AppColors.warmBlack.opacity(0.80), location: 0.81),
-                        .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Warm dark scrim over photos, anchored to the bottom edge.
+                // Figma 245:28 ramps proportionally (clear to 58%, 80% by 81%),
+                // which works on its 563pt-tall mockup block but puts a 2x1's
+                // title inside the transition — legibility depends on the text's
+                // distance from the bottom, not on a fraction of height. The
+                // Figma's own solid-block scrim (248:78) is a fixed band too.
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: AppColors.warmBlack.opacity(0.55), location: 0.45),
+                            .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: min(GridConstants.blockPhotoScrimHeight, height * 0.72))
+                }
 
             } else {
                 // Color fill

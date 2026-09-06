@@ -144,6 +144,11 @@ enum GridConstants {
     static let blockRimWidth: CGFloat = 1.5
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
+    /// Photo scrim band, anchored to the bottom edge rather than a proportion of
+    /// height. Tall blocks and short ones need the SAME absolute cover under the
+    /// title; a percentage ramp puts a 2x1's title in the transition instead.
+    /// Capped against block height for 1x1s.
+    static let blockPhotoScrimHeight: CGFloat = 72
     /// Drop shadow — Figma 0 10px 20px rgba(0,0,0,0.15), scaled to a ~86pt cell
     static let blockShadowRadius: CGFloat = 6
     static let blockShadowY: CGFloat = 3
