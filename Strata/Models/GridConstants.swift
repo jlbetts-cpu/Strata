@@ -140,16 +140,24 @@ enum GridConstants {
     // The signature "sticker on paper" look: a crisp white rim separating the
     // block from the warm ground, over a stronger drop shadow. Figma draws the
     // rim at 5px on a 562px block (0.9%); at an ~86pt cell that lands near 2pt.
-    /// White rim inset inside the block edge (use .strokeBorder, not .stroke)
-    static let blockRimWidth: CGFloat = 1.5
+    /// White rim on the block edge.
+    ///
+    /// Figma draws 5px on a 562pt block — 0.89% — which is 0.77pt at an 86.5pt
+    /// cell. Earlier revisions fattened this to 1.5pt on the assumption that
+    /// sub-point strokes would not hold up; at 3x, 0.8pt is 2.4 device px and
+    /// renders crisp. The heavier rim was visibly wrong against the source.
+    static let blockRimWidth: CGFloat = 0.8
     /// Blur applied to the rim inside the band.
     ///
-    /// Figma blurs 10px against a 5px border on a 562pt block. Strata's blocks
-    /// are 86-180pt, and at that size a 2:1 blur:rim ratio leaves the blurred
-    /// ring with too little peak — the block visibly steps wider below the
-    /// boundary. Measured across three variants at true scale; 2pt holds the
-    /// edge while still dissolving.
-    static let blockRimBlur: CGFloat = 2
+    /// Deliberately NOT tied to blockRimWidth. In the source these are two
+    /// separate elements — a 5px border and a 10px backdrop blur — and the
+    /// softness of the bottom edge is set by the blur alone. Scaling the blur
+    /// off the rim made a slim rim produce too little white to dissolve the
+    /// boundary, leaving a hard colour-to-ground step.
+    ///
+    /// Compared 3pt / 4.7pt / 6.7pt against the slim rim at true scale. 4pt
+    /// dissolves the edge without spreading into a haze.
+    static let blockRimBlur: CGFloat = 4
     /// The rim transitions from crisp to blurred across this span, rather than
     /// at a hard line. Figma cuts hard, which is invisible on a 562pt block and
     /// a visible ledge on an 86pt one — this is a scale adaptation, not a

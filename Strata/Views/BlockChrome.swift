@@ -61,14 +61,24 @@ struct BlockRim: View {
         ZStack {
             // Above the band: the ring, crisp.
             ring.mask(bandMask(above: true))
-            // Inside the band: the same ring, blurred. Clipped to the shape so
-            // the smear bleeds inward and the block's own edge stays the edge.
+            // Inside the band: the same ring, blurred — and deliberately NOT
+            // clipped to the shape.
+            //
+            // Clipping cuts away the outer half of the gaussian, which halves
+            // the white exactly at the boundary, so the smear falls off before
+            // the edge and raw colour meets the ground in a hard chroma step —
+            // the silhouette stays visible as an edge. Letting the blur straddle
+            // the boundary keeps the edge white, and white on the #FBFAF8 ground
+            // is no edge at all: the block dissolves into the page the way glass
+            // does. The spill is ~3pt against an 8pt grid gap, so it never
+            // reaches a neighbouring block.
+            //
+            // .drawingGroup() is deliberately absent — it rasterises to the
+            // view's bounds and would re-clip the spill, reinstating the edge.
             ring
                 .blur(radius: GridConstants.blockRimBlur * scale)
                 .mask(bandMask(above: false))
                 .compositingGroup()
-                .clipShape(shape)
-                .drawingGroup()
         }
     }
 }

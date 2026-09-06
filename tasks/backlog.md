@@ -29,6 +29,11 @@ Future ideas, tech debt, and parking lot items. Not actively being worked on.
 
 ## Polish
 
+- **Watch the block rim blur in Instruments.** BlockRim's blurred layer no longer
+  carries `.drawingGroup()` — rasterising to view bounds re-clipped the smear and
+  reinstated the hard edge the blur exists to remove. Blur is 4pt on a 0.8pt ring,
+  ~12 blocks visible after culling. Cheap in theory, unmeasured on device.
+
 - ~~Tower: category icon size 11→13pt~~ — DONE (shipped in cross-audit, icon sizes now tokenized in GridConstants)
 - Tower: culling threshold 40→30 blocks with 200→150pt buffer (cross-audit, low priority)
 - Tower: micro-sway ADHD user testing — flag ±0.12° sway for participant feedback (cross-audit)
