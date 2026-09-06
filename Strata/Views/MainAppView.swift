@@ -285,30 +285,7 @@ struct MainAppView: View {
                     towerTab
                         .navigationTitle(cachedTowerTitle)
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                TowerFilterMenuButton(selection: $towerFilterMode)
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                HStack(spacing: 16) {
-                                    Button {
-                                        HapticsEngine.lightTap()
-                                        isNewHabitMenuOpen = true
-                                    } label: {
-                                        Image(systemName: "plus")
-                                            .font(.body.weight(.medium))
-                                            .foregroundStyle(AppColors.accentWarm)
-                                    }
-                                    Button {
-                                        HapticsEngine.lightTap()
-                                        showSettings = true
-                                    } label: {
-                                        Image(systemName: "gearshape")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
+                        .toolbar { towerToolbar }
                 }
                 .sheet(isPresented: $showSettings) {
                     NavigationStack {
@@ -935,6 +912,51 @@ struct MainAppView: View {
         HapticsEngine.lightTap()
         _ = withAnimation(GridConstants.layoutReflow) {
             refreshData()
+        }
+    }
+
+    // MARK: - Toolbars
+    //
+    // Extracted from `mainContent` rather than written inline. That body is a
+    // five-Tab TabView and was already at the type-checker's limit — adding one
+    // modifier to a toolbar item inside it fails with "unable to type-check
+    // this expression in reasonable time". Typed ToolbarContent also gives the
+    // iOS 26 availability gate somewhere to live.
+    //
+    // `sharedBackgroundVisibility(.hidden)` drops the glass capsule iOS 26 puts
+    // behind every toolbar item, leaving a bare glyph on the warm ground. It is
+    // iOS 26+ and the deployment target is 18, so it is gated;
+    // ToolbarContentBuilder supports `if #available` via buildLimitedAvailability.
+
+    @ToolbarContentBuilder
+    private var towerToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                TowerFilterMenuButton(selection: $towerFilterMode)
+            }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) {
+                towerSettingsButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                TowerFilterMenuButton(selection: $towerFilterMode)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                towerSettingsButton
+            }
+        }
+    }
+
+    private var towerSettingsButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            showSettings = true
+        } label: {
+            Image(systemName: "gearshape")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body)
+                .foregroundStyle(.secondary)
         }
     }
 
