@@ -92,11 +92,20 @@ it is visible.
 
 ### Other defects the screenshots show, which no bug report mentioned
 
-1. **The tier badge icon is a tofu box.** `TowerTier.icon` returns emoji
-   ("🌱"), which does not render in this runtime — see the enlarged crop. It is
-   also drawn at full opacity next to text at 0.2, so the one broken glyph is
-   the loudest thing on the screen. Emoji also contradicts CLAUDE.md's "SF
-   Symbols only".
+1. **The tier badge icon renders as a tofu box.** `TowerTier.icon` returned
+   emoji ("🌱") and the simulator drew an empty-box-with-question-mark.
+   **Caveat: I could not verify this on a physical device.** The iOS 26.3
+   runtime ships `AppleColorEmoji-160px.ttc` but not the usual
+   `System/Library/Fonts/Core/AppleColorEmoji.ttc`, so the tofu may well be
+   simulator-only and emoji may render fine on your phone. I changed it anyway,
+   because it is also emoji in an app whose CLAUDE.md says "SF Symbols only",
+   and because it was drawn at full opacity beside text at 0.2 — a symbol takes
+   `.foregroundStyle` and the emoji did not.
+
+   **`MilestoneCelebration.tierIcon` has the same emoji set** (medals, gem,
+   star) at 48pt, full screen. I have NOT changed it: unlike the tier badge it
+   is not a one-glyph swap, since bronze/silver/gold would collapse onto the
+   same SF Symbol and only `tierColor` would separate them. That is your call.
 2. **"1 blocks".** No pluralisation.
 3. **Height markers are clipped off the right edge.** They sit at
    `.offset(x: gridW + 4)`; with gridW=368, hPad=16 and a 402pt screen the text
@@ -135,4 +144,39 @@ Judgement calls in Step 1:
   Chosen to keep the seedling→forest progression legible in one glyph each.
 - Bottom padding is now a flat 8pt. If the badge looks tight against the tab bar
   on a device without a home indicator, that constant is the knob.
+
+## Step 2 — the two ports
+
+Both are in, both built and screenshotted.
+
+**`466a251` — `.iconSize()` (Dynamic Type).** Ported `IconStyle.swift` from the
+branch essentially as written; it needed no adaptation. Applied at the call
+sites where an icon sits beside flowing text, each paired with that text's
+style rather than a blanket `.body`. Verified at
+`accessibility-extra-large`: `10-today-dynamictype-after.png` — the category
+icons now grow with the labels.
+
+Left deliberately fixed, because the glyph is inside a container that does not
+grow with it: the checkmark inside `GridConstants.checkCircleSize`; the icon
+and title inside a block, which is one grid cell; the Wins counter and its
+plus; `SettingsIcon`'s 28×28 badge; `CachedImageView`'s placeholder (sized as a
+fraction of the image); and `SiriSnippetViews`, which render in Siri's UI. The
+three views that already used `@ScaledMetric` by hand now go through the
+modifier, so six stored properties are gone with no behaviour change.
+
+**`47322ee` — `BlockGhostSurface`.** The description in the brief is right
+about the chips and wrong about the rows, so trust the screenshots:
+
+- The unscheduled chip really was mud — `Color.primary.opacity(0.08)`, darker
+  than the page.
+- The incomplete timeline row was *not* a grey slab on main. It was a 0.15
+  category wash under a 0.10 white one — pastel, not muddy. It still wanted
+  replacing, but for a different reason: no rim, no band, so it shared no
+  anatomy with the block it turns into.
+
+Both now go through `BlockGhostSurface`. `12-today-ghostchips-after.png` shows
+rows and chips reading as the same object in the same state.
+
+One follow-on change: the chip's check ring was white, invisible on a white
+card, so it now takes the category colour.
 
