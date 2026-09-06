@@ -398,7 +398,7 @@ struct PlanItemRow: View {
     @ViewBuilder
     private var categoryFormRow: some View {
         Menu {
-            ForEach(HabitCategory.allCases, id: \.self) { cat in
+            ForEach(HabitCategory.selectable, id: \.self) { cat in
                 Button {
                     onUpdateCategory(cat)
                     HapticsEngine.tick()
@@ -492,7 +492,7 @@ struct PlanItemRow: View {
             // Group 1: What — Category + Effort
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(HabitCategory.allCases, id: \.self) { cat in
+                    ForEach(HabitCategory.selectable, id: \.self) { cat in
                         Button {
                             onUpdateCategory(cat)
                             HapticsEngine.tick()

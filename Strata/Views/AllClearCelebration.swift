@@ -4,7 +4,7 @@ import SwiftUI
 /// Uses the user's ACTUAL completed category colors (Self-Relevance Effect, Rogers et al. 1977).
 struct AllClearCelebration: View {
     @Binding var isActive: Bool
-    var completedCategories: [HabitCategory] = HabitCategory.allCases
+    var completedCategories: [HabitCategory] = HabitCategory.selectable
 
     // Decorative confetti — hidden from VoiceOver
 

@@ -30,7 +30,7 @@ struct NewHabitMenu: View {
     @ScaledMetric(relativeTo: .body) private var dayCircleSize: CGFloat = 32
 
     private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
-    private let categories = HabitCategory.allCases
+    private let categories = HabitCategory.selectable
 
     var body: some View {
         NavigationStack {

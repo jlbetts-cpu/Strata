@@ -39,7 +39,7 @@ struct MainAppView: View {
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
     @State private var hasLoadedDemo = false
-    @State private var selectedTab: StrataTab = .tower
+    @State private var selectedTab: StrataTab = .wins
     // #270: Tower filter persistence across launches
     @AppStorage("towerFilterMode") private var towerFilterMode: TowerFilterMode = .week
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
@@ -268,6 +268,18 @@ struct MainAppView: View {
 
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
+            Tab(StrataTab.wins.rawValue, systemImage: StrataTab.wins.icon, value: StrataTab.wins) {
+                NavigationStack {
+                    WinsView(tower: towerManager.activeTower) { habit in
+                        // Same path a normal completion takes, so the block
+                        // lands on the tower identically.
+                        pendingDrops.append(habit)
+                    }
+                    .background { WarmBackground().ignoresSafeArea() }
+                    .navigationTitle("Wins")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+            }
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
@@ -1912,7 +1924,7 @@ struct MainAppView: View {
 
     private func injectDebugBlock() {
         let sizes: [BlockSize] = [.small, .medium, .hard]
-        let categories: [HabitCategory] = HabitCategory.allCases
+        let categories: [HabitCategory] = HabitCategory.selectable
         let namesByCategory: [HabitCategory: [String]] = [
             .health:      ["Morning Run", "Drink Water", "Stretch", "Gym", "Walk 10k Steps", "Sleep by 11"],
             .work:        ["Deep Work", "Clear Inbox", "Stand-Up", "Code Review", "Ship Feature", "Write Docs"],
