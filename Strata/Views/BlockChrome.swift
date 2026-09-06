@@ -50,14 +50,26 @@ struct BlockSurface<Fill: View>: View {
             )
     }
 
-    /// Crossfade between the sharp copy and the blurred one. Both carry the
-    /// same content, so nothing loses weight through the blend — only focus
-    /// changes. See blockBandFeatherStart for why this is not a hard cut.
-    private func bandMask(above: Bool) -> LinearGradient {
+    /// Sharp copy on top: full down to the boundary, then fades away.
+    private var sharpMask: LinearGradient {
         LinearGradient(
             stops: [
-                .init(color: above ? .white : .clear, location: GridConstants.blockBandFeatherStart),
-                .init(color: above ? .clear : .white, location: GridConstants.blockBandFeatherEnd)
+                .init(color: .white, location: GridConstants.blockBandFeatherStart),
+                .init(color: .clear, location: GridConstants.blockBandFeatherEnd)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Blurred copy underneath: ramps to FULL before the sharp copy starts
+    /// fading, so the two never sum to less than opaque. See
+    /// blockBandBlurRampStart — mirrored masks make the block translucent.
+    private var blurredMask: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: GridConstants.blockBandBlurRampStart),
+                .init(color: .white, location: GridConstants.blockBandFeatherStart)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -66,10 +78,13 @@ struct BlockSurface<Fill: View>: View {
 
     var body: some View {
         ZStack {
-            surface.mask(bandMask(above: true))
+            // Blurred copy underneath, sharp copy over it. Order matters: the
+            // sharp one is opaque wherever the blurred one is still ramping in,
+            // so nothing translucent is ever exposed.
             surface
                 .blur(radius: GridConstants.blockRimBlur * scale)
-                .mask(bandMask(above: false))
+                .mask(blurredMask)
+            surface.mask(sharpMask)
         }
         .compositingGroup()
         .shadow(

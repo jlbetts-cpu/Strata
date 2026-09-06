@@ -149,24 +149,36 @@ enum GridConstants {
     static let blockRimWidth: CGFloat = 0.8
     /// Blur applied to the rim inside the band.
     ///
-    /// Deliberately NOT tied to blockRimWidth. In the source these are two
-    /// separate elements — a 5px border and a 10px backdrop blur — and the
-    /// softness of the bottom edge is set by the blur alone. Scaling the blur
-    /// off the rim made a slim rim produce too little white to dissolve the
-    /// boundary, leaving a hard colour-to-ground step.
+    /// Figma blurs 10px on a 562pt block — 1.78% of width — which is 1.54pt at
+    /// an 86.5pt cell.
     ///
-    /// Compared 3pt / 4.7pt / 6.7pt against the slim rim at true scale. 4pt
-    /// dissolves the edge without spreading into a haze.
-    static let blockRimBlur: CGFloat = 4
-    /// The sharp and blurred copies of the surface crossfade across this span.
+    /// This was 4pt (4.6%) for several revisions, chosen back when a blurred
+    /// RING was being composited over a sharp block and needed to be strong
+    /// enough to soften the boundary. Rebuilt against the source side by side at
+    /// its native size, that reads as a haze washing up the bottom half — the
+    /// cast Jayden spotted. At the source's own ratio there is no cast.
+    static let blockRimBlur: CGFloat = 1.5
+    /// Where the blurred copy has finished ramping in underneath, and the sharp
+    /// copy starts fading out on top of it.
     ///
-    /// Figma cuts hard, because backdrop-blur has a hard boundary. Blurring
-    /// softens a surface's alpha at its edges, so the blurred copy's silhouette
-    /// sits slightly inside the sharp one — cut hard, the block visibly pinches
-    /// in at the boundary. Crossfading the two hides that. Both copies carry the
-    /// same content, so nothing thins through the blend; only focus changes.
-    static let blockBandFeatherStart: Double = 0.66
-    static let blockBandFeatherEnd: Double = 0.84
+    /// The two masks deliberately do NOT mirror each other. Two masked opaque
+    /// layers at 50% each composite to 75% alpha, not 100% — a symmetric
+    /// crossfade makes the block genuinely translucent through the transition
+    /// and the page shows through as a milky cast. Proved by rendering the block
+    /// over pure blue: a purple band appeared across the handover.
+    ///
+    /// So the blurred copy sits underneath and reaches FULL opacity before the
+    /// sharp copy above it begins to fade. Alpha is 1 everywhere; only focus
+    /// changes. The band still needs to be a blend rather than a hard cut,
+    /// because blurring softens a surface's alpha at its edges and a hard cut
+    /// makes the silhouette visibly pinch in.
+    /// The blurred copy is fully in by bandStart, so nothing softens above the
+    /// band — the sides stay crisp to 74% exactly as the source's hard-edged
+    /// backdrop-blur does. It ramps in underneath before that only to keep total
+    /// alpha at 1; it is invisible there, covered by the opaque sharp copy.
+    static let blockBandBlurRampStart: Double = 0.66
+    static let blockBandFeatherStart: Double = 0.74
+    static let blockBandFeatherEnd: Double = 0.86
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
     /// Photo scrim band, anchored to the bottom edge rather than a proportion of
