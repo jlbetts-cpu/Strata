@@ -16,7 +16,6 @@ struct FlippableBlockView: View {
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
@@ -49,7 +48,15 @@ struct FlippableBlockView: View {
     }
 
     var body: some View {
-        ZStack {
+        BlockSurface(
+            cornerRadius: cornerRadius,
+            // A white overlay floors the composite's luminance at its own alpha,
+            // so the full 0.20 wash under white text caps contrast below 4.5:1
+            // however dark the scrim beneath it is. The source escapes this
+            // because its text sits near the TOP of the band on a 565pt block.
+            washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity
+        ) {
+            ZStack {
             if hasImage {
                 CachedImageView(
                     fileName: block.log.imageFileName,
@@ -68,15 +75,25 @@ struct FlippableBlockView: View {
                     endRadius: max(width, height) * 0.85
                 )
 
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.35),
-                        .init(color: AppColors.warmBlack.opacity(0.45), location: 0.70),
-                        .init(color: AppColors.warmBlack.opacity(0.65), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Anchored to where the TEXT starts, not to a fraction of
+                // height. Title + time + spacing + padding is ~40pt, so text
+                // begins around 54% of an 86pt row, while a proportional ramp
+                // does not reach full dark until 81% — fine on Figma's 565pt
+                // block, and it leaves the title over open photo detail here.
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: AppColors.warmBlack.opacity(0.45), location: 0.25),
+                            .init(color: AppColors.warmBlack.opacity(0.80), location: 0.45),
+                            .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: min(76, height * 0.90))
+                }
 
             } else {
                 // Vertical gradient — top light, natural (Apple HIG)
@@ -85,14 +102,18 @@ struct FlippableBlockView: View {
                         .init(color: style.lightTint.opacity(0.7), location: 0.0),
                         .init(color: style.baseColor, location: 0.25),
                         .init(color: style.baseColor, location: 0.7),
-                        .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                        .init(color: style.baseColor, location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             }
 
-            // Text content: title + time + category icon
+            }
+        }
+        .frame(width: width, height: height)
+        // Text above the blurred band so it stays sharp
+        .overlay {
             if showOverlay {
                 BlockContentOverlay(
                     title: block.habit.title,
@@ -103,16 +124,6 @@ struct FlippableBlockView: View {
                 )
             }
         }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .shadow(
-            color: .black.opacity(colorScheme == .dark
-                ? GridConstants.blockShadowOpacityDark
-                : GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
-        )
         // Perfect-day patina — golden surface wash
         .overlay {
             if patinaOpacity > 0 {
@@ -121,7 +132,6 @@ struct FlippableBlockView: View {
                     .blendMode(.overlay)
             }
         }
-        .drawingGroup()
         // Tap bounce: fast squash → bouncy pop-back
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content

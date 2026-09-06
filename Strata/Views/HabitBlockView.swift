@@ -87,7 +87,6 @@ struct HabitBlockView: View {
 
     @State private var tapTrigger: Int = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
@@ -125,41 +124,20 @@ struct HabitBlockView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Flat category fill
+        BlockSurface {
             style.baseColor
-
-            // Frosted glass overlay — gradient from clear to white 20%
-            LinearGradient(
-                colors: [Color.white.opacity(0), Color.white.opacity(0.2)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // Bottom border — lighter edge (base + 35% white)
-            VStack(spacing: 0) {
-                Spacer()
-                Color.white.opacity(0.35)
-                    .frame(height: 5)
-            }
-
-            // Text content: title + time + category icon
+        }
+        .frame(width: blockFrame.width, height: blockFrame.height)
+        // Text sits ABOVE the blurred band, as in Figma — the title and time
+        // nodes (255:107/108) are drawn after the band node, so they stay sharp
+        // on a softened ground.
+        .overlay(
             BlockContentOverlay(
                 title: block.habit.title,
                 category: block.habit.category,
                 rowSpan: block.rowSpan,
                 timeText: timeText
             )
-        }
-        .frame(width: blockFrame.width, height: blockFrame.height)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
-        .shadow(
-            color: .black.opacity(colorScheme == .dark
-                ? GridConstants.blockShadowOpacityDark
-                : GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
         )
         // Perfect-day patina — golden surface wash (not stroke)
         .overlay {
@@ -169,7 +147,6 @@ struct HabitBlockView: View {
                     .blendMode(.overlay)
             }
         }
-        .drawingGroup()
         // Tap bounce: fast squash → bouncy pop-back
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content
