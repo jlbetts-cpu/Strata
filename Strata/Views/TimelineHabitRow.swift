@@ -140,7 +140,7 @@ struct TimelineHabitRow: View {
                                         stops: [
                                             .init(color: .white, location: 0.0),
                                             .init(color: .white.opacity(0.85), location: 0.45),
-                                            .init(color: .white.opacity(0.55), location: 1.0)
+                                            .init(color: .white.opacity(0.0), location: 0.72)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom
@@ -151,9 +151,9 @@ struct TimelineHabitRow: View {
                                 .strokeBorder(
                                     LinearGradient(
                                         stops: [
-                                            .init(color: .white.opacity(0.0), location: 0.0),
-                                            .init(color: .white.opacity(0.35), location: 0.55),
-                                            .init(color: .white.opacity(0.75), location: 1.0)
+                                            .init(color: .white.opacity(0.0), location: 0.55),
+                                            .init(color: .white.opacity(0.50), location: 0.78),
+                                            .init(color: .white.opacity(0.95), location: 1.0)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom

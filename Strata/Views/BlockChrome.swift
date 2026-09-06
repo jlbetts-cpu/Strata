@@ -2,19 +2,26 @@ import SwiftUI
 
 /// The block's edge treatment, in one place.
 ///
-/// From Figma Apollo 248:14. The rim is NOT a uniform ring — it reads crisp
-/// along the top and sides, then diffuses into a soft halo at the bottom where
-/// the frosted band passes over it. That soft bottom edge is the texture that
-/// carries the style; a flat ring loses it.
+/// From Figma Apollo 248:14, where the effect is built by LAYERING, not by
+/// styling one border: node 255:105 is the block carrying a solid white 5px
+/// border, and node 255:106 is a separate 145pt rect — the bottom 26% — with
+/// `backdrop-blur(10px)` sitting on top of it. The blur eats the border. So the
+/// crisp line does not fade toward the bottom, it DISSOLVES: below the band
+/// boundary there is no line left at all, only a soft white smear bleeding
+/// inward. Keeping any crisp stroke down there reads as "a line at lower
+/// opacity", which is exactly what it must not look like.
 ///
-/// Three layers, in order:
-///   1. crisp rim, strongest at the top, fading by ~80% down
-///   2. diffused rim, absent at the top, blooming at the bottom, blurred and
-///      clipped inward so the white bleeds into the colour field
+/// SwiftUI has no backdrop filter, and the only high-contrast thing inside the
+/// band is the rim itself, so the smear is reproduced directly: blur the rim
+/// rather than blurring what is behind the band. Same result, far cheaper than
+/// re-compositing the whole block.
+///
+/// Three layers:
+///   1. crisp rim, top-weighted, gone by the band boundary (72%)
+///   2. the smear: a wide soft stroke, blurred and clipped inward
 ///   3. drop shadow
 ///
-/// Layer 2 costs a blur, which is why it carries `.drawingGroup()` — the same
-/// rasterisation the old coloured glow used.
+/// Layer 2 costs a blur, hence `.drawingGroup()`.
 struct BlockChrome: ViewModifier {
     var cornerRadius: CGFloat
     /// Scales rim weight and bloom for small surfaces (mini previews, chips).
@@ -33,7 +40,7 @@ struct BlockChrome: ViewModifier {
                         stops: [
                             .init(color: .white, location: 0.0),
                             .init(color: .white.opacity(0.85), location: 0.45),
-                            .init(color: .white.opacity(0.55), location: 1.0)
+                            .init(color: .white.opacity(0.0), location: 0.72)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -47,9 +54,9 @@ struct BlockChrome: ViewModifier {
                     .strokeBorder(
                         LinearGradient(
                             stops: [
-                                .init(color: .white.opacity(0.0), location: 0.0),
-                                .init(color: .white.opacity(0.35), location: 0.55),
-                                .init(color: .white.opacity(0.75), location: 1.0)
+                                .init(color: .white.opacity(0.0), location: 0.55),
+                                .init(color: .white.opacity(0.50), location: 0.78),
+                                .init(color: .white.opacity(0.95), location: 1.0)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -79,15 +86,18 @@ extension View {
 
 /// The frosted wash over the lower portion of a block.
 ///
-/// Holds the colour field flat through the top third, then lightens low — the
-/// Figma band (248:78) is bottom-anchored, so a ramp starting at the very top
-/// washes out colour that should stay saturated.
+/// The band is the bottom 26% (Figma 255:106 is 145pt on a 565pt block), and its
+/// own gradient runs transparent -> white 0.2 across that span. So the colour
+/// field stays fully saturated down to ~74% and only lightens inside the band —
+/// a ramp starting higher up quietly desaturates colour that should stay strong.
 struct BlockWash: View {
+    /// Fraction of block height where the frosted band begins.
+    static let bandStart: Double = 0.74
+
     var body: some View {
         LinearGradient(
             stops: [
-                .init(color: .clear, location: 0.35),
-                .init(color: .white.opacity(GridConstants.blockScrimOpacity * 0.4), location: 0.70),
+                .init(color: .clear, location: Self.bandStart),
                 .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
             ],
             startPoint: .top,
