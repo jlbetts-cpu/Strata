@@ -384,11 +384,10 @@ struct PlanItemRow: View {
 
     // MARK: - Form Separator (visible on .thinMaterial in both modes)
 
-    @Environment(\.colorScheme) private var colorScheme
 
     private var formSeparator: some View {
         Rectangle()
-            .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.1))
+            .fill(Color.primary.opacity(0.1))
             .frame(height: 0.5)
             .padding(.leading, 44) // indent past icon column (Apple Reminders pattern)
     }
@@ -398,7 +397,7 @@ struct PlanItemRow: View {
     @ViewBuilder
     private var categoryFormRow: some View {
         Menu {
-            ForEach(HabitCategory.allCases, id: \.self) { cat in
+            ForEach(HabitCategory.selectable, id: \.self) { cat in
                 Button {
                     onUpdateCategory(cat)
                     HapticsEngine.tick()
@@ -492,7 +491,7 @@ struct PlanItemRow: View {
             // Group 1: What — Category + Effort
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(HabitCategory.allCases, id: \.self) { cat in
+                    ForEach(HabitCategory.selectable, id: \.self) { cat in
                         Button {
                             onUpdateCategory(cat)
                             HapticsEngine.tick()

@@ -27,7 +27,6 @@ struct ScheduleTimelineView: View {
     @Binding var deepLinkHabitID: UUID?
 
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.switchTab) private var switchTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(FocusFilterService.self) private var focusFilterService
@@ -166,7 +165,7 @@ struct ScheduleTimelineView: View {
                 }
 
                 Rectangle()
-                    .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
+                    .fill(Color.primary.opacity(0.06))
                     .frame(height: 0.5)
 
                 // Focus Filter banner
@@ -181,7 +180,7 @@ struct ScheduleTimelineView: View {
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(focusCategory.style.baseColor.opacity(colorScheme == .dark ? 0.20 : 0.15))
+                    .background(focusCategory.style.baseColor.opacity(0.15))
                 }
 
                 // Siri tip removed per user feedback
@@ -474,11 +473,11 @@ struct ScheduleTimelineView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(isCompleted ? style.baseColor : Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.08))
+                .fill(isCompleted ? style.baseColor : Color.primary.opacity(0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : (colorScheme == .dark ? 0.4 : 0.6)), lineWidth: GridConstants.strokeDefault)
+                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : (0.6)), lineWidth: GridConstants.strokeDefault)
         )
         // Tap chip body to schedule (with time choice)
         .onTapGesture {
@@ -532,13 +531,13 @@ struct ScheduleTimelineView: View {
             .frame(height: 40)
             .background(
                 RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .fill(colorScheme == .dark ? AppColors.ghostBaseDark : AppColors.ghostBase)
+                    .fill(AppColors.ghostBase)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .stroke(eventColor.opacity(colorScheme == .dark ? 0.6 : 0.5), lineWidth: GridConstants.strokeDefault)
+                    .stroke(eventColor.opacity(0.5), lineWidth: GridConstants.strokeDefault)
             )
-            .opacity(colorScheme == .dark ? 0.7 : 0.6)
+            .opacity(0.6)
             .allowsHitTesting(false)
         }
         .padding(.horizontal, 16)

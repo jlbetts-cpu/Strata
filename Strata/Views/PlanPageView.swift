@@ -405,10 +405,10 @@ struct PlanPageView: View {
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: gridCardMinHeight, alignment: .topLeading)
         .background(
-            Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04),
+            Color.primary.opacity(0.04),
             in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
         )
-        .shadow(color: .black.opacity(colorScheme == .light ? 0.08 : 0), radius: 4, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityLabel("\(section.title), \(section.items.count) items")
         .accessibilityHint("Tap to view all items")
     }

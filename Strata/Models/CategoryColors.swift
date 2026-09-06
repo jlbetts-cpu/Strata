@@ -77,6 +77,17 @@ extension HabitCategory {
                 lightTint: Color(hex: 0xFB8E86),
                 darkShade: Color(hex: 0xD45E55)
             )
+        case .unlabeled:
+            // Warm grey, sitting in the same family as the ground rather than
+            // competing with the six category colours.
+            return CategoryStyle(
+                baseColor: Color(hex: 0x9C9791),
+                border: Color(hex: 0x857F79),
+                glow: Color(hex: 0x9C9791).opacity(0.30),
+                text: .white,
+                lightTint: Color(hex: 0xB5B0AA),
+                darkShade: Color(hex: 0x857F79)
+            )
         case .mindfulness:
             return CategoryStyle(
                 baseColor: Color(hex: 0xEC85B4),

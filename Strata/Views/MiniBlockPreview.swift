@@ -20,7 +20,7 @@ struct MiniBlockPreview: View {
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
                     .init(color: style.baseColor, location: 0.3),
-                    .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                    .init(color: style.baseColor, location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WelcomeView: View {
     let onDismiss: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
 

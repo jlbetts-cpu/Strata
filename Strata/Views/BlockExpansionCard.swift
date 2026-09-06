@@ -21,7 +21,6 @@ struct BlockExpansionCard: View {
     @State private var showCamera = false
     @GestureState private var dragOffset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     private var style: CategoryStyle { block.habit.category.style }
     @State private var cardWidth: CGFloat = 353 // Updated by GeometryReader on appear

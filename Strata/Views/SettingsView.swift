@@ -10,7 +10,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(HealthKitService.self) private var healthKitService
     @Environment(EventKitService.self) private var eventKitService

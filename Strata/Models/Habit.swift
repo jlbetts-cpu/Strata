@@ -10,6 +10,16 @@ enum HabitCategory: String, Codable, CaseIterable {
     case focus
     case social
     case mindfulness
+    /// A win logged before it was described. Neutral on purpose — the colour
+    /// system is for categories you chose, and this one has not been chosen yet.
+    /// Naming a win later moves it to a real category.
+    case unlabeled
+
+    /// Categories a person can pick. `unlabeled` is a state, not a choice, so it
+    /// never appears in a picker.
+    static var selectable: [HabitCategory] {
+        allCases.filter { $0 != .unlabeled }
+    }
 
     var iconName: String {
         switch self {
@@ -19,6 +29,7 @@ enum HabitCategory: String, Codable, CaseIterable {
         case .focus:       return "eye.fill"
         case .social:      return "person.2.fill"
         case .mindfulness: return "leaf.fill"
+        case .unlabeled:   return "circle.fill"
         }
     }
 }
