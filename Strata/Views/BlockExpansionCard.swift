@@ -14,13 +14,22 @@ struct BlockExpansionCard: View {
     @State private var showContent = false
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoError = false
+    @State private var imageToCrop: UIImage? = nil
+    @State private var isSavingPhoto = false
+    @State private var showPhotoSourceDialog = false
+    @State private var showLibraryPicker = false
+    @State private var showCamera = false
     @GestureState private var dragOffset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
     private var style: CategoryStyle { block.habit.category.style }
-    @State private var cardWidth: CGFloat = 353
-    private var heroHeight: CGFloat { min(CGFloat(block.rowSpan) * 80 * 2.0, 300) }
+    @State private var cardWidth: CGFloat = 353 // Updated by GeometryReader on appear
+    // Hero matches source block aspect ratio (Pylyshyn 2001: object constancy)
+    private var heroHeight: CGFloat {
+        let sourceAspect = CGFloat(block.columnSpan) / CGFloat(block.rowSpan)
+        return min(cardWidth / sourceAspect, 300)
+    }
 
     private var currentLog: HabitLog { block.log }
     private var currentHabit: Habit { block.habit }
@@ -30,6 +39,13 @@ struct BlockExpansionCard: View {
             get: { currentLog.note ?? "" },
             set: { currentLog.note = $0.isEmpty ? nil : $0 }
         )
+    }
+
+    // #389: Rotating note prompts
+    private var notePrompt: String {
+        let prompts = ["Add a note…", "How did it feel?", "What did you learn?", "Any thoughts?", "Worth remembering?"]
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        return prompts[dayOfYear % prompts.count]
     }
 
     // MARK: - Body
@@ -48,7 +64,9 @@ struct BlockExpansionCard: View {
 
                 // Photo capture overlay — shown when no photo on current block
                 if block.log.imageFileName == nil {
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                    Button {
+                        showPhotoSourceDialog = true
+                    } label: {
                         VStack(spacing: 8) {
                             Image(systemName: "camera.fill")
                                 .font(.title2.weight(.light))
@@ -61,6 +79,14 @@ struct BlockExpansionCard: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                }
+
+                // Loading indicator
+                if isSavingPhoto {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                        ProgressView().tint(.white)
+                    }
                 }
             }
             .frame(width: cardWidth, height: heroHeight)
@@ -90,7 +116,7 @@ struct BlockExpansionCard: View {
                     if currentLog.verifiedByHealthKit {
                         HStack(spacing: 6) {
                             Image(systemName: "heart.circle")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(Typography.caption)
                                 .foregroundStyle(AppColors.healthGreen)
                             Text("Verified by Apple Health")
                                 .font(Typography.caption)
@@ -98,8 +124,8 @@ struct BlockExpansionCard: View {
                         }
                     }
 
-                    // Note editor
-                    TextField("Add a note…", text: noteBinding, axis: .vertical)
+                    // #389: Note editor with rotating prompts (encourages reflection)
+                    TextField(notePrompt, text: noteBinding, axis: .vertical)
                         .font(Typography.bodySmall)
                         .foregroundStyle(.primary.opacity(0.85))
                         .lineLimit(1...6)
@@ -114,7 +140,9 @@ struct BlockExpansionCard: View {
                     // Photo actions — always available (Norman 1988)
                     if block.log.imageFileName != nil {
                         HStack(spacing: 16) {
-                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                            Button {
+                                showPhotoSourceDialog = true
+                            } label: {
                                 Label("Replace Photo", systemImage: "camera")
                                     .font(Typography.bodySmall)
                                     .foregroundStyle(style.baseColor)
@@ -125,7 +153,7 @@ struct BlockExpansionCard: View {
                                 if let fileName = block.log.imageFileName {
                                     ImageManager.shared.deleteImage(fileName: fileName)
                                     block.log.imageFileName = nil
-                                    HapticsEngine.lightTap()
+                                    HapticsEngine.warning()
                                 }
                             } label: {
                                 Label("Remove", systemImage: "trash")
@@ -165,7 +193,12 @@ struct BlockExpansionCard: View {
         .frame(width: cardWidth)
         .background(
             RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
+                // #10: Tinted material — .thickMaterial + 3% category overlay (Gestalt similarity)
+                .fill(.thickMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous)
+                        .fill(style.baseColor.opacity(0.03))
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cardCornerRadius, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -175,7 +208,7 @@ struct BlockExpansionCard: View {
                     onDismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(Typography.brandHeader)
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.white)
                 }
@@ -184,7 +217,9 @@ struct BlockExpansionCard: View {
                 .transition(.opacity)
             }
         }
+        // #14: Dual shadow — ambient + tight contact shadow
         .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
         .scrollDismissesKeyboard(.interactively)
         .offset(y: dragOffset)
         .gesture(
@@ -195,7 +230,8 @@ struct BlockExpansionCard: View {
                     }
                 }
                 .onEnded { value in
-                    if value.translation.height > 80 {
+                    // #268: Velocity-based dismiss — if swipe > 500pt/s, dismiss regardless of distance
+                    if value.translation.height > 80 || value.velocity.height > 500 {
                         HapticsEngine.snap()
                         onDismiss()
                     }
@@ -213,7 +249,51 @@ struct BlockExpansionCard: View {
         }
         .onChange(of: selectedItem) { _, newItem in
             HapticsEngine.lightTap()
-            Task { await loadPhoto(from: newItem) }
+            Task {
+                guard let newItem else { return }
+                guard let data = try? await newItem.loadTransferable(type: Data.self),
+                      let img = await Task.detached(operation: { UIImage(data: data) }).value else {
+                    showPhotoError = true; return
+                }
+                imageToCrop = img
+            }
+        }
+        .confirmationDialog("Add Photo", isPresented: $showPhotoSourceDialog) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take Photo") { showCamera = true }
+            }
+            Button("Choose from Library") { showLibraryPicker = true }
+        }
+        .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPickerView(
+                onCapture: { image in showCamera = false; imageToCrop = image },
+                onCancel: { showCamera = false }
+            )
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { imageToCrop != nil },
+            set: { if !$0 { imageToCrop = nil } }
+        )) {
+            if let img = imageToCrop {
+                PhotoCropView(
+                    image: img,
+                    blockContext: BlockPreviewContext(
+                        title: block.habit.title,
+                        category: block.habit.category,
+                        blockSize: block.habit.blockSize,
+                        timeText: nil
+                    ),
+                    onCrop: { cropped in
+                        imageToCrop = nil
+                        Task { await savePhoto(cropped) }
+                    },
+                    onCancel: {
+                        imageToCrop = nil
+                        selectedItem = nil
+                    }
+                )
+            }
         }
         .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
             Button("OK", role: .cancel) {}
@@ -221,6 +301,8 @@ struct BlockExpansionCard: View {
             Text("Try again or choose a different photo.")
         })
         .accessibilityAddTraits(.isModal)
+        // #129: Expansion card focus trap for VoiceOver
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Hero Slide
@@ -240,7 +322,8 @@ struct BlockExpansionCard: View {
                 width: cardWidth,
                 height: heroHeight,
                 cornerRadius: 0,
-                modelContext: modelContext
+                modelContext: modelContext,
+                showOverlay: false
             )
             .allowsHitTesting(false)
         }
@@ -255,13 +338,17 @@ struct BlockExpansionCard: View {
         HapticsEngine.tick()
     }
 
-    // MARK: - Photo Capture
+    // MARK: - Photo Save (receives cropped image from PhotoCropView)
 
     @MainActor
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        guard let img = await Task.detached { UIImage(data: data) }.value else { return }
+    private func savePhoto(_ img: UIImage) async {
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
+
+        // Delete old photo file to prevent disk leak
+        if let oldFileName = block.log.imageFileName {
+            ImageManager.shared.deleteImage(fileName: oldFileName)
+        }
 
         let (maxDim, quality): (CGFloat, CGFloat) = switch block.habit.blockSize {
         case .small: (512, 0.70)
@@ -272,6 +359,7 @@ struct BlockExpansionCard: View {
             let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
             block.log.imageFileName = fileName
             try? modelContext.save()
+            selectedItem = nil
             HapticsEngine.lightTap()
         } catch {
             showPhotoError = true

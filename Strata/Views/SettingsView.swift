@@ -12,6 +12,8 @@ struct SettingsView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(HealthKitService.self) private var healthKitService
+    @Environment(EventKitService.self) private var eventKitService
 
     @Query private var habits: [Habit]
     @Query private var logs: [HabitLog]
@@ -21,6 +23,11 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("reminderHour") private var reminderHour = 8
     @AppStorage("reminderMinute") private var reminderMinute = 0
+
+    // #172/#173: Tower appearance toggles
+    @AppStorage("towerShowGhostBlock") private var towerShowGhostBlock = true
+    @AppStorage("towerShowParallax") private var towerShowParallax = true
+    @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     @State private var reminderTime = Date()
     @State private var systemNotificationsDenied = false
@@ -148,6 +155,128 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.accentPurple)
+            }
+
+            // MARK: - Tower Appearance (#172)
+
+            Section("Tower") {
+                Toggle(isOn: $towerShowGhostBlock) {
+                    Label {
+                        Text("Ghost Block Preview")
+                    } icon: {
+                        SettingsIcon(systemName: "square.dashed", color: .gray)
+                    }
+                }
+                .tint(AppColors.accentPurple)
+
+                Toggle(isOn: $towerShowParallax) {
+                    Label {
+                        Text("3D Parallax")
+                    } icon: {
+                        SettingsIcon(systemName: "cube.transparent", color: .blue)
+                    }
+                }
+                .tint(AppColors.accentPurple)
+
+                // #173: Haptic toggle
+                Toggle(isOn: $hapticsEnabled) {
+                    Label {
+                        Text("Haptic Feedback")
+                    } icon: {
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right", color: .green)
+                    }
+                }
+                .tint(AppColors.accentPurple)
+            }
+
+            // MARK: - Apple Health
+
+            Section {
+                HStack {
+                    Label {
+                        Text("Apple Health")
+                    } icon: {
+                        SettingsIcon(systemName: "heart.fill", color: AppColors.healthGreen)
+                    }
+
+                    Spacer()
+
+                    if healthKitService.isAuthorized {
+                        Text("Connected")
+                            .font(Typography.caption)
+                            .foregroundStyle(AppColors.healthGreen)
+                    } else if healthKitService.isAvailable {
+                        Button("Connect") {
+                            Task { await healthKitService.requestAccess() }
+                        }
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(AppColors.healthGreen)
+                    } else {
+                        Text("Not Available")
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if healthKitService.isAuthorized {
+                    let connectedHabits = habits.filter { $0.healthKitType != nil }
+                    if connectedHabits.isEmpty {
+                        Text("No habits connected to Apple Health yet")
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(connectedHabits, id: \.id) { habit in
+                            HStack(spacing: 8) {
+                                Image(systemName: habit.category.iconName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(habit.category.style.baseColor)
+                                Text(habit.title)
+                                    .font(Typography.bodySmall)
+                                Spacer()
+                                if let typeStr = habit.healthKitType,
+                                   let type = HealthKitHabitType(rawValue: typeStr) {
+                                    Text(type.displayName)
+                                        .font(Typography.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Integrations")
+            }
+
+            // MARK: - Calendar
+
+            Section {
+                HStack {
+                    Label {
+                        Text("Calendar")
+                    } icon: {
+                        SettingsIcon(systemName: "calendar", color: .red)
+                    }
+
+                    Spacer()
+
+                    if eventKitService.isAuthorized {
+                        Text("Connected")
+                            .font(Typography.caption)
+                            .foregroundStyle(AppColors.healthGreen)
+                    } else {
+                        Button("Connect") {
+                            Task { await eventKitService.requestAccess() }
+                        }
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(AppColors.healthGreen)
+                    }
+                }
+
+                if eventKitService.isAuthorized {
+                    Text("Calendar events appear as context on your timeline")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // MARK: - Section 2: Customization

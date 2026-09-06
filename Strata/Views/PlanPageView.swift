@@ -34,12 +34,15 @@ struct PlanPageView: View {
     @State private var sectionAddText: [String: String] = [:]
     @State private var subtasksByParent: [UUID: [PlanItem]] = [:]
     @State private var dropTargetSectionID: String? = nil
+    @State private var selectedGridSection: String? = nil
     @State private var viewMode: PlanViewMode = .routines
+    @State private var searchText: String = ""
     @State private var editingSection: PlanSection? = nil
     @State private var editName: String = ""
     @State private var editIcon: String = ""
     @State private var editColorHex: String = ""
     @AppStorage("smartViewOverrides") private var overridesData: Data = Data()
+    @AppStorage("planSortMode") private var savedSortMode: String = "recent"
     @State private var habitToDelete: Habit? = nil
     @State private var sectionToDelete: PlanSection? = nil
     @State private var pendingDeleteHabit: Habit? = nil
@@ -56,53 +59,61 @@ struct PlanPageView: View {
     @ScaledMetric(relativeTo: .body) private var sectionPadV: CGFloat = 12
     @ScaledMetric(relativeTo: .footnote) private var snackbarPadH: CGFloat = 16
     @ScaledMetric(relativeTo: .footnote) private var snackbarPadV: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var gridCardMinHeight: CGFloat = 80
 
     private var gentle: Animation { reduceMotion ? GridConstants.motionReduced : GridConstants.motionGentle }
 
     var body: some View {
+        planContent
+        .background { WarmBackground().ignoresSafeArea() }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { planToolbar }
+    }
+
+    // MARK: - Main Content (extracted from body to reduce type-checker complexity)
+
+    private var planContent: some View {
         ScrollViewReader { proxy in
             List {
-                // MARK: - GTD Segmented Picker
-                Picker("View", selection: $viewMode) {
-                    ForEach(PlanViewMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Plan view mode")
-                .accessibilityHint("Switch between Routines and To-Dos")
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                viewModePicker
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-                // MARK: - Sections with Contextual "+ Add" Rows
-                let sections = cachedSections
-                if !sections.isEmpty {
-                    ForEach(sections) { section in
+                // MARK: - Dashboard Grid (Apple Reminders pattern)
+                // Smart visibility: always show anchors, hide empty non-anchors
+                let gridSections = cachedSections.filter { section in
+                    // Always show: Today, Tomorrow, Inbox (Routines), Saved (To-Dos)
+                    if section.id == "today" || section.id == "tomorrow" || section.id == "inbox" || section.id == "saved" {
+                        return true
+                    }
+                    // Show other permanent sections only when non-empty
+                    if section.isPermanent {
+                        return !section.items.isEmpty
+                    }
+                    return false
+                }
+                let listSections = cachedSections.filter { !$0.isPermanent }
+
+                if !gridSections.isEmpty {
+                    dashboardGrid(sections: gridSections)
+                }
+
+                // MARK: - List Sections (custom folders, overflow)
+                if !listSections.isEmpty {
+                    ForEach(listSections) { section in
                         DisclosureGroup(
                             isExpanded: sectionBinding(for: section.id)
                         ) {
-                            // Items in section — draggable
-                            if section.items.isEmpty && section.isPermanent {
-                                Text("Nothing scheduled")
-                                    .font(Typography.caption)
-                                    .foregroundStyle(.quaternary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 4)
-                                    .listRowSeparator(.hidden)
-                            }
-
                             ForEach(section.items) { item in
                                 itemRow(for: item)
                                     .id(item.id)
                                     .draggable(item.id.uuidString)
                             }
-
-                            // Contextual "+ Add to [Section]" row
                             sectionAddRow(for: section)
                         } label: {
                             sectionHeader(for: section)
                         }
-                        // Drop target for drag-and-drop between sections
                         .dropDestination(for: String.self) { strings, _ in
                             guard let uuidString = strings.first,
                                   let habitID = UUID(uuidString: uuidString) else { return false }
@@ -112,15 +123,25 @@ struct PlanPageView: View {
                         }
                         .listRowBackground(
                             dropTargetSectionID == section.id
-                                ? Color.accentColor.opacity(0.06)
+                                ? Color.accentColor.opacity(0.12)
                                 : Color.clear
                         )
                         .listRowSeparator(.hidden)
                         .animation(GridConstants.motionSmooth, value: dropTargetSectionID)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if section.isUserCreated {
+                                Button(role: .destructive) {
+                                    sectionToDelete = section
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
                     }
+                }
 
-                    // "New Section" button (Routines only — custom folders don't apply to To-Dos)
-                    if viewMode == .routines {
+                // "New Section" button (Routines only)
+                if viewMode == .routines {
                     Button {
                         createNewFolder()
                     } label: {
@@ -128,7 +149,7 @@ struct PlanPageView: View {
                             Image(systemName: "plus.circle.fill")
                                 .font(.body)
                                 .foregroundStyle(.secondary)
-                            Text("New Section")
+                            Text("Add Folder")
                                 .font(Typography.bodySmall)
                                 .foregroundStyle(.secondary)
                         }
@@ -137,49 +158,33 @@ struct PlanPageView: View {
                     }
                     .buttonStyle(.plain)
                     .listRowSeparator(.hidden)
-                    } // end if viewMode == .routines
                 }
 
                 // MARK: - Empty State
-                if allHabits.isEmpty {
+                if allHabits.isEmpty && folders.isEmpty {
                     emptyState
                         .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
+            .refreshable { performRebuild() }
+            // navigationDestination removed — grid uses hidden NavigationLink pattern (fixes Matryoshka bug)
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: viewModel.expandedItemID) { _, newID in
                 if let newID {
                     withAnimation(gentle) {
-                        proxy.scrollTo(newID, anchor: .top)
+                        proxy.scrollTo(newID, anchor: .center)
                     }
                 }
-            }
-        }
-        .navigationTitle("Plan")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .recent }; HapticsEngine.tick() } label: {
-                        Label("Recent First", systemImage: viewModel.sortMode == .recent ? "checkmark" : "")
-                    }
-                    Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .category }; HapticsEngine.tick() } label: {
-                        Label("By Category", systemImage: viewModel.sortMode == .category ? "checkmark" : "")
-                    }
-                    Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .oldest }; HapticsEngine.tick() } label: {
-                        Label("Oldest First", systemImage: viewModel.sortMode == .oldest ? "checkmark" : "")
-                    }
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.footnote.weight(.medium))
-                }
-                .buttonStyle(.glassProminent)
             }
         }
         .onAppear {
             if !hasAppeared {
                 hasAppeared = true
+                // Restore persisted sort mode
+                if let mode = SortMode(rawValue: savedSortMode) {
+                    viewModel.sortMode = mode
+                }
                 // Restore persisted section expansion state
                 if let saved = try? JSONDecoder().decode([String: Bool].self, from: sectionExpandedData) {
                     sectionExpanded = saved
@@ -190,13 +195,18 @@ struct PlanPageView: View {
         .onChange(of: allHabits.count) { _, _ in
             scheduleRebuild()
         }
-        .onChange(of: viewModel.sortMode) { _, _ in
+        .onChange(of: searchText) { _, _ in
+            scheduleRebuild()
+        }
+        .onChange(of: viewModel.sortMode) { _, newMode in
+            savedSortMode = newMode.rawValue
             scheduleRebuild()
         }
         .onChange(of: folders.count) { _, _ in
             scheduleRebuild()
         }
         .onChange(of: viewMode) { _, _ in
+            viewModel.expandedItemID = nil
             HapticsEngine.tick()
             scheduleRebuild()
         }
@@ -234,7 +244,7 @@ struct PlanPageView: View {
             }
             Button("Cancel", role: .cancel) { habitToDelete = nil }
         } message: {
-            Text("This will permanently remove this habit and all its steps.")
+            Text("This removes the habit and its steps. You can always recreate it.")
         }
         .confirmationDialog(
             "Delete this section?",
@@ -250,12 +260,12 @@ struct PlanPageView: View {
             }
             Button("Cancel", role: .cancel) { sectionToDelete = nil }
         } message: {
-            Text("Habits in this section will move to Inbox.")
+            Text("Habits move to Inbox — safe until you reorganize.")
         }
         .overlay(alignment: .bottom) {
             if pendingDeleteHabit != nil {
                 HStack {
-                    Text("Habit deleted")
+                    Text("Removed — tap Undo to restore")
                         .font(Typography.bodySmall)
                     Spacer()
                     Button("Undo") {
@@ -269,11 +279,152 @@ struct PlanPageView: View {
                 }
                 .padding(.horizontal, snackbarPadH)
                 .padding(.vertical, snackbarPadV)
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(.thinMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+    }
+
+    // MARK: - Dashboard Grid (extracted for type-checker performance)
+
+    @ViewBuilder
+    private func dashboardGrid(sections: [PlanSection]) -> some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ], spacing: 8) {
+            ForEach(sections) { section in
+                Button {
+                    selectedGridSection = section.id
+                    HapticsEngine.lightTap()
+                } label: {
+                    smartSectionCard(for: section)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .background(
+            NavigationLink(
+                destination: gridDestination,
+                isActive: Binding(
+                    get: { selectedGridSection != nil },
+                    set: { if !$0 { selectedGridSection = nil } }
+                )
+            ) { EmptyView() }
+            .frame(width: 0, height: 0)
+            .hidden()
+        )
+    }
+
+    @ViewBuilder
+    private var gridDestination: some View {
+        if let id = selectedGridSection,
+           let section = cachedSections.first(where: { $0.id == id }) {
+            List {
+                ForEach(section.items) { item in
+                    itemRow(for: item)
+                        .id(item.id)
+                        .draggable(item.id.uuidString)
+                }
+                sectionAddRow(for: section)
+            }
+            .listStyle(.plain)
+            .navigationTitle(section.title)
+        }
+    }
+
+    // MARK: - Smart Section Card (Apple Reminders dashboard grid)
+
+    @ViewBuilder
+    private func smartSectionCard(for section: PlanSection) -> some View {
+        let color = cardIconColor(for: section)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: section.icon)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        LinearGradient(colors: [color.opacity(0.85), color], startPoint: .top, endPoint: .bottom),
+                        in: Circle()
+                    )
+                Spacer()
+                // Count — with empty state + Inbox urgency
+                if section.id == "today" && section.items.isEmpty {
+                    Text("All clear")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.healthGreen)
+                } else if section.id == "today" {
+                    let done = section.items.filter { todayCompletedIDs.contains($0.id) }.count
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(done)/\(section.items.count)")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .contentTransition(reduceMotion ? .identity : .numericText())
+                            .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: section.items.count)
+                        // Effort commitment check (Kahneman 2000 — planning fallacy)
+                        let remainingMinutes = section.items
+                            .filter { !todayCompletedIDs.contains($0.id) }
+                            .reduce(0) { $0 + $1.habit.effectiveDurationMinutes }
+                        if remainingMinutes > 150 {
+                            Text("\(remainingMinutes)m left")
+                                .font(Typography.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                } else {
+                    Text("\(section.items.count)")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(section.id == "inbox" && section.items.count > 5 ? .orange : .primary)
+                        .accessibilityLabel(section.id == "inbox" && section.items.count > 5 ? "\(section.items.count) items, needs attention" : "\(section.items.count) items")
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                        .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: section.items.count)
+                }
+            }
+            Spacer()
+            HStack(spacing: 4) {
+                Text(section.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if section.id == "done" {
+                    let todayTotal = cachedSections.first(where: { $0.id == "today" })?.items.count ?? 0
+                    if todayTotal > 0 && !section.items.isEmpty {
+                        Text("(\(section.items.count)/\(todayTotal + section.items.count))")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: gridCardMinHeight, alignment: .topLeading)
+        .background(
+            Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04),
+            in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+        )
+        .shadow(color: .black.opacity(colorScheme == .light ? 0.08 : 0), radius: 4, x: 0, y: 2)
+        .accessibilityLabel("\(section.title), \(section.items.count) items")
+        .accessibilityHint("Tap to view all items")
+    }
+
+    private func cardIconColor(for section: PlanSection) -> Color {
+        if let hex = section.colorHex {
+            return sectionIconColor(for: section)
+        }
+        switch section.id {
+        case "today": return AppColors.healthGreen
+        case "tomorrow": return .orange
+        case "next7": return .blue
+        case "inbox": return .gray
+        case "inprogress": return .orange
+        case "done": return AppColors.healthGreen
+        default: return .secondary
         }
     }
 
@@ -284,20 +435,23 @@ struct PlanPageView: View {
         HStack(spacing: 8) {
             Image(systemName: section.icon)
                 .foregroundStyle(sectionIconColor(for: section))
-            Text(section.title)
-                .fontWeight(.semibold)
+            Text(section.title.uppercased())
+                .font(Typography.caption)
+                .tracking(0.5)
+                .foregroundStyle(Color.primary.opacity(0.5))
             Spacer()
-            // Today section: show completion progress (Sweller 1988 — reduce cognitive load)
+            // Today section: show completion progress
             if section.id == "today" && !section.items.isEmpty {
                 let done = section.items.filter { todayCompletedIDs.contains($0.id) }.count
                 Text("\(done)/\(section.items.count)")
-                    .foregroundStyle(done == section.items.count ? AppColors.healthGreen : Color.secondary)
+                    .font(Typography.caption)
+                    .foregroundStyle(done == section.items.count ? AppColors.healthGreen : .secondary)
             } else {
                 Text("\(section.items.count)")
-                    .foregroundStyle(.tertiary)
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .font(Typography.bodySmall)
         .contextMenu {
             // "Edit Section" — all sections (Apple Reminders "Show List Info" pattern)
             Button {
@@ -342,7 +496,7 @@ struct PlanPageView: View {
             HStack(spacing: 12) {
                 Image(systemName: "plus")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
 
                 HighlightingTextField(
                     text: sectionAddBinding(for: section.id),
@@ -374,11 +528,12 @@ struct PlanPageView: View {
                     Text("Add to \(section.title)")
                         .font(Typography.caption)
                 }
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, sectionPadH)
                 .padding(.vertical, 8)
             }
             .buttonStyle(.plain)
+            .frame(minHeight: 44)
             .listRowSeparator(.hidden)
             .accessibilityLabel("Add habit to \(section.title)")
         }
@@ -404,7 +559,12 @@ struct PlanPageView: View {
                 guard Date.now.timeIntervalSince(lastExpandTime) > 0.1 else { return }
                 lastExpandTime = .now
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                HapticsEngine.lightTap()
+                // Haptic differentiation: open = hopeful, close = confirmatory (Hoggan 2008)
+                if viewModel.expandedItemID == item.id {
+                    HapticsEngine.tick()      // closing
+                } else {
+                    HapticsEngine.lightTap()  // opening
+                }
                 withAnimation(gentle) {
                     viewModel.expandedItemID = viewModel.expandedItemID == item.id ? nil : item.id
                 }
@@ -436,6 +596,11 @@ struct PlanPageView: View {
             onDeleteSubTask: { subtaskHabit in
                 viewModel.deleteItem(subtaskHabit, context: modelContext)
             },
+            onToggleSubTask: { subtaskHabit in
+                withAnimation(gentle) {
+                    viewModel.toggleSubTaskCompletion(subtaskHabit, context: modelContext)
+                }
+            },
             scheduledSiblings: siblings,
             suggestedSlot: suggestedSlot,
             isCompletedToday: todayCompletedIDs.contains(item.id),
@@ -459,6 +624,44 @@ struct PlanPageView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            // Complete for today — primary positive action (Apple HIG: swipe right = positive)
+            Button {
+                // Effort-scaled haptics (Volkow 2011 — reward proportional to effort)
+                switch item.habit.blockSize {
+                case .small: HapticsEngine.tick()
+                case .medium: HapticsEngine.lightTap()
+                case .hard: HapticsEngine.snap()
+                }
+                viewModel.completeForToday(item.habit, context: modelContext)
+                // 50% milestone check (Schultz 2002 — variable reward at intermediate checkpoints)
+                let totalToday = cachedSections.first(where: { $0.id == "today" })?.items.count ?? 0
+                let doneCount = todayCompletedIDs.count + 1
+                if totalToday > 1 && doneCount * 2 >= totalToday && (doneCount - 1) * 2 < totalToday {
+                    HapticsEngine.success()
+                }
+                scheduleRebuild()
+            } label: {
+                Label("Done", systemImage: "checkmark.circle.fill")
+            }
+            .tint(AppColors.healthGreen)
+
+            if item.habit.isTodo {
+                Button {
+                    withAnimation(gentle) {
+                        viewModel.toggleInProgress(item.habit, context: modelContext)
+                    }
+                    HapticsEngine.snap()
+                    scheduleRebuild()
+                } label: {
+                    Label(
+                        item.habit.isInProgress ? "Pause" : "Start",
+                        systemImage: item.habit.isInProgress ? "pause.fill" : "play.fill"
+                    )
+                }
+                .tint(item.habit.isInProgress ? .orange : .blue)
+            }
+        }
     }
 
     // MARK: - Empty State
@@ -475,11 +678,11 @@ struct PlanPageView: View {
                     .frame(width: 72, height: 72)
             }
 
-            Text("Build your tower")
+            Text("Let's build together")
                 .font(Typography.headerMedium)
                 .foregroundStyle(.primary)
 
-            Text("Type naturally — times and days are detected automatically")
+            Text("Tell us what matters to you. We'll figure out the rest.")
                 .font(Typography.bodyMedium)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -508,6 +711,7 @@ struct PlanPageView: View {
         deleteUndoTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }
+            HapticsEngine.snap() // haptic on actual delete, not on undo-window start
             withAnimation(gentle) {
                 if let h = pendingDeleteHabit {
                     viewModel.deleteItem(h, context: modelContext)
@@ -516,7 +720,7 @@ struct PlanPageView: View {
             }
             scheduleRebuild()
         }
-        HapticsEngine.snap()
+        HapticsEngine.lightTap() // soft feedback on swipe, not destructive snap
         scheduleRebuild()
     }
 
@@ -557,6 +761,7 @@ struct PlanPageView: View {
             title: text,
             sectionID: section.id,
             folderID: section.folderID,
+            viewMode: viewMode,
             context: modelContext
         )
 
@@ -586,12 +791,18 @@ struct PlanPageView: View {
     private func performRebuild() {
         let filteredHabits = allHabits.filter { $0.id != pendingDeleteHabit?.id }
 
+        // Search filter
+        let searchFiltered = searchText.isEmpty ? filteredHabits : filteredHabits.filter {
+            $0.title.localizedCaseInsensitiveContains(searchText)
+        }
+
         // Sections + subtasks (O(n log n) once)
         cachedSections = viewModel.groupedSections(
-            from: filteredHabits,
+            from: searchFiltered,
             folders: folders,
             viewMode: viewMode,
-            overrides: smartViewOverrides
+            overrides: smartViewOverrides,
+            completedIDs: todayCompletedIDs
         )
         subtasksByParent = Dictionary(
             grouping: allHabits.filter { $0.parentHabitID != nil },
@@ -726,7 +937,7 @@ struct PlanPageView: View {
 
         try? modelContext.save()
         HapticsEngine.snap()
-        scheduleRebuild()
+        withAnimation(GridConstants.motionSmooth) { scheduleRebuild() }
         return true
     }
 
@@ -763,6 +974,62 @@ struct PlanPageView: View {
         HapticsEngine.snap()
         editingItemID = habit.id
         scheduleRebuild()
+    }
+
+    // MARK: - Toolbar Components (extracted to reduce type-checker complexity)
+
+    @ToolbarContentBuilder
+    private var planToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            sortMenuButton
+        }
+    }
+
+    private var viewModePicker: some View {
+        Picker("View Mode", selection: $viewMode) {
+            ForEach(PlanViewMode.allCases, id: \.self) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: viewMode) { _, _ in HapticsEngine.tick() }
+        .accessibilityLabel("View mode: \(viewMode.rawValue)")
+    }
+
+    private var sortMenuButton: some View {
+        Menu {
+            Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .recent }; HapticsEngine.tick() } label: {
+                Label("Recent First", systemImage: viewModel.sortMode == .recent ? "checkmark" : "")
+            }
+            Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .category }; HapticsEngine.tick() } label: {
+                Label("By Category", systemImage: viewModel.sortMode == .category ? "checkmark" : "")
+            }
+            Button { withAnimation(GridConstants.toggleSwitch) { viewModel.sortMode = .oldest }; HapticsEngine.tick() } label: {
+                Label("Oldest First", systemImage: viewModel.sortMode == .oldest ? "checkmark" : "")
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.footnote.weight(.medium))
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(viewModel.sortMode != .recent ? Color.accentColor : .clear)
+                        .frame(width: 6, height: 6)
+                        .offset(x: 3, y: -3)
+                }
+        }
+        .accessibilityLabel("Sort options, currently \(viewModel.sortMode.rawValue)")
+    }
+
+    // MARK: - Availability Guard (iOS 26 Liquid Glass fallback)
+
+    private struct AdaptiveGlassButtonStyle: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(iOS 26, *) {
+                content.buttonStyle(.glassProminent)
+            } else {
+                content.buttonStyle(.borderedProminent)
+            }
+        }
     }
 
     private func templateButton(_ title: String, category: HabitCategory) -> some View {

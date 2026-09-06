@@ -60,6 +60,15 @@ enum BlockSize: String, Codable, CaseIterable {
         }
     }
 
+    /// Aspect ratio for photo crop overlay — matches real block proportions
+    var cropAspectRatio: CGFloat {
+        let cell: CGFloat = 85 // representative cellSize; ratio varies <1% across devices
+        let s = GridConstants.spacing
+        let w = CGFloat(columnSpan) * cell + CGFloat(columnSpan - 1) * s
+        let h = CGFloat(rowSpan) * cell + CGFloat(rowSpan - 1) * s
+        return w / h
+    }
+
     /// Premium effort label — effort ≠ time (Kahneman 2011)
     var effortLabel: String {
         switch self {
@@ -146,6 +155,40 @@ final class Habit {
     /// Effective duration — custom if set, otherwise BlockSize default
     var effectiveDurationMinutes: Int {
         customDurationMinutes ?? Int(blockSize.durationMinutes)
+    }
+
+    /// #99: Shame-free consistency label — "Active"/"On fire"/"Legendary" (not streak count)
+    /// Uses positive language without exposing raw numbers (Fhynix ADHD research)
+    var currentConsistencyLabel: String? {
+        let recentLogs = logs.filter { $0.completed }.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        guard !recentLogs.isEmpty else { return nil }
+
+        // Count consecutive days from today
+        let calendar = Calendar.current
+        var streak = 0
+        var checkDate = Date()
+        for _ in 0..<365 {
+            let dateStr = {
+                let f = DateFormatter()
+                f.dateFormat = "yyyy-MM-dd"
+                return f.string(from: checkDate)
+            }()
+            if recentLogs.contains(where: { $0.dateString == dateStr }) {
+                streak += 1
+                checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+            } else {
+                break
+            }
+        }
+
+        switch streak {
+        case 0: return nil
+        case 1...3: return "Active"
+        case 4...13: return "On a roll"
+        case 14...29: return "On fire"
+        case 30...65: return "Unstoppable"
+        default: return "Legendary"
+        }
     }
 
     init(

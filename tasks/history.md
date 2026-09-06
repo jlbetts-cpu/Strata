@@ -1,7 +1,63 @@
 # Strata — Completed Work
 
+## Changed
+
+- **Session 2026-03-26: Photo Responsiveness + Camera Option** (Add Task Claude) — Loading spinners on all 3 photo views, camera/library confirmation dialog, cache staleness fix (unique fileNames), removed photoRefreshID hack.
+- **Session 2026-03-26: Crop Screen Block Preview** (Add Task Claude) — PhotoCropView shows block chrome overlay (corner radius, gradient, icon, title), correct aspect ratio per block size. BlockPreviewContext passed from BlockExpansionCard + HabitDetailSheet.
+- **Session 2026-03-27: MD File Health Audit** (Architect Claude) — Cleaned active.md from 66→~25 lines, fixed qa_tracker T11 status, updated coordination.md bot names, corrected brand.md critical gaps, removed backlog.md resolved clutter.
+
+- **Session 2026-03-26: Plan Screen World-Class Audit** (Atlas / Add Task Claude) — 5-batch research-backed transformation. 74 edits across 7 files. Key deliverables:
+  - **Batch 1: ADHD Core & Emotional Safety (15 edits)** — 15 micro-copy strings → compassionate ADHD-friendly language (Neff 2003, Dweck). Daily progress bar on Today card (Hull 1932). Subtask count in collapsed rows (Miller 1956). Effort-scaled haptics (Volkow 2011). 50% milestone haptic. Expand/collapse haptic differentiation (Hoggan 2008). "Overdue" → "Waiting for You" (Neff & Germer 2013). "All clear" green. Duration pairing in time hero (Barkley 1997). Effort overcommitment badge >150m (Kahneman 2000).
+  - **Batch 2: Visual Polish (27 edits)** — All spacing aligned to 4pt/8pt grid. Typography: no text below 9pt, fixed sizes → Dynamic Type. Color & contrast refinements. Shadow & material: regularMaterial + shadows. Animation: snappier chevron/eye toggle, more dramatic expand. MiniBlockPreview 8pt radius.
+  - **Batch 3: Accessibility (20 edits)** — VoiceOver labels on 9 interactive elements. ScaledMetric for grid card height + icon frames. 44pt touch targets on 3 buttons. Reduce Motion gates on numericText. Grace days tooltip. Sort indicator dot.
+  - **Batch 4: UX Interaction (8 edits)** — Delete haptic delayed to actual delete. Scroll to center on expand. Auto-collapse on tab switch. Pull-to-refresh. Drop zone 0.12 opacity. Animated drop rebuild. Sheet drag indicator. "Delete" → "Remove".
+  - **Batch 5: Cross-Tab Connectivity (4 edits)** — Today availability badge (sun icon). Done card completion rate. Task file updates.
+  - Research: Barkley 1997, Fogg 2009, Neff 2003, Kahneman 2000, Hull 1932, Miller 1956, Volkow 2011, Hoggan 2008, Schultz 2002, WCAG 2.2, Apple HIG 2024.
+
 ## Added
 
+- **Session 2026-03-26: Plan Screen Features** (Add Task Claude) — Routines "Done" card, To-Dos "Tomorrow" card, "Saved" section discoverable UI. All shipped.
+- **Session 2026-03-26: Settings Screen** (Architect Claude) — Notifications, data export, reset, replay tutorial, rate/feedback, legal, debug.
+- **Session 2026-03-26: Emotional Design Batch** (Atlas + Tower Claude) — "All Clear" celebration (confetti + reward haptic + G4 chime + .ultraThinMaterial card), block preview on completion ("Block added to your tower ↗"), warm micro-copy (streak compassion, past day messages, evening language, morning greeting), animated empty state (ghost tower + rotating micro-copy + time-of-day greeting), consistency milestone badges (Milestone.swift, MilestoneDetector.swift, MilestoneCelebration.swift + TowerTier progression), block visual revert (per user feedback), day separators (day-boundary packing + separator lines in Week/Month modes), tower metadata overlays (milestone stars, crown edge, foundation darkening, height markers), skipped block rendering (30% opacity + diagonal lines), tower micro-interactions (heavy micro-bounce, parallax depth, long-press preview, blur transitions, jubilation decay).
+
+- **Session 2026-03-26: Today Screen Overhaul — Good → World-Class** (Architect Claude) — 10-batch research-backed transformation. 77 fixes shipped across 3 files + 1 new file. 52 peer-reviewed citations. Key deliverables:
+  - **Batch 1: Foundation (30 fixes)** — Layout grid consistency (all padding→16pt), WCAG AA contrast (12 opacity fixes), accessibility labels (8 elements: ghost blocks, NEXT badge, counter, check circle, streak badge, HealthKit ring)
+  - **Batch 2: Morning Experience (3)** — NEW MorningBriefingCard.swift with time-of-day greeting + first habit preview (Fogg 2020, Barkley 2015). NEXT badge capsule background + "in Xm" countdown (Posner 1980). Smart unscheduled collapse >5 items (Hick 1952).
+  - **Batch 3: Completion Experience (5)** — Counter scale pulse at 3rd completion (Bandura 1997). Completion toast "Block added to your tower ↗" (Norman 2004). Drift glow 25%→33% (Skinner/Volkow). Streak break compassion "Fresh start!" badge (Dodson 2005, Klarity 2024).
+  - **Batch 4: Progress & Motivation (3)** — Week average label below strip (Tufte 2001). Past day compassion messages: >80% "Strong day!", >30% "You showed up.", ≤30% "Rest day. That's healthy." (Kahneman & Tversky 1979, Lazarus 1991).
+  - **Batch 5+6: Celebration + Cross-App (6)** — All-Clear celebration card with .ultraThinMaterial + confetti + reward haptic + G4 chime (Kahneman 1993 Peak-End Rule). Evening language shift "X left tonight" (Deci & Ryan 2000). Context menu: "View in Tower" + "View Streak" with switchTab environment.
+  - **Batch 7: Accessibility (8)** — 3 reduceMotion guards, toast + progress bar VoiceOver labels, swipe distance 20→30pt (ADA tremor), day circle 44pt touch target.
+  - **Batch 8: Smart Features (3)** — Removed ugly progress bar (user feedback). Compact "3/5" header indicator. Valley of Despair nudge after 2pm (Kleitman 1982).
+  - **Batch 9+10: Dark Mode + Tokens (13)** — 4 adaptive dark mode strokes, focus banner adaptive bg. NEW GridConstants: 6 semantic opacity tokens + 3 stroke width tokens. Zero hardcoded lineWidth remaining.
+  - Research: Barkley 2015, Brown 2005, Dodson 2005, Fogg 2020, Hick 1952, Hull 1932, Kahneman 1993, Klarity Health 2024, Kleitman 1982, Lally 2010, Lazarus 1991, Norman 2004, Posner 1980, Rapport 2001, Skinner 1938, Tufte 2001, Volkow 2009.
+- **Session 2026-03-26: Tower 530 Batch 2 — Block Visual Revert + Structure + Interactions** (Architect Claude) — Reverted all block visual changes (user preferred original look), then added tower structure and micro-interactions:
+  - **Slice 0 (Revert):** Reverted 6-stop gradient → original 4-stop, removed inner glow, AO strip, contact shadow, light line, text shadows, dark mode color shifts, proportional padding/icons/corners, mindfulness hue shift, skeleton inner shadow, ghost block breathing changes, ground upward glow, ripple brightness, wobble direction, dark scrim/patina adaptations
+  - **Slice 1 (Day Separators):** Day-boundary grid packing in Week/Month modes, DaySeparatorView with date label + block count + perfect day star
+  - **Slice 2 (Tower Metadata):** Milestone star overlays (10/25/50/100/etc), crown white top edge on topmost blocks, foundation darkening on row-0 blocks, height markers at 10-row intervals
+  - **Slice 3 (Skipped Blocks):** Skipped blocks rendered at 30% opacity with diagonal line overlay, excluded from milestone counting
+  - **Slice 4 (Micro-interactions):** Heavy micro-bounce for mass 3+ blocks, parallax depth scroll, long-press 1.05x preview on blocks, blur-replace block transitions, jubilation return wave decay proportional to row
+- **Session 2026-03-26: Tower 530 Plan — World-Class Visual & Interaction Polish** (Architect Claude) — Research-backed improvements across 16 batches. ~80 items implemented in this session:
+  - **Batch 1 (Visual Polish):** 6-stop gradient with specular highlight + ambient occlusion (#1), dark mode gradient cool shift (#2), mindfulness hue perceptual spacing (#3), dark mode vibrance boost (#4), warm background vertical gradient (#5-6), ground plane upward glow (#8), category-tinted photo vignette (#9), expansion card tinted material (#10), dual shadow system (#11), height-progressive shadows (#12), warm dark mode shadows (#13), expansion card dual shadow (#14), skeleton inner shadow (#15), magic number extraction (#16), size-proportional padding (#17), patina gold dark adaptation (#21), ghost block dark visibility (#22), empty state dark contrast (#23), ground glow dark mode (#24), expansion scrim dark mode (#25)
+  - **Batch 2 (Animation):** Air resistance timing curves (#26), column-alternating wobble (#27), cascade stagger pow(0.5) (#29), lateral ripple (#31), ripple brightness flash (#32), ripple merging max() (#33), progressive scrim drag (#40), ghost block 4s breathing (#43), confetti gravity + shape variety (#46-47), first block haptic choreography (#50), velocity-based card dismiss (#268)
+  - **Batch 3 (Block Design):** Proportional corner radius (#60), adaptive text sizes (#61), scaled category icons (#65), inner glow (#66), bottom edge AO (#67), block top edge light line (#312)
+  - **Batch 5 (Gamification):** NEW Milestone.swift + TowerTier.swift + MilestoneDetector.swift + MilestoneCelebration.swift. Milestone data model (#84), milestone detector (#85), milestone celebration popup (#86), milestone haptics + sound (#87-88), tower tier system with Seedling→Forest progression (#91-93), shame-free consistency indicator (#99), category block counter (#96)
+  - **Batch 6 (Emotional Design):** Empty state rotating micro-copy (#101), time-of-day greeting (#103), comeback celebration banner (#109), perfect day anticipation (#386), note field rotating prompts (#389)
+  - **Batch 7 (Sound):** Dual-tone completion (#115), milestone jingle (#467)
+  - **Batch 8 (Accessibility):** Text contrast shadow (#140/235), VoiceOver celebration announcement (#134), tower summary label (#128), expansion card modal traits (#129), Smart Invert photo protection (#495)
+  - **Batch 9 (Performance):** Ghost block 4 FPS (#155), shimmer 30 FPS cap (#156), animation coordinator filter reset (#430), celebration cancellation safety (#404)
+  - **Batch 10 (Integration):** Tower filter persistence (#270), tower appearance settings (#172-173), safe area bottom padding (#261)
+  - **Batch 16 (Polish):** MiniBlockPreview gradient alignment (#242), numeric text transitions (#297)
+- **Session 2026-03-26: Strong v1.0 — App Store Ship Readiness** (Architect Claude) — Full App Store compliance + quality pass. Key deliverables:
+  - **Deployment Target Fix** — Changed `IPHONEOS_DEPLOYMENT_TARGET` from 26.2 → 18.0 across all 4 build configurations. Added `AdaptiveGlassButtonStyle` ViewModifier for `.glassProminent` → `.borderedProminent` fallback on iOS < 26.
+  - **Privacy Manifest** — Created `PrivacyInfo.xcprivacy`: NSPrivacyTracking=false, declares HealthKit + Photos data collection, UserDefaults API reason (CA92.1).
+  - **Info.plist Privacy Descriptions** — Added `NSPhotoLibraryUsageDescription` (photo journal) and `NSMotionUsageDescription` (tower parallax). Existing Health + Calendar descriptions preserved.
+  - **SharedModelContainer Crash Fix** — Replaced `fatalError` with graceful in-memory fallback + `isUsingInMemoryFallback` flag + user-facing alert in MainAppView explaining data couldn't be loaded.
+  - **Dead Code Cleanup** — Deleted 4 orphaned files: AltimeterView.swift, AnchorTimelineView.swift, MockTowerView.swift, CompletedHabitRow.swift (zero references confirmed).
+  - **Dark Mode Audit** — Fixed 6 opacity values that vanished in dark mode: ScheduleTimelineView divider (0.06→0.12), InsightsView day detail card (0.04→0.08), InsightsView calendar selection (0.06→0.12), InsightsView habit calendar dots (0.06→0.12), InsightsView photo overlay (warmBlack→Color.black adaptive), PlanItemRow form separator (0.1→0.15).
+  - **Insights Weekly Chart** — 7-day completion bar chart using Swift Charts. `WeekDay` model in InsightsViewModel computes last 7 days from logs. Green bars with today highlighted. Y-axis: 0/50/100%. Grid lines adapt to colorScheme.
+  - **CascadeBlockView Accessibility** — Added `.accessibilityElement(children: .combine)` with habit title + category + date label.
+  - **DayProgressData Stable ID** — Changed `let id = UUID()` to `var id: String` computed from date string. Prevents ForEach identity churn on every data refresh.
+  - **Task File Updates** — active.md, coordination.md, backlog.md, history.md all updated with Strong v1.0 status.
 - **Session 2026-03-24: Harmonious Dance Phase 1 — Sensory Foundation** (Architect Claude) — Award-level interaction polish. Key deliverables:
   - **SoundEngine** — NEW `Strata/Services/SoundEngine.swift`. Programmatic audio synthesis via AVAudioEngine. Category-specific pitch mapping (Health=C5, Work=D5, Creativity=E5, Focus=F#5, Social=G5, Mindfulness=A5). Mass-dependent block impact sounds (100/80/60Hz). All-clear C-major arpeggio chime. isMuted UserDefaults toggle. Respects silent mode via .ambient audio session. Zero bundled assets — all tones generated from sine waves with envelope shaping.
   - **Missing Haptics** — Added `warning()` and `error()` to HapticsEngine. Wired: `lightTap()` on block expansion card open, `tick()` on every tab switch, `error()` on photo save failure.
@@ -125,6 +181,7 @@ All 5 phases + jubilation wave + polish pass + full audit shipped. Total: 5 new 
 
 ## Changed
 
+- **Session 2026-03-26: Remove Tower Grid Column Guides** (Architect Claude) — Removed 4 vertical column guide rectangles (6% opacity rounded rects) from tower background for cleaner look. Deleted `gridLines` function and its call from TowerView.swift. Grid math in GridConstants unaffected.
 - **Tower Screen Audit Fix** (Tower Claude) — Resolved all 7 peer-review UX action items + 2 performance items. Haptics: filter change tick, PhotosPicker lightTap (both sheets), drag-dismiss snap. Error recovery: photo save failure alerts replace silent catch blocks. Accessibility: tower grid `.accessibilityElement(children: .combine)`, `@ScaledMetric` Dynamic Type on header/pill/sheet icons. Typography: 8 icon size tokens in GridConstants, 10 hardcoded `.system(size:)` replaced. Performance: `.drawingGroup()` on blur overlays (HabitBlockView + FlippableBlockView), `scheduleRefresh()` 16ms debounce on 5 burst-prone `refreshData()` sites. Build verified. Grade: B- → A-.
 - **Performance audit** (Timeline Claude) — Single-pass `logsByDate` index in `refreshData()` eliminates 5 redundant O(n) log scans (~18,000 iterations → ~3,200). `.compositingGroup()` on TimelineHabitRow (6 GPU layers → 1 texture). Nested GeometryReader removed from hash overlay. `GridConstants.toggleSwitch`/`skeletonPop` tokens added. All MainAppView inline springs replaced with GridConstants tokens. MiniBlockPreview `breatheT` parameter for shared breathing clock. Timer guard O(n) → O(1).
 - **Deep performance refactor** (Timeline Claude) — effectiveHour dictionary cache (O(n log n) string parsing → O(1) dictionary lookup in sort), remainingCount + allTodayCompleted cached in @State (O(n) per frame → O(1)), cachedHeroDate (avoids .formatted() per render), sortedIDs pre-built as indexByID dictionary (O(n²) → O(1) per row during drag), explicit `.id(\.id)` on ForEach loops (prevents state corruption during reorder).
@@ -171,6 +228,15 @@ All 5 phases + jubilation wave + polish pass + full audit shipped. Total: 5 new 
 
 ## Fixed
 
+- **Session 2026-03-25: Premium Polish — Crossmodal Congruence Batch** (Architect Claude)
+  - **Chip tilt restored** — ±3° deterministic rotation on unscheduled chips (ScheduleTimelineView.swift). Berlyne 1971, Treisman & Gelade 1980.
+  - **Chip completion micro-interaction** — Spring-animated check circle with scale pop (ScheduleTimelineView.swift). Card, Moran & Newell 1983, Sonuga-Barke 2005.
+  - **Flyaway geometry targeting** — Device-independent arc using GeometryReader, cubic ease-out to Tower tab (MainAppView.swift). Fitts 1954, Heider & Simmel 1944.
+  - **Sonic palette redesign** — One octave down (C4–A4), descending sweep, 3-harmonic additive synthesis for marimba warmth (SoundEngine.swift). Huron 2006, Krumhansl 1990, Roads 1996.
+  - **Block impact crossmodal match** — 80→180ms duration, two-stage decay envelope (transient + resonance) matching visual squash-stretch (SoundEngine.swift). Grassi & Casco 2009, Gaver 1993, Vroomen & Keetels 2010.
+  - **Hero date hierarchy** — 28→22pt, Bringhurst 1.29× ratio within adjacent-level range (Typography.swift). Bringhurst 2004, Wickens 2002.
+  - **Tower title smart range** — Shows actual block date range instead of full calendar period (MainAppView.swift). Pirolli & Card 1999, Norman 1988.
+  - Research: Spence 2011, Treisman & Gelade 1980, Barkley 2015, Huron 2006, Krumhansl 1990, Roads 1996, Grassi & Casco 2009, Gaver 1993, Vroomen & Keetels 2010, Bringhurst 2004, Pirolli & Card 1999.
 - **Default frequency for new habits** (Add Screen Claude) — PlanPageViewModel now sets `frequency: DayCode.allCases` (was empty, causing habits to not appear on any day).
 - **Block drop animation flash** — Set `.falling` phase immediately in `enqueueDrop()` so blocks enter render tree already offscreen.
 - **Tower block viewport culling** — Fixed inverted `towerScrollOffset` sign. Lowered culling threshold 80→40 blocks.

@@ -2,8 +2,9 @@ import SwiftUI
 
 enum GridConstants {
     static let columnCount = 4
-    static let spacing: CGFloat = 10
-    static let cornerRadius: CGFloat = 16
+    static let spacing: CGFloat = 4
+    static let cornerRadius: CGFloat = 8
+    static let blockCornerRadius: CGFloat = 16   // Habit blocks on tower + timeline
     static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
     static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
     static let horizontalPadding: CGFloat = 16
@@ -91,15 +92,15 @@ enum GridConstants {
     /// Pop-back — matches tapPopSpring
     static let snapBack = Animation.spring(duration: 0.22, bounce: 0.20)
     /// Content appearing
-    static let gentleReveal = Animation.spring(response: 0.35, dampingFraction: 0.85)
+    static let gentleReveal = Animation.spring(response: 0.22, dampingFraction: 0.85)
     /// Settling — matches dropSettleSpring, reusable
     static let naturalSettle = Animation.spring(response: 0.28, dampingFraction: 0.78)
     /// Large elements settling
-    static let heavySettle = Animation.spring(response: 0.40, dampingFraction: 0.80)
+    static let heavySettle = Animation.spring(response: 0.28, dampingFraction: 0.80)
     /// Small celebratory bounces
     static let elasticPop = Animation.spring(response: 0.25, dampingFraction: 0.50)
     /// Bars, rings filling
-    static let progressFill = Animation.spring(response: 0.60, dampingFraction: 0.70)
+    static let progressFill = Animation.spring(response: 0.25, dampingFraction: 0.70)
     /// Major layout changes (filter transitions, block expansion)
     static let layoutReflow = Animation.spring(response: 0.55, dampingFraction: 0.90)
     /// Non-spatial transitions (cross-fades)
@@ -112,11 +113,11 @@ enum GridConstants {
     /// Tap feedback, check circles — fast, clean
     static let motionSnappy = Animation.spring(response: 0.25, dampingFraction: 0.82)
     /// Content transitions, schedule confirm, row state changes
-    static let motionSmooth = Animation.spring(response: 0.30, dampingFraction: 0.78)
+    static let motionSmooth = Animation.spring(response: 0.22, dampingFraction: 0.78)
     /// Container changes, collapse/expand
     static let motionGentle = Animation.spring(response: 0.40, dampingFraction: 0.85)
     /// Completion settle, end-of-sequence
-    static let motionSettle = Animation.spring(response: 0.50, dampingFraction: 0.90)
+    static let motionSettle = Animation.spring(response: 0.28, dampingFraction: 0.90)
     /// Reduced motion fallback
     static let motionReduced = Animation.easeOut(duration: 0.05)
     /// Fill sweep duration
@@ -195,4 +196,33 @@ enum GridConstants {
     static let blockShadowOpacityDark: Double = 0.20
 
     static let checkCircleSize: CGFloat = 24
+
+    // MARK: - Height-Progressive Shadow (#12)
+    /// Cap shadow radius at high row counts to prevent oversized shadows
+    static let maxDepthShadowRadius: CGFloat = 12
+
+    static func depthShadow(row: Int) -> (radius: CGFloat, y: CGFloat) {
+        let r = min(shadowRadius + CGFloat(row) * depthShadowScale, maxDepthShadowRadius)
+        let y = shadowY + CGFloat(row) * depthShadowYScale
+        return (r, y)
+    }
+
+    /// Height-progressive shadow opacity: higher blocks cast slightly stronger shadows (#12)
+    static func depthShadowOpacity(row: Int) -> Double {
+        let base: Double = 0.04
+        return min(base + Double(row) * 0.001, 0.06)
+    }
+
+    // MARK: - Semantic Opacity (Today Screen Overhaul Batch 10)
+    static let opacityGhost: Double = 0.06       // Backgrounds, decorative fills
+    static let opacitySubtle: Double = 0.12      // Borders, dividers, secondary bg
+    static let opacityMuted: Double = 0.25       // De-emphasized, disabled
+    static let opacitySecondary: Double = 0.50   // Secondary text, icons
+    static let opacityPrimary: Double = 0.70     // Primary text on colored bg
+    static let opacityFull: Double = 1.0         // Full strength
+
+    // MARK: - Stroke Widths
+    static let strokeThin: CGFloat = 1.0
+    static let strokeDefault: CGFloat = 1.5
+    static let strokeMedium: CGFloat = 2.0
 }

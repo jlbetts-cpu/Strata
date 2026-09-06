@@ -10,6 +10,7 @@ struct CachedImageView: View {
     @State private var image: UIImage?
     @State private var loadFailed = false
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -19,7 +20,7 @@ struct CachedImageView: View {
                     .scaledToFill()
                     .frame(width: width, height: height)
                     .clipped()
-                    .transition(.opacity.animation(.easeIn(duration: 0.25)))
+                    .transition(reduceMotion ? .identity : .opacity.animation(.easeIn(duration: 0.25)))
             } else if loadFailed {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
@@ -29,15 +30,20 @@ struct CachedImageView: View {
                             .font(.system(size: min(width, height) * 0.25, weight: .light))
                             .foregroundStyle(.secondary.opacity(0.5))
                     )
+                    .onTapGesture {
+                        loadFailed = false
+                        Task { await loadImage() }
+                    }
+                    .accessibilityLabel("Photo failed to load, tap to retry")
             } else if fileName != nil {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
                     .frame(width: width, height: height)
                     .modifier(ShimmerModifier())
-                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
+                    .transition(reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.15)))
             }
         }
-        .animation(.easeIn(duration: 0.25), value: image != nil)
+        .animation(reduceMotion ? nil : .easeIn(duration: 0.25), value: image != nil)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: fileName) {
             await loadImage()

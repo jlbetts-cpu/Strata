@@ -9,6 +9,10 @@ struct BlockDetailSheet: View {
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var sheetWidth: CGFloat = 0
     @State private var showPhotoError = false
+    @State private var isSavingPhoto = false
+    @State private var showPhotoSourceDialog = false
+    @State private var showLibraryPicker = false
+    @State private var showCamera = false
     @ScaledMetric(relativeTo: .caption) private var closeIconSize: CGFloat = GridConstants.iconAction
     @ScaledMetric(relativeTo: .body) private var heroIconSize: CGFloat = GridConstants.iconHero
     @ScaledMetric(relativeTo: .caption) private var replaceIconSize: CGFloat = GridConstants.iconAction
@@ -68,6 +72,7 @@ struct BlockDetailSheet: View {
 
             // Close button
             Button {
+                HapticsEngine.lightTap()
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
@@ -82,11 +87,28 @@ struct BlockDetailSheet: View {
             .padding(.top, 16)
             .padding(.trailing, 20)
         }
+        .scrollDismissesKeyboard(.interactively)
         .onGeometryChange(for: CGFloat.self, of: { proxy in
             proxy.size.width
         }, action: { newWidth in
             sheetWidth = newWidth
         })
+        .confirmationDialog("Add Photo", isPresented: $showPhotoSourceDialog) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take Photo") { showCamera = true }
+            }
+            Button("Choose from Library") { showLibraryPicker = true }
+        }
+        .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPickerView(
+                onCapture: { image in
+                    showCamera = false
+                    Task { await savePhotoDirectly(image) }
+                },
+                onCancel: { showCamera = false }
+            )
+        }
         .onChange(of: selectedItem) { _, newItem in
             HapticsEngine.lightTap()
             Task { await loadPhoto(from: newItem) }
@@ -112,13 +134,17 @@ struct BlockDetailSheet: View {
                     fileName: block.log.imageFileName,
                     width: max(sheetWidth - 48, 280),
                     height: 320,
-                    cornerRadius: 20,
+                    cornerRadius: 0,
                     fullResolution: true
                 )
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+                .accessibilityLabel("\(block.habit.title) photo")
                 .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
 
                 // Replace photo button
-                PhotosPicker(selection: $selectedItem, matching: .images) {
+                Button {
+                    showPhotoSourceDialog = true
+                } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
                         .font(.system(size: replaceIconSize, weight: .semibold))
                         .foregroundStyle(.white)
@@ -129,16 +155,27 @@ struct BlockDetailSheet: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Circle())
                 .padding(12)
+
+                // Loading indicator
+                if isSavingPhoto {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
+                            .fill(.black.opacity(0.3))
+                        ProgressView().tint(.white)
+                    }
+                }
             }
         } else {
             // Empty state — photo picker placeholder
-            PhotosPicker(selection: $selectedItem, matching: .images) {
+            Button {
+                showPhotoSourceDialog = true
+            } label: {
                 VStack(spacing: 16) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: heroIconSize, weight: .light))
                         .foregroundStyle(.white.opacity(0.8))
 
-                    Text("Add Proof of Work")
+                    Text("Add Photo")
                         .font(Typography.blockTitle)
                         .foregroundStyle(.white.opacity(0.8))
                 }
@@ -180,6 +217,13 @@ struct BlockDetailSheet: View {
         guard let item else { return }
         guard let data = try? await item.loadTransferable(type: Data.self) else { return }
         guard let img = await Task.detached { UIImage(data: data) }.value else { return }
+        await savePhotoDirectly(img)
+    }
+
+    @MainActor
+    private func savePhotoDirectly(_ img: UIImage) async {
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
 
         let (maxDim, quality): (CGFloat, CGFloat) = switch block.habit.blockSize {
         case .small: (512, 0.70)
@@ -187,6 +231,11 @@ struct BlockDetailSheet: View {
         case .hard: (1024, 0.80)
         }
         do {
+            // Delete old cached image before overwriting
+            if let oldFileName = block.log.imageFileName {
+                ImageManager.shared.deleteImage(fileName: oldFileName)
+            }
+            block.log.imageFileName = nil  // force CachedImageView to reset
             let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
             block.log.imageFileName = fileName
             try? modelContext.save()

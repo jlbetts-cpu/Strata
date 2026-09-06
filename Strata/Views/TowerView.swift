@@ -14,9 +14,6 @@ struct TowerView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
-                    // Grid background column guides
-                    gridLines(cellSize: cellSize, gridW: gridW, gridH: gridH)
-
                     // Completed blocks with cascade animation
                     ForEach(towerVM.placedBlocks) { block in
                         let f = block.frame(cellSize: cellSize)
@@ -37,20 +34,6 @@ struct TowerView: View {
             }
         }
     }
-
-    private func gridLines(cellSize: CGFloat, gridW: CGFloat, gridH: CGFloat) -> some View {
-        let step = cellSize + GridConstants.spacing
-
-        return ZStack(alignment: .topLeading) {
-            ForEach(0..<GridConstants.columnCount, id: \.self) { col in
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.primary.opacity(0.03))
-                    .frame(width: cellSize, height: max(gridH, 300))
-                    .offset(x: CGFloat(col) * step)
-            }
-        }
-        .frame(width: gridW, height: max(gridH, 300))
-    }
 }
 
 // MARK: - Cascade Animated Block
@@ -69,6 +52,8 @@ struct CascadeBlockView: View {
             .scaleEffect(appeared || !isNewDrop ? 1.0 : 1.06)
             .offset(y: appeared || !isNewDrop ? 0 : -60)
             .opacity(appeared || !isNewDrop ? 1 : 0)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue), \(block.log.dateString)")
             .onAppear {
                 if isNewDrop {
                     withAnimation(

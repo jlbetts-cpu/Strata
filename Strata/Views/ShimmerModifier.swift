@@ -9,7 +9,8 @@ struct ShimmerModifier: ViewModifier {
                 if reduceMotion {
                     Color.white.opacity(0.08)
                 } else {
-                    TimelineView(.animation) { timeline in
+                    // #156: Shimmer capped at 30 FPS for GPU budget
+                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
                         let phase = timeline.date.timeIntervalSinceReferenceDate
                             .truncatingRemainder(dividingBy: 1.5) / 1.5
                         LinearGradient(
@@ -25,6 +26,7 @@ struct ShimmerModifier: ViewModifier {
                 }
             }
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

@@ -7,14 +7,15 @@ struct SkeletonBlockView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
             .fill(
                 colorScheme == .dark
                     ? Color(hex: 0x403D39).opacity(0.4)
-                    : Color(hex: 0x403D39).opacity(0.08)
+                    : Color(hex: 0x403D39).opacity(0.12)
             )
             .frame(width: width, height: height)
             .shimmer()
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

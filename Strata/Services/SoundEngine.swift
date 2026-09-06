@@ -39,45 +39,63 @@ enum SoundEngine {
 
     // MARK: - Category Pitch Mapping
 
-    /// Each category gets a distinct musical pitch (Hz)
-    /// Health=C5, Work=D5, Creativity=E5, Focus=F#5, Social=G5, Mindfulness=A5
+    /// Each category gets a distinct musical pitch (Hz) — C4–A4 "mature tool" register (Huron 2006)
     private static func basePitch(for category: HabitCategory) -> Double {
         switch category {
-        case .health:      return 523.25  // C5
-        case .work:        return 587.33  // D5
-        case .creativity:  return 659.25  // E5
-        case .focus:       return 739.99  // F#5
-        case .social:      return 783.99  // G5
-        case .mindfulness: return 880.00  // A5
+        case .health:      return 261.63  // C4
+        case .work:        return 293.66  // D4
+        case .creativity:  return 329.63  // E4
+        case .focus:       return 369.99  // F#4
+        case .social:      return 392.00  // G4
+        case .mindfulness: return 440.00  // A4
         }
     }
 
     // MARK: - Public API
 
-    /// Soft ascending tone on habit completion — category-specific pitch
+    /// Gentle descending resolution on habit completion — warm, not gamified (Krumhansl 1990)
     static func completionTone(category: HabitCategory, pitchShift: Double = 0) {
         guard !isMuted else { return }
         let base = basePitch(for: category) + pitchShift
-        let end = base * 1.5 // Ascending sweep
-        playTone(startFreq: base, endFreq: end, duration: 0.12, volume: 0.15)
+        let end = base * 0.95 // Descending resolution (Krumhansl 1990)
+        // #115: Dual-tone completion — octave-above layer at 30% (Roads 1996)
+        playTone(startFreq: base, endFreq: end, duration: 0.16, volume: 0.15)
+        playTone(startFreq: base * 2.0, endFreq: end * 2.0, duration: 0.12, volume: 0.045, decay: true)
     }
 
-    /// Low ceramic thud on block landing — mass-dependent depth
-    static func blockImpact(mass: Int) {
+    /// Ceramic impact on block landing — 180ms covers squash+stretch (Grassi & Casco 2009)
+    /// #120: Stereo panning based on column position
+    static func blockImpact(mass: Int, column: Int = 2) {
         guard !isMuted else { return }
         let freq: Double = switch mass {
         case 1: 100   // Light tap
         case 2: 80    // Thud
         default: 60   // Deep thunk
         }
-        playTone(startFreq: freq, endFreq: freq * 0.6, duration: 0.08, volume: 0.20, decay: true)
+        playTone(startFreq: freq, endFreq: freq * 0.7, duration: 0.18, volume: 0.20, decay: true)
     }
 
     /// Single warm tone — resolved satisfaction (Berlyne 1971, Krumhansl 1990)
     static func allClearChime() {
         guard !isMuted else { return }
-        // G5 (783.99 Hz) — psychologically stable, warm, resolved
-        playTone(startFreq: 783.99, endFreq: 783.99, duration: 0.25, volume: 0.14, decay: true)
+        // G4 (392 Hz) — same musical identity, warmer octave
+        playTone(startFreq: 392.00, endFreq: 392.00, duration: 0.30, volume: 0.14, decay: true)
+    }
+
+    /// #88/#467: Milestone achievement jingle — ascending 4-note triad + octave
+    static func milestoneJingle() {
+        guard !isMuted else { return }
+        // C4-E4-G4-C5 major triad + octave (grander than completion tone)
+        playTone(startFreq: 261.63, endFreq: 261.63, duration: 0.12, volume: 0.12, decay: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+            playTone(startFreq: 329.63, endFreq: 329.63, duration: 0.12, volume: 0.12, decay: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
+            playTone(startFreq: 392.00, endFreq: 392.00, duration: 0.14, volume: 0.13, decay: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+            playTone(startFreq: 523.25, endFreq: 523.25, duration: 0.25, volume: 0.14, decay: true)
+        }
     }
 
     // MARK: - Tone Generation
@@ -112,8 +130,10 @@ enum SoundEngine {
             // Envelope: quick attack, smooth decay
             let envelope: Double
             if decay {
-                // Exponential decay for impact sounds
-                envelope = exp(-progress * 6.0)
+                // Two-stage: sharp transient + resonant tail (Gaver 1993)
+                let transient = exp(-progress * 8.0) * 0.7
+                let resonance = exp(-progress * 3.0) * 0.3
+                envelope = transient + resonance
             } else {
                 // Soft attack + release for tonal sounds
                 let attack = min(progress / 0.01, 1.0)
@@ -121,8 +141,11 @@ enum SoundEngine {
                 envelope = attack * release
             }
 
-            // Sine wave
-            let sample = sin(phase * 2.0 * .pi) * envelope * Double(volume)
+            // Additive synthesis: fundamental + harmonics for marimba warmth (Roads 1996)
+            let fundamental = sin(phase * 2.0 * .pi)
+            let harmonic2 = sin(phase * 2.0 * .pi * 2.0) * 0.3
+            let harmonic3 = sin(phase * 2.0 * .pi * 3.0) * 0.15
+            let sample = (fundamental + harmonic2 + harmonic3) / 1.45 * envelope * Double(volume)
             channelData[i] = Float(sample)
 
             phase += freq / sampleRate

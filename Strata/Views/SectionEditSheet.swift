@@ -157,6 +157,7 @@ struct SectionEditSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 
     private func resolveHex(_ hex: String) -> Color {

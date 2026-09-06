@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class Tower {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var emoji: String
     var createdAt: Date

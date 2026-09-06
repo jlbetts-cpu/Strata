@@ -321,7 +321,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -378,7 +378,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -393,20 +393,23 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Strata/Strata.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Strata/StrataDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = W34J6358L7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "STRATA uses your calendar to show scheduled events alongside your habits, helping you plan your day around your commitments.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "STRATA reads your completed workouts to automatically track your health habits and award XP for staying active.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Strata shows your calendar events on your timeline to help you schedule habits around your day.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses your camera to capture photos for your habit journal.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Strata reads your health data to automatically verify habits like steps, workouts, and mindfulness sessions.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Strata uses motion data to add subtle parallax effects to your tower, making it feel more physical.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata lets you attach photos to your habits to create a visual journal of your progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -435,13 +438,16 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "STRATA uses your calendar to show scheduled events alongside your habits, helping you plan your day around your commitments.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "STRATA reads your completed workouts to automatically track your health habits and award XP for staying active.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Strata shows your calendar events on your timeline to help you schedule habits around your day.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses your camera to capture photos for your habit journal.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Strata reads your health data to automatically verify habits like steps, workouts, and mindfulness sessions.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Strata uses motion data to add subtle parallax effects to your tower, making it feel more physical.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata lets you attach photos to your habits to create a visual journal of your progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -466,7 +472,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.StrataTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -487,7 +493,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.StrataTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

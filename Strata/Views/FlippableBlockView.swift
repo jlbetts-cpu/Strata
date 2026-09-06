@@ -10,8 +10,10 @@ struct FlippableBlockView: View {
     let cornerRadius: CGFloat
     let modelContext: ModelContext
     var onTap: (() -> Void)? = nil
+    var showOverlay: Bool = true
 
     @State private var tapTrigger: Int = 0
+
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -49,7 +51,6 @@ struct FlippableBlockView: View {
     var body: some View {
         ZStack {
             if hasImage {
-                // Photo block — loaded via CachedImageView
                 CachedImageView(
                     fileName: block.log.imageFileName,
                     width: width,
@@ -57,7 +58,6 @@ struct FlippableBlockView: View {
                     cornerRadius: 0
                 )
 
-                // Subtle warm vignette — safety net for icon on bright photos
                 RadialGradient(
                     colors: [
                         .clear,
@@ -68,7 +68,6 @@ struct FlippableBlockView: View {
                     endRadius: max(width, height) * 0.85
                 )
 
-                // Warm dark scrim — gentle fade for text readability
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.35),
@@ -94,18 +93,18 @@ struct FlippableBlockView: View {
             }
 
             // Text content: title + time + category icon
-            BlockContentOverlay(
-                title: block.habit.title,
-                category: block.habit.category,
-                rowSpan: block.rowSpan,
-                timeText: timeText,
-                hasImage: hasImage,
-                hasDrawerContent: block.log.hasDrawerContent
-            )
+            if showOverlay {
+                BlockContentOverlay(
+                    title: block.habit.title,
+                    category: block.habit.category,
+                    rowSpan: block.rowSpan,
+                    timeText: timeText,
+                    hasImage: hasImage
+                )
+            }
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        // No border — iOS 17-18: shadow alone carries depth
         .shadow(
             color: .black.opacity(colorScheme == .dark
                 ? GridConstants.blockShadowOpacityDark
@@ -134,11 +133,18 @@ struct FlippableBlockView: View {
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            HapticsEngine.lightTap()
-            tapTrigger += 1
-            onTap?()
-        }
+
+        .contentShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+        // #495: Smart Invert — photos excluded from color inversion
+        .accessibilityIgnoresInvertColors(hasImage)
+
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    HapticsEngine.lightTap()
+                    tapTrigger += 1
+                    onTap?()
+                }
+        )
     }
 }

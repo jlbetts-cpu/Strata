@@ -1,6 +1,15 @@
 import SwiftUI
 
 enum Typography {
+    // MARK: - Brand (SF Pro Rounded — unified single-font system)
+    static let brandLogo = Font.system(.title2, design: .rounded, weight: .medium)
+    static let brandHeader = Font.system(.title3, design: .rounded, weight: .medium)
+    static let brandSubheader = Font.system(.headline, design: .rounded, weight: .medium)
+    static let brandHeroDate = Font.system(.title, design: .rounded, weight: .medium)
+    static let brandCardTitle = Font.system(.title3, design: .rounded, weight: .medium)
+    static let brandLogoKerning: CGFloat = 1.5
+
+    // MARK: - System (SF Pro Rounded — warm/humanist for body + detail)
     static let appTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
     static let headerLarge = Font.system(.title3, design: .rounded, weight: .medium)
     static let headerMedium = Font.system(.headline, design: .rounded, weight: .medium)
@@ -12,8 +21,8 @@ enum Typography {
     static let caption2 = Font.system(.caption2, design: .rounded, weight: .medium)
     static let blockTitle = Font.system(.callout, design: .rounded, weight: .medium)
     // Mini block preview (fixed size — too small for text styles)
-    static let miniBlockTitle = Font.system(size: 9, weight: .medium, design: .rounded)
-    static let miniBlockIcon = Font.system(size: 8, weight: .medium, design: .rounded)
+    static let miniBlockTitle = Font.system(size: 10, weight: .medium, design: .rounded)
+    static let miniBlockIcon = Font.system(size: 9, weight: .medium, design: .rounded)
     // Kerning (SF Rounded has built-in optical kerning — no manual adjustment needed)
     static let headerKerning: CGFloat = 0
     static let titleKerning: CGFloat = 0

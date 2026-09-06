@@ -62,10 +62,11 @@ private struct DayCircleView: View {
 
     @State private var animatedRate: Double = 0
     @State private var tapScale: CGFloat = 1.0
+    @Environment(\.colorScheme) private var colorScheme
 
     private let healthGreen = AppColors.healthGreen
-    private let circleSize: CGFloat = 36
-    private let ringStroke: CGFloat = 3.5
+    private let circleSize: CGFloat = 40   // 4/8 grid alignment
+    private let ringStroke: CGFloat = 2.0  // Crisp on all displays
 
     /// Choose animation based on reduceMotion
     private func anim(_ animation: Animation) -> Animation {
@@ -95,9 +96,9 @@ private struct DayCircleView: View {
             VStack(spacing: 6) {
                 // Day label
                 Text(day.dayLabel)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(Typography.caption2)
                     .foregroundStyle(
-                        day.isFuture ? Color.primary.opacity(0.3) : Color.primary.opacity(0.55)
+                        day.isFuture ? Color.primary.opacity(0.5) : Color.primary.opacity(0.55)
                     )
 
                 ZStack {
@@ -105,7 +106,7 @@ private struct DayCircleView: View {
                     if day.totalCount > 0 {
                         Circle()
                             .stroke(
-                                day.isFuture ? Color.primary.opacity(0.05) : Color.primary.opacity(0.08),
+                                day.isFuture ? Color.primary.opacity(0.15) : Color.primary.opacity(colorScheme == .dark ? 0.15 : 0.08),
                                 lineWidth: ringStroke
                             )
                             .frame(width: circleSize, height: circleSize)
@@ -130,7 +131,7 @@ private struct DayCircleView: View {
                         Circle()
                             .trim(from: skipStart, to: skipEnd)
                             .stroke(
-                                Color.primary.opacity(0.25),
+                                Color.primary.opacity(0.5),
                                 style: StrokeStyle(lineWidth: ringStroke, lineCap: .round)
                             )
                             .frame(width: circleSize, height: circleSize)
@@ -140,20 +141,22 @@ private struct DayCircleView: View {
                     // Today highlight — subtle fill, no animation loop
                     if day.isToday {
                         Circle()
-                            .fill(Color.primary.opacity(0.06))
+                            .fill(Color.primary.opacity(0.15))
                             .frame(width: circleSize - ringStroke, height: circleSize - ringStroke)
                     }
 
                     // Day number
                     Text("\(day.dayNumber)")
-                        .font(.system(size: 14, weight: day.isToday || isSelected ? .bold : .regular, design: .rounded))
+                        .font(Typography.bodySmall.weight(day.isToday || isSelected ? .bold : .regular))
                         .foregroundStyle(
-                            day.isFuture ? Color.primary.opacity(0.3) : Color.primary
+                            day.isFuture ? Color.primary.opacity(0.5) : Color.primary
                         )
                 }
             }
         }
         .buttonStyle(.plain)
+        .frame(minWidth: 44, minHeight: 44) // ADA minimum touch target
+        .contentShape(Circle())
         .scaleEffect(tapScale)
         .accessibilityLabel(dayAccessibilityLabel)
         .accessibilityHint("Tap to view this day's habits")

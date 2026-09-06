@@ -9,7 +9,7 @@ enum SpotlightIndexer {
             let context = ModelContext(container)
             let descriptor = FetchDescriptor<Habit>()
             guard let habits = try? context.fetch(descriptor) else { return }
-            let todayStr = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date()) }()
+            let todayStr = DateUtils.dateString(from: Date())
 
             let entities = habits.map { habit in
                 let completed = habit.logs.contains { $0.dateString == todayStr && $0.completed }

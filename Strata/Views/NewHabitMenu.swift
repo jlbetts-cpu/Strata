@@ -45,6 +45,7 @@ struct NewHabitMenu: View {
                 .onChange(of: isOneTime) { _, _ in HapticsEngine.tick() }
 
                 TextField("Title", text: $title)
+                    .submitLabel(.done)
             }
 
             // Section 2: Category — horizontal capsule pills
@@ -78,7 +79,7 @@ struct NewHabitMenu: View {
                         }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
             // Section 3: Effort — segmented picker (Kahneman 2011: effort ≠ time)
@@ -94,21 +95,7 @@ struct NewHabitMenu: View {
                     durationMinutes = Int(newSize.durationMinutes) // Auto-suggest, user can override
                 }
 
-                // Subtle preview — shows what block you're building
-                HStack {
-                    Spacer()
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selectedCategory.style.gradient)
-                        .frame(
-                            width: CGFloat(selectedSize.columnSpan) * 20,
-                            height: CGFloat(selectedSize.rowSpan) * 20
-                        )
-                        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-                        .animation(GridConstants.motionSmooth, value: selectedSize)
-                        .animation(GridConstants.motionSmooth, value: selectedCategory)
-                    Spacer()
-                }
-                .listRowBackground(Color.clear)
+                // Preview removed — effort picker is self-explanatory in native Form
             }
 
             // Section 4: Duration (decoupled from effort — Kahneman 2011)
@@ -136,7 +123,7 @@ struct NewHabitMenu: View {
                         }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
                 Stepper(formatDuration(durationMinutes), value: $durationMinutes, in: 5...180, step: 5)
                     .onChange(of: durationMinutes) { _, _ in HapticsEngine.tick() }
@@ -171,7 +158,7 @@ struct NewHabitMenu: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
             }
 

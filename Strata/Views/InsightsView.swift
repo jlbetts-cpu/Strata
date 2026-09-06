@@ -4,10 +4,14 @@ import SwiftData
 struct InsightsView: View {
     let habits: [Habit]
     let logs: [HabitLog]
+    var onAddHabit: (() -> Void)? = nil
+    var onNavigateToTower: ((TowerFilterMode) -> Void)? = nil
 
     @State private var viewModel = InsightsViewModel()
     @State private var showAllStreaks = false
+    @State private var selectedInsightHabit: Habit? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.switchTab) private var switchTab
 
     private let dayColumns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
     private let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
@@ -19,9 +23,9 @@ struct InsightsView: View {
                 if habits.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "chart.bar")
-                            .font(.system(size: 34, weight: .light))
-                            .foregroundStyle(Color.primary.opacity(0.2))
-                        Text("Start building to see your journey")
+                            .font(Typography.brandHeader)
+                            .foregroundStyle(Color.primary.opacity(0.35))
+                        Text("Complete habits to see your journey here")
                             .font(Typography.headerMedium)
                             .foregroundStyle(Color.primary.opacity(0.6))
                         Text("Complete habits on the Today tab\nto track your progress here")
@@ -52,6 +56,18 @@ struct InsightsView: View {
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    HapticsEngine.tick()
+                    onAddHabit?()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(AppColors.accentWarm)
+                }
+            }
+        }
         .onAppear {
             viewModel.compute(habits: habits, logs: logs)
         }
@@ -79,10 +95,11 @@ struct InsightsView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: item.habit.category.iconName)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(Typography.caption)
                             .foregroundStyle(item.habit.category.style.baseColor)
                             .frame(width: 32, height: 32)
-                            .background(item.habit.category.style.baseColor.opacity(0.12), in: Circle())
+                            .frame(minWidth: 44, minHeight: 44)
+                            .background(item.habit.category.style.baseColor.opacity(0.18), in: Circle())
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.habit.title)
@@ -91,7 +108,7 @@ struct InsightsView: View {
                             if item.habit.graceDays > 0 {
                                 Text("\(item.habit.graceDays)d grace")
                                     .font(Typography.caption2)
-                                    .foregroundStyle(Color.primary.opacity(0.3))
+                                    .foregroundStyle(Color.primary.opacity(0.5))
                             }
                         }
 
@@ -106,8 +123,8 @@ struct InsightsView: View {
                             .foregroundStyle(Color.primary.opacity(0.4))
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.primary.opacity(0.2))
+                            .font(Typography.caption2)
+                            .foregroundStyle(Color.primary.opacity(0.4))
                     }
                     .padding(12)
                     .background(
@@ -124,6 +141,18 @@ struct InsightsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        onNavigateToTower?(.week)
+                    } label: {
+                        Label("View on Tower", systemImage: "square.stack.fill")
+                    }
+                    Button {
+                        switchTab?(.today)
+                    } label: {
+                        Label("View in Today", systemImage: "calendar")
+                    }
+                }
             }
 
             // Progressive disclosure (Miller 1956, Shneiderman 1996)
@@ -154,7 +183,7 @@ struct InsightsView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(Typography.bodySmall)
                         .foregroundStyle(Color.primary.opacity(0.5))
                         .frame(width: 44, height: 44)
                 }
@@ -175,7 +204,7 @@ struct InsightsView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(Typography.bodySmall)
                         .foregroundStyle(Color.primary.opacity(0.5))
                         .frame(width: 44, height: 44)
                 }
@@ -229,18 +258,18 @@ struct InsightsView: View {
                         cornerRadius: 0
                     )
                     LinearGradient(
-                        colors: [.clear, AppColors.warmBlack.opacity(0.45)],
+                        colors: [.clear, Color.black.opacity(colorScheme == .dark ? 0.6 : 0.45)],
                         startPoint: .top, endPoint: .bottom
                     )
                     Text("\(day.dayNumber)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(Typography.caption)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         .padding(4)
                     // Multi-photo badge
                     if day.photoFileNames.count > 1 {
                         Text("+\(day.photoFileNames.count - 1)")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .font(Typography.miniBlockIcon)
                             .foregroundStyle(.white.opacity(0.8))
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                             .padding(3)
@@ -264,7 +293,7 @@ struct InsightsView: View {
                     .background(
                         RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall, style: .continuous)
                             .fill(day.isToday ? AppColors.healthGreen.opacity(0.08) :
-                                  (isSelected ? Color.primary.opacity(0.06) : Color.clear))
+                                  (isSelected ? Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06) : Color.clear))
                     )
                 }
             }
@@ -292,18 +321,23 @@ struct InsightsView: View {
                                 fileName: file,
                                 width: day.photoFileNames.count == 1 ? 320 : 200,
                                 height: 140,
-                                cornerRadius: GridConstants.cornerRadiusSmall
+                                cornerRadius: 0
                             )
+                            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall, style: .continuous))
+                            .accessibilityLabel("Habit photo")
                         }
                     }
                 }
             }
 
-            // Habit statuses
+            // Habit statuses — tappable (Pirolli & Card 1999: information scent)
             ForEach(day.habitStatuses) { status in
+                Button {
+                    selectedInsightHabit = status.habit
+                } label: {
                 HStack(spacing: 10) {
                     Image(systemName: status.habit.category.iconName)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(Typography.caption)
                         .foregroundStyle(status.habit.category.style.baseColor)
 
                     Text(status.habit.title)
@@ -315,29 +349,36 @@ struct InsightsView: View {
 
                     if status.isCompleted {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(AppColors.healthGreen)
                     } else if status.isSkipped {
                         Image(systemName: "minus.circle")
-                            .font(.system(size: 14))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(Color.primary.opacity(0.3))
                     } else {
                         Image(systemName: "circle")
-                            .font(.system(size: 14))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(Color.primary.opacity(0.15))
                     }
                 }
+                }
+                .buttonStyle(.plain)
             }
 
             if day.habitStatuses.isEmpty {
-                Text("No habits scheduled")
+                Text("Nothing logged this day")
                     .font(Typography.caption)
                     .foregroundStyle(Color.primary.opacity(0.3))
             }
         }
         .padding(16)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        .background(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04), in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
         .transition(.opacity.combined(with: .move(edge: .top)))
+        .sheet(item: $selectedInsightHabit) { habit in
+            HabitDetailSheet(habit: habit, selectedDate: day.date)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 }
 
@@ -374,7 +415,7 @@ struct HabitCalendarView: View {
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Text("\(currentStreak)")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .font(Typography.appTitle)
                             .foregroundStyle(currentStreak > 0 ? style.baseColor : Color.primary.opacity(0.3))
                         VStack(alignment: .leading) {
                             Text(currentStreak == 1 ? "day streak" : "day streak")
@@ -405,7 +446,7 @@ struct HabitCalendarView: View {
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(Color.primary.opacity(0.5))
                             .frame(width: 44, height: 44)
                     }
@@ -424,7 +465,7 @@ struct HabitCalendarView: View {
                         }
                     } label: {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(Typography.bodySmall)
                             .foregroundStyle(Color.primary.opacity(0.5))
                             .frame(width: 44, height: 44)
                     }
@@ -520,7 +561,7 @@ struct HabitCalendarView: View {
                                 .fill(
                                     cell.status == "completed" ? style.baseColor :
                                     cell.status == "skipped" ? Color.primary.opacity(0.2) :
-                                    Color.primary.opacity(0.06)
+                                    Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)
                                 )
                                 .frame(width: 8, height: 8)
                         }

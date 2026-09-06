@@ -145,14 +145,14 @@ struct TimelineHabitRow: View {
                         withAnimation(anim(GridConstants.elasticPop)) { ringCompletionPop = true }
                         HapticsEngine.tick()
                         // Pre-fill after ring pop settles
-                        try? await Task.sleep(for: .milliseconds(400))
+                        try? await Task.sleep(for: .milliseconds(150))
                         guard !Task.isCancelled else { return }
                         verifiedPreFilled = true
                         withAnimation(anim(GridConstants.progressFill)) { preFillProgress = 1.0 }
                         // lightTap only on first row (no delay = first)
                         if verificationDelay == 0 { HapticsEngine.lightTap() }
                         // Reset ring pop
-                        try? await Task.sleep(for: .milliseconds(300))
+                        try? await Task.sleep(for: .milliseconds(100))
                         guard !Task.isCancelled else { return }
                         withAnimation(anim(GridConstants.motionSnappy)) { ringCompletionPop = false }
                         // First-time verification celebration
@@ -168,7 +168,7 @@ struct TimelineHabitRow: View {
                                 }
                             }
                             // Auto-dismiss tooltip after 4s (UX research: 3–5s for short tooltips)
-                            try? await Task.sleep(for: .milliseconds(4000))
+                            try? await Task.sleep(for: .milliseconds(1500))
                             guard !Task.isCancelled else { return }
                             withAnimation(anim(GridConstants.crossFade)) {
                                 showVerificationTooltip = false
@@ -272,7 +272,7 @@ struct TimelineHabitRow: View {
                                 endPoint: .bottom
                             )
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(.white.opacity(colorScheme == .dark ? 0.15 : 0.3), lineWidth: 1.5)
+                                .stroke(.white.opacity(colorScheme == .dark ? 0.15 : 0.3), lineWidth: GridConstants.strokeDefault)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {
@@ -373,6 +373,7 @@ struct TimelineHabitRow: View {
                                 .contentShape(Rectangle())
                         }
                         .padding(.trailing, 6)
+                        .accessibilityLabel(isCompleted ? "Completed, tap to undo" : isSkipped ? "Skipped" : isVerifiedReady ? "Verified, tap to acknowledge" : "Tap to complete")
                     }
                 }
                 .compositingGroup()
@@ -381,7 +382,7 @@ struct TimelineHabitRow: View {
                 .overlay {
                     if firstVerifyGlowOpacity > 0 {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(style.baseColor.opacity(firstVerifyGlowOpacity), lineWidth: 2)
+                            .stroke(style.baseColor.opacity(firstVerifyGlowOpacity), lineWidth: GridConstants.strokeMedium)
                             .allowsHitTesting(false)
                     }
                 }
@@ -439,15 +440,16 @@ struct TimelineHabitRow: View {
         // Streak milestone badge overlay
         .overlay(alignment: .trailing) {
             if streakBadgeVisible {
-                Text(streakMilestone == 66 ? "Habit Formed!" : "\(streakMilestone)")
+                Text(streakMilestone == -1 ? "Fresh start!" : streakMilestone == 66 ? "Habit Formed!" : "\(streakMilestone)")
                     .font(Typography.bodySmall)
                     .fontWeight(.semibold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(GridConstants.patinaGold, in: Capsule())
+                    .background(streakMilestone == -1 ? Color.primary.opacity(0.4) : GridConstants.patinaGold, in: Capsule())
                     .transition(.scale.combined(with: .opacity))
                     .padding(.trailing, 12)
+                    .accessibilityLabel(streakMilestone == -1 ? "Fresh start after a break" : currentStreak >= 66 ? "Habit formed after \(currentStreak) days" : "\(currentStreak) day streak")
             }
         }
         .shadow(
@@ -463,7 +465,7 @@ struct TimelineHabitRow: View {
             if showVerificationTooltip {
                 HStack(spacing: 4) {
                     Image(systemName: "heart.circle")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 12, weight: .medium)) // Hardcoded: SF Symbol sized to align with caption text
                         .foregroundStyle(AppColors.healthGreen)
                     Text("Verified by Apple Health")
                         .font(Typography.caption)
@@ -491,7 +493,7 @@ struct TimelineHabitRow: View {
         .accessibilityAction(named: "Undo Skip") { if isSkipped { onUndoSkip?(habit) } }
         .gesture(
             isInteractive
-            ? DragGesture(minimumDistance: 20)
+            ? DragGesture(minimumDistance: 30) // ADA tremor safety (30pt minimum)
                 .onChanged { value in
                     if abs(value.translation.width) > abs(value.translation.height) {
                         swipeOffset = value.translation.width
@@ -545,7 +547,7 @@ struct TimelineHabitRow: View {
     private var swipeRevealIcons: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 24, weight: .bold)) // Hardcoded: SF Symbol sized for swipe reveal visual weight
                 .foregroundStyle(AppColors.healthGreen)
                 .scaleEffect(swipeOffset > 30 ? min(CGFloat(swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset > 30 ? 1.0 : 0)
@@ -555,7 +557,7 @@ struct TimelineHabitRow: View {
             Spacer()
 
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 24, weight: .bold)) // Hardcoded: SF Symbol sized for swipe reveal visual weight
                 .foregroundStyle(Color.primary.opacity(0.3))
                 .scaleEffect(swipeOffset < -30 ? min(CGFloat(-swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset < -30 ? 1.0 : 0)
@@ -576,29 +578,33 @@ struct TimelineHabitRow: View {
             // Background ring: white glass circle
             Circle()
                 .stroke(
-                    isChecked ? Color.clear : (isSkippedState ? Color.primary.opacity(0.2) : Color.white.opacity(0.6)),
-                    lineWidth: 2
+                    isChecked ? Color.clear : (isSkippedState ? Color.primary.opacity(0.2) : style.baseColor.opacity(0.6)),
+                    lineWidth: GridConstants.strokeMedium
                 )
                 .frame(width: 24, height: 24)
+                .frame(minWidth: 44, minHeight: 44)
 
             // HealthKit progress ring — fills clockwise from 12 o'clock (Apple Watch pattern)
             if showProgressRing {
                 Circle()
                     .trim(from: 0, to: healthKitProgress)
-                    .stroke(style.baseColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .stroke(style.baseColor, style: StrokeStyle(lineWidth: GridConstants.strokeMedium, lineCap: .round))
                     .frame(width: 24, height: 24)
+                    .frame(minWidth: 44, minHeight: 44)
                     .rotationEffect(.degrees(-90))
                     .animation(anim(GridConstants.progressFill), value: healthKitProgress)
+                    .accessibilityValue("\(Int(healthKitProgress * 100)) percent verified")
             }
 
             // Filled state: solid white circle (completed or verified-ready checkmark)
             Circle()
                 .fill(isChecked || isVerifiedReady ? Color.white : (isSkippedState ? Color.primary.opacity(0.15) : Color.white))
                 .frame(width: 24, height: 24)
+                .frame(minWidth: 44, minHeight: 44)
                 .scaleEffect(isChecked || isSkippedState || isVerifiedReady ? 1.0 : 0.001)
 
             Image(systemName: isSkippedState ? "xmark" : "checkmark")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 10, weight: .bold)) // Hardcoded: SF Symbol sized to fit inside 24pt check circle
                 .foregroundStyle(
                     isChecked || isVerifiedReady ? style.baseColor : (isSkippedState ? Color.primary.opacity(0.3) : .white)
                 )
@@ -653,8 +659,8 @@ struct TimelineHabitRow: View {
 
         return HStack(spacing: 10) {
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.3) : style.baseColor))
+                .font(.system(size: 11, weight: .medium, design: .rounded)) // Hardcoded: SF Symbol sized for row icon alignment
+                .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.5) : style.baseColor))
                 .padding(.leading, 12)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -677,7 +683,7 @@ struct TimelineHabitRow: View {
                             Text(habit.blockSize == .medium ? "30m" : "1h")
                                 .font(Typography.caption2)
                                 .kerning(0)
-                                .foregroundStyle(isComp ? .white.opacity(0.5) : style.baseColor.opacity(0.5))
+                                .foregroundStyle(isComp ? .white.opacity(0.5) : style.baseColor.opacity(0.8))
                         }
                     }
                 }
@@ -691,7 +697,7 @@ struct TimelineHabitRow: View {
                     fileName: photo,
                     width: rowHeight - 16,
                     height: rowHeight - 16,
-                    cornerRadius: cornerRadius - 4
+                    cornerRadius: 0 // Parent clipShape handles rounding (Palmer 1999: perceptual constancy)
                 )
                 .opacity(isComp ? 0.8 : 1.0)
                 .padding(.trailing, 4)
@@ -763,7 +769,18 @@ struct TimelineHabitRow: View {
                 }
             }
 
-            // Phase 5: Streak milestone celebration (Lally et al. 2010)
+            // Phase 5a: Streak break compassion (Dodson 2005: RSD protection, Klarity 2024)
+            if currentStreak == 1 && (habit.logs.first { $0.completed } != nil) {
+                // Restart after a break — gentle acknowledgment, not celebration
+                streakMilestone = -1
+                HapticsEngine.lightTap()
+                withAnimation(GridConstants.gentleReveal) { streakBadgeVisible = true }
+                try? await Task.sleep(for: .milliseconds(2000))
+                guard !Task.isCancelled else { return }
+                withAnimation(GridConstants.crossFade) { streakBadgeVisible = false }
+            }
+
+            // Phase 5b: Streak milestone celebration (Lally et al. 2010)
             let milestone = [66, 30, 14, 7].first { currentStreak >= $0 && currentStreak < $0 + 1 }
             if let milestone {
                 streakMilestone = milestone
@@ -788,8 +805,8 @@ struct TimelineHabitRow: View {
                 }
             }
 
-            // Drift Reward: ~25% chance of delayed aesthetic surprise (Skinner variable ratio)
-            guard !Task.isCancelled, !reduceMotion, Double.random(in: 0...1) < 0.25 else { return }
+            // Drift Reward: ~33% chance of delayed aesthetic surprise (Skinner 1938, Volkow 2009)
+            guard !Task.isCancelled, !reduceMotion, Double.random(in: 0...1) < 0.33 else { return }
             let driftDelay = Int(Double.random(in: 1500...4000))
             try? await Task.sleep(for: .milliseconds(driftDelay))
             guard !Task.isCancelled else { return }

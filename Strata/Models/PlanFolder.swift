@@ -4,7 +4,7 @@ import SwiftData
 
 @Model
 final class PlanFolder {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var icon: String
     var colorHex: String

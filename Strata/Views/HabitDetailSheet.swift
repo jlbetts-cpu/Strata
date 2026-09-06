@@ -11,7 +11,11 @@ struct HabitDetailSheet: View {
 
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoError = false
-    @State private var photoRefreshID = UUID()
+    @State private var imageToCrop: UIImage? = nil
+    @State private var isSavingPhoto = false
+    @State private var showPhotoSourceDialog = false
+    @State private var showLibraryPicker = false
+    @State private var showCamera = false
 
     private var style: CategoryStyle { habit.category.style }
     private var coverHeight: CGFloat { todayLog.imageFileName != nil ? 200 : 100 }
@@ -78,7 +82,7 @@ struct HabitDetailSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
                                 Image(systemName: "heart.circle")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(Typography.bodySmall.weight(.medium))
                                     .foregroundStyle(AppColors.healthGreen)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Auto-verifies: \(hkType.displayName)")
@@ -99,7 +103,7 @@ struct HabitDetailSheet: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "xmark.circle")
-                                        .font(.system(size: 12))
+                                        .font(Typography.caption)
                                     Text("Disconnect")
                                         .font(Typography.caption)
                                 }
@@ -131,7 +135,10 @@ struct HabitDetailSheet: View {
                                     .foregroundStyle(subtask.completed ? .secondary : .primary)
                             }
                             .contentShape(Rectangle())
-                            .onTapGesture { toggleSubtask(subtask) }
+                            .onTapGesture {
+                                HapticsEngine.tick()
+                                toggleSubtask(subtask)
+                            }
                         }
                     }
 
@@ -140,10 +147,53 @@ struct HabitDetailSheet: View {
                 .padding(20)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color(uiColor: .systemBackground))
+        .confirmationDialog("Add Photo", isPresented: $showPhotoSourceDialog) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take Photo") { showCamera = true }
+            }
+            Button("Choose from Library") { showLibraryPicker = true }
+        }
+        .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPickerView(
+                onCapture: { image in showCamera = false; imageToCrop = image },
+                onCancel: { showCamera = false }
+            )
+        }
         .onChange(of: selectedItem) { _, newItem in
             HapticsEngine.lightTap()
-            Task { await loadPhoto(from: newItem) }
+            Task {
+                guard let newItem else { return }
+                guard let data = try? await newItem.loadTransferable(type: Data.self),
+                      let img = await Task.detached(operation: { UIImage(data: data) }).value else { return }
+                imageToCrop = img
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { imageToCrop != nil },
+            set: { if !$0 { imageToCrop = nil } }
+        )) {
+            if let img = imageToCrop {
+                PhotoCropView(
+                    image: img,
+                    blockContext: BlockPreviewContext(
+                        title: habit.title,
+                        category: habit.category,
+                        blockSize: habit.blockSize,
+                        timeText: habit.scheduledTime.map { BlockTimeFormatter.format12Hour($0) }
+                    ),
+                    onCrop: { cropped in
+                        imageToCrop = nil
+                        Task { await savePhoto(cropped) }
+                    },
+                    onCancel: {
+                        imageToCrop = nil
+                        selectedItem = nil
+                    }
+                )
+            }
         }
         .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
             Button("OK", role: .cancel) {}
@@ -157,8 +207,8 @@ struct HabitDetailSheet: View {
     private var coverPhotoSection: some View {
         GeometryReader { geo in
         ZStack(alignment: .bottomLeading) {
-            // Photo or category gradient
-            if let fileName = todayLog.imageFileName {
+            // Photo or category gradient (guard against zero-width GeometryReader)
+            if geo.size.width > 0, let fileName = todayLog.imageFileName {
                 CachedImageView(
                     fileName: fileName,
                     width: geo.size.width,
@@ -166,7 +216,6 @@ struct HabitDetailSheet: View {
                     cornerRadius: 0,
                     fullResolution: false
                 )
-                .id(photoRefreshID)
             } else {
                 // Proto-block gradient (no photo)
                 LinearGradient(
@@ -190,12 +239,14 @@ struct HabitDetailSheet: View {
                 endPoint: .bottom
             )
 
-            // PhotosPicker overlay
-            PhotosPicker(selection: $selectedItem, matching: .images) {
+            // Photo source overlay
+            Button {
+                showPhotoSourceDialog = true
+            } label: {
                 if todayLog.imageFileName == nil {
                     VStack(spacing: 6) {
                         Image(systemName: habit.category.iconName)
-                            .font(.system(size: 28, weight: .medium, design: .rounded))
+                            .font(Typography.brandHeader)
                             .foregroundStyle(.white)
                         Text("Add Photo")
                             .font(Typography.caption)
@@ -210,6 +261,14 @@ struct HabitDetailSheet: View {
                 }
             }
             .buttonStyle(.plain)
+
+            // Loading indicator
+            if isSavingPhoto {
+                ZStack {
+                    Color.black.opacity(0.3)
+                    ProgressView().tint(.white)
+                }
+            }
         }
         .frame(height: coverHeight)
         .clipped()
@@ -227,10 +286,14 @@ struct HabitDetailSheet: View {
     }
 
     @MainActor
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        guard let img = await Task.detached { UIImage(data: data) }.value else { return }
+    private func savePhoto(_ img: UIImage) async {
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
+
+        // Delete old photo file to prevent disk leak
+        if let oldFileName = todayLog.imageFileName {
+            ImageManager.shared.deleteImage(fileName: oldFileName)
+        }
 
         let (maxDim, quality): (CGFloat, CGFloat) = switch habit.blockSize {
         case .small: (512, 0.70)
@@ -241,7 +304,7 @@ struct HabitDetailSheet: View {
             let fileName = try await ImageManager.shared.save(image: img, for: todayLog.id, maxDimension: maxDim, quality: quality)
             todayLog.imageFileName = fileName
             try? modelContext.save()
-            photoRefreshID = UUID()
+            selectedItem = nil
             HapticsEngine.snap()
         } catch {
             showPhotoError = true

@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class MoodLog {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var dateString: String // YYYY-MM-DD format
     var mood: Int          // 1-5 (1=awful, 5=great)
     var motivation: Int    // 1-5

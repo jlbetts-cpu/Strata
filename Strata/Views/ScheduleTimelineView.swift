@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import AppIntents
 
 struct ScheduleTimelineView: View {
     let weekData: [DayProgressData]
@@ -23,10 +24,16 @@ struct ScheduleTimelineView: View {
     var healthKitProgress: [UUID: Double] = [:]
     var verifiedHabitIDs: Set<UUID> = []
     var calendarEvents: [CalendarAnchor] = []
+    @Binding var deepLinkHabitID: UUID?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.switchTab) private var switchTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(FocusFilterService.self) private var focusFilterService
+
+    @AppStorage("habitCompletionCount") private var completionCount: Int = 0
+    @AppStorage("todayViewMode") private var viewMode: TodayViewMode = .list
 
     @State private var showScheduleSuggestion: Bool = false
     @State private var suggestedTime: String = ""
@@ -58,14 +65,13 @@ struct ScheduleTimelineView: View {
     @State private var unscheduledHabits: [Habit] = []
     @State private var effectiveHours: [UUID: Double] = [:]
     @State private var remainingCount: Int = 0
-    @State private var allTodayCompleted: Bool = false
     @State private var cachedHeroDate: String = ""
     @State private var sortedRowMidpoints: [(id: UUID, midY: CGFloat)] = []
     @State private var detailHabit: Habit? = nil
     @State private var counterFlash: Bool = false
-    @State private var allClearScale: CGFloat = 0.5
-    @State private var allClearTextOpacity: Double = 0
-    @State private var showConfetti: Bool = false
+    @State private var showCompletionToast: Bool = false
+    @State private var hasPlayedAllClearToday: Bool = false
+    @State private var showAllClearConfetti: Bool = false
     @State private var rowsRevealed: Bool = false
     @State private var staggerTask: Task<Void, Never>?
     @State private var isForwardNavigation: Bool = true
@@ -90,7 +96,6 @@ struct ScheduleTimelineView: View {
         // Cache remaining count (avoid O(n) per frame during animation)
         let all = scheduledHabits + unscheduledHabits
         remainingCount = all.filter { !completedHabitIDs.contains($0.id) && !skippedHabitIDs.contains($0.id) }.count
-        allTodayCompleted = !all.isEmpty && all.allSatisfy { completedHabitIDs.contains($0.id) }
 
         // Cache time values (Fix 5: avoid repeated Calendar lookups)
         cachedCurrentHour = Calendar.current.component(.hour, from: Date())
@@ -129,67 +134,94 @@ struct ScheduleTimelineView: View {
     private var heroDate: String { cachedHeroDate.isEmpty ? selectedDate.formatted(.dateTime.month(.wide).day()) : cachedHeroDate }
 
     var body: some View {
+        ScrollViewReader { scrollProxy in
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
                 // Header
                 VStack(spacing: 8) {
-                    // Date + Day/Week picker
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(heroDate)
-                                .font(Typography.brandHeroDate)
-                                .foregroundStyle(Color.primary)
-                                .onTapGesture {
-                                    guard !isViewingToday else { return }
-                                    withAnimation(GridConstants.motionSmooth) {
-                                        selectedDate = Date()
-                                    }
-                                    HapticsEngine.tick()
-                                }
+                    // View mode picker + date
+                    VStack(spacing: 4) {
+                        TodayViewModePicker(selection: $viewMode)
 
-                            // Ambient tower progress (cross-tab cognition — Sweller 1988)
-                            if towerBlockCount > 0 {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "square.stack.fill")
-                                        .font(.system(size: 10))
-                                    Text("\(towerBlockCount) blocks")
-                                        .font(Typography.caption2)
+                        Text(heroDate)
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(.secondary)
+                            .onTapGesture {
+                                guard !isViewingToday else { return }
+                                withAnimation(GridConstants.motionSmooth) {
+                                    selectedDate = Date()
                                 }
-                                .foregroundStyle(Color.primary.opacity(0.3))
+                                HapticsEngine.tick()
                             }
-                        }
-
-                        Spacer()
                     }
-                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.top, 12)
 
                     WeekProgressStrip(weekData: weekData, selectedDate: $selectedDate)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, GridConstants.horizontalPadding)
+                        .padding(.bottom, 4)
+
+                    // Week average removed — rings already communicate this visually
                 }
 
                 Rectangle()
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
                     .frame(height: 0.5)
+
+                // Focus Filter banner
+                if let focusCategory = focusFilterService.activeCategory {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .font(Typography.caption)
+                        Text("Focus: \(focusCategory.rawValue.capitalized) only")
+                            .font(Typography.caption)
+                    }
+                    .foregroundStyle(focusCategory.style.baseColor)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(focusCategory.style.baseColor.opacity(colorScheme == .dark ? 0.20 : 0.15))
+                }
+
+                // Siri tip removed per user feedback
 
                 // Daily schedule
                 if !unscheduledHabits.isEmpty {
                     unscheduledSection
                 }
 
-                scheduledSection
+                if viewMode == .list {
+                    scheduledSection
+                        .id(selectedDate)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: isForwardNavigation ? .trailing : .leading).combined(with: .opacity),
+                            removal: .move(edge: isForwardNavigation ? .leading : .trailing).combined(with: .opacity)
+                        ))
+                        .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: selectedDate)
+                        .onDrop(of: [.text], delegate: makeDropDelegate())
+                        .coordinateSpace(name: "timeline")
+                        .onPreferenceChange(RowFramePreference.self) { frames in
+                            rowFrames = frames
+                        }
+                } else {
+                    TimelineGridView(
+                        scheduledHabits: scheduledHabits,
+                        calendarEvents: calendarEvents,
+                        completedHabitIDs: completedHabitIDs,
+                        skippedHabitIDs: skippedHabitIDs,
+                        cachedNowFraction: cachedNowFraction,
+                        onComplete: onComplete,
+                        onSkip: onSkip,
+                        onUndo: onUndo,
+                        onUndoSkip: onUndoSkip,
+                        cachedStreaks: cachedStreaks,
+                        healthKitProgress: healthKitProgress,
+                        verifiedHabitIDs: verifiedHabitIDs
+                    )
                     .id(selectedDate)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: isForwardNavigation ? .trailing : .leading).combined(with: .opacity),
-                        removal: .move(edge: isForwardNavigation ? .leading : .trailing).combined(with: .opacity)
-                    ))
-                    .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: selectedDate)
-                    .onDrop(of: [.text], delegate: makeDropDelegate())
-                    .coordinateSpace(name: "timeline")
-                    .onPreferenceChange(RowFramePreference.self) { frames in
-                        rowFrames = frames
-                    }
+                    .transition(.opacity)
+                }
 
                 if allHabits.isEmpty {
                     fullEmptyState
@@ -197,9 +229,30 @@ struct ScheduleTimelineView: View {
                 }
             }
             .padding(.bottom, 100)
-            .animation(GridConstants.crossFade, value: selectedDate)
+            .animation(reduceMotion ? .none : GridConstants.crossFade, value: selectedDate)
         }
         .background { WarmBackground().ignoresSafeArea() }
+        .onChange(of: viewMode) { _, newMode in
+            if newMode == .timeline {
+                let currentHour = Int(cachedNowFraction)
+                withAnimation { scrollProxy.scrollTo("hour-\(currentHour)", anchor: .center) }
+            }
+        }
+        } // ScrollViewReader
+        .overlay(alignment: .bottom) {
+            if showCompletionToast {
+                Text("Block added to your tower \(Image(systemName: "arrow.up.right"))")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, 120)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("Block added to your tower")
+            }
+        }
         .onAppear {
             recomputeHabitLists()
             cachedHeroDate = selectedDate.formatted(.dateTime.month(.wide).day())
@@ -215,9 +268,14 @@ struct ScheduleTimelineView: View {
             }
         }
         .onChange(of: allHabits) { scheduleRecompute() }
-        .onChange(of: completedHabitIDs) { recomputeHabitLists() } // Immediate — no debounce (Card 1991: <100ms)
+        .onChange(of: completedHabitIDs) {
+            recomputeHabitLists() // Immediate — no debounce (Card 1991: <100ms)
+            completionCount = completedHabitIDs.count
+        }
         .onChange(of: selectedDate) { oldDate, newDate in
             isForwardNavigation = newDate > oldDate
+            hasPlayedAllClearToday = false
+            showAllClearConfetti = false
             // Reset row stagger for cascade entrance
             rowsRevealed = false
             staggerTask?.cancel()
@@ -233,6 +291,7 @@ struct ScheduleTimelineView: View {
             suggestedTime = ""
         }
         .onAppear {
+            staggerTask?.cancel()
             staggerTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(100))
                 guard !Task.isCancelled else { return }
@@ -291,6 +350,13 @@ struct ScheduleTimelineView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .onChange(of: deepLinkHabitID) { _, newID in
+            guard let habitID = newID else { return }
+            if let habit = allHabits.first(where: { $0.id == habitID }) {
+                detailHabit = habit
+            }
+            deepLinkHabitID = nil
+        }
     }
 
     // MARK: - Unscheduled Section (horizontal chips above timeline)
@@ -310,20 +376,20 @@ struct ScheduleTimelineView: View {
                         .tracking(0.5)
                         .foregroundStyle(Color.primary.opacity(0.5))
 
-                    Text("(\(unscheduledHabits.count))")
+                    Text(unscheduledCollapsed ? "\(unscheduledHabits.count) habits · tap to expand" : "(\(unscheduledHabits.count))")
                         .font(Typography.caption)
                         .foregroundStyle(Color.primary.opacity(0.35))
 
                     Spacer()
 
                     Image(systemName: unscheduledCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Typography.caption2)
                         .foregroundStyle(Color.primary.opacity(0.35))
                 }
             }
             .buttonStyle(.plain)
             .frame(minHeight: 44)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, GridConstants.horizontalPadding)
 
             if !unscheduledCollapsed {
                 // Horizontal scroll chips
@@ -334,11 +400,17 @@ struct ScheduleTimelineView: View {
                                 .padding(.vertical, 4) // Prevent rotated corners from clipping
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
                 }
             }
         }
         .padding(.vertical, 12)
+        .onAppear {
+            // Smart collapse: reduce Hick's Law choice paralysis (Hick 1952)
+            if unscheduledHabits.count > 5 {
+                unscheduledCollapsed = true
+            }
+        }
     }
 
     // MARK: - Sandbox Rotation (stable, deterministic)
@@ -357,7 +429,7 @@ struct ScheduleTimelineView: View {
         return HStack(spacing: 8) {
             // Content first (reading order — left to right)
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(Typography.caption)
                 .foregroundStyle(isCompleted ? .white.opacity(0.7) : style.baseColor)
 
             Text(habit.title)
@@ -381,12 +453,15 @@ struct ScheduleTimelineView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .stroke(isCompleted ? Color.clear : Color.white.opacity(0.6), lineWidth: 2)
+                        .stroke(Color.white.opacity(0.6), lineWidth: GridConstants.strokeMedium)
                         .frame(width: GridConstants.checkCircleSize, height: GridConstants.checkCircleSize)
+                        .opacity(isCompleted ? 0.0 : 1.0)
+
                     if isCompleted {
                         Circle()
                             .fill(Color.white)
                             .frame(width: GridConstants.checkCircleSize, height: GridConstants.checkCircleSize)
+
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(style.baseColor)
@@ -399,11 +474,11 @@ struct ScheduleTimelineView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(isCompleted ? style.baseColor : Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04))
+                .fill(isCompleted ? style.baseColor : Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : 0.6), lineWidth: 1.5)
+                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : (colorScheme == .dark ? 0.4 : 0.6)), lineWidth: GridConstants.strokeDefault)
         )
         // Tap chip body to schedule (with time choice)
         .onTapGesture {
@@ -413,8 +488,10 @@ struct ScheduleTimelineView: View {
             suggestOpenSlot(for: habit)
         }
         .frame(minHeight: 44)
+        .rotationEffect(sandboxRotation(for: habit.id))
         .accessibilityLabel("\(habit.title), \(habit.category.rawValue), unscheduled")
         .accessibilityHint("Tap circle to complete, or tap chip to schedule")
+        .accessibilityAction(named: "Complete") { onComplete(habit) }
     }
 
     // MARK: - Calendar Ghost Event Block
@@ -459,13 +536,14 @@ struct ScheduleTimelineView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .stroke(eventColor.opacity(0.5), lineWidth: 1.5)
+                    .stroke(eventColor.opacity(colorScheme == .dark ? 0.6 : 0.5), lineWidth: GridConstants.strokeDefault)
             )
-            .opacity(0.6)
+            .opacity(colorScheme == .dark ? 0.7 : 0.6)
             .allowsHitTesting(false)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .accessibilityLabel("Calendar event: \(event.title)")
     }
 
     // MARK: - All-Day Events Banner
@@ -484,9 +562,10 @@ struct ScheduleTimelineView: View {
                     .font(Typography.caption2)
                     .foregroundStyle(Color.primary.opacity(0.3))
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, 8)
             .padding(.bottom, 4)
+            .accessibilityLabel("\(allDay.count) all-day events")
         }
     }
 
@@ -511,82 +590,77 @@ struct ScheduleTimelineView: View {
 
                 // Remaining = ALL habits (scheduled + unscheduled) neither completed nor skipped
                 let remaining = remainingCount
-                let allCompleted = allTodayCompleted
                 if remaining > 0 {
-                    Text("\(remaining) remaining")
+                    Text(cachedCurrentHour >= 18 ? "\(remaining) left tonight" : "\(completedHabitIDs.count) of \(allHabits.count) done")
                         .font(Typography.bodySmall)
                         .foregroundStyle(counterFlash ? AppColors.healthGreen : Color.primary.opacity(0.5))
                         .contentTransition(.numericText(countsDown: true))
                         .animation(GridConstants.motionSmooth, value: remaining)
-                        .padding(.horizontal, 20)
+                        .scaleEffect(completedHabitIDs.count == 3 && counterFlash ? 1.12 : 1.0)
+                        .animation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.6), value: completedHabitIDs.count)
+                        .accessibilityAddTraits(.updatesFrequently)
+                        .padding(.horizontal, GridConstants.horizontalPadding)
                         .padding(.top, 16)
                         .padding(.bottom, 12)
                         .onChange(of: remainingCount) { old, new in
                             guard new < old else { return }
                             counterFlash = true
+                            // Show completion toast (Norman 2004: cross-modal bridge)
+                            withAnimation(GridConstants.gentleReveal) { showCompletionToast = true }
+                            // All-clear celebration (Kahneman 1993: Peak-End Rule)
+                            if new == 0 && !allHabits.isEmpty && !hasPlayedAllClearToday {
+                                hasPlayedAllClearToday = true
+                                HapticsEngine.reward()
+                                SoundEngine.allClearChime()
+                                withAnimation(GridConstants.celebrationBurst) { showAllClearConfetti = true }
+                            }
                             Task { @MainActor in
                                 try? await Task.sleep(for: .milliseconds(400))
                                 withAnimation(GridConstants.motionSnappy) { counterFlash = false }
+                                try? await Task.sleep(for: .milliseconds(1100))
+                                withAnimation(GridConstants.crossFade) { showCompletionToast = false }
                             }
                         }
-                } else if allCompleted {
-                    // All completed — CELEBRATION (Peak-End Rule, Kahneman 1993)
-                    VStack(spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(AppColors.healthGreen)
-                                .scaleEffect(allClearScale)
-                            Text("All done!")
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(AppColors.healthGreen.opacity(0.7))
-                                .opacity(allClearTextOpacity)
-                        }
+
+                    // Progress bar removed (user feedback: redundant with week strip)
+                } else {
+                    // All clear — minimal (emotion via confetti + haptic, not words)
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(AppColors.healthGreen)
+                        Text("All clear!")
+                            .font(Typography.brandCardTitle)
+                            .foregroundStyle(.primary)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-                    .transition(.scale.combined(with: .opacity))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
                     .overlay {
-                        if showConfetti {
+                        if showAllClearConfetti {
                             AllClearCelebration(
-                                isActive: $showConfetti,
-                                completedCategories: Array(Set(allHabits
-                                    .filter { completedHabitIDs.contains($0.id) }
-                                    .map(\.category)))
+                                isActive: $showAllClearConfetti,
+                                completedCategories: Array(Set(
+                                    allHabits.filter { completedHabitIDs.contains($0.id) }.map(\.category)
+                                ))
                             )
                         }
                     }
-                    .onAppear {
-                        HapticsEngine.reward()
-                        SoundEngine.allClearChime()
-                        if !reduceMotion {
-                            withAnimation(GridConstants.elasticPop) { allClearScale = 1.0 }
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(100))
-                                withAnimation(GridConstants.gentleReveal) { allClearTextOpacity = 1.0 }
-                                try? await Task.sleep(for: .milliseconds(50))
-                                showConfetti = true
-                            }
-                        } else {
-                            allClearScale = 1.0
-                            allClearTextOpacity = 1.0
-                        }
-                    }
-                } else {
-                    // Mix of completed + skipped — neutral closure
+                    .transition(.scale.combined(with: .opacity))
+                }
+
+                // Past day compassion (Dodson 2005: RSD protection, Lazarus 1991: reframing)
+                if !isViewingToday && isViewingPast && !allHabits.isEmpty {
+                    let pct = Double(completedHabitIDs.count) / Double(max(allHabits.count, 1))
                     HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.primary.opacity(0.4))
-                        Text("All cleared")
-                            .font(Typography.bodySmall)
+                        Image(systemName: pct > 0.8 ? "hand.thumbsup.fill" : "heart.fill")
+                            .font(Typography.caption2)
+                            .foregroundStyle(pct > 0.8 ? AppColors.healthGreen : Color.primary.opacity(0.4))
+                        Text(pct > 0.8 ? "Strong day!" : pct > 0.3 ? "You showed up." : "Rest day. That's healthy.")
+                            .font(Typography.caption)
                             .foregroundStyle(Color.primary.opacity(0.5))
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-                    .transition(.scale.combined(with: .opacity))
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.vertical, 8)
                 }
 
                 // Calendar ghost events before first habit
@@ -631,18 +705,34 @@ struct ScheduleTimelineView: View {
                         VStack(spacing: 2) {
                             // "NEXT" badge on the first incomplete habit
                             if isNextUp && isViewingToday {
-                                Text("NEXT")
-                                    .font(Typography.caption2)
-                                    .fontWeight(.bold)
-                                    .tracking(0.5)
-                                    .foregroundStyle(AppColors.warmRed)
+                                VStack(spacing: 2) {
+                                    Text("NEXT")
+                                        .font(Typography.caption2)
+                                        .fontWeight(.bold)
+                                        .tracking(0.5)
+                                        .foregroundStyle(AppColors.warmRed)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(AppColors.warmRed.opacity(0.15), in: Capsule())
+                                        .accessibilityLabel("Next up")
+
+                                    // Countdown (Posner 1980: attentional cueing)
+                                    if let effectiveHour = TimelineViewModel.effectiveHour(for: habit) {
+                                        let minutesUntil = Int((effectiveHour - cachedNowFraction) * 60)
+                                        if minutesUntil > 0 && minutesUntil < 120 {
+                                            Text("in \(minutesUntil)m")
+                                                .font(Typography.caption2)
+                                                .foregroundStyle(AppColors.warmRed.opacity(0.6))
+                                        }
+                                    }
+                                }
                             }
 
                             if let time = habit.scheduledTime {
                                 Text(BlockTimeFormatter.format12Hour(time))
                                     .font(isNow || isNextUp ? Typography.caption : Typography.caption2)
                                     .fontWeight(isNow || isNextUp ? .bold : .regular)
-                                    .foregroundStyle(isNow ? AppColors.warmRed : Color.primary.opacity(isNextUp ? 0.85 : 0.55))
+                                    .foregroundStyle(isNow ? AppColors.warmRed : Color.primary.opacity(isNextUp ? 0.85 : 0.7))
                             }
                         }
                         .frame(width: 56, alignment: .trailing)
@@ -687,6 +777,18 @@ struct ScheduleTimelineView: View {
                         } label: {
                             Label("View Details", systemImage: "info.circle")
                         }
+                        Button {
+                            HapticsEngine.lightTap()
+                            switchTab?(.tower)
+                        } label: {
+                            Label("View in Tower", systemImage: "square.stack.3d.up")
+                        }
+                        Button {
+                            HapticsEngine.lightTap()
+                            switchTab?(.insights)
+                        } label: {
+                            Label("View Streak", systemImage: "flame")
+                        }
                         if let onEdit = onEditInPlan {
                             Button {
                                 HapticsEngine.lightTap()
@@ -709,7 +811,7 @@ struct ScheduleTimelineView: View {
                         let myIndex = indexByID[habit.id] ?? 0
                         return myIndex >= hover ? CGFloat(44) : CGFloat(0)
                     }())
-                    .animation(GridConstants.motionSmooth, value: hoverInsertionIndex)
+                    .animation(reduceMotion ? .none : GridConstants.motionSmooth, value: hoverInsertionIndex)
                     // Staggered row entrance (Shapiro 2015 — anticipatory design)
                     .opacity(rowsRevealed ? 1 : 0)
                     .offset(y: rowsRevealed ? 0 : GridConstants.entranceOffset)
@@ -727,7 +829,7 @@ struct ScheduleTimelineView: View {
                                 let glowOpacity = 0.10 + breath * GridConstants.ambientGlowIntensity
 
                                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                    .stroke(habit.category.style.baseColor.opacity(glowOpacity), lineWidth: 2)
+                                    .stroke(habit.category.style.baseColor.opacity(glowOpacity), lineWidth: GridConstants.strokeMedium)
                                     .padding(.horizontal, 16)
                                     .allowsHitTesting(false)
                             }
@@ -747,7 +849,7 @@ struct ScheduleTimelineView: View {
                                     .frame(width: 56, alignment: .trailing)
                             }
                             RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall)
-                                .stroke(AppColors.healthGreen.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                                .stroke(AppColors.healthGreen.opacity(0.4), style: StrokeStyle(lineWidth: GridConstants.strokeMedium, dash: [6, 4]))
                                 .frame(height: 4)
                         }
                         .padding(.horizontal, 16)
@@ -787,17 +889,17 @@ struct ScheduleTimelineView: View {
             } else {
                 // All habits are unscheduled
                 VStack(spacing: 12) {
-                    Text("No scheduled habits")
+                    Text("Nothing scheduled yet")
                         .font(Typography.bodyMedium)
-                        .foregroundStyle(Color.primary.opacity(0.3))
+                        .foregroundStyle(Color.primary.opacity(0.6))
 
-                    Text("Tap a flexible habit above to schedule it")
+                    Text("Tap any habit above to add it here")
                         .font(Typography.caption)
-                        .foregroundStyle(Color.primary.opacity(0.25))
+                        .foregroundStyle(Color.primary.opacity(0.6))
 
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.25))
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(Color.primary.opacity(0.6))
                         .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
@@ -935,16 +1037,16 @@ struct ScheduleTimelineView: View {
     private var fullEmptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 34, weight: .medium))
+                .font(Typography.appTitle)
                 .foregroundStyle(Color.primary.opacity(0.2))
 
-            Text("Plan your day")
+            Text("Ready to build?")
                 .font(Typography.headerMedium)
                 .foregroundStyle(Color.primary)
 
-            Text("Add habits to start building your tower")
+            Text("Add your first habit to start")
                 .font(Typography.bodyMedium)
-                .foregroundStyle(Color.primary.opacity(0.4))
+                .foregroundStyle(Color.primary.opacity(0.6))
 
             Button {
                 onAddHabit(nil)
@@ -952,7 +1054,7 @@ struct ScheduleTimelineView: View {
                 Text("Add Habit")
                     .font(Typography.headerSmall)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.vertical, 10)
                     .background(AppColors.accentWarm, in: Capsule())
             }

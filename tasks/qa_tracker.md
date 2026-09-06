@@ -65,8 +65,8 @@
 - [x] **T10 MEDIUM:** Stale suggestion on date change — reset state in `onChange(of: selectedDate)`
 - [ ] T8 HIGH: SwiftData fetch on main thread (deferred — requires ModelActor refactor)
 - [ ] T9 MEDIUM: Computed property caching (deferred — optimization)
-- [ ] T11 MEDIUM: DayProgressData UUID identity (deferred — needs MainAppView coordination)
+- [x] **T11 MEDIUM:** DayProgressData UUID identity — FIXED in Strong v1.0 Phase 7 (UUID → date string stable ID)
 - [ ] T12 MEDIUM: GeometryReader optimization (deferred — low priority)
 
 ### Build Note
-- XPEngine.swift, GamificationViewModel.swift, LevelUpOverlay.swift, XPBarView.swift — missing files causing build errors. Tower Claude's domain (deleted during brand sync but Xcode project still references them). Need Xcode project file cleanup.
+- ~~XPEngine.swift, GamificationViewModel.swift, LevelUpOverlay.swift, XPBarView.swift~~ — RESOLVED. References cleaned from Xcode project (verified 2026-03-27, zero matches in project.pbxproj).

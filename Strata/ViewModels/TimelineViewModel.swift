@@ -9,19 +9,14 @@ final class TimelineViewModel {
     private(set) var completedToday: [HabitLog] = []
     private(set) var incompleteToday: [Habit] = []
     private(set) var skippedHabitIDs: Set<UUID> = [] // rebuilt from persisted logs
+    var lastSaveError: Error? // Surface to UI for error alerts (Nielsen Heuristic #9)
 
     var currentDateString: String {
         Self.dateString(from: Date())
     }
 
-    private static let dateStringFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     static func dateString(from date: Date) -> String {
-        dateStringFormatter.string(from: date)
+        DateUtils.dateString(from: date)
     }
 
     // MARK: - Load Today's Data
@@ -77,7 +72,8 @@ final class TimelineViewModel {
             context.insert(log)
         }
 
-        try? context.save()
+        do { try context.save(); lastSaveError = nil }
+        catch { lastSaveError = error }
     }
 
     // MARK: - Skip a Habit
@@ -101,7 +97,8 @@ final class TimelineViewModel {
             log.skipped = true
             context.insert(log)
         }
-        try? context.save()
+        do { try context.save(); lastSaveError = nil }
+        catch { lastSaveError = error }
     }
 
     // MARK: - Undo Completion
@@ -119,7 +116,8 @@ final class TimelineViewModel {
 
         if let existing = try? context.fetch(descriptor).first {
             existing.markIncomplete()
-            try? context.save()
+            do { try context.save(); lastSaveError = nil }
+            catch { lastSaveError = error }
         }
     }
 
@@ -139,7 +137,8 @@ final class TimelineViewModel {
 
         if let existing = try? context.fetch(descriptor).first {
             existing.skipped = false
-            try? context.save()
+            do { try context.save(); lastSaveError = nil }
+            catch { lastSaveError = error }
         }
     }
 
@@ -162,11 +161,6 @@ final class TimelineViewModel {
             }
         }
         return nil
-    }
-
-    /// Incomplete habits for tower display — all incomplete habits stay visible.
-    var incompleteWithinHour: [Habit] {
-        incompleteToday
     }
 
     // MARK: - Completion Progress

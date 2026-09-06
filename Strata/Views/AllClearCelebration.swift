@@ -6,7 +6,14 @@ struct AllClearCelebration: View {
     @Binding var isActive: Bool
     var completedCategories: [HabitCategory] = HabitCategory.allCases
 
+    // Decorative confetti — hidden from VoiceOver
+
     @State private var startTime: Date?
+
+    // #47: Shape variety — rectangles 40%, circles 30%, strips 30%
+    private enum ParticleShape {
+        case rectangle, circle, strip
+    }
 
     private struct Particle {
         let color: Color
@@ -14,6 +21,7 @@ struct AllClearCelebration: View {
         let velocity: Double  // pt/s
         let size: CGFloat
         let rotation: Double  // tumble speed (radians/s)
+        let shape: ParticleShape
     }
 
     private var particles: [Particle] {
@@ -21,13 +29,20 @@ struct AllClearCelebration: View {
         guard !colors.isEmpty else { return [] }
         var result: [Particle] = []
         for color in colors {
-            for _ in 0..<4 {
+            for i in 0..<4 {
+                // #47: Varied shapes — rectangles, circles, strips
+                let shape: ParticleShape = switch i % 10 {
+                case 0...3: .rectangle   // 40%
+                case 4...6: .circle      // 30%
+                default: .strip          // 30%
+                }
                 result.append(Particle(
                     color: color,
                     angle: Double.random(in: 0...(2 * .pi)),
-                    velocity: Double.random(in: 60...150), // Slower: linger for celebration
+                    velocity: Double.random(in: 60...150),
                     size: CGFloat.random(in: 4...8),
-                    rotation: Double.random(in: -6...6) // Tumble effect
+                    rotation: Double.random(in: -6...6),
+                    shape: shape
                 ))
             }
         }
@@ -43,32 +58,53 @@ struct AllClearCelebration: View {
                 let duration = GridConstants.confettiDuration
                 let progress = min(elapsed / duration, 1.0)
 
+                // #46: Confetti gravity — 60pt/s² downward + horizontal damping
+                let gravity: Double = 60.0
+                let horizontalDamping: Double = 0.95
+
                 for particle in particles {
                     let distance = particle.velocity * elapsed
-                    let x = center.x + cos(particle.angle) * distance
-                    let y = center.y + sin(particle.angle) * distance - 20 * elapsed
+                    // #46: Apply gravity and horizontal damping
+                    let hDamp = pow(horizontalDamping, elapsed * 10)
+                    let x = center.x + cos(particle.angle) * distance * hDamp
+                    let y = center.y + sin(particle.angle) * distance + 0.5 * gravity * elapsed * elapsed
                     let opacity = max(0, 1.0 - progress)
                     let tumble = particle.rotation * elapsed
 
-                    let rect = CGRect(
-                        x: x - particle.size / 2,
-                        y: y - particle.size / 2,
-                        width: particle.size,
-                        height: particle.size * 0.6 // Rectangular confetti, not circles
-                    )
+                    // #47: Shape-specific rendering
+                    let rect: CGRect
+                    switch particle.shape {
+                    case .rectangle:
+                        rect = CGRect(x: x - particle.size / 2, y: y - particle.size / 2,
+                                     width: particle.size, height: particle.size * 0.6)
+                    case .circle:
+                        rect = CGRect(x: x - particle.size / 2, y: y - particle.size / 2,
+                                     width: particle.size, height: particle.size)
+                    case .strip:
+                        rect = CGRect(x: x - particle.size * 0.2, y: y - particle.size,
+                                     width: particle.size * 0.4, height: particle.size * 2)
+                    }
+
                     context.opacity = opacity
                     context.rotate(by: .radians(tumble))
-                    context.fill(
-                        RoundedRectangle(cornerRadius: 1).path(in: rect),
-                        with: .color(particle.color)
-                    )
-                    context.rotate(by: .radians(-tumble)) // Reset rotation for next particle
+                    switch particle.shape {
+                    case .circle:
+                        context.fill(Circle().path(in: rect), with: .color(particle.color))
+                    default:
+                        context.fill(RoundedRectangle(cornerRadius: 1).path(in: rect), with: .color(particle.color))
+                    }
+                    context.rotate(by: .radians(-tumble))
                 }
             }
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
         .onAppear {
             startTime = Date()
+            // #134: Celebration alternative for VoiceOver
+            if UIAccessibility.isVoiceOverRunning {
+                UIAccessibility.post(notification: .announcement, argument: "Celebration! Perfect day achieved. All habits completed.")
+            }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(Int(GridConstants.confettiDuration * 1000)))
                 isActive = false

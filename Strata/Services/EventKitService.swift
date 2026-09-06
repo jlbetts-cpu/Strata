@@ -17,6 +17,22 @@ struct CalendarAnchor: Identifiable, Sendable {
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: startDate)
     }
+
+    var endTimeString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: endDate)
+    }
+
+    /// Busy range in minutes from midnight (for gap-finding)
+    var busyRange: (start: Int, end: Int)? {
+        guard !isAllDay else { return nil }
+        let calendar = Calendar.current
+        let startMinutes = calendar.component(.hour, from: startDate) * 60 + calendar.component(.minute, from: startDate)
+        let endMinutes = calendar.component(.hour, from: endDate) * 60 + calendar.component(.minute, from: endDate)
+        guard endMinutes > startMinutes else { return nil }
+        return (startMinutes, endMinutes)
+    }
 }
 
 @Observable
@@ -42,10 +58,16 @@ final class EventKitService {
     // MARK: - Fetch Today's Events
 
     func fetchTodaysEvents() {
+        fetchEvents(for: Date())
+    }
+
+    // MARK: - Fetch Events for Any Date
+
+    func fetchEvents(for date: Date) {
         guard isAuthorized else { return }
 
         let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: Date())
+        let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
 
         let predicate = store.predicateForEvents(
@@ -84,5 +106,23 @@ final class EventKitService {
     func nearestUpcomingEvent() -> CalendarAnchor? {
         let now = Date()
         return todaysEvents.first { $0.startDate > now }
+    }
+
+    // MARK: - Busy Ranges (for gap-finding integration)
+
+    /// Returns all timed events as busy ranges in minutes from midnight
+    var busyRanges: [(start: Int, end: Int)] {
+        todaysEvents.compactMap(\.busyRange).sorted { $0.start < $1.start }
+    }
+
+    // MARK: - All-Day Events
+
+    var allDayEvents: [CalendarAnchor] {
+        todaysEvents.filter(\.isAllDay)
+    }
+
+    /// Timed events only (non-all-day)
+    var timedEvents: [CalendarAnchor] {
+        todaysEvents.filter { !$0.isAllDay }
     }
 }

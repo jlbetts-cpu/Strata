@@ -7,6 +7,8 @@ final class BlockAnimationState {
     var dropPhase: TowerAnimationCoordinator.DropPhase? = nil
     var isRippling: Bool = false
     var rippleIntensity: CGFloat = 1.0
+    // #28: Heavy micro-bounce Y offset after stretch
+    var microBounceY: CGFloat = 0
     // Jubilation wave (perfect day celebration)
     var jubilationWobble: Double = 0
     var jubilationLift: CGFloat = 0
@@ -74,33 +76,65 @@ final class TowerAnimationCoordinator {
         landedMassTier = 1
     }
 
+    /// #430: Clear animation states on filter change to prevent stale ripple/wobble
+    func clearAnimationStates() {
+        for (_, state) in blockStates {
+            state.isRippling = false
+            state.rippleIntensity = 1.0
+            state.jubilationWobble = 0
+            state.jubilationLift = 0
+            state.jubilationGlow = 0
+        }
+    }
+
     func triggerRipple(from landedID: UUID, massTier: Int, placedBlocks: [PlacedBlock]) {
         guard !reduceMotion else { return }
         guard let landedBlock = placedBlocks.first(where: { $0.id == landedID }) else { return }
         let landedRow = landedBlock.row
+        let landedCol = landedBlock.column
         let massMultiplier = CGFloat(massTier)
 
-        let blocksBelow = placedBlocks.filter { block in
-            block.id != landedID && block.row < landedRow && (landedRow - block.row) <= 6
+        // #31: Lateral ripple — include same-row blocks that compress at reduced intensity
+        let affectedBlocks = placedBlocks.filter { block in
+            guard block.id != landedID else { return false }
+            let rowDist = landedRow - block.row
+            let isSameRow = block.row == landedRow
+            let isBelow = rowDist > 0 && rowDist <= 6
+            return isSameRow || isBelow
         }
-        guard !blocksBelow.isEmpty else { return }
+        guard !affectedBlocks.isEmpty else { return }
 
         var tiers: [Int: [PlacedBlock]] = [:]
-        for block in blocksBelow {
-            let distance = landedRow - block.row
-            tiers[distance, default: []].append(block)
+        for block in affectedBlocks {
+            if block.row == landedRow {
+                // #31: Same-row blocks go in tier 0 with lateral distance
+                tiers[0, default: []].append(block)
+            } else {
+                let distance = landedRow - block.row
+                tiers[distance, default: []].append(block)
+            }
         }
 
         Task { @MainActor in
-            for (distance, tierBlocks) in tiers {
-                let delay = Double(distance) * 0.05
-                let intensity = massMultiplier / (1.0 + pow(CGFloat(distance), 1.5))
+            for (distance, tierBlocks) in tiers.sorted(by: { $0.key < $1.key }) {
+                let delay = Double(max(distance, 1)) * 0.05
                 let tierIDs = tierBlocks.map(\.id)
 
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
                 for id in tierIDs {
-                    self.state(for: id).rippleIntensity = intensity
+                    let block = tierBlocks.first { $0.id == id }
+                    let intensity: CGFloat
+                    if distance == 0 {
+                        // #31: Lateral ripple — 0.3x intensity based on column distance
+                        let colDist = abs((block?.column ?? landedCol) - landedCol)
+                        intensity = massMultiplier * 0.3 / (1.0 + CGFloat(colDist))
+                    } else {
+                        intensity = massMultiplier / (1.0 + pow(CGFloat(distance), 1.5))
+                    }
+                    // #33: Ripple merging — use max(existing, new) not additive
+                    let existing = self.state(for: id).rippleIntensity
+                    self.state(for: id).rippleIntensity = max(existing, intensity)
                 }
                 withAnimation(GridConstants.rippleCompressSpring) {
                     for id in tierIDs {
@@ -121,6 +155,9 @@ final class TowerAnimationCoordinator {
 
     // MARK: - Jubilation Wave (Perfect Day Celebration)
 
+    // #404: Celebration cancellation safety — track tasks for cleanup
+    private var jubilationTask: Task<Void, Never>?
+
     func triggerJubilation(placedBlocks: [PlacedBlock]) {
         guard !isJubilating, !reduceMotion else { return }
         isJubilating = true
@@ -128,9 +165,12 @@ final class TowerAnimationCoordinator {
         let maxRow = placedBlocks.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
         let rowDelay = min(0.07, 2.5 / Double(max(maxRow, 10))) // Adaptive: caps wave at ~2.5s
 
-        Task { @MainActor in
+        jubilationTask?.cancel()
+        jubilationTask = Task { @MainActor in
             // === OUTGOING WAVE (bottom → top) — 4 oscillations, ±3.5° ===
             for row in 0...maxRow {
+                // #404: Check for cancellation on each iteration
+                guard !Task.isCancelled else { resetJubilationState(placedBlocks: placedBlocks); return }
                 let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
 
                 // Sway RIGHT — big, slow, visible
@@ -194,13 +234,16 @@ final class TowerAnimationCoordinator {
 
             for row in stride(from: maxRow, through: 0, by: -1) {
                 let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
+                // #48: Return wave amplitude decays proportional to row (top = full, bottom = minimal)
+                let rowFraction = maxRow > 0 ? Double(row) / Double(maxRow) : 1.0
+                let amplitude = 0.3 + 0.7 * rowFraction // 30% at bottom, 100% at top
 
                 withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
                     for block in rowBlocks {
                         let s = state(for: block.id)
-                        s.jubilationWobble = -1.0
-                        s.jubilationLift = -2
-                        s.jubilationGlow = 0.03
+                        s.jubilationWobble = -1.0 * amplitude
+                        s.jubilationLift = -2 * amplitude
+                        s.jubilationGlow = 0.03 * amplitude
                     }
                 }
                 try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.6 * 1_000_000_000))
@@ -221,6 +264,17 @@ final class TowerAnimationCoordinator {
             try? await Task.sleep(for: .milliseconds(400))
             isJubilating = false
         }
+    }
+
+    /// #404: Reset all jubilation state safely on cancellation
+    private func resetJubilationState(placedBlocks: [PlacedBlock]) {
+        for block in placedBlocks {
+            let s = state(for: block.id)
+            s.jubilationWobble = 0
+            s.jubilationLift = 0
+            s.jubilationGlow = 0
+        }
+        isJubilating = false
     }
 
     // MARK: - Internal
@@ -270,10 +324,11 @@ final class TowerAnimationCoordinator {
         for id in blockIDs { state(for: id).dropPhase = .falling }
 
         try? await Task.sleep(nanoseconds: 8_000_000)
+        // #26: Air resistance — 0.95x velocity in last 20% (second control point < 1.0)
         let curve: Animation = switch mass {
-        case 1: .timingCurve(0.36, 0, 1, 1, duration: fallDuration)
-        case 2: .timingCurve(0.42, 0, 1, 1, duration: fallDuration)
-        default: .timingCurve(0.50, 0, 1, 1, duration: fallDuration)
+        case 1: .timingCurve(0.36, 0, 0.85, 1, duration: fallDuration)
+        case 2: .timingCurve(0.42, 0, 0.82, 1, duration: fallDuration)
+        default: .timingCurve(0.50, 0, 0.80, 1, duration: fallDuration)
         }
         withAnimation(curve) {
             for id in blockIDs { state(for: id).dropPhase = .squash }
@@ -296,11 +351,23 @@ final class TowerAnimationCoordinator {
             for id in blockIDs { state(for: id).dropPhase = .stretch }
         }
 
-        // Phase 3: Stretch → Wobble
+        // Phase 3: Stretch → Wobble (with micro-bounce for heavy blocks)
         let stretchDwell: UInt64 = switch mass {
         case 1: 60_000_000; case 2: 80_000_000; default: 120_000_000
         }
         try? await Task.sleep(nanoseconds: stretchDwell)
+
+        // #28: Heavy micro-bounce — 2pt Y offset after stretch for mass 3+
+        if mass >= 3 {
+            withAnimation(.spring(response: 0.10, dampingFraction: 0.50)) {
+                for id in blockIDs { state(for: id).microBounceY = 2 }
+            }
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.70)) {
+                for id in blockIDs { state(for: id).microBounceY = 0 }
+            }
+        }
+
         withAnimation(GridConstants.wobbleSpring) {
             for id in blockIDs { state(for: id).dropPhase = .wobble }
         }

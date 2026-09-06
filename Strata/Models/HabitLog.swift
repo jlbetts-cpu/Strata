@@ -9,7 +9,7 @@ struct SubTask: Codable, Equatable, Identifiable {
 
 @Model
 final class HabitLog {
-    @Attribute(.unique) var id: UUID = UUID()
+    var id: UUID = UUID()
     var habit: Habit?
     var dateString: String // YYYY-MM-DD format for easy lookup
     var completed: Bool
@@ -28,6 +28,7 @@ final class HabitLog {
     var xpCollected: Bool
     var isBonusBlock: Bool
     var skipped: Bool = false
+    var verifiedByHealthKit: Bool = false
     var subtasks: [SubTask] = []
 
     var hasDrawerContent: Bool {

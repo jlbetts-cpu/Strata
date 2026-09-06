@@ -23,13 +23,15 @@ struct PlanItemRow: View {
     let isSkippedToday: Bool
     @FocusState.Binding var editingItemID: UUID?
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.switchTab) private var switchTab
 
     @ScaledMetric(relativeTo: .body) private var rowPadH: CGFloat = 16
-    @ScaledMetric(relativeTo: .body) private var rowPadV: CGFloat = 14
-    @ScaledMetric(relativeTo: .footnote) private var pillPadH: CGFloat = 10
+    @ScaledMetric(relativeTo: .body) private var rowPadV: CGFloat = 16
+    @ScaledMetric(relativeTo: .footnote) private var pillPadH: CGFloat = 12
     @ScaledMetric(relativeTo: .footnote) private var pillPadV: CGFloat = 6
+    @ScaledMetric(relativeTo: .body) private var iconFrameWidth: CGFloat = 28
 
     @State private var editText: String = ""
     @State private var showTimePicker: Bool = false
@@ -73,6 +75,7 @@ struct PlanItemRow: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
                     .animation(GridConstants.crossFade, value: item.habit.category)
+                    .accessibilityLabel("\(item.habit.category.rawValue) category, tap to expand details")
                 }
 
                 // Title — always editable
@@ -95,18 +98,33 @@ struct PlanItemRow: View {
 
                 // Metadata → tap to expand
                 Button(action: onTapOptions) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Image(systemName: item.habit.isTodo ? "list.number" : "arrow.trianglehead.2.clockwise")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(schedule)
                             .font(Typography.bodySmall)
                             .foregroundStyle(.secondary)
+                        // Subtask progress badge (Miller 1956 — surface without expanding)
+                        if !subtasks.isEmpty {
+                            Text("\(subtasks.filter { $0.habit.isStepCompleted }.count)/\(subtasks.count)")
+                                .font(Typography.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        // Today availability badge (Barkley 1997 — explicit time cue)
+                        if !item.habit.isTodo && item.habit.frequency.contains(
+                            DayCode.from(weekday: Calendar.current.component(.weekday, from: Date.now))
+                        ) && !isCompletedToday {
+                            Image(systemName: "sun.min.fill")
+                                .font(.caption2)
+                                .foregroundStyle(AppColors.healthGreen)
+                        }
                         Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.medium))
+                            .font(Typography.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                             .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                            .animation(gentle, value: isExpanded)
+                            .animation(smooth, value: isExpanded)
                     }
                 }
                 .buttonStyle(.plain)
@@ -118,7 +136,7 @@ struct PlanItemRow: View {
             // Expanded: Things 3 lightweight card
             if isExpanded {
                 expandedCard
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
             }
         }
         // Left-edge accent (orange when in progress — Kanban convention)
@@ -128,21 +146,15 @@ struct PlanItemRow: View {
                 .frame(width: 4)
                 .padding(.vertical, 8)
         }
-        .opacity(isExpanded ? 1.0 : (isCompletedToday ? 0.6 : (isSkippedToday ? 0.7 : 1.0)))
+        .opacity(isExpanded ? 1.0 : (isCompletedToday ? 0.5 : (isSkippedToday ? 0.7 : 1.0)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(isCompletedToday ? "Done: " : isSkippedToday ? "Skipped: " : "")\(item.habit.title), \(item.habit.category.rawValue), \(schedule)")
         .onChange(of: isExpanded) { _, newVal in
             if !newVal { showTimePicker = false }
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
+        // Swipe delete removed here — defined in PlanPageView.itemRow() to avoid duplicate
         .confirmationDialog("Delete \(item.habit.title)?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
+            Button("Remove", role: .destructive) {
                 HapticsEngine.snap()
                 onDelete()
             }
@@ -186,8 +198,8 @@ struct PlanItemRow: View {
                                 Image(systemName: isCompletedToday ? "checkmark.circle" : "arrow.right.circle")
                                     .font(.body)
                                     .foregroundStyle(isCompletedToday ? AppColors.healthGreen : .secondary)
-                                    .frame(width: 28)
-                                Text(isCompletedToday ? "Done today" : isSkippedToday ? "Skipped today" : "View in Today")
+                                    .frame(width: iconFrameWidth)
+                                Text(isCompletedToday ? "Done today" : isSkippedToday ? "Took a pass" : "View in Today")
                                     .font(Typography.bodyMedium)
                                     .foregroundStyle(isCompletedToday ? AppColors.healthGreen : .secondary)
                                 Spacer()
@@ -201,15 +213,38 @@ struct PlanItemRow: View {
                     }
                 }
 
-                // Delete moved to swipe action (iOS standard)
+                // Save for later — visible affordance for to-do reuse (IxDF: never gesture-only)
+                if item.habit.isTodo && !item.habit.isSaved {
+                    formSeparator
+                    Button {
+                        item.habit.isSaved = true
+                        try? item.habit.modelContext?.save()
+                        HapticsEngine.lightTap()
+                    } label: {
+                        HStack {
+                            Image(systemName: "bookmark")
+                                .font(.body)
+                                .foregroundStyle(.blue)
+                                .frame(width: iconFrameWidth)
+                            Text("Keep for later")
+                                .font(Typography.bodyMedium)
+                                .foregroundStyle(.blue)
+                            Spacer()
+                        }
+                        .padding(.horizontal, rowPadH)
+                        .padding(.vertical, rowPadV)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Save this task for reuse later")
+                }
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 16)
         .background(
-            .thinMaterial,
+            .regularMaterial,
             in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
         )
-        // Top edge glow removed — clean material is premium enough
+        .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
         .padding(.horizontal, rowPadH)
         .padding(.bottom, rowPadV)
     }
@@ -224,13 +259,19 @@ struct PlanItemRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 if let time = item.habit.scheduledTime {
-                    Text(BlockTimeFormatter.format12Hour(time))
-                        .font(.system(.title2, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.primary)
+                    // Duration pairing — ADHD time blindness scaffold (Barkley 1997)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(BlockTimeFormatter.format12Hour(time))
+                            .font(.system(.title2, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("· \(formatDuration(item.habit.effectiveDurationMinutes))")
+                            .font(.system(.title3, design: .rounded, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
-                    Text("Set a time")
+                    Text("When works for you?")
                         .font(.system(.title3, design: .rounded, weight: .medium))
-                        .foregroundStyle(item.habit.category.style.baseColor)
+                        .foregroundStyle(.secondary)
                 }
                 Text(frequencyLabel)
                     .font(Typography.bodySmall)
@@ -256,14 +297,14 @@ struct PlanItemRow: View {
             // "Show schedule" toggle
             if !scheduledSiblings.isEmpty {
                 Button {
-                    withAnimation(gentle) { showGlimpse.toggle() }
+                    withAnimation(smooth) { showGlimpse.toggle() }
                     HapticsEngine.lightTap()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Image(systemName: showGlimpse ? "eye.slash" : "eye")
                             .font(.body)
                             .foregroundStyle(item.habit.category.style.baseColor)
-                            .frame(width: 28)
+                            .frame(width: iconFrameWidth)
                         Text(showGlimpse ? "Hide schedule" : "Show schedule")
                             .font(Typography.bodySmall)
                             .foregroundStyle(item.habit.category.style.baseColor)
@@ -271,6 +312,7 @@ struct PlanItemRow: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(showGlimpse ? "Hide other habits at this time" : "Show other habits at this time")
 
                 if showGlimpse {
                     timelineGlimpseStrip
@@ -293,9 +335,10 @@ struct PlanItemRow: View {
                     .foregroundStyle(item.habit.category.style.baseColor)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(item.habit.category.style.baseColor.opacity(0.12), in: Capsule())
+                    .background(item.habit.category.style.baseColor.opacity(0.15), in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .frame(minHeight: 44)
                 .accessibilityLabel("Set time to \(BlockTimeFormatter.format12Hour(slot))")
             }
 
@@ -320,6 +363,7 @@ struct PlanItemRow: View {
                     displayedComponents: .hourAndMinute
                 )
                 .labelsHidden()
+                .accessibilityLabel("Scheduled time")
 
                 if item.habit.scheduledTime != nil {
                     Button {
@@ -327,11 +371,12 @@ struct PlanItemRow: View {
                         HapticsEngine.tick()
                         withAnimation(gentle) { showTimePicker = false }
                     } label: {
-                        Text("Clear")
+                        Text("Remove time")
                             .font(Typography.bodySmall)
                             .foregroundStyle(AppColors.warmRed)
                     }
                     .buttonStyle(.plain)
+                    .frame(minHeight: 44)
                 }
             }
         }
@@ -339,9 +384,11 @@ struct PlanItemRow: View {
 
     // MARK: - Form Separator (visible on .thinMaterial in both modes)
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var formSeparator: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.1))
+            .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.1))
             .frame(height: 0.5)
             .padding(.leading, 44) // indent past icon column (Apple Reminders pattern)
     }
@@ -364,8 +411,8 @@ struct PlanItemRow: View {
                 Image(systemName: "tag.fill")
                     .font(.body)
                     .foregroundStyle(item.habit.category.style.baseColor)
-                    .frame(width: 28)
-                Text("Category")
+                    .frame(width: iconFrameWidth)
+                Text("Type")
                     .font(Typography.bodyMedium)
                     .foregroundStyle(.primary)
                 Spacer()
@@ -391,8 +438,8 @@ struct PlanItemRow: View {
                 Image(systemName: "flame.fill")
                     .font(.body)
                     .foregroundStyle(item.habit.category.style.baseColor)
-                    .frame(width: 28)
-                Text("Effort")
+                    .frame(width: iconFrameWidth)
+                Text("Size")
                     .font(Typography.bodyMedium)
                     .foregroundStyle(.primary)
                 Spacer()
@@ -421,7 +468,7 @@ struct PlanItemRow: View {
                 Image(systemName: "calendar")
                     .font(.body)
                     .foregroundStyle(item.habit.category.style.baseColor)
-                    .frame(width: 28)
+                    .frame(width: iconFrameWidth)
                 Text("Days")
                     .font(Typography.bodyMedium)
                     .foregroundStyle(.primary)
@@ -441,68 +488,148 @@ struct PlanItemRow: View {
 
     @ViewBuilder
     private var compactPillRow: some View {
-        HStack(spacing: 8) {
-            // Category menu
-            Menu {
-                ForEach(HabitCategory.allCases, id: \.self) { cat in
-                    Button {
-                        onUpdateCategory(cat)
-                        HapticsEngine.tick()
-                    } label: {
-                        Label(categoryLabel(cat), systemImage: cat.iconName)
+        VStack(alignment: .leading, spacing: 12) {
+            // Group 1: What — Category + Effort
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(HabitCategory.allCases, id: \.self) { cat in
+                        Button {
+                            onUpdateCategory(cat)
+                            HapticsEngine.tick()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: cat.iconName)
+                                    .font(Typography.caption)
+                                Text(cat.rawValue.capitalized)
+                                    .font(Typography.bodySmall)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                item.habit.category == cat
+                                    ? cat.style.baseColor
+                                    : Color.primary.opacity(0.06),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(item.habit.category == cat ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: item.habit.category.iconName)
-                        .font(.caption.weight(.medium))
-                    Text(categoryLabel(item.habit.category))
-                        .font(Typography.bodySmall)
-                        .fontWeight(.medium)
+            }
+
+            // Effort — segmented picker (matches Add screen)
+            Picker("Effort", selection: Binding(
+                get: { item.habit.blockSize },
+                set: { onUpdateSize($0); HapticsEngine.tick() }
+            )) {
+                ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
+                    Text(size.effortLabel).tag(size)
                 }
-                .foregroundStyle(item.habit.category.style.baseColor)
-                .padding(.horizontal, pillPadH)
-                .padding(.vertical, pillPadV)
-                .background(item.habit.category.style.baseColor.opacity(0.12), in: Capsule())
             }
-            .accessibilityLabel("Category: \(item.habit.category.rawValue)")
+            .pickerStyle(.segmented)
 
-            // Effort menu
-            Menu {
-                Button { onUpdateSize(.small); HapticsEngine.tick() } label: { Text(BlockSize.small.effortLabel) }
-                Button { onUpdateSize(.medium); HapticsEngine.tick() } label: { Text(BlockSize.medium.effortLabel) }
-                Button { onUpdateSize(.hard); HapticsEngine.tick() } label: { Text(BlockSize.hard.effortLabel) }
-            } label: {
-                Text(effortLabel(item.habit.blockSize))
-                    .font(Typography.bodySmall)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, pillPadH)
-                    .padding(.vertical, pillPadV)
-                    .background(Color.primary.opacity(0.06), in: Capsule())
+            Divider().opacity(0.3)
+
+            // Group 2: When — Duration + Schedule
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
+                        Button {
+                            item.habit.customDurationMinutes = mins
+                            try? modelContext.save()
+                            HapticsEngine.tick()
+                        } label: {
+                            Text(formatDuration(mins))
+                                .font(Typography.bodySmall)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    item.habit.effectiveDurationMinutes == mins
+                                        ? item.habit.category.style.baseColor
+                                        : Color.primary.opacity(0.06),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(item.habit.effectiveDurationMinutes == mins ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
-            .accessibilityLabel("Effort: \(item.habit.blockSize.rawValue)")
 
-            // Frequency menu
-            Menu {
-                Button { onUpdateFrequencyPreset("daily"); HapticsEngine.tick() } label: { Text("Daily") }
-                Button { onUpdateFrequencyPreset("weekdays"); HapticsEngine.tick() } label: { Text("Weekdays") }
-                Button { onUpdateFrequencyPreset("weekends"); HapticsEngine.tick() } label: { Text("Weekends") }
-                Divider()
-                Button { onUpdateFrequencyPreset("today"); HapticsEngine.tick() } label: { Text("Once (Today)") }
-                Button { onUpdateFrequencyPreset("tomorrow"); HapticsEngine.tick() } label: { Text("Once (Tomorrow)") }
-            } label: {
-                Text(frequencyLabel)
-                    .font(Typography.bodySmall)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, pillPadH)
-                    .padding(.vertical, pillPadV)
-                    .background(Color.primary.opacity(0.06), in: Capsule())
+            Stepper(
+                formatDuration(item.habit.effectiveDurationMinutes),
+                value: Binding(
+                    get: { item.habit.effectiveDurationMinutes },
+                    set: { item.habit.customDurationMinutes = $0; try? modelContext.save() }
+                ),
+                in: 5...180, step: 5
+            )
+            .font(Typography.bodySmall)
+
+            // Day schedule — inline circles (recurring only)
+            if !item.habit.isTodo {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(DayCode.allCases, id: \.self) { day in
+                            let isSelected = item.habit.frequency.contains(day)
+                            Button {
+                                var days = Set(item.habit.frequency)
+                                if isSelected { days.remove(day) } else { days.insert(day) }
+                                item.habit.frequency = Array(days)
+                                try? modelContext.save()
+                                HapticsEngine.tick()
+                            } label: {
+                                Text(day.rawValue)
+                                    .font(Typography.bodySmall)
+                                    .frame(width: 36, height: 36)
+                                    .background(
+                                        isSelected ? item.habit.category.style.baseColor : Color.primary.opacity(0.06),
+                                        in: Circle()
+                                    )
+                                    .foregroundStyle(isSelected ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(day.rawValue), \(isSelected ? "selected" : "not selected")")
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        }
+                    }
+                }
             }
-            .accessibilityLabel("Frequency: \(frequencyLabel)")
 
-            Spacer()
+            Divider().opacity(0.3)
+
+            // Group 3: Settings — Grace + Type
+            if !item.habit.isTodo {
+                Stepper(
+                    "\(item.habit.graceDays)-day forgiveness window",
+                    value: Binding(
+                        get: { item.habit.graceDays },
+                        set: { item.habit.graceDays = $0; try? modelContext.save() }
+                    ),
+                    in: 0...7
+                )
+                .font(Typography.bodySmall)
+                .help("Days you can skip without resetting your streak")
+            }
+
+            // Routine ↔ To-Do toggle
+            Toggle("One-time (not recurring)", isOn: Binding(
+                get: { item.habit.isTodo },
+                set: { newVal in
+                    item.habit.isTodo = newVal
+                    if newVal {
+                        item.habit.frequencyRawValues = []
+                        item.habit.scheduledDate = TimelineViewModel.dateString(from: Date())
+                    } else {
+                        item.habit.scheduledDate = nil
+                        item.habit.frequencyRawValues = DayCode.allCases.map(\.rawValue)
+                    }
+                    try? modelContext.save()
+                }
+            ))
+            .font(Typography.bodySmall)
+            .tint(item.habit.category.style.baseColor)
         }
     }
 
@@ -520,7 +647,7 @@ struct PlanItemRow: View {
                         .font(.caption)
                     Text(item.habit.scheduledTime != nil
                          ? BlockTimeFormatter.format12Hour(item.habit.scheduledTime!)
-                         : "No time set")
+                         : "Anytime")
                         .font(Typography.bodySmall)
                 }
                 .foregroundStyle(item.habit.scheduledTime != nil ? .primary : .tertiary)
@@ -531,14 +658,14 @@ struct PlanItemRow: View {
                 // Timeline Glimpse — behind toggle to reduce visual noise (Gestalt Proximity)
                 if !scheduledSiblings.isEmpty {
                     Button {
-                        withAnimation(gentle) { showGlimpse.toggle() }
+                        withAnimation(smooth) { showGlimpse.toggle() }
                         HapticsEngine.lightTap()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             Image(systemName: showGlimpse ? "eye.slash" : "eye")
                                 .font(.body)
                                 .foregroundStyle(item.habit.category.style.baseColor)
-                                .frame(width: 28)
+                                .frame(width: iconFrameWidth)
                             Text(showGlimpse ? "Hide schedule" : "Show schedule")
                                 .font(Typography.bodySmall)
                                 .foregroundStyle(item.habit.category.style.baseColor)
@@ -568,7 +695,7 @@ struct PlanItemRow: View {
                         .foregroundStyle(item.habit.category.style.baseColor)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(item.habit.category.style.baseColor.opacity(0.12), in: Capsule())
+                        .background(item.habit.category.style.baseColor.opacity(0.15), in: Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Set time to \(BlockTimeFormatter.format12Hour(slot))")
@@ -594,6 +721,7 @@ struct PlanItemRow: View {
                         displayedComponents: .hourAndMinute
                     )
                     .labelsHidden()
+                    .accessibilityLabel("Scheduled time")
 
                     if item.habit.scheduledTime != nil {
                         Button {
@@ -601,11 +729,12 @@ struct PlanItemRow: View {
                             HapticsEngine.tick()
                             withAnimation(gentle) { showTimePicker = false }
                         } label: {
-                            Text("Clear")
+                            Text("Remove time")
                                 .font(Typography.bodySmall)
                                 .foregroundStyle(AppColors.warmRed)
                         }
                         .buttonStyle(.plain)
+                        .frame(minHeight: 44)
                     }
                 }
             }
@@ -676,7 +805,7 @@ struct PlanItemRow: View {
                 ForEach([6, 12, 18], id: \.self) { hour in
                     let label = hour == 12 ? "12p" : (hour < 12 ? "\(hour)a" : "\(hour - 12)p")
                     Text(label)
-                        .font(Typography.caption2)
+                        .font(Typography.caption)
                         .foregroundStyle(.primary.opacity(0.5))
                         .offset(x: CGFloat(hour - glimpseHourStart) * glimpseSegmentWidth - 6, y: 14)
                 }
@@ -705,6 +834,7 @@ struct PlanItemRow: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(subtask.habit.title), \(subtask.habit.isStepCompleted ? "completed" : "incomplete")")
+                        .accessibilityAddTraits(.isButton)
                         .accessibilityAddTraits(subtask.habit.isStepCompleted ? .isSelected : [])
                         // Always-editable subtask (Apple Notes pattern)
                         TextField("Step", text: Binding(
@@ -738,8 +868,8 @@ struct PlanItemRow: View {
                         Image(systemName: "plus.circle")
                             .font(.body)
                             .foregroundStyle(item.habit.category.style.baseColor)
-                            .frame(width: 28)
-                        Text("Add step")
+                            .frame(width: iconFrameWidth)
+                        Text("Add another step")
                             .font(Typography.bodySmall)
                             .foregroundStyle(.primary)
                         Spacer()
@@ -768,7 +898,14 @@ struct PlanItemRow: View {
     }
 
     private func effortLabel(_ size: BlockSize) -> String {
-        size.effortLabel // Quick / Regular / Deep — unified with NewHabitMenu
+        size.effortLabel
+    }
+
+    private func formatDuration(_ mins: Int) -> String {
+        if mins < 60 { return "\(mins)m" }
+        let h = mins / 60
+        let m = mins % 60
+        return m > 0 ? "\(h)h \(m)m" : "\(h)h"
     }
 
     private var frequencyLabel: String {
@@ -779,7 +916,7 @@ struct PlanItemRow: View {
         if Set(freq) == weekdays { return "Weekdays" }
         let weekends: Set<DayCode> = [.sa, .su]
         if Set(freq) == weekends { return "Weekends" }
-        if freq.isEmpty { return "No days" }
+        if freq.isEmpty { return "Unscheduled" }
         return freq.map(\.rawValue).joined(separator: " ")
     }
 }

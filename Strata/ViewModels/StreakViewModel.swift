@@ -48,6 +48,12 @@ final class StreakViewModel {
             }
         }
 
+        // Include today if completed (streak feels immediate)
+        let todayStr = TimelineViewModel.dateString(from: Date())
+        if let todayLog = sortedLogs[todayStr], todayLog.completed {
+            streak += 1
+        }
+
         return streak
     }
 

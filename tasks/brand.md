@@ -10,7 +10,7 @@
 
 **Unique moat:** 6 features no competitor offers — spatial tower, mass-based physics, skip-as-decision, hold-to-complete ritual, photo proof-of-work, per-habit grace days.
 
-**Critical gaps to close:** Notifications (table stakes), insights dashboard, widgets, onboarding, cloud sync. These 5 features would move Strata from 6th to 3rd in the market.
+**Shipped since launch prep:** ~~Notifications~~ (daily reminders), ~~insights dashboard~~ (weekly chart, photo calendar, streaks, drill-downs), ~~onboarding~~ (WelcomeView + OnboardingState). **Remaining gaps:** widgets, cloud sync. These 2 features would move Strata from competitive to top-tier.
 
 ---
 
@@ -47,7 +47,21 @@
 
 ## Typography (`Typography.swift`)
 
-**Font family:** SF Pro Rounded (system)
+**Dual-font system** (Lupton 2010, Butterick 2013):
+- **Space Grotesk Medium** — geometric/architectural for brand logo + headers. Matches "Strata" identity.
+- **SF Pro Rounded** — warm/humanist for body + detail text. ADHD-friendly readability.
+
+### Brand Fonts (Space Grotesk Medium)
+
+| Token | Size | Usage |
+|-------|------|-------|
+| brandLogo | 24pt | "{STRATA}" on Tower header |
+| brandHeader | 20pt | Reserved for screen headers |
+| brandSubheader | 17pt | Reserved for section headers |
+| brandHeroDate | 28pt | Today screen hero date |
+| brandLogoKerning | 1.5pt | Letter-spacing for logo |
+
+### System Fonts (SF Pro Rounded)
 
 | Token | Weight | Text Style |
 |-------|--------|-----------|
@@ -63,6 +77,33 @@
 | blockTitle | Medium | .callout |
 
 All tokens use `Font.system(design: .rounded)` for proper Dynamic Type scaling. No manual kerning needed (SF Rounded has built-in optical kerning).
+
+### MISSING: Opacity Tokens (Audit Finding)
+
+**Current state:** 50+ arbitrary opacity values across the codebase with no system. This is a design system gap.
+
+**Proposed tokens (not yet implemented):**
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| primary | 1.0 | Main text, active icons |
+| secondary | 0.6 | Supporting text, inactive icons |
+| tertiary | 0.4 | Hints, placeholders |
+| disabled | 0.3 | Disabled controls |
+| subtle | 0.1 | Borders, separators, tints |
+| whisper | 0.05 | Ghost backgrounds, ambient tints |
+
+### MISSING: Corner Radius Tokens (Audit Finding)
+
+**Current state:** `GridConstants.cornerRadius = 16` exists but 24+ hardcoded values use 4, 8, 10, 12, 14, 20 instead.
+
+**Proposed tokens:**
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| cornerRadius | 16pt | Blocks, cards, containers (existing) |
+| cornerRadiusSmall | 8pt | Pills, chips, badges, matrix blocks |
+| cornerRadiusMicro | 4pt | Tiny indicators, matrix sparkline blocks |
 
 ---
 
@@ -87,12 +128,23 @@ All tokens use `Font.system(design: .rounded)` for proper Dynamic Type scaling. 
 
 ### Category Color Semantics
 Each category color carries psychological meaning aligned with its domain:
-- **Health** (coral) — vitality, physical energy, body awareness
+- **Health** (teal-green) — vitality, physical energy, body awareness
 - **Work** (blue) — focus, reliability, professional clarity
 - **Creativity** (purple) — expression, imagination, artistic flow
 - **Focus** (amber) — alertness, sustained attention, mental clarity
 - **Social** (pink) — connection, warmth, interpersonal engagement
-- **Mindfulness** (green) — calm, presence, inner peace
+- **Mindfulness** (rose) — calm, presence, inner peace
+
+### Brand Mascot: Ponorca (Planned)
+**Penguin × Orca hybrid.** Symbolism: penguin = formal/professional (tuxedo association), orca = apex intelligence/excellence. Combined = "resilient excellence."
+
+**Deployment strategy (GitHub model):**
+- **YES:** Onboarding, milestone celebrations, perfect-day moments, empty states, app icon, marketing
+- **NO:** Tower grid, daily timeline, task completion flow, broken streaks, settings, billing
+
+**Research basis:** Nielsen 37% brand recall lift; Finch app 8-24mo ADHD retention via character attachment; GitHub Octocat proves premium + mascot coexistence. Key constraint: mascot is a personality layer on top of the premium tool aesthetic, never a replacement for it.
+
+**Status:** Design/illustration phase — not yet in codebase.
 
 ---
 
@@ -198,3 +250,48 @@ Each category color carries psychological meaning aligned with its domain:
 - **Max simultaneous:** 2 animated properties per view
 - **Blur limit:** `.blur(radius:)` is expensive — use sparingly, reduce radius on dense layouts
 - **No continuous loops:** `.repeatForever()` only for breathing (must stop in `.onDisappear`)
+
+---
+
+## Screen Grades (2026-03-26)
+
+| Screen | Grade | Notes |
+|--------|-------|-------|
+| **Today** | **A** | Haptics 9.5, Typography 10, A11y 9, Animation 10, Error Recovery 9 |
+| **Tower** | **A-** | Haptics 9, Typography 10, A11y 8, Animation 10, Error Recovery 8 |
+| **Plan** | **A+** | All categories 10/10 |
+| **Insights** | **7/10** | Weekly chart shipped. Missing: trends, data export, sharing |
+| **Settings** | **8/10** | Shipped. Missing: theme/appearance, haptic toggle, cloud sync |
+
+## UX & Psychological Principles (ADHD-Informed Architecture)
+
+### Plan Tab — GTD Cognitive Offloading
+Externalizes executive planning into persistent, manipulable structures. Smart temporal sections reduce decision load. Inline editing eliminates mode-switching cost (Monsell 2003). NLP captures habits in natural language. Research: Risko & Gilbert 2016.
+
+### Tower Tab — Gamification & Physicality
+Blocks = tangible achievement record (IKEA Effect, Norton 2012). Block Patina rewards consistency (Endowment Effect, Kahneman 1990). Momentum Ground Glow provides ambient progress (Goal Gradient Effect, Hull 1932). NO streaks, NO shame signaling — positive-only reinforcement.
+
+### Today Tab — Time Blindness & Embodied Cognition
+Timeline anchors habits in time (Barkley 2015). Hold-to-complete forces intentional motor planning. Honest Ring separates completed (green) from skipped (grey). Skip = first-class closure decision (Zeigarnik 1927). Drift Rewards leverage unexpected reward neuroscience (Schultz 2024).
+
+## Emotional Design Audit — Plan Screen (Atlas, 2026-03-26)
+
+### Don Norman's Three Levels Assessment
+
+| Level | Grade | Strength | Gap |
+|-------|-------|----------|-----|
+| **Visceral** (first impression) | B+ | Clean grid, dark mode, category colors | No "wow" moment. Static empty state. Block brand absent from Plan. |
+| **Behavioral** (during use) | A- | NLP magic, haptic rhythm, undo snackbar, section customization | Expanded card dense. Tab switch visual rebuild. "All clear" = gray text, no celebration. |
+| **Reflective** (personal meaning) | C+ | Custom folders, Saved to-dos, GTD architecture | No progress over time. No milestones. No emotional language. Block metaphor absent. |
+
+### Emotional Signature
+**Current:** Calm competence. Quiet satisfaction. Professional trust. Absent warmth.
+**Target:** Calm competence + genuine warmth + visible progress + personal celebration.
+
+### Delight Moments That Already Work
+- NLP syntax highlighting during typing (genuine magic)
+- Commitment Pulse (600ms category glow on new items)
+- Section customization with live preview (creative agency)
+- Haptic vocabulary (tick/snap/lightTap create rhythm)
+- Undo snackbar (protective, respectful)
+- Time Hero ("Set a time" → big bold time display)

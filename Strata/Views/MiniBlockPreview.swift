@@ -15,18 +15,18 @@ struct MiniBlockPreview: View {
         let aspect = CGFloat(blockSize.columnSpan) / CGFloat(blockSize.rowSpan)
 
         ZStack {
-            // Fill gradient — matches HabitBlockView exactly
+            // #242: Fill gradient — aligned to vertical direction (matches HabitBlockView)
             LinearGradient(
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
                     .init(color: style.baseColor, location: 0.3),
                     .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
 
-            // Frosted overlay (light mode only)
+            // Frosted overlay — depth cue per color scheme
             if colorScheme == .light {
                 LinearGradient(
                     stops: [
@@ -35,6 +35,15 @@ struct MiniBlockPreview: View {
                     ],
                     startPoint: .top,
                     endPoint: .bottom
+                )
+            } else {
+                LinearGradient(
+                    stops: [
+                        .init(color: .white.opacity(0.10), location: 0.0),
+                        .init(color: .clear, location: 0.5)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
             }
 
@@ -55,7 +64,7 @@ struct MiniBlockPreview: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .aspectRatio(aspect, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
         // Border removed — iOS 17-18: shadow alone carries depth
         .shadow(
             color: .black.opacity(GridConstants.adaptiveShadowOpacity(GridConstants.shadowOpacity, colorScheme: colorScheme)),

@@ -84,58 +84,33 @@ final class PlanPageViewModel {
         cachedCategory.style.baseColor
     }
 
-    // MARK: - Ordered Items
-
-    func orderedItems(from habits: [Habit]) -> [PlanItem] {
-        let sorted: [Habit]
-        switch sortMode {
-        case .recent:
-            sorted = habits.sorted { $0.createdAt > $1.createdAt }
-        case .oldest:
-            sorted = habits.sorted { $0.createdAt < $1.createdAt }
-        case .category:
-            sorted = habits.sorted { a, b in
-                if a.category.rawValue != b.category.rawValue {
-                    return a.category.rawValue < b.category.rawValue
-                }
-                return a.createdAt > b.createdAt
-            }
-        }
-
-        return sorted.map { PlanItem(id: $0.id, habit: $0, schedule: scheduleDescription(for: $0)) }
-    }
-
-    /// Returns items grouped by category (for category sort mode section headers)
-    func categoryGroups(from habits: [Habit]) -> [(HabitCategory, [PlanItem])] {
-        let items = orderedItems(from: habits)
-        var groups: [(HabitCategory, [PlanItem])] = []
-        var current: (HabitCategory, [PlanItem])? = nil
-
-        for item in items {
-            if current?.0 == item.habit.category {
-                current?.1.append(item)
-            } else {
-                if let group = current { groups.append(group) }
-                current = (item.habit.category, [item])
-            }
-        }
-        if let group = current { groups.append(group) }
-        return groups
-    }
-
     // MARK: - Grouped Sections (temporal + type)
 
     func groupedSections(
         from habits: [Habit],
         folders: [PlanFolder] = [],
         viewMode: PlanViewMode = .routines,
-        overrides: [String: SmartViewOverride] = [:]
+        overrides: [String: SmartViewOverride] = [:],
+        completedIDs: Set<UUID> = []
     ) -> [PlanSection] {
         var sections: [PlanSection] = []
 
         func toItems(_ list: [Habit]) -> [PlanItem] {
-            list.sorted { $0.sortOrder != $1.sortOrder ? $0.sortOrder < $1.sortOrder : $0.createdAt > $1.createdAt }
-                .map { PlanItem(id: $0.id, habit: $0, schedule: scheduleDescription(for: $0)) }
+            let sorted: [Habit]
+            switch sortMode {
+            case .recent:
+                sorted = list.sorted { $0.createdAt > $1.createdAt }
+            case .oldest:
+                sorted = list.sorted { $0.createdAt < $1.createdAt }
+            case .category:
+                sorted = list.sorted { a, b in
+                    if a.category.rawValue != b.category.rawValue {
+                        return a.category.rawValue < b.category.rawValue
+                    }
+                    return a.createdAt > b.createdAt
+                }
+            }
+            return sorted.map { PlanItem(id: $0.id, habit: $0, schedule: scheduleDescription(for: $0)) }
         }
 
         // Smart View defaults with user overrides applied
@@ -152,19 +127,40 @@ final class PlanPageViewModel {
         let todayDayCode = DayCode.from(weekday: Calendar.current.component(.weekday, from: Date.now))
         let tomorrowDayCode = DayCode.from(weekday: Calendar.current.component(.weekday, from: tomorrowDate))
 
+        // Override icons for Next 7 Days
+        let next7Icon = overrides["next7"]?.icon ?? "calendar"
+        let next7Color = overrides["next7"]?.colorHex
+
         switch viewMode {
         case .routines:
             let routines = habits.filter { !$0.isTodo && $0.parentHabitID == nil }
 
+            // Today (permanent — all habits active today)
             let todayRoutines = routines.filter { $0.frequency.contains(todayDayCode) }
             sections.append(PlanSection(id: "today", title: "Today", icon: todayIcon, items: toItems(todayRoutines), isPermanent: true, colorHex: todayColor))
 
+            // Tomorrow (permanent)
             let tomorrowRoutines = routines.filter { $0.frequency.contains(tomorrowDayCode) }
             sections.append(PlanSection(id: "tomorrow", title: "Tomorrow", icon: tomorrowIcon, items: toItems(tomorrowRoutines), isPermanent: true, colorHex: tomorrowColor))
 
-            let inbox = routines.filter { $0.planFolder == nil }
+            // Next 7 Days (permanent — habits active in days 2-7, NOT already in Today/Tomorrow)
+            let next7DayCodes: Set<DayCode> = Set((2...7).compactMap { offset in
+                guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date.now) else { return nil }
+                return DayCode.from(weekday: Calendar.current.component(.weekday, from: date))
+            })
+            let next7Routines = routines.filter { habit in
+                !habit.frequency.isEmpty &&
+                habit.frequency.contains(where: { next7DayCodes.contains($0) }) &&
+                !habit.frequency.contains(todayDayCode) &&
+                !habit.frequency.contains(tomorrowDayCode)
+            }
+            sections.append(PlanSection(id: "next7", title: "Next 7 Days", icon: next7Icon, items: toItems(next7Routines), isPermanent: true, colorHex: next7Color))
+
+            // Inbox (permanent — TIGHTENED: timeless + unfoldered only. GTD Allen 2001)
+            let inbox = routines.filter { $0.planFolder == nil && $0.scheduledTime == nil }
             sections.append(PlanSection(id: "inbox", title: "Inbox", icon: inboxIcon, items: toItems(inbox), isPermanent: true, colorHex: inboxColor))
 
+            // Custom Folders
             let sortedFolders = folders.sorted { $0.sortOrder < $1.sortOrder }
             for folder in sortedFolders {
                 let folderHabits = routines.filter { $0.planFolder?.id == folder.id }
@@ -172,29 +168,92 @@ final class PlanPageViewModel {
             }
 
         case .todos:
-            let tasks = habits.filter { $0.isTodo && $0.parentHabitID == nil }
+            let tasks = habits.filter { $0.isTodo && $0.parentHabitID == nil && !$0.isSaved }
 
-            let todayTasks = tasks.filter { $0.scheduledDate == todayStr }
+            // Today (permanent — due today OR dateless, NOT in progress)
+            // Completed to-dos stay visible with strikethrough (like routines)
+            let todayTasks = tasks.filter {
+                ($0.scheduledDate == todayStr || $0.scheduledDate == nil) &&
+                !$0.isInProgress
+            }
             sections.append(PlanSection(id: "today", title: "Today", icon: todayIcon, items: toItems(todayTasks), isPermanent: true, colorHex: todayColor))
 
-            let tomorrowTasks = tasks.filter { $0.scheduledDate == tomorrowStr }
+            // In Progress (permanent — Kanban "Doing" column. Barkley: externalized commitment)
+            let inProgress = tasks.filter { $0.isInProgress && !completedIDs.contains($0.id) }
+            sections.append(PlanSection(id: "inprogress", title: "In Progress", icon: "arrow.triangle.2.circlepath", items: toItems(inProgress), isPermanent: true))
+
+            // "Done" section removed — completed to-dos stay in their original sections with strikethrough
+
+            // Tomorrow (permanent)
+            let tomorrowTasks = tasks.filter {
+                $0.scheduledDate == tomorrowStr && !$0.isInProgress
+            }
             sections.append(PlanSection(id: "tomorrow", title: "Tomorrow", icon: tomorrowIcon, items: toItems(tomorrowTasks), isPermanent: true, colorHex: tomorrowColor))
 
-            let inboxTasks = tasks.filter {
-                $0.scheduledDate == nil || ($0.scheduledDate != todayStr && $0.scheduledDate != tomorrowStr && ($0.scheduledDate ?? "") <= todayStr)
+            // Next 7 Days (permanent — days 2-7)
+            let day2 = Calendar.current.date(byAdding: .day, value: 2, to: Date.now)!
+            let day7 = Calendar.current.date(byAdding: .day, value: 7, to: Date.now)!
+            let day2Str = TimelineViewModel.dateString(from: day2)
+            let day7Str = TimelineViewModel.dateString(from: day7)
+            let next7Tasks = tasks.filter {
+                guard let d = $0.scheduledDate else { return false }
+                return d >= day2Str && d <= day7Str && !$0.isInProgress
             }
-            sections.append(PlanSection(id: "inbox", title: "Inbox", icon: inboxIcon, items: toItems(inboxTasks), isPermanent: true, colorHex: inboxColor))
+            sections.append(PlanSection(id: "next7", title: "Next 7 Days", icon: next7Icon, items: toItems(next7Tasks), isPermanent: true, colorHex: next7Color))
 
+            // Overdue (past-due, not completed)
+            let overdue = tasks.filter {
+                guard let d = $0.scheduledDate else { return false }
+                return d < todayStr && !$0.isInProgress && !completedIDs.contains($0.id)
+            }
+            if !overdue.isEmpty {
+                sections.append(PlanSection(id: "overdue", title: "Waiting for You", icon: "clock.badge", items: toItems(overdue)))
+            }
+
+            // Upcoming (> 7 days)
             let upcoming = tasks.filter {
                 guard let d = $0.scheduledDate else { return false }
-                return d > tomorrowStr
+                return d > day7Str && !$0.isInProgress
             }
             if !upcoming.isEmpty {
                 sections.append(PlanSection(id: "upcoming", title: "Upcoming", icon: "calendar.badge.clock", items: toItems(upcoming)))
             }
+
+            // Saved — dormant to-dos for reuse (GTD Someday/Maybe)
+            let allTodos = habits.filter { $0.isTodo && $0.parentHabitID == nil }
+            let saved = allTodos.filter { $0.isSaved }
+            sections.append(PlanSection(id: "saved", title: "Saved", icon: "bookmark.fill", items: toItems(saved), isPermanent: true))
         }
 
         return sections
+    }
+
+    func toggleInProgress(_ habit: Habit, context: ModelContext) {
+        habit.isInProgress.toggle()
+        try? context.save()
+    }
+
+    func completeForToday(_ habit: Habit, context: ModelContext) {
+        let dateStr = TimelineViewModel.dateString(from: Date())
+        let habitID = habit.id
+        let descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { log in
+                log.dateString == dateStr && log.habit?.id == habitID
+            }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            existing.markCompleted()
+        } else {
+            let log = HabitLog(habit: habit, dateString: dateStr, completed: true)
+            log.markCompleted()
+            context.insert(log)
+        }
+        try? context.save()
+    }
+
+    func toggleSubTaskCompletion(_ habit: Habit, context: ModelContext) {
+        habit.isStepCompleted.toggle()
+        try? context.save()
     }
 
     func updateSuggestion(for text: String) {
@@ -253,15 +312,15 @@ final class PlanPageViewModel {
     // MARK: - Contextual Create (Apple Reminders pattern)
 
     @discardableResult
-    func commitInContext(title: String, sectionID: String, folderID: UUID? = nil, context: ModelContext) -> UUID? {
+    func commitInContext(title: String, sectionID: String, folderID: UUID? = nil, viewMode: PlanViewMode = .routines, context: ModelContext) -> UUID? {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
 
         // NLP parsing
         let parsed = InputParser.parse(trimmed)
 
-        // Section-aware defaults
-        let sectionDefaults = defaultsForSection(sectionID)
+        // Section-aware defaults (respects tab context — Norman 2013)
+        let sectionDefaults = defaultsForSection(sectionID, viewMode: viewMode)
         let category = parsed.suggestedCategory ?? (CategorySuggestionEngine.suggest(for: parsed.title) ?? .health)
         let size = CategorySuggestionEngine.suggestSize(for: parsed.title) ?? .small
 
@@ -273,7 +332,7 @@ final class PlanPageViewModel {
             blockSize: size,
             frequency: parsed.frequency ?? sectionDefaults.frequency,
             scheduledTime: parsed.scheduledTime,
-            isTodo: parsed.isTask || sectionDefaults.isTodo,
+            isTodo: sectionDefaults.isTodo, // Tab determines type (Norman 2013: respect user's context)
             scheduledDate: parsed.scheduledDate ?? sectionDefaults.scheduledDate,
             sortOrder: maxOrder + 1
         )
@@ -293,13 +352,31 @@ final class PlanPageViewModel {
         return habit.id
     }
 
-    func defaultsForSection(_ sectionID: String) -> (frequency: [DayCode], isTodo: Bool, scheduledDate: String?) {
+    func defaultsForSection(_ sectionID: String, viewMode: PlanViewMode = .routines) -> (frequency: [DayCode], isTodo: Bool, scheduledDate: String?) {
         switch sectionID {
         case "today":
-            return ([], true, TimelineViewModel.dateString(from: Date.now))
+            if viewMode == .todos {
+                return ([], true, TimelineViewModel.dateString(from: Date.now))
+            } else {
+                return ([DayCode.today()], false, nil) // Routine for today's day of week
+            }
         case "tomorrow":
             let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date.now)!
-            return ([], true, TimelineViewModel.dateString(from: tomorrow))
+            if viewMode == .todos {
+                return ([], true, TimelineViewModel.dateString(from: tomorrow))
+            } else {
+                let weekday = Calendar.current.component(.weekday, from: tomorrow)
+                return ([DayCode.from(weekday: weekday)], false, nil)
+            }
+        case "next7":
+            // In routines mode: daily habit. In todos mode: task 3 days out.
+            let day3 = Calendar.current.date(byAdding: .day, value: 3, to: Date.now)!
+            return (DayCode.allCases, false, TimelineViewModel.dateString(from: day3))
+        case "inbox":
+            return (DayCode.allCases, false, nil)
+        case "overdue":
+            // Reschedule overdue to today
+            return ([], true, TimelineViewModel.dateString(from: Date.now))
         case "daily":
             return (DayCode.allCases, false, nil)
         case "weekdays":

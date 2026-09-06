@@ -10,7 +10,7 @@ struct HabitSummary: Identifiable {
 }
 
 struct DayProgressData: Identifiable {
-    let id = UUID()
+    var id: String { TimelineViewModel.dateString(from: date) }
     let date: Date
     let dayLabel: String
     let dayNumber: Int

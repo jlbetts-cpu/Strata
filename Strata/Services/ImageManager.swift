@@ -29,7 +29,8 @@ final class ImageManager: @unchecked Sendable {
     func save(image: UIImage, for logID: UUID, maxDimension: CGFloat = 1024, quality: CGFloat = 0.80) async throws -> String {
         let heicSupported = Self.isHEICSupported()
         let ext = heicSupported ? "heic" : "jpg"
-        let fileName = "\(logID.uuidString).\(ext)"
+        let suffix = Int(Date().timeIntervalSince1970) % 100000
+        let fileName = "\(logID.uuidString)_\(suffix).\(ext)"
         let fileURL = imageDirectory.appendingPathComponent(fileName)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -148,13 +149,9 @@ final class ImageManager: @unchecked Sendable {
     func deleteImage(fileName: String) {
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: fileURL)
-
-        // Evict all cached thumbnails for this fileName
-        // NSCache doesn't support enumeration, so we remove known size variants
-        for width in [100, 150, 200, 250, 300, 400, 500, 600, 800, 1024] {
-            let key = "\(fileName)_\(width)" as NSString
-            thumbnailCache.removeObject(forKey: key)
-        }
+        // Nuke all cached thumbnails — NSCache can't enumerate by prefix,
+        // and hardcoded widths miss actual display sizes. Regeneration is cheap.
+        thumbnailCache.removeAllObjects()
     }
 
     // MARK: - Exists

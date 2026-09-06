@@ -10,6 +10,18 @@ struct PlacedBlock: Identifiable {
     let row: Int
     let columnSpan: Int
     let rowSpan: Int
+    let isSkipped: Bool
+
+    init(id: UUID, habit: Habit, log: HabitLog, column: Int, row: Int, columnSpan: Int, rowSpan: Int, isSkipped: Bool = false) {
+        self.id = id
+        self.habit = habit
+        self.log = log
+        self.column = column
+        self.row = row
+        self.columnSpan = columnSpan
+        self.rowSpan = rowSpan
+        self.isSkipped = isSkipped
+    }
 
     func frame(cellSize: CGFloat) -> CGRect {
         GridConstants.blockFrame(column: column, row: row, columnSpan: columnSpan, rowSpan: rowSpan, cellSize: cellSize)
@@ -42,6 +54,14 @@ final class TowerViewModel {
     private var previousBlockIDs: Set<UUID> = []
     private var dropCleanupTask: Task<Void, Never>? = nil
 
+    // Day separators (Week/Month modes)
+    private(set) var daySeparators: [DaySeparator] = []
+
+    // Tower metadata
+    private(set) var milestoneBlockIDs: [UUID: Int] = [:]     // blockID → block number (10th, 50th, etc.)
+    private(set) var topRowBlockIDs: Set<UUID> = []            // blocks on topmost row
+    private(set) var foundationBlockIDs: Set<UUID> = []        // blocks on row 0
+
     // Altimeter
     var altimeterHeight: Double {
         Double(peakCompletedHeight) * GridConstants.metersPerBlock
@@ -60,31 +80,62 @@ final class TowerViewModel {
     // MARK: - Build Unified Grid
 
     @discardableResult
-    func buildTower(from logs: [HabitLog]) -> Set<UUID> {
+    func buildTower(from logs: [HabitLog], filterMode: TowerFilterMode = .day) -> Set<UUID> {
         // Boolean grid matrix: grid[row][col] = true means occupied
         var grid = [[Bool]]()
 
-        // Place completed blocks (solid foundation), oldest first so newest land on top
-        let completedLogs = logs
-            .filter { $0.completed && $0.habit != nil }
+        // Include completed AND skipped blocks, oldest first so newest land on top
+        let eligibleLogs = logs
+            .filter { ($0.completed || $0.skipped) && $0.habit != nil }
             .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
 
+        let useDayBoundaries = filterMode != .day
+
         var placed: [PlacedBlock] = []
-        for log in completedLogs {
+        var currentDateString: String? = nil
+        var dayBoundaryRows: [(dateString: String, row: Int)] = []
+        var blockCountByDate: [String: Int] = [:]
+        var nonSkippedBlockNumber = 0
+
+        // Milestone thresholds
+        let milestoneThresholds: Set<Int> = [10, 25, 50, 100, 150, 200, 250, 500, 1000]
+        var milestones: [UUID: Int] = [:]
+
+        for log in eligibleLogs {
             guard let habit = log.habit else { continue }
             let colSpan = habit.blockSize.columnSpan
             let rowSpan = habit.blockSize.rowSpan
+            let isSkipped = log.skipped && !log.completed
+
+            // Day boundary: force new row when date changes (Week/Month only)
+            if useDayBoundaries, let current = currentDateString, log.dateString != current {
+                // Advance grid to next empty row
+                let nextEmptyRow = grid.count
+                dayBoundaryRows.append((dateString: log.dateString, row: nextEmptyRow))
+            }
+            currentDateString = log.dateString
 
             if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid) {
-                placed.append(PlacedBlock(
+                let block = PlacedBlock(
                     id: log.id,
                     habit: habit,
                     log: log,
                     column: pos.column,
                     row: pos.row,
                     columnSpan: colSpan,
-                    rowSpan: rowSpan
-                ))
+                    rowSpan: rowSpan,
+                    isSkipped: isSkipped
+                )
+                placed.append(block)
+                blockCountByDate[log.dateString, default: 0] += 1
+
+                // Track milestones (skipped blocks excluded)
+                if !isSkipped {
+                    nonSkippedBlockNumber += 1
+                    if milestoneThresholds.contains(nonSkippedBlockNumber) {
+                        milestones[log.id] = nonSkippedBlockNumber
+                    }
+                }
             }
         }
 
@@ -96,6 +147,17 @@ final class TowerViewModel {
         placedBlocks = placed
         incompleteBlocks = []
         currentGrid = grid
+        milestoneBlockIDs = milestones
+
+        // Compute top-row and foundation block IDs
+        if !placed.isEmpty {
+            let maxRow = placed.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
+            topRowBlockIDs = Set(placed.filter { $0.row + $0.rowSpan - 1 == maxRow }.map(\.id))
+            foundationBlockIDs = Set(placed.filter { $0.row == 0 }.map(\.id))
+        } else {
+            topRowBlockIDs = []
+            foundationBlockIDs = []
+        }
 
         // Pre-compute stagger delays (O(1) lookup per block instead of O(n) per call)
         if !newlyDroppedIDs.isEmpty {
@@ -106,7 +168,7 @@ final class TowerViewModel {
             staggerDelayCache = [:]
             for (index, block) in sortedNew.enumerated() {
                 let normalizedIndex = Double(index) / Double(count)
-                let decelerated = pow(normalizedIndex, 0.7)
+                let decelerated = pow(normalizedIndex, 0.5)
                 staggerDelayCache[block.id] = min(decelerated * 0.4, 0.4)
             }
         }
@@ -115,12 +177,14 @@ final class TowerViewModel {
 
         #if DEBUG
         // Validate: no two blocks overlap in the grid
-        var validationGrid = Array(repeating: Array(repeating: false, count: GridConstants.columnCount), count: totalRows)
-        for block in placed {
-            for r in block.row..<(block.row + block.rowSpan) {
-                for c in block.column..<(block.column + block.columnSpan) {
-                    assert(!validationGrid[r][c], "Block overlap at (\(c), \(r))")
-                    validationGrid[r][c] = true
+        if totalRows > 0 {
+            var validationGrid = Array(repeating: Array(repeating: false, count: GridConstants.columnCount), count: totalRows)
+            for block in placed {
+                for r in block.row..<(block.row + block.rowSpan) {
+                    for c in block.column..<(block.column + block.columnSpan) {
+                        assert(!validationGrid[r][c], "Block overlap at (\(c), \(r))")
+                        validationGrid[r][c] = true
+                    }
                 }
             }
         }
@@ -141,6 +205,40 @@ final class TowerViewModel {
         }
 
         return newlyDroppedIDs
+    }
+
+    // MARK: - Day Separators
+
+    func computeDaySeparators(perfectDayDates: Set<String>) {
+        guard !placedBlocks.isEmpty else { daySeparators = []; return }
+
+        // Group blocks by dateString
+        var blocksByDate: [String: [PlacedBlock]] = [:]
+        for block in placedBlocks {
+            blocksByDate[block.log.dateString, default: []].append(block)
+        }
+
+        // Sort dates
+        let sortedDates = blocksByDate.keys.sorted()
+        guard sortedDates.count > 1 else { daySeparators = []; return }
+
+        var separators: [DaySeparator] = []
+        for (index, dateStr) in sortedDates.enumerated() {
+            guard index > 0 else { continue } // No separator before first day
+            let blocks = blocksByDate[dateStr] ?? []
+            let minRow = blocks.map(\.row).min() ?? 0
+            let displayLabel = BlockTimeFormatter.dateLabel(from: dateStr)
+
+            separators.append(DaySeparator(
+                id: dateStr,
+                displayLabel: displayLabel,
+                blockCount: blocks.count,
+                isPerfectDay: perfectDayDates.contains(dateStr),
+                gridRow: minRow
+            ))
+        }
+
+        daySeparators = separators
     }
 
     func staggerDelay(for block: PlacedBlock) -> Double {

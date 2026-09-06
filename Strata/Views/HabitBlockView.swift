@@ -126,31 +126,33 @@ struct HabitBlockView: View {
 
     var body: some View {
         ZStack {
-            // Vertical gradient — top light, natural (Apple HIG)
+            // Flat category fill
+            style.baseColor
+
+            // Frosted glass overlay — gradient from clear to white 20%
             LinearGradient(
-                stops: [
-                    .init(color: style.lightTint.opacity(0.7), location: 0.0),
-                    .init(color: style.baseColor, location: 0.25),
-                    .init(color: style.baseColor, location: 0.7),
-                    .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
-                ],
+                colors: [Color.white.opacity(0), Color.white.opacity(0.2)],
                 startPoint: .top,
                 endPoint: .bottom
             )
+
+            // Bottom border — lighter edge (base + 35% white)
+            VStack(spacing: 0) {
+                Spacer()
+                Color.white.opacity(0.35)
+                    .frame(height: 5)
+            }
 
             // Text content: title + time + category icon
             BlockContentOverlay(
                 title: block.habit.title,
                 category: block.habit.category,
                 rowSpan: block.rowSpan,
-                timeText: timeText,
-                hasDrawerContent: block.log.hasDrawerContent
+                timeText: timeText
             )
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // No border — iOS 17-18: shadow alone carries depth
-        // Unified shadow (no colored glow in dark mode)
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
         .shadow(
             color: .black.opacity(colorScheme == .dark
                 ? GridConstants.blockShadowOpacityDark
@@ -162,7 +164,7 @@ struct HabitBlockView: View {
         // Perfect-day patina — golden surface wash (not stroke)
         .overlay {
             if patinaOpacity > 0 {
-                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
                     .fill(GridConstants.patinaGold.opacity(patinaOpacity * 0.5))
                     .blendMode(.overlay)
             }
@@ -181,6 +183,7 @@ struct HabitBlockView: View {
         }
         .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue)")
         .accessibilityHint("Tap to expand")
+        .contentShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
         .onTapGesture {
             HapticsEngine.lightTap()
             tapTrigger += 1
@@ -198,50 +201,36 @@ struct BlockContentOverlay: View {
     let rowSpan: Int
     let timeText: String?
     var hasImage: Bool = false
-    var hasDrawerContent: Bool = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Category icon — top-left badge
             Image(systemName: category.iconName)
                 .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(0.6))
                 .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
-                .padding(.leading, 8)
-                .padding(.top, 8)
+                .padding(.leading, 12)
+                .padding(.top, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            // Title + time — bottom-left
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Spacer()
                 Text(title)
-                    .font(Typography.headerSmall)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(rowSpan > 1 ? 2 : 1)
                     .minimumScaleFactor(0.65)
 
                 if let time = timeText {
                     Text(time)
-                        .font(Typography.bodySmall)
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundStyle(.white.opacity(0.6))
                         .contentTransition(.interpolate)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .bottomLeading)
-            .padding(.leading, 8)
-            .padding(.bottom, 8)
+            .padding(.leading, 12)
+            .padding(.bottom, 12)
             .padding(.trailing, 8)
-
-            // Conditional chevron — bottom-center
-            if hasDrawerContent {
-                Image(systemName: "chevron.compact.down")
-                    .font(.system(size: GridConstants.iconSmall))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 4)
-                    .accessibilityLabel("Has additional content")
-            }
-
         }
     }
 }
