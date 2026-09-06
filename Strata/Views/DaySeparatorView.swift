@@ -27,7 +27,7 @@ struct DaySeparatorView: View {
                 .foregroundStyle(.primary.opacity(0.2))
             if separator.isPerfectDay {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 8))
+                    .iconSize(8, relativeTo: .caption2)
                     .foregroundStyle(GridConstants.patinaGold.opacity(0.5))
             }
         }

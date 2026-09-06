@@ -1667,7 +1667,7 @@ struct MainAppView: View {
     private var towerEmptyStateMessage: some View {
         VStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up")
-                .font(.system(size: GridConstants.iconEmptyState, weight: .light))
+                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .light)
                 .foregroundStyle(.primary.opacity(0.25))
             // #103: Time-of-day greeting
             Text(Self.timeOfDayGreeting)

@@ -58,7 +58,7 @@ struct NewHabitMenu: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: cat.iconName)
-                                        .font(.system(size: 12, weight: .medium))
+                                        .iconSize(12, relativeTo: .footnote, weight: .medium)
                                     Text(cat.rawValue.capitalized)
                                         .font(Typography.bodySmall)
                                 }

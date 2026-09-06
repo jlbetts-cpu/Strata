@@ -465,7 +465,7 @@ struct TimelineHabitRow: View {
             if showVerificationTooltip {
                 HStack(spacing: 4) {
                     Image(systemName: "heart.circle")
-                        .font(.system(size: 12, weight: .medium)) // Hardcoded: SF Symbol sized to align with caption text
+                        .iconSize(12, relativeTo: .caption, weight: .medium)
                         .foregroundStyle(AppColors.healthGreen)
                     Text("Verified by Apple Health")
                         .font(Typography.caption)
@@ -659,7 +659,7 @@ struct TimelineHabitRow: View {
 
         return HStack(spacing: 10) {
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded)) // Hardcoded: SF Symbol sized for row icon alignment
+                .iconSize(11, relativeTo: .footnote, weight: .medium, design: .rounded)
                 .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.5) : style.baseColor))
                 .padding(.leading, 12)
 

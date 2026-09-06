@@ -8,7 +8,7 @@ struct OnboardingHintView: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .medium))
+                    .iconSize(10, relativeTo: .caption, weight: .medium)
             }
             Text(text)
                 .font(Typography.caption)

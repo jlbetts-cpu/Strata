@@ -227,7 +227,7 @@ struct SettingsView: View {
                         ForEach(connectedHabits, id: \.id) { habit in
                             HStack(spacing: 8) {
                                 Image(systemName: habit.category.iconName)
-                                    .font(.system(size: 11, weight: .medium))
+                                    .iconSize(11, relativeTo: .footnote, weight: .medium)
                                     .foregroundStyle(habit.category.style.baseColor)
                                 Text(habit.title)
                                     .font(Typography.bodySmall)

@@ -7,7 +7,6 @@ struct TowerHeaderView: View {
     let showAltimeter: Bool
     let onGearTap: () -> Void
     @Binding var filterMode: TowerFilterMode
-    @ScaledMetric(relativeTo: .body) private var gearIconSize: CGFloat = GridConstants.iconToolbar
     private let hPad: CGFloat = GridConstants.horizontalPadding
 
     private var dateString: String {
@@ -50,7 +49,7 @@ struct TowerHeaderView: View {
                         onGearTap()
                     } label: {
                         Image(systemName: "gearshape")
-                            .font(.system(size: gearIconSize, weight: .regular))
+                            .iconSize(GridConstants.iconToolbar, relativeTo: .body)
                             .foregroundStyle(Color.primary.opacity(0.4))
                     }
                 }

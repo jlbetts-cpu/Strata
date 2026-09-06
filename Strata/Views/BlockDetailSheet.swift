@@ -13,9 +13,6 @@ struct BlockDetailSheet: View {
     @State private var showPhotoSourceDialog = false
     @State private var showLibraryPicker = false
     @State private var showCamera = false
-    @ScaledMetric(relativeTo: .caption) private var closeIconSize: CGFloat = GridConstants.iconAction
-    @ScaledMetric(relativeTo: .body) private var heroIconSize: CGFloat = GridConstants.iconHero
-    @ScaledMetric(relativeTo: .caption) private var replaceIconSize: CGFloat = GridConstants.iconAction
     @Environment(\.dismiss) private var dismiss
 
     private var style: CategoryStyle { block.habit.category.style }
@@ -76,7 +73,7 @@ struct BlockDetailSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: closeIconSize, weight: .bold))
+                    .iconSize(GridConstants.iconAction, relativeTo: .caption, weight: .bold)
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
                     .background(.white.opacity(0.2))
@@ -146,7 +143,7 @@ struct BlockDetailSheet: View {
                     showPhotoSourceDialog = true
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: replaceIconSize, weight: .semibold))
+                        .iconSize(GridConstants.iconAction, relativeTo: .caption, weight: .semibold)
                         .foregroundStyle(.white)
                         .frame(width: 36, height: 36)
                         .background(.ultraThinMaterial)
@@ -172,7 +169,7 @@ struct BlockDetailSheet: View {
             } label: {
                 VStack(spacing: 16) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: heroIconSize, weight: .light))
+                        .iconSize(GridConstants.iconHero, relativeTo: .body, weight: .light)
                         .foregroundStyle(.white.opacity(0.8))
 
                     Text("Add Photo")

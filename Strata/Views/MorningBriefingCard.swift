@@ -61,7 +61,7 @@ struct MorningBriefingCard: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: timeOfDayIcon)
-                .font(.system(size: 20, weight: .medium))
+                .iconSize(20, relativeTo: .subheadline, weight: .medium)
                 .foregroundStyle(iconColor)
 
             VStack(alignment: .leading, spacing: 2) {
