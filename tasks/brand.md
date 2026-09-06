@@ -76,7 +76,7 @@ All tokens use `Font.system(design: .rounded)` for proper Dynamic Type scaling. 
 
 | Constant | Value | Use |
 |----------|-------|-----|
-| cornerRadius | 16pt | All blocks, cards, containers |
+| cornerRadius | 12pt | All blocks, cards, containers. From Figma Apollo 248:14 — a constant 40px radius, 14.7% of its 272px 1x1 block. Was 16pt. |
 | spacing | 8pt | Grid gaps, standard spacing |
 | horizontalPadding | 16pt | Tower grid. Today list uses 20pt. |
 | timelineGutterWidth | 56pt | Today screen time label column |

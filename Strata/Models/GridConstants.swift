@@ -3,7 +3,11 @@ import SwiftUI
 enum GridConstants {
     static let columnCount = 4
     static let spacing: CGFloat = 8
-    static let cornerRadius: CGFloat = 16
+    /// Figma Apollo (248:14) uses a constant 40px radius at every block size —
+    /// not a proportional one. Against its 272px 1x1 block that is 14.7% of the
+    /// side, which is 12.7pt at an 86.5pt cell; 12 keeps it on the 4pt grid.
+    /// Was 16pt (18.5%), which read noticeably rounder than the source.
+    static let cornerRadius: CGFloat = 12
     static let horizontalPadding: CGFloat = 16
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
