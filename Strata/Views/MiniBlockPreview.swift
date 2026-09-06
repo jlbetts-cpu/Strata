@@ -11,8 +11,7 @@ struct MiniBlockPreview: View {
     var body: some View {
         let aspect = CGFloat(blockSize.columnSpan) / CGFloat(blockSize.rowSpan)
 
-        ZStack {
-            // Fill gradient — matches HabitBlockView exactly
+        BlockSurface(cornerRadius: GridConstants.cornerRadius, scale: 0.75) {
             LinearGradient(
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
@@ -22,11 +21,10 @@ struct MiniBlockPreview: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
-            // Frosted wash — matches HabitBlockView
-            BlockWash()
-
-            // Mini content
+        }
+        .aspectRatio(aspect, contentMode: .fit)
+        // Content above the band, sharp
+        .overlay {
             VStack(alignment: .leading, spacing: 2) {
                 Image(systemName: category.iconName)
                     .font(Typography.miniBlockIcon)
@@ -42,8 +40,5 @@ struct MiniBlockPreview: View {
             .padding(6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .aspectRatio(aspect, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        .blockChrome(cornerRadius: GridConstants.cornerRadius, scale: 0.75)
     }
 }

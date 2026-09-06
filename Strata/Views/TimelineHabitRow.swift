@@ -120,7 +120,10 @@ struct TimelineHabitRow: View {
 
                     // COLOR FILL (sweeps left-to-right on completion)
                     if fillProgress > 0 || isAlreadyCompleted {
-                        ZStack {
+                        // Same surface as a tower block. Used inline rather
+                        // than wrapping the row, because it has to sit inside
+                        // the completion sweep mask and travel with the fill.
+                        BlockSurface(cornerRadius: cornerRadius) {
                             LinearGradient(
                                 stops: [
                                     .init(color: style.lightTint, location: 0.0),
@@ -130,12 +133,6 @@ struct TimelineHabitRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                            // Same chrome as a tower block. BlockRim is used
-                            // directly rather than the .blockChrome modifier
-                            // because the rim has to sit inside the completion
-                            // sweep mask and travel with the fill.
-                            BlockWash()
-                            BlockRim(cornerRadius: cornerRadius)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {

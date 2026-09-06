@@ -119,8 +119,7 @@ struct HabitBlockView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Color fill — gradient from light tint at top to base color
+        BlockSurface(cornerRadius: GridConstants.cornerRadius) {
             LinearGradient(
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
@@ -130,12 +129,11 @@ struct HabitBlockView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-
-            // Frosted wash over the lower portion — Figma 248:78
-            BlockWash()
-
-            // Text content: title + time + category icon
+        }
+        .frame(width: blockFrame.width, height: blockFrame.height)
+        // Text sits ABOVE the blurred band, exactly as in Figma (255:107/108 are
+        // drawn after 255:106), so it stays sharp on the softened ground.
+        .overlay(
             BlockContentOverlay(
                 title: block.habit.title,
                 category: block.habit.category,
@@ -143,10 +141,7 @@ struct HabitBlockView: View {
                 timeText: timeText,
                 hasDrawerContent: block.log.hasDrawerContent
             )
-        }
-        .frame(width: blockFrame.width, height: blockFrame.height)
-        .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        .blockChrome(cornerRadius: GridConstants.cornerRadius)
+        )
         // Perfect-day golden patina (week/month views only)
         .overlay {
             if patinaOpacity > 0 {

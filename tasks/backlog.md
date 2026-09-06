@@ -29,6 +29,12 @@ Future ideas, tech debt, and parking lot items. Not actively being worked on.
 
 ## Polish
 
+- **BlockSurface renders its fill twice.** SwiftUI has no backdrop filter, so the
+  band effect is produced by drawing the surface sharp and blurred and masking
+  between them. On photo blocks that means two `CachedImageView` instances per
+  block. The NSCache should absorb it, but it is two view instances either way —
+  measure before assuming it is free, and revisit if iOS ever exposes a real
+  backdrop filter.
 - **Watch the block rim blur in Instruments.** BlockRim's blurred layer no longer
   carries `.drawingGroup()` — rasterising to view bounds re-clipped the smear and
   reinstated the hard edge the blur exists to remove. Blur is 4pt on a 0.8pt ring,

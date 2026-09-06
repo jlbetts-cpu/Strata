@@ -158,24 +158,15 @@ enum GridConstants {
     /// Compared 3pt / 4.7pt / 6.7pt against the slim rim at true scale. 4pt
     /// dissolves the edge without spreading into a haze.
     static let blockRimBlur: CGFloat = 4
-    /// The blurred rim is drawn from a THICKER ring than the crisp one.
+    /// The sharp and blurred copies of the surface crossfade across this span.
     ///
-    /// Blurring spreads a stroke's ink over a wider area, so a blurred ring of
-    /// equal width has a much lower peak than a crisp one. Crossfading between
-    /// them therefore dips: the border visibly thins and drops out through the
-    /// handover, then returns as a haze. In the source there is no dip, because
-    /// nothing there fades — it is one solid border at constant opacity that
-    /// simply goes out of focus below the band.
-    ///
-    /// Thickening the blurred copy compensates for that spread, so weight stays
-    /// constant across the transition and only sharpness changes.
-    static let blockRimSoftMultiplier: CGFloat = 2.5
-    /// The rim transitions from crisp to blurred across this span, rather than
-    /// at a hard line. Figma cuts hard, which is invisible on a 562pt block and
-    /// a visible ledge on an 86pt one — this is a scale adaptation, not a
-    /// deviation in intent.
-    static let blockRimFeatherStart: Double = 0.68
-    static let blockRimFeatherEnd: Double = 0.82
+    /// Figma cuts hard, because backdrop-blur has a hard boundary. Blurring
+    /// softens a surface's alpha at its edges, so the blurred copy's silhouette
+    /// sits slightly inside the sharp one — cut hard, the block visibly pinches
+    /// in at the boundary. Crossfading the two hides that. Both copies carry the
+    /// same content, so nothing thins through the blend; only focus changes.
+    static let blockBandFeatherStart: Double = 0.66
+    static let blockBandFeatherEnd: Double = 0.84
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
     /// Photo scrim band, anchored to the bottom edge rather than a proportion of
