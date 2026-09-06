@@ -13,6 +13,32 @@ enum GridConstants {
     static let blockCornerRadius: CGFloat = 12
     static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
     static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
+
+    // MARK: - Radius Ladder (chrome)
+    //
+    // Derived from what the app already does rather than invented. Sheets and
+    // expansion cards were 20; a form field or well was written as 14, 12 or 10
+    // depending on the file; small controls were 8 and tiny marks 4. The field
+    // rung is deliberately blockCornerRadius, so chrome and blocks agree.
+    /// Sheets and expansion cards — surfaces that become the environment.
+    static let radiusSurface: CGFloat = 20
+    /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.
+    static let radiusField: CGFloat = 12
+    /// Small controls, icon wells, drop indicators.
+    static let radiusControl: CGFloat = 8
+    /// Tiny marks — heatmap cells, day dots, bars.
+    static let radiusMark: CGFloat = 4
+
+    // MARK: - Neutral Fills (chrome)
+    //
+    // Hand-picked greys collapse to three jobs. Text opacities are NOT in here:
+    // they are a separate axis and changing them risks legibility.
+    /// Input backgrounds and wells (was 0.04 and 0.05 — the same intent twice).
+    static let fillWell = Color.primary.opacity(0.04)
+    /// Tracks, capsule grounds, unselected states.
+    static let fillTrack = Color.primary.opacity(0.06)
+    /// Hairlines and card strokes.
+    static let fillHairline = Color.primary.opacity(0.08)
     static let horizontalPadding: CGFloat = 16
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
