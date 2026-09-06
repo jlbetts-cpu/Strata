@@ -158,6 +158,10 @@ struct PlanPageView: View {
                     }
                     .buttonStyle(.plain)
                     .listRowSeparator(.hidden)
+                    // Every other row clears its background; this one did not,
+                    // so the default List row drew a hard white band across the
+                    // warm ground.
+                    .listRowBackground(Color.clear)
                 }
 
                 // MARK: - Empty State
@@ -402,13 +406,10 @@ struct PlanPageView: View {
                 }
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, minHeight: gridCardMinHeight, alignment: .topLeading)
-        .background(
-            Color.primary.opacity(0.04),
-            in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+        // Was a 0.04 grey fill — darker than the page — under a drop shadow,
+        // which asked it to be sunk into the page and raised off it at once.
+        .surfaceCardBackground(radius: GridConstants.radiusField, padding: 12)
         .accessibilityLabel("\(section.title), \(section.items.count) items")
         .accessibilityHint("Tap to view all items")
     }

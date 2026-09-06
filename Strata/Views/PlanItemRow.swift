@@ -507,7 +507,7 @@ struct PlanItemRow: View {
                             .background(
                                 item.habit.category == cat
                                     ? cat.style.baseColor
-                                    : Color.primary.opacity(0.06),
+                                    : GridConstants.fillTrack,
                                 in: Capsule()
                             )
                             .foregroundStyle(item.habit.category == cat ? .white : .primary)
@@ -546,7 +546,7 @@ struct PlanItemRow: View {
                                 .background(
                                     item.habit.effectiveDurationMinutes == mins
                                         ? item.habit.category.style.baseColor
-                                        : Color.primary.opacity(0.06),
+                                        : GridConstants.fillTrack,
                                     in: Capsule()
                                 )
                                 .foregroundStyle(item.habit.effectiveDurationMinutes == mins ? .white : .primary)
@@ -583,7 +583,7 @@ struct PlanItemRow: View {
                                     .font(Typography.bodySmall)
                                     .frame(width: 36, height: 36)
                                     .background(
-                                        isSelected ? item.habit.category.style.baseColor : Color.primary.opacity(0.06),
+                                        isSelected ? item.habit.category.style.baseColor : GridConstants.fillTrack,
                                         in: Circle()
                                     )
                                     .foregroundStyle(isSelected ? .white : .primary)
@@ -756,7 +756,7 @@ struct PlanItemRow: View {
             ZStack(alignment: .leading) {
                 // Background track
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
+                    .fill(GridConstants.fillWell)
                     .frame(width: totalWidth, height: 24)
 
                 // Occupied slots

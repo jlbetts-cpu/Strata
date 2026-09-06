@@ -606,7 +606,7 @@ private struct SettingsIcon: View {
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(.white)
             .frame(width: 28, height: 28)
-            .background(color, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(color, in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous))
     }
 }
 
