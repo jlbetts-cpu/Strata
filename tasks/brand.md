@@ -162,7 +162,7 @@ set and it scales, weights and aligns with the system font for free.
 | One glyph per concept | The tower is `square.stack.3d.up` everywhere — filled inline, outline as a hero. "Add proof" is `camera.fill` in both sheets. |
 | Tab bar | Pass OUTLINE names to `Tab(systemImage:)`. SwiftUI fills the selected tab itself; hand-picking a selected variant is redundant and drifts. |
 | Sizes | Always a `GridConstants.icon*` token, never a literal. |
-| Category set | All six are `.fill`, one metaphor each: heart / briefcase / paintbrush / eye / person.2 / leaf. |
+| Category set | One metaphor each: heart.fill / briefcase.fill / paintbrush.fill / **target** / person.2.fill / leaf.fill. Five are `.fill`; `target` has no fill variant. |
 
 **Deliberate fill-vs-outline pairs — do not "fix" these:**
 - `checkmark.circle.fill` (green, "All done!") vs `checkmark.circle` (grey, "All cleared"). Fill means fully completed; outline means closed with skips. This is the Honest Timeline's closure grammar.

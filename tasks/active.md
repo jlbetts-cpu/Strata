@@ -18,7 +18,8 @@
 
 - [ ] Icon glyphs need an eyeball in Xcode — the audit was code-level only (SF
       Symbols cannot render on Linux). Check `square.stack.3d.up` reads as the
-      tower, and whether `eye.fill` is the right glyph for Focus.
+      tower, and whether `target` holds its weight for Focus against the five
+      `.fill` siblings (it has no fill variant). `scope` is the fallback.
 
 - [ ] Observation isolation — extract TimelineTabView/TowerTabView from MainAppView to break cross-VM body re-evaluation (needs coordination between all bots)
 - [ ] Reverse-fill for skip — hold + drag left to fill grey R→L (bidirectional intention gesture)

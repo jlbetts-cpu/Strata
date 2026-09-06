@@ -16,7 +16,13 @@ enum HabitCategory: String, Codable, CaseIterable {
         case .health:      return "heart.fill"
         case .work:        return "briefcase.fill"
         case .creativity:  return "paintbrush.fill"
-        case .focus:       return "eye.fill"
+        // `target`, not `eye.fill`: an eye is about looking at something, which
+        // is not what this category means. Focus habits are deep work and
+        // sustained attention, and a bullseye is the common reading of that.
+        // It is the one glyph in the set without a .fill variant, so it carries
+        // slightly less visual weight than its five siblings at 13pt — worth an
+        // eyeball on a block. `scope` is the alternative if it reads too light.
+        case .focus:       return "target"
         case .social:      return "person.2.fill"
         case .mindfulness: return "leaf.fill"
         }
