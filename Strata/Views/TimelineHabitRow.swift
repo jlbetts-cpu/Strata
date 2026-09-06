@@ -130,16 +130,18 @@ struct TimelineHabitRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
+                            // Frosted wash + white rim — same chrome as a tower
+                            // block, so a completed row reads as the same object
                             LinearGradient(
                                 stops: [
                                     .init(color: .clear, location: 0.0),
-                                    .init(color: .white.opacity(0.20), location: 1.0)
+                                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(.white.opacity(0.3), lineWidth: 1.5)
+                                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {
@@ -254,8 +256,8 @@ struct TimelineHabitRow: View {
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .shadow(
-            color: .black.opacity(isCompleted ? GridConstants.shadowOpacity : 0),
-            radius: GridConstants.shadowRadius, x: 0, y: GridConstants.shadowY
+            color: .black.opacity(isCompleted ? GridConstants.blockShadowOpacity : 0),
+            radius: GridConstants.blockShadowRadius, x: 0, y: GridConstants.blockShadowY
         )
         // Completed: dim background layers only (text stays crisp at full opacity for WCAG AA)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)

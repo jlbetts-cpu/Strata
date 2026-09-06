@@ -270,12 +270,46 @@ struct ScheduleTimelineView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isCompleted ? style.baseColor : Color.primary.opacity(0.04))
+            ZStack {
+                if isCompleted {
+                    // Completed chip is a small block — same fill, wash and rim
+                    LinearGradient(
+                        stops: [
+                            .init(color: style.lightTint, location: 0.0),
+                            .init(color: style.baseColor, location: 0.3),
+                            .init(color: style.baseColor, location: 1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                } else {
+                    // Ghost tier — matches the incomplete timeline row
+                    AppColors.ghostBase
+                    style.baseColor.opacity(0.08)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : 0.6), lineWidth: 1.5)
+                .strokeBorder(
+                    isCompleted ? Color.white : style.baseColor.opacity(0.6),
+                    lineWidth: isCompleted ? GridConstants.blockRimWidth : 1.5
+                )
+        )
+        .shadow(
+            color: .black.opacity(isCompleted ? GridConstants.blockShadowOpacity : 0),
+            radius: GridConstants.blockShadowRadius,
+            x: 0,
+            y: GridConstants.blockShadowY
         )
 
         return chipLabel

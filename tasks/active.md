@@ -7,14 +7,12 @@
 
 (none)
 
-## Open Question — needs Jayden
+## Settled — do not reopen
 
-- [ ] **Typeface.** The Apollo Figma (248:14) specifies **Familjen Grotesk Medium**
-      for block title/time. The app ships SF Pro Rounded, brand.md pins it, and
-      the standing instruction is "as native Apple as possible". Blocks were
-      restyled with SF Pro Rounded kept. Adding Familjen Grotesk means bundling a
-      custom font — global, and it walks away from the native-type ideology.
-      Decide before any further type work.
+- **Typeface: SF Pro Rounded, two weights.** The Apollo Figma (248:14) specifies
+  Familjen Grotesk Medium; Jayden chose to keep the native face on 2026-09-06.
+  The Figma's block identity is carried by shape, colour and the white rim, not
+  the letterforms. Do not propose a custom font again.
 
 ## Next Up
 
