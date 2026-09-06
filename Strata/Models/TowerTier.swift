@@ -32,14 +32,18 @@ enum TowerTier: String, CaseIterable, Comparable {
         }
     }
 
-    /// Emoji icon for the tier
-    var icon: String {
+    /// SF Symbol for the tier.
+    ///
+    /// This was emoji, which rendered as a tofu box on device and contradicted
+    /// the SF-Symbols-only rule. A symbol also takes `.foregroundStyle`, so the
+    /// badge no longer has one full-opacity glyph shouting next to text at 0.2.
+    var symbolName: String {
         switch self {
-        case .seedling: return "🌱"
-        case .sapling:  return "🌿"
-        case .tree:     return "🌳"
-        case .grove:    return "🌲"
-        case .forest:   return "🏔️"
+        case .seedling: return "leaf"
+        case .sapling:  return "leaf.fill"
+        case .tree:     return "tree"
+        case .grove:    return "tree.fill"
+        case .forest:   return "mountain.2.fill"
         }
     }
 
