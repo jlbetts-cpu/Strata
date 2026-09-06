@@ -130,7 +130,7 @@ struct BlockDetailSheet: View {
                     fileName: block.log.imageFileName,
                     width: max(sheetWidth - 48, 280),
                     height: 320,
-                    cornerRadius: 20,
+                    cornerRadius: GridConstants.radiusSurface,
                     fullResolution: true
                 )
                 .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
@@ -164,9 +164,9 @@ struct BlockDetailSheet: View {
                 .frame(height: 220)
                 .background(.white.opacity(0.12))
                 .background(.ultraThinMaterial.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                         .stroke(.white.opacity(0.2), lineWidth: 1.5)
                 )
             }
@@ -188,7 +188,7 @@ struct BlockDetailSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(.white.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous))
     }
 
     // MARK: - Photo Capture

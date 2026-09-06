@@ -43,7 +43,7 @@ struct TowerView: View {
 
         return ZStack(alignment: .topLeading) {
             ForEach(0..<GridConstants.columnCount, id: \.self) { col in
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark)
                     .fill(Color.primary.opacity(0.03))
                     .frame(width: cellSize, height: max(gridH, 300))
                     .offset(x: CGFloat(col) * step)

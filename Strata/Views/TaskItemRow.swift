@@ -37,15 +37,15 @@ struct TaskItemRow: View {
         let color = habit.category.style.baseColor
         switch habit.blockSize {
         case .small:
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                 .fill(color)
                 .frame(width: 16, height: 16)
         case .medium:
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                 .fill(color)
                 .frame(width: 24, height: 16)
         case .hard:
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                 .fill(color)
                 .frame(width: 24, height: 24)
         }

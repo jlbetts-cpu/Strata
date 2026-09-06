@@ -31,10 +31,6 @@ struct InsightsView: View {
         )
     }
 
-    private var cardFill: Color { .white }
-
-    private var cardStroke: Color { Color.primary.opacity(0.06) }
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -235,17 +231,7 @@ struct InsightsView: View {
     }
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        content()
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .fill(cardFill)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    .stroke(cardStroke, lineWidth: 1)
-            }
+        SurfaceCard(content: content)
     }
 }
 
@@ -270,7 +256,7 @@ private struct CategoryBar: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.primary.opacity(0.06))
+                        .fill(GridConstants.fillTrack)
                     Capsule()
                         .fill(style.baseColor.opacity(0.85))
                         .frame(width: max(4, geo.size.width * fill))
@@ -316,10 +302,10 @@ private struct WeekdayColumn: View {
     var body: some View {
         VStack(spacing: 6) {
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
+                    .fill(GridConstants.fillTrack)
                     .frame(height: maxBarHeight)
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                     .fill(AppColors.healthGreen.opacity(isBest ? 0.9 : 0.45))
                     .frame(height: max(2, maxBarHeight * height))
             }

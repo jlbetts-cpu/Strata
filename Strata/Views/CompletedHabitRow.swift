@@ -13,7 +13,7 @@ struct CompletedHabitRow: View {
         HStack(spacing: 12) {
             // Completed block indicator
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
                     .fill(style.gradient)
                     .frame(width: 36, height: 36)
 

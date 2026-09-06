@@ -65,7 +65,7 @@ struct SectionEditSheet: View {
                             .font(.body)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .background(GridConstants.fillTrack, in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous))
                             .disabled(isPermanent)
                             .opacity(isPermanent ? 0.5 : 1.0)
                     }
@@ -86,7 +86,7 @@ struct SectionEditSheet: View {
                                         .foregroundStyle(icon == option ? .white : .primary)
                                         .frame(width: gridIconSize, height: gridIconSize)
                                         .background(
-                                            icon == option ? resolvedColor : Color.primary.opacity(0.06),
+                                            icon == option ? resolvedColor : GridConstants.fillTrack,
                                             in: Circle()
                                         )
                                 }

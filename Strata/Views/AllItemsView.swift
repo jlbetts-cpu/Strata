@@ -205,8 +205,8 @@ struct AllItemsView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(
-                        Color.primary.opacity(0.04),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        GridConstants.fillWell,
+                        in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                     )
                     .onSubmit { submitQuickAdd() }
 
@@ -285,7 +285,7 @@ struct AllItemsView: View {
                 }
             }
             .padding(6)
-            .background(Color.primary.opacity(0.06), in: .capsule)
+            .background(GridConstants.fillTrack, in: .capsule)
 
             // Effort picker + Block preview
             HStack(alignment: .top, spacing: 16) {
@@ -354,7 +354,7 @@ struct AllItemsView: View {
                     .font(Typography.bodyMedium)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .surfaceWell()
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Days")
@@ -379,7 +379,7 @@ struct AllItemsView: View {
                                     .foregroundStyle(isSelected ? .white : Color.primary)
                                     .frame(width: dayCircleSize, height: dayCircleSize)
                                     .background(
-                                        isSelected ? viewModel.effectiveCategory.style.baseColor : Color.primary.opacity(0.06),
+                                        isSelected ? viewModel.effectiveCategory.style.baseColor : GridConstants.fillTrack,
                                         in: Circle()
                                     )
                             }
@@ -406,7 +406,7 @@ struct AllItemsView: View {
                     .font(Typography.bodyMedium)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .surfaceWell()
             }
 
             // Create button
@@ -418,7 +418,7 @@ struct AllItemsView: View {
                     .padding(.vertical, 14)
                     .background(
                         viewModel.effectiveCategory.style.baseColor,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                     )
             }
             .disabled(viewModel.quickAddTitle.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -487,8 +487,8 @@ struct AllItemsView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            isSelected ? viewModel.effectiveCategory.style.baseColor : Color.primary.opacity(0.06),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            isSelected ? viewModel.effectiveCategory.style.baseColor : GridConstants.fillTrack,
+            in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
         )
         .onTapGesture {
             withAnimation(GridConstants.crossFade) {

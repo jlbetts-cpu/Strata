@@ -22,7 +22,7 @@ struct CachedImageView: View {
                     .transition(.opacity.animation(.easeIn(duration: 0.25)))
             } else if loadFailed {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(GridConstants.fillTrack)
                     .frame(width: width, height: height)
                     .overlay(
                         Image(systemName: "photo")
@@ -31,7 +31,7 @@ struct CachedImageView: View {
                     )
             } else if fileName != nil {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(GridConstants.fillTrack)
                     .frame(width: width, height: height)
                     .modifier(ShimmerModifier())
                     .transition(.opacity.animation(.easeOut(duration: 0.15)))

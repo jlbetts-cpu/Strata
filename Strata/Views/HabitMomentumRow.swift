@@ -31,7 +31,7 @@ struct HabitMomentumRow: View {
         HStack(spacing: 12) {
             // Icon + colour — redundant encoding
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
                     .fill(style.baseColor.opacity(0.15))
                 Image(systemName: momentum.category.iconName)
                     .iconSize(GridConstants.iconCategory, relativeTo: .caption, weight: .medium)

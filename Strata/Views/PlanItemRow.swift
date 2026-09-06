@@ -246,7 +246,7 @@ struct PlanItemRow: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color.primary.opacity(0.06), in: Capsule())
+            .background(GridConstants.fillTrack, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Customize: \(categoryLabel(item.habit.category)), \(effortLabel(item.habit.blockSize)), \(frequencyLabel)")
@@ -295,7 +295,7 @@ struct PlanItemRow: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, pillPadH)
                     .padding(.vertical, pillPadV)
-                    .background(Color.primary.opacity(0.06), in: Capsule())
+                    .background(GridConstants.fillTrack, in: Capsule())
                     .overlay(Capsule().stroke(item.habit.category.style.baseColor.opacity(0.2), lineWidth: 1))
             }
             .accessibilityLabel("Effort: \(item.habit.blockSize.rawValue)")
@@ -315,7 +315,7 @@ struct PlanItemRow: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, pillPadH)
                     .padding(.vertical, pillPadV)
-                    .background(Color.primary.opacity(0.06), in: Capsule())
+                    .background(GridConstants.fillTrack, in: Capsule())
                     .overlay(Capsule().stroke(item.habit.category.style.baseColor.opacity(0.2), lineWidth: 1))
             }
             .accessibilityLabel("Frequency: \(frequencyLabel)")
@@ -426,8 +426,8 @@ struct PlanItemRow: View {
             // Hour markers
             ZStack(alignment: .leading) {
                 // Background track
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
+                    .fill(GridConstants.fillWell)
                     .frame(width: totalWidth, height: 24)
 
                 // Occupied slots

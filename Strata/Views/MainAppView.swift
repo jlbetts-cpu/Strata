@@ -994,10 +994,10 @@ struct MainAppView: View {
                 cellSize: colW
             )
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
+                .fill(GridConstants.fillWell)
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        .stroke(GridConstants.fillTrack, lineWidth: 1)
                 )
                 .frame(width: f.width, height: f.height)
                 .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))

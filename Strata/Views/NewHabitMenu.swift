@@ -41,14 +41,14 @@ struct NewHabitMenu: View {
                 }
             }
             .padding(4)
-            .background(Color.primary.opacity(0.06), in: .capsule)
+            .background(GridConstants.fillTrack, in: .capsule)
 
             // Title
             TextField("Habit name", text: $title)
                 .font(Typography.bodyLarge)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .surfaceWell()
 
             // Category colors
             VStack(alignment: .leading, spacing: 8) {
@@ -127,7 +127,7 @@ struct NewHabitMenu: View {
                                     .foregroundStyle(isSelected ? .white : Color.primary)
                                     .frame(width: dayCircleSize, height: dayCircleSize)
                                     .background(
-                                        isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
+                                        isSelected ? selectedCategory.style.baseColor : GridConstants.fillTrack,
                                         in: Circle()
                                     )
                             }
@@ -163,7 +163,7 @@ struct NewHabitMenu: View {
                     .padding(.vertical, 16)
                     .background(
                         selectedCategory.style.baseColor,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                     )
             }
             .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -207,7 +207,7 @@ struct NewHabitMenu: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(
-                isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
+                isSelected ? selectedCategory.style.baseColor : GridConstants.fillTrack,
                 in: .capsule
             )
             .onTapGesture {

@@ -62,7 +62,7 @@ struct TowerHeaderView: View {
                         .foregroundStyle(.secondary)
 
                     Capsule()
-                        .fill(Color.primary.opacity(0.06))
+                        .fill(GridConstants.fillTrack)
                         .frame(width: 60, height: 4)
                         .overlay(alignment: .leading) {
                             Capsule()

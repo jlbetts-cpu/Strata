@@ -131,7 +131,7 @@ struct ScheduleTimelineView: View {
                 )
 
                 Rectangle()
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(GridConstants.fillTrack)
                     .frame(height: 0.5)
 
                 // Content switches on viewMode
@@ -478,7 +478,7 @@ struct ScheduleTimelineView: View {
                                     .foregroundStyle(AppColors.healthGreen)
                                     .frame(width: 56, alignment: .trailing)
                             }
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: GridConstants.radiusControl)
                                 .stroke(AppColors.healthGreen.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                                 .frame(height: 4)
                         }
@@ -691,7 +691,7 @@ struct ScheduleTimelineView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                                 .fill(day.isToday ? AppColors.healthGreen.opacity(0.06) : Color.clear)
                         )
                     }
@@ -711,10 +711,10 @@ struct ScheduleTimelineView: View {
         LazyVGrid(columns: columns, spacing: 3) {
             ForEach(day.habits) { habit in
                 let isDone = habit.isCompleted || habit.isSkipped
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                     .fill(isDone ? habit.category.style.baseColor : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                             .stroke(habit.category.style.baseColor.opacity(isDone ? 0 : 0.5), lineWidth: 1)
                     )
                     .frame(width: 16, height: 16)

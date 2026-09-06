@@ -66,7 +66,7 @@ struct BlockExpansionCard: View {
                     block: block,
                     width: cardWidth,
                     height: heroHeight,
-                    cornerRadius: 20,
+                    cornerRadius: GridConstants.radiusSurface,
                     modelContext: modelContext
                 )
                 .matchedGeometryEffect(id: block.id, in: namespace)
@@ -81,7 +81,7 @@ struct BlockExpansionCard: View {
                             fileName: fileName,
                             width: cardWidth,
                             height: heroHeight,
-                            cornerRadius: 20,
+                            cornerRadius: GridConstants.radiusSurface,
                             fullResolution: true
                         )
                         .transition(.opacity.animation(GridConstants.crossFade))
@@ -158,10 +158,10 @@ struct BlockExpansionCard: View {
                                             fileName: photoBlock.log.imageFileName,
                                             width: GridConstants.filmstripThumbnailSize,
                                             height: GridConstants.filmstripThumbnailSize,
-                                            cornerRadius: 12
+                                            cornerRadius: GridConstants.radiusField
                                         )
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                                                 .stroke(
                                                     isSelected ? thumbStyle.baseColor : .primary.opacity(0.15),
                                                     lineWidth: isSelected ? 2 : 1
@@ -247,10 +247,10 @@ struct BlockExpansionCard: View {
         }
         .frame(width: cardWidth)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous))
         .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
         .scrollDismissesKeyboard(.interactively)
         .offset(y: dragOffset)

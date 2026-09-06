@@ -124,7 +124,7 @@ private struct DayCircleView: View {
                     // Today highlight — subtle fill, no animation loop
                     if day.isToday {
                         Circle()
-                            .fill(Color.primary.opacity(0.06))
+                            .fill(GridConstants.fillTrack)
                             .frame(width: circleSize - ringStroke, height: circleSize - ringStroke)
                     }
 

@@ -77,7 +77,7 @@ struct AnchorTimelineView: View {
         HStack(spacing: 12) {
             // Health icon
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
                     .fill(HabitCategory.health.style.gradient)
                     .frame(width: 36, height: 36)
 

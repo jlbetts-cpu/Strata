@@ -55,7 +55,7 @@ struct HabitEditView: View {
                         .font(Typography.bodyLarge)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 12)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .surfaceWell()
 
                     // Type toggle
                     HStack(spacing: 0) {
@@ -69,7 +69,7 @@ struct HabitEditView: View {
                         }
                     }
                     .padding(4)
-                    .background(Color.primary.opacity(0.06), in: .capsule)
+                    .background(GridConstants.fillTrack, in: .capsule)
 
                     // Effort picker
                     VStack(alignment: .leading, spacing: 8) {
@@ -125,7 +125,7 @@ struct HabitEditView: View {
                             .font(Typography.bodyMedium)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .surfaceWell()
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Days")
@@ -150,7 +150,7 @@ struct HabitEditView: View {
                                             .foregroundStyle(isSelected ? .white : Color.primary)
                                             .frame(width: dayCircleSize, height: dayCircleSize)
                                             .background(
-                                                isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
+                                                isSelected ? selectedCategory.style.baseColor : GridConstants.fillTrack,
                                                 in: Circle()
                                             )
                                     }
@@ -177,7 +177,7 @@ struct HabitEditView: View {
                             .font(Typography.bodyMedium)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .surfaceWell()
                     }
 
                     // Grace days
@@ -202,7 +202,7 @@ struct HabitEditView: View {
                             .padding(.vertical, 14)
                             .background(
                                 selectedCategory.style.baseColor,
-                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                             )
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -219,10 +219,10 @@ struct HabitEditView: View {
                             .padding(.vertical, 12)
                             .background(
                                 AppColors.warmRed.opacity(0.1),
-                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
                                     .stroke(AppColors.warmRed.opacity(0.3), lineWidth: 1)
                             )
                     }
@@ -334,8 +334,8 @@ struct HabitEditView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            isSelected ? selectedCategory.style.baseColor : GridConstants.fillTrack,
+            in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
         )
         .onTapGesture {
             withAnimation(GridConstants.crossFade) { selectedSize = size }
