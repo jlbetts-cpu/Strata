@@ -20,6 +20,14 @@ struct NewHabitMenu: View {
     @State private var durationMinutes: Int = 15
     @State private var selectedHealthKitType: HealthKitHabitType? = nil
     @State private var healthKitThreshold: Double = 0
+
+    /// Progressive disclosure. Every question in this sheet except the title
+    /// and the category is about *when* or *how much*, and every one of them
+    /// has a working default, so none of them needs to be on screen to add a
+    /// habit. Opened by the person who wants them, not by the form.
+    @State private var whenExpanded = false
+    @State private var detailsExpanded = false
+    @FocusState private var titleFocused: Bool
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(HealthKitService.self) private var healthKitService
 
@@ -34,17 +42,12 @@ struct NewHabitMenu: View {
     var body: some View {
         NavigationStack {
         Form {
-            // Section 1: Basics
+            // The two questions that cannot be defaulted.
             Section {
-                Picker("Type", selection: $isOneTime) {
-                    Text("Recurring").tag(false)
-                    Text("One-Time").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: isOneTime) { _, _ in HapticsEngine.tick() }
-
-                TextField("Title", text: $title)
+                TextField("What are you scheduling?", text: $title)
+                    .font(Typography.bodyLarge)
                     .submitLabel(.done)
+                    .focused($titleFocused)
             }
 
             // Section 2: Category — horizontal capsule pills
@@ -67,7 +70,7 @@ struct NewHabitMenu: View {
                                 .background(
                                     selectedCategory == cat
                                         ? cat.style.baseColor
-                                        : Color.primary.opacity(0.06),
+                                        : GridConstants.fillTrack,
                                     in: Capsule()
                                 )
                                 .foregroundStyle(selectedCategory == cat ? .white : .primary)
@@ -81,138 +84,142 @@ struct NewHabitMenu: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
-            // Section 3: Effort — segmented picker (Kahneman 2011: effort ≠ time)
-            Section("Effort") {
-                Picker("Effort", selection: $selectedSize) {
-                    ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
-                        Text(size.effortLabel).tag(size)
+            // MARK: - When
+            //
+            // Everything here has a working default — every day, no set time —
+            // so the sheet does not have to ask before it can be submitted. The
+            // header states what those defaults currently say, so opening it is
+            // a choice rather than a check.
+            Section {
+                DisclosureGroup(isExpanded: $whenExpanded) {
+                    Picker("Repeats", selection: $isOneTime) {
+                        Text("Recurring").tag(false)
+                        Text("One-Time").tag(true)
                     }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: selectedSize) { _, newSize in
-                    HapticsEngine.tick()
-                    durationMinutes = Int(newSize.durationMinutes) // Auto-suggest, user can override
-                }
+                    .pickerStyle(.segmented)
+                    .onChange(of: isOneTime) { _, _ in HapticsEngine.tick() }
 
-                // Preview removed — effort picker is self-explanatory in native Form
-            }
-
-            // Section 4: Duration (decoupled from effort — Kahneman 2011)
-            Section("Duration") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
-                            Button {
-                                durationMinutes = mins
-                                HapticsEngine.tick()
-                            } label: {
-                                Text(formatDuration(mins))
-                                    .font(Typography.bodySmall)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        durationMinutes == mins
-                                            ? selectedCategory.style.baseColor
-                                            : Color.primary.opacity(0.06),
-                                        in: Capsule()
-                                    )
-                                    .foregroundStyle(durationMinutes == mins ? .white : .primary)
+                    if isOneTime {
+                        DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(DayCode.allCases, id: \.self) { day in
+                                    let isSelected = selectedDays.contains(day)
+                                    Button {
+                                        if isSelected { selectedDays.remove(day) }
+                                        else { selectedDays.insert(day) }
+                                        HapticsEngine.tick()
+                                    } label: {
+                                        Text(day.rawValue)
+                                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                                            .frame(width: 36, height: 36)
+                                            .background(
+                                                isSelected ? selectedCategory.style.baseColor : GridConstants.fillTrack,
+                                                in: Circle()
+                                            )
+                                            .foregroundStyle(isSelected ? .white : .primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(day.rawValue)
+                                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-                Stepper(formatDuration(durationMinutes), value: $durationMinutes, in: 5...180, step: 5)
-                    .onChange(of: durationMinutes) { _, _ in HapticsEngine.tick() }
+                    Toggle("Set time", isOn: $useTimePicker)
+                        .tint(selectedCategory.style.baseColor)
+                        .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
+                    if useTimePicker {
+                        DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
+                    }
+                } label: {
+                    disclosureLabel("When", value: whenSummary)
+                }
             }
 
-            // Section 5: Schedule
-            if isOneTime {
-                Section("Date") {
-                    DatePicker("Date", selection: $scheduledDate, displayedComponents: .date)
-                }
-            } else {
-                Section("Schedule") {
+            // MARK: - Details
+            //
+            // Effort, duration, grace and Apple Health. All defaulted, none of
+            // them the reason anyone opened this sheet.
+            Section {
+                DisclosureGroup(isExpanded: $detailsExpanded) {
+                    Picker("Effort", selection: $selectedSize) {
+                        ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
+                            Text(size.effortLabel).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: selectedSize) { _, newSize in
+                        HapticsEngine.tick()
+                        durationMinutes = Int(newSize.durationMinutes) // Auto-suggest, user can override
+                    }
+
+                    // Duration, decoupled from effort (Kahneman 2011)
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(DayCode.allCases, id: \.self) { day in
-                                let isSelected = selectedDays.contains(day)
+                        HStack(spacing: 8) {
+                            ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
                                 Button {
-                                    if isSelected { selectedDays.remove(day) }
-                                    else { selectedDays.insert(day) }
+                                    durationMinutes = mins
                                     HapticsEngine.tick()
                                 } label: {
-                                    Text(day.rawValue)
-                                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                                        .frame(width: 36, height: 36)
+                                    Text(formatDuration(mins))
+                                        .font(Typography.bodySmall)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
                                         .background(
-                                            isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
-                                            in: Circle()
+                                            durationMinutes == mins
+                                                ? selectedCategory.style.baseColor
+                                                : GridConstants.fillTrack,
+                                            in: Capsule()
                                         )
-                                        .foregroundStyle(isSelected ? .white : .primary)
+                                        .foregroundStyle(durationMinutes == mins ? .white : .primary)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                }
-            }
 
-            // Section 5: Time
-            Section {
-                Toggle("Set time", isOn: $useTimePicker)
-                    .tint(selectedCategory.style.baseColor)
-                    .onChange(of: useTimePicker) { _, _ in HapticsEngine.tick() }
-                if useTimePicker {
-                    DatePicker("Time", selection: $scheduledTime, displayedComponents: .hourAndMinute)
-                }
-            }
+                    Stepper(formatDuration(durationMinutes), value: $durationMinutes, in: 5...180, step: 5)
+                        .onChange(of: durationMinutes) { _, _ in HapticsEngine.tick() }
 
-            // Section 6: Grace period (recurring only)
-            if !isOneTime {
-                Section {
-                    Stepper("\(graceDays) day\(graceDays == 1 ? "" : "s") grace",
-                            value: $graceDays, in: 0...7)
-                } footer: {
-                    Text("Days you can miss without breaking your streak")
-                }
-            }
+                    if !isOneTime {
+                        Stepper("^[\(graceDays) day](inflect: true) grace",
+                                value: $graceDays, in: 0...7)
+                    }
 
-            // Section 7: HealthKit (Health + Mindfulness only)
-            if !isOneTime && (selectedCategory == .health || selectedCategory == .mindfulness) {
-                Section {
-                    HStack {
-                        Image(systemName: "heart.circle")
-                            .foregroundStyle(AppColors.healthGreen)
-                        Text("Auto-Verify")
-                        Spacer()
-                        if healthKitService.isAvailable {
-                            Picker("Type", selection: $selectedHealthKitType) {
-                                Text("None").tag(HealthKitHabitType?.none)
-                                ForEach(availableHealthKitTypes, id: \.rawValue) { type in
-                                    Text(type.displayName).tag(Optional(type))
+                    if !isOneTime && (selectedCategory == .health || selectedCategory == .mindfulness) {
+                        HStack {
+                            Image(systemName: "heart.circle")
+                                .foregroundStyle(AppColors.healthGreen)
+                            Text("Auto-Verify")
+                            Spacer()
+                            if healthKitService.isAvailable {
+                                Picker("Type", selection: $selectedHealthKitType) {
+                                    Text("None").tag(HealthKitHabitType?.none)
+                                    ForEach(availableHealthKitTypes, id: \.rawValue) { type in
+                                        Text(type.displayName).tag(Optional(type))
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
+                        }
+                        if let type = selectedHealthKitType, !type.thresholdPresets.isEmpty {
+                            Picker("Threshold", selection: $healthKitThreshold) {
+                                ForEach(type.thresholdPresets, id: \.value) { preset in
+                                    Text(preset.label).tag(preset.value)
                                 }
                             }
-                            .pickerStyle(.menu)
                         }
                     }
-                    if let type = selectedHealthKitType, !type.thresholdPresets.isEmpty {
-                        Picker("Threshold", selection: $healthKitThreshold) {
-                            ForEach(type.thresholdPresets, id: \.value) { preset in
-                                Text(preset.label).tag(preset.value)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Apple Health")
-                } footer: {
-                    Text("Automatically verify completion from Apple Health data")
+                } label: {
+                    disclosureLabel("Details", value: detailsSummary)
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("Add")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -230,7 +237,11 @@ struct NewHabitMenu: View {
         }
         }
         .onAppear {
+            titleFocused = true
             if let prefill = prefillTime {
+                // Arrived from a tapped time slot, so "when" is already decided
+                // and worth showing rather than hiding behind the disclosure.
+                whenExpanded = true
                 useTimePicker = true
                 let parts = prefill.split(separator: ":")
                 if let h = Int(parts.first ?? ""), let m = Int(parts.last ?? "") {
@@ -245,34 +256,48 @@ struct NewHabitMenu: View {
         }
     }
 
+    // MARK: - Disclosure summaries
+
+    /// A collapsed group has to say what it is currently holding, or hiding it
+    /// is just hiding it.
+    private func disclosureLabel(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .font(Typography.bodySmall)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private var whenSummary: String {
+        var parts: [String] = []
+        if isOneTime {
+            parts.append(scheduledDate.formatted(.dateTime.month(.abbreviated).day()))
+        } else if selectedDays.count == DayCode.allCases.count {
+            parts.append("Every day")
+        } else if selectedDays == [.mo, .tu, .we, .th, .fr] {
+            parts.append("Weekdays")
+        } else if selectedDays.isEmpty {
+            parts.append("No days")
+        } else {
+            parts.append(DayCode.allCases.filter { selectedDays.contains($0) }
+                .map(\.rawValue).joined(separator: " "))
+        }
+        if useTimePicker {
+            parts.append(scheduledTime.formatted(date: .omitted, time: .shortened))
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private var detailsSummary: String {
+        var parts = [selectedSize.effortLabel, formatDuration(durationMinutes)]
+        if selectedHealthKitType != nil { parts.append("Auto-verify") }
+        return parts.joined(separator: ", ")
+    }
+
     // MARK: - Sub-views
-
-    private func togglePill(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Text(label)
-            .font(Typography.bodySmall)
-            .foregroundStyle(selected ? .white : Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(selected ? selectedCategory.style.baseColor : .clear, in: .capsule)
-            .onTapGesture { action() }
-    }
-
-    private func durationPill(_ label: String, size: BlockSize) -> some View {
-        let isSelected = selectedSize == size
-        return Text(label)
-            .font(Typography.bodySmall)
-            .foregroundStyle(isSelected ? .white : Color.primary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(
-                isSelected ? selectedCategory.style.baseColor : Color.primary.opacity(0.06),
-                in: .capsule
-            )
-            .onTapGesture {
-                withAnimation(GridConstants.crossFade) { selectedSize = size }
-                HapticsEngine.tick()
-            }
-    }
 
     // MARK: - Available HealthKit Types
 
