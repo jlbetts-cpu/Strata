@@ -130,18 +130,40 @@ struct TimelineHabitRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                            // Frosted wash + white rim — same chrome as a tower
-                            // block, so a completed row reads as the same object
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
+                            // Same chrome as a tower block, inlined rather than
+                            // via .blockChrome because the rim has to sit inside
+                            // the completion sweep mask and travel with it.
+                            BlockWash()
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .white, location: 0.0),
+                                            .init(color: .white.opacity(0.85), location: 0.45),
+                                            .init(color: .white.opacity(0.55), location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: GridConstants.blockRimWidth
+                                )
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .white.opacity(0.0), location: 0.0),
+                                            .init(color: .white.opacity(0.35), location: 0.55),
+                                            .init(color: .white.opacity(0.75), location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: GridConstants.blockRimGlowWidth
+                                )
+                                .blur(radius: GridConstants.blockRimGlowBlur)
+                                .compositingGroup()
+                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                                .drawingGroup()
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {

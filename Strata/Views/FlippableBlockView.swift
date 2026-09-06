@@ -96,14 +96,7 @@ struct FlippableBlockView: View {
                 )
 
                 // Frosted wash over the lower portion — Figma 248:78
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                BlockWash()
 
             }
 
@@ -119,17 +112,7 @@ struct FlippableBlockView: View {
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        // White rim — inset inside the edge so it stays crisp against the ground
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
-        )
-        .shadow(
-            color: .black.opacity(GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
-        )
+        .blockChrome(cornerRadius: cornerRadius)
         // Perfect-day golden patina (week/month views only)
         .overlay {
             if patinaOpacity > 0 {

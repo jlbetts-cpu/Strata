@@ -142,6 +142,9 @@ enum GridConstants {
     // rim at 5px on a 562px block (0.9%); at an ~86pt cell that lands near 2pt.
     /// White rim inset inside the block edge (use .strokeBorder, not .stroke)
     static let blockRimWidth: CGFloat = 1.5
+    /// Diffused bottom rim — the soft white bloom under the crisp rim
+    static let blockRimGlowWidth: CGFloat = 3
+    static let blockRimGlowBlur: CGFloat = 4
     /// Frosted white wash over the lower portion of a block
     static let blockScrimOpacity: Double = 0.20
     /// Photo scrim band, anchored to the bottom edge rather than a proportion of

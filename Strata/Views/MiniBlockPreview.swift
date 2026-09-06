@@ -24,14 +24,7 @@ struct MiniBlockPreview: View {
             )
 
             // Frosted wash — matches HabitBlockView
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            BlockWash()
 
             // Mini content
             VStack(alignment: .leading, spacing: 2) {
@@ -51,16 +44,6 @@ struct MiniBlockPreview: View {
         }
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // White rim — matches HabitBlockView, thinner at preview scale
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth * 0.75)
-        )
-        .shadow(
-            color: .black.opacity(GridConstants.shadowOpacity),
-            radius: GridConstants.shadowRadius,
-            x: 0,
-            y: GridConstants.shadowY
-        )
+        .blockChrome(cornerRadius: GridConstants.cornerRadius, scale: 0.75)
     }
 }

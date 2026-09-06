@@ -132,16 +132,8 @@ struct HabitBlockView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
 
-            // Frosted wash over the lower portion — Figma 248:78, the white
-            // gradient that lifts the title off the colour field
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // Frosted wash over the lower portion — Figma 248:78
+            BlockWash()
 
             // Text content: title + time + category icon
             BlockContentOverlay(
@@ -154,19 +146,7 @@ struct HabitBlockView: View {
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // White rim — strokeBorder insets fully inside the edge so the rim
-        // reads crisp against the warm ground rather than straddling the clip
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
-        )
-        // Drop shadow — carries the block off the page
-        .shadow(
-            color: .black.opacity(GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
-        )
+        .blockChrome(cornerRadius: GridConstants.cornerRadius)
         // Perfect-day golden patina (week/month views only)
         .overlay {
             if patinaOpacity > 0 {

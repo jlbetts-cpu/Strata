@@ -282,14 +282,7 @@ struct ScheduleTimelineView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0.0),
-                            .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+                    BlockWash()
                 } else {
                     // Ghost tier — matches the incomplete timeline row
                     AppColors.ghostBase
@@ -298,21 +291,21 @@ struct ScheduleTimelineView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    isCompleted ? Color.white : style.baseColor.opacity(0.6),
-                    lineWidth: isCompleted ? GridConstants.blockRimWidth : 1.5
-                )
-        )
-        .shadow(
-            color: .black.opacity(isCompleted ? GridConstants.blockShadowOpacity : 0),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
-        )
 
-        return chipLabel
+
+        // Completed chips take the full block chrome; ghosts keep the category outline.
+        let styledChip = Group {
+            if isCompleted {
+                chipLabel.blockChrome(cornerRadius: 12, scale: 0.85)
+            } else {
+                chipLabel.overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(style.baseColor.opacity(0.6), lineWidth: 1.5)
+                )
+            }
+        }
+
+        return styledChip
             // Sandbox rotation: ±3° when loose, 0° when picked up
             .rotationEffect(isDragging ? .zero : sandboxRotation(for: habit.id))
             .scaleEffect(isDragging ? 1.06 : 1.0)
