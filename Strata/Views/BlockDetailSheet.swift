@@ -27,9 +27,30 @@ struct BlockDetailSheet: View {
                 VStack(spacing: 24) {
                     // Header
                     VStack(spacing: 8) {
-                        Text(block.habit.title)
-                            .font(Typography.appTitle)
-                            .foregroundStyle(.white)
+                        // Editable in place: a win is logged before it is named,
+                        // so naming has to be reachable from the block itself.
+                        // Renaming previously lived only in Plan > All Items >
+                        // HabitEditView, which is four taps from here.
+                        TextField(
+                            QuickWinService.untitled,
+                            text: Binding(
+                                get: { block.habit.title },
+                                set: { newValue in
+                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    block.habit.title = trimmed.isEmpty
+                                        ? QuickWinService.untitled
+                                        : newValue
+                                }
+                            )
+                        )
+                        .textFieldStyle(.plain)
+                        .multilineTextAlignment(.center)
+                        .font(Typography.appTitle)
+                        .foregroundStyle(.white)
+                        .tint(.white)
+                        .submitLabel(.done)
+                        .accessibilityLabel("Name")
+                        .accessibilityHint("Edit this block's name")
 
                         if let completedAt = block.log.completedAt {
                             Text(completedAt.formatted(.dateTime.month(.wide).day().hour().minute()))

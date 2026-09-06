@@ -29,6 +29,7 @@ struct MainAppView: View {
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
+    @State private var quickWinFailed = false
 
     // In-place block expansion
     @State private var expandedBlockID: UUID? = nil
@@ -160,6 +161,10 @@ struct MainAppView: View {
             Tab("Tower", systemImage: StrataTab.tower.icon, value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
+                        .overlay(alignment: .bottom) {
+                            QuickWinButton(onLog: logQuickWin)
+                                .padding(.bottom, 16)
+                        }
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .principal) {
@@ -182,6 +187,11 @@ struct MainAppView: View {
                 }
                 .sheet(isPresented: $showSettings) {
                     NavigationStack { SettingsView() }
+                }
+                .alert("Couldn't save that win", isPresented: $quickWinFailed) {
+                    Button("OK", role: .cancel) { }
+                } message: {
+                    Text("Nothing was added. Try again.")
                 }
             }
             Tab("Today", systemImage: StrataTab.today.icon, value: StrataTab.today) {
@@ -697,6 +707,23 @@ struct MainAppView: View {
     // MARK: - Cascade Release (Async Sequential)
 
     @MainActor
+    /// One-tap win: create the completed one-time habit, then hand it to the
+    /// same drop cascade a normal completion uses, so it lands identically.
+    private func logQuickWin(_ category: HabitCategory) {
+        do {
+            let habit = try QuickWinService.logWin(
+                category: category,
+                context: modelContext,
+                tower: towerManager.activeTower
+            )
+            pendingDrops.append(habit)
+            Task { await cascadeDropPendingBlocks() }
+        } catch {
+            // Never leave a block on screen that was not written.
+            quickWinFailed = true
+        }
+    }
+
     private func cascadeDropPendingBlocks() async {
         let habits = pendingDrops
         pendingDrops = []
