@@ -29,11 +29,17 @@ enum DebugHarness {
         return StrataTab.allCases.first { $0.rawValue.lowercased() == raw.lowercased() }
     }
 
+    /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
+    /// Settings and the add sheet are modals with no other scriptable route in.
+    static var openSheet: String? {
+        argument("-strataOpenSheet")?.lowercased()
+    }
+
     /// True when this launch is a harness run at all. Used to suppress the
     /// HealthKit permission sheet, which is a system alert no script can
     /// dismiss and which covers whatever was being photographed.
     static var isActive: Bool {
-        startTab != nil || wantsSeed
+        startTab != nil || wantsSeed || openSheet != nil
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.

@@ -950,6 +950,11 @@ struct MainAppView: View {
         #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         if let tab = DebugHarness.startTab { selectedTab = tab }
+        switch DebugHarness.openSheet {
+        case "settings": selectedTab = .tower; showSettings = true
+        case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
+        default:         break
+        }
         #endif
         timelineVM.modelContext = modelContext
         habitManagerVM.modelContext = modelContext
