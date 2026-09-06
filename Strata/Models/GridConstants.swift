@@ -218,6 +218,16 @@ enum GridConstants {
     /// Frosted white wash inside the band — matches the 0.2 already used inline.
     static let blockScrimOpacity: Double = 0.20
 
+    // MARK: - Ghost (incomplete) tier
+    /// The rim carries the category colour instead of white, and has to define
+    /// the shape against a near-white ground on its own, so it is heavier than
+    /// the filled block's 0.8pt white rim.
+    static let blockGhostRimWidth: CGFloat = 1.5
+    static let blockGhostRimOpacity: Double = 0.45
+    /// A preview of the colour the block will become, placed where the filled
+    /// block's frosted band sits so the two states share one anatomy.
+    static let blockGhostTint: Double = 0.14
+
     static let blockShadowRadius: CGFloat = 5
     static let blockShadowY: CGFloat = 2.5
     static let blockShadowOpacity: Double = 0.12

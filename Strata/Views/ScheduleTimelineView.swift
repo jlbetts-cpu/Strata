@@ -451,8 +451,10 @@ struct ScheduleTimelineView: View {
                 }
             } label: {
                 ZStack {
+                    // Category colour, not white: the incomplete chip is a
+                    // white card now, and a white ring on it is invisible.
                     Circle()
-                        .stroke(Color.white.opacity(0.6), lineWidth: GridConstants.strokeMedium)
+                        .stroke(style.baseColor.opacity(0.55), lineWidth: GridConstants.strokeMedium)
                         .frame(width: GridConstants.checkCircleSize, height: GridConstants.checkCircleSize)
                         .opacity(isCompleted ? 0.0 : 1.0)
 
@@ -471,14 +473,23 @@ struct ScheduleTimelineView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .fill(isCompleted ? style.baseColor : Color.primary.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(style.baseColor.opacity(isCompleted ? 0.3 : (0.6)), lineWidth: GridConstants.strokeDefault)
-        )
+        .background {
+            if isCompleted {
+                RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                    .fill(style.baseColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
+                            .stroke(style.baseColor.opacity(0.3), lineWidth: GridConstants.strokeDefault)
+                    )
+            } else {
+                // Was Color.primary.opacity(0.08) — a grey darker than the page.
+                BlockGhostSurface(
+                    category: habit.category,
+                    cornerRadius: GridConstants.cornerRadius,
+                    scale: 0.85
+                )
+            }
+        }
         // Tap chip body to schedule (with time choice)
         .onTapGesture {
             guard !isCompleted else { return }

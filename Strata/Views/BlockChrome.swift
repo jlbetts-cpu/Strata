@@ -91,6 +91,60 @@ struct BlockSurface<Fill: View>: View {
     }
 }
 
+/// The incomplete state: the same object, not yet filled.
+///
+/// There is no ghost variant in the Figma, so this is a design decision rather
+/// than a transcription — but it is built from the same anatomy as `BlockSurface`
+/// so the two states read as one thing in two conditions:
+///
+/// - White fill, brighter than the warm ground, so it reads as a clean empty
+///   card. What it replaces sat DARKER than the page — `Color.primary.opacity(0.08)`
+///   on the unscheduled chips — and read as a muddy slab competing with the
+///   saturated blocks around it.
+/// - The rim carries the category colour instead of white. A white rim would be
+///   invisible here: on a filled block it separates saturated colour from a pale
+///   ground, and there is no saturation here to separate.
+/// - A tint of the category colour sits exactly where the filled block's frosted
+///   band sits, previewing the colour the block becomes on completion.
+/// - No shadow and no blurred band. Blurring a near-white surface with no white
+///   rim beneath it produces nothing visible — cost with no image.
+///
+/// Positive-only: this is "waiting", not "failed". Nothing here is dimmed,
+/// crossed or desaturated as a penalty.
+struct BlockGhostSurface: View {
+    var category: HabitCategory
+    var cornerRadius: CGFloat = GridConstants.blockCornerRadius
+    /// Scales the rim for small surfaces (chips, mini previews).
+    var scale: CGFloat = 1.0
+
+    private var style: CategoryStyle { category.style }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.white
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: GridConstants.blockBandStart),
+                    .init(color: style.baseColor.opacity(GridConstants.blockGhostTint), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(
+                style.baseColor.opacity(GridConstants.blockGhostRimOpacity),
+                lineWidth: GridConstants.blockGhostRimWidth * scale
+            )
+        )
+    }
+}
+
 /// The frosted wash inside the band — the gradient already used inline, moved
 /// here so the band's start is one number instead of several.
 struct BlockWash: View {

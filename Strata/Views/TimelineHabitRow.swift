@@ -211,27 +211,13 @@ struct TimelineHabitRow: View {
 
             GeometryReader { geo in
                 ZStack {
-                    // PROTO-BLOCK BASE — muted tower gradient (Lakoff 1980: visual metaphor continuity)
-                    LinearGradient(
-                        stops: [
-                            .init(color: style.lightTint, location: 0.0),
-                            .init(color: style.baseColor, location: 0.3),
-                            .init(color: style.baseColor, location: 1.0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .opacity(0.15)
-
-                    // Frosted overlay (light mode)
-                    if colorScheme == .light {
-                        LinearGradient(
-                            stops: [.init(color: .clear, location: 0.0), .init(color: .white.opacity(0.10), location: 1.0)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    }
-
-                    // Border removed — iOS 17-18: shadow alone carries depth
+                    // GHOST BASE — the same anatomy as a filled block, not yet
+                    // filled: white card, category rim, and a tint of that
+                    // colour exactly where the filled block's frosted band
+                    // sits. Replaces a flat 0.15 category wash under a 0.10
+                    // white one, which had no rim and no band and so shared
+                    // nothing with the block it becomes.
+                    BlockGhostSurface(category: habit.category, cornerRadius: cornerRadius)
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {
