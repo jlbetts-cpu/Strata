@@ -71,7 +71,8 @@ All tokens use `Font.system(design: .rounded)` for proper Dynamic Type scaling. 
 ### Spatial Grid (4pt/8pt System)
 - **4pt base unit** — all spacing values are multiples of 4
 - **8pt primary grid** — standard spacing, section gaps, padding
-- **16pt secondary** — cornerRadius, horizontal padding, section indentation
+- **16pt secondary** — horizontal padding, section indentation
+- **12pt** — cornerRadius (see the table below; matched to Figma Apollo 248:14)
 - **20pt** — Today screen horizontal padding (wider for readability)
 
 | Constant | Value | Use |
