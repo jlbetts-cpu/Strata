@@ -4,7 +4,13 @@ enum GridConstants {
     static let columnCount = 4
     static let spacing: CGFloat = 4
     static let cornerRadius: CGFloat = 8
-    static let blockCornerRadius: CGFloat = 16   // Habit blocks on tower + timeline
+    /// Habit blocks on tower + timeline.
+    ///
+    /// 12, not 16: Figma Apollo (248:14) uses a constant 40px radius at every
+    /// block size, which against its 272px 1x1 block is 14.7% of the side —
+    /// 12.7pt at an 86.5pt cell. 16 read noticeably rounder than the source when
+    /// the two were put side by side at native size.
+    static let blockCornerRadius: CGFloat = 12
     static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
     static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
     static let horizontalPadding: CGFloat = 16
@@ -190,6 +196,28 @@ enum GridConstants {
 
     // MARK: - UI Elements
     // MARK: - Block Shadow (post-border-removal, stronger)
+    // MARK: - Block Rim (Figma Apollo 248:14)
+    //
+    // The block already carried a frosted band and a flat white strip along the
+    // bottom. This makes that edge a real rim: uniform on all four sides, crisp
+    // above the band and blurred inside it, which is how the source builds it —
+    // one solid white border (255:105) under a separate backdrop-blur rect
+    // covering the bottom 26% (255:106).
+    /// White rim. Figma draws 5px on a 562pt block (0.89%) — 0.77pt at an 86.5pt
+    /// cell; 0.8 is 2.4 device px at 3x and renders crisp.
+    static let blockRimWidth: CGFloat = 0.8
+    /// Blur inside the band. Figma blurs 10px on a 562pt block — 1.78% of width.
+    static let blockRimBlur: CGFloat = 1.5
+    /// Fraction of block height where the frosted band begins (Figma's 145pt of 565).
+    static let blockBandStart: Double = 0.74
+    /// The sharp and blurred copies crossfade across this span rather than cutting
+    /// hard. Blurring softens a surface's alpha at its edges, so a hard cut makes
+    /// the silhouette visibly pinch in at 86pt.
+    static let blockBandFeatherStart: Double = 0.66
+    static let blockBandFeatherEnd: Double = 0.74
+    /// Frosted white wash inside the band — matches the 0.2 already used inline.
+    static let blockScrimOpacity: Double = 0.20
+
     static let blockShadowRadius: CGFloat = 5
     static let blockShadowY: CGFloat = 2.5
     static let blockShadowOpacity: Double = 0.12
