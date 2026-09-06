@@ -893,6 +893,7 @@ struct PlanItemRow: View {
         case .focus: return "Focus"
         case .social: return "Social"
         case .mindfulness: return "Mind"
+        case .unlabeled:   return "Unlabeled"
         }
     }
 

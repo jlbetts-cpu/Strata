@@ -48,6 +48,8 @@ enum SoundEngine {
         case .focus:       return 369.99  // F#4
         case .social:      return 392.00  // G4
         case .mindfulness: return 440.00  // A4
+        // The root of the same scale: neutral, because no category was chosen.
+        case .unlabeled:   return 261.63  // C4
         }
     }
 
