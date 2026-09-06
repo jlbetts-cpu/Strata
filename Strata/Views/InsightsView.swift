@@ -53,20 +53,10 @@ struct InsightsView: View {
             .padding(.bottom, 100)
         }
         .background { WarmBackground().ignoresSafeArea() }
-        .navigationTitle("Insights")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    HapticsEngine.tick()
-                    onAddHabit?()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(AppColors.accentWarm)
-                }
-            }
-        }
+        // No title (the tab bar says "Insights") and no add button: the same
+        // sheet was reachable from three toolbars, and nothing on a page of
+        // past performance is asking you to schedule something new.
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.compute(habits: habits, logs: logs)
         }

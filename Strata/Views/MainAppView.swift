@@ -276,8 +276,9 @@ struct MainAppView: View {
                         pendingDrops.append(habit)
                     }
                     .background { WarmBackground().ignoresSafeArea() }
-                    .navigationTitle("Wins")
-                    .navigationBarTitleDisplayMode(.inline)
+                    // No title: the tab bar says "Wins" an inch below, and the
+                    // page is one number and one button.
+                    .toolbar(.hidden, for: .navigationBar)
                 }
             }
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
@@ -310,20 +311,11 @@ struct MainAppView: View {
                 NavigationStack {
                     timelineTabContent
                         .environment(\.switchTab, { selectedTab = $0 })
-                        .navigationTitle("Today")
+                        // The date, not "Today": it changes as you move through
+                        // the week, so it carries something the tab bar cannot.
+                        .navigationTitle(timelineSelectedDate.formatted(.dateTime.month(.wide).day()))
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    HapticsEngine.lightTap()
-                                    isNewHabitMenuOpen = true
-                                } label: {
-                                    Image(systemName: "plus")
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(AppColors.accentWarm)
-                                }
-                            }
-                        }
+                        .toolbar { todayToolbar }
                 }
             }
             Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
@@ -929,6 +921,27 @@ struct MainAppView: View {
     // ToolbarContentBuilder supports `if #available` via buildLimitedAvailability.
 
     @ToolbarContentBuilder
+    private var todayToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) { addHabitButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { addHabitButton }
+        }
+    }
+
+    private var addHabitButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            isNewHabitMenuOpen = true
+        } label: {
+            Image(systemName: "plus")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                .foregroundStyle(AppColors.accentWarm)
+        }
+    }
+
+    @ToolbarContentBuilder
     private var towerToolbar: some ToolbarContent {
         if #available(iOS 26.0, *) {
             ToolbarItem(placement: .topBarLeading) {
@@ -1386,14 +1399,14 @@ struct MainAppView: View {
 
                         // Block count below ground plane (building foundation label)
                         if towerVM.placedBlocks.count > 0 {
-                            // #93: Tier badge + block count + altimeter
-                            let tier = TowerTier.tier(for: towerVM.placedBlocks.count)
                             let blockCount = towerVM.placedBlocks.count
                             VStack(spacing: 4) {
+                                // One line under the tower, not three. The tier
+                                // symbol only existed to sit beside the tier
+                                // name; with the name gone it is decoration, so
+                                // both go. The count and the height are the two
+                                // facts the tower cannot show by itself.
                                 HStack(spacing: 6) {
-                                    Image(systemName: tier.symbolName)
-                                        .font(Typography.caption)
-                                        .foregroundStyle(.primary.opacity(0.3))
                                     Text("^[\(blockCount) block](inflect: true)")
                                         .font(Typography.caption)
                                         .foregroundStyle(.primary.opacity(0.3))
@@ -1404,10 +1417,6 @@ struct MainAppView: View {
                                         .foregroundStyle(.primary.opacity(0.2))
                                         .contentTransition(.numericText())
                                 }
-                                // Tier name
-                                Text(tier.displayName)
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(.primary.opacity(0.2))
 
                                 // "Your first block." — primacy effect
                                 // spotlight. In the stack rather than at its

@@ -138,21 +138,11 @@ struct ScheduleTimelineView: View {
             VStack(spacing: 0) {
                 // Header
                 VStack(spacing: 8) {
-                    // View mode picker + date
-                    VStack(spacing: 4) {
-                        TodayViewModePicker(selection: $viewMode)
-
-                        Text(heroDate)
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(.secondary)
-                            .onTapGesture {
-                                guard !isViewingToday else { return }
-                                withAnimation(GridConstants.motionSmooth) {
-                                    selectedDate = Date()
-                                }
-                                HapticsEngine.tick()
-                            }
-                    }
+                    // The date moved to the navigation title, which was
+                    // saying "Today" while this said "September 6" — two labels
+                    // for one thing, an inch apart. "Return to today" now lives
+                    // on the week strip, which is where the dates are.
+                    TodayViewModePicker(selection: $viewMode)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, GridConstants.horizontalPadding)
                     .padding(.top, 12)
@@ -601,17 +591,13 @@ struct ScheduleTimelineView: View {
                 // Remaining = ALL habits (scheduled + unscheduled) neither completed nor skipped
                 let remaining = remainingCount
                 if remaining > 0 {
-                    Text(cachedCurrentHour >= 18 ? "\(remaining) left tonight" : "\(completedHabitIDs.count) of \(allHabits.count) done")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(counterFlash ? AppColors.healthGreen : Color.primary.opacity(0.5))
-                        .contentTransition(.numericText(countsDown: true))
-                        .animation(GridConstants.motionSmooth, value: remaining)
-                        .scaleEffect(completedHabitIDs.count == 3 && counterFlash ? 1.12 : 1.0)
-                        .animation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.6), value: completedHabitIDs.count)
-                        .accessibilityAddTraits(.updatesFrequently)
-                        .padding(.horizontal, GridConstants.horizontalPadding)
-                        .padding(.top, 16)
-                        .padding(.bottom, 12)
+                    // The "N of M done" label is gone: the week strip's ring
+                    // encodes it, and so does the list underneath. Three ways of
+                    // saying one number on one screen. The celebration hung off
+                    // this label's onChange, so it hangs here instead.
+                    Color.clear
+                        .frame(height: 0)
+                        .accessibilityHidden(true)
                         .onChange(of: remainingCount) { old, new in
                             guard new < old else { return }
                             counterFlash = true

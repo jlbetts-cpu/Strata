@@ -67,6 +67,7 @@ struct PlanPageView: View {
         planContent
         .background { WarmBackground().ignoresSafeArea() }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("")
         .toolbar { planToolbar }
     }
 
@@ -981,8 +982,11 @@ struct PlanPageView: View {
 
     @ToolbarContentBuilder
     private var planToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            sortMenuButton
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) { sortMenuButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { sortMenuButton }
         }
     }
 
