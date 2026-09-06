@@ -101,15 +101,11 @@ private struct DayCircleView: View {
                     )
 
                 ZStack {
-                    // Honest Ring: hide track when 0 habits (Rule 1: no ring > empty ring)
-                    if day.totalCount > 0 {
-                        Circle()
-                            .stroke(
-                                day.isFuture ? Color.primary.opacity(0.15) : Color.primary.opacity(0.08),
-                                lineWidth: ringStroke
-                            )
-                            .frame(width: circleSize, height: circleSize)
-                    }
+                    // The grey track ring is gone. It was an outline drawn
+                    // around data rather than data itself: what it enclosed —
+                    // the green completion arc, the grey skip arc, today's fill
+                    // — all still draw, and all still carry their meaning. Only
+                    // the empty circle around them has been removed.
 
                     // Completed ring (green ceramic)
                     if !day.isFuture && animatedRate > 0 {
@@ -151,6 +147,10 @@ private struct DayCircleView: View {
                             day.isFuture ? Color.primary.opacity(0.5) : Color.primary
                         )
                 }
+                // The track circle used to set this cell's height. Without it a
+                // day with no arc and no fill collapses to its numeral, and the
+                // weekday letters above stop lining up.
+                .frame(width: circleSize, height: circleSize)
             }
         }
         .buttonStyle(.plain)

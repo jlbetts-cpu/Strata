@@ -96,10 +96,10 @@ struct SettingsView: View {
                     Label {
                         Text("Daily Reminder")
                     } icon: {
-                        SettingsIcon(systemName: "bell.fill", color: .orange)
+                        SettingsIcon(systemName: "bell.fill")
                     }
                 }
-                .tint(AppColors.accentPurple)
+                .tint(AppColors.accentWarm)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     if enabled {
                         Task { await requestNotificationPermission() }
@@ -150,10 +150,10 @@ struct SettingsView: View {
                     Label {
                         Text("Completion Sounds")
                     } icon: {
-                        SettingsIcon(systemName: "speaker.wave.2.fill", color: .purple)
+                        SettingsIcon(systemName: "speaker.wave.2.fill")
                     }
                 }
-                .tint(AppColors.accentPurple)
+                .tint(AppColors.accentWarm)
             }
 
             // MARK: - Tower Appearance (#172)
@@ -163,29 +163,29 @@ struct SettingsView: View {
                     Label {
                         Text("Ghost Block Preview")
                     } icon: {
-                        SettingsIcon(systemName: "square.dashed", color: .gray)
+                        SettingsIcon(systemName: "square.dashed")
                     }
                 }
-                .tint(AppColors.accentPurple)
+                .tint(AppColors.accentWarm)
 
                 Toggle(isOn: $towerShowParallax) {
                     Label {
                         Text("3D Parallax")
                     } icon: {
-                        SettingsIcon(systemName: "cube.transparent", color: .blue)
+                        SettingsIcon(systemName: "cube.transparent")
                     }
                 }
-                .tint(AppColors.accentPurple)
+                .tint(AppColors.accentWarm)
 
                 // #173: Haptic toggle
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
                         Text("Haptic Feedback")
                     } icon: {
-                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right", color: .green)
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
                     }
                 }
-                .tint(AppColors.accentPurple)
+                .tint(AppColors.accentWarm)
             }
 
             // MARK: - Apple Health
@@ -195,7 +195,7 @@ struct SettingsView: View {
                     Label {
                         Text("Apple Health")
                     } icon: {
-                        SettingsIcon(systemName: "heart.fill", color: AppColors.healthGreen)
+                        SettingsIcon(systemName: "heart.fill")
                     }
 
                     Spacer()
@@ -253,7 +253,7 @@ struct SettingsView: View {
                     Label {
                         Text("Calendar")
                     } icon: {
-                        SettingsIcon(systemName: "calendar", color: .red)
+                        SettingsIcon(systemName: "calendar")
                     }
 
                     Spacer()
@@ -289,7 +289,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } icon: {
-                    SettingsIcon(systemName: "paintbrush.fill", color: AppColors.accentPurple)
+                    SettingsIcon(systemName: "paintbrush.fill")
                 }
             }
 
@@ -304,7 +304,7 @@ struct SettingsView: View {
                         Text("Export Data")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "square.and.arrow.up", color: .blue)
+                        SettingsIcon(systemName: "square.and.arrow.up")
                     }
                 }
                 .disabled(habits.isEmpty)
@@ -316,7 +316,7 @@ struct SettingsView: View {
                     Label {
                         Text("Reset All Data")
                     } icon: {
-                        SettingsIcon(systemName: "trash.fill", color: AppColors.warmRed)
+                        SettingsIcon(systemName: "trash.fill", tint: AppColors.warmRed)
                     }
                 }
                 .confirmationDialog(
@@ -345,7 +345,7 @@ struct SettingsView: View {
                         Text("Replay Tutorial")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "arrow.counterclockwise", color: AppColors.healthGreen)
+                        SettingsIcon(systemName: "arrow.counterclockwise")
                     }
                 }
 
@@ -360,7 +360,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     } icon: {
-                        SettingsIcon(systemName: "envelope.fill", color: .blue)
+                        SettingsIcon(systemName: "envelope.fill")
                     }
                 }
 
@@ -371,7 +371,7 @@ struct SettingsView: View {
                         Text("Rate on App Store")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "star.fill", color: .yellow)
+                        SettingsIcon(systemName: "star.fill")
                     }
                 }
             }
@@ -597,16 +597,24 @@ struct SettingsView: View {
 
 // MARK: - Settings Icon Badge
 
+/// A settings row's glyph.
+///
+/// Was a white icon on a saturated rounded square — orange, magenta, blue,
+/// yellow — which is stock iOS Settings iconography and belongs to no palette
+/// in this app. Thirteen of them made the quietest screen the most colourful.
+/// Now a plain monochrome glyph, so colour in the app means a category.
+///
+/// `tint` exists for the one case where colour is semantic rather than
+/// decorative: the destructive row.
 private struct SettingsIcon: View {
     let systemName: String
-    let color: Color
+    var tint: Color? = nil
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.white)
+            .iconSize(GridConstants.iconAction, relativeTo: .body, weight: .medium)
+            .foregroundStyle(tint ?? .secondary)
             .frame(width: 28, height: 28)
-            .background(color, in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous))
     }
 }
 
