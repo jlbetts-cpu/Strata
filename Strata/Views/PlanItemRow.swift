@@ -384,11 +384,10 @@ struct PlanItemRow: View {
 
     // MARK: - Form Separator (visible on .thinMaterial in both modes)
 
-    @Environment(\.colorScheme) private var colorScheme
 
     private var formSeparator: some View {
         Rectangle()
-            .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.1))
+            .fill(Color.primary.opacity(0.1))
             .frame(height: 0.5)
             .padding(.leading, 44) // indent past icon column (Apple Reminders pattern)
     }

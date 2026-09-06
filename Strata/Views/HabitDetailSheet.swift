@@ -6,7 +6,6 @@ struct HabitDetailSheet: View {
     let habit: Habit
     let selectedDate: Date
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedItem: PhotosPickerItem? = nil
@@ -222,7 +221,7 @@ struct HabitDetailSheet: View {
                     stops: [
                         .init(color: style.lightTint, location: 0.0),
                         .init(color: style.baseColor, location: 0.3),
-                        .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                        .init(color: style.baseColor, location: 1.0)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

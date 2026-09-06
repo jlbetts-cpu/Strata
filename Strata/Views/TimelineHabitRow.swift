@@ -70,7 +70,7 @@ struct TimelineHabitRow: View {
     }
 
     private var ghostBackground: Color {
-        colorScheme == .dark ? AppColors.ghostBaseDark : AppColors.ghostBase
+        AppColors.ghostBase
     }
 
     /// Choose animation based on reduceMotion
@@ -216,7 +216,7 @@ struct TimelineHabitRow: View {
                         stops: [
                             .init(color: style.lightTint, location: 0.0),
                             .init(color: style.baseColor, location: 0.3),
-                            .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                            .init(color: style.baseColor, location: 1.0)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -272,7 +272,7 @@ struct TimelineHabitRow: View {
                                 endPoint: .bottom
                             )
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(.white.opacity(colorScheme == .dark ? 0.15 : 0.3), lineWidth: GridConstants.strokeDefault)
+                                .stroke(.white.opacity(0.3), lineWidth: GridConstants.strokeDefault)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {
@@ -292,14 +292,14 @@ struct TimelineHabitRow: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
-                        .blendMode(colorScheme == .dark ? .screen : .colorDodge)
+                        .blendMode(.colorDodge)
                     }
 
                     // Skipped hash overlay (diagonal lines — universal "crossed out" metaphor)
                     if isSkipped {
                         Canvas { context, size in
                             let step: CGFloat = 10
-                            let opacity = colorScheme == .dark ? 0.18 : 0.14
+                            let opacity = 0.14
                             var x: CGFloat = -size.height
                             while x < size.width + size.height {
                                 var path = Path()

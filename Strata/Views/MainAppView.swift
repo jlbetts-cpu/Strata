@@ -1550,7 +1550,7 @@ struct MainAppView: View {
         // Momentum Ground Glow — warms toward green as daily completions accumulate
         // Research: Goal Gradient Effect (Hull 1932, Kivetz 2006)
         let warmth = min(1.0, Double(todayCompletedCount) / Double(max(todayTotalCount, 1)))
-        let neutralColor = colorScheme == .dark ? Color.primary.opacity(0.08) : AppColors.warmBlack.opacity(0.15)
+        let neutralColor = AppColors.warmBlack.opacity(0.15)
         let glowColor = AppColors.healthGreen.opacity(warmth * 0.35)
 
         return ZStack {
@@ -1584,7 +1584,7 @@ struct MainAppView: View {
             }
         }
         .shadow(
-            color: colorScheme == .dark ? Color.primary.opacity(0.06) : AppColors.warmBlack.opacity(0.12),
+            color: AppColors.warmBlack.opacity(0.12),
             radius: 4, x: 0, y: 2
         )
         .offset(y: gridH)
@@ -1849,7 +1849,7 @@ struct MainAppView: View {
                 )
                 // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
                 .shadow(
-                    color: colorScheme == .dark ? .clear : .black.opacity(0.04),
+                    color: .black.opacity(0.04),
                     radius: GridConstants.shadowRadius + CGFloat(block.row) * GridConstants.depthShadowScale,
                     x: 0,
                     y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale

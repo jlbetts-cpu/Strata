@@ -11,7 +11,6 @@ struct MorningBriefingCard: View {
     let firstHabitTime: String?
     let currentHour: Int
 
-    @Environment(\.colorScheme) private var colorScheme
 
     // Time-of-day icon + greeting (Barkley 2015: compensate time blindness)
     private var timeOfDayIcon: String {

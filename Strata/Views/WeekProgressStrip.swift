@@ -62,7 +62,6 @@ private struct DayCircleView: View {
 
     @State private var animatedRate: Double = 0
     @State private var tapScale: CGFloat = 1.0
-    @Environment(\.colorScheme) private var colorScheme
 
     private let healthGreen = AppColors.healthGreen
     private let circleSize: CGFloat = 40   // 4/8 grid alignment
@@ -106,7 +105,7 @@ private struct DayCircleView: View {
                     if day.totalCount > 0 {
                         Circle()
                             .stroke(
-                                day.isFuture ? Color.primary.opacity(0.15) : Color.primary.opacity(colorScheme == .dark ? 0.15 : 0.08),
+                                day.isFuture ? Color.primary.opacity(0.15) : Color.primary.opacity(0.08),
                                 lineWidth: ringStroke
                             )
                             .frame(width: circleSize, height: circleSize)

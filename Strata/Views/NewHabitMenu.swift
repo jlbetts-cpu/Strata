@@ -20,7 +20,6 @@ struct NewHabitMenu: View {
     @State private var durationMinutes: Int = 15
     @State private var selectedHealthKitType: HealthKitHabitType? = nil
     @State private var healthKitThreshold: Double = 0
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(HealthKitService.self) private var healthKitService
 
@@ -303,7 +302,7 @@ struct NewHabitMenu: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
+                .fill(Color.primary.opacity(0.02))
         )
     }
 

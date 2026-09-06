@@ -17,7 +17,6 @@ struct TimelineGridView: View {
     var healthKitProgress: [UUID: Double] = [:]
     var verifiedHabitIDs: Set<UUID> = []
 
-    @Environment(\.colorScheme) private var colorScheme
 
     private let startHour = 5
     private let endHour = 23

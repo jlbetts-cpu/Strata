@@ -10,7 +10,6 @@ struct InsightsView: View {
     @State private var viewModel = InsightsViewModel()
     @State private var showAllStreaks = false
     @State private var selectedInsightHabit: Habit? = nil
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.switchTab) private var switchTab
 
     private let dayColumns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
@@ -258,7 +257,7 @@ struct InsightsView: View {
                         cornerRadius: 0
                     )
                     LinearGradient(
-                        colors: [.clear, Color.black.opacity(colorScheme == .dark ? 0.6 : 0.45)],
+                        colors: [.clear, Color.black.opacity(0.45)],
                         startPoint: .top, endPoint: .bottom
                     )
                     Text("\(day.dayNumber)")
@@ -293,7 +292,7 @@ struct InsightsView: View {
                     .background(
                         RoundedRectangle(cornerRadius: GridConstants.cornerRadiusSmall, style: .continuous)
                             .fill(day.isToday ? AppColors.healthGreen.opacity(0.08) :
-                                  (isSelected ? Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06) : Color.clear))
+                                  (isSelected ? Color.primary.opacity(0.06) : Color.clear))
                     )
                 }
             }
@@ -372,7 +371,7 @@ struct InsightsView: View {
             }
         }
         .padding(16)
-        .background(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04), in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
         .transition(.opacity.combined(with: .move(edge: .top)))
         .sheet(item: $selectedInsightHabit) { habit in
             HabitDetailSheet(habit: habit, selectedDate: day.date)
@@ -391,7 +390,6 @@ struct HabitCalendarView: View {
     let bestStreak: Int
 
     @State private var selectedMonth: Date = Date()
-    @Environment(\.colorScheme) private var colorScheme
 
     private let dayColumns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
     private var style: CategoryStyle { habit.category.style }
@@ -561,7 +559,7 @@ struct HabitCalendarView: View {
                                 .fill(
                                     cell.status == "completed" ? style.baseColor :
                                     cell.status == "skipped" ? Color.primary.opacity(0.2) :
-                                    Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)
+                                    Color.primary.opacity(0.06)
                                 )
                                 .frame(width: 8, height: 8)
                         }
