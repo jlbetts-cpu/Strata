@@ -158,6 +158,18 @@ enum GridConstants {
     /// Compared 3pt / 4.7pt / 6.7pt against the slim rim at true scale. 4pt
     /// dissolves the edge without spreading into a haze.
     static let blockRimBlur: CGFloat = 4
+    /// The blurred rim is drawn from a THICKER ring than the crisp one.
+    ///
+    /// Blurring spreads a stroke's ink over a wider area, so a blurred ring of
+    /// equal width has a much lower peak than a crisp one. Crossfading between
+    /// them therefore dips: the border visibly thins and drops out through the
+    /// handover, then returns as a haze. In the source there is no dip, because
+    /// nothing there fades — it is one solid border at constant opacity that
+    /// simply goes out of focus below the band.
+    ///
+    /// Thickening the blurred copy compensates for that spread, so weight stays
+    /// constant across the transition and only sharpness changes.
+    static let blockRimSoftMultiplier: CGFloat = 2.5
     /// The rim transitions from crisp to blurred across this span, rather than
     /// at a hard line. Figma cuts hard, which is invisible on a 562pt block and
     /// a visible ledge on an 86pt one — this is a scale adaptation, not a

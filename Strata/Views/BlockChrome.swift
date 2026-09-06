@@ -9,10 +9,11 @@ import SwiftUI
 ///   255:106  a separate rect over the bottom 145pt of 565 (26%), whose only
 ///            job is `backdrop-blur(10px)` — it blurs the border beneath it
 ///
-/// So there is exactly ONE ring, at ONE opacity. The band decides where it is
-/// seen crisp and where it is seen blurred. That is what makes the falloff read
-/// as clean diffusing light: a gaussian of a uniform white line is smooth and
-/// symmetrical everywhere along its length.
+/// So the border never changes weight — it is one solid white line at constant
+/// opacity from top to bottom, and the band only changes whether it is in focus.
+/// Nothing fades. That is the whole character of the transition: the line does
+/// not thin out or drop away as it descends, it goes soft while staying present,
+/// and carries full weight around the bottom corners.
 ///
 /// Modulating the ring's opacity with a vertical gradient and then blurring it —
 /// the previous approach here — is not the same thing and does not look the
@@ -33,9 +34,19 @@ struct BlockRim: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    /// The single uniform white ring. Both layers draw exactly this.
+    /// The crisp ring, above the band.
     private var ring: some View {
         shape.strokeBorder(.white, lineWidth: GridConstants.blockRimWidth * scale)
+    }
+
+    /// The ring that gets blurred. Thicker than `ring` on purpose — see
+    /// blockRimSoftMultiplier. Equal widths would make the border lose weight
+    /// through the handover instead of just losing focus.
+    private var softRing: some View {
+        shape.strokeBorder(
+            .white,
+            lineWidth: GridConstants.blockRimWidth * GridConstants.blockRimSoftMultiplier * scale
+        )
     }
 
     /// Crossfade between the crisp ring and the blurred one.
@@ -75,7 +86,7 @@ struct BlockRim: View {
             //
             // .drawingGroup() is deliberately absent — it rasterises to the
             // view's bounds and would re-clip the spill, reinstating the edge.
-            ring
+            softRing
                 .blur(radius: GridConstants.blockRimBlur * scale)
                 .mask(bandMask(above: false))
                 .compositingGroup()
