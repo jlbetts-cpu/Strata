@@ -7,7 +7,19 @@
 
 (none)
 
+## Settled — do not reopen
+
+- **Typeface: SF Pro Rounded, two weights.** The Apollo Figma (248:14) specifies
+  Familjen Grotesk Medium; Jayden chose to keep the native face on 2026-09-06.
+  The Figma's block identity is carried by shape, colour and the white rim, not
+  the letterforms. Do not propose a custom font again.
+
 ## Next Up
+
+- [ ] Icon glyphs need an eyeball in Xcode — the audit was code-level only (SF
+      Symbols cannot render on Linux). Check `square.stack.3d.up` reads as the
+      tower, and whether `target` holds its weight for Focus against the five
+      `.fill` siblings (it has no fill variant). `scope` is the fallback.
 
 - [ ] Observation isolation — extract TimelineTabView/TowerTabView from MainAppView to break cross-VM body re-evaluation (needs coordination between all bots)
 - [ ] Reverse-fill for skip — hold + drag left to fill grey R→L (bidirectional intention gesture)
@@ -15,9 +27,7 @@
 - [ ] Chip V2 (Picture Superiority) — vertical pill layout, icon 20pt dominant, title below (Paivio 1971)
 - [ ] Positional drop v2 — DropDelegate with Y coordinates for precise time assignment during chip drag
 - [ ] Tower integration — show unscheduled habits as incomplete/matte blocks on tower screen (tap → schedule)
-- [ ] Dark mode audit — verify all screens look correct in dark mode
 - [x] Accessibility review (dynamic type, VoiceOver, reduce motion) — Tower screen done; other screens still needed
 - [ ] F-10: Time label column width for Dynamic Type (deferred)
-- [ ] Add Task Claude: "Streak-Free Momentum" — 7-day positive-only heatmap per habit in expanded card (from competitive analysis)
 - [ ] Add Task Claude: "Smart Rebalance" — deterministic day rescheduling button using existing findNextOpenSlot
 - [ ] Add Task Claude: "Effort Heat Map" — ambient effort density indicator in Today section header

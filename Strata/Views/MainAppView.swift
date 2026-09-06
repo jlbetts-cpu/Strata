@@ -17,7 +17,6 @@ struct MainAppView: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
     @State private var habitManagerVM = HabitManagerViewModel()
@@ -158,7 +157,7 @@ struct MainAppView: View {
 
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
-            Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
+            Tab("Tower", systemImage: StrataTab.tower.icon, value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
                         .navigationBarTitleDisplayMode(.inline)
@@ -185,20 +184,20 @@ struct MainAppView: View {
                     NavigationStack { SettingsView() }
                 }
             }
-            Tab("Today", systemImage: "calendar", value: StrataTab.today) {
+            Tab("Today", systemImage: StrataTab.today.icon, value: StrataTab.today) {
                 NavigationStack {
                     timelineTabContent
                         .navigationTitle("Today")
                         .navigationBarTitleDisplayMode(.inline)
                 }
             }
-            Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
+            Tab("Plan", systemImage: StrataTab.plan.icon, value: StrataTab.plan) {
                 NavigationStack {
                     PlanPageView()
                         .environment(\.switchTab, { selectedTab = $0 })
                 }
             }
-            Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
+            Tab("Insights", systemImage: StrataTab.insights.icon, value: StrataTab.insights) {
                 InsightsView()
             }
         }
@@ -904,7 +903,7 @@ struct MainAppView: View {
         // Momentum Ground Glow — warms toward green as daily completions accumulate
         // Research: Goal Gradient Effect (Hull 1932, Kivetz 2006)
         let warmth = min(1.0, Double(todayCompletedCount) / Double(max(todayTotalCount, 1)))
-        let neutralColor = colorScheme == .dark ? Color.primary.opacity(0.08) : AppColors.warmBlack.opacity(0.15)
+        let neutralColor = AppColors.warmBlack.opacity(0.15)
         let glowColor = AppColors.healthGreen.opacity(warmth * 0.35)
 
         return ZStack {
@@ -938,7 +937,7 @@ struct MainAppView: View {
             }
         }
         .shadow(
-            color: colorScheme == .dark ? Color.primary.opacity(0.06) : AppColors.warmBlack.opacity(0.12),
+            color: AppColors.warmBlack.opacity(0.12),
             radius: 4, x: 0, y: 2
         )
         .offset(y: gridH)
@@ -979,7 +978,7 @@ struct MainAppView: View {
 
         VStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up")
-                .font(.system(size: GridConstants.iconEmptyState, weight: .light))
+                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .light)
                 .foregroundStyle(.primary.opacity(0.25))
             Text("Your tower starts here")
                 .font(Typography.headerMedium)
@@ -1065,7 +1064,7 @@ struct MainAppView: View {
                 .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
                 .brightness(flashBrightness)
                 .shadow(
-                    color: phase != nil ? .black.opacity(GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)) : .clear,
+                    color: phase != nil ? .black.opacity(0.12) : .clear,
                     radius: dropShadowRadius,
                     x: 0,
                     y: dropShadowY

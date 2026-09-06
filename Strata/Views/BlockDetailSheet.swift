@@ -131,7 +131,7 @@ struct BlockDetailSheet: View {
             // Empty state — photo picker placeholder
             PhotosPicker(selection: $selectedItem, matching: .images) {
                 VStack(spacing: 16) {
-                    Image(systemName: "camera.viewfinder")
+                    Image(systemName: "camera.fill")
                         .font(.system(size: heroIconSize, weight: .light))
                         .foregroundStyle(.white.opacity(0.8))
 

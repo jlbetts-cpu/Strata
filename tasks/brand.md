@@ -71,12 +71,13 @@ All tokens use `Font.system(design: .rounded)` for proper Dynamic Type scaling. 
 ### Spatial Grid (4pt/8pt System)
 - **4pt base unit** — all spacing values are multiples of 4
 - **8pt primary grid** — standard spacing, section gaps, padding
-- **16pt secondary** — cornerRadius, horizontal padding, section indentation
+- **16pt secondary** — horizontal padding, section indentation
+- **12pt** — cornerRadius (see the table below; matched to Figma Apollo 248:14)
 - **20pt** — Today screen horizontal padding (wider for readability)
 
 | Constant | Value | Use |
 |----------|-------|-----|
-| cornerRadius | 16pt | All blocks, cards, containers |
+| cornerRadius | 12pt | All blocks, cards, containers. From Figma Apollo 248:14 — a constant 40px radius, 14.7% of its 272px 1x1 block. Was 16pt. |
 | spacing | 8pt | Grid gaps, standard spacing |
 | horizontalPadding | 16pt | Tower grid. Today list uses 20pt. |
 | timelineGutterWidth | 56pt | Today screen time label column |
@@ -139,9 +140,50 @@ Each category color carries psychological meaning aligned with its domain:
 
 | State | Fill | Border | Shadow | Opacity | Saturation |
 |-------|------|--------|--------|---------|-----------|
-| **Incomplete (ghost)** | ghostBase + 8% category wash | Category color 0.5 opacity, 1.5pt | None | 1.0 | 1.0 |
-| **Completed (dimmed)** | Full category gradient | White 0.3, 1.5pt | Ambient (GridConstants) | 0.55 | 0.7 |
-| **Tower block** | Full category gradient | Progressive dual glow + breathing | Dual-layer | 1.0 | 1.0 |
+| **Incomplete (ghost)** | White + category tint 0.14 in the band position | Category color 0.45, 1.5pt | None | 1.0 | 1.0 |
+| **Completed / tower block** | Category gradient + frosted band | White 0.8pt, blurred inside the band | y3/r6/0.15 | 1.0 | 1.0 |
+| **Photo block** | Photo + warm scrim to 0.8, band wash reduced to 0.06 | White 0.8pt, blurred inside the band | y3/r6/0.15 | 1.0 | 1.0 |
+
+All three are `BlockSurface` / `BlockGhostSurface` in `BlockChrome.swift` — do not
+rebuild this chrome inline. The ghost has no shadow and no blurred band: it is not
+standing on anything yet, and blurring a near-white surface with no white rim
+beneath it produces nothing visible.
+
+---
+
+## Iconography
+
+**SF Symbols only.** No custom icon assets, no second pack. This is the native
+set and it scales, weights and aligns with the system font for free.
+
+| Rule | Detail |
+|------|--------|
+| Variant | `.fill` for identity and status (category icons, completion, content badges). Outline for structure and navigation (chevrons, plus, gear) and for large empty-state heroes, where fill reads heavy. |
+| One glyph per concept | The tower is `square.stack.3d.up` everywhere — filled inline, outline as a hero. "Add proof" is `camera.fill` in both sheets. |
+| Tab bar | Pass OUTLINE names to `Tab(systemImage:)`. SwiftUI fills the selected tab itself; hand-picking a selected variant is redundant and drifts. |
+| Sizes | Always a `GridConstants.icon*` token, never a literal. |
+| Category set | One metaphor each: heart.fill / briefcase.fill / paintbrush.fill / **target** / person.2.fill / leaf.fill. Five are `.fill`; `target` has no fill variant. |
+
+**Deliberate fill-vs-outline pairs — do not "fix" these:**
+- `checkmark.circle.fill` (green, "All done!") vs `checkmark.circle` (grey, "All cleared"). Fill means fully completed; outline means closed with skips. This is the Honest Timeline's closure grammar.
+- `line.3.horizontal.decrease.circle.fill` vs `.circle` on the tower filter — fill signals a non-default filter is active.
+- `photo.fill` (badge: this block has a photo) vs `photo` (placeholder: no image yet).
+
+### Icon size tokens
+| Token | Value | Use |
+|-------|-------|-----|
+| iconSmall | 8 | badges, tiny category marks |
+| iconChevron | 10 | chevrons |
+| iconBadge | 10 | tiny glyphs inside pills and circles |
+| iconCategorySmall | 11 | category icons on chips and rows |
+| iconMedium | 12 | inline navigation chevrons |
+| iconCategory | 13 | category icons on blocks |
+| iconAction | 14 | action buttons |
+| iconStatus | 16 | status glyphs in section headers |
+| iconToolbar | 17 | toolbar icons |
+| iconSwipeAction | 24 | swipe-reveal actions |
+| iconEmptyState | 36 | empty-state heroes |
+| iconHero | 40 | large hero elements |
 
 ---
 

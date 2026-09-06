@@ -16,7 +16,6 @@ extension EnvironmentValues {
 
 struct PlanPageView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var allHabits: [Habit]
     @Query private var allLogs: [HabitLog]

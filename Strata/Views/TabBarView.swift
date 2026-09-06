@@ -6,21 +6,16 @@ enum StrataTab: String, CaseIterable {
     case plan = "Plan"
     case insights = "Insights"
 
+    /// Outline glyphs. SwiftUI's `Tab` fills the selected one itself, so passing
+    /// the outline name is both correct and native — a hand-picked `selectedIcon`
+    /// used to live here and was never read (MainAppView passed literals), and it
+    /// named `calendar.fill`, which is not a real SF Symbol.
     var icon: String {
         switch self {
-        case .tower: return "square.stack"
+        case .tower: return "square.stack.3d.up"
         case .today: return "calendar"
         case .plan: return "list.bullet.clipboard"
         case .insights: return "chart.bar"
-        }
-    }
-
-    var selectedIcon: String {
-        switch self {
-        case .tower: return "square.stack.fill"
-        case .today: return "calendar.fill"
-        case .plan: return "list.bullet.clipboard.fill"
-        case .insights: return "chart.bar.fill"
         }
     }
 }

@@ -22,7 +22,6 @@ struct BlockExpansionCard: View {
     @State private var showPhotoError = false
     @GestureState private var dragOffset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     private var style: CategoryStyle { selectedLog.habit?.category.style ?? block.habit.category.style }
     private let cardWidth: CGFloat = UIScreen.main.bounds.width - 48

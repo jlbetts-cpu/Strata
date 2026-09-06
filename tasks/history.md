@@ -106,3 +106,33 @@
 - **FloatingBottomBar.swift** — Replaced by native TabView.
 - **Dead code** (Timeline Claude) — Deleted IncompleteHabitRow.swift, WeekStripView.swift, MorphingDrawerView.swift.
 - **Duplicate time formatters** (Timeline Claude) — Removed from TimelineHabitRow, consolidated to BlockTimeFormatter.
+
+## 2026-09-06 — Insights tab, light-only appearance, Apollo block style
+
+### Added
+- **Insights tab** — replaced the 17-line "Coming soon" stub. `InsightsViewModel`
+  builds a single-pass log index feeding four aggregates: momentum heatmap,
+  per-habit run + trailing 7 days, category balance, weekday rhythm. Wires up
+  `StreakViewModel`, which had been computing streaks with no consumer since it
+  was written. Range picker 7/30/90 persisted to `@AppStorage`.
+- `GridConstants.blockRimWidth` / `blockScrimOpacity` / `blockShadowRadius` /
+  `blockShadowY` / `blockShadowOpacity` — Apollo block tokens (additive).
+
+### Changed
+- **Single light appearance.** `INFOPLIST_KEY_UIUserInterfaceStyle = Light` on both
+  app build configs. Every `colorScheme` branch removed app-wide (14 files) —
+  `grep -rn colorScheme Strata/` now returns nothing.
+- **Block style reworked to Figma Apollo 248:14.** The two coloured gradient glow
+  strokes are replaced by a single white rim (`strokeBorder`, inset) over a
+  stronger drop shadow (y3/r6/0.15, was y2/r4/0.10). The frosted white bottom wash
+  is now unconditional — it was light-mode-only, which is why it kept disappearing.
+  Photo scrim restopped to the Figma curve: clear until 58%, ramping to 80% at 81%.
+  Applied consistently across HabitBlockView, FlippableBlockView, MiniBlockPreview.
+- `WarmBackground` is a single warm off-white `#FBFAF8`, matching the Figma plate.
+- Typeface deliberately NOT changed — see the open question in `active.md`.
+
+### Removed
+- `GridConstants.adaptiveShadowOpacity(_:colorScheme:)` — dead once dark mode went.
+- The `.blur(radius: 6)` + `.drawingGroup()` diffused-glow overlay on both block
+  views. That blur was the "CRITICAL" Tower perf item that `.drawingGroup()` was
+  papering over; the white rim needs neither.

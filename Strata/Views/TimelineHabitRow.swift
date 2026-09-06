@@ -24,7 +24,6 @@ struct TimelineHabitRow: View {
     @State private var holdProgress: CGFloat = 0 // Fluid Fill: press-to-complete progress
     @State private var isHolding: Bool = false
     private let holdDuration: TimeInterval = 0.6 // Fogg's Tiny Habits: deliberate but not slow
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var style: CategoryStyle { habit.category.style }
@@ -41,10 +40,6 @@ struct TimelineHabitRow: View {
 
     private var isInteractive: Bool {
         !isAlreadyCompleted && !isAlreadySkipped && state == .incomplete
-    }
-
-    private var ghostBackground: Color {
-        colorScheme == .dark ? AppColors.ghostBaseDark : AppColors.ghostBase
     }
 
     /// Choose animation based on reduceMotion
@@ -96,10 +91,7 @@ struct TimelineHabitRow: View {
             GeometryReader { geo in
                 ZStack {
                     // GHOST BASE (always present)
-                    ghostBackground
-                    style.baseColor.opacity(0.08)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(style.baseColor.opacity(colorScheme == .dark ? 0.4 : 0.6), lineWidth: 2)
+                    BlockGhostSurface(category: habit.category, cornerRadius: cornerRadius)
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {
@@ -121,7 +113,10 @@ struct TimelineHabitRow: View {
 
                     // COLOR FILL (sweeps left-to-right on completion)
                     if fillProgress > 0 || isAlreadyCompleted {
-                        ZStack {
+                        // Same surface as a tower block. Used inline rather
+                        // than wrapping the row, because it has to sit inside
+                        // the completion sweep mask and travel with the fill.
+                        BlockSurface(cornerRadius: cornerRadius) {
                             LinearGradient(
                                 stops: [
                                     .init(color: style.lightTint, location: 0.0),
@@ -131,16 +126,6 @@ struct TimelineHabitRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: .white.opacity(0.20), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(.white.opacity(colorScheme == .dark ? 0.15 : 0.3), lineWidth: 1.5)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {
@@ -160,7 +145,7 @@ struct TimelineHabitRow: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
-                        .blendMode(colorScheme == .dark ? .screen : .colorDodge)
+                        .blendMode(.colorDodge)
                     }
 
                     // Skipped hash overlay (diagonal lines — universal "crossed out" metaphor)
@@ -255,8 +240,8 @@ struct TimelineHabitRow: View {
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .shadow(
-            color: .black.opacity(GridConstants.adaptiveShadowOpacity(isCompleted ? GridConstants.shadowOpacity : 0, colorScheme: colorScheme)),
-            radius: GridConstants.shadowRadius, x: 0, y: GridConstants.shadowY
+            color: .black.opacity(isCompleted ? GridConstants.blockShadowOpacity : 0),
+            radius: GridConstants.blockShadowRadius, x: 0, y: GridConstants.blockShadowY
         )
         // Completed: dim background layers only (text stays crisp at full opacity for WCAG AA)
         .opacity(swipeOffset != 0 ? Double(1.0 - abs(swipeOffset) / 400.0) : 1.0)
@@ -307,7 +292,7 @@ struct TimelineHabitRow: View {
     private var swipeRevealIcons: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .iconSize(GridConstants.iconSwipeAction, relativeTo: .title3, weight: .bold)
                 .foregroundStyle(AppColors.healthGreen)
                 .scaleEffect(swipeOffset > 30 ? min(CGFloat(swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset > 30 ? 1.0 : 0)
@@ -317,7 +302,7 @@ struct TimelineHabitRow: View {
             Spacer()
 
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .iconSize(GridConstants.iconSwipeAction, relativeTo: .title3, weight: .bold)
                 .foregroundStyle(Color.primary.opacity(0.3))
                 .scaleEffect(swipeOffset < -30 ? min(CGFloat(-swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset < -30 ? 1.0 : 0)
@@ -347,7 +332,7 @@ struct TimelineHabitRow: View {
                 .scaleEffect(isChecked || isSkippedState ? 1.0 : 0.001)
 
             Image(systemName: isSkippedState ? "xmark" : "checkmark")
-                .font(.system(size: 10, weight: .bold))
+                .iconSize(GridConstants.iconBadge, relativeTo: .caption2, weight: .bold)
                 .foregroundStyle(
                     isChecked ? style.baseColor : (isSkippedState ? Color.primary.opacity(0.3) : .white)
                 )
@@ -400,7 +385,7 @@ struct TimelineHabitRow: View {
 
         return HStack(spacing: 10) {
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .iconSize(GridConstants.iconCategorySmall, relativeTo: .caption, weight: .medium, design: .rounded)
                 .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.3) : style.baseColor))
                 .padding(.leading, 12)
 
