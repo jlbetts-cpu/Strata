@@ -138,7 +138,11 @@ enum GridConstants {
     static let iconToolbar: CGFloat = 17   // toolbar icons (gear)
     static let iconEmptyState: CGFloat = 36 // empty state hero icons
     static let iconHero: CGFloat = 40      // large hero elements
-    static let iconChevron: CGFloat = 10   // next-up pill chevron
+    static let iconChevron: CGFloat = 10   // chevrons
+    static let iconBadge: CGFloat = 10     // tiny inline glyphs inside pills/circles
+    static let iconCategorySmall: CGFloat = 11 // category icons on chips and rows
+    static let iconStatus: CGFloat = 16    // status glyphs in section headers
+    static let iconSwipeAction: CGFloat = 24 // swipe-reveal action glyphs
 
     // MARK: - Block Rim (Apollo block style — Figma 248:14)
     // The signature "sticker on paper" look: a crisp white rim separating the

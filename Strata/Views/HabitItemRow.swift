@@ -20,7 +20,7 @@ struct HabitItemRow: View {
                 .foregroundStyle(.secondary)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .medium))
+                .iconSize(GridConstants.iconMedium, relativeTo: .caption, weight: .medium)
                 .foregroundStyle(.quaternary)
         }
         .padding(.horizontal, 16)

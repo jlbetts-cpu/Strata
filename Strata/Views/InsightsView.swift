@@ -204,7 +204,7 @@ struct InsightsView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "chart.bar")
-                .font(.system(size: GridConstants.iconEmptyState, weight: .light))
+                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .light)
                 .foregroundStyle(Color.primary.opacity(0.25))
             Text("No habits yet")
                 .font(Typography.headerMedium)
@@ -263,7 +263,7 @@ private struct CategoryBar: View {
         HStack(spacing: 10) {
             // Icon + colour — never colour alone
             Image(systemName: total.category.iconName)
-                .font(.system(size: GridConstants.iconMedium, weight: .medium))
+                .iconSize(GridConstants.iconMedium, relativeTo: .caption, weight: .medium)
                 .foregroundStyle(style.baseColor)
                 .frame(width: 18)
 

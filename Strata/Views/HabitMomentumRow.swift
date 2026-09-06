@@ -34,7 +34,7 @@ struct HabitMomentumRow: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(style.baseColor.opacity(0.15))
                 Image(systemName: momentum.category.iconName)
-                    .font(.system(size: GridConstants.iconCategory, weight: .medium))
+                    .iconSize(GridConstants.iconCategory, relativeTo: .caption, weight: .medium)
                     .foregroundStyle(style.baseColor)
             }
             .frame(width: iconWell, height: iconWell)

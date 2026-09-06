@@ -185,7 +185,7 @@ struct BlockContentOverlay: View {
         ZStack(alignment: .topLeading) {
             // Category icon — top-left badge
             Image(systemName: category.iconName)
-                .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
+                .iconSize(GridConstants.iconCategory, relativeTo: .caption, weight: .medium, design: .rounded)
                 .foregroundStyle(.white.opacity(0.60))
                 .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
                 .padding(.leading, 8)
@@ -216,7 +216,7 @@ struct BlockContentOverlay: View {
             // Conditional chevron — bottom-center
             if hasDrawerContent {
                 Image(systemName: "chevron.compact.down")
-                    .font(.system(size: GridConstants.iconSmall))
+                    .iconSize(GridConstants.iconSmall, relativeTo: .caption2)
                     .foregroundStyle(.white.opacity(0.3))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 4)
@@ -226,7 +226,7 @@ struct BlockContentOverlay: View {
             // Photo indicator badge — top-right (Recognition over Recall)
             if hasImage {
                 Image(systemName: "photo.fill")
-                    .font(.system(size: GridConstants.iconSmall))
+                    .iconSize(GridConstants.iconSmall, relativeTo: .caption2)
                     .foregroundStyle(.white.opacity(0.5))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(.trailing, 8)

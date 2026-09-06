@@ -292,7 +292,7 @@ struct TimelineHabitRow: View {
     private var swipeRevealIcons: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .iconSize(GridConstants.iconSwipeAction, relativeTo: .title3, weight: .bold)
                 .foregroundStyle(AppColors.healthGreen)
                 .scaleEffect(swipeOffset > 30 ? min(CGFloat(swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset > 30 ? 1.0 : 0)
@@ -302,7 +302,7 @@ struct TimelineHabitRow: View {
             Spacer()
 
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 24, weight: .bold))
+                .iconSize(GridConstants.iconSwipeAction, relativeTo: .title3, weight: .bold)
                 .foregroundStyle(Color.primary.opacity(0.3))
                 .scaleEffect(swipeOffset < -30 ? min(CGFloat(-swipeOffset - 30) / 90.0, 1.0) : 0.001)
                 .opacity(swipeOffset < -30 ? 1.0 : 0)
@@ -332,7 +332,7 @@ struct TimelineHabitRow: View {
                 .scaleEffect(isChecked || isSkippedState ? 1.0 : 0.001)
 
             Image(systemName: isSkippedState ? "xmark" : "checkmark")
-                .font(.system(size: 10, weight: .bold))
+                .iconSize(GridConstants.iconBadge, relativeTo: .caption2, weight: .bold)
                 .foregroundStyle(
                     isChecked ? style.baseColor : (isSkippedState ? Color.primary.opacity(0.3) : .white)
                 )
@@ -385,7 +385,7 @@ struct TimelineHabitRow: View {
 
         return HStack(spacing: 10) {
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .iconSize(GridConstants.iconCategorySmall, relativeTo: .caption, weight: .medium, design: .rounded)
                 .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.3) : style.baseColor))
                 .padding(.leading, 12)
 

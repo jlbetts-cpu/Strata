@@ -157,7 +157,7 @@ struct MainAppView: View {
 
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
-            Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
+            Tab("Tower", systemImage: StrataTab.tower.icon, value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
                         .navigationBarTitleDisplayMode(.inline)
@@ -184,20 +184,20 @@ struct MainAppView: View {
                     NavigationStack { SettingsView() }
                 }
             }
-            Tab("Today", systemImage: "calendar", value: StrataTab.today) {
+            Tab("Today", systemImage: StrataTab.today.icon, value: StrataTab.today) {
                 NavigationStack {
                     timelineTabContent
                         .navigationTitle("Today")
                         .navigationBarTitleDisplayMode(.inline)
                 }
             }
-            Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
+            Tab("Plan", systemImage: StrataTab.plan.icon, value: StrataTab.plan) {
                 NavigationStack {
                     PlanPageView()
                         .environment(\.switchTab, { selectedTab = $0 })
                 }
             }
-            Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
+            Tab("Insights", systemImage: StrataTab.insights.icon, value: StrataTab.insights) {
                 InsightsView()
             }
         }
@@ -978,7 +978,7 @@ struct MainAppView: View {
 
         VStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up")
-                .font(.system(size: GridConstants.iconEmptyState, weight: .light))
+                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .light)
                 .foregroundStyle(.primary.opacity(0.25))
             Text("Your tower starts here")
                 .font(Typography.headerMedium)

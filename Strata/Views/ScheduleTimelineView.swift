@@ -98,8 +98,8 @@ struct ScheduleTimelineView: View {
                             // Ambient tower progress (cross-tab cognition — Sweller 1988)
                             if towerBlockCount > 0 {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "square.stack.fill")
-                                        .font(.system(size: 10))
+                                    Image(systemName: "square.stack.3d.up.fill")
+                                        .iconSize(GridConstants.iconBadge, relativeTo: .caption2)
                                     Text("\(towerBlockCount) blocks")
                                         .font(Typography.caption2)
                                 }
@@ -218,7 +218,7 @@ struct ScheduleTimelineView: View {
                     Spacer()
 
                     Image(systemName: unscheduledCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
+                        .iconSize(GridConstants.iconChevron, relativeTo: .caption2, weight: .medium)
                         .foregroundStyle(Color.primary.opacity(0.35))
                 }
             }
@@ -259,7 +259,7 @@ struct ScheduleTimelineView: View {
         // Chip label (shared between drag and tap)
         let chipLabel = HStack(spacing: 6) {
             Image(systemName: habit.category.iconName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .iconSize(GridConstants.iconCategorySmall, relativeTo: .caption, weight: .medium, design: .rounded)
                 .foregroundStyle(isCompleted ? .white.opacity(0.7) : style.baseColor)
 
             Text(habit.title)
@@ -351,7 +351,7 @@ struct ScheduleTimelineView: View {
                     // All completed (none just skipped) — celebratory
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16))
+                            .iconSize(GridConstants.iconStatus, relativeTo: .body)
                             .foregroundStyle(AppColors.healthGreen)
                         Text("All done!")
                             .font(Typography.bodySmall)
@@ -368,7 +368,7 @@ struct ScheduleTimelineView: View {
                     // Mix of completed + skipped — neutral closure
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle")
-                            .font(.system(size: 14))
+                            .iconSize(GridConstants.iconAction, relativeTo: .body)
                             .foregroundStyle(Color.primary.opacity(0.4))
                         Text("All cleared")
                             .font(Typography.bodySmall)
@@ -510,7 +510,7 @@ struct ScheduleTimelineView: View {
                         .foregroundStyle(Color.primary.opacity(0.25))
 
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .medium))
+                        .iconSize(GridConstants.iconAction, relativeTo: .body, weight: .medium)
                         .foregroundStyle(Color.primary.opacity(0.2))
                         .padding(.top, 4)
                 }
@@ -638,7 +638,7 @@ struct ScheduleTimelineView: View {
     private var fullEmptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 34, weight: .medium))
+                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .medium)
                 .foregroundStyle(Color.primary.opacity(0.2))
 
             Text("Plan your day")
@@ -720,7 +720,7 @@ struct ScheduleTimelineView: View {
                     .frame(width: 16, height: 16)
                     .overlay {
                         Image(systemName: habit.category.iconName)
-                            .font(.system(size: 8))
+                            .iconSize(GridConstants.iconSmall, relativeTo: .caption2)
                             .foregroundStyle(isDone ? .white.opacity(0.8) : habit.category.style.baseColor.opacity(0.5))
                     }
             }

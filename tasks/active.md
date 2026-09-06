@@ -16,6 +16,10 @@
 
 ## Next Up
 
+- [ ] Icon glyphs need an eyeball in Xcode — the audit was code-level only (SF
+      Symbols cannot render on Linux). Check `square.stack.3d.up` reads as the
+      tower, and whether `eye.fill` is the right glyph for Focus.
+
 - [ ] Observation isolation — extract TimelineTabView/TowerTabView from MainAppView to break cross-VM body re-evaluation (needs coordination between all bots)
 - [ ] Reverse-fill for skip — hold + drag left to fill grey R→L (bidirectional intention gesture)
 - [ ] Week summary skipped rings — weekSummaryView doesn't show grey skipped segments (day circles do)

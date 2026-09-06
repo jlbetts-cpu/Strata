@@ -151,6 +151,42 @@ beneath it produces nothing visible.
 
 ---
 
+## Iconography
+
+**SF Symbols only.** No custom icon assets, no second pack. This is the native
+set and it scales, weights and aligns with the system font for free.
+
+| Rule | Detail |
+|------|--------|
+| Variant | `.fill` for identity and status (category icons, completion, content badges). Outline for structure and navigation (chevrons, plus, gear) and for large empty-state heroes, where fill reads heavy. |
+| One glyph per concept | The tower is `square.stack.3d.up` everywhere — filled inline, outline as a hero. "Add proof" is `camera.fill` in both sheets. |
+| Tab bar | Pass OUTLINE names to `Tab(systemImage:)`. SwiftUI fills the selected tab itself; hand-picking a selected variant is redundant and drifts. |
+| Sizes | Always a `GridConstants.icon*` token, never a literal. |
+| Category set | All six are `.fill`, one metaphor each: heart / briefcase / paintbrush / eye / person.2 / leaf. |
+
+**Deliberate fill-vs-outline pairs — do not "fix" these:**
+- `checkmark.circle.fill` (green, "All done!") vs `checkmark.circle` (grey, "All cleared"). Fill means fully completed; outline means closed with skips. This is the Honest Timeline's closure grammar.
+- `line.3.horizontal.decrease.circle.fill` vs `.circle` on the tower filter — fill signals a non-default filter is active.
+- `photo.fill` (badge: this block has a photo) vs `photo` (placeholder: no image yet).
+
+### Icon size tokens
+| Token | Value | Use |
+|-------|-------|-----|
+| iconSmall | 8 | badges, tiny category marks |
+| iconChevron | 10 | chevrons |
+| iconBadge | 10 | tiny glyphs inside pills and circles |
+| iconCategorySmall | 11 | category icons on chips and rows |
+| iconMedium | 12 | inline navigation chevrons |
+| iconCategory | 13 | category icons on blocks |
+| iconAction | 14 | action buttons |
+| iconStatus | 16 | status glyphs in section headers |
+| iconToolbar | 17 | toolbar icons |
+| iconSwipeAction | 24 | swipe-reveal actions |
+| iconEmptyState | 36 | empty-state heroes |
+| iconHero | 40 | large hero elements |
+
+---
+
 ## Accessibility Standards (Research-Backed)
 
 ### Interaction Standards
