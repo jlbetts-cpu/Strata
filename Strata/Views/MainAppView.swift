@@ -1585,9 +1585,11 @@ struct MainAppView: View {
                                     nextHabit.category.style.baseColor.opacity(0.2),
                                     style: StrokeStyle(lineWidth: 2, dash: [GridConstants.ghostBlockDashLength])
                                 )
-                            Image(systemName: nextHabit.category.iconName)
-                                .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
-                                .foregroundStyle(nextHabit.category.style.baseColor.opacity(0.25))
+                            if let icon = nextHabit.category.iconName {
+                                Image(systemName: icon)
+                                    .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
+                                    .foregroundStyle(nextHabit.category.style.baseColor.opacity(0.25))
+                            }
                         }
                         .frame(width: ghostFrame.width, height: ghostFrame.height)
                         .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))

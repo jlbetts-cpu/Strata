@@ -417,9 +417,11 @@ struct ScheduleTimelineView: View {
 
         return HStack(spacing: 8) {
             // Content first (reading order — left to right)
-            Image(systemName: habit.category.iconName)
-                .font(Typography.caption)
-                .foregroundStyle(isCompleted ? .white.opacity(0.7) : style.baseColor)
+            if let icon = habit.category.iconName {
+                Image(systemName: icon)
+                    .font(Typography.caption)
+                    .foregroundStyle(isCompleted ? .white.opacity(0.7) : style.baseColor)
+            }
 
             Text(habit.title)
                 .font(Typography.bodySmall)

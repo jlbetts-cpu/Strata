@@ -644,10 +644,14 @@ struct TimelineHabitRow: View {
         let isComp = sliceStyle == .completed
 
         return HStack(spacing: 10) {
-            Image(systemName: habit.category.iconName)
-                .iconSize(11, relativeTo: .footnote, weight: .medium, design: .rounded)
-                .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.5) : style.baseColor))
-                .padding(.leading, 12)
+            // The row's leading inset used to live on this icon. An unlabeled
+            // win has no icon, so it lives on the stack now or the row would
+            // start flush against the edge.
+            if let icon = habit.category.iconName {
+                Image(systemName: icon)
+                    .iconSize(11, relativeTo: .footnote, weight: .medium, design: .rounded)
+                    .foregroundStyle(isComp ? .white.opacity(0.6) : (isSkipped ? Color.primary.opacity(0.5) : style.baseColor))
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.title)
@@ -692,6 +696,7 @@ struct TimelineHabitRow: View {
             // Reserve space for check circle (44pt) to match layout with the actual button
             Color.clear.frame(width: 50, height: 44)
         }
+        .padding(.leading, 12)
     }
 
     // MARK: - Completion (3 clear phases, one physical world)

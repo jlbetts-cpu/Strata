@@ -44,7 +44,9 @@ enum DebugHarness {
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.
     static var wantsSeed: Bool {
-        argument("-strataSeedWins") != nil || argument("-strataSeedHabits") != nil
+        argument("-strataSeedWins") != nil
+            || argument("-strataSeedHabits") != nil
+            || argument("-strataSeedUnlabeled") != nil
     }
 
     /// Replaces all habits and logs with a deterministic fixture.
@@ -82,6 +84,13 @@ enum DebugHarness {
                 context: context,
                 tower: tower
             )
+        }
+
+        // Wins as the app actually logs them: untitled and uncategorised,
+        // which is the only way an `unlabeled` habit ever exists.
+        let untitled = Int(argument("-strataSeedUnlabeled") ?? "0") ?? 0
+        for _ in 0..<untitled {
+            try? QuickWinService.logWin(context: context, tower: tower)
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0

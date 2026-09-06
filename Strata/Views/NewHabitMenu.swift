@@ -55,29 +55,7 @@ struct NewHabitMenu: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(categories, id: \.self) { cat in
-                            Button {
-                                withAnimation(GridConstants.crossFade) { selectedCategory = cat }
-                                HapticsEngine.tick()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: cat.iconName)
-                                        .iconSize(12, relativeTo: .footnote, weight: .medium)
-                                    Text(cat.rawValue.capitalized)
-                                        .font(Typography.bodySmall)
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(
-                                    selectedCategory == cat
-                                        ? cat.style.baseColor
-                                        : GridConstants.fillTrack,
-                                    in: Capsule()
-                                )
-                                .foregroundStyle(selectedCategory == cat ? .white : .primary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(cat.rawValue)
-                            .accessibilityAddTraits(selectedCategory == cat ? .isSelected : [])
+                            categoryChip(cat)
                         }
                     }
                 }
@@ -254,6 +232,32 @@ struct NewHabitMenu: View {
                 }
             }
         }
+    }
+
+    /// Extracted from the Form body: `iconName` becoming optional pushed that
+    /// expression past the type-checker's limit.
+    private func categoryChip(_ cat: HabitCategory) -> some View {
+        let isSelected = selectedCategory == cat
+        return Button {
+            withAnimation(GridConstants.crossFade) { selectedCategory = cat }
+            HapticsEngine.tick()
+        } label: {
+            HStack(spacing: 6) {
+                if let icon = cat.iconName {
+                    Image(systemName: icon)
+                        .iconSize(12, relativeTo: .footnote, weight: .medium)
+                }
+                Text(cat.rawValue.capitalized)
+                    .font(Typography.bodySmall)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(isSelected ? cat.style.baseColor : GridConstants.fillTrack, in: Capsule())
+            .foregroundStyle(isSelected ? .white : .primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(cat.rawValue)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Disclosure summaries

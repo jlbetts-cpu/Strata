@@ -9,9 +9,11 @@ struct TowerNextUpPill: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
-                Image(systemName: category.iconName)
-                    .iconSize(GridConstants.iconMedium, relativeTo: .caption, weight: .medium)
-                    .foregroundStyle(category.style.baseColor)
+                if let icon = category.iconName {
+                    Image(systemName: icon)
+                        .iconSize(GridConstants.iconMedium, relativeTo: .caption, weight: .medium)
+                        .foregroundStyle(category.style.baseColor)
+                }
                 Text("Next: \(habitTitle)")
                     .font(Typography.caption)
                     .foregroundStyle(.primary.opacity(0.7))

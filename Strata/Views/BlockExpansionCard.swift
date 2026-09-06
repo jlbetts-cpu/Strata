@@ -49,6 +49,17 @@ struct BlockExpansionCard: View {
 
     // MARK: - Body
 
+    /// Extracted: making `iconName` optional pushed this card's body past the
+    /// type-checker's limit inline.
+    @ViewBuilder
+    private var categoryGlyph: some View {
+        if let icon = currentHabit.category.iconName {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(style.baseColor)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Hero area — swipeable carousel (replaces filmstrip thumbnails)
@@ -96,9 +107,7 @@ struct BlockExpansionCard: View {
                 VStack(alignment: .leading, spacing: GridConstants.cardContentSpacing) {
                     // Title + category + time
                     HStack {
-                        Image(systemName: currentHabit.category.iconName)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(style.baseColor)
+                        categoryGlyph
                         Text(currentHabit.title)
                             .font(Typography.brandCardTitle)
                             .foregroundStyle(.primary)

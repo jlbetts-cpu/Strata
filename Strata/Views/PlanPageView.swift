@@ -1053,8 +1053,10 @@ struct PlanPageView: View {
             scheduleRebuild()
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: category.iconName)
-                    .font(.caption.weight(.medium))
+                if let icon = category.iconName {
+                    Image(systemName: icon)
+                        .font(.caption.weight(.medium))
+                }
                 Text(title)
                     .font(Typography.bodySmall)
             }

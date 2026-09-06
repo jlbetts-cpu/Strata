@@ -49,9 +49,11 @@ struct PlanItemRow: View {
                 if !isExpanded {
                     Button(action: onTapOptions) {
                         ZStack(alignment: .bottomTrailing) {
-                            Image(systemName: item.habit.category.iconName)
-                                .font(.headline)
-                                .foregroundStyle(item.habit.category.style.baseColor)
+                            if let icon = item.habit.category.iconName {
+                                Image(systemName: icon)
+                                    .font(.headline)
+                                    .foregroundStyle(item.habit.category.style.baseColor)
+                            }
                             // Status badges (Carver & Scheier 1998 — feedback loop)
                             if isCompletedToday {
                                 Image(systemName: "checkmark.circle.fill")
@@ -402,7 +404,7 @@ struct PlanItemRow: View {
                     onUpdateCategory(cat)
                     HapticsEngine.tick()
                 } label: {
-                    Label(categoryLabel(cat), systemImage: cat.iconName)
+                    Label(categoryLabel(cat), systemImage: cat.iconName ?? "circle")
                 }
             }
         } label: {
@@ -497,8 +499,10 @@ struct PlanItemRow: View {
                             HapticsEngine.tick()
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: cat.iconName)
-                                    .font(Typography.caption)
+                                if let icon = cat.iconName {
+                                    Image(systemName: icon)
+                                        .font(Typography.caption)
+                                }
                                 Text(cat.rawValue.capitalized)
                                     .font(Typography.bodySmall)
                             }
@@ -767,8 +771,8 @@ struct PlanItemRow: View {
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(sibling.category.style.baseColor)
                             .overlay {
-                                if CGFloat(w) >= 12 {
-                                    Image(systemName: sibling.category.iconName)
+                                if CGFloat(w) >= 12, let icon = sibling.category.iconName {
+                                    Image(systemName: icon)
                                         .font(Typography.miniBlockIcon.weight(.bold))
                                         .foregroundStyle(.white.opacity(0.9))
                                 }
@@ -790,8 +794,8 @@ struct PlanItemRow: View {
                                 .stroke(item.habit.category.style.baseColor, lineWidth: 1.5)
                         )
                         .overlay {
-                            if CGFloat(w) >= 12 {
-                                Image(systemName: item.habit.category.iconName)
+                            if CGFloat(w) >= 12, let icon = item.habit.category.iconName {
+                                Image(systemName: icon)
                                     .font(Typography.miniBlockIcon.weight(.bold))
                                     .foregroundStyle(item.habit.category.style.baseColor.opacity(0.6))
                             }

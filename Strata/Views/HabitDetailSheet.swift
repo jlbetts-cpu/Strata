@@ -52,9 +52,11 @@ struct HabitDetailSheet: View {
                     // Title + time
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {
-                            Image(systemName: habit.category.iconName)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(style.baseColor)
+                            if let icon = habit.category.iconName {
+                                Image(systemName: icon)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(style.baseColor)
+                            }
                             Text(habit.title)
                                 .font(Typography.headerMedium)
                                 .foregroundStyle(.primary)
@@ -244,9 +246,11 @@ struct HabitDetailSheet: View {
             } label: {
                 if todayLog.imageFileName == nil {
                     VStack(spacing: 6) {
-                        Image(systemName: habit.category.iconName)
-                            .font(Typography.brandHeader)
-                            .foregroundStyle(.white)
+                        if let icon = habit.category.iconName {
+                            Image(systemName: icon)
+                                .font(Typography.brandHeader)
+                                .foregroundStyle(.white)
+                        }
                         Text("Add Photo")
                             .font(Typography.caption)
                             .foregroundStyle(.white.opacity(0.6))

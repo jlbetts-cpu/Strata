@@ -49,9 +49,11 @@ struct MiniBlockPreview: View {
 
             // Mini content
             VStack(alignment: .leading, spacing: 2) {
-                Image(systemName: category.iconName)
-                    .font(Typography.miniBlockIcon)
-                    .foregroundStyle(.white.opacity(0.60))
+                if let icon = category.iconName {
+                    Image(systemName: icon)
+                        .font(Typography.miniBlockIcon)
+                        .foregroundStyle(.white.opacity(0.60))
+                }
                 Spacer()
                 if showTitle {
                     Text(title)

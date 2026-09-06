@@ -21,7 +21,16 @@ enum HabitCategory: String, Codable, CaseIterable {
         allCases.filter { $0 != .unlabeled }
     }
 
-    var iconName: String {
+    /// SF Symbol for the category, or nil when it has none.
+    ///
+    /// `unlabeled` has no icon on purpose. An icon here has one job — to say
+    /// which of six categories this is — and an unlabeled win is not any of
+    /// them. A grey `circle.fill` answered that question with a shrug, and put
+    /// a mark on the block where a mark means something.
+    ///
+    /// Optional rather than a sentinel string so the compiler names every
+    /// render site instead of leaving one quietly drawing a dot.
+    var iconName: String? {
         switch self {
         case .health:      return "heart.fill"
         case .work:        return "briefcase.fill"
@@ -29,7 +38,7 @@ enum HabitCategory: String, Codable, CaseIterable {
         case .focus:       return "eye.fill"
         case .social:      return "person.2.fill"
         case .mindfulness: return "leaf.fill"
-        case .unlabeled:   return "circle.fill"
+        case .unlabeled:   return nil
         }
     }
 }

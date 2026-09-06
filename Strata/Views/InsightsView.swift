@@ -83,12 +83,14 @@ struct InsightsView: View {
                     )
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: item.habit.category.iconName)
-                            .font(Typography.caption)
-                            .foregroundStyle(item.habit.category.style.baseColor)
-                            .frame(width: 32, height: 32)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .background(item.habit.category.style.baseColor.opacity(0.18), in: Circle())
+                        if let icon = item.habit.category.iconName {
+                            Image(systemName: icon)
+                                .font(Typography.caption)
+                                .foregroundStyle(item.habit.category.style.baseColor)
+                                .frame(width: 32, height: 32)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .background(item.habit.category.style.baseColor.opacity(0.18), in: Circle())
+                        }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.habit.title)
@@ -329,9 +331,11 @@ struct InsightsView: View {
                     selectedInsightHabit = status.habit
                 } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: status.habit.category.iconName)
-                        .font(Typography.caption)
-                        .foregroundStyle(status.habit.category.style.baseColor)
+                    if let icon = status.habit.category.iconName {
+                        Image(systemName: icon)
+                            .font(Typography.caption)
+                            .foregroundStyle(status.habit.category.style.baseColor)
+                    }
 
                     Text(status.habit.title)
                         .font(Typography.bodySmall)

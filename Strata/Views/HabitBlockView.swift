@@ -181,13 +181,17 @@ struct BlockContentOverlay: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Image(systemName: category.iconName)
-                .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
-                .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
-                .padding(.leading, 12)
-                .padding(.top, 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // An unlabeled win draws no icon: the corner mark says which of
+            // six categories a block is, and this block is none of them.
+            if let icon = category.iconName {
+                Image(systemName: icon)
+                    .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .shadow(color: .black.opacity(hasImage ? 0.3 : 0), radius: 2, x: 0, y: 1)
+                    .padding(.leading, 12)
+                    .padding(.top, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Spacer()

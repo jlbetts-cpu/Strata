@@ -226,9 +226,11 @@ struct SettingsView: View {
                     } else {
                         ForEach(connectedHabits, id: \.id) { habit in
                             HStack(spacing: 8) {
-                                Image(systemName: habit.category.iconName)
-                                    .iconSize(11, relativeTo: .footnote, weight: .medium)
-                                    .foregroundStyle(habit.category.style.baseColor)
+                                if let icon = habit.category.iconName {
+                                    Image(systemName: icon)
+                                        .iconSize(11, relativeTo: .footnote, weight: .medium)
+                                        .foregroundStyle(habit.category.style.baseColor)
+                                }
                                 Text(habit.title)
                                     .font(Typography.bodySmall)
                                 Spacer()
