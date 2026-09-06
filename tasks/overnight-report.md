@@ -308,3 +308,32 @@ answer for you.
   `xcodebuild -scheme Strata -sdk iphonesimulator`.
 - Everything is pushed to `main`. Nothing is parked on a branch.
 - Ten commits, one coherent change each, listed above.
+
+---
+
+# Session 2 — header and minimalism pass
+
+## Research done before touching anything
+
+Four findings that changed the plan:
+
+1. **The "old Apple" look had one root cause.** `AccentColor.colorset` was stock
+   sky blue `(0.251, 0.663, 1.000)`. Every `Menu` label, the tab bar selection,
+   "Show all N habits" and Plan's drop highlight inherited it — which is why
+   `List ⌄` rendered blue despite `.foregroundStyle(.primary)`.
+2. **The white capsules behind toolbar buttons are iOS 26's automatic glass.**
+   The opt-out is `ToolbarItem { }.sharedBackgroundVisibility(.hidden)`,
+   confirmed in the iOS 26.5 SDK's `SwiftUI.swiftinterface` at line 5576.
+3. **It is iOS 26.0+ and this project's deployment target is iOS 18.0**, so it
+   must be gated. `ToolbarContentBuilder` does implement
+   `buildLimitedAvailability`, so `if #available` works inside a `@ToolbarContentBuilder`.
+   Ungated, this is a compile error, not a runtime one.
+4. **`mainContent` was already at the type-checker's limit.** Adding a single
+   modifier to a toolbar item inside that five-`Tab` `TabView` fails with
+   "unable to type-check this expression in reasonable time". The toolbars had
+   to be extracted into typed `ToolbarContent` properties before any of this
+   was possible. Probed and confirmed, not assumed.
+
+Probe screenshot: `tasks/screenshots/probe-tower.png` — bare glyphs on the warm
+ground, warm-black tab bar selection.
+
