@@ -24,7 +24,6 @@ struct TimelineHabitRow: View {
     @State private var holdProgress: CGFloat = 0 // Fluid Fill: press-to-complete progress
     @State private var isHolding: Bool = false
     private let holdDuration: TimeInterval = 0.6 // Fogg's Tiny Habits: deliberate but not slow
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var style: CategoryStyle { habit.category.style }
@@ -44,7 +43,7 @@ struct TimelineHabitRow: View {
     }
 
     private var ghostBackground: Color {
-        colorScheme == .dark ? AppColors.ghostBaseDark : AppColors.ghostBase
+        AppColors.ghostBase
     }
 
     /// Choose animation based on reduceMotion
@@ -99,7 +98,7 @@ struct TimelineHabitRow: View {
                     ghostBackground
                     style.baseColor.opacity(0.08)
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(style.baseColor.opacity(colorScheme == .dark ? 0.4 : 0.6), lineWidth: 2)
+                        .stroke(style.baseColor.opacity(0.6), lineWidth: 2)
 
                     // HOLD FILL (press-to-complete: fills during hold gesture)
                     if holdProgress > 0 && !isCompleted {
@@ -140,7 +139,7 @@ struct TimelineHabitRow: View {
                                 endPoint: .bottom
                             )
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(.white.opacity(colorScheme == .dark ? 0.15 : 0.3), lineWidth: 1.5)
+                                .stroke(.white.opacity(0.3), lineWidth: 1.5)
                         }
                         .opacity(isCompleted ? 0.70 : 1.0) // Dim background only, text stays crisp
                         .mask(alignment: .leading) {
@@ -160,7 +159,7 @@ struct TimelineHabitRow: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
-                        .blendMode(colorScheme == .dark ? .screen : .colorDodge)
+                        .blendMode(.colorDodge)
                     }
 
                     // Skipped hash overlay (diagonal lines — universal "crossed out" metaphor)
@@ -255,7 +254,7 @@ struct TimelineHabitRow: View {
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .shadow(
-            color: .black.opacity(GridConstants.adaptiveShadowOpacity(isCompleted ? GridConstants.shadowOpacity : 0, colorScheme: colorScheme)),
+            color: .black.opacity(isCompleted ? GridConstants.shadowOpacity : 0),
             radius: GridConstants.shadowRadius, x: 0, y: GridConstants.shadowY
         )
         // Completed: dim background layers only (text stays crisp at full opacity for WCAG AA)

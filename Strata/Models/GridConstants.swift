@@ -40,11 +40,6 @@ enum GridConstants {
     static let shadowY: CGFloat = 2
     static let shadowOpacity: Double = 0.10
 
-    // MARK: - Adaptive Shadow
-    static func adaptiveShadowOpacity(_ base: Double, colorScheme: ColorScheme) -> Double {
-        colorScheme == .dark ? min(base * 3.5, 0.60) : base
-    }
-
     // MARK: - Tap Bounce
     static let tapSquashSpring = Animation.spring(duration: 0.06, bounce: 0.0)
     static let tapPopSpring = Animation.spring(duration: 0.22, bounce: 0.20)
@@ -140,6 +135,19 @@ enum GridConstants {
     static let iconEmptyState: CGFloat = 36 // empty state hero icons
     static let iconHero: CGFloat = 40      // large hero elements
     static let iconChevron: CGFloat = 10   // next-up pill chevron
+
+    // MARK: - Block Rim (Apollo block style — Figma 248:14)
+    // The signature "sticker on paper" look: a crisp white rim separating the
+    // block from the warm ground, over a stronger drop shadow. Figma draws the
+    // rim at 5px on a 562px block (0.9%); at an ~86pt cell that lands near 2pt.
+    /// White rim inset inside the block edge (use .strokeBorder, not .stroke)
+    static let blockRimWidth: CGFloat = 1.5
+    /// Frosted white wash over the lower portion of a block
+    static let blockScrimOpacity: Double = 0.20
+    /// Drop shadow — Figma 0 10px 20px rgba(0,0,0,0.15), scaled to a ~86pt cell
+    static let blockShadowRadius: CGFloat = 6
+    static let blockShadowY: CGFloat = 3
+    static let blockShadowOpacity: Double = 0.15
 
     // MARK: - Block Patina (Perfect-Day Gold Tint)
     static let patinaMaxOpacity: Double = 0.15

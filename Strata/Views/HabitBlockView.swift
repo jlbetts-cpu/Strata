@@ -87,15 +87,12 @@ struct HabitBlockView: View {
 
     @State private var tapTrigger: Int = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
     private var style: CategoryStyle {
         block.habit.category.style
     }
-
-    private var borderHighlight: Color { style.lightTint }
 
     private var blockFrame: CGRect {
         block.frame(cellSize: cellSize)
@@ -128,24 +125,23 @@ struct HabitBlockView: View {
                 stops: [
                     .init(color: style.lightTint, location: 0.0),
                     .init(color: style.baseColor, location: 0.3),
-                    .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                    .init(color: style.baseColor, location: 1.0)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
 
-            // Frosted gradient overlay — subtle white mist at the bottom (light mode only)
-            if colorScheme == .light {
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .white.opacity(0.20), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
+            // Frosted wash over the lower portion — Figma 248:78, the white
+            // gradient that lifts the title off the colour field
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
             // Text content: title + time + category icon
             BlockContentOverlay(
@@ -158,50 +154,18 @@ struct HabitBlockView: View {
         }
         .frame(width: blockFrame.width, height: blockFrame.height)
         .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-        // Overlay 1: Crisp border — visible at top, fades toward bottom
+        // White rim — strokeBorder insets fully inside the edge so the rim
+        // reads crisp against the warm ground rather than straddling the clip
         .overlay(
             RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
-                            .init(color: borderHighlight.opacity(0.0), location: 0.75)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 2.5
-                )
+                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
         )
-        // Overlay 2: Diffused border — invisible at top, soft glow at bottom
-        .overlay(
-            RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.0), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.45),
-                            .init(color: borderHighlight.opacity(0.35), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 4
-                )
-                .blur(radius: 6)
-                .compositingGroup()
-                .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-                .drawingGroup()
-        )
-        // Single soft ambient shadow
+        // Drop shadow — carries the block off the page
         .shadow(
-            color: colorScheme == .dark
-                ? style.glow
-                : .black.opacity(GridConstants.shadowOpacity),
-            radius: colorScheme == .dark ? 8 : GridConstants.shadowRadius,
+            color: .black.opacity(GridConstants.blockShadowOpacity),
+            radius: GridConstants.blockShadowRadius,
             x: 0,
-            y: colorScheme == .dark ? 0 : GridConstants.shadowY
+            y: GridConstants.blockShadowY
         )
         // Perfect-day golden patina (week/month views only)
         .overlay {

@@ -16,7 +16,6 @@ struct NewHabitMenu: View {
     @State private var scheduledDate = Date()
     @State private var useTimePicker = false
     @State private var scheduledTime = Date()
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
 
     @ScaledMetric(relativeTo: .body) private var circleSize: CGFloat = 36

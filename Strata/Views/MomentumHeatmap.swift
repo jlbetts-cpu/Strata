@@ -70,8 +70,6 @@ private struct HeatCell: View {
     let radius: CGFloat
     let revealed: Bool
 
-    @Environment(\.colorScheme) private var colorScheme
-
     private static let labelFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEEE, MMMM d"
@@ -84,9 +82,7 @@ private struct HeatCell: View {
         return 0.22 + (day.completionRate * 0.78)
     }
 
-    private var trackOpacity: Double {
-        colorScheme == .dark ? 0.10 : 0.06
-    }
+    private var trackOpacity: Double { 0.06 }
 
     private var accessibilityLabel: String {
         let dateStr = Self.labelFormatter.string(from: day.date)

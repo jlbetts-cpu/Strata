@@ -8,7 +8,6 @@ import SwiftData
 /// states, skipped counted as handled rather than failed. Numbers that can only
 /// go up lead; rates support.
 struct InsightsView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Insights needs history, so this query is deliberately unscoped. Bounding it
@@ -32,13 +31,9 @@ struct InsightsView: View {
         )
     }
 
-    private var cardFill: Color {
-        colorScheme == .dark ? Color(uiColor: .secondarySystemGroupedBackground) : .white
-    }
+    private var cardFill: Color { .white }
 
-    private var cardStroke: Color {
-        Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06)
-    }
+    private var cardStroke: Color { Color.primary.opacity(0.06) }
 
     var body: some View {
         NavigationStack {

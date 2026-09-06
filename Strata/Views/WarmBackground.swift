@@ -1,13 +1,10 @@
 import SwiftUI
 
+/// The app's warm ground. Light only — Strata ships a single appearance
+/// (UIUserInterfaceStyle = Light), and the block style is built against this
+/// off-white. Matches the Figma plate #FBFAF8 (Apollo, 248:14).
 struct WarmBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
-        Rectangle().fill(
-            colorScheme == .dark
-                ? Color(uiColor: .systemBackground)
-                : Color(red: 0.98, green: 0.975, blue: 0.965)
-        )
+        Rectangle().fill(Color(hex: 0xFBFAF8))
     }
 }

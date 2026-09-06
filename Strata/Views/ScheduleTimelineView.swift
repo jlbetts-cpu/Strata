@@ -20,7 +20,6 @@ struct ScheduleTimelineView: View {
     var debugTower: Tower? = nil
 
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showScheduleSuggestion: Bool = false
@@ -272,7 +271,7 @@ struct ScheduleTimelineView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isCompleted ? style.baseColor : Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04))
+                .fill(isCompleted ? style.baseColor : Color.primary.opacity(0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

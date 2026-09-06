@@ -14,12 +14,10 @@ struct FlippableBlockView: View {
     @State private var tapTrigger: Int = 0
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
     private var style: CategoryStyle { block.habit.category.style }
-    private var borderHighlight: Color { style.lightTint }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
     private var hasImage: Bool { block.log.imageFileName != nil }
 
@@ -65,40 +63,39 @@ struct FlippableBlockView: View {
                     endRadius: max(width, height) * 0.85
                 )
 
-                // Warm dark scrim — gentle fade for text readability
+                // Warm dark scrim over photos — Figma 245:28 holds the image
+                // clear until 58%, then ramps hard to 80% for text legibility
                 LinearGradient(
                     stops: [
-                        .init(color: .clear, location: 0.35),
-                        .init(color: AppColors.warmBlack.opacity(0.45), location: 0.70),
-                        .init(color: AppColors.warmBlack.opacity(0.65), location: 1.0)
+                        .init(color: .clear, location: 0.58),
+                        .init(color: AppColors.warmBlack.opacity(0.80), location: 0.81),
+                        .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
             } else {
-                // Color fill — gradient from light tint at top to dark shade (dark) or base color (light)
+                // Color fill
                 LinearGradient(
                     stops: [
                         .init(color: style.lightTint, location: 0.0),
                         .init(color: style.baseColor, location: 0.3),
-                        .init(color: colorScheme == .dark ? style.darkShade : style.baseColor, location: 1.0)
+                        .init(color: style.baseColor, location: 1.0)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
 
-                // Frosted gradient overlay — subtle white mist at the bottom (light mode only)
-                if colorScheme == .light {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0.0),
-                            .init(color: .white.opacity(0.20), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
+                // Frosted wash over the lower portion — Figma 248:78
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
             }
 
@@ -114,49 +111,16 @@ struct FlippableBlockView: View {
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        // Overlay 1: Crisp border — visible at top, fades toward bottom
+        // White rim — inset inside the edge so it stays crisp against the ground
         .overlay(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.55), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.4),
-                            .init(color: borderHighlight.opacity(0.0), location: 0.75)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 2.5
-                )
-        )
-        // Overlay 2: Diffused border — invisible at top, soft glow at bottom
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: borderHighlight.opacity(0.0), location: 0.0),
-                            .init(color: borderHighlight.opacity(0.20), location: 0.45),
-                            .init(color: borderHighlight.opacity(0.35), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 4
-                )
-                .blur(radius: 6)
-                .compositingGroup()
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .drawingGroup()
+                .strokeBorder(.white, lineWidth: GridConstants.blockRimWidth)
         )
         .shadow(
-            color: colorScheme == .dark
-                ? style.glow
-                : .black.opacity(GridConstants.shadowOpacity),
-            radius: colorScheme == .dark ? 8 : GridConstants.shadowRadius,
+            color: .black.opacity(GridConstants.blockShadowOpacity),
+            radius: GridConstants.blockShadowRadius,
             x: 0,
-            y: colorScheme == .dark ? 0 : GridConstants.shadowY
+            y: GridConstants.blockShadowY
         )
         // Perfect-day golden patina (week/month views only)
         .overlay {
