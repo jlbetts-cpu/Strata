@@ -188,7 +188,10 @@ enum GridConstants {
     ///
     /// One constant, because the tower and the camera show the same count and
     /// it must not change size between them.
-    static let tallyNumeral: CGFloat = 44
+    static let tallyNumeral: CGFloat = 64
+    /// The word beside it. Sized with the numeral rather than left at a body
+    /// size, or the pair stops reading as one object as the numeral grows.
+    static let tallyWord: CGFloat = 24
 
     // MARK: - The tower's dance
 

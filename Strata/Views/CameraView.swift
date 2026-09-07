@@ -48,6 +48,8 @@ struct CameraView: View {
         /// a fourth grey nobody chose.
         static let colour = Color.white.opacity(0.55)
         static let width: CGFloat = 1
+        /// How much of the frame the bottom fade occupies.
+        static let fadeHeight: CGFloat = 0.20
     }
 
     /// The header the grid is built around.
@@ -61,7 +63,7 @@ struct CameraView: View {
         /// Matches the tower's `.padding(.top, 4)` exactly, so the number does
         /// not move between the two screens.
         static let topPadding: CGFloat = 4
-        static let height: CGFloat = 52
+        static let height: CGFloat = 72
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
     }
@@ -69,6 +71,9 @@ struct CameraView: View {
     private let cornerRadius: CGFloat = 20
     /// Distance from the right edge to the centre of the control column.
     private let controlInset: CGFloat = 40
+    /// The two flanking controls. Smaller than the shutter, because they are
+    /// settings and it is the action.
+    private let controlBlock: CGFloat = 44
     private let shutterOuter: CGFloat = 80
     private let shutterInner: CGFloat = 66
     /// Where the design puts the shutter's centre: 131pt up from the bottom of
@@ -112,6 +117,9 @@ struct CameraView: View {
                 .allowsHitTesting(false)
 
                 controls(w: w, h: h, bottomInset: geo.safeAreaInsets.bottom)
+
+                statusScrim(topInset: geo.safeAreaInsets.top)
+                    .allowsHitTesting(false)
 
                 header()
 
@@ -176,6 +184,47 @@ struct CameraView: View {
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
+        // The grid dissolves before it reaches the tab bar.
+        //
+        // Ruled lines running hard into a floating bar is the one place this
+        // screen looked pasted together — two systems meeting at an edge
+        // neither of them drew. Fading them out over the last stretch is the
+        // same move the tower's water makes at the bottom of the blocks: the
+        // page stops rather than being cut off.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: 1 - Guide.fadeHeight * 1.6),
+                    .init(color: .clear, location: 1 - Guide.fadeHeight * 0.55)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    /// Lifts the status bar off the viewfinder.
+    ///
+    /// The app is light, so the status bar draws in dark text — which is
+    /// invisible over a dark scene. Overriding the window's colour scheme
+    /// would fix it and take the tab bar dark with it, which costs more than
+    /// it buys. A pale wash across the top few points instead gives those four
+    /// glyphs something to sit on, and over a real image it reads as the sky
+    /// being slightly brighter than it is rather than as a panel.
+    private func statusScrim(topInset: CGFloat) -> some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white.opacity(0.22), location: 0),
+                .init(color: .white.opacity(0.11), location: 0.6),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: topInset + 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea()
     }
 
     /// The count, the flip and the flash — one line, in the gap.
@@ -197,7 +246,7 @@ struct CameraView: View {
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
                     Text(winCount == 1 ? "win" : "wins")
-                        .font(Typography.bodyMedium)
+                        .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                         .foregroundStyle(.white.opacity(0.55))
                 }
                 // Legible over whatever the lens is pointing at.
@@ -206,18 +255,6 @@ struct CameraView: View {
             }
 
             Spacer(minLength: 0)
-
-            HStack(spacing: 2) {
-                glyphButton("arrow.triangle.2.circlepath") {
-                    withAnimation(GridConstants.motionSmooth) { camera.flip() }
-                }
-                .accessibilityLabel("Switch camera")
-
-                glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
-                    camera.isFlashOn.toggle()
-                }
-                .accessibilityLabel(camera.isFlashOn ? "Flash on" : "Flash off")
-            }
         }
         .frame(height: Header.height)
         .padding(.horizontal, GridConstants.horizontalPadding)
@@ -237,9 +274,28 @@ struct CameraView: View {
         // up from the safe area keeps a deliberate gap under the button
         // instead of letting the two collide or drift apart.
         let shutterCentre = h - bottomInset - shutterOuter / 2 - 18
+        // Where a thumb already is. The two settings you actually change while
+        // shooting were at the top right corner, which on a phone this size is
+        // a reach with the other hand — so in practice you either put the
+        // phone down or you do not use them. Flanking the shutter puts them
+        // inside the arc the thumb sweeps to reach the button it is already
+        // going for.
+        let flankOffset = shutterOuter / 2 + 26 + controlBlock / 2
         return ZStack(alignment: .topLeading) {
+            blockButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
+                camera.isFlashOn.toggle()
+            }
+            .position(x: w / 2 - flankOffset, y: shutterCentre)
+            .accessibilityLabel(camera.isFlashOn ? "Flash on" : "Flash off")
+
             shutter
                 .position(x: w / 2, y: shutterCentre)
+
+            blockButton("arrow.triangle.2.circlepath") {
+                withAnimation(GridConstants.motionSmooth) { camera.flip() }
+            }
+            .position(x: w / 2 + flankOffset, y: shutterCentre)
+            .accessibilityLabel("Switch camera")
 
             if let onClose {
                 Button {
@@ -253,11 +309,34 @@ struct CameraView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .position(x: w / 2, y: shutterCentre + shutterOuter / 2 + 34)
+                .position(x: GridConstants.horizontalPadding + 20, y: shutterCentre)
                 .accessibilityLabel("Close camera")
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
+    }
+
+    /// A small block, so the two controls belong to the shutter rather than
+    /// floating beside it. Same corner ratio as every block in the app, so all
+    /// three objects on this row are the same shape at three sizes.
+    private func blockButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button {
+            HapticsEngine.tick()
+            action()
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous)
+                    .fill(.white.opacity(0.12))
+                RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous)
+                    .strokeBorder(.white.opacity(0.35), lineWidth: 1)
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: controlBlock, height: controlBlock)
+            .contentShape(RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func glyphButton(_ symbol: String, action: @escaping () -> Void) -> some View {

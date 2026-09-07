@@ -260,28 +260,26 @@ struct NextSlotButton: View {
         return value.velocity.width * ux + value.velocity.height * uy
     }
 
-    /// The size a flick is HEADING for, not the one it happened to stop on.
+    /// What you let go of is what you saw.
     ///
-    /// docs/apple-design.md §6: project where the gesture is going and snap to
-    /// the stop nearest that, rather than to the nearest stop from the release
-    /// point. It is the difference between a flick that throws the slot open
-    /// and one that drops it wherever your finger ran out of room — and it is
-    /// what lets a quick outward flick mean Deep without dragging the full
-    /// distance.
+    /// This used to recompute the size from the raw translation plus a
+    /// momentum projection, which is apple-design.md §6 — and it was wrong
+    /// here, because it recomputed WITHOUT the hysteresis the ghost had been
+    /// tracking with. The two could disagree, in both directions:
     ///
-    /// No hysteresis here: that exists to stop a resting finger flickering
-    /// between two sizes, and this is a single decision taken once.
+    ///  - Drag up to Deep and drift back a little: hysteresis holds the ghost
+    ///    on Deep at `up >= step - back`, but the release demanded
+    ///    `up >= step`. Showed large, dropped Regular.
+    ///  - Ghost on Regular, a small upward flick at release: projection made
+    ///    `up > lateral` and returned Deep. Showed medium, dropped large.
     ///
-    /// Projected per axis, so a flick upward is heading for the tall block and
-    /// a flick sideways for the wide one — the same rule as during the drag.
+    /// Momentum projection belongs on a control whose position is continuous
+    /// and whose release point is arbitrary. This one has already SNAPPED —
+    /// the size is decided, shown, and confirmed by a haptic while your finger
+    /// is still down. Overriding what somebody watched themselves choose is
+    /// worse than not predicting where they were heading.
     private func released(_ value: DragGesture.Value) -> BlockSize {
-        let lateral = abs(value.translation.width)
-            + GridConstants.project(velocity: abs(value.velocity.width))
-        let up = max(-value.translation.height, 0)
-            + GridConstants.project(velocity: max(-value.velocity.height, 0))
-        let step = GridConstants.slotStep
-        if up > lateral && up >= step { return .hard }
-        return lateral >= step ? .medium : .small
+        lastSize
     }
 
     /// Resistance past the last stop on an axis.
