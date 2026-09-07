@@ -192,6 +192,9 @@ struct MainAppView: View {
     ///
     /// An id is claimed the moment a win is logged and cleared the moment the
     /// tower places it. No diff, no ordering, no race.
+    /// The size currently being drawn out of the next slot, so the slot can
+    /// move to where a block of THAT size would actually land.
+    @State private var drawingSize: BlockSize = .small
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
@@ -1040,6 +1043,12 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
+    /// The colour the next win will be, decided before it is logged so the
+    /// slot can show it while you draw.
+    private var nextWinCategory: HabitCategory {
+        QuickWinService.spontaneousCategory(existing: Array(habits))
+    }
+
     private func logWin(size: BlockSize = .small) {
         do {
             let win = try QuickWinService.logWin(
@@ -1741,20 +1750,30 @@ struct MainAppView: View {
             // It sits at computeGhostPosition, so it is always exactly where
             // the block will land. The tower is bottom-aligned and the scroll
             // opens at the top, so the slot is on screen when the tab opens.
+            // Positioned for the size being DRAWN, not for a small block.
+            //
+            // Packing is append-only, so an arriving block never moves the ones
+            // already placed — but a bigger block does not always fit where a
+            // smaller one would, so the slot itself moves to the first gap that
+            // takes it. That is the tower showing you, live, exactly where this
+            // block is going to end up.
             if !animCoord.isCascading,
-               let pos = towerVM.computeGhostPosition(for: .small) {
+               let pos = towerVM.computeGhostPosition(for: drawingSize) {
                 let ghostFrame = GridConstants.blockFrame(
                     column: pos.column, row: pos.row,
-                    columnSpan: 1, rowSpan: 1,
+                    columnSpan: drawingSize.columnSpan, rowSpan: drawingSize.rowSpan,
                     cellSize: colW
                 )
                 NextSlotButton(
                     reduceMotion: reduceMotion,
                     cornerRadius: cornerRadius,
+                    previewCategory: nextWinCategory,
+                    onSizeChanged: { drawingSize = $0 },
                     action: { logWin(size: $0) }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
+                .animation(GridConstants.motionSmooth, value: drawingSize)
             }
         }
         .accessibilityElement(children: .combine)
@@ -1853,6 +1872,8 @@ struct MainAppView: View {
         NextSlotButton(
             reduceMotion: reduceMotion,
             cornerRadius: cornerRadius,
+            previewCategory: nextWinCategory,
+            onSizeChanged: { drawingSize = $0 },
             action: { logWin(size: $0) }
         )
         .frame(width: f.width, height: f.height)
