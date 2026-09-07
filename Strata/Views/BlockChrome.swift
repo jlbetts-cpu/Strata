@@ -40,12 +40,31 @@ struct BlockSurface<Fill: View>: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    /// The rim, brightest along the top edge.
+    ///
+    /// The Figma border is one flat white. Drawn flat at this weight it reads
+    /// as an outline around a sticker; a block is a solid object lit from
+    /// above, and the edge facing the light is the one that catches it. Same
+    /// single border, unequal along its length — which is what a real edge
+    /// does, and it lets the top read clearly without the sides shouting.
+    private var rim: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .white, location: 0.0),
+                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 0.55),
+                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
     private var surface: some View {
         fill()
             .overlay(BlockWash(opacity: washOpacity))
             .clipShape(shape)
             .overlay(
-                shape.strokeBorder(.white, lineWidth: GridConstants.blockRimWidth * scale)
+                shape.strokeBorder(rim, lineWidth: GridConstants.blockRimWidth * scale)
             )
     }
 

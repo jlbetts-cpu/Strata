@@ -96,17 +96,18 @@ struct FlippableBlockView: View {
                 }
 
             } else {
-                // Vertical gradient — top light, natural (Apple HIG)
-                LinearGradient(
-                    stops: [
-                        .init(color: style.lightTint.opacity(0.7), location: 0.0),
-                        .init(color: style.baseColor, location: 0.25),
-                        .init(color: style.baseColor, location: 0.7),
-                        .init(color: style.baseColor, location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Flat colour.
+                //
+                // This was a gradient washing lightTint at 0.7 across the top
+                // quarter. Measured off a screenshot it put ~30% white into the
+                // top of every block, which with the frosted band's ~20% at the
+                // bottom left the colour only actually reaching full saturation
+                // across the middle third. The block read as lit from two
+                // directions and washed out at both ends.
+                //
+                // The rim is what says "lit from above" now, and it says it
+                // with one crisp edge rather than a quarter-block of haze.
+                style.baseColor
             }
 
             }

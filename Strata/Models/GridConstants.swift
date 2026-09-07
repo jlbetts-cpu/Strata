@@ -231,7 +231,11 @@ enum GridConstants {
     // covering the bottom 26% (255:106).
     /// White rim. Figma draws 5px on a 562pt block (0.89%) — 0.77pt at an 86.5pt
     /// cell; 0.8 is 2.4 device px at 3x and renders crisp.
-    static let blockRimWidth: CGFloat = 0.8
+    static let blockRimWidth: CGFloat = 1.4
+    /// How much of the rim's white survives below the top edge. The rim is a
+    /// highlight, not an outline: full white where the light lands, less
+    /// everywhere else.
+    static let blockRimFalloff: Double = 0.45
     /// Blur inside the band. Figma blurs 10px on a 562pt block — 1.78% of width.
     static let blockRimBlur: CGFloat = 1.5
     /// Fraction of block height where the frosted band begins (Figma's 145pt of 565).
@@ -241,8 +245,13 @@ enum GridConstants {
     /// the silhouette visibly pinch in at 86pt.
     static let blockBandFeatherStart: Double = 0.66
     static let blockBandFeatherEnd: Double = 0.74
-    /// Frosted white wash inside the band — matches the 0.2 already used inline.
-    static let blockScrimOpacity: Double = 0.20
+    /// Frosted white wash inside the band.
+    ///
+    /// Figma's 0.2 put ~22% white into the bottom of every block, which read as
+    /// the block fading out rather than as a frosted edge. Halved: the band is
+    /// still there and still catches the blurred rim, but the colour stays
+    /// colour all the way down.
+    static let blockScrimOpacity: Double = 0.10
 
     // MARK: - Ghost (incomplete) tier
     /// The rim carries the category colour instead of white, and has to define
