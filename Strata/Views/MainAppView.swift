@@ -82,10 +82,8 @@ struct MainAppView: View {
 
     // #109: Comeback celebration
     @AppStorage("lastCompletionDateString") private var lastCompletionDateString: String = ""
-    @State private var showComebackBanner = false
 
     // #386: Perfect day anticipation
-    @State private var showPerfectDayAnticipation = false
 
     // Block tap discovery hint (legacy — replaced by onboarding.hasSeenFirstBlockHint)
     @AppStorage("hasSeenBlockTapHint") private var hasSeenBlockTapHint = false
@@ -679,46 +677,15 @@ struct MainAppView: View {
                      viewportHeight: screenHeight)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
-            .overlay(alignment: .bottom) {
-                VStack(spacing: 8) {
-                    // #386: Perfect day anticipation — "One more for a perfect day..."
-                    if showPerfectDayAnticipation && towerFilterMode == .day {
-                        Text("One more for a perfect day...")
-                            .font(Typography.caption)
-                            .foregroundStyle(.primary.opacity(0.5))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-
-                    // #109: Comeback celebration banner
-                    if showComebackBanner {
-                        HStack(spacing: 8) {
-                            Image(systemName: "hand.wave.fill")
-                                .foregroundStyle(AppColors.accentPurple)
-                            Text("Welcome back! This block matters.")
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(.primary.opacity(0.7))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-
-                    // No "Next up" pill.
-                    //
-                    // Nothing sits under the tower — it stands on its
-                    // reflection with the tab bar directly beneath, and this
-                    // was a frosted capsule wedged between the two, on the one
-                    // screen that is supposed to be only the tower. It also
-                    // pointed away from the page it was covering, at a
-                    // checklist that is now one tap away in the tab bar and
-                    // says the same thing better.
-                }
-                .padding(.bottom, 16)
-            }
+            // Nothing sits under the tower.
+            //
+            // This overlay held three frosted capsules — "One more for a
+            // perfect day...", a comeback banner, and a next-up pill — stacked
+            // between the tower and the tab bar. Notifications on the one
+            // screen that is meant to be only the tower, in `.ultraThinMaterial`,
+            // which is the frosted band that belongs to blocks and to nothing
+            // else. The tower stands on its reflection with the tab bar
+            // directly beneath it, and that is the whole page.
             .background { WarmBackground().ignoresSafeArea() }
             .overlay {
                 if let expandedID = expandedBlockID,
@@ -1520,31 +1487,11 @@ struct MainAppView: View {
         let validIDs = Set(towerVM.placedBlocks.map(\.id))
         animCoord.purgeStaleState(validIDs: validIDs)
 
-        // #386: Perfect day anticipation — check if one habit remains
+        // The anticipation and comeback banners are gone with the capsules
+        // that displayed them; only the bookkeeping their absence still needs
+        // is kept.
         let todayStr = TimelineViewModel.dateString(from: Date())
-        let todayHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id && !$0.isTodo }
         let todayCompleted = cachedFilteredLogs.filter { $0.dateString == todayStr && $0.completed }.count
-        let todayTotal = todayHabits.count
-        let newAnticipation = todayTotal > 0 && (todayTotal - todayCompleted) == 1
-        if newAnticipation != showPerfectDayAnticipation {
-            withAnimation(GridConstants.gentleReveal) {
-                showPerfectDayAnticipation = newAnticipation
-            }
-        }
-
-        // #109: Comeback detection — after 3+ day gap
-        if todayCompleted > 0 && !lastCompletionDateString.isEmpty {
-            if let lastDate = Self.dateStringFormatter.date(from: lastCompletionDateString) {
-                let daysSince = Calendar.current.dateComponents([.day], from: lastDate, to: Date()).day ?? 0
-                if daysSince >= 3 && !showComebackBanner {
-                    withAnimation(GridConstants.gentleReveal) { showComebackBanner = true }
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(4))
-                        withAnimation(GridConstants.crossFade) { showComebackBanner = false }
-                    }
-                }
-            }
-        }
         if todayCompleted > 0 { lastCompletionDateString = todayStr }
 
         // #85: Milestone detection — check on every refresh
@@ -1977,9 +1924,16 @@ struct MainAppView: View {
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
-                // slotSnap, not motionSmooth: this fires mid-drag and has to
-                // land before the finger asks for the next size.
-                .animation(GridConstants.slotSnap, value: drawingSize)
+                // No animation modifier here.
+                //
+                // `onSizeChanged` is already called inside a `slotSnap`
+                // transaction, so this was a SECOND animation driving the same
+                // change — and only this one, which meant the slot's frame and
+                // offset ran on one spring while the grid height they are
+                // measured against ran on another. Changing size moves the
+                // slot AND grows the container by a row, and the two have to
+                // be the same animation or the ghost is briefly somewhere the
+                // block will not land. One transaction now covers all three.
             }
         }
         .accessibilityElement(children: .combine)
