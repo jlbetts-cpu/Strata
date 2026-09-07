@@ -37,20 +37,41 @@ struct TowerReflection: View {
         let color: Color
     }
 
+    /// A block hitting the water. Rings spread from where it landed and die
+    /// out; nothing has to clear them up mid-flight.
+    struct Impact: Identifiable, Equatable {
+        let id: UUID
+        /// Centre of the block that landed, in the grid's own x.
+        let x: CGFloat
+        /// When it landed, on the same clock the surface runs on.
+        let start: TimeInterval
+        /// 1...3 — a heavier block displaces more water.
+        let mass: Int
+
+        static let lifetime: TimeInterval = 1.5
+    }
+
     let facets: [Facet]
+    let impacts: [Impact]
     let gridWidth: CGFloat
     let cornerRadius: CGFloat
     let reduceMotion: Bool
 
     /// How far the water extends below the waterline.
-    static let depth: CGFloat = 64
+    /// How far the water extends below the waterline.
+    ///
+    /// Shortened from 64: the tower now sits tight to the tab bar with nothing
+    /// under it but this, and a deeper band both crowded that and read as
+    /// somewhere to scroll to. Water needs room to be water, so this is the
+    /// knob if it ever feels cramped.
+    static let depth: CGFloat = 46
 
     private static let frameInterval: Double = 1.0 / 30.0
     /// Vertical sampling of the wavy edges. Twelve steps over 64pt is below the
     /// point where the curve reads as segments.
     private static let steps = 12
 
-    private var amplitude: CGFloat { reduceMotion ? 0 : 5 }
+    private var amplitude: CGFloat { reduceMotion ? 0 : 4 }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: Self.frameInterval,
@@ -58,6 +79,9 @@ struct TowerReflection: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas(opaque: false, rendersAsynchronously: false) { ctx, size in
                 draw(in: &ctx, size: size, time: t)
+                if !reduceMotion {
+                    drawImpacts(in: &ctx, size: size, time: t)
+                }
             }
             .blur(radius: 1.2)
         }
@@ -108,9 +132,14 @@ struct TowerReflection: View {
 
             ctx.fill(path, with: .linearGradient(
                 Gradient(stops: [
-                    .init(color: facet.color.opacity(0.55), location: 0.0),
-                    .init(color: facet.color.opacity(0.34), location: 0.32),
-                    .init(color: facet.color.opacity(0.07), location: 0.74),
+                    // Paler than it was. A reflection you notice is a
+                    // reflection that reads as content — it was pulling the eye
+                    // down the page and inviting a scroll to something that is
+                    // not there. Real water at a shallow angle returns very
+                    // little.
+                    .init(color: facet.color.opacity(0.30), location: 0.0),
+                    .init(color: facet.color.opacity(0.17), location: 0.32),
+                    .init(color: facet.color.opacity(0.04), location: 0.74),
                     .init(color: facet.color.opacity(0.0), location: 1.0)
                 ]),
                 startPoint: .zero,
@@ -125,7 +154,7 @@ struct TowerReflection: View {
         for facet in facets {
             let r = CGRect(x: facet.x, y: 0, width: facet.width, height: 1.6)
             ctx.fill(Path(roundedRect: r, cornerRadius: 0.8),
-                     with: .color(.white.opacity(0.5)))
+                     with: .color(.white.opacity(0.32)))
         }
 
         // Light catching the ripples.
@@ -151,11 +180,51 @@ struct TowerReflection: View {
         }
     }
 
+    /// Rings spreading from a block that has just landed.
+    ///
+    /// Real rings travel outward at a roughly constant speed while their
+    /// amplitude decays, and on a surface seen at this angle they read as
+    /// ellipses far wider than they are tall. Two rings per impact, the second
+    /// trailing the first, because a single expanding circle reads as a pulse
+    /// and a pair reads as a disturbance.
+    private func drawImpacts(in ctx: inout GraphicsContext, size: CGSize, time: Double) {
+        for impact in impacts {
+            let age = time - impact.start
+            guard age >= 0, age < Impact.lifetime else { continue }
+
+            let progress = age / Impact.lifetime
+            let decay = pow(1 - progress, 2.2)
+            let energy = 0.55 + Double(impact.mass) * 0.22
+
+            for ring in 0..<2 {
+                let lag = Double(ring) * 0.22
+                let p = progress - lag
+                guard p > 0 else { continue }
+
+                let rx = CGFloat(p) * size.width * 0.55 * CGFloat(energy)
+                // Flattened hard: the water is seen almost edge-on, so a ring
+                // on it is a very wide, very shallow ellipse. A circle here
+                // would read as a bubble sitting on top of the surface.
+                let ry = rx * 0.22
+                let alpha = decay * (ring == 0 ? 0.42 : 0.22) * energy
+
+                guard alpha > 0.01, rx > 1 else { continue }
+                let rect = CGRect(x: impact.x - rx, y: -ry * 0.35,
+                                  width: rx * 2, height: ry * 2)
+                ctx.stroke(
+                    Path(ellipseIn: rect),
+                    with: .color(.white.opacity(alpha)),
+                    lineWidth: 1.6 * CGFloat(decay) + 0.4
+                )
+            }
+        }
+    }
+
     private static let crests: [(y: CGFloat, thickness: CGFloat, opacity: Double, speed: Double, phase: Double)] = [
-        (10, 2.2, 0.80, 1.10, 0.0),
-        (20, 1.9, 0.62, 1.55, 1.7),
-        (32, 1.7, 0.46, 0.85, 3.1),
-        (43, 1.5, 0.32, 1.35, 4.6),
-        (54, 1.3, 0.20, 0.70, 5.9),
+        (8,  1.8, 0.42, 1.10, 0.0),
+        (16, 1.6, 0.32, 1.55, 1.7),
+        (25, 1.4, 0.23, 0.85, 3.1),
+        (34, 1.2, 0.15, 1.35, 4.6),
+        (42, 1.0, 0.09, 0.70, 5.9),
     ]
 }

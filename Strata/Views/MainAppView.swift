@@ -175,6 +175,7 @@ struct MainAppView: View {
         }
     }
 
+    @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
     @State private var showSettings = false
     @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
@@ -281,14 +282,6 @@ struct MainAppView: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar { towerToolbar }
                 }
-                .sheet(isPresented: $showSettings) {
-                    NavigationStack {
-                        SettingsView(
-                            onboarding: onboarding,
-                            onResetAllData: { resetTower() }
-                        )
-                    }
-                }
                 .sheet(isPresented: $isNewHabitMenuOpen) {
                     NewHabitMenu(
                         isPresented: $isNewHabitMenuOpen,
@@ -332,6 +325,15 @@ struct MainAppView: View {
                         }
                     )
                     .environment(\.switchTab, { selectedTab = $0 })
+                    .toolbar { insightsToolbar }
+                }
+                .sheet(isPresented: $showSettings) {
+                    NavigationStack {
+                        SettingsView(
+                            onboarding: onboarding,
+                            onResetAllData: { resetTower() }
+                        )
+                    }
                 }
             }
         }
@@ -410,6 +412,51 @@ struct MainAppView: View {
     private var towerTab: some View {
         towerTabContent()
             .background { geometryTracker }
+            // Pinned to the page, not to the tower. The tally used to sit under
+            // the bottom row, which meant it moved every time the tower grew
+            // and put a caption between the tower and the tab bar. Here it is
+            // always in the same place, and the tower has nothing beneath it
+            // but its own reflection.
+            .overlay(alignment: .topLeading) { towerTally }
+    }
+
+    /// What the tower is, in one place.
+    ///
+    /// One number, large enough to read at a glance — it was a 0.3-opacity
+    /// caption competing with a second count beside the next slot. Both are
+    /// here now: the total is the headline, and today is the quiet half of the
+    /// line under it.
+    @ViewBuilder
+    private var towerTally: some View {
+        let count = towerVM.placedBlocks.count
+        if count > 0 {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("\(count)")
+                        .font(.system(.title, design: .rounded, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.75))
+                        .contentTransition(.numericText())
+                    Text(count == 1 ? "block" : "blocks")
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(.primary.opacity(0.4))
+                }
+                Text(tallyDetail)
+                    .font(Typography.caption)
+                    .foregroundStyle(.primary.opacity(0.3))
+                    .contentTransition(.numericText())
+            }
+            .padding(.leading, hPad)
+            .padding(.top, 6)
+            .animation(GridConstants.motionSmooth, value: count)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var tallyDetail: String {
+        let metres = Int(towerVM.altimeterHeight)
+        let today = blocksToday
+        return today > 0 ? "\(metres)m · \(today) today" : "\(metres)m"
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -886,6 +933,29 @@ struct MainAppView: View {
         }
     }
 
+    /// A block has landed — disturb the water under it.
+    ///
+    /// Every block sends rings, not just the bottom row: the tower is standing
+    /// in the water, so anything landing on it travels down through it. Rings
+    /// spread from the landing block's own column, which is what makes the
+    /// water feel attached to the tower rather than played at it.
+    private func recordWaterImpact(blockID: UUID, mass: Int) {
+        guard !reduceMotion,
+              let block = towerVM.placedBlocks.first(where: { $0.id == blockID }) else { return }
+        let f = GridConstants.blockFrame(
+            column: block.column, row: 0,
+            columnSpan: block.columnSpan, rowSpan: 1,
+            cellSize: currentColW
+        )
+        let now = Date().timeIntervalSinceReferenceDate
+        waterImpacts.append(
+            TowerReflection.Impact(id: UUID(), x: f.midX, start: now, mass: mass)
+        )
+        // Drop anything that has finished spreading. Cheap, and it keeps the
+        // array from growing across a long cascade.
+        waterImpacts.removeAll { now - $0.start > TowerReflection.Impact.lifetime }
+    }
+
     /// What of the tower reaches the water: the bottom row, as colour and
     /// width. A reflection at the base of something shows only what is nearest
     /// the surface, so nothing above row 0 contributes and nothing but position
@@ -967,6 +1037,9 @@ struct MainAppView: View {
         }
     }
 
+    // The tower carries the filter and nothing else. Settings moved to
+    // Insights: it is a place you go to look at the app, which is where the
+    // switches that change the app belong. The tower is the record.
     @ToolbarContentBuilder
     private var towerToolbar: some ToolbarContent {
         if #available(iOS 26.0, *) {
@@ -974,21 +1047,24 @@ struct MainAppView: View {
                 TowerFilterMenuButton(selection: $towerFilterMode)
             }
             .sharedBackgroundVisibility(.hidden)
-            ToolbarItem(placement: .topBarTrailing) {
-                towerSettingsButton
-            }
-            .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .topBarLeading) {
                 TowerFilterMenuButton(selection: $towerFilterMode)
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                towerSettingsButton
-            }
         }
     }
 
-    private var towerSettingsButton: some View {
+    @ToolbarContentBuilder
+    private var insightsToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) { settingsButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { settingsButton }
+        }
+    }
+
+    private var settingsButton: some View {
         Button {
             HapticsEngine.lightTap()
             showSettings = true
@@ -1047,6 +1123,7 @@ struct MainAppView: View {
         }
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
+            recordWaterImpact(blockID: landedID, mass: mass)
             SoundEngine.blockImpact(mass: mass) // Bimodal: haptic + audio (Vroomen 2000)
             // Tower compression pulse — global impact response
             let compression: CGFloat = mass >= 2 ? 0.004 : 0.002
@@ -1382,7 +1459,7 @@ struct MainAppView: View {
         // has to be told about it or the container reserves no space for any
         // of it and it hangs outside the measured bounds.
         let waterDepth = TowerReflection.depth
-        let footerReserve: CGFloat = waterDepth + (showFirstBlockLabel ? 46 : 20)
+        let footerReserve: CGFloat = waterDepth + (showFirstBlockLabel ? 30 : 0)
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -1408,6 +1485,7 @@ struct MainAppView: View {
 
                         TowerReflection(
                             facets: reflectionFacets(colW: colW),
+                            impacts: waterImpacts,
                             gridWidth: gridW,
                             cornerRadius: cornerRadius,
                             reduceMotion: reduceMotion
@@ -1435,40 +1513,17 @@ struct MainAppView: View {
                             }
                         }
 
-                        // Block count below ground plane (building foundation label)
-                        if towerVM.placedBlocks.count > 0 {
-                            let blockCount = towerVM.placedBlocks.count
-                            VStack(spacing: 4) {
-                                // One line under the tower, not three. The tier
-                                // symbol only existed to sit beside the tier
-                                // name; with the name gone it is decoration, so
-                                // both go. The count and the height are the two
-                                // facts the tower cannot show by itself.
-                                HStack(spacing: 6) {
-                                    Text("^[\(blockCount) block](inflect: true)")
-                                        .font(Typography.caption)
-                                        .foregroundStyle(.primary.opacity(0.3))
-                                        // #297: Rolling number animation
-                                        .contentTransition(.numericText())
-                                    Text("• \(Int(towerVM.altimeterHeight))m")
-                                        .font(Typography.caption)
-                                        .foregroundStyle(.primary.opacity(0.2))
-                                        .contentTransition(.numericText())
-                                }
-
-                                // "Your first block." — primacy effect
-                                // spotlight. In the stack rather than at its
-                                // own offset, which drew it over the badge.
-                                if showFirstBlockLabel {
-                                    Text("Your first block.")
-                                        .font(Typography.bodySmall)
-                                        .foregroundStyle(.primary.opacity(0.5))
-                                        .padding(.top, 4)
-                                        .transition(.opacity)
-                                }
-                            }
-                            .frame(width: gridW, alignment: .center)
-                            .offset(y: gridH + waterDepth)
+                        // Nothing sits under the tower. The count moved to a
+                        // fixed place at the top of the page (`towerTally`) so
+                        // the tower can stand on its water with the tab bar
+                        // directly beneath it, rather than on a caption.
+                        if showFirstBlockLabel {
+                            Text("Your first block.")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(.primary.opacity(0.5))
+                                .frame(width: gridW, alignment: .center)
+                                .offset(y: gridH + waterDepth + 6)
+                                .transition(.opacity)
                         }
                     }
                 }
@@ -1616,7 +1671,6 @@ struct MainAppView: View {
                     cellSize: colW
                 )
                 NextSlotButton(
-                    blocksToday: blocksToday,
                     reduceMotion: reduceMotion,
                     cornerRadius: cornerRadius,
                     action: logWin
@@ -1719,7 +1773,6 @@ struct MainAppView: View {
             column: 0, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
         )
         NextSlotButton(
-            blocksToday: blocksToday,
             reduceMotion: reduceMotion,
             cornerRadius: cornerRadius,
             action: logWin

@@ -10,7 +10,6 @@ import SwiftUI
 /// absence of a block, which is what makes it read as a slot waiting to be
 /// filled rather than as a block that is somehow blank.
 struct NextSlotButton: View {
-    let blocksToday: Int
     let reduceMotion: Bool
     let cornerRadius: CGFloat
     let action: () -> Void
@@ -41,27 +40,7 @@ struct NextSlotButton: View {
                 .scaleEffect(pressed ? 0.94 : 1.0)
         }
         .buttonStyle(.plain)
-        // The count sits with the slot rather than in the badge under the
-        // tower: it is the number this button makes go up, so it belongs next
-        // to the button that moves it.
-        //
-        // Above rather than beside: the slot is at the top of the stack, so
-        // there is always empty space above it, while beside it runs off the
-        // screen whenever the slot lands in the last column.
-        .overlay(alignment: .top) {
-            if blocksToday > 0 {
-                Text("^[\(blocksToday) today](inflect: true)")
-                    .font(Typography.caption)
-                    .foregroundStyle(.primary.opacity(0.35))
-                    .contentTransition(.numericText())
-                    .fixedSize()
-                    .offset(y: -20)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
-        }
         .accessibilityLabel("Log a win")
-        .accessibilityValue("^[\(blocksToday) block](inflect: true) today")
         .accessibilityHint("Drops a block onto your tower")
     }
 }

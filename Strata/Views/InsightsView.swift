@@ -53,10 +53,11 @@ struct InsightsView: View {
             .padding(.bottom, 100)
         }
         .background { WarmBackground().ignoresSafeArea() }
-        // No title (the tab bar says "Insights") and no add button: the same
-        // sheet was reachable from three toolbars, and nothing on a page of
-        // past performance is asking you to schedule something new.
-        .toolbar(.hidden, for: .navigationBar)
+        // No title — the tab bar says "Insights". The bar itself stays, because
+        // Settings now lives here: a place you go to look at the app is where
+        // the switches that change it belong.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.compute(habits: habits, logs: logs)
         }
