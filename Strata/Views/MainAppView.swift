@@ -201,6 +201,8 @@ struct MainAppView: View {
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
+    /// Bumped when leaving the camera, to force a fresh tab bar.
+    @State private var tabBarGeneration = 0
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -407,7 +409,6 @@ struct MainAppView: View {
         )) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
-                    .preferredColorScheme(.light)
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -428,23 +429,7 @@ struct MainAppView: View {
             // you can name it after. Shooting from here logs the win straight
             // away with the photo already on it.
             Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
-                // Dark on the camera, light everywhere else — and nothing
-                // about the highlight changes with it.
-                //
-                // The tab bar is Liquid Glass and samples what is behind it,
-                // so the viewfinder turns it dark whatever the window says.
-                // Three ways to stop that were tried and none reaches it:
-                // `UITabBarAppearance`, `toolbarColorScheme(_:for: .tabBar)`,
-                // and `toolbarBackground(_:for: .tabBar)`. So the bar is going
-                // to be dark there; the fix is to make that state correct
-                // rather than to fight it.
-                //
-                // The tint is one fixed colour that reads on both grounds
-                // (`AppColors.accentEither`), so the selected item does not
-                // change appearance between tabs and there is nothing about it
-                // to animate.
                 cameraTab
-                    .preferredColorScheme(.dark)
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
@@ -468,9 +453,37 @@ struct MainAppView: View {
                         )
                     }
                 }
-                .preferredColorScheme(.light)
             }
         }
+        // ONE declaration, driven by the selection.
+        //
+        // This was three: `.light` on the tower, `.dark` on the camera,
+        // `.light` on Insights. In a TabView the content of a tab you are not
+        // looking at stays in the hierarchy — so after leaving the camera its
+        // `.dark` was still being declared, competing with the tower's
+        // `.light`, and which one the window resolved to was down to ordering.
+        // That is the tab bar "not understanding it is in the light again":
+        // nothing had told it, because two views were still arguing.
+        //
+        // A single modifier on the TabView cannot disagree with itself. The
+        // window is dark when the camera is the selected tab and light
+        // otherwise, and that is the whole rule.
+        .preferredColorScheme(selectedTab == .camera ? .dark : .light)
+        // Rebuild the bar when the camera stops being behind it.
+        //
+        // The tab bar is Liquid Glass: it samples what is behind it and CACHES
+        // that sample. Measured, same page and same window scheme — a tower
+        // that had never shown the camera read 0.956, one that had read 0.341.
+        // It was not failing to follow the scheme; it was still wearing the
+        // black it picked up over the viewfinder, and nothing invalidates
+        // that: not the window scheme, not
+        // `toolbarBackgroundVisibility(.hidden)`, not
+        // `toolbarColorScheme`, not a `UITabBarAppearance`.
+        //
+        // Changing the identity is the one thing that does, because it makes a
+        // new bar rather than asking the old one to think again. It costs a
+        // rebuild of the tab content on the way OUT of the camera only.
+        .id(tabBarGeneration)
         // Black on light, white on dark.
         //
         // A single fixed colour was tried and it is worse: the best any one
@@ -482,7 +495,10 @@ struct MainAppView: View {
         // the icon colour" meant.
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
-        .onChange(of: selectedTab) { _, newTab in
+        .onChange(of: selectedTab) { oldTab, newTab in
+            if oldTab == .camera && newTab != .camera {
+                tabBarGeneration += 1
+            }
             HapticsEngine.tick()
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
