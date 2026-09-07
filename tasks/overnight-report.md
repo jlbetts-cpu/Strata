@@ -597,3 +597,43 @@ by a gap. Screenshot: `tasks/screenshots/drop-consistency-after.png`.
 Note on method: my earlier rounds measured aggregates (total moving
 frames, settled-row shifts). Those can look fine while most individual
 drops fail. Every number above is per-drop.
+
+## Tower animation audit (2026-09-07)
+
+Everything below was found by reading the view tree or by filming the
+simulator and measuring frames — not by inspection of the animation
+values, which is what had failed on this screen repeatedly.
+
+### Root causes found
+
+| Symptom reported | Actual cause |
+|---|---|
+| "some blocks came from the bottom" | The fall started a fixed 180pt above the block's SLOT. On a short tower the slot is near the bottom of the screen, so the block appeared low and read as rising into place. |
+| "no way to click the merged box" | The tap gesture lived inside `chromedBody`. Merging sets `chromeless`, whose branch is a bare rounded rect with no gesture — every merged block silently lost its tap target. |
+| "jolty… not one structure" | (a) every block carried `.offset(y: row * 0.0003 * towerScrollOffset)`, so rows sheared against each other while scrolling, in 8pt steps because that value is throttled; (b) a landing scaled the WHOLE stack on Y, moving every block on screen. |
+| "premature animations firing" | One drop fired two scrolls: scroll-to-top, then `scrollToDropID` re-scrolled to centre the landed block — while it was still in the air. |
+| "resizing makes the tower move wonky" | Resize called `reloadTowerWithAnimation`, which raises `isLoading`. The tower vanished into the loading skeleton, waited a forced 300ms, and came back rebuilt. It was never rearranging; it was reloading. |
+| "loading isn't clean" | The placeholder popped 8 blocks in one at a time, 50ms apart, each scaling from 0.3 with a bounce — then deleted all 8. |
+| "+ block doesn't look pressable" | A 1.5pt dashed outline at 18% opacity on an off-white page, with no pointer-down state beyond a scale. |
+
+### Measured after (30fps film, per-drop, two separate runs)
+
+| | before | after |
+|---|---|---|
+| flights entering from the top edge of the screen | 0/10 | **11/11** and **8/8** |
+| flights with any upward motion | 3/10 | **0** |
+| foundation block movement, all frames incl. landings | — | **0px across 690 frames** |
+
+The fall is now real gravity: `t = sqrt(2d/g)` at one `g`, on a
+constant-acceleration curve. It replaced per-mass durations over an
+independently varying distance, which meant heavier blocks fell faster —
+which nothing does. Mass now decides only the landing.
+
+Screenshot: `tasks/screenshots/tower-audit-drop-after.png` — a block
+entering from off screen, mid-fall, above its slot.
+
+### Not verified
+
+Nothing on this machine can tap the simulator, so the merged-block tap,
+the slot's pressed state and the resize repack are reasoned from the view
+tree and unverified by observation. They need one pass on a device.
