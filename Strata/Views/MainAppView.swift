@@ -51,6 +51,7 @@ struct MainAppView: View {
     private let towerFilterMode: TowerFilterMode = .day
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
+    @State private var towerProbe = TowerGeometryProbe()
     @State private var motionCoord = DeviceMotionCoordinator()
 
     // Drop queue: habits completed in timeline, awaiting tower release
@@ -941,6 +942,7 @@ struct MainAppView: View {
         }
     }
 
+
     private func stopSkeletonBuildUp() {
         skeletonBuildTask?.cancel()
         skeletonBuildTask = nil
@@ -1476,7 +1478,35 @@ struct MainAppView: View {
         guard hadBuiltBefore else { return }
         var toAnimate = diff.union(claimed)
         toAnimate.subtract(animCoord.activelyAnimatingIDs)
-        for id in toAnimate { enqueueDrop(blockIDs: [id]) }
+        for id in toAnimate {
+            if let block = towerVM.placedBlocks.first(where: { $0.id == id }) {
+                animCoord.setFallStart(for: id, offset: fallStartOffset(for: block))
+            }
+            enqueueDrop(blockIDs: [id])
+        }
+    }
+
+    /// How far above its slot a block has to start so that it enters the screen
+    /// from off the top edge.
+    ///
+    /// Measured, not derived. The block's slot is `gridTopOnScreen + slotTop`
+    /// in window coordinates; putting its bottom edge `dropClearance` above
+    /// zero puts the whole block outside the screen, and the ScrollView clips
+    /// there, so what the viewer sees is a block sliding in from above rather
+    /// than one materialising in mid-air.
+    private func fallStartOffset(for block: PlacedBlock) -> CGFloat {
+        guard towerProbe.hasMeasured else { return -GridConstants.dropRunway }
+        let frame = GridConstants.blockFrame(
+            column: block.column, row: block.row,
+            columnSpan: block.columnSpan, rowSpan: block.rowSpan,
+            cellSize: towerProbe.cellSize
+        )
+        let slotTopInGrid = towerProbe.gridHeight - frame.maxY
+        let slotTopOnScreen = towerProbe.gridTopOnScreen + slotTopInGrid
+        // Never shorter than the old fixed runway: if the slot is already near
+        // the top of the screen the fall still needs to read as a fall.
+        return -max(slotTopOnScreen + frame.height + GridConstants.dropClearance,
+                    GridConstants.dropRunway)
     }
 
     private func enqueueDrop(blockIDs: Set<UUID>) {
@@ -1623,6 +1653,16 @@ struct MainAppView: View {
                     Color.clear
                         .frame(width: gridW,
                                height: max(gridH, 1) + (rowCount > 0 ? footerReserve : 0))
+                        // Where the grid really is, so a fall can start above
+                        // the screen. Writes to a plain object, not to state —
+                        // see `TowerGeometryProbe`.
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .global)
+                        } action: { rect in
+                            towerProbe.gridTopOnScreen = rect.minY
+                            towerProbe.gridHeight = gridH
+                            towerProbe.cellSize = colW
+                        }
 
                     if towerVM.isLoading {
                         skeletonGrid(skeletons: placeholders, colW: colW, gridH: gridH)
@@ -1693,10 +1733,6 @@ struct MainAppView: View {
                             .allowsHitTesting(false)
                     }
                 }
-                // The runway the fall happens in. Inside the scrollable
-                // content, so scrolling to the top brings it into view and the
-                // block always has the same distance to travel.
-                .padding(.top, GridConstants.dropRunway)
                 .padding(.horizontal, hPad)
                 // The tab bar's inset is already applied to this scroll view
                 // by TabView, so adding `safeAreaBottom` here counted it twice.
@@ -2139,28 +2175,19 @@ struct MainAppView: View {
 
             let dropOffset: CGFloat = switch phase {
             case .falling:
-                // One constant. The same fall, every time.
+                // Captured once, when the drop was queued, from where this
+                // block actually sits on screen — far enough above the top edge
+                // that it enters from outside the screen rather than appearing
+                // in mid-air. See `fallStartOffset(for:)`.
                 //
-                // Two earlier versions of this line read the world while the
-                // block was in the air, and both made the drop inconsistent:
-                //
-                //  - Derived from `towerScrollOffset` and clamped to 120...520,
-                //    the distance depended on where the tower happened to be
-                //    scrolled and varied more than fourfold. The duration is
-                //    fixed, so the SPEED varied more than fourfold — the same
-                //    action read as a plummet or as a spawn.
-                //  - Derived from `gridH`, it moved whenever the tower grew a
-                //    row. Filmed at 60fps, the drops that COMPLETED a row (2nd,
-                //    6th, 10th of ten) jumped 40pt upward mid-fall, because
-                //    finishing a row pushes the next slot up a row and `gridH`
-                //    with it.
-                //
-                // The runway above the tower is reserved in the layout, so a
-                // constant is safe: the space is always there and the block
-                // always starts at the top of it. Nothing about the tower's
-                // height, its scroll position, or what else is landing can
-                // reach into the fall and change it.
-                -GridConstants.dropRunway
+                // Every earlier version of this line computed the start from
+                // the world WHILE the block was in the air, and each one made
+                // the drop inconsistent in its own way: from `towerScrollOffset`
+                // it varied fourfold with the scroll position; from `gridH` it
+                // jerked upward one row-pitch on the drops that completed a row;
+                // as a constant above the SLOT it started low on a short tower,
+                // which is what read as blocks coming up from the bottom.
+                animState.fallStartOffset
             case .squash, .stretch, .wobble: CGFloat(0)
             case .none: CGFloat(0)
             }

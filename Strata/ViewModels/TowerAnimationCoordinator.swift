@@ -4,6 +4,15 @@ import SwiftUI
 /// so mutations only invalidate views that read THIS specific instance.
 @Observable
 final class BlockAnimationState {
+    /// Where this block's fall starts, in points above its slot.
+    ///
+    /// Captured ONCE, from the block's measured position on screen, at the
+    /// moment the drop is queued. Deriving it live from the tower's height or
+    /// scroll position meant the number moved while the block was in the air:
+    /// completing a row grew the grid and yanked the falling block upward
+    /// mid-fall.
+    var fallStartOffset: CGFloat = -GridConstants.dropRunway
+
     var dropPhase: TowerAnimationCoordinator.DropPhase? = nil
     var isRippling: Bool = false
     var rippleIntensity: CGFloat = 1.0
@@ -81,6 +90,16 @@ final class TowerAnimationCoordinator {
     }
 
     // MARK: - Public API
+
+    /// Records where a block's fall should start, before it starts falling.
+    ///
+    /// Must be called before the phase is set to `.falling`, since that is the
+    /// frame the block is first drawn at this offset.
+    func setFallStart(for id: UUID, offset: CGFloat) {
+        withTransaction(Transaction(animation: nil)) {
+            state(for: id).fallStartOffset = offset
+        }
+    }
 
     func enqueueDrop(blockIDs: Set<UUID>) {
         guard !blockIDs.isEmpty else { return }
@@ -372,9 +391,24 @@ final class TowerAnimationCoordinator {
         // read as the block simply appearing. Long enough to register, still
         // short enough that logging six things in a row does not become a
         // queue you wait through.
-        let fallDuration: Double = switch mass {
-        case 1: 0.44; case 2: 0.54; default: 0.66
-        }
+        // Gravity, not a lookup table.
+        //
+        // The fall used to be 0.44/0.54/0.66s by mass over a distance that
+        // varied independently, so the SPEED was whatever those two happened
+        // to produce — and heavier blocks fell faster, which nothing does.
+        // Now every block accelerates at the same g and the time follows from
+        // how far it actually has to come: t = sqrt(2d/g). A block entering
+        // from off screen above a short tower takes longer than one dropping
+        // into a tall one, and both are recognisably the same fall.
+        //
+        // Mass still decides everything about the LANDING — squash depth, how
+        // long it dwells, the haptic — which is where mass belongs.
+        let fallDistance = abs(blockIDs.compactMap { blockStates[$0]?.fallStartOffset }.min() ?? -GridConstants.dropRunway)
+        let fallDuration: Double = min(
+            max(Double((2 * fallDistance / GridConstants.dropGravity).squareRoot()),
+                GridConstants.dropDurationRange.lowerBound),
+            GridConstants.dropDurationRange.upperBound
+        )
 
         // Phase 1: Falling — instant, for the same reason as in `enqueueDrop`.
         withTransaction(Transaction(animation: nil)) {
@@ -395,12 +429,9 @@ final class TowerAnimationCoordinator {
         // Two display-link ticks: the first can fire before the transaction is
         // committed, the second cannot.
         await Self.awaitFrames(2)
-        // #26: Air resistance — 0.95x velocity in last 20% (second control point < 1.0)
-        let curve: Animation = switch mass {
-        case 1: .timingCurve(0.36, 0, 0.85, 1, duration: fallDuration)
-        case 2: .timingCurve(0.42, 0, 0.82, 1, duration: fallDuration)
-        default: .timingCurve(0.50, 0, 0.80, 1, duration: fallDuration)
-        }
+        // One curve, constant acceleration, for every block. See
+        // `GridConstants.dropFallCurve`.
+        let curve = GridConstants.dropFallCurve.speed(1 / fallDuration)
         withAnimation(curve) {
             for id in blockIDs { state(for: id).dropPhase = .squash }
         }

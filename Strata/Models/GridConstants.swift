@@ -184,6 +184,33 @@ enum GridConstants {
     static let slotStepHysteresis: CGFloat = 12
     /// The bloom left behind when a block is released from the slot. In fast,
     /// out slow — light arrives at once and decays.
+    /// How far above the top of the screen a block starts its fall.
+    ///
+    /// The block has to come from somewhere, and "somewhere" has to be off
+    /// screen. Starting it a fixed distance above its SLOT meant that on a
+    /// short tower — where the slot sits low — the block appeared in the lower
+    /// half of the screen and read as coming up from the bottom.
+    static let dropClearance: CGFloat = 24
+
+    /// Gravity, in points per second squared.
+    ///
+    /// The fall is a real constant-acceleration drop rather than a duration:
+    /// `t = sqrt(2d/g)`. That is what makes it consistent no matter how far the
+    /// block has to come — a longer fall takes longer and arrives faster, which
+    /// is the one model every viewer already knows. Tuned so a typical 400pt
+    /// fall takes about 0.44s.
+    static let dropGravity: CGFloat = 4200
+
+    /// Bounds on the fall time, so an empty tower does not become a wait and a
+    /// full one still reads as a fall.
+    static let dropDurationRange: ClosedRange<Double> = 0.34...0.72
+
+    /// Constant acceleration as a timing curve: this is `y = t²` exactly at the
+    /// midpoint. The fall used to ease OUT at the end — "air resistance" — which
+    /// is the one thing a falling object does not do. Arriving at peak speed is
+    /// what makes the landing land.
+    static let dropFallCurve = Animation.timingCurve(1.0 / 3, 0, 2.0 / 3, 1.0 / 3, duration: 1)
+
     /// Empty space reserved above the tower for a block to fall through.
     ///
     /// Reserving it inside the scrollable content is what makes the fall the
