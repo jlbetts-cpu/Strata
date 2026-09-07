@@ -397,3 +397,89 @@ Everything remains simulator-only and untapped — no accessibility permission
 means no interaction. Specifically unverified: how the bare toolbar glyphs feel
 under a finger without their capsule hit area, and the whole thing on iOS 18,
 where the `sharedBackgroundVisibility` branch never runs.
+
+---
+
+# Session 3 — the tower as home, and the water
+
+## The finding that changed the plan
+
+**SwiftUI shader effects do not update their uniforms across frames in the
+iOS 26.3 simulator.** The water was written as a Metal `distortionEffect`
+first, which is the right tool on paper — one GPU pass, per-pixel. It rendered
+once and froze.
+
+Established by three probes rather than assumed:
+
+| Probe | Result |
+|---|---|
+| `colorEffect` forcing flat red | Applied — the band turned red, so the Metal pipeline works |
+| `colorEffect` whose colour came from the `time` uniform | Byte-identical pixel on every frame |
+| The same `TimelineView` clock driving a plain `.offset` in Swift | Animated normally |
+
+So the clock ticks, the shader loads and runs, and the uniform never reaches it
+again after the first frame. Motion is the entire point of that view, so it was
+rebuilt in `Canvas`, where the motion is verifiable here: **5.6% of the band's
+pixels change between consecutive frames.**
+
+Two side effects worth having: it drops a dependency on the Metal toolchain
+(a separate 688 MB Xcode component this machine did not have — I installed it
+to run the probes), and it is cheaper. One Canvas at 30fps drawing one wavy
+quad per bottom-row block plus five crest lines: under a dozen paths, no
+per-pixel work, no offscreen buffer, and the tower's blocks are never
+re-rendered.
+
+**Caveat: the shader may well animate correctly on a physical device.** If you
+would rather have the per-pixel version, the shader is in the history at
+`96ee722^` and it is a small swap — but I would not ship a centrepiece whose
+central quality I cannot see working.
+
+## Research before the rest
+
+- `sharedBackgroundVisibility` / shader APIs: iOS 17+, deployment target 18.0,
+  so no gating needed for shaders (unlike the toolbar work).
+- `.metal` files DO compile in this synchronized-group project — once the
+  toolchain exists.
+- **The block's top gradient was not where I would have guessed.** The tower
+  renders `FlippableBlockView`, not `HabitBlockView`. Found by sampling pixels
+  down a block: ~30% white at the top fading out by 30% height (that was
+  `lightTint` at 0.7 in a "top light, natural (Apple HIG)" gradient), flat base
+  through the middle, ~22% white from 74% down (`blockScrimOpacity`). Two
+  separate causes, so two separate fixes.
+
+## What changed
+
+| Commit | Change |
+|---|---|
+| `4821cc6` | Wins tab deleted; the tower's empty slot is the button; Tower is home |
+| `b5b8907` | Block gradient flattened, wash halved, rim wider and top-lit |
+| `96ee722` | The water |
+
+Screenshots: `50-tower-nextslot.png`, `51-tower-empty-slot.png`,
+`52-blocks-flat.png`, `53-water.png`, `60-final-tower.png` … `63-final-insights.png`.
+
+## Judgement calls
+
+1. **The "Ghost Block Preview" setting is gone.** Two things cannot own one
+   slot, and you cannot let someone switch off the only way to log a win.
+2. **The empty tower's three decorative ghosts became one pressable slot.** A
+   row of blocks that cannot be pressed says "blocks go here" to someone
+   looking for how to put one there.
+3. **The empty-state copy names the slot** instead of ending in a filled
+   "Go to Today" button that was the loudest thing on the page and pointed away
+   from it. Scheduling is a quiet second line now.
+4. **The rim went 0.8 → 1.4pt.** This is the change that departs from Figma's
+   0.89%; with both washes gone the rim has to carry "lit from above" alone.
+   It is also no longer flat — full white on the top edge, 0.45 elsewhere.
+5. **Reflection depth is 64pt** and the badge moved below it, so the tower now
+   sits ~50pt higher than before. That constant is the knob.
+
+## Still not verified
+
+- Everything is simulator-only; still nothing can tap, so the slot has never
+  been *pressed* — I verified it renders, that it is positioned by the same
+  `computeGhostPosition` the block will land in, and that `logWin` compiles
+  into the existing drop cascade, but not the cascade itself firing from a tap.
+- Whether the Metal shader animates on device (see above).
+- Frame cost of the Canvas on real hardware. It is a dozen paths, so I expect
+  it to be free, but I measured pixel change, not GPU time.
