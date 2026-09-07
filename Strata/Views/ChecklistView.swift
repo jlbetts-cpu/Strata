@@ -26,14 +26,20 @@ struct ChecklistView: View {
     let completedHabitIDs: Set<UUID>
     let skippedHabitIDs: Set<UUID>
     let events: [CalendarAnchor]
+    /// The tower anything added here belongs to.
+    let tower: Tower?
     let onComplete: (Habit) -> Void
     let onUndo: (Habit) -> Void
-    let onAddTodo: () -> Void
+    /// Called after something is added, so the tower can rebuild.
+    let onAdded: () -> Void
 
     /// Owned here rather than passed down: `MainAppView.body` is at the type
     /// checker's ceiling, and a sheet this screen presents about its own rows
     /// has no reason to live up there.
     @State private var editing: Habit?
+    @State private var adding = false
+
+    @Environment(\.modelContext) private var modelContext
 
     private let hPad: CGFloat = 20
 
@@ -88,6 +94,13 @@ struct ChecklistView: View {
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .sheet(item: $editing) { habit in
             HabitDetailSheet(habit: habit, selectedDate: Date())
+        }
+        .sheet(isPresented: $adding) {
+            AddThingSheet(
+                modelContext: modelContext,
+                tower: tower,
+                onAdded: { _ in onAdded() }
+            )
         }
     }
 
@@ -146,7 +159,7 @@ struct ChecklistView: View {
     private var addButton: some View {
         Button {
             HapticsEngine.lightTap()
-            onAddTodo()
+            adding = true
         } label: {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconAction, relativeTo: .caption, weight: .semibold)
@@ -210,7 +223,7 @@ struct ChecklistView: View {
                 .multilineTextAlignment(.center)
             Button {
                 HapticsEngine.lightTap()
-                onAddTodo()
+                adding = true
             } label: {
                 Text("Add something")
                     .font(Typography.bodyMedium)

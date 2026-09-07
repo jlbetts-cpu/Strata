@@ -108,7 +108,6 @@ struct MainAppView: View {
 
     // New habit menu
     @State private var isNewHabitMenuOpen: Bool = false
-    @State private var newHabitPrefillTime: String? = nil
 
     // Skeleton build-up animation
     @State private var visibleSkeletonCount: Int = 0
@@ -357,12 +356,10 @@ struct MainAppView: View {
                 .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $isNewHabitMenuOpen) {
-            NewHabitMenu(
-                isPresented: $isNewHabitMenuOpen,
+            AddThingSheet(
                 modelContext: modelContext,
-                onCreated: { scheduleRefresh() },
-                prefillTime: newHabitPrefillTime,
-                tower: towerManager.activeTower
+                tower: towerManager.activeTower,
+                onAdded: { _ in scheduleRefresh() }
             )
         }
     }
@@ -533,15 +530,14 @@ struct MainAppView: View {
             completedHabitIDs: cachedCompletedHabitIDsForSelectedDate,
             skippedHabitIDs: cachedSkippedHabitIDsForSelectedDate,
             events: eventKitService.todaysEvents,
+            tower: towerManager.activeTower,
             onComplete: { tickHabit($0) },
             onUndo: { habit in
                 timelineVM.undoCompletion(habit)
                 cachedCompletedHabitIDsForSelectedDate.remove(habit.id)
                 scheduleRefresh()
             },
-            onAddTodo: {
-                isNewHabitMenuOpen = true
-            }
+            onAdded: { scheduleRefresh() }
         )
     }
 
@@ -767,8 +763,9 @@ struct MainAppView: View {
                 timelineVM.undoSkip(habit)
                 scheduleRefresh()
             },
-            onAddHabit: { prefillTime in
-                newHabitPrefillTime = prefillTime
+            onAddHabit: { _ in
+                // The time is dropped on purpose: nothing in the app acts on a
+                // promise about when, so the add sheet stopped asking for one.
                 isNewHabitMenuOpen = true
             },
             onEditInPlan: { _ in
