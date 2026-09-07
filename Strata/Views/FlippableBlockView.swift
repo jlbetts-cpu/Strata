@@ -167,17 +167,29 @@ struct FlippableBlockView: View {
         // tiles on a wall rather than as a structure carrying its own weight.
         // Top edge only, short, and never across a merged seam — inside one
         // piece there is nothing resting on anything.
-        .overlay(alignment: .top) {
+        .overlay {
             if isCovered {
-                LinearGradient(
-                    colors: [
-                        AppColors.warmBlack.opacity(GridConstants.blockContactShade),
-                        .clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: min(14, height * 0.22))
+                // Clipped to the block's own shape.
+                //
+                // Unclipped, this filled the square corners OUTSIDE the rounded
+                // rect — a hard grey wedge at each top corner that read as a
+                // rendering glitch, which is exactly what it was. It also has
+                // to sit inside a full-size container: a 14pt-tall view clipped
+                // to a 12pt corner radius rounds the gradient itself instead of
+                // following the block.
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [
+                            AppColors.warmBlack.opacity(GridConstants.blockContactShade),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: min(14, height * 0.22))
+                    Spacer(minLength: 0)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .allowsHitTesting(false)
             }
         }
