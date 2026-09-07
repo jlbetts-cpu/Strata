@@ -69,11 +69,10 @@ struct CameraView: View {
     }
 
     private let cornerRadius: CGFloat = 20
+    /// Breathing room between the viewfinder and the edges of the screen.
+    private let previewInset: CGFloat = 4
     /// Distance from the right edge to the centre of the control column.
     private let controlInset: CGFloat = 40
-    /// The two flanking controls. Smaller than the shutter, because they are
-    /// settings and it is the action.
-    private let controlBlock: CGFloat = 44
     private let shutterOuter: CGFloat = 80
     private let shutterInner: CGFloat = 66
     /// Where the design puts the shutter's centre: 131pt up from the bottom of
@@ -82,66 +81,48 @@ struct CameraView: View {
 
     var body: some View {
         GeometryReader { geo in
+            // The preview lives INSIDE the safe area, on the app's own
+            // background, rather than under the status bar and the tab bar.
+            //
+            // Three complaints had one cause. The tab bar is Liquid Glass: it
+            // samples whatever is behind it, so a full-bleed black viewfinder
+            // turned it dark, and it re-sampled only once the black had
+            // finished sliding away — which is the lag between leaving the
+            // camera and the bar going light again. Sitting the preview above
+            // it means there is never anything dark to sample, so the bar is
+            // light on every screen and there is no transition to be late.
+            //
+            // Same for the status bar: on the warm ground its dark text is
+            // legible on its own, so the pale gradient that was propping it up
+            // is gone.
+            //
+            // And the thirds are now thirds of the PREVIEW. Drawn over the
+            // whole screen they were exact but did not look it — the bottom
+            // third was partly behind the tab bar, so the middle band read as
+            // longer than the two it sits between.
             let w = geo.size.width
             let h = geo.size.height
 
             ZStack {
-                Color(red: 0.031, green: 0.031, blue: 0.031)
-                    .ignoresSafeArea()
-
                 CameraPreview(session: camera.session)
-                    .clipShape(
-                        .rect(
-                            topLeadingRadius: 0,
-                            bottomLeadingRadius: cornerRadius,
-                            bottomTrailingRadius: cornerRadius,
-                            topTrailingRadius: 0
-                        )
-                    )
-                    .ignoresSafeArea()
 
-                // Drawn over the whole preview, which is full-bleed — so the
-                // thirds have to be thirds of the SCREEN, not of the area left
-                // over after the tab bar. Computed against the safe box they
-                // came out at 0.35 and 0.63: not thirds, and not even
-                // symmetrical.
-                guides(
-                    w: w + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
-                    h: h + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom,
-                    // In the guides' own space, which starts at the top of the
-                    // screen rather than below the notch.
-                    gapTop: geo.safeAreaInsets.top + Header.topPadding - Header.breathing,
-                    gapBottom: geo.safeAreaInsets.top + Header.topPadding + Header.height + Header.breathing
-                )
-                .offset(x: -geo.safeAreaInsets.leading, y: -geo.safeAreaInsets.top)
-                .allowsHitTesting(false)
-
-                controls(w: w, h: h, bottomInset: geo.safeAreaInsets.bottom)
-
-                statusScrim(topInset: geo.safeAreaInsets.top)
+                guides(w: w, h: h)
                     .allowsHitTesting(false)
 
                 header()
 
+                controls(w: w, h: h)
+
                 warmFlash
                     .allowsHitTesting(false)
             }
+            .frame(width: w, height: h)
+            .background(Color(red: 0.031, green: 0.031, blue: 0.031))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        .background(Color.black.ignoresSafeArea())
-        // No `.preferredColorScheme(.dark)`.
-        //
-        // It was here so the status bar would be legible on a black preview.
-        // Applied inside a tab it propagates to the WHOLE WINDOW: `.primary`
-        // flipped to white, so the tower's "N wins" became white text on the
-        // light background and vanished, and the tab bar stayed dark after
-        // leaving the camera. The app is light-only by decision and one screen
-        // does not get to argue with that.
-        //
-        // It turned out not to be needed: over a black preview the status bar
-        // renders light on its own. Hiding it instead was worse — collapsing
-        // the top safe area made the tab bar draw a ghost of itself along the
-        // top edge.
-        .statusBarHidden(false)
+        .padding(.horizontal, previewInset)
+        .padding(.vertical, previewInset)
+        .background { WarmBackground().ignoresSafeArea() }
         .task { await camera.start() }
         .onDisappear {
             camera.stop()
@@ -151,13 +132,25 @@ struct CameraView: View {
 
     // MARK: - Guides
 
-    private func guides(w: CGFloat, h: CGFloat, gapTop: CGFloat, gapBottom: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
+    private func guides(w: CGFloat, h: CGFloat) -> some View {
+        // The break exists to hold the count. With no count — the camera
+        // opened from the add sheet, where the tally would mean nothing —
+        // there is nothing to make room for, so the line runs unbroken.
+        let gapTop = winCount == nil ? h : Header.topPadding - Header.breathing
+        let gapBottom = winCount == nil ? h : Header.topPadding + Header.height + Header.breathing
+
+        return ZStack(alignment: .topLeading) {
             // The first vertical is broken where the header crosses it. The
             // gap is not a rendering artefact — it is the header's space, and
             // the line resuming below it is what makes the break read as
             // deliberate rather than as a line that failed to draw.
-            let x0 = round(Guide.verticalX[0] * w)
+            // Centred ON the boundary, not started at it. A 1pt line drawn
+            // from the third leaves its whole width on one side, which pushes
+            // its centre half a point past where the third actually is — small,
+            // but it is the difference between the bands measuring equal and
+            // measuring a hair unequal, and unequal is what the eye reports as
+            // "the middle one looks longer".
+            let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: max(gapTop, 0))
@@ -171,7 +164,7 @@ struct CameraView: View {
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: h)
-                .offset(x: round(Guide.verticalX[1] * w), y: 0)
+                .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
@@ -180,7 +173,7 @@ struct CameraView: View {
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
                     // pixel rows and reads lighter than its neighbour.
-                    .offset(x: 0, y: round(fraction * h))
+                    .offset(x: 0, y: round(fraction * h) - Guide.width / 2)
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
@@ -202,29 +195,6 @@ struct CameraView: View {
                 endPoint: .bottom
             )
         )
-    }
-
-    /// Lifts the status bar off the viewfinder.
-    ///
-    /// The app is light, so the status bar draws in dark text — which is
-    /// invisible over a dark scene. Overriding the window's colour scheme
-    /// would fix it and take the tab bar dark with it, which costs more than
-    /// it buys. A pale wash across the top few points instead gives those four
-    /// glyphs something to sit on, and over a real image it reads as the sky
-    /// being slightly brighter than it is rather than as a panel.
-    private func statusScrim(topInset: CGFloat) -> some View {
-        LinearGradient(
-            stops: [
-                .init(color: .white.opacity(0.22), location: 0),
-                .init(color: .white.opacity(0.11), location: 0.6),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: topInset + 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea()
     }
 
     /// The count, the flip and the flash — one line, in the gap.
@@ -268,21 +238,16 @@ struct CameraView: View {
 
     // MARK: - Controls
 
-    private func controls(w: CGFloat, h: CGFloat, bottomInset: CGFloat) -> some View {
-        // Just above the tab bar, not floating in the frame. The design has
-        // nothing below the shutter; this screen has a tab bar, and measuring
-        // up from the safe area keeps a deliberate gap under the button
-        // instead of letting the two collide or drift apart.
-        let shutterCentre = h - bottomInset - shutterOuter / 2 - 18
+    private func controls(w: CGFloat, h: CGFloat) -> some View {
+        let shutterCentre = h - shutterOuter / 2 - 26
         // Where a thumb already is. The two settings you actually change while
-        // shooting were at the top right corner, which on a phone this size is
-        // a reach with the other hand — so in practice you either put the
-        // phone down or you do not use them. Flanking the shutter puts them
-        // inside the arc the thumb sweeps to reach the button it is already
-        // going for.
-        let flankOffset = shutterOuter / 2 + 26 + controlBlock / 2
+        // shooting were in the top right corner, which on a phone this size is
+        // a two-handed reach — so in practice you either put the phone down or
+        // you never touch them. Beside the shutter they sit inside the arc the
+        // thumb already sweeps to reach the button it is going for anyway.
+        let flankOffset = shutterOuter / 2 + 34
         return ZStack(alignment: .topLeading) {
-            blockButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
+            glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
                 camera.isFlashOn.toggle()
             }
             .position(x: w / 2 - flankOffset, y: shutterCentre)
@@ -291,7 +256,7 @@ struct CameraView: View {
             shutter
                 .position(x: w / 2, y: shutterCentre)
 
-            blockButton("arrow.triangle.2.circlepath") {
+            glyphButton("arrow.triangle.2.circlepath") {
                 withAnimation(GridConstants.motionSmooth) { camera.flip() }
             }
             .position(x: w / 2 + flankOffset, y: shutterCentre)
@@ -305,49 +270,34 @@ struct CameraView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .position(x: GridConstants.horizontalPadding + 20, y: shutterCentre)
+                .position(x: w - 30, y: 34)
                 .accessibilityLabel("Close camera")
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
     }
 
-    /// A small block, so the two controls belong to the shutter rather than
-    /// floating beside it. Same corner ratio as every block in the app, so all
-    /// three objects on this row are the same shape at three sizes.
-    private func blockButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button {
-            HapticsEngine.tick()
-            action()
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous)
-                    .fill(.white.opacity(0.12))
-                RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous)
-                    .strokeBorder(.white.opacity(0.35), lineWidth: 1)
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: controlBlock, height: controlBlock)
-            .contentShape(RoundedRectangle(cornerRadius: controlBlock * 0.147, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
+    /// No box.
+    ///
+    /// They were small blocks for a while, to rhyme with the shutter. Three
+    /// bordered objects in a row turned the quietest part of the screen into
+    /// the busiest, and a setting does not need a container to be a setting —
+    /// the glyph is the control. The shutter keeps its rim because it is the
+    /// one thing here that is a button rather than a toggle.
     private func glyphButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
             action()
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 20, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
+                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -355,14 +305,12 @@ struct CameraView: View {
 
     /// A block, not a circle.
     ///
-    /// Everything you make in this app is a block, and this is the button that
-    /// makes one. A circle here was a camera's shutter; a rounded square is
-    /// this app's shutter. The proportions are the block's own — the corner
-    /// radius is 14.7% of the side, the same ratio every block on the tower
-    /// uses, so it reads as the same object at a different size.
+    /// Everything this app makes is a block and this is the button that makes
+    /// one, so it is a rounded square at the block's own 14.7% corner ratio —
+    /// the same ratio every block on the tower uses, so it reads as the same
+    /// object at a different size.
     ///
-    /// Still a rim and a fill: the outline is the button's edge and the fill is
-    /// the shutter itself, so pressing it compresses the fill inside a rim that
+    /// A rim and a fill, so pressing it compresses the fill inside a rim that
     /// stays put.
     private var shutter: some View {
         let outerRadius = shutterOuter * 0.147

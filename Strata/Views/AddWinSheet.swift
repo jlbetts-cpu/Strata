@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
@@ -36,6 +37,9 @@ struct AddWinSheet: View {
     @State private var size: BlockSize = .small
     @State private var photo: UIImage?
     @State private var showCamera = false
+    @State private var choosingSource = false
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var showLibrary = false
     @State private var loaded = false
     @State private var confirmingDelete = false
     @State private var isSaving = false
@@ -96,6 +100,8 @@ struct AddWinSheet: View {
         // material, not a sheet's.
         .presentationBackground { WarmBackground().ignoresSafeArea() }
         .fullScreenCover(isPresented: $showCamera) {
+            // No count passed: the tally belongs to the tower's camera, and
+            // with nothing to put in it the grid line runs unbroken.
             CameraView(
                 onCaptured: { image in
                     photo = image
@@ -103,6 +109,31 @@ struct AddWinSheet: View {
                 },
                 onClose: { showCamera = false }
             )
+        }
+        // Two sources, asked once.
+        //
+        // The camera alone was the wrong call: most wins are photographed when
+        // they happen and named later, so by the time you are filling this in
+        // the picture is usually already in your library. Taking one now is
+        // the other half, not the whole of it.
+        .confirmationDialog("Add a photo", isPresented: $choosingSource, titleVisibility: .hidden) {
+            Button("Take a photo") { showCamera = true }
+            Button("Choose from library") { showLibrary = true }
+            if photo != nil {
+                Button("Remove photo", role: .destructive) { photo = nil }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
+        .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
+        .onChange(of: pickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    photo = image
+                }
+                pickerItem = nil
+            }
         }
     }
 
@@ -128,7 +159,7 @@ struct AddWinSheet: View {
         let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
         return Button {
             HapticsEngine.lightTap()
-            showCamera = true
+            choosingSource = true
         } label: {
             ZStack {
                 if let photo {
