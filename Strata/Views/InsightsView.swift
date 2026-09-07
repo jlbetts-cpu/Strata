@@ -110,9 +110,11 @@ struct InsightsView: View {
     // MARK: - How much
 
     private var chartSection: some View {
+        // Given real room, since it is the only thing on the page now.
         TowerBarChart(
             columns: chartColumns,
-            maxRows: max(chartColumns.map(\.rows).max() ?? 0, 4)
+            maxRows: max(chartColumns.map(\.rows).max() ?? 0, 4),
+            maxBarHeight: 340
         )
     }
 

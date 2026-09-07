@@ -26,6 +26,9 @@ struct TowerBarChart: View {
 
         var winCount: Int { blocks.count }
         var rows: Int { blocks.map { $0.row + $0.rowSpan }.max() ?? 0 }
+        /// The blocks resolved into merged runs, so the bar is the shape the
+        /// tower actually was rather than a pile of separate squares.
+        var runs: [MiniTowerPacker.Run] { MiniTowerPacker.runs(in: blocks) }
     }
 
     struct MiniBlock: Identifiable {
@@ -42,9 +45,29 @@ struct TowerBarChart: View {
     /// same scale and their heights can be compared by eye.
     let maxRows: Int
 
-    private let cell: CGFloat = 9
-    private let gap: CGFloat = 2
-    private let columnGap: CGFloat = 16
+    /// How tall the tallest bar is allowed to be.
+    ///
+    /// The cell size is solved for rather than fixed, so the chart fills the
+    /// room it is given: a day with three wins and a day with fifteen both
+    /// produce a bar that reaches the top of the frame, and the comparison
+    /// between COLUMNS still holds because they all share one scale. A fixed
+    /// cell made the whole chart small whenever the busiest day was quiet.
+    var maxBarHeight: CGFloat = 300
+
+    /// Never bigger than this, or two wins become a poster.
+    private let maxCell: CGFloat = 34
+    private let minCell: CGFloat = 8
+    private let gapRatio: CGFloat = 0.17
+    private let columnGap: CGFloat = 20
+
+    private var cell: CGFloat {
+        let rows = CGFloat(max(maxRows, 1))
+        // height = rows * cell + (rows - 1) * cell * gapRatio
+        let solved = maxBarHeight / (rows + (rows - 1) * gapRatio)
+        return min(max(solved, minCell), maxCell)
+    }
+
+    private var gap: CGFloat { cell * gapRatio }
 
     private var barWidth: CGFloat {
         CGFloat(GridConstants.columnCount) * cell + CGFloat(GridConstants.columnCount - 1) * gap
@@ -59,7 +82,7 @@ struct TowerBarChart: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .bottom, spacing: columnGap) {
                 ForEach(columns) { column in
-                    VStack(spacing: 8) {
+                    VStack(spacing: 12) {
                         // Every bar reserves the full height, so they share a
                         // baseline and the empty space above a short one is
                         // part of the reading.
@@ -76,22 +99,30 @@ struct TowerBarChart: View {
                                     .frame(width: barWidth, height: cell)
                             }
 
-                            ForEach(column.blocks) { block in
-                                let w = CGFloat(block.columnSpan) * cell + CGFloat(block.columnSpan - 1) * gap
-                                let h = CGFloat(block.rowSpan) * cell + CGFloat(block.rowSpan - 1) * gap
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(block.colour)
-                                    .frame(width: w, height: h)
-                                    .offset(
-                                        x: CGFloat(block.column) * (cell + gap),
-                                        y: -CGFloat(block.row) * (cell + gap)
-                                    )
+                            // Merged runs, exactly as the tower draws them.
+                            //
+                            // A day of five green wins is ONE shape on the
+                            // tower, so a chart that draws it as five squares
+                            // is a chart of different days than the ones you
+                            // lived. `MergedShape` is the same shape type the
+                            // tower uses, at a smaller cell size — the runs
+                            // even keep their notches.
+                            ForEach(Array(column.runs.enumerated()), id: \.offset) { _, run in
+                                MergedShape(
+                                    cells: run.cells,
+                                    cellSize: cell,
+                                    spacing: gap,
+                                    gridHeight: height(forRows: column.rows),
+                                    cornerRadius: cell * 0.20
+                                )
+                                .fill(run.colour)
+                                .frame(width: barWidth, height: height(forRows: column.rows), alignment: .bottomLeading)
                             }
                         }
                         .frame(width: barWidth, alignment: .bottomLeading)
 
                         Text(column.label)
-                            .font(Typography.caption2)
+                            .font(Typography.caption)
                             .foregroundStyle(.primary.opacity(column.isCurrent ? 0.75 : 0.32))
                             .frame(width: barWidth)
                     }
@@ -100,7 +131,7 @@ struct TowerBarChart: View {
                 }
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.vertical, 4)
+            .padding(.vertical, 10)
         }
         // Opens showing the most recent period, which is the one you came to
         // look at — a chart of your own history that starts at the beginning
@@ -123,6 +154,54 @@ struct TowerBarChart: View {
 /// needs the geometry and nothing else, twenty or thirty times over, so it gets
 /// its own pure copy of the one part it uses.
 enum MiniTowerPacker {
+
+    /// A run of adjacent same-colour cells, drawn as one shape.
+    struct Run {
+        let cells: Set<GridCell>
+        let colour: Color
+    }
+
+    /// Groups packed blocks into merged runs by colour and adjacency.
+    ///
+    /// The same rule the tower uses — touching cells of one colour are one
+    /// object — run over the chart's own packing rather than over
+    /// `PlacedBlock`s, because the chart never builds those. A block that
+    /// touches nothing comes back as a run of one, which `MergedShape` draws
+    /// as an ordinary rounded rectangle, so there is no second code path for
+    /// the unmerged case.
+    static func runs(in blocks: [TowerBarChart.MiniBlock]) -> [Run] {
+        var owner: [GridCell: Color] = [:]
+        for block in blocks {
+            for r in block.row..<(block.row + block.rowSpan) {
+                for c in block.column..<(block.column + block.columnSpan) {
+                    owner[GridCell(column: c, row: r)] = block.colour
+                }
+            }
+        }
+
+        var seen = Set<GridCell>()
+        var out: [Run] = []
+        for cell in owner.keys.sorted(by: { ($0.row, $0.column) < ($1.row, $1.column) }) {
+            guard !seen.contains(cell), let colour = owner[cell] else { continue }
+            // Flood fill across sides only. Diagonals do not touch, and two
+            // blocks meeting at a corner are two blocks.
+            var group: Set<GridCell> = []
+            var stack = [cell]
+            while let current = stack.popLast() {
+                guard !group.contains(current), owner[current] == colour else { continue }
+                group.insert(current)
+                seen.insert(current)
+                stack.append(contentsOf: [
+                    GridCell(column: current.column - 1, row: current.row),
+                    GridCell(column: current.column + 1, row: current.row),
+                    GridCell(column: current.column, row: current.row - 1),
+                    GridCell(column: current.column, row: current.row + 1)
+                ])
+            }
+            out.append(Run(cells: group, colour: colour))
+        }
+        return out
+    }
 
     static func pack(_ logs: [HabitLog]) -> [TowerBarChart.MiniBlock] {
         var grid: [[Bool]] = []
