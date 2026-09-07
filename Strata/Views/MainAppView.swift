@@ -358,21 +358,21 @@ struct MainAppView: View {
                 .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $isNewHabitMenuOpen) {
-            AddThingSheet(
+            AddWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
-                onAdded: { _ in scheduleRefresh() }
+                onSaved: { _ in scheduleRefresh() }
             )
         }
         // Long-pressing an outlined block opens the same sheet, in edit mode.
         // One sheet for making a thing and for changing it, because they are
         // the same four questions.
         .sheet(item: $editingHabit) { habit in
-            AddThingSheet(
+            AddWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
                 editing: habit,
-                onAdded: { _ in scheduleRefresh() },
+                onSaved: { _ in scheduleRefresh() },
                 onDeleted: { scheduleRefresh() }
             )
         }
@@ -394,6 +394,16 @@ struct MainAppView: View {
             // unfinished habit is now an outlined block sitting in the cell it
             // will occupy, on top of what is already built — so the whole day
             // is one picture instead of two screens that refer to each other.
+            // A photo of a win, taken in the app.
+            //
+            // The camera is a tab rather than a step inside the add sheet
+            // because taking the picture and describing the win are two
+            // different moments: you photograph the thing when it happens, and
+            // you can name it after. Shooting from here logs the win straight
+            // away with the photo already on it.
+            Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
+                cameraTab
+            }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
                     InsightsView(
@@ -531,30 +541,6 @@ struct MainAppView: View {
         .padding(.bottom, 20)
     }
 
-    /// Today's unfinished habits, in the order they will stack on the tower.
-    ///
-    /// Only in Day: a week or a month of the tower is a record of what
-    /// happened, and an outline of something still to do has no place in it.
-    private var pendingHabits: [Habit] {
-        guard towerFilterMode == .day else { return [] }
-        return cachedAllHabitsForSelectedDate
-            .filter {
-                !cachedCompletedHabitIDsForSelectedDate.contains($0.id)
-                    && !cachedSkippedHabitIDsForSelectedDate.contains($0.id)
-                    && !QuickWinService.isWin($0)
-            }
-            .sorted { a, b in
-                let ha = TimelineViewModel.effectiveHour(for: a)
-                let hb = TimelineViewModel.effectiveHour(for: b)
-                switch (ha, hb) {
-                case let (x?, y?): return x == y ? a.title < b.title : x < y
-                case (nil, _?):    return false
-                case (_?, nil):    return true
-                default:           return a.title < b.title
-                }
-            }
-    }
-
     /// Ticking a row. Exactly the path the timeline used: save first, update
     /// the cache optimistically, then queue the drop. The cascade and the
     /// tower do not know or care where the tick came from.
@@ -569,6 +555,16 @@ struct MainAppView: View {
             }
         }
         pendingDrops.append(habit)
+    }
+
+    /// The camera tab. A shot here becomes a win with that photo as its face,
+    /// and the tower is where you land afterwards to watch it drop.
+    private var cameraTab: some View {
+        CameraView(onCaptured: { image in
+            logWin(size: .small, photo: image)
+            selectedTab = .tower
+        })
+        .ignoresSafeArea()
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -1172,7 +1168,7 @@ struct MainAppView: View {
         nextWinCategory = QuickWinService.spontaneousCategory(existing: Array(habits))
     }
 
-    private func logWin(size: BlockSize = .small) {
+    private func logWin(size: BlockSize = .small, photo: UIImage? = nil) {
         do {
             // The colour the slot has been showing, not a fresh roll.
             let win = try QuickWinService.logWin(
@@ -1182,6 +1178,18 @@ struct MainAppView: View {
                 tower: towerManager.activeTower
             )
             rerollNextWinCategory()
+            // Written before the drop is queued, so the block arrives with its
+            // face on rather than growing one a moment after it lands.
+            if let photo, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                let id = log.id
+                Task { @MainActor in
+                    if let name = try? await ImageManager.shared.save(image: photo, for: id) {
+                        log.imageFileName = name
+                        try? modelContext.save()
+                        scheduleRefresh()
+                    }
+                }
+            }
             // Claim the animation up front. Whichever build ends up placing
             // this block hands it to the animator; see `enqueueArrivals`.
             awaitingDropIDs.insert(win.logID)
@@ -1704,23 +1712,17 @@ struct MainAppView: View {
         // no way to reach the slot. It is also why a drop into that row was
         // never seen falling: the whole fall happened above the scrollable
         // area.
-        // Built blocks, then what you still mean to do, then the slot on top
-        // of all of it.
+        // Nothing outlined on the tower.
         //
-        // The slot is the roof: everything the day contains sits under it, and
-        // the one empty cell is always the highest thing on the tower. Sliding
-        // it under the outlines put the thing you press for a NEW block in the
-        // middle of the stack, which reads as a gap rather than as the top.
-        //
-        // Packing the outlines first is also what keeps them still: they take
-        // their cells before the slot claims one, so growing or shrinking the
-        // slot cannot shuffle them.
-        let pending = towerVM.packPending(pendingHabits)
-        let pendingRows = pending.blocks.map { $0.row + $0.rowSpan }.max() ?? 0
-        let slotPos = towerVM.ghostPosition(for: drawingSize, on: pending.gridAfter)
+        // Today's unfinished habits were drawn here as ghost blocks for one
+        // pass. They made the tower busy — a page whose whole claim is that
+        // every object on it is something you DID, carrying a second set of
+        // objects that are things you have not. The tower is the record; the
+        // planning lives elsewhere.
+        let slotPos = towerVM.computeGhostPosition(for: drawingSize)
         let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
-        let layoutRows = rowCount > 0 || pendingRows > 0
-            ? max(max(rowCount, pendingRows), slotRows)
+        let layoutRows = rowCount > 0
+            ? max(rowCount, slotRows)
             : placeholderRows
         let gridH = layoutRows > 0
             ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
@@ -1755,7 +1757,7 @@ struct MainAppView: View {
 
                     if towerVM.isLoading {
                         skeletonGrid(skeletons: placeholders, colW: colW, gridH: gridH)
-                    } else if towerVM.totalRows == 0 && pending.blocks.isEmpty {
+                    } else if towerVM.totalRows == 0 {
                         // An empty tower gets the same next slot a full one
                         // does — pressing it is how the first block arrives, so
                         // it cannot be the one state without a way to press.
@@ -1788,21 +1790,6 @@ struct MainAppView: View {
                                 gridHeight: gridH
                             )
                         }
-
-                        ForEach(pending.blocks) { item in
-                            let f = item.frame(cellSize: colW)
-                            PendingBlockView(
-                                habit: item.habit,
-                                width: f.width,
-                                height: f.height,
-                                cornerRadius: cornerRadius,
-                                onComplete: { tickHabit(item.habit) },
-                                onOpen: { editingHabit = item.habit }
-                            )
-                            .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
-                            .transition(.opacity)
-                        }
-                        .animation(GridConstants.heavySettle, value: pending.blocks.map(\.id))
 
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset,
@@ -1857,7 +1844,7 @@ struct MainAppView: View {
                 // Outside the bottom-anchored grid, so it centres on the
                 // viewport rather than on the ghost footing.
                 .overlay {
-                    if !towerVM.isLoading && towerVM.totalRows == 0 && pending.blocks.isEmpty {
+                    if !towerVM.isLoading && towerVM.totalRows == 0 {
                         towerEmptyStateMessage
                     }
                 }
