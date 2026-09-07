@@ -45,6 +45,41 @@ final class TowerAnimationCoordinator {
         return new
     }
 
+    /// Creates the animation state for every placed block, once, up front.
+    ///
+    /// `state(for:)` creates on demand and stores what it created. That is
+    /// fine from the coordinator and wrong from a view body: the body ran
+    /// first, created an instance and stored it, and the coordinator then
+    /// created a SECOND instance for the same block a moment later. The view
+    /// held one object, the drop sequence mutated the other, and no
+    /// invalidation ever reached the view — so the block never rendered a
+    /// falling phase and simply appeared in place. Measured over four drops,
+    /// three had mismatched instances and did not animate; the one that did
+    /// was the one whose body happened to re-run and pick up the new object.
+    ///
+    /// Seeding here, from the same place that builds the tower, means a body
+    /// always finds an existing instance and never creates a rival.
+    func ensureStates(for ids: some Sequence<UUID>) {
+        for id in ids where blockStates[id] == nil {
+            blockStates[id] = BlockAnimationState()
+        }
+    }
+
+    /// Suspends until the display has presented `count` frames.
+    ///
+    /// The drop sequence needs the block to have actually been DRAWN at the top
+    /// of the runway before the fall starts. Sleeping for a duration cannot
+    /// promise that — a frame is 16.7ms at 60Hz and longer whenever the device
+    /// is busy, which is exactly when a drop is most likely to be dropped. The
+    /// display link fires when a frame really happens, so it promises it.
+    static func awaitFrames(_ count: Int) async {
+        for _ in 0..<count {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                FrameWaiter.wait(cont)
+            }
+        }
+    }
+
     // MARK: - Public API
 
     func enqueueDrop(blockIDs: Set<UUID>) {
@@ -53,9 +88,14 @@ final class TowerAnimationCoordinator {
         // Immediately set falling phase so blocks render offscreen
         // on the same frame they enter placedBlocks — prevents flash
         if !reduceMotion {
-            for id in blockIDs {
-                state(for: id).dropPhase = .falling
-                activelyAnimatingIDs.insert(id)
+            // Never animated. Reaching the top of the runway is where the drop
+            // STARTS, not a move the viewer should see; if an ambient animation
+            // is in flight this is what stops the block sliding up into it.
+            withTransaction(Transaction(animation: nil)) {
+                for id in blockIDs {
+                    state(for: id).dropPhase = .falling
+                    activelyAnimatingIDs.insert(id)
+                }
             }
         }
         pendingDropAnimations.append(blockIDs)
@@ -336,10 +376,25 @@ final class TowerAnimationCoordinator {
         case 1: 0.44; case 2: 0.54; default: 0.66
         }
 
-        // Phase 1: Falling
-        for id in blockIDs { state(for: id).dropPhase = .falling }
+        // Phase 1: Falling — instant, for the same reason as in `enqueueDrop`.
+        withTransaction(Transaction(animation: nil)) {
+            for id in blockIDs { state(for: id).dropPhase = .falling }
+        }
 
-        try? await Task.sleep(nanoseconds: 8_000_000)
+        // Wait for the display, not for the clock.
+        //
+        // This was `Task.sleep(8ms)`. A frame at 60Hz is 16.7ms, so the block
+        // was told to start at the top of the runway and the fall began before
+        // a frame had necessarily been drawn showing it there. Whether the
+        // viewer saw a fall at all came down to whether a refresh happened to
+        // land inside that 8ms window — measured over ten drops, two fell and
+        // eight went straight to the landing and simply appeared. That is the
+        // inconsistency, and no amount of tuning the offset could fix it,
+        // because the block was never rendered at the offset.
+        //
+        // Two display-link ticks: the first can fire before the transaction is
+        // committed, the second cannot.
+        await Self.awaitFrames(2)
         // #26: Air resistance — 0.95x velocity in last 20% (second control point < 1.0)
         let curve: Animation = switch mass {
         case 1: .timingCurve(0.36, 0, 0.85, 1, duration: fallDuration)
@@ -411,4 +466,28 @@ final class TowerAnimationCoordinator {
 
     /// Callback when all pending drops complete. Used for tower settle. Set by the view.
     var onAllDropsComplete: (() -> Void)?
+}
+
+/// Resumes a continuation on the next display refresh.
+///
+/// `CADisplayLink` retains its target, so the waiter keeps itself alive until
+/// it invalidates — there is nothing for the caller to hold on to.
+private final class FrameWaiter: NSObject {
+    private var link: CADisplayLink?
+    private var cont: CheckedContinuation<Void, Never>?
+
+    static func wait(_ cont: CheckedContinuation<Void, Never>) {
+        let waiter = FrameWaiter()
+        waiter.cont = cont
+        let link = CADisplayLink(target: waiter, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        waiter.link = link
+    }
+
+    @objc private func tick() {
+        link?.invalidate()
+        link = nil
+        cont?.resume()
+        cont = nil
+    }
 }

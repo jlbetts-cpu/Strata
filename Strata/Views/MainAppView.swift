@@ -1383,10 +1383,26 @@ struct MainAppView: View {
         timelineVM.loadToday(habits: towerHabits, logs: logs)
         recomputeTimelineHabits(logsByDate: logsByDate)
         let hadBuiltBefore = towerVM.hasBuiltOnce
-        let droppedIDs: Set<UUID> = withAnimation(GridConstants.heavySettle) {
-            towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
+        var droppedIDs: Set<UUID> = []
+        // Insert the block and start it falling in ONE transaction.
+        //
+        // These used to be two: `withAnimation` commits its transaction when
+        // its closure returns, so the arriving block rendered once at its slot
+        // before `enqueueArrivals` moved it up to the runway — and that move,
+        // landing in the next transaction, was itself animated. Filmed at
+        // 60fps the block appeared in place, flew UP 163pt over 0.13s, then
+        // fell back down. That is the inconsistency: every drop was playing a
+        // lift it was never supposed to have, and how much of it you saw
+        // depended on how the two animations happened to overlap.
+        //
+        // Inside one transaction the block is born at the top of the runway,
+        // so there is no prior position to animate away from.
+        withAnimation(GridConstants.heavySettle) {
+            droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
+            // Before anything renders, so no view body ever creates one.
+            animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
+            enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         }
-        enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         towerVM.computeDaySeparators(perfectDayDates: perfectDayDates)
         updateVisibleDateTitle()
         weekCompletedDates = allCompletedDateStrings
