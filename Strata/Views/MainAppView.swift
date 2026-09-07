@@ -1525,7 +1525,22 @@ struct MainAppView: View {
                ? towerVM.skeletonLayout()
                : [])
         let placeholderRows = placeholders.map { $0.row + $0.rowSpan }.max() ?? 0
-        let layoutRows = rowCount > 0 ? rowCount : placeholderRows
+
+        // The next slot has to be INSIDE the measured grid.
+        //
+        // When the top row is full the slot goes to a brand new row above it,
+        // at `row == totalRows` — but the grid was measured from the placed
+        // blocks alone, so that row fell outside the container. It rendered
+        // (a ZStack does not clip) but it was not part of the scrollable
+        // content, so the scroll view stopped at the tower's top and there was
+        // no way to reach the slot. It is also why a drop into that row was
+        // never seen falling: the whole fall happened above the scrollable
+        // area.
+        let slotRows = towerVM.computeGhostPosition(for: drawingSize)
+            .map { $0.row + drawingSize.rowSpan } ?? 0
+        let layoutRows = rowCount > 0
+            ? max(rowCount, slotRows)
+            : placeholderRows
         let gridH = layoutRows > 0
             ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
             : 0

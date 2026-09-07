@@ -197,9 +197,23 @@ before writing any animation.
 
 `tasks/brand.md` carries the intent behind those numbers.
 
-There is no `apple.md`. When something needs to feel more like Apple made it,
-section 5 of the design system is the file — the tokens are already derived for
-this app, which is more useful than the HIG in the abstract.
+**`docs/apple-design.md`** — the owner's reference for how Apple-grade motion
+behaves, copied into the repo on 2026-09-07 (it was in `~/Downloads`). Read it
+before designing any gesture. The rules that bite hardest here:
+
+- **Respond on pointer-DOWN, and continuously during the gesture** — not on
+  release.
+- **Springs, not durations**, for anything a finger touches.
+- **Critically damped (`dampingFraction` 1.0) by default.** Bounce is only
+  earned when momentum caused the motion — a flick, a throw, a drag release.
+  Overshoot on something that merely repositioned reads as indecision.
+- **Interruptible always**: animate from the presentation value, never the
+  target.
+- **Project momentum on release** rather than snapping from the release point.
+- **Rubber-band at boundaries**, never hard-stop.
+
+Between the two files: `apple-design.md` is the behaviour, `design-system.md`
+section 5 is this app's numbers.
 
 **Motion goes through `GridConstants` tokens, never an inline `.spring(...)`.**
 This is stated below as a convention and is widely violated in older code

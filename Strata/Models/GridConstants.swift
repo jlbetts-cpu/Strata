@@ -167,7 +167,12 @@ enum GridConstants {
     /// Faster and slightly springier than `motionSnappy`, because it fires
     /// while you are still dragging: it has to finish before your finger moves
     /// far enough to ask for the next one, or the sizes queue up behind you.
-    static let slotSnap = Animation.spring(response: 0.20, dampingFraction: 0.74)
+    /// Critically damped, per docs/apple-design.md: overshoot belongs to
+    /// motion that momentum caused. Crossing a size threshold mid-drag is a
+    /// reposition, not a throw, and a bounce there reads as the slot being
+    /// unsure. Response sits at the fast end of Apple's 0.3-0.4 for moves,
+    /// because this has to land before the finger asks for the next size.
+    static let slotSnap = Animation.spring(response: 0.30, dampingFraction: 1.0)
     /// Drag distance that commits the next size up.
     static let slotStep: CGFloat = 46
     /// Deadband on the way back down.
