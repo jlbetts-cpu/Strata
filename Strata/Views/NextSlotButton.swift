@@ -52,16 +52,23 @@ struct NextSlotButton: View {
     private func size(lateral: CGFloat, up: CGFloat, from current: BlockSize) -> BlockSize {
         let step = GridConstants.slotStep
         let back = GridConstants.slotStepHysteresis
+        // The direction has to be DECISIVE, not merely present. Reaching the
+        // upward threshold while pulling mostly sideways used to give the tall
+        // block, so a wide pull that drifted upward produced a shape you did
+        // not ask for and could not predict. Past 45 degrees it is an upward
+        // drag; below it, a sideways one.
+        let goingUp = up > lateral
+
         switch current {
         case .small:
-            if up >= step { return .hard }
+            if goingUp && up >= step { return .hard }
             return lateral >= step ? .medium : .small
         case .medium:
-            if up >= step { return .hard }
+            if goingUp && up >= step { return .hard }
             return lateral >= step - back ? .medium : .small
         case .hard:
-            // Up holds it tall; letting the height go drops to whatever the
-            // sideways pull still justifies.
+            // Holding it tall does not demand you keep winning the argument
+            // about direction — only that the height is still being asked for.
             if up >= step - back { return .hard }
             return lateral >= step - back ? .medium : .small
         }
@@ -69,9 +76,12 @@ struct NextSlotButton: View {
 
     /// Press recoil only. The size itself comes from the frame the tower
     /// gives this view, which snaps between the three real sizes.
-    private var scale: CGSize {
-        CGSize(width: 1 - charge * 0.05, height: 1 + charge * 0.07)
-    }
+    /// **Uniform, and never above 1.** It used to squash one axis and stretch
+    /// the other — 5% wider and 7% shorter under the finger, anchored top-left
+    /// — so the one element whose entire job is to show which grid cell the
+    /// block will occupy stopped lining up with that cell exactly while you
+    /// were looking at it.
+    private var scale: CGFloat { 1 - abs(charge) * 0.04 }
 
     /// 0 at rest, 1 once drawing has clearly begun.
     private var drawProgress: Double {
@@ -141,11 +151,10 @@ struct NextSlotButton: View {
                 .fill(.white.opacity(glow * 0.9))
                 .blur(radius: 6 * glow)
         )
-        // Grows from its own top-left, which is where the block will be
-        // anchored, so the preview occupies exactly the cells the block
-        // will take.
+        // Scaled down from the centre, so the ghost stays inside the cell it
+        // is pointing at.
         .animation(GridConstants.tapSquashSpring, value: isDown)
-        .scaleEffect(x: scale.width, y: scale.height, anchor: .topLeading)
+        .scaleEffect(scale)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
@@ -231,7 +240,7 @@ struct NextSlotButton: View {
         let up = max(-value.translation.height, 0)
             + GridConstants.project(velocity: max(-value.velocity.height, 0))
         let step = GridConstants.slotStep
-        if up >= step { return .hard }
+        if up > lateral && up >= step { return .hard }
         return lateral >= step ? .medium : .small
     }
 
