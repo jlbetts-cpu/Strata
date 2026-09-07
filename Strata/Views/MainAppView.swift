@@ -1028,9 +1028,10 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
-    private func logWin() {
+    private func logWin(size: BlockSize = .small) {
         do {
             let habit = try QuickWinService.logWin(
+                size: size,
                 context: modelContext,
                 tower: towerManager.activeTower
             )
@@ -1742,7 +1743,7 @@ struct MainAppView: View {
                 NextSlotButton(
                     reduceMotion: reduceMotion,
                     cornerRadius: cornerRadius,
-                    action: logWin
+                    action: { logWin(size: $0) }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
@@ -1844,7 +1845,7 @@ struct MainAppView: View {
         NextSlotButton(
             reduceMotion: reduceMotion,
             cornerRadius: cornerRadius,
-            action: logWin
+            action: { logWin(size: $0) }
         )
         .frame(width: f.width, height: f.height)
         .offset(x: f.minX, y: 0)
