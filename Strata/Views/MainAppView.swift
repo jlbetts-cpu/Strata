@@ -886,6 +886,28 @@ struct MainAppView: View {
         }
     }
 
+    /// What of the tower reaches the water: the bottom row, as colour and
+    /// width. A reflection at the base of something shows only what is nearest
+    /// the surface, so nothing above row 0 contributes and nothing but position
+    /// and colour survives.
+    private func reflectionFacets(colW: CGFloat) -> [TowerReflection.Facet] {
+        towerVM.placedBlocks
+            .filter { $0.row == 0 }
+            .map { block in
+                let f = GridConstants.blockFrame(
+                    column: block.column, row: 0,
+                    columnSpan: block.columnSpan, rowSpan: 1,
+                    cellSize: colW
+                )
+                return TowerReflection.Facet(
+                    id: block.id,
+                    x: f.minX,
+                    width: f.width,
+                    color: block.habit.category.style.baseColor
+                )
+            }
+    }
+
     // MARK: - Wins
 
     /// Blocks that landed on the tower today — taps of the next slot plus
@@ -1359,7 +1381,8 @@ struct MainAppView: View {
         // edge. `.offset` does not affect layout, so the sizing spacer below
         // has to be told about it or the container reserves no space for any
         // of it and it hangs outside the measured bounds.
-        let footerReserve: CGFloat = showFirstBlockLabel ? 84 : 58
+        let waterDepth = TowerReflection.depth
+        let footerReserve: CGFloat = waterDepth + (showFirstBlockLabel ? 46 : 20)
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -1379,8 +1402,17 @@ struct MainAppView: View {
                         // it cannot be the one state without a way to press.
                         emptyTowerSlot(colW: colW)
                     } else {
-                        // Ground plane at tower foundation
+                        // Ground plane at tower foundation, and the water
+                        // it sits on.
                         towerGroundPlane(gridW: gridW, gridH: gridH)
+
+                        TowerReflection(
+                            facets: reflectionFacets(colW: colW),
+                            gridWidth: gridW,
+                            cornerRadius: cornerRadius,
+                            reduceMotion: reduceMotion
+                        )
+                        .offset(y: gridH + 1)
 
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset)
@@ -1436,7 +1468,7 @@ struct MainAppView: View {
                                 }
                             }
                             .frame(width: gridW, alignment: .center)
-                            .offset(y: gridH + 16)
+                            .offset(y: gridH + waterDepth)
                         }
                     }
                 }
