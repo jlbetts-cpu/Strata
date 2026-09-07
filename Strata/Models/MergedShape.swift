@@ -27,8 +27,26 @@ struct MergedShape: Shape {
     let cellSize: CGFloat
     let spacing: CGFloat
     /// Height of the grid, needed to flip row 0 to the bottom.
-    let gridHeight: CGFloat
+    ///
+    /// `var`, not `let`, so it can be the shape's `animatableData`.
+    var gridHeight: CGFloat
     let cornerRadius: CGFloat
+
+    /// The grid's height is animated, so the merged run has to be too.
+    ///
+    /// Without this the path recomputed in ONE frame while everything around
+    /// it sprang. Adding a row grows `gridHeight` by a pitch, which moves every
+    /// cell in this shape down by a pitch inside a container that is
+    /// simultaneously moving up by one — the two cancel only if they happen at
+    /// the same rate. They did not: the blocks interpolated their offsets and
+    /// the merged shape jumped straight to its final path, so for the length of
+    /// the settle the run was drawn a whole block away from the blocks it is
+    /// made of. That is a merged block "going out of place" when a new one
+    /// lands.
+    var animatableData: CGFloat {
+        get { gridHeight }
+        set { gridHeight = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
