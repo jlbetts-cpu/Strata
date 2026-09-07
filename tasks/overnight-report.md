@@ -483,3 +483,77 @@ Screenshots: `50-tower-nextslot.png`, `51-tower-empty-slot.png`,
 - Whether the Metal shader animates on device (see above).
 - Frame cost of the Canvas on real hardware. It is a dozen paths, so I expect
   it to be free, but I measured pixel change, not GPU time.
+
+---
+
+# Session 4 — ethereal, and the tower finished
+
+Thirteen things were asked for. Three passes are done; two are not started, and
+I said so before starting rather than after.
+
+## Done
+
+| Commit | Change |
+|---|---|
+| `13291a5` | Nothing under the tower; tally pinned top-left; Settings → Insights; water paler and shorter; impact rings |
+| `2980639` | Ethereal as one rule in three places |
+| `d1f17fa` | A block's name and size, editable in the card |
+
+**The tally.** The count and height were a 0.3-opacity caption between the
+bottom row and the tab bar — it moved every time the tower grew, and it kept
+the tower from ever reaching the bottom of the page. Both facts are now pinned
+top-left, one number large enough to read at a glance. That absorbed the
+"N today" beside the slot, so there is one number in one place instead of two
+in two.
+
+**Ethereal, applied as a rule rather than a look:** *a surface that has not
+earned colour lets the page show through it.* Three places:
+
+- The unnamed win was `#9C9791` — the heaviest, muddiest thing on the page and
+  the darkest block in a tower of light colours, which is backwards for the
+  block that claims the least. White at 0.52 now.
+- The photo scrim was `warmBlack` at 0.80, near-opaque; the bottom third of
+  every photo was simply gone. It tops out at 0.48 on a softer ramp, and the
+  title takes its own shadow — buying back contrast rather than destroying the
+  photo to get it.
+- The incomplete block's bottom tint is gone. It read as a smudge along the
+  edge, on a surface whose whole job is to look clean.
+
+**The water reacts.** A landing block sends two rings from its own column,
+flattened hard because the surface is seen almost edge-on — a circle there
+reads as a bubble sitting on top. Heavier blocks displace more. Rings expire on
+their own, so nothing has to clean up mid-cascade.
+
+## Not started, and why
+
+**Today/Plan split by verb** (~400–600 lines across the two most stateful files
+in the app) and **character for Today, Plan and Insights**. The second depends
+on the first and on the ethereal language existing — which it now does, so it
+is unblocked. Each wants its own session; starting either at the tail of this
+one is how the tower's careful work gets undone by a rushed edit elsewhere.
+
+## Judgement calls
+
+1. **The win block is white at 0.52, not a `Material`.** A real frosted
+   material samples what is behind it, and on the tower that is often another
+   block — so a win beside a red block would go pink. Flat translucent white
+   reads as glass against the page and stays neutral wherever it lands.
+2. **The rings are drawn from every landing block, not just the bottom row.**
+   The tower is standing *in* the water, so anything landing on it travels down
+   through it. Rings from the top row still spread from that block's column,
+   which is what makes the water feel attached rather than played at.
+3. **`blockGhostTint` is deleted, not set to zero.** It was the last user of
+   that token.
+4. **The title field writes on every keystroke** (`try? modelContext.save()`
+   per edit). Correct for a sheet-like feel; if it ever shows up in a profile,
+   debounce it.
+
+## Still not verified
+
+- Nothing can tap, so: the size buttons have never been pressed, the title
+  field has never been typed into, and **the impact rings have never been seen
+  firing** — they are wired to `animCoord.onImpact`, which only runs during a
+  real drop cascade. I verified the ring geometry compiles and that the
+  reflection draws; not the two meeting.
+- The photo scrim change is unverified against a real photo — the seeder has
+  none. That one is worth a look with an actual image before you trust it.
