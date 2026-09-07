@@ -83,8 +83,28 @@ struct FlippableBlockView: View {
         // so the block disappears on exactly the frame the group takes over.
         // With the colours identical and the chrome already stripped, that swap
         // has nothing left to see.
-        blockBody
-            .opacity(isGroupMember ? 0 : 1)
+        Group {
+            if isGroupMember {
+                // A member draws its LABEL and nothing else.
+                //
+                // The run's surface — the fill, the rim, the band, the shadow
+                // — is drawn once by `MergedGroupView`, so a member drawing
+                // its own would put a second outline through the middle of one
+                // shape. But now that named blocks merge, it still has
+                // something to say: the words sit on the merged surface the
+                // way words sit on a wall, and the wall is still one wall.
+                BlockContentOverlay(
+                    title: block.habit.title,
+                    category: block.habit.category,
+                    rowSpan: block.rowSpan,
+                    timeText: nil,
+                    hasImage: false
+                )
+                .frame(width: width, height: height)
+            } else {
+                blockBody
+            }
+        }
             // The tap belongs to the BLOCK, not to its chrome.
             //
             // It used to be attached inside `chromedBody`, which a merged

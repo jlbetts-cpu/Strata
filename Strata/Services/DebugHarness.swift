@@ -150,9 +150,12 @@ enum DebugHarness {
         // deliberately avoids clustering, so a normal seed rarely produces two
         // adjacent blocks of one colour to look at.
         let mono = Int(argument("-strataSeedMono") ?? "0") ?? 0
+        // NAMED, since named blocks merge now. Unnamed ones only exercise the
+        // old path, where a member had nothing to draw.
         for i in 0..<mono {
             try? QuickWinService.logWin(
-                title: "", category: .health,
+                title: titles[i % titles.count],
+                category: .health,
                 size: sizes[i % sizes.count],
                 context: context, tower: tower
             )

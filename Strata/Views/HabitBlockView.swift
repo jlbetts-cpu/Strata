@@ -207,8 +207,17 @@ struct BlockContentOverlay: View {
                     Text(title)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(.white)
+                        // One size on every block, and an ellipsis when it
+                        // does not fit.
+                        //
+                        // `minimumScaleFactor` shrank the type to fit, so a
+                        // tower of ten blocks could carry six different text
+                        // sizes and the size read as emphasis nobody had
+                        // chosen — the shortest title looked the most
+                        // important. Truncation is honest: same size
+                        // everywhere, and the ones that run long say so.
                         .lineLimit(rowSpan > 1 ? 2 : 1)
-                        .minimumScaleFactor(0.65)
+                        .truncationMode(.tail)
                         // On a photo the scrim is a light veil now, so the type
                         // carries its own contrast instead of the block being
                         // darkened until anything would be legible on it.

@@ -62,10 +62,20 @@ enum BlockMerge {
     /// unioned. Working in cells rather than blocks means a 2x2 and a 1x1 merge
     /// correctly without any special case.
     static func groups(for blocks: [PlacedBlock]) -> [MergeGroup] {
-        let mergeable = blocks.filter { block in
-            block.log.imageFileName == nil
-                && (block.habit.title == QuickWinService.untitled || block.habit.title.isEmpty)
-        }
+        // Named blocks merge too.
+        //
+        // The rule used to be unnamed-only, on the reasoning that a merged run
+        // is one object and one object should not carry several labels. That
+        // was too cautious: the shape is what says "these belong together",
+        // and the labels sit ON it the way words sit on a wall — the wall is
+        // still one wall. A run of four green blocks with four short titles
+        // reads as one green shape with four things written on it, which is
+        // exactly what it is.
+        //
+        // Photos still cannot merge. A block wearing a photograph is not the
+        // colour it would have to become, and half a merged shape showing an
+        // image is two objects pretending to be one.
+        let mergeable = blocks.filter { $0.log.imageFileName == nil }
         guard mergeable.count > 1 else { return [] }
 
         var cellOwner: [GridCell: PlacedBlock] = [:]
