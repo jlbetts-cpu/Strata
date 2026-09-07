@@ -110,7 +110,14 @@ struct AddWinSheet: View {
                 onClose: { showCamera = false },
                 fillsScreen: true
             )
-            .preferredColorScheme(.dark)
+            // No colour-scheme override on this one.
+            //
+            // A `preferredColorScheme` inside a full-screen cover still
+            // reaches the window, so opening the camera from the add sheet
+            // flipped the whole app dark and flipped it back on dismiss — the
+            // screen lurching around a photo you were only trying to attach.
+            // The status bar renders white over the black viewfinder on its
+            // own, so it bought nothing.
         }
         // Two sources, asked once.
         //
@@ -158,7 +165,21 @@ struct AddWinSheet: View {
     /// square block, wide for a wide one. Tapping it opens the camera; tapping
     /// a photo you already took replaces it.
     private var photoWell: some View {
-        let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
+        // The well is the block, at the block's real proportions.
+        //
+        // It was `.aspectRatio` on a full-width frame, so Quick (1x1) and Deep
+        // (2x2) are both square and both came out the same size — the one
+        // control whose job is to show you what you are making showed no
+        // difference between the smallest thing and the biggest. It is sized
+        // from the grid now: one cell for Quick, two across for Regular, two
+        // across and two down for Deep, using the same cell pitch and corner
+        // radius the tower uses. Picking Deep makes the box visibly bigger,
+        // because the block is.
+        let cell: CGFloat = 96
+        let gap = GridConstants.spacing
+        let w = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
+        let h = CGFloat(size.rowSpan) * cell + CGFloat(size.rowSpan - 1) * gap
+
         return Button {
             HapticsEngine.lightTap()
             choosingSource = true
@@ -171,21 +192,19 @@ struct AddWinSheet: View {
                 } else {
                     RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
                         .fill(AppColors.warmBlack.opacity(0.04))
-                    VStack(spacing: 7) {
+                    VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 19, weight: .medium))
+                            .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.primary.opacity(0.35))
-                        Text("Add a photo")
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(.primary.opacity(0.35))
+                        if size != .small {
+                            Text("Add a photo")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(.primary.opacity(0.35))
+                        }
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(aspect, contentMode: .fit)
-            // Capped, or a square well for a Quick block eats half the sheet
-            // and the controls under it fall off the screen.
-            .frame(maxHeight: 210)
+            .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
@@ -197,14 +216,18 @@ struct AddWinSheet: View {
             .overlay(alignment: .bottomTrailing) {
                 if photo != nil {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
-                        .padding(8)
+                        .padding(7)
                         .background(Circle().fill(.black.opacity(0.35)))
-                        .padding(10)
+                        .padding(8)
                 }
             }
-            .animation(GridConstants.motionSmooth, value: size)
+            // Grows from the top left, where a block is anchored, so the
+            // change reads as the block getting bigger rather than as the box
+            // moving.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(GridConstants.slotSnap, value: size)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")

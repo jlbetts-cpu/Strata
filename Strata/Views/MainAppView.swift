@@ -382,6 +382,7 @@ struct MainAppView: View {
         TabView(selection: $selectedTab) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
+                    .preferredColorScheme(.light)
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -402,22 +403,23 @@ struct MainAppView: View {
             // you can name it after. Shooting from here logs the win straight
             // away with the photo already on it.
             Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
-                // The window stays light. All of it, always.
+                // Dark on the camera, light everywhere else — and nothing
+                // about the highlight changes with it.
                 //
-                // The camera would like a white status bar, and iOS ties the
-                // status bar's colour to the WINDOW's scheme — there is no
-                // per-screen route. Two scoped APIs were tried and neither
-                // reaches the iOS 26 tab bar: `UITabBarAppearance` (the glass
-                // bar does not use the proxy) and
-                // `toolbarColorScheme(.light, for: .tabBar)` (no effect). So
-                // the choice is a white status bar OR a light tab bar, and it
-                // cannot be both.
+                // The tab bar is Liquid Glass and samples what is behind it,
+                // so the viewfinder turns it dark whatever the window says.
+                // Three ways to stop that were tried and none reaches it:
+                // `UITabBarAppearance`, `toolbarColorScheme(_:for: .tabBar)`,
+                // and `toolbarBackground(_:for: .tabBar)`. So the bar is going
+                // to be dark there; the fix is to make that state correct
+                // rather than to fight it.
                 //
-                // The tab bar wins. It is on screen on every tab; the status
-                // bar is four glyphs on one. The cost is that over a dark
-                // scene the clock is low contrast — a real trade, and the one
-                // that keeps the app light throughout as decided.
+                // The tint is one fixed colour that reads on both grounds
+                // (`AppColors.accentEither`), so the selected item does not
+                // change appearance between tabs and there is nothing about it
+                // to animate.
                 cameraTab
+                    .preferredColorScheme(.dark)
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
@@ -441,16 +443,16 @@ struct MainAppView: View {
                         )
                     }
                 }
+                .preferredColorScheme(.light)
             }
         }
-        // The highlight is the icon colour, not an accent.
+        // One highlight colour, on light and on dark.
         //
-        // The tab bar was tinted with the app's warm accent, which made the
-        // selected item a third colour that appears nowhere else in the
-        // chrome. With the bar pinned light, its icons are dark on every
-        // screen, so the selected item is the same colour as the ones beside
-        // it and simply filled in.
-        .tint(AppColors.warmBlack)
+        // It was `.primary`, which resolves differently on each ground — so
+        // the selected item was one colour on the tower and another on the
+        // camera, and read as two different controls. See `accentEither` for
+        // why 4.33:1 on both is the ceiling.
+        .tint(AppColors.accentEither)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { _, newTab in
             HapticsEngine.tick()
