@@ -42,9 +42,9 @@ struct TowerBarChart: View {
     /// same scale and their heights can be compared by eye.
     let maxRows: Int
 
-    private let cell: CGFloat = 7
-    private let gap: CGFloat = 1.5
-    private let columnGap: CGFloat = 14
+    private let cell: CGFloat = 9
+    private let gap: CGFloat = 2
+    private let columnGap: CGFloat = 16
 
     private var barWidth: CGFloat {
         CGFloat(GridConstants.columnCount) * cell + CGFloat(GridConstants.columnCount - 1) * gap

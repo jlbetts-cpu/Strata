@@ -7,6 +7,12 @@ struct InsightsView: View {
     var onAddHabit: (() -> Void)? = nil
     var onNavigateToTower: ((TowerFilterMode) -> Void)? = nil
 
+    @AppStorage("insightsRange") private var rangeRaw: String = TowerFilterMode.day.rawValue
+    private var range: TowerFilterMode {
+        get { TowerFilterMode(rawValue: rangeRaw) ?? .day }
+        nonmutating set { rangeRaw = newValue.rawValue }
+    }
+
     @State private var viewModel = InsightsViewModel()
     @State private var showAllStreaks = false
     @State private var selectedInsightHabit: Habit? = nil
@@ -18,6 +24,8 @@ struct InsightsView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
+                towerChartSection
+
                 // Empty state
                 if habits.isEmpty {
                     VStack(spacing: 12) {
@@ -63,6 +71,108 @@ struct InsightsView: View {
         }
     }
 
+    // MARK: - The towers, side by side
+
+    /// The hero. Every period drawn as the tower it actually was.
+    ///
+    /// It leads because it is the only thing here that answers the question
+    /// people open this tab with — how am I doing — in one look, and it
+    /// answers it in the app's own language rather than in a chart's. The
+    /// header is the tower's header: same numeral, same word, same range
+    /// picker in the same corner, so moving between the two screens is moving
+    /// between two views of one thing rather than between two designs.
+    private var towerChartSection: some View {
+        let columns = chartColumns
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Text("\(columns.reduce(0) { $0 + $1.winCount })")
+                    .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .contentTransition(.numericText())
+                Text("wins")
+                    .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.35))
+                Spacer(minLength: 0)
+                TowerRangePicker(selection: Binding(
+                    get: { range },
+                    set: { range = $0 }
+                ))
+            }
+            .padding(.horizontal, 4)
+
+            TowerBarChart(
+                columns: columns,
+                maxRows: max(columns.map(\.rows).max() ?? 0, 4)
+            )
+            // The chart already insets itself to the page's padding, and this
+            // section is inside a container that adds its own.
+            .padding(.horizontal, -16)
+        }
+        .padding(.top, 4)
+    }
+
+    /// One column per period, most recent last.
+    ///
+    /// The window is a fixed count of periods rather than "everything", so the
+    /// bars stay a readable width and the chart says what you have been doing
+    /// lately — which is the question — instead of compressing a year into a
+    /// smear.
+    private var chartColumns: [TowerBarChart.Column] {
+        let calendar = Calendar.current
+        let now = Date()
+        let component: Calendar.Component
+        let count: Int
+        switch range {
+        case .day:   component = .day;        count = 14
+        case .week:  component = .weekOfYear; count = 12
+        case .month: component = .month;      count = 12
+        }
+
+        // Index the logs once by the period they fall in, rather than filtering
+        // the whole set once per column.
+        var byPeriod: [Date: [HabitLog]] = [:]
+        for log in logs {
+            guard let date = Self.dateFormatter.date(from: log.dateString),
+                  let start = calendar.dateInterval(of: component, for: date)?.start
+            else { continue }
+            byPeriod[start, default: []].append(log)
+        }
+
+        let currentStart = calendar.dateInterval(of: component, for: now)?.start
+
+        return (0..<count).reversed().compactMap { back -> TowerBarChart.Column? in
+            guard let date = calendar.date(byAdding: component, value: -back, to: now),
+                  let start = calendar.dateInterval(of: component, for: date)?.start
+            else { return nil }
+            return TowerBarChart.Column(
+                id: ISO8601DateFormatter().string(from: start),
+                label: label(for: start, component: component, calendar: calendar),
+                isCurrent: start == currentStart,
+                blocks: MiniTowerPacker.pack(byPeriod[start] ?? [])
+            )
+        }
+    }
+
+    private func label(for date: Date, component: Calendar.Component, calendar: Calendar) -> String {
+        switch component {
+        case .day:
+            // One letter. Under a bar this narrow anything longer wraps or
+            // clips, and the shape of the week is legible from initials.
+            return String(date.formatted(.dateTime.weekday(.narrow)))
+        case .weekOfYear:
+            return "\(calendar.component(.day, from: date))"
+        default:
+            return String(date.formatted(.dateTime.month(.narrow)))
+        }
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     // MARK: - Streaks Section
 
     private var streaksSection: some View {
@@ -84,14 +194,12 @@ struct InsightsView: View {
                     )
                 } label: {
                     HStack(spacing: 12) {
-                        if let icon = item.habit.category.iconName {
-                            Image(systemName: icon)
-                                .font(Typography.caption)
-                                .foregroundStyle(item.habit.category.style.baseColor)
-                                .frame(width: 32, height: 32)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .background(item.habit.category.style.baseColor.opacity(0.18), in: Circle())
-                        }
+                        // A block, not an icon in a tinted circle: the same
+                        // square at the same corner ratio the tower uses, so
+                        // the row is marked by the thing it is counting.
+                        RoundedRectangle(cornerRadius: 22 * 0.147, style: .continuous)
+                            .fill(item.habit.displayCategory.style.baseColor)
+                            .frame(width: 22, height: 22)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.habit.title)
@@ -108,7 +216,7 @@ struct InsightsView: View {
 
                         Text("\(item.streak)")
                             .font(Typography.headerLarge)
-                            .foregroundStyle(item.streak > 0 ? AppColors.healthGreen : Color.primary.opacity(0.3))
+                            .foregroundStyle(.primary.opacity(item.streak > 0 ? 0.85 : 0.28))
 
                         Text(item.streak == 1 ? "day" : "days")
                             .font(Typography.caption)
@@ -118,19 +226,18 @@ struct InsightsView: View {
                             .font(Typography.caption2)
                             .foregroundStyle(Color.primary.opacity(0.4))
                     }
-                    .padding(12)
-                    .background(
-                        LinearGradient(
-                            stops: [
-                                .init(color: item.habit.category.style.lightTint, location: 0.0),
-                                .init(color: item.habit.category.style.baseColor, location: 0.3),
-                                .init(color: item.habit.category.style.baseColor, location: 1.0)
-                            ],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                        .opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous)
-                    )
+                    // No card.
+                    //
+                    // Each of these was a rounded rect filled with a gradient
+                    // of its category's colour — a tinted panel per row, three
+                    // of them stacked, on a page whose only real objects are
+                    // blocks. A white rim, a frosted band or a filled well says
+                    // "you built this and it is standing on something", which
+                    // is a block's claim; a list of streaks is a list. Rows and
+                    // a hairline, like everywhere else.
+                    .padding(.vertical, 11)
+                    .padding(.horizontal, 4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
@@ -144,6 +251,13 @@ struct InsightsView: View {
                     } label: {
                         Label("View in Today", systemImage: "calendar")
                     }
+                }
+
+                if item.habit.id != displayedStreaks.last?.habit.id {
+                    Rectangle()
+                        .fill(.primary.opacity(0.06))
+                        .frame(height: 0.5)
+                        .padding(.leading, 38)
                 }
             }
 
