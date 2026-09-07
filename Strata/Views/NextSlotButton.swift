@@ -28,52 +28,40 @@ struct NextSlotButton: View {
     @State private var drawn: CGFloat = 0
     @State private var lastSize: BlockSize = .small
 
-    /// Points of drag per size step. Short enough that a flick reaches Deep,
-    /// long enough that a small block is what you get if you do not mean to
-    /// draw at all.
-    private static let stepDistance: CGFloat = 46
-
-    /// The size the current drag has reached.
+    /// The size the drag has committed to, with a deadband on the way back.
     ///
-    /// Continuous, and reversible: dragging back shrinks it. A hold-timer
-    /// version of this could only ever count upward, so overshooting meant
-    /// letting go and starting again.
-    private var drawnSize: BlockSize {
-        switch Int(drawn / Self.stepDistance) {
-        case 0: .small
-        case 1: .medium
-        default: .hard
+    /// It SNAPS. A block can only be one of three sizes, so a slot that
+    /// stretches smoothly between them is showing a state the block can never
+    /// be in — and then jumps anyway when you let go. It steps between the
+    /// sizes that exist, which is also what makes the haptic honest: it fires
+    /// at the moment the thing actually changes.
+    ///
+    /// Growing takes a full step; shrinking gives one back only after coming
+    /// `slotStepHysteresis` further, so a finger resting on a threshold does
+    /// not flicker between two sizes on the tremors of a real hand.
+    private func size(for distance: CGFloat, from current: BlockSize) -> BlockSize {
+        let step = GridConstants.slotStep
+        let back = GridConstants.slotStepHysteresis
+        switch current {
+        case .small:
+            return distance >= step * 2 ? .hard : (distance >= step ? .medium : .small)
+        case .medium:
+            if distance >= step * 2 { return .hard }
+            return distance < step - back ? .small : .medium
+        case .hard:
+            return distance < step * 2 - back ? .medium : .hard
         }
     }
 
-    /// Press recoil and hold growth, combined once so the view body stays
-    /// inside the type-checker's budget.
+    /// Press recoil only. The size itself comes from the frame the tower
+    /// gives this view, which snaps between the three real sizes.
     private var scale: CGSize {
-        let g = growth
-        return CGSize(width: (1 - charge * 0.05) * (1 + g.x),
-                      height: (1 + charge * 0.07) * (1 + g.y))
-    }
-
-    /// A stretch toward the NEXT size, not the size itself.
-    ///
-    /// The slot's real footprint comes from its frame, which the tower sets to
-    /// wherever a block of the committed size would land — so the scale here
-    /// only has to say "you are on your way to the next one". Doing both would
-    /// double-count and the slot would leap to four times its size.
-    ///
-    /// It stretches in the axis that is about to change: a medium block is two
-    /// columns wide, a deep one is two by two, so small-to-medium pulls
-    /// sideways and medium-to-deep pulls down. Rubber band, then a click.
-    private var growth: (x: CGFloat, y: CGFloat) {
-        let step = drawn / Self.stepDistance
-        guard step < 2 else { return (0, 0) }
-        let hint = (step - floor(step)) * 0.22
-        return Int(step) == 0 ? (x: hint, y: 0) : (x: 0, y: hint)
+        CGSize(width: 1 - charge * 0.05, height: 1 + charge * 0.07)
     }
 
     /// 0 at rest, 1 once drawing has clearly begun.
     private var drawProgress: Double {
-        Double(min(drawn / (Self.stepDistance * 0.5), 1))
+        Double(min(drawn / (GridConstants.slotStep * 0.5), 1))
     }
 
     private var outline: Color { AppColors.warmBlack.opacity(0.18) }
@@ -135,44 +123,37 @@ struct NextSlotButton: View {
                 if !isDown {
                     isDown = true
                     HapticsEngine.tick()
-                    withAnimation(.spring(response: 0.16, dampingFraction: 0.72)) {
-                        charge = -1
-                    }
+                    withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
                 }
                 guard !reduceMotion else { return }
-                let distance = hypot(value.translation.width, value.translation.height)
-                withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.86)) {
-                    drawn = distance
-                }
+                drawn = hypot(value.translation.width, value.translation.height)
+                let next = size(for: drawn, from: lastSize)
+                guard next != lastSize else { return }
+                lastSize = next
                 // A haptic on every crossing, in both directions — the only
                 // unambiguous signal that a size actually committed, and the
                 // thing that makes drawing back feel deliberate rather than
                 // like losing progress.
-                if drawnSize != lastSize {
-                    lastSize = drawnSize
-                    HapticsEngine.snap()
-                    onSizeChanged(drawnSize)
-                }
+                HapticsEngine.snap()
+                withAnimation(GridConstants.slotSnap) { onSizeChanged(next) }
             }
             .onEnded { _ in
                 isDown = false
-                let size = reduceMotion ? .small : drawnSize
+                let size: BlockSize = reduceMotion ? .small : lastSize
                 fire(size: size)
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.45)) { charge = 1 }
-                withAnimation(.easeOut(duration: 0.10)) { glow = 1 }
+                withAnimation(GridConstants.elasticPop) { charge = 1 }
+                withAnimation(GridConstants.slotBloomIn) { glow = 1 }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(90))
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.7)) { charge = 0 }
-                    withAnimation(.easeOut(duration: 0.45)) { glow = 0 }
+                    withAnimation(GridConstants.snapBack) { charge = 0 }
+                    withAnimation(GridConstants.slotBloomOut) { glow = 0 }
                 }
             }
     }
 
     private func fire(size: BlockSize) {
         HapticsEngine.snap()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            drawn = 0
-        }
+        withAnimation(GridConstants.naturalSettle) { drawn = 0 }
         lastSize = .small
         onSizeChanged(.small)
         action(size)

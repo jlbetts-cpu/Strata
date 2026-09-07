@@ -1773,7 +1773,9 @@ struct MainAppView: View {
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
-                .animation(GridConstants.motionSmooth, value: drawingSize)
+                // slotSnap, not motionSmooth: this fires mid-drag and has to
+                // land before the finger asks for the next size.
+                .animation(GridConstants.slotSnap, value: drawingSize)
             }
         }
         .accessibilityElement(children: .combine)

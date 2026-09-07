@@ -160,6 +160,27 @@ enum GridConstants {
 
     /// Toggle/picker transitions (NewHabitMenu, PlanItemRow)
     static let toggleSwitch = Animation.spring(response: 0.30, dampingFraction: 0.80)
+
+    // MARK: - Slot resize
+    /// The snap when the next slot changes size under your finger.
+    ///
+    /// Faster and slightly springier than `motionSnappy`, because it fires
+    /// while you are still dragging: it has to finish before your finger moves
+    /// far enough to ask for the next one, or the sizes queue up behind you.
+    static let slotSnap = Animation.spring(response: 0.20, dampingFraction: 0.74)
+    /// Drag distance that commits the next size up.
+    static let slotStep: CGFloat = 46
+    /// Deadband on the way back down.
+    ///
+    /// Without it, holding a finger still on a threshold flickers the slot
+    /// between two sizes on the small tremors of a real hand. Growing at 46 and
+    /// shrinking at 34 means a size, once taken, has to be given back
+    /// deliberately.
+    static let slotStepHysteresis: CGFloat = 12
+    /// The bloom left behind when a block is released from the slot. In fast,
+    /// out slow — light arrives at once and decays.
+    static let slotBloomIn = Animation.easeOut(duration: 0.10)
+    static let slotBloomOut = Animation.easeOut(duration: 0.45)
     /// Skeleton pop-in during loading
     static let skeletonPop = Animation.spring(response: 0.35, dampingFraction: 0.65)
 

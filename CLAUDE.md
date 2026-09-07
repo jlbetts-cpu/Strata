@@ -187,6 +187,25 @@ catches the loading skeleton and has repeatedly been mistaken for a bug.
 Because nothing can tap, anything behind a gesture is unverified by definition.
 Say so rather than implying otherwise.
 
+## Where the design is written down
+
+**`docs/design-system.md`** — 542 lines, and the file a session is most likely
+to miss. Colour tokens, type scale, spacing, the radius ladder, the shadow
+system, and a complete motion spec: drop physics, tap feedback, semantic
+motion, Today-screen motion, card motion, celebration timings. Read section 5
+before writing any animation.
+
+`tasks/brand.md` carries the intent behind those numbers.
+
+There is no `apple.md`. When something needs to feel more like Apple made it,
+section 5 of the design system is the file — the tokens are already derived for
+this app, which is more useful than the HIG in the abstract.
+
+**Motion goes through `GridConstants` tokens, never an inline `.spring(...)`.**
+This is stated below as a convention and is widely violated in older code
+(`TowerAnimationCoordinator`, `TimelineHabitRow`, parts of `MainAppView`).
+Do not add to it; fixing the existing ones is a worthwhile separate pass.
+
 ## Conventions
 
 - Task state lives in `tasks/`: `active.md` first, then `coordination.md` before
