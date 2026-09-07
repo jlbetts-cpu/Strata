@@ -41,6 +41,14 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// Forces the colour a logged win wears, so a drop that MERGES can be
+    /// filmed. The least-used picker deliberately avoids repeats, so a normal
+    /// run never drops a block next to its own colour.
+    static var forcedWinCategory: HabitCategory? {
+        guard let raw = argument("-strataForceWinColor") else { return nil }
+        return HabitCategory.selectable.first { $0.rawValue == raw.lowercased() }
+    }
+
     /// True when this launch is a harness run at all. Used to suppress the
     /// HealthKit permission sheet, which is a system alert no script can
     /// dismiss and which covers whatever was being photographed.

@@ -20,6 +20,14 @@ struct FlippableBlockView: View {
     /// A member still draws itself while FALLING, so a block descends as a
     /// block and joins the shape on landing.
     var isGroupMember: Bool = false
+    /// Drop the rim, the frosted band and the shadow.
+    ///
+    /// Set the instant a merging block LANDS. In the air it is a separate
+    /// object and looks like one; on the ground it is about to be part of a
+    /// larger shape, and a rim is an outline drawn around something that is
+    /// supposed to have no edge there. Filmed at 60fps, that white outline was
+    /// the last thing still announcing the join.
+    var chromeless: Bool = false
     /// Something is resting directly on this block.
     var isCovered: Bool = false
     var onTap: (() -> Void)? = nil
@@ -62,21 +70,36 @@ struct FlippableBlockView: View {
     }
 
     var body: some View {
-        // A member fades out rather than disappearing, revealing the group
-        // shape drawn underneath it.
+        // A member hides instantly. No crossfade.
         //
-        // The two differ only where it matters: as a block it has its own rim
-        // and its own frosted band, as part of the group it has neither unless
-        // it is on the outside. Swapping them in one frame popped. Crossfading
-        // them over a fifth of a second reads as the block melting into the
-        // shape, which is the join actually happening rather than a substitution.
+        // Fading it out was meant to soften the handover, and filmed at 60fps
+        // it did the opposite: for the fifth of a second it took, the block was
+        // half-transparent over a group that did not yet include its cell, so
+        // the page showed through as a pale square sitting in the middle of the
+        // shape. That is the ghost.
+        //
+        // Both this flag and the group's cells come from the same set —
+        // `activelyAnimatingIDs`, cleared in one transaction with `dropPhase` —
+        // so the block disappears on exactly the frame the group takes over.
+        // With the colours identical and the chrome already stripped, that swap
+        // has nothing left to see.
         blockBody
             .opacity(isGroupMember ? 0 : 1)
-            .animation(GridConstants.blockMeld, value: isGroupMember)
             .contentShape(Rectangle())
     }
 
+    @ViewBuilder
     private var blockBody: some View {
+        if chromeless {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(style.baseColor)
+                .frame(width: width, height: height)
+        } else {
+            chromedBody
+        }
+    }
+
+    private var chromedBody: some View {
         BlockSurface(
             cornerRadius: cornerRadius,
             // A white overlay floors the composite's luminance at its own alpha,

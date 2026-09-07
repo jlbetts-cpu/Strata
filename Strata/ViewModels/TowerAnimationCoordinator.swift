@@ -90,6 +90,13 @@ final class TowerAnimationCoordinator {
 
     func triggerRipple(from landedID: UUID, massTier: Int, placedBlocks: [PlacedBlock]) {
         guard !reduceMotion else { return }
+        // Only a block with real mass disturbs the stack.
+        //
+        // Every landing used to ripple the whole tower, including the smallest
+        // one — so the most common action in the app shook everything under it
+        // and the effect stopped meaning anything. A Quick block is one cell
+        // and settles on its own; Regular and Deep have the mass to be felt.
+        guard massTier >= 2 else { return }
         guard let landedBlock = placedBlocks.first(where: { $0.id == landedID }) else { return }
         let landedRow = landedBlock.row
         let landedCol = landedBlock.column

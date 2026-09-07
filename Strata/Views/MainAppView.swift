@@ -348,7 +348,9 @@ struct MainAppView: View {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
             }
-            .badge(pendingDrops.count)
+            // No badge. It counted blocks queued to drop, which is an
+            // implementation detail measured in milliseconds — it flashed a
+            // red notification dot on the tab you were already looking at.
             Tab("Today", systemImage: "calendar", value: StrataTab.today) {
                 NavigationStack {
                     timelineTabContent
@@ -1063,6 +1065,12 @@ struct MainAppView: View {
     /// called it a second time, so the block that landed was a third colour
     /// again. What the slot promises is now what drops.
     private func rerollNextWinCategory() {
+        #if DEBUG
+        if let forced = DebugHarness.forcedWinCategory {
+            nextWinCategory = forced
+            return
+        }
+        #endif
         nextWinCategory = QuickWinService.spontaneousCategory(existing: Array(habits))
     }
 
@@ -1735,6 +1743,7 @@ struct MainAppView: View {
             TowerBlocksForEach(
                 visibleBlocks: visibleBlocks, animCoord: animCoord, towerVM: towerVM,
                 groupedIDs: liveGroupedIDs,
+                mergeDestinedIDs: towerVM.groupedBlockIDs,
                 colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
                 collapsedHeaderHeight: collapsedHeaderHeight,
                 towerScrollOffset: towerScrollOffset,
@@ -1965,6 +1974,9 @@ struct MainAppView: View {
         /// Members of a merged run, computed over settled blocks only so a
         /// falling block does not join its group before it lands.
         let groupedIDs: Set<UUID>
+        /// Blocks that WILL be part of a merged run once they settle,
+        /// including ones still in the air.
+        let mergeDestinedIDs: Set<UUID>
         let colW: CGFloat
         let gridH: CGFloat
         let safeAreaTop: CGFloat
@@ -2004,6 +2016,7 @@ struct MainAppView: View {
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
                     milestoneNumber: towerVM.milestoneBlockIDs[block.id],
                     isGroupMember: groupedIDs.contains(block.id),
+                    willMerge: mergeDestinedIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock
                 )
@@ -2046,6 +2059,9 @@ struct MainAppView: View {
         let isCrown: Bool
         let milestoneNumber: Int?
         let isGroupMember: Bool
+        /// True once this block has settled into a merged run.
+        /// True as soon as the tower knows it BELONGS to one, even mid-flight.
+        let willMerge: Bool
         let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
 
@@ -2074,6 +2090,7 @@ struct MainAppView: View {
             && lhs.isCrown == rhs.isCrown
             && lhs.milestoneNumber == rhs.milestoneNumber
             && lhs.isGroupMember == rhs.isGroupMember
+            && lhs.willMerge == rhs.willMerge
             && lhs.isCovered == rhs.isCovered
         }
 
@@ -2128,26 +2145,60 @@ struct MainAppView: View {
             default: 0
             }
 
-            let flashBrightness: Double = phase == .squash ? 0.06 : 0
+            // No impact flash on a block that is about to become part of a
+            // larger shape.
+            //
+            // Filmed at 60fps: the landed block sat 6% brighter than the mass
+            // it was joining for the whole squash phase, and the crossfade then
+            // had to fade that difference out — which is the "lighter patch"
+            // that made the merge visible. A block that is merging has no
+            // separate surface to flash; the shape it joins is the thing that
+            // took the impact.
+            let flashBrightness: Double = (phase == .squash && !willMerge) ? 0.06 : 0
 
+            // The landing shadow goes too, for the same reason: it drew an
+            // outline around a block that is supposed to be dissolving into its
+            // neighbours. It keeps the FALLING shadow — in the air it is still
+            // a separate object.
             let (dropShadowRadius, dropShadowY): (CGFloat, CGFloat) = switch phase {
             case .falling: (12, 8)
-            case .squash: (1, 0.5)
-            case .stretch: (3, 1.5)
-            case .wobble: (4, 2)
+            case .squash: willMerge ? (0, 0) : (1, 0.5)
+            case .stretch: willMerge ? (0, 0) : (3, 1.5)
+            case .wobble: willMerge ? (0, 0) : (4, 2)
             case .none: (0, 0)
             }
 
             let isRippling = animState.isRippling
             let ri = animState.rippleIntensity
-            let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.030 * ri : 1.0
-            let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.050 * ri : 1.0
-            let rippleOffsetY: CGFloat = isRippling ? 2.5 * ri : 0
+            // Compression only — no downward shift.
+            //
+            // The blocks also moved DOWN by up to 2.5pt when rippled, which on
+            // the bottom row (where intensity is highest and there is nothing
+            // below to move into) read as the foundation jerking downward. A
+            // block being compressed already says it took weight; sliding it
+            // down as well says the tower sank, which it did not.
+            //
+            // Halved as well: apple-design.md §11 asks that per-frame change
+            // stay under the perception threshold, and 5% of a block's height
+            // in one spring was over it.
+            let rippleScaleX: CGFloat = isRippling ? 1.0 + 0.015 * ri : 1.0
+            let rippleScaleY: CGFloat = isRippling ? 1.0 - 0.025 * ri : 1.0
+            let rippleOffsetY: CGFloat = 0
 
             let isExpanded = expandedBlockID == block.id
 
             ZStack {
-                if isNew {
+                // The empty socket shows only while the block is ABOVE it.
+                //
+                // It was drawn for `isNew`, which stays true for two seconds
+                // after the drop — so a translucent material square sat on top
+                // of the tower long after the block had landed in it. On a
+                // merged run that is a pale patch in the middle of the shape,
+                // which is what still made the join obvious after the colour
+                // and the chrome had been matched. Filmed at 60fps it was
+                // steady, not fading, which is what gave it away: a crossfade
+                // artifact would have decayed.
+                if phase == .falling {
                     ghostSlot(width: frame.width, height: frame.height)
                 }
 
@@ -2160,6 +2211,10 @@ struct MainAppView: View {
                     // A falling block draws itself; it joins the shape on
                     // landing.
                     isGroupMember: isGroupMember && phase == nil,
+                    // Chrome goes the moment it touches down, not when the
+                    // crossfade finishes — the rim is what was still drawing a
+                    // boundary through the middle of one shape.
+                    chromeless: willMerge && phase != .falling,
                     isCovered: isCovered,
                     onTap: {
                         if !isExpanded {

@@ -37,17 +37,15 @@ struct TowerReflection: View {
         let color: Color
     }
 
-    /// A block hitting the water. Rings spread from where it landed and die
-    /// out; nothing has to clear them up mid-flight.
+    /// Kept as a type so callers still compile, but the water no longer
+    /// splashes. Expanding rings read as a stone thrown INTO the water, and
+    /// nothing is being thrown in — the tower is standing in it. The surface
+    /// moving on its own is the whole effect.
     struct Impact: Identifiable, Equatable {
         let id: UUID
-        /// Centre of the block that landed, in the grid's own x.
         let x: CGFloat
-        /// When it landed, on the same clock the surface runs on.
         let start: TimeInterval
-        /// 1...3 — a heavier block displaces more water.
         let mass: Int
-
         static let lifetime: TimeInterval = 1.5
     }
 
@@ -79,9 +77,6 @@ struct TowerReflection: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas(opaque: false, rendersAsynchronously: false) { ctx, size in
                 draw(in: &ctx, size: size, time: t)
-                if !reduceMotion {
-                    drawImpacts(in: &ctx, size: size, time: t)
-                }
             }
             .blur(radius: 1.2)
         }
@@ -177,46 +172,6 @@ struct TowerReflection: View {
             ctx.stroke(path,
                        with: .color(.white.opacity(crest.opacity)),
                        lineWidth: crest.thickness)
-        }
-    }
-
-    /// Rings spreading from a block that has just landed.
-    ///
-    /// Real rings travel outward at a roughly constant speed while their
-    /// amplitude decays, and on a surface seen at this angle they read as
-    /// ellipses far wider than they are tall. Two rings per impact, the second
-    /// trailing the first, because a single expanding circle reads as a pulse
-    /// and a pair reads as a disturbance.
-    private func drawImpacts(in ctx: inout GraphicsContext, size: CGSize, time: Double) {
-        for impact in impacts {
-            let age = time - impact.start
-            guard age >= 0, age < Impact.lifetime else { continue }
-
-            let progress = age / Impact.lifetime
-            let decay = pow(1 - progress, 2.2)
-            let energy = 0.55 + Double(impact.mass) * 0.22
-
-            for ring in 0..<2 {
-                let lag = Double(ring) * 0.22
-                let p = progress - lag
-                guard p > 0 else { continue }
-
-                let rx = CGFloat(p) * size.width * 0.55 * CGFloat(energy)
-                // Flattened hard: the water is seen almost edge-on, so a ring
-                // on it is a very wide, very shallow ellipse. A circle here
-                // would read as a bubble sitting on top of the surface.
-                let ry = rx * 0.22
-                let alpha = decay * (ring == 0 ? 0.42 : 0.22) * energy
-
-                guard alpha > 0.01, rx > 1 else { continue }
-                let rect = CGRect(x: impact.x - rx, y: -ry * 0.35,
-                                  width: rx * 2, height: ry * 2)
-                ctx.stroke(
-                    Path(ellipseIn: rect),
-                    with: .color(.white.opacity(alpha)),
-                    lineWidth: 1.6 * CGFloat(decay) + 0.4
-                )
-            }
         }
     }
 

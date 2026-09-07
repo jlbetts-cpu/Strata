@@ -184,10 +184,6 @@ enum GridConstants {
     static let slotStepHysteresis: CGFloat = 12
     /// The bloom left behind when a block is released from the slot. In fast,
     /// out slow — light arrives at once and decays.
-    /// A block melting into the merged shape it has just landed in. Long
-    /// enough to read as a join, short enough that it is over before the
-    /// impact settle finishes.
-    static let blockMeld = Animation.easeInOut(duration: 0.20)
     static let slotBloomIn = Animation.easeOut(duration: 0.10)
     static let slotBloomOut = Animation.easeOut(duration: 0.45)
 
