@@ -41,6 +41,12 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// Flips between two tabs on a timer, so the appearance swap between a
+    /// light screen and the dark camera can be filmed. Nothing here can tap.
+    static var tabFlips: Int {
+        Int(argument("-strataFlipTabs") ?? "0") ?? 0
+    }
+
     /// One-off tasks for today, so the "just today" path can be checked
     /// without tapping through the add sheet.
     static var seedTodos: Int {
@@ -77,6 +83,7 @@ enum DebugHarness {
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
+            || argument("-strataFlipTabs") != nil
             || argument("-strataSeedMono") != nil
     }
 

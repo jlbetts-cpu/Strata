@@ -200,6 +200,7 @@ struct MainAppView: View {
     @State private var wantsDebugExpand = false
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
+    @State private var debugTabFlipsLeft = 0
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -229,6 +230,10 @@ struct MainAppView: View {
             .onChange(of: reduceMotion) { _, newValue in
                 animCoord.reduceMotion = newValue
             }
+            .modifier(DebugFlipTabs(
+                remaining: $debugTabFlipsLeft,
+                selected: $selectedTab
+            ))
             .modifier(DebugAutoCheck(
                 doneCount: cachedCompletedHabitIDsForSelectedDate.count,
                 remaining: $debugAutoChecksLeft,
@@ -379,7 +384,27 @@ struct MainAppView: View {
     }
 
     private var mainContent: some View {
-        TabView(selection: $selectedTab) {
+        // Switching tabs does not animate the appearance change.
+        //
+        // The tower and Insights are always light and the camera is always
+        // dark — none of them is transitioning to anything, they simply ARE
+        // what they are. But `preferredColorScheme` is a window property, so
+        // moving between two tabs that declare different ones makes SwiftUI
+        // crossfade the window, and a crossfade of a thing that was never in
+        // between reads as a hiccup.
+        //
+        // Setting the selection inside a transaction with animations disabled
+        // makes the swap land on one frame: the screen you left was light, the
+        // screen you arrived at is dark, and there is no state in between for
+        // anything to be caught in.
+        TabView(selection: Binding(
+            get: { selectedTab },
+            set: { newTab in
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { selectedTab = newTab }
+            }
+        )) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
                     .preferredColorScheme(.light)
@@ -1309,6 +1334,7 @@ struct MainAppView: View {
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
         debugAutoChecksLeft = DebugHarness.autoChecks
+        debugTabFlipsLeft = DebugHarness.tabFlips
         if let tab = DebugHarness.startTab { selectedTab = tab }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
@@ -2912,6 +2938,31 @@ private struct DebugAutoCheck: ViewModifier {
             guard !Task.isCancelled, remaining > 0, let habit = next() else { return }
             remaining -= 1
             fire(habit)
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// Flips between the tower and the camera on a timer, so the appearance swap
+/// can be filmed on a machine that cannot tap.
+private struct DebugFlipTabs: ViewModifier {
+    @Binding var remaining: Int
+    @Binding var selected: StrataTab
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.task(id: remaining) {
+            guard remaining > 0 else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, remaining > 0 else { return }
+            remaining -= 1
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                selected = selected == .camera ? .tower : .camera
+            }
         }
         #else
         content
