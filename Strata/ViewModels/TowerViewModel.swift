@@ -50,9 +50,11 @@ final class TowerViewModel {
     var isLoading: Bool = true
     // Cascade drop tracking
     private(set) var newlyDroppedIDs: Set<UUID> = []
-    /// Which sides of each block continue into a same-colour neighbour.
+    /// Runs of adjacent, same-colour, unnamed blocks drawn as one shape.
     /// Recomputed on rebuild, never per frame.
-    private(set) var mergedEdges: [UUID: MergedEdges] = [:]
+    private(set) var mergeGroups: [MergeGroup] = []
+    /// Blocks belonging to some group, so they know to draw nothing.
+    private(set) var groupedBlockIDs: Set<UUID> = []
     /// Blocks carrying another block directly above them.
     private(set) var coveredBlockIDs: Set<UUID> = []
     private(set) var staggerDelayCache: [UUID: Double] = [:]
@@ -158,7 +160,8 @@ final class TowerViewModel {
         defer { hasBuiltOnce = true }
 
         placedBlocks = placed
-        mergedEdges = BlockMerge.compute(for: placed)
+        mergeGroups = BlockMerge.groups(for: placed)
+        groupedBlockIDs = Set(mergeGroups.flatMap(\.memberIDs))
         coveredBlockIDs = BlockMerge.covered(in: placed)
         incompleteBlocks = []
         currentGrid = grid

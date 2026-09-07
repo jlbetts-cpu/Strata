@@ -9,8 +9,17 @@ struct FlippableBlockView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     let modelContext: ModelContext
-    /// Sides that continue into a same-colour neighbour.
-    var merged: MergedEdges = .none
+    /// True when this block is part of a merged run.
+    ///
+    /// The run is drawn once, as one shape, by `MergedGroupView` — so a settled
+    /// member draws nothing at all and exists only for its tap target. That is
+    /// what makes a merge genuinely one object: there is no second outline, no
+    /// second band and no second shadow to leak through a seam, because there
+    /// is no second anything.
+    ///
+    /// A member still draws itself while FALLING, so a block descends as a
+    /// block and joins the shape on landing.
+    var isGroupMember: Bool = false
     /// Something is resting directly on this block.
     var isCovered: Bool = false
     var onTap: (() -> Void)? = nil
@@ -53,14 +62,24 @@ struct FlippableBlockView: View {
     }
 
     var body: some View {
+        if isGroupMember {
+            Color.clear
+                .frame(width: width, height: height)
+                .contentShape(Rectangle())
+                .onTapGesture { onTap?() }
+        } else {
+            blockBody
+        }
+    }
+
+    private var blockBody: some View {
         BlockSurface(
             cornerRadius: cornerRadius,
             // A white overlay floors the composite's luminance at its own alpha,
             // so the full 0.20 wash under white text caps contrast below 4.5:1
             // however dark the scrim beneath it is. The source escapes this
             // because its text sits near the TOP of the band on a 565pt block.
-            washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity,
-            merged: merged
+            washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity
         ) {
             ZStack {
             if hasImage {
@@ -149,7 +168,7 @@ struct FlippableBlockView: View {
         // Top edge only, short, and never across a merged seam — inside one
         // piece there is nothing resting on anything.
         .overlay(alignment: .top) {
-            if isCovered && !merged.contains(.top) {
+            if isCovered {
                 LinearGradient(
                     colors: [
                         AppColors.warmBlack.opacity(GridConstants.blockContactShade),

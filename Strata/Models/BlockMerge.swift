@@ -1,27 +1,20 @@
 import Foundation
 
-/// Which sides of a block continue into a neighbour of the same colour.
+/// A run of adjacent blocks drawn as one shape.
 ///
-/// Blocks of one colour sitting next to each other should read as one piece,
-/// the way a tetromino does — a run of four greens is a shape, not four
-/// squares that happen to match. That is done per block rather than by drawing
-/// a union path: each block squares the corners that face a shared edge, grows
-/// by half the grid gap to close it, and drops its rim along it. Adjacent
-/// blocks then meet exactly and the seam disappears, while every block keeps
-/// its own text, its own tap target and its own drop animation.
-struct MergedEdges: OptionSet, Equatable {
-    let rawValue: Int
-    static let top      = MergedEdges(rawValue: 1 << 0)
-    static let bottom   = MergedEdges(rawValue: 1 << 1)
-    static let leading  = MergedEdges(rawValue: 1 << 2)
-    static let trailing = MergedEdges(rawValue: 1 << 3)
-    static let none: MergedEdges = []
-
-    /// A corner is square when either of the two edges meeting there is shared.
-    var topLeadingSquare: Bool     { contains(.top) || contains(.leading) }
-    var topTrailingSquare: Bool    { contains(.top) || contains(.trailing) }
-    var bottomLeadingSquare: Bool  { contains(.bottom) || contains(.leading) }
-    var bottomTrailingSquare: Bool { contains(.bottom) || contains(.trailing) }
+/// Only blocks with no name merge. A named block is a specific thing you did
+/// and carries its own title, so running two of them together would hide the
+/// boundary between two different accomplishments. Unnamed blocks have no text
+/// at all, which is exactly what makes them safe to fuse — and it is the state
+/// most in need of the help, since a wall of identical untitled squares is what
+/// looks least like a structure.
+struct MergeGroup: Identifiable {
+    let id: UUID
+    let category: HabitCategory
+    let cells: Set<GridCell>
+    let memberIDs: Set<UUID>
+    /// Row of the lowest cell — where the group's frosted band belongs.
+    let bottomRow: Int
 }
 
 enum BlockMerge {
@@ -62,56 +55,70 @@ enum BlockMerge {
         return result
     }
 
-    static func compute(for blocks: [PlacedBlock]) -> [UUID: MergedEdges] {
-        guard !blocks.isEmpty else { return [:] }
+    /// Groups adjacent, same-colour, unnamed blocks.
+    ///
+    /// Union-find over cells: each block claims its cells, then any two
+    /// adjacent cells belonging to mergeable blocks of the same colour are
+    /// unioned. Working in cells rather than blocks means a 2x2 and a 1x1 merge
+    /// correctly without any special case.
+    static func groups(for blocks: [PlacedBlock]) -> [MergeGroup] {
+        let mergeable = blocks.filter { block in
+            block.log.imageFileName == nil
+                && (block.habit.title == QuickWinService.untitled || block.habit.title.isEmpty)
+        }
+        guard mergeable.count > 1 else { return [] }
 
-        // Cell -> (block id, merge key). A nil key never matches anything.
-        var owner: [Int: (id: UUID, key: String?)] = [:]
-        let columns = GridConstants.columnCount
-
-        func index(_ column: Int, _ row: Int) -> Int { row * columns + column }
-
-        for block in blocks {
-            let key: String? = block.log.imageFileName == nil
-                ? block.habit.displayCategory.rawValue
-                : nil
+        var cellOwner: [GridCell: PlacedBlock] = [:]
+        for block in mergeable {
             for r in block.row..<(block.row + block.rowSpan) {
                 for c in block.column..<(block.column + block.columnSpan) {
-                    owner[index(c, r)] = (block.id, key)
+                    cellOwner[GridCell(column: c, row: r)] = block
                 }
             }
         }
 
-        var result: [UUID: MergedEdges] = [:]
-        for block in blocks {
-            let key: String? = block.log.imageFileName == nil
-                ? block.habit.displayCategory.rawValue
-                : nil
-            guard key != nil else { result[block.id] = .none; continue }
-
-            var edges: MergedEdges = .none
-            let rows = block.row..<(block.row + block.rowSpan)
-            let cols = block.column..<(block.column + block.columnSpan)
-
-            /// A side merges only when EVERY cell along it faces the same
-            /// colour. A partial match would square a corner that still has an
-            /// exposed edge running past it, which reads as a chipped block.
-            func sideMerges(_ cells: [(Int, Int)]) -> Bool {
-                guard !cells.isEmpty else { return false }
-                return cells.allSatisfy { c, r in
-                    guard c >= 0, c < columns, r >= 0 else { return false }
-                    guard let n = owner[index(c, r)] else { return false }
-                    return n.id != block.id && n.key == key
-                }
-            }
-
-            if sideMerges(cols.map { ($0, block.row + block.rowSpan) }) { edges.insert(.top) }
-            if sideMerges(cols.map { ($0, block.row - 1) })             { edges.insert(.bottom) }
-            if sideMerges(rows.map { (block.column - 1, $0) })          { edges.insert(.leading) }
-            if sideMerges(rows.map { (block.column + block.columnSpan, $0) }) { edges.insert(.trailing) }
-
-            result[block.id] = edges
+        var parent: [GridCell: GridCell] = [:]
+        func find(_ c: GridCell) -> GridCell {
+            var root = c
+            while let p = parent[root], p != root { root = p }
+            var cur = c
+            while let p = parent[cur], p != root { parent[cur] = root; cur = p }
+            return root
         }
-        return result
+        func union(_ a: GridCell, _ b: GridCell) {
+            let ra = find(a), rb = find(b)
+            if ra != rb { parent[ra] = rb }
+        }
+        for cell in cellOwner.keys { parent[cell] = cell }
+
+        for (cell, block) in cellOwner {
+            let key = block.habit.displayCategory
+            for neighbour in [
+                GridCell(column: cell.column + 1, row: cell.row),
+                GridCell(column: cell.column, row: cell.row + 1)
+            ] {
+                guard let other = cellOwner[neighbour],
+                      other.habit.displayCategory == key else { continue }
+                union(cell, neighbour)
+            }
+        }
+
+        var byRoot: [GridCell: Set<GridCell>] = [:]
+        for cell in cellOwner.keys { byRoot[find(cell), default: []].insert(cell) }
+
+        return byRoot.compactMap { _, cells in
+            let members = Set(cells.compactMap { cellOwner[$0]?.id })
+            // A single block is not a group — it draws itself, with its own
+            // rounded corners and band, exactly as it always did.
+            guard members.count > 1, let any = cells.first,
+                  let block = cellOwner[any] else { return nil }
+            return MergeGroup(
+                id: members.sorted(by: { $0.uuidString < $1.uuidString }).first!,
+                category: block.habit.displayCategory,
+                cells: cells,
+                memberIDs: members,
+                bottomRow: cells.map(\.row).min() ?? 0
+            )
+        }
     }
 }

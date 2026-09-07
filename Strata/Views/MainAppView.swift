@@ -1550,6 +1550,17 @@ struct MainAppView: View {
                         )
                         .offset(y: gridH + 1)
 
+                        // Merged runs, under the blocks. Members draw
+                        // nothing when settled, so this IS their appearance.
+                        ForEach(towerVM.mergeGroups) { group in
+                            MergedGroupView(
+                                group: group,
+                                cellSize: colW,
+                                gridWidth: gridW,
+                                gridHeight: gridH
+                            )
+                        }
+
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset)
 
@@ -1924,16 +1935,6 @@ struct MainAppView: View {
                 let isNewlyDropped = towerVM.newlyDroppedIDs.contains(block.id)
                 let stagger = towerVM.staggerDelay(for: block)
 
-                let merged = towerVM.mergedEdges[block.id] ?? .none
-                // Half the grid gap on every shared side. `.top` is up the
-                // tower, which is -y on screen.
-                let g = GridConstants.spacing / 2
-                let grow = (
-                    leading: merged.contains(.leading) ? g : 0,
-                    trailing: merged.contains(.trailing) ? g : 0,
-                    up: merged.contains(.top) ? g : 0,
-                    down: merged.contains(.bottom) ? g : 0
-                )
                 AnimatedBlockView(
                     block: block, frame: f, animState: animState,
                     isNewlyDropped: isNewlyDropped, staggerDelay: stagger,
@@ -1947,21 +1948,13 @@ struct MainAppView: View {
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
                     milestoneNumber: towerVM.milestoneBlockIDs[block.id],
-                    merged: merged,
-                    renderSize: CGSize(width: f.width + grow.leading + grow.trailing,
-                                       height: f.height + grow.up + grow.down),
+                    isGroupMember: towerVM.groupedBlockIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock
                 )
-                // The grown size has to be on THIS frame too. It was only
-                // applied inside, where the outer .frame(f.width) immediately
-                // constrained it back — so merged blocks never actually met and
-                // a sliver of page showed through every seam.
-                .frame(width: f.width + grow.leading + grow.trailing,
-                       height: f.height + grow.up + grow.down)
+                .frame(width: f.width, height: f.height)
                 .id(block.id)
-                .offset(x: f.minX - grow.leading,
-                        y: gridH - f.minY - f.height - grow.up)
+                .offset(x: f.minX, y: gridH - f.minY - f.height)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
                 .accessibilitySortPriority(-Double(block.row))
                 .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
@@ -1989,11 +1982,7 @@ struct MainAppView: View {
         let isFoundation: Bool
         let isCrown: Bool
         let milestoneNumber: Int?
-        let merged: MergedEdges
-        /// The size to DRAW at — the grid slot grown across the gap on every
-        /// shared side. Kept separate from `frame`, which stays the logical
-        /// slot the drop animation measures against.
-        let renderSize: CGSize
+        let isGroupMember: Bool
         let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
 
@@ -2013,8 +2002,7 @@ struct MainAppView: View {
             && lhs.isFoundation == rhs.isFoundation
             && lhs.isCrown == rhs.isCrown
             && lhs.milestoneNumber == rhs.milestoneNumber
-            && lhs.merged == rhs.merged
-            && lhs.renderSize == rhs.renderSize
+            && lhs.isGroupMember == rhs.isGroupMember
             && lhs.isCovered == rhs.isCovered
         }
 
@@ -2084,14 +2072,13 @@ struct MainAppView: View {
 
                 FlippableBlockView(
                     block: block,
-                    // renderSize, not frame: a merged block is drawn larger
-                    // than its grid slot so it reaches across the gap. The
-                    // caller positions it; this just fills what it is given.
-                    width: renderSize.width,
-                    height: renderSize.height,
+                    width: frame.width,
+                    height: frame.height,
                     cornerRadius: cornerRadius,
                     modelContext: modelContext,
-                    merged: merged,
+                    // A falling block draws itself; it joins the shape on
+                    // landing.
+                    isGroupMember: isGroupMember && phase == nil,
                     isCovered: isCovered,
                     onTap: {
                         if !isExpanded {
@@ -2142,22 +2129,17 @@ struct MainAppView: View {
                 )
                 // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
                 //
-                // Not onto the block directly below when the two are one piece:
-                // a shadow there draws a crease across the middle of the shape,
-                // which was the last visible seam after the band and the rim
-                // were dealt with.
                 .shadow(
-                    color: .black.opacity(merged.contains(.bottom) ? 0 : 0.04),
+                    color: .black.opacity(0.04),
                     radius: GridConstants.shadowRadius + CGFloat(block.row) * GridConstants.depthShadowScale,
                     x: 0,
                     y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale
                 )
-                // Foundation blocks — slightly darker. Not while merged: a
-                // step in brightness halfway down one shape is a seam too.
-                .brightness(isFoundation && !merged.contains(.top) ? -0.02 : 0)
+                // Foundation blocks — slightly darker
+                .brightness(isFoundation ? -0.02 : 0)
                 // Crown — white top edge on topmost blocks
                 .overlay(alignment: .top) {
-                    if isCrown && !merged.contains(.top) {
+                    if isCrown {
                         Rectangle()
                             .fill(.white.opacity(0.15))
                             .frame(height: 1)
