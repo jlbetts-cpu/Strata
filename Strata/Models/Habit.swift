@@ -158,6 +158,17 @@ final class Habit {
     var isStepCompleted: Bool = false
     var isInProgress: Bool = false
     var isSaved: Bool = false
+    /// A colour for a block whose category nobody has chosen yet.
+    ///
+    /// A win logged in one tap has no category — that is the point of one tap —
+    /// but a colourless block does not belong on a page made of colour. So the
+    /// two facts are stored separately: `category` stays `.unlabeled`, which is
+    /// what suppresses the icon, and this carries a colour picked at random so
+    /// the block still looks like part of the tower.
+    ///
+    /// Choosing a category sets `category` and this stops mattering.
+    var spontaneousCategoryRaw: String?
+
     var healthKitType: String?        // "stepCount", "workout.running", "mindfulSession"
     var healthKitThreshold: Double?   // 10000 (steps), 30 (minutes), 0 (presence-only)
     var customDurationMinutes: Int?   // nil = use BlockSize default. Decoupled: effort ≠ duration (Kahneman 2011)
@@ -170,6 +181,20 @@ final class Habit {
     var frequency: [DayCode] {
         get { frequencyRawValues.compactMap { DayCode(rawValue: $0) } }
         set { frequencyRawValues = newValue.map(\.rawValue) }
+    }
+
+    /// The category to DRAW this block in.
+    ///
+    /// Never use this for the icon. An icon names a category, so a block whose
+    /// category was never chosen must not have one — that is `category`'s job,
+    /// and `HabitCategory.unlabeled.iconName` is nil precisely so the compiler
+    /// makes every render site handle it.
+    var displayCategory: HabitCategory {
+        guard category == .unlabeled else { return category }
+        if let raw = spontaneousCategoryRaw, let c = HabitCategory(rawValue: raw) {
+            return c
+        }
+        return .health
     }
 
     /// Effective duration — custom if set, otherwise BlockSize default

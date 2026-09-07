@@ -90,8 +90,9 @@ struct HabitBlockView: View {
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
+    // displayCategory, not category: an unchosen block still needs a colour.
     private var style: CategoryStyle {
-        block.habit.category.style
+        block.habit.displayCategory.style
     }
 
     private var borderHighlight: Color { style.lightTint }

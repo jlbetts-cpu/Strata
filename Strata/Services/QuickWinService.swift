@@ -42,7 +42,7 @@ enum QuickWinService {
     @discardableResult
     static func logWin(
         title: String = untitled,
-        category: HabitCategory = spontaneousCategory(),
+        category: HabitCategory = .unlabeled,
         size: BlockSize = .small,
         context: ModelContext,
         tower: Tower?
@@ -59,6 +59,11 @@ enum QuickWinService {
             scheduledDate: today
         )
         habit.tower = tower
+        // Unlabeled, so it draws no icon — but carrying a colour, so it still
+        // looks like part of the tower. Two facts, stored separately.
+        if category == .unlabeled {
+            habit.spontaneousCategoryRaw = spontaneousCategory().rawValue
+        }
         context.insert(habit)
 
         let log = HabitLog(habit: habit, dateString: today, completed: true)

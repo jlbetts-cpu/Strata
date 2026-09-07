@@ -133,9 +133,16 @@ find was located by sampling pixels down a screenshot, not by reading code.
 - **Toolbar items drop their iOS 26 glass capsule** with
   `sharedBackgroundVisibility(.hidden)`, gated to iOS 26 (deployment target is
   18.0).
-- **A win arrives wearing a random one of the six categories**, correctable in
-  the block's card. It was neutral grey, then translucent white; both made the
-  block that claims the least the only one that did not belong to the page.
+- **Colour and category are two different facts on a block.** A win logged in
+  one tap has no category — that is the point of one tap — but a colourless
+  block does not belong on a page made of colour. So `category` stays
+  `.unlabeled` (which is what suppresses the icon, since
+  `HabitCategory.unlabeled.iconName` is nil) and `spontaneousCategoryRaw`
+  carries a colour picked at random. **Draw with `habit.displayCategory`; take
+  the icon from `habit.category`.** Getting this backwards puts an icon on a
+  block whose category nobody chose, which claims something untrue.
+  Earlier attempts — neutral grey, then translucent white — both made the block
+  that claims the least the only one that did not belong to the page.
 - **A block with no name shows no text at all.** Not the word "Win".
 
 ## Deliberate pairs — do not "fix" these

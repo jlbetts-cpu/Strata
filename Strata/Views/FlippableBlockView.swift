@@ -19,7 +19,8 @@ struct FlippableBlockView: View {
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
-    private var style: CategoryStyle { block.habit.category.style }
+    // displayCategory, not category: an unchosen block still needs a colour.
+    private var style: CategoryStyle { block.habit.displayCategory.style }
     private var borderHighlight: Color { style.lightTint }
     private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
     private var hasImage: Bool { block.log.imageFileName != nil }

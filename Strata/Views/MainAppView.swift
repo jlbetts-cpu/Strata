@@ -1007,7 +1007,7 @@ struct MainAppView: View {
                     id: block.id,
                     x: f.minX,
                     width: f.width,
-                    color: block.habit.category.style.baseColor
+                    color: block.habit.displayCategory.style.baseColor
                 )
             }
     }

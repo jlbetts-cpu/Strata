@@ -26,7 +26,8 @@ struct BlockExpansionCard: View {
     @GestureState private var dragOffset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var style: CategoryStyle { block.habit.category.style }
+    // displayCategory, not category: an unchosen block still needs a colour.
+    private var style: CategoryStyle { block.habit.displayCategory.style }
     @State private var cardWidth: CGFloat = 353 // Updated by GeometryReader on appear
     // Hero matches source block aspect ratio (Pylyshyn 2001: object constancy)
     private var heroHeight: CGFloat {
@@ -94,7 +95,7 @@ struct BlockExpansionCard: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)
                     .background(
-                        isSelected ? AnyShapeStyle(currentHabit.category.style.baseColor)
+                        isSelected ? AnyShapeStyle(currentHabit.displayCategory.style.baseColor)
                                    : AnyShapeStyle(GridConstants.fillTrack),
                         in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
                     )
@@ -128,18 +129,23 @@ struct BlockExpansionCard: View {
                     ZStack {
                         Circle()
                             .fill(cat.style.baseColor)
-                            .frame(width: 26, height: 26)
+                            .frame(width: 30, height: 30)
+                        // The icon, not just the colour. Six dots told you
+                        // there were six of something; they did not tell you
+                        // which one you were about to pick.
+                        if let icon = cat.iconName {
+                            Image(systemName: icon)
+                                .iconSize(12, relativeTo: .footnote, weight: .semibold)
+                                .foregroundStyle(.white)
+                        }
                         if isSelected {
                             Circle()
-                                .strokeBorder(.white, lineWidth: 2)
-                                .frame(width: 26, height: 26)
-                            Circle()
                                 .strokeBorder(cat.style.baseColor, lineWidth: 1.5)
-                                .frame(width: 31, height: 31)
+                                .frame(width: 36, height: 36)
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 34)
+                    .frame(height: 38)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
