@@ -13,11 +13,16 @@ import SwiftUI
 /// docs/apple-design.md §3, animate from where the thing is.
 struct TowerRangePicker: View {
     @Binding var selection: TowerFilterMode
+    /// Which ranges this instance offers. Insights leaves Week out: a week of
+    /// wins is not a thing you built, it is seven things you built, and the
+    /// chart already shows those seven side by side. Day and Month are two
+    /// genuinely different questions; Week was a third view of the first.
+    var options: [TowerFilterMode] = TowerFilterMode.allCases
     @Namespace private var plate
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(TowerFilterMode.allCases, id: \.self) { mode in
+            ForEach(options, id: \.self) { mode in
                 let isOn = mode == selection
                 Text(mode.shortLabel)
                     .font(Typography.caption)
@@ -31,7 +36,11 @@ struct TowerRangePicker: View {
                                 .matchedGeometryEffect(id: "rangePlate", in: plate)
                         }
                     }
-                    .contentShape(Capsule(style: .continuous))
+                    // The plate stays the size the type needs; the TARGET is
+                    // 44pt tall regardless. Apple's minimum is 44x44, and the
+                    // pill was about 24 — a control you had to aim at.
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                     .onTapGesture {
                         guard mode != selection else { return }
                         HapticsEngine.tick()

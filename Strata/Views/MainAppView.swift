@@ -634,7 +634,6 @@ struct MainAppView: View {
                 onNavigateToTower: { _ in selectedTab = .tower },
                 openSettings: { showSettings = true }
             )
-            .environment(\.switchTab, { selectedTab = $0 })
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -827,77 +826,6 @@ struct MainAppView: View {
                     onDeleted: { repackTower() }
                 )
             }
-    }
-
-    // MARK: - Timeline Tab
-
-    private var timelineTabContent: some View {
-        ScheduleTimelineView(
-            weekData: weekData,
-            selectedDate: $timelineSelectedDate,
-            allHabits: cachedAllHabitsForSelectedDate,
-            completedHabitIDs: cachedCompletedHabitIDsForSelectedDate,
-            skippedHabitIDs: cachedSkippedHabitIDsForSelectedDate,
-            isViewingToday: Calendar.current.isDateInToday(timelineSelectedDate),
-            isViewingPast: !Calendar.current.isDateInToday(timelineSelectedDate) && timelineSelectedDate < Date(),
-            onComplete: { habit in
-                // Save completion IMMEDIATELY — don't defer to tower cascade
-                timelineVM.completeHabit(habit)
-
-                // Optimistic UI — update cached IDs before @Query fires (Set.insert is idempotent)
-                cachedCompletedHabitIDsForSelectedDate.insert(habit.id)
-
-                // Mark verifiedByHealthKit on the log if this was a HealthKit-verified habit
-                if healthKitService.verifiedHabitIDs.contains(habit.id) {
-                    let dateStr = TimelineViewModel.dateString(from: Date())
-                    if let log = habit.logs.first(where: { $0.dateString == dateStr }) {
-                        log.verifiedByHealthKit = true
-                    }
-                }
-                flyawayCategory = habit.category
-                if !reduceMotion { flyawayActive = true }
-                pendingDrops.append(habit)
-
-                // Donate to Siri for pattern learning
-                let entity = HabitEntity(id: habit.id, title: habit.title, category: habit.category.rawValue, isCompletedToday: true)
-                let intent = CompleteHabitIntent()
-                intent.habit = entity
-            },
-            onSkip: { habit in
-                timelineVM.skipHabit(habit)
-                scheduleRefresh()
-            },
-            onUndo: { habit in
-                timelineVM.undoCompletion(habit)
-                cachedCompletedHabitIDsForSelectedDate.remove(habit.id)
-                scheduleRefresh()
-            },
-            onUndoSkip: { habit in
-                timelineVM.undoSkip(habit)
-                scheduleRefresh()
-            },
-            onAddHabit: { _ in
-                // The time is dropped on purpose: nothing in the app acts on a
-                // promise about when, so the add sheet stopped asking for one.
-                isNewHabitMenuOpen = true
-            },
-            onEditInPlan: { _ in
-                selectedTab = .tower
-            },
-            towerBlockCount: towerVM.placedBlocks.count,
-            onboarding: onboarding,
-            cachedStreaks: cachedStreaks,
-            healthKitProgress: healthKitService.habitProgress,
-            verifiedHabitIDs: healthKitService.verifiedHabitIDs,
-            calendarEvents: eventKitService.todaysEvents,
-            deepLinkHabitID: $deepLinkHabitID
-        )
-        .onChange(of: timelineSelectedDate) {
-            scheduleRefresh()
-            // Celebration guard now date-based via @AppStorage — no reset needed
-            // Refresh calendar events for the selected date
-            eventKitService.fetchEvents(for: timelineSelectedDate)
-        }
     }
 
     private func recomputeTimelineHabits(logsByDate: [String: [HabitLog]]) {

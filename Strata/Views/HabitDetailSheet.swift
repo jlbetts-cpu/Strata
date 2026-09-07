@@ -134,6 +134,10 @@ struct HabitDetailSheet: View {
                                     .strikethrough(subtask.completed)
                                     .foregroundStyle(subtask.completed ? .secondary : .primary)
                             }
+                            // 44pt minimum, per the HIG. A subtask row was
+                            // about 28 tall, which is a target you aim at
+                            // rather than one you hit.
+                            .frame(minHeight: 44)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 HapticsEngine.tick()

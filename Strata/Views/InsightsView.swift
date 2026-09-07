@@ -15,9 +15,7 @@ struct InsightsView: View {
     }
 
     @State private var viewModel = InsightsViewModel()
-    @State private var showAllStreaks = false
     @State private var selectedInsightHabit: Habit? = nil
-    @Environment(\.switchTab) private var switchTab
 
     private let dayColumns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
     private let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
@@ -93,10 +91,13 @@ struct InsightsView: View {
                     .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                     .foregroundStyle(.primary.opacity(0.35))
                 Spacer(minLength: 0)
-                TowerRangePicker(selection: Binding(
-                    get: { range },
-                    set: { range = $0 }
-                ))
+                TowerRangePicker(
+                    selection: Binding(
+                        get: { range == .week ? .day : range },
+                        set: { range = $0 }
+                    ),
+                    options: [.day, .month]
+                )
                 Button {
                     HapticsEngine.lightTap()
                     openSettings?()
@@ -104,7 +105,7 @@ struct InsightsView: View {
                     Image(systemName: "gearshape")
                         .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
                         .foregroundStyle(.primary.opacity(0.45))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -421,6 +422,11 @@ struct InsightsView: View {
                             .foregroundStyle(Color.primary.opacity(0.15))
                     }
                 }
+                // 44pt is Apple's minimum touch target, and a row of body-small
+                // text is about 26. The row's HEIGHT grows; its content does
+                // not, so nothing looks different and the target is legal.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
