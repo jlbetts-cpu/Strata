@@ -48,7 +48,18 @@ struct MainAppView: View {
     /// in the header and a whole class of "why is that block here" question.
     /// The value is kept rather than the enum deleted because block chrome,
     /// patina and day separators all read it.
-    private let towerFilterMode: TowerFilterMode = .day
+    /// Which span of wins the tower is showing.
+    ///
+    /// This was frozen to `.day` when the header lost its filter control. The
+    /// filter is back — the tower is the app's one view of what you have done,
+    /// so being able to see a week or a month of it belongs here — and the
+    /// period label does NOT come back with it: the control names the period,
+    /// so a title saying the same thing would be the same fact twice.
+    @AppStorage("towerFilterMode") private var towerFilterModeRaw: String = TowerFilterMode.day.rawValue
+    private var towerFilterMode: TowerFilterMode {
+        get { TowerFilterMode(rawValue: towerFilterModeRaw) ?? .day }
+        nonmutating set { towerFilterModeRaw = newValue.rawValue }
+    }
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerProbe = TowerGeometryProbe()
@@ -173,7 +184,11 @@ struct MainAppView: View {
             let weekStartStr = TimelineViewModel.dateString(from: startOfWeek)
             cachedFilteredLogs = logsByDate.flatMap { key, value in key >= weekStartStr ? value : [] }
         case .month:
-            cachedFilteredLogs = Array(logs)
+            // This month. It returned EVERY log ever recorded, which made
+            // "Month" mean "all time" and grew without bound.
+            let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
+            let monthStartStr = TimelineViewModel.dateString(from: startOfMonth)
+            cachedFilteredLogs = logsByDate.flatMap { key, value in key >= monthStartStr ? value : [] }
         }
         // Filter by active tower
         if let activeTowerID = towerManager.activeTower?.id {
@@ -489,6 +504,10 @@ struct MainAppView: View {
                 .font(Typography.bodyMedium)
                 .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
+            TowerRangePicker(selection: Binding(
+                get: { towerFilterMode },
+                set: { towerFilterMode = $0 }
+            ))
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
