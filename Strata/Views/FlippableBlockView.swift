@@ -85,7 +85,24 @@ struct FlippableBlockView: View {
         // has nothing left to see.
         blockBody
             .opacity(isGroupMember ? 0 : 1)
-            .contentShape(Rectangle())
+            // The tap belongs to the BLOCK, not to its chrome.
+            //
+            // It used to be attached inside `chromedBody`, which a merged
+            // block never reaches: merging makes it `chromeless`, and that
+            // branch is a bare rounded rect. So every block that had joined a
+            // group silently lost its tap target and there was no way to open
+            // a merged block to edit it. A member is also drawn at zero
+            // opacity, so the hit area has to be declared here, after that,
+            // rather than inherited from something visible.
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded {
+                        HapticsEngine.lightTap()
+                        tapTrigger += 1
+                        onTap?()
+                    }
+            )
     }
 
     @ViewBuilder
@@ -240,17 +257,7 @@ struct FlippableBlockView: View {
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
 
-        .contentShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
         // #495: Smart Invert — photos excluded from color inversion
         .accessibilityIgnoresInvertColors(hasImage)
-
-        .simultaneousGesture(
-            TapGesture()
-                .onEnded {
-                    HapticsEngine.lightTap()
-                    tapTrigger += 1
-                    onTap?()
-                }
-        )
     }
 }
