@@ -53,6 +53,8 @@ final class TowerViewModel {
     /// Which sides of each block continue into a same-colour neighbour.
     /// Recomputed on rebuild, never per frame.
     private(set) var mergedEdges: [UUID: MergedEdges] = [:]
+    /// Blocks carrying another block directly above them.
+    private(set) var coveredBlockIDs: Set<UUID> = []
     private(set) var staggerDelayCache: [UUID: Double] = [:]
     private var previousBlockIDs: Set<UUID> = []
     /// False until the first build has happened.
@@ -157,6 +159,7 @@ final class TowerViewModel {
 
         placedBlocks = placed
         mergedEdges = BlockMerge.compute(for: placed)
+        coveredBlockIDs = BlockMerge.covered(in: placed)
         incompleteBlocks = []
         currentGrid = grid
         milestoneBlockIDs = milestones

@@ -58,7 +58,10 @@ struct BlockSurface<Fill: View>: View {
     /// piece. Masking the STROKE (not the block) with a rectangle inset on the
     /// shared sides removes it there and leaves the fill continuous.
     private var rimMask: some View {
-        let w = GridConstants.blockRimWidth * scale * 2
+        // Generous: the stroke's corner ends sit slightly proud of the edge, and
+        // a mask sized exactly to the rim width left a tick of them showing at
+        // each end of a seam.
+        let w = GridConstants.blockRimWidth * scale * 3.5
         return Rectangle()
             .padding(.top, merged.contains(.top) ? w : 0)
             .padding(.bottom, merged.contains(.bottom) ? w : 0)
@@ -74,10 +77,23 @@ struct BlockSurface<Fill: View>: View {
     /// single border, unequal along its length — which is what a real edge
     /// does, and it lets the top read clearly without the sides shouting.
     private var rim: LinearGradient {
-        LinearGradient(
+        // The rim brightens toward the lit edge — but only where there IS a lit
+        // edge. A block that continues upward has another block's body above
+        // it, not the sky, so its side rims must pick up exactly where the
+        // block above left off.
+        //
+        // This was the thing that kept a merged pair reading as two. The
+        // gradient restarted at full white on every block's top, so the lower
+        // block's side rims were bright precisely where the upper block's had
+        // faded to the falloff value — a hard brightness step running down both
+        // sides, at exactly the join.
+        let top: Color = merged.contains(.top)
+            ? .white.opacity(GridConstants.blockRimFalloff)
+            : .white
+        return LinearGradient(
             stops: [
-                .init(color: .white, location: 0.0),
-                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 0.55),
+                .init(color: top, location: 0.0),
+                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: merged.contains(.top) ? 0.0 : 0.55),
                 .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 1.0)
             ],
             startPoint: .top,

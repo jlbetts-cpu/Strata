@@ -35,6 +35,33 @@ enum BlockMerge {
     /// O(cells) — each block writes its footprint into a lookup grid once, then
     /// each block reads its four neighbours. Recomputed only when the tower is
     /// rebuilt, not per frame.
+    /// Blocks with something resting directly on top of them, whatever colour.
+    ///
+    /// Separate from merging on purpose: merging is about colour, contact is
+    /// about load. A green block under a red one is not one piece with it, but
+    /// it is still carrying it, and it should look like it.
+    static func covered(in blocks: [PlacedBlock]) -> Set<UUID> {
+        guard !blocks.isEmpty else { return [] }
+        let columns = GridConstants.columnCount
+        var occupied: Set<Int> = []
+        func index(_ c: Int, _ r: Int) -> Int { r * columns + c }
+        for block in blocks {
+            for r in block.row..<(block.row + block.rowSpan) {
+                for c in block.column..<(block.column + block.columnSpan) {
+                    occupied.insert(index(c, r))
+                }
+            }
+        }
+        var result: Set<UUID> = []
+        for block in blocks {
+            let above = block.row + block.rowSpan
+            let anyAbove = (block.column..<(block.column + block.columnSpan))
+                .contains { occupied.contains(index($0, above)) }
+            if anyAbove { result.insert(block.id) }
+        }
+        return result
+    }
+
     static func compute(for blocks: [PlacedBlock]) -> [UUID: MergedEdges] {
         guard !blocks.isEmpty else { return [:] }
 

@@ -125,6 +125,13 @@ struct BlockExpansionCard: View {
                         currentHabit.category = cat
                     }
                     try? modelContext.save()
+                    // Colour decides what merges with what, so changing it
+                    // changes the SHAPE of the tower, not just this block. The
+                    // merge map is computed on rebuild; without this the block
+                    // re-coloured instantly and stayed visibly separate from
+                    // its new neighbours until something else happened to
+                    // rebuild the grid.
+                    onLayoutChanged()
                 } label: {
                     ZStack {
                         Circle()

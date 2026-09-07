@@ -239,6 +239,9 @@ enum GridConstants {
     /// highlight, not an outline: full white where the light lands, less
     /// everywhere else.
     static let blockRimFalloff: Double = 0.45
+    /// Darkening at the top edge of a block that is carrying another one.
+    /// Subtle on purpose: it should be felt as weight, not seen as a stripe.
+    static let blockContactShade: Double = 0.11
     /// An unnamed win's surface. White, and translucent enough that the warm
     /// ground reads through it — the block is there without claiming a colour
     /// it has not been given.

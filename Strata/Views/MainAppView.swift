@@ -1924,6 +1924,16 @@ struct MainAppView: View {
                 let isNewlyDropped = towerVM.newlyDroppedIDs.contains(block.id)
                 let stagger = towerVM.staggerDelay(for: block)
 
+                let merged = towerVM.mergedEdges[block.id] ?? .none
+                // Half the grid gap on every shared side. `.top` is up the
+                // tower, which is -y on screen.
+                let g = GridConstants.spacing / 2
+                let grow = (
+                    leading: merged.contains(.leading) ? g : 0,
+                    trailing: merged.contains(.trailing) ? g : 0,
+                    up: merged.contains(.top) ? g : 0,
+                    down: merged.contains(.bottom) ? g : 0
+                )
                 AnimatedBlockView(
                     block: block, frame: f, animState: animState,
                     isNewlyDropped: isNewlyDropped, staggerDelay: stagger,
@@ -1937,12 +1947,21 @@ struct MainAppView: View {
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
                     milestoneNumber: towerVM.milestoneBlockIDs[block.id],
-                    merged: towerVM.mergedEdges[block.id] ?? .none,
+                    merged: merged,
+                    renderSize: CGSize(width: f.width + grow.leading + grow.trailing,
+                                       height: f.height + grow.up + grow.down),
+                    isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock
                 )
-                .frame(width: f.width, height: f.height)
+                // The grown size has to be on THIS frame too. It was only
+                // applied inside, where the outer .frame(f.width) immediately
+                // constrained it back — so merged blocks never actually met and
+                // a sliver of page showed through every seam.
+                .frame(width: f.width + grow.leading + grow.trailing,
+                       height: f.height + grow.up + grow.down)
                 .id(block.id)
-                .offset(x: f.minX, y: gridH - f.minY - f.height)
+                .offset(x: f.minX - grow.leading,
+                        y: gridH - f.minY - f.height - grow.up)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
                 .accessibilitySortPriority(-Double(block.row))
                 .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
@@ -1971,6 +1990,11 @@ struct MainAppView: View {
         let isCrown: Bool
         let milestoneNumber: Int?
         let merged: MergedEdges
+        /// The size to DRAW at — the grid slot grown across the gap on every
+        /// shared side. Kept separate from `frame`, which stays the logical
+        /// slot the drop animation measures against.
+        let renderSize: CGSize
+        let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
 
         @Environment(\.modelContext) private var modelContext
@@ -1990,19 +2014,11 @@ struct MainAppView: View {
             && lhs.isCrown == rhs.isCrown
             && lhs.milestoneNumber == rhs.milestoneNumber
             && lhs.merged == rhs.merged
+            && lhs.renderSize == rhs.renderSize
+            && lhs.isCovered == rhs.isCovered
         }
 
-        /// Half the grid gap on every shared side, and the matching shift so
-        /// the block grows INTO the gap rather than away from its slot.
-        private var mergeGrow: (width: CGFloat, height: CGFloat, dx: CGFloat, dy: CGFloat) {
-            let g = GridConstants.spacing / 2
-            let l = merged.contains(.leading) ? g : 0
-            let t = merged.contains(.trailing) ? g : 0
-            // `top` is up the tower, which is -y on screen; `bottom` is +y.
-            let up = merged.contains(.top) ? g : 0
-            let down = merged.contains(.bottom) ? g : 0
-            return (l + t, up + down, -l, -up)
-        }
+
 
         var body: some View {
             let phase = animState.dropPhase
@@ -2068,16 +2084,15 @@ struct MainAppView: View {
 
                 FlippableBlockView(
                     block: block,
-                    // Grown across the grid gap on every shared side, so two
-                    // merged blocks actually touch. Without this they would
-                    // have square corners with 4pt of page still showing
-                    // between them, which looks like a mistake rather than a
-                    // join.
-                    width: frame.width + mergeGrow.width,
-                    height: frame.height + mergeGrow.height,
+                    // renderSize, not frame: a merged block is drawn larger
+                    // than its grid slot so it reaches across the gap. The
+                    // caller positions it; this just fills what it is given.
+                    width: renderSize.width,
+                    height: renderSize.height,
                     cornerRadius: cornerRadius,
                     modelContext: modelContext,
                     merged: merged,
+                    isCovered: isCovered,
                     onTap: {
                         if !isExpanded {
                             onTapExpandBlock(block.id)
@@ -2159,9 +2174,6 @@ struct MainAppView: View {
             .rotationEffect(.degrees(animState.jubilationWobble))
             .offset(y: animState.jubilationLift)
             .brightness(animState.jubilationGlow)
-            // Grown blocks expand into the gap, so shift back by what they
-            // gained on the leading and top sides to keep the slot aligned.
-            .offset(x: mergeGrow.dx, y: mergeGrow.dy)
         }
 
         private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {

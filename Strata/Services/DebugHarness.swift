@@ -54,6 +54,7 @@ enum DebugHarness {
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
+            || argument("-strataSeedMono") != nil
     }
 
     /// Replaces all habits and logs with a deterministic fixture.
@@ -98,6 +99,18 @@ enum DebugHarness {
         let untitled = Int(argument("-strataSeedUnlabeled") ?? "0") ?? 0
         for _ in 0..<untitled {
             try? QuickWinService.logWin(context: context, tower: tower)
+        }
+
+        // All one colour, to exercise merging. The least-used picker
+        // deliberately avoids clustering, so a normal seed rarely produces two
+        // adjacent blocks of one colour to look at.
+        let mono = Int(argument("-strataSeedMono") ?? "0") ?? 0
+        for i in 0..<mono {
+            try? QuickWinService.logWin(
+                title: "", category: .health,
+                size: sizes[i % sizes.count],
+                context: context, tower: tower
+            )
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0

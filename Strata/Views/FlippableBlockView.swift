@@ -11,6 +11,8 @@ struct FlippableBlockView: View {
     let modelContext: ModelContext
     /// Sides that continue into a same-colour neighbour.
     var merged: MergedEdges = .none
+    /// Something is resting directly on this block.
+    var isCovered: Bool = false
     var onTap: (() -> Void)? = nil
     var showOverlay: Bool = true
 
@@ -137,6 +139,27 @@ struct FlippableBlockView: View {
                     timeText: timeText,
                     hasImage: hasImage
                 )
+            }
+        }
+        // CONTACT SHADE.
+        //
+        // Stacked objects darken where another one sits on them. Without it
+        // every block is lit as if it were alone, and a tower of them reads as
+        // tiles on a wall rather than as a structure carrying its own weight.
+        // Top edge only, short, and never across a merged seam — inside one
+        // piece there is nothing resting on anything.
+        .overlay(alignment: .top) {
+            if isCovered && !merged.contains(.top) {
+                LinearGradient(
+                    colors: [
+                        AppColors.warmBlack.opacity(GridConstants.blockContactShade),
+                        .clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: min(14, height * 0.22))
+                .allowsHitTesting(false)
             }
         }
         // Perfect-day patina — golden surface wash
