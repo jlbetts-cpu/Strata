@@ -39,41 +39,43 @@ struct ShareTowerCard: View {
         ZStack {
             WarmBackground()
 
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(winCount)")
-                        .font(.system(size: 68, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.85))
-                    Text(winCount == 1 ? "win" : "wins")
-                        .font(.system(size: 26, weight: .regular, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.35))
-                    Spacer(minLength: 0)
+            // The whole composition is centred as ONE group.
+            //
+            // Pinning the count to the top and the tower to the bottom left
+            // about a third of the card empty down the middle — which is not
+            // minimalism, it is a gap. Keeping the two together and floating
+            // the pair puts equal air above and below, and the eye reads a
+            // caption and its picture rather than two things at opposite ends.
+            VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(winCount)")
+                            .font(.system(size: 64, weight: .medium, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.85))
+                        Text(winCount == 1 ? "win" : "wins")
+                            .font(.system(size: 25, weight: .regular, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.35))
+                    }
+                    Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.28))
                 }
 
-                Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.30))
-
-                Spacer(minLength: 0)
-
                 tower
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .padding(.horizontal, 30)
-            .padding(.top, 44)
-            .padding(.bottom, 46)
+            .padding(.horizontal, 26)
         }
         .frame(width: Self.size.width, height: Self.size.height)
     }
 
-    /// The blocks, scaled so the whole tower fits the card whatever its height.
+    /// The blocks, scaled so the whole tower fits the card whatever its height.    /// The blocks, scaled so the whole tower fits the card whatever its height.
     ///
     /// A tall day and a short day both have to look composed, so the cell size
     /// is solved for rather than fixed — capped so three blocks do not become
     /// billboards.
     private var tower: some View {
         let columns = CGFloat(GridConstants.columnCount)
-        let available = CGSize(width: Self.size.width - 60, height: Self.size.height * 0.62)
+        let available = CGSize(width: Self.size.width - 52, height: Self.size.height * 0.58)
         let gap: CGFloat = 5
         let byWidth = (available.width - (columns - 1) * gap) / columns
         let byHeight = rows > 0
@@ -83,27 +85,75 @@ struct ShareTowerCard: View {
         let w = columns * cell + (columns - 1) * gap
         let h = rows > 0 ? CGFloat(rows) * cell + CGFloat(rows - 1) * gap : 0
 
-        return ZStack(alignment: .bottomLeading) {
-            Color.clear.frame(width: w, height: h)
-            ForEach(blocks) { block in
-                let bw = CGFloat(block.columnSpan) * cell + CGFloat(block.columnSpan - 1) * gap
-                let bh = CGFloat(block.rowSpan) * cell + CGFloat(block.rowSpan - 1) * gap
-                RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
-                    .fill(block.colour)
-                    .frame(width: bw, height: bh)
-                    // The rim the tower's blocks wear, so the shared picture is
-                    // the same object and not a flat diagram of it.
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
-                            .strokeBorder(.white.opacity(0.45), lineWidth: 1)
-                    }
-                    .offset(
-                        x: CGFloat(block.column) * (cell + gap),
-                        y: -CGFloat(block.row) * (cell + gap)
-                    )
+        return VStack(spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                Color.clear.frame(width: w, height: h)
+                ForEach(blocks) { block in
+                    blockShape(block, cell: cell, gap: gap)
+                }
             }
+            .frame(width: w, height: h)
+
+            // The tower stands on its reflection here too.
+            //
+            // Without it the blocks float — a diagram of a tower rather than
+            // the tower, and the one thing anyone who has used the app would
+            // notice missing. It is the same trick the real page uses: the
+            // shape again, flipped, faded to nothing.
+            ZStack(alignment: .topLeading) {
+                Color.clear.frame(width: w, height: reflectionDepth)
+                ForEach(bottomRow) { block in
+                    blockShape(block, cell: cell, gap: gap, reflected: true)
+                }
+            }
+            .frame(width: w, height: reflectionDepth, alignment: .topLeading)
+            // Centre anchor, not `.top`. Flipping about the top edge maps
+            // y to -y, which sent the whole reflection UPWARD out of its own
+            // frame and drew nothing at all.
+            .scaleEffect(y: -1)
+            .mask(
+                LinearGradient(
+                    colors: [.black.opacity(0.30), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .blur(radius: 1.5)
         }
-        .frame(width: w, height: h)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var reflectionDepth: CGFloat { 44 }
+
+    /// Only the bottom row reaches the water — what is nearest is what
+    /// reflects, and a full mirrored tower reads as a second tower.
+    private var bottomRow: [TowerBarChart.MiniBlock] {
+        blocks.filter { $0.row == 0 }
+    }
+
+    private func blockShape(
+        _ block: TowerBarChart.MiniBlock,
+        cell: CGFloat,
+        gap: CGFloat,
+        reflected: Bool = false
+    ) -> some View {
+        let bw = CGFloat(block.columnSpan) * cell + CGFloat(block.columnSpan - 1) * gap
+        let bh = CGFloat(block.rowSpan) * cell + CGFloat(block.rowSpan - 1) * gap
+        return RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
+            .fill(block.colour)
+            .frame(width: bw, height: reflected ? min(bh, reflectionDepth) : bh)
+            // The rim the tower's blocks wear, so the shared picture is the
+            // same object rather than a flat diagram of it.
+            .overlay {
+                if !reflected {
+                    RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
+                        .strokeBorder(.white.opacity(0.45), lineWidth: 1)
+                }
+            }
+            .offset(
+                x: CGFloat(block.column) * (cell + gap),
+                y: reflected ? 0 : -CGFloat(block.row) * (cell + gap)
+            )
     }
 }
 

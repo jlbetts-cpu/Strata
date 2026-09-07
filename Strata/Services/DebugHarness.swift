@@ -45,6 +45,16 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// Renders the share card to a PNG in the app container and exits the
+    /// need to tap anything. The card is an `ImageRenderer` output, so a
+    /// screenshot of the share SHEET only ever shows a thumbnail of it — this
+    /// is the only way to look at the thing that actually gets posted.
+    static var dumpsShareCard: Bool {
+        // Presence, not a value: `argument(_:)` returns the token AFTER the
+        // flag, so a bare switch always reads as nil through it.
+        ProcessInfo.processInfo.arguments.contains("-strataDumpShareCard")
+    }
+
     /// Flips between two tabs on a timer, so the appearance swap between a
     /// light screen and the dark camera can be filmed. Nothing here can tap.
     static var tabFlips: Int {
@@ -88,6 +98,7 @@ enum DebugHarness {
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
             || argument("-strataFlipTabs") != nil
+            || dumpsShareCard
             || argument("-strataSeedMono") != nil
     }
 

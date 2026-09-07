@@ -1352,6 +1352,19 @@ struct MainAppView: View {
         if let tab = DebugHarness.startTab {
             selectTab(tab)
         }
+        if DebugHarness.dumpsShareCard {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                guard let image = TowerShare.image(
+                    blocks: MiniTowerPacker.pack(filteredLogs),
+                    winCount: towerVM.placedBlocks.count,
+                    date: Date()
+                ), let data = image.pngData() else { return }
+                let url = URL.documentsDirectory.appending(path: "share-card.png")
+                try? data.write(to: url)
+                print("[SHARE] wrote \(Int(image.size.width))x\(Int(image.size.height)) to \(url.path)")
+            }
+        }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
         case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
