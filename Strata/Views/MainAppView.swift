@@ -1674,24 +1674,6 @@ struct MainAppView: View {
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset)
 
-                        // #74: Height markers — "30m", "60m" at 10-row intervals
-                        if towerVM.totalRows >= 10 {
-                            let markerInterval = 10
-                            let cellStride = colW + spacing
-                            ForEach(Array(stride(from: markerInterval, to: towerVM.totalRows, by: markerInterval)), id: \.self) { row in
-                                let meters = Int(Double(row) * GridConstants.metersPerBlock)
-                                let markerY = gridH - CGFloat(row) * cellStride
-                                // Right-aligned inside the grid: `gridW + 4`
-                                // put these past the screen edge, so the "m"
-                                // was clipped off every marker.
-                                Text("\(meters)m")
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(.primary.opacity(0.15))
-                                    .frame(width: gridW, alignment: .trailing)
-                                    .offset(y: markerY - 6)
-                            }
-                        }
-
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
                         // the tower can stand on its water with the tab bar
