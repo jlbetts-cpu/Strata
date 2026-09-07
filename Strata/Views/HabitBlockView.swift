@@ -209,11 +209,16 @@ struct BlockContentOverlay: View {
                         .foregroundStyle(.white)
                         .lineLimit(rowSpan > 1 ? 2 : 1)
                         .minimumScaleFactor(0.65)
+                        // On a photo the scrim is a light veil now, so the type
+                        // carries its own contrast instead of the block being
+                        // darkened until anything would be legible on it.
+                        .shadow(color: .black.opacity(hasImage ? 0.55 : 0), radius: 3, x: 0, y: 1)
 
                     if let time = timeText {
                         Text(time)
                             .font(.system(size: 11, weight: .regular, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.white.opacity(hasImage ? 0.85 : 0.6))
+                            .shadow(color: .black.opacity(hasImage ? 0.5 : 0), radius: 2, x: 0, y: 1)
                             .contentTransition(.interpolate)
                     }
                 }

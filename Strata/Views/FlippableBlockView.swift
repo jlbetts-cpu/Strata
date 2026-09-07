@@ -82,19 +82,39 @@ struct FlippableBlockView: View {
                 // block, and it leaves the title over open photo detail here.
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
+                    // A veil, not a shade.
+                    //
+                    // This was warmBlack at 0.80 — near-opaque, so the bottom
+                    // third of every photo was simply gone, and it read as a
+                    // caption bar stuck on rather than as part of the block.
+                    // A softer ramp holding a lighter floor keeps the photo
+                    // visible under the title while still carrying it.
+                    //
+                    // The title above it gains its own shadow, which is what
+                    // buys back the contrast the darkness used to force.
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: 0.0),
-                            .init(color: AppColors.warmBlack.opacity(0.45), location: 0.25),
-                            .init(color: AppColors.warmBlack.opacity(0.80), location: 0.45),
-                            .init(color: AppColors.warmBlack.opacity(0.80), location: 1.0)
+                            .init(color: AppColors.warmBlack.opacity(0.16), location: 0.35),
+                            .init(color: AppColors.warmBlack.opacity(0.40), location: 0.72),
+                            .init(color: AppColors.warmBlack.opacity(0.48), location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: min(76, height * 0.90))
+                    .frame(height: min(84, height * 0.95))
                 }
 
+            } else if block.habit.category == .unlabeled {
+                // A win you have not named yet.
+                //
+                // It was a warm grey — the heaviest, muddiest thing on the
+                // page, and the darkest block in a tower of light colours,
+                // which is backwards: it is the block that claims the least.
+                // Now the page shows through it. It is present and it holds
+                // its place in the grid, but it has no colour of its own
+                // because nothing has been chosen for it yet.
+                Color.white.opacity(GridConstants.blockUnnamedOpacity)
             } else {
                 // Flat colour.
                 //

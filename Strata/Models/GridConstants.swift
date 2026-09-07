@@ -236,6 +236,10 @@ enum GridConstants {
     /// highlight, not an outline: full white where the light lands, less
     /// everywhere else.
     static let blockRimFalloff: Double = 0.45
+    /// An unnamed win's surface. White, and translucent enough that the warm
+    /// ground reads through it — the block is there without claiming a colour
+    /// it has not been given.
+    static let blockUnnamedOpacity: Double = 0.52
     /// Blur inside the band. Figma blurs 10px on a 562pt block — 1.78% of width.
     static let blockRimBlur: CGFloat = 1.5
     /// Fraction of block height where the frosted band begins (Figma's 145pt of 565).
@@ -259,9 +263,6 @@ enum GridConstants {
     /// the filled block's 0.8pt white rim.
     static let blockGhostRimWidth: CGFloat = 1.5
     static let blockGhostRimOpacity: Double = 0.45
-    /// A preview of the colour the block will become, placed where the filled
-    /// block's frosted band sits so the two states share one anatomy.
-    static let blockGhostTint: Double = 0.14
 
     static let blockShadowRadius: CGFloat = 5
     static let blockShadowY: CGFloat = 2.5

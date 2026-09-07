@@ -143,18 +143,15 @@ struct BlockGhostSurface: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.white
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: GridConstants.blockBandStart),
-                    .init(color: style.baseColor.opacity(GridConstants.blockGhostTint), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .clipShape(shape)
+        // A clean white card, and nothing else.
+        //
+        // There was a tint of the category colour ramped in across the bottom
+        // quarter, meant to preview the colour the block becomes. It read as a
+        // gradient smudged along the bottom edge rather than as a preview, and
+        // it put the one dirty-looking thing on a surface whose whole job is to
+        // look clean and unfilled. The rim already says which category this is.
+        Color.white
+            .clipShape(shape)
         .overlay(
             shape.strokeBorder(
                 style.baseColor.opacity(GridConstants.blockGhostRimOpacity),
