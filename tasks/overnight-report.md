@@ -637,3 +637,48 @@ entering from off screen, mid-fall, above its slot.
 Nothing on this machine can tap the simulator, so the merged-block tap,
 the slot's pressed state and the resize repack are reasoned from the view
 tree and unverified by observation. They need one pass on a device.
+
+## Hold-to-drag reorder, and the chart in the tower's styling
+
+**Commits:** `2973b2d` (reorder), `07375d1` (chart).
+
+**The chart was never drawing tower blocks.** It merged on the tower's
+rule but painted with its own: `MiniBlock` held a `Color` and a run
+rendered a bare `MergedShape`, so a merged run had the silhouette and
+none of the surface — no rim, no bottom-band blur, no shadow. It now
+carries a `HabitCategory` and renders `MergedGroupView`, the tower's own
+view. Screenshot: `tasks/screenshots/chart-tower-styling-after.png`.
+
+The page was also a `ScrollView` top-aligning a 340pt chart on an 874pt
+screen — ~500pt of dead space under the baseline. Scroller removed, chart
+bottom-anchored, baseline 72pt above the tab bar. The blocks do not grow
+to fill the rest because the cell caps at 34pt, which is a tower block;
+growing past it would make the chart's blocks bigger than the real ones.
+
+**Reorder existed nowhere.** `HabitLog.towerOrder: Int?` (nil default, so
+it migrates in place), `TowerViewModel` sorts by it then falls back to
+`completedAt`, and `reorder(carried:before:)` rewrites the index for
+*every* block — a partial order leaves the untouched ones sorting by time
+against ones sorting by index, which scrambles the tower on the next drop.
+
+**Judgement calls**
+- Gesture on the grid, not the block: a merged block takes the
+  chromeless branch and would not carry its own gesture. Same reason the
+  tap-to-edit gesture had to move.
+- Hit-finding is arithmetic against the grid pitch, not per-block hit
+  tests, so a finger over a merged group's neighbour still resolves.
+- 0.35s hold. Long enough not to fire on a tap-to-edit, short enough not
+  to feel stuck.
+- `headerReserve` is a 176pt constant, not a second `GeometryReader`. The
+  header is two lines of fixed type and the chart clamps what it is given.
+
+**Verified.** Reorder driven through a new `-strataReorder <from>,<to>`
+harness flag, since nothing here can drag a simulator. Index 0 → 4 on six
+seeded wins gave `[Walk, Inbox, Sketch, Deep w, Called, Ten mi]` →
+`[Inbox, Sketch, Deep w, Called, Walk, Ten mi]`, and `ZTOWERORDER` in the
+store held the rewritten indices afterwards. Debug and Release build.
+
+**Not verified.** The gesture itself: the hold, whether the lift reads as
+a lift, whether the drag tracks a finger. Only the reorder it performs.
+Also `-strataStartTab insights` still loses the race intermittently — it
+landed on Camera once during this pass and needed a relaunch.
