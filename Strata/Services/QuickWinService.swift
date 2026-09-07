@@ -22,7 +22,9 @@ enum QuickWinService {
     /// belonging to no weekday. Used for counting today's wins without adding a
     /// field to the schema.
     static func isWin(_ habit: Habit) -> Bool {
-        habit.isTodo && habit.frequencyRawValues.isEmpty
+        // The flag is authoritative for anything logged since it existed; the
+        // shape test keeps older wins recognisable.
+        habit.isQuickWin || (habit.isTodo && habit.frequencyRawValues.isEmpty)
     }
 
     /// A colour for a win nobody has categorised yet.
@@ -77,6 +79,7 @@ enum QuickWinService {
             scheduledDate: today
         )
         habit.tower = tower
+        habit.isQuickWin = true
         // Unlabeled, so it draws no icon — but carrying a colour, so it still
         // looks like part of the tower. Two facts, stored separately.
         if category == .unlabeled {

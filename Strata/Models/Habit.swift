@@ -158,6 +158,18 @@ final class Habit {
     var isStepCompleted: Bool = false
     var isInProgress: Bool = false
     var isSaved: Bool = false
+    /// True for a win logged straight onto the tower.
+    ///
+    /// A win and a one-off task are the same shape in the schema — both are
+    /// `isTodo` with today's date and no weekday — so nothing could tell them
+    /// apart after the task was ticked. The checklist needs to: a win is
+    /// something you already did and it lives on the tower, so listing it among
+    /// things to accomplish is noise.
+    ///
+    /// Defaulted rather than optional, which SwiftData migrates in place.
+    /// Existing wins keep `false` and fall back to the shape test in
+    /// `QuickWinService.isWin`.
+    var isQuickWin: Bool = false
     /// A colour for a block whose category nobody has chosen yet.
     ///
     /// A win logged in one tap has no category — that is the point of one tap —
