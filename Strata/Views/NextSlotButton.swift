@@ -64,7 +64,25 @@ struct NextSlotButton: View {
         Double(min(drawn / (GridConstants.slotStep * 0.5), 1))
     }
 
-    private var outline: Color { AppColors.warmBlack.opacity(0.18) }
+    /// Strong enough to be seen on an off-white page.
+    ///
+    /// This was 0.18, which on this background is very close to not being
+    /// there — the slot is the only control on the screen and it read as a
+    /// faint artefact rather than as the thing you press.
+    private var outline: Color {
+        AppColors.warmBlack.opacity(isDown ? 0.34 : 0.26)
+    }
+
+    /// A shallow recess, so the slot reads as somewhere a block goes.
+    ///
+    /// Still the absence of a block rather than a blank one — that distinction
+    /// is deliberate and worth keeping — but an outline alone gives the eye no
+    /// surface to land on. A socket does. It deepens the instant a finger goes
+    /// down, which is the response apple-design.md §1 asks for on pointer-down
+    /// rather than on release.
+    private var recess: Color {
+        AppColors.warmBlack.opacity(isDown ? 0.075 : 0.038)
+    }
 
     var body: some View {
         // At rest it is an empty slot. While you draw, it becomes the block.
@@ -76,6 +94,10 @@ struct NextSlotButton: View {
         // the one the block will actually be, so the tower's next colour is
         // decided in front of you rather than revealed after.
         ZStack {
+            // The recess, which fades out as the block fills in.
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(recess.opacity(1 - drawProgress))
+
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(previewCategory.style.baseColor.opacity(drawProgress * 0.92))
 
@@ -89,8 +111,11 @@ struct NextSlotButton: View {
                 .strokeBorder(.white.opacity(drawProgress), lineWidth: GridConstants.blockRimWidth)
 
             Image(systemName: "plus")
-                .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
-                .foregroundStyle(outline.opacity(1 - drawProgress))
+                .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .semibold)
+                .foregroundStyle(
+                    AppColors.warmBlack
+                        .opacity((isDown ? 0.52 : 0.38) * (1 - drawProgress))
+                )
                 .scaleEffect(1 + charge * 0.18)
         }
         .background(
@@ -101,6 +126,7 @@ struct NextSlotButton: View {
         // Grows from its own top-left, which is where the block will be
         // anchored, so the preview occupies exactly the cells the block
         // will take.
+        .animation(GridConstants.tapSquashSpring, value: isDown)
         .scaleEffect(x: scale.width, y: scale.height, anchor: .topLeading)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .gesture(draw)
