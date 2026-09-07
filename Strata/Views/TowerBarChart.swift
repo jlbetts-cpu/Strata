@@ -37,7 +37,7 @@ struct TowerBarChart: View {
         let row: Int
         let columnSpan: Int
         let rowSpan: Int
-        let colour: Color
+        let category: HabitCategory
     }
 
     let columns: [Column]
@@ -107,16 +107,28 @@ struct TowerBarChart: View {
                             // lived. `MergedShape` is the same shape type the
                             // tower uses, at a smaller cell size — the runs
                             // even keep their notches.
-                            ForEach(Array(column.runs.enumerated()), id: \.offset) { _, run in
-                                MergedShape(
-                                    cells: run.cells,
+                            // `MergedGroupView` — the tower's own view, not a
+                            // flat copy of it.
+                            //
+                            // The bars were plain fills, so the chart was a
+                            // diagram of the tower rather than the tower at a
+                            // smaller size: no rim, no frosted band at the
+                            // foot of a run, no shadow. Using the real view
+                            // means the styling cannot drift, and it means the
+                            // runs keep their notches for free.
+                            ForEach(Array(column.runs.enumerated()), id: \.offset) { index, run in
+                                MergedGroupView(
+                                    group: MergeGroup(
+                                        id: UUID(),
+                                        category: run.category,
+                                        cells: run.cells,
+                                        memberIDs: [],
+                                        bottomRow: run.bottomRow
+                                    ),
                                     cellSize: cell,
-                                    spacing: gap,
-                                    gridHeight: height(forRows: column.rows),
-                                    cornerRadius: cell * 0.20
+                                    gridWidth: barWidth,
+                                    gridHeight: height(forRows: column.rows)
                                 )
-                                .fill(run.colour)
-                                .frame(width: barWidth, height: height(forRows: column.rows), alignment: .bottomLeading)
                             }
                         }
                         .frame(width: barWidth, alignment: .bottomLeading)
@@ -158,7 +170,9 @@ enum MiniTowerPacker {
     /// A run of adjacent same-colour cells, drawn as one shape.
     struct Run {
         let cells: Set<GridCell>
-        let colour: Color
+        let category: HabitCategory
+        /// Lowest row the run occupies — where its frosted band belongs.
+        let bottomRow: Int
     }
 
     /// Groups packed blocks into merged runs by colour and adjacency.
@@ -170,11 +184,11 @@ enum MiniTowerPacker {
     /// as an ordinary rounded rectangle, so there is no second code path for
     /// the unmerged case.
     static func runs(in blocks: [TowerBarChart.MiniBlock]) -> [Run] {
-        var owner: [GridCell: Color] = [:]
+        var owner: [GridCell: HabitCategory] = [:]
         for block in blocks {
             for r in block.row..<(block.row + block.rowSpan) {
                 for c in block.column..<(block.column + block.columnSpan) {
-                    owner[GridCell(column: c, row: r)] = block.colour
+                    owner[GridCell(column: c, row: r)] = block.category
                 }
             }
         }
@@ -182,13 +196,13 @@ enum MiniTowerPacker {
         var seen = Set<GridCell>()
         var out: [Run] = []
         for cell in owner.keys.sorted(by: { ($0.row, $0.column) < ($1.row, $1.column) }) {
-            guard !seen.contains(cell), let colour = owner[cell] else { continue }
+            guard !seen.contains(cell), let category = owner[cell] else { continue }
             // Flood fill across sides only. Diagonals do not touch, and two
             // blocks meeting at a corner are two blocks.
             var group: Set<GridCell> = []
             var stack = [cell]
             while let current = stack.popLast() {
-                guard !group.contains(current), owner[current] == colour else { continue }
+                guard !group.contains(current), owner[current] == category else { continue }
                 group.insert(current)
                 seen.insert(current)
                 stack.append(contentsOf: [
@@ -198,7 +212,12 @@ enum MiniTowerPacker {
                     GridCell(column: current.column, row: current.row + 1)
                 ])
             }
-            out.append(Run(cells: group, colour: colour))
+            out.append(Run(
+                cells: group,
+                category: category,
+                // Where the run's frosted band belongs: its lowest row.
+                bottomRow: group.map(\.row).min() ?? 0
+            ))
         }
         return out
     }
@@ -225,7 +244,7 @@ enum MiniTowerPacker {
                 row: pos.row,
                 columnSpan: size.columnSpan,
                 rowSpan: size.rowSpan,
-                colour: habit.displayCategory.style.baseColor
+                category: habit.displayCategory
             ))
         }
         return out

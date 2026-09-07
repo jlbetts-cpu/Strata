@@ -29,15 +29,29 @@ struct InsightsView: View {
         nonmutating set { rangeRaw = newValue.rawValue }
     }
 
+    /// Height the header and the streak line take, measured off a screenshot at
+    /// 402pt wide. It is a constant rather than a `GeometryReader` inside a
+    /// `GeometryReader` because the header is two lines of fixed type — it does
+    /// not reflow — and the chart clamps whatever it is handed anyway.
+    private let headerReserve: CGFloat = 176
+
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        // Not a ScrollView any more.
+        //
+        // There is one thing on this page and it never overflows, so the
+        // scroller was only doing one thing: top-aligning a 340pt chart on an
+        // 874pt screen and leaving 500pt of nothing under the baseline. The
+        // tower stands on the tab bar; this stands on the tab bar too.
+        GeometryReader { geo in
             VStack(alignment: .leading, spacing: 0) {
                 header
                     .padding(.horizontal, GridConstants.horizontalPadding)
 
                 if completedLogs.isEmpty {
                     emptyState
+                    Spacer(minLength: 0)
                 } else {
+                    Spacer(minLength: 0)
                     // The chart, and nothing under it.
                     //
                     // "When" and "What of" were two more things to read on a
@@ -46,7 +60,7 @@ struct InsightsView: View {
                     // idea competing with the first — and a page with three
                     // ideas has no main one. This is the tab now: your towers,
                     // side by side, at whatever span you asked for.
-                    chartSection
+                    chartSection(available: geo.size.height - headerReserve)
                         .padding(.top, 26)
                 }
             }
@@ -109,12 +123,14 @@ struct InsightsView: View {
 
     // MARK: - How much
 
-    private var chartSection: some View {
-        // Given real room, since it is the only thing on the page now.
+    /// - Parameter available: what is left of the screen under the header. The
+    ///   day labels and the tab-bar inset come out of it here so the chart only
+    ///   ever has to think about bars.
+    private func chartSection(available: CGFloat) -> some View {
         TowerBarChart(
             columns: chartColumns,
             maxRows: max(chartColumns.map(\.rows).max() ?? 0, 4),
-            maxBarHeight: 340
+            maxBarHeight: min(max(available - 150, 220), 620)
         )
     }
 
