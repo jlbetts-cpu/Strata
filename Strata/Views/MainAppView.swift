@@ -1029,21 +1029,61 @@ struct MainAppView: View {
     /// the surface, so nothing above row 0 contributes and nothing but position
     /// and colour survives.
     private func reflectionFacets(colW: CGFloat) -> [TowerReflection.Facet] {
-        towerVM.placedBlocks
-            .filter { $0.row == 0 }
-            .map { block in
-                let f = GridConstants.blockFrame(
-                    column: block.column, row: 0,
-                    columnSpan: block.columnSpan, rowSpan: 1,
-                    cellSize: colW
-                )
-                return TowerReflection.Facet(
+        // Reflect what is DRAWN, not what is stored.
+        //
+        // One facet per block put a gap in the water everywhere the tower had a
+        // seam — including seams that no longer exist, because a merged run is
+        // one object with no gaps in it. The water was reflecting the data
+        // model rather than the tower.
+        //
+        // Bottom-row cells are walked left to right and merged into one facet
+        // wherever consecutive cells belong to the same merged group, so the
+        // reflection spans the join exactly as the shape above it does.
+        let bottom = towerVM.placedBlocks.filter { $0.row == 0 }
+        guard !bottom.isEmpty else { return [] }
+
+        var groupOf: [UUID: UUID] = [:]
+        for group in towerVM.mergeGroups {
+            for member in group.memberIDs { groupOf[member] = group.id }
+        }
+
+        // Cell index -> the block occupying it.
+        var byColumn: [Int: PlacedBlock] = [:]
+        for block in bottom {
+            for c in block.column..<(block.column + block.columnSpan) {
+                byColumn[c] = block
+            }
+        }
+
+        var facets: [TowerReflection.Facet] = []
+        var column = 0
+        while column < GridConstants.columnCount {
+            guard let block = byColumn[column] else { column += 1; continue }
+            let runKey = groupOf[block.id]
+            var end = column
+            // Extend while the next cell is in the same merged run. A block not
+            // in a group runs only as far as its own span.
+            while let next = byColumn[end + 1],
+                  runKey != nil ? groupOf[next.id] == runKey : next.id == block.id {
+                end += 1
+            }
+            let startX = GridConstants.blockFrame(
+                column: column, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
+            ).minX
+            let endFrame = GridConstants.blockFrame(
+                column: end, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
+            )
+            facets.append(
+                TowerReflection.Facet(
                     id: block.id,
-                    x: f.minX,
-                    width: f.width,
+                    x: startX,
+                    width: endFrame.maxX - startX,
                     color: block.habit.displayCategory.style.baseColor
                 )
-            }
+            )
+            column = end + 1
+        }
+        return facets
     }
 
     // MARK: - Wins
@@ -1204,29 +1244,37 @@ struct MainAppView: View {
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
             recordWaterImpact(blockID: landedID, mass: mass)
             SoundEngine.blockImpact(mass: mass) // Bimodal: haptic + audio (Vroomen 2000)
-            // Tower compression pulse — global impact response
-            let compression: CGFloat = mass >= 2 ? 0.004 : 0.002
-            withAnimation(.easeOut(duration: 0.06)) {
-                towerImpactScale = 1.0 - compression
-            }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(60))
-                withAnimation(GridConstants.naturalSettle) {
-                    towerImpactScale = 1.0
+            // Whole-tower compression, and only for a block with real mass.
+            //
+            // This scales the ENTIRE stack, so it moves every block on screen.
+            // Firing it for a Quick block meant the most routine action in the
+            // app nudged the whole page — the same reason the ripple is now
+            // gated. Kept small enough to be felt rather than seen.
+            if mass >= 2 {
+                withAnimation(.easeOut(duration: 0.06)) {
+                    towerImpactScale = 1.0 - 0.003
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(60))
+                    withAnimation(GridConstants.naturalSettle) {
+                        towerImpactScale = 1.0
+                    }
                 }
             }
         }
         // Post-cascade settle — the tower exhales (Gestalt Pragnanz closure)
         animCoord.onAllDropsComplete = { [self] in
             guard !reduceMotion else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                towerImpactScale = 1.02
-            }
+            // No exhale.
+            //
+            // The whole tower used to scale to 1.02 and back after every
+            // cascade. `towerImpactScale` is a Y scale on the entire stack
+            // anchored at the bottom, so 2% on a 600pt tower throws the top of
+            // it 12 points and drags every block with it — one global lurch,
+            // fired on the most routine action in the app. That is the jolt.
+            // apple-design.md §11: keep per-frame change under the perception
+            // threshold; this was an order of magnitude over it.
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(100))
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                    towerImpactScale = 1.0
-                }
 
                 // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
                 let todayStr = TimelineViewModel.dateString(from: Date())
@@ -1452,12 +1500,13 @@ struct MainAppView: View {
         animCoord.isCascading = true
         let isFirstDrop = !hasSeenFirstDrop && !habits.isEmpty
 
-        // First block: zoom in for drama (Murdock 1962 primacy effect)
+        // The first block used to zoom the whole tower to 1.08 for drama.
+        // Eight percent moves everything on screen by up to fifty points, and
+        // it fired on the one drop where the user has least idea what to
+        // expect. The block's own fall and landing carry the moment; the page
+        // does not need to lurch to underline it.
         if isFirstDrop && !reduceMotion {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                towerImpactScale = 1.08
-            }
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: .milliseconds(120))
         }
 
         scrollToTopTrigger += 1
