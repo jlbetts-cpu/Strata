@@ -85,30 +85,34 @@ struct NextSlotButton: View {
     }
 
     var body: some View {
-        // At rest it is an empty slot. While you draw, it becomes the block.
+        // It stays a GHOST the whole way. The block arrives by falling.
         //
-        // A dashed outline that merely got bigger did not say a block was being
-        // made — it said a placeholder was being stretched. The colour fills
-        // in, the dashes fade to a solid rim and the plus gives way, so what
-        // you let go of is the thing you have been looking at. The colour is
-        // the one the block will actually be, so the tower's next colour is
-        // decided in front of you rather than revealed after.
+        // This used to fill in with the block's colour and swap its dashes for
+        // a white rim, so by the end of a drag you were holding what looked
+        // like a finished block — and then it vanished and a different block
+        // fell from the top into the same place. Two blocks for one win.
+        //
+        // The ghost only ever says WHERE and HOW BIG, which is all a
+        // placeholder should claim. It still previews the colour, because the
+        // tower's next colour is worth deciding in front of you rather than
+        // revealing after — but as a tint on the outline and a wash inside it,
+        // never as the block's own surface.
         ZStack {
-            // The recess, which fades out as the block fills in.
+            // The recess, which tints toward the block's colour as you draw.
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(recess.opacity(1 - drawProgress))
+                .fill(recess)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(previewCategory.style.baseColor.opacity(drawProgress * 0.92))
+                .fill(previewCategory.style.baseColor.opacity(drawProgress * 0.14))
 
+            // The outline stays dashed the whole way, and takes on the colour.
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(
-                    outline.opacity(1 - drawProgress),
+                    drawProgress > 0
+                        ? AnyShapeStyle(previewCategory.style.baseColor.opacity(0.30 + drawProgress * 0.55))
+                        : AnyShapeStyle(outline),
                     style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
                 )
-
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(.white.opacity(drawProgress), lineWidth: GridConstants.blockRimWidth)
 
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .semibold)
