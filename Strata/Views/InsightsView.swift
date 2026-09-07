@@ -140,7 +140,7 @@ struct InsightsView: View {
                         Label("View on Tower", systemImage: "square.stack.fill")
                     }
                     Button {
-                        switchTab?(.today)
+                        switchTab?(.tower)
                     } label: {
                         Label("View in Today", systemImage: "calendar")
                     }

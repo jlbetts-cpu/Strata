@@ -200,6 +200,8 @@ struct MainAppView: View {
     @State private var wantsDebugExpand = false
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
+    /// The habit whose sheet is open, from a long press on an outlined block.
+    @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
     ///
     /// The drop animation used to depend on WHICH build happened to place the
@@ -362,6 +364,18 @@ struct MainAppView: View {
                 onAdded: { _ in scheduleRefresh() }
             )
         }
+        // Long-pressing an outlined block opens the same sheet, in edit mode.
+        // One sheet for making a thing and for changing it, because they are
+        // the same four questions.
+        .sheet(item: $editingHabit) { habit in
+            AddThingSheet(
+                modelContext: modelContext,
+                tower: towerManager.activeTower,
+                editing: habit,
+                onAdded: { _ in scheduleRefresh() },
+                onDeleted: { scheduleRefresh() }
+            )
+        }
     }
 
     private var mainContent: some View {
@@ -372,17 +386,14 @@ struct MainAppView: View {
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
             // red notification dot on the tab you were already looking at.
-            // Today is a checklist now, and Plan is gone.
+            // No Today tab. The tower IS today.
             //
-            // They were two places to schedule the same habit, and neither was
-            // where the reward is. What replaced both is the shape of the
-            // spreadsheet the owner actually tracks in: a row, a box, a tick —
-            // and ticking drops a block on the tower, which is the whole loop.
-            // No navigation bar: the header carries the count, the way the
-            // tower's does.
-            Tab("Today", systemImage: "checklist", value: StrataTab.today) {
-                checklistTab
-            }
+            // The checklist that replaced Today and Plan lasted one step,
+            // because once the rows were drawn as blocks it was obvious they
+            // were describing something the tower could just show. An
+            // unfinished habit is now an outlined block sitting in the cell it
+            // will occupy, on top of what is already built — so the whole day
+            // is one picture instead of two screens that refer to each other.
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
                     InsightsView(
@@ -413,7 +424,7 @@ struct MainAppView: View {
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
             }
-            if newTab != .today {
+            if newTab != .tower {
                 timelineSelectedDate = Date()
             }
             // Device parallax — start on Tower, stop on leave
@@ -467,7 +478,7 @@ struct MainAppView: View {
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
                   let habitID = UUID(uuidString: identifier) else { return }
-            selectedTab = .today
+            selectedTab = .tower
             deepLinkHabitID = habitID
         }
     }
@@ -520,25 +531,28 @@ struct MainAppView: View {
         .padding(.bottom, 20)
     }
 
-    /// Today, as a checklist. Ticking a row drops a block on the tower.
+    /// Today's unfinished habits, in the order they will stack on the tower.
     ///
-    /// Kept as its own property because `mainContent` is at the type checker's
-    /// ceiling — see CLAUDE.md.
-    private var checklistTab: some View {
-        ChecklistView(
-            habits: cachedAllHabitsForSelectedDate,
-            completedHabitIDs: cachedCompletedHabitIDsForSelectedDate,
-            skippedHabitIDs: cachedSkippedHabitIDsForSelectedDate,
-            events: eventKitService.todaysEvents,
-            tower: towerManager.activeTower,
-            onComplete: { tickHabit($0) },
-            onUndo: { habit in
-                timelineVM.undoCompletion(habit)
-                cachedCompletedHabitIDsForSelectedDate.remove(habit.id)
-                scheduleRefresh()
-            },
-            onAdded: { scheduleRefresh() }
-        )
+    /// Only in Day: a week or a month of the tower is a record of what
+    /// happened, and an outline of something still to do has no place in it.
+    private var pendingHabits: [Habit] {
+        guard towerFilterMode == .day else { return [] }
+        return cachedAllHabitsForSelectedDate
+            .filter {
+                !cachedCompletedHabitIDsForSelectedDate.contains($0.id)
+                    && !cachedSkippedHabitIDsForSelectedDate.contains($0.id)
+                    && !QuickWinService.isWin($0)
+            }
+            .sorted { a, b in
+                let ha = TimelineViewModel.effectiveHour(for: a)
+                let hb = TimelineViewModel.effectiveHour(for: b)
+                switch (ha, hb) {
+                case let (x?, y?): return x == y ? a.title < b.title : x < y
+                case (nil, _?):    return false
+                case (_?, nil):    return true
+                default:           return a.title < b.title
+                }
+            }
     }
 
     /// Ticking a row. Exactly the path the timeline used: save first, update
@@ -769,7 +783,7 @@ struct MainAppView: View {
                 isNewHabitMenuOpen = true
             },
             onEditInPlan: { _ in
-                selectedTab = .today
+                selectedTab = .tower
             },
             towerBlockCount: towerVM.placedBlocks.count,
             onboarding: onboarding,
@@ -1687,10 +1701,21 @@ struct MainAppView: View {
         // no way to reach the slot. It is also why a drop into that row was
         // never seen falling: the whole fall happened above the scrollable
         // area.
-        let slotRows = towerVM.computeGhostPosition(for: drawingSize)
-            .map { $0.row + drawingSize.rowSpan } ?? 0
-        let layoutRows = rowCount > 0
-            ? max(rowCount, slotRows)
+        // Built blocks, then the slot resting on them, then what you still
+        // mean to do floating above it. In that order, always.
+        //
+        // The outlines used to be packed FIRST, which put them below the slot —
+        // so every block that landed had to shove them aside to reach the gap
+        // it wanted, and the things you had not done yet skittered around the
+        // screen whenever you finished one. Reserving the slot first means the
+        // stack above it only ever rises.
+        let reserved = towerVM.reserveSlot(for: drawingSize)
+        let slotPos = reserved.pos
+        let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
+        let pending = towerVM.packPending(pendingHabits, on: reserved.grid)
+        let pendingRows = pending.blocks.map { $0.row + $0.rowSpan }.max() ?? 0
+        let layoutRows = rowCount > 0 || pendingRows > 0
+            ? max(max(rowCount, pendingRows), slotRows)
             : placeholderRows
         let gridH = layoutRows > 0
             ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
@@ -1725,10 +1750,14 @@ struct MainAppView: View {
 
                     if towerVM.isLoading {
                         skeletonGrid(skeletons: placeholders, colW: colW, gridH: gridH)
-                    } else if towerVM.totalRows == 0 {
+                    } else if towerVM.totalRows == 0 && pending.blocks.isEmpty {
                         // An empty tower gets the same next slot a full one
                         // does — pressing it is how the first block arrives, so
                         // it cannot be the one state without a way to press.
+                        //
+                        // Only when there is nothing outlined either: a day
+                        // with habits still to do is not an empty tower, it is
+                        // a tower that has not been built yet.
                         emptyTowerSlot(colW: colW)
                     } else {
                         // Ground plane at tower foundation, and the water
@@ -1755,8 +1784,24 @@ struct MainAppView: View {
                             )
                         }
 
+                        ForEach(pending.blocks) { item in
+                            let f = item.frame(cellSize: colW)
+                            PendingBlockView(
+                                habit: item.habit,
+                                width: f.width,
+                                height: f.height,
+                                cornerRadius: cornerRadius,
+                                onCheck: { tickHabit(item.habit) },
+                                onOpen: { editingHabit = item.habit }
+                            )
+                            .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
+                            .transition(.opacity)
+                        }
+                        .animation(GridConstants.heavySettle, value: pending.blocks.map(\.id))
+
                         placedBlocksGrid(colW: colW, gridH: gridH,
-                                         viewportHeight: viewportHeight, topInset: topInset)
+                                         viewportHeight: viewportHeight, topInset: topInset,
+                                         slotPos: slotPos)
 
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
@@ -1807,7 +1852,7 @@ struct MainAppView: View {
                 // Outside the bottom-anchored grid, so it centres on the
                 // viewport rather than on the ghost footing.
                 .overlay {
-                    if !towerVM.isLoading && towerVM.totalRows == 0 {
+                    if !towerVM.isLoading && towerVM.totalRows == 0 && pending.blocks.isEmpty {
                         towerEmptyStateMessage
                     }
                 }
@@ -1853,7 +1898,8 @@ struct MainAppView: View {
 
     @ViewBuilder
     private func placedBlocksGrid(colW: CGFloat, gridH: CGFloat,
-                                   viewportHeight: CGFloat, topInset: CGFloat) -> some View {
+                                   viewportHeight: CGFloat, topInset: CGFloat,
+                                   slotPos: (column: Int, row: Int)?) -> some View {
         let visibleBlocks = visibleTowerBlocks(
             colW: colW, gridH: gridH,
             viewportHeight: viewportHeight, topInset: topInset
@@ -1905,8 +1951,7 @@ struct MainAppView: View {
             // smaller one would, so the slot itself moves to the first gap that
             // takes it. That is the tower showing you, live, exactly where this
             // block is going to end up.
-            if !animCoord.isCascading,
-               let pos = towerVM.computeGhostPosition(for: drawingSize) {
+            if !animCoord.isCascading, let pos = slotPos {
                 let ghostFrame = GridConstants.blockFrame(
                     column: pos.column, row: pos.row,
                     columnSpan: drawingSize.columnSpan, rowSpan: drawingSize.rowSpan,
@@ -1917,7 +1962,8 @@ struct MainAppView: View {
                     cornerRadius: cornerRadius,
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
-                    action: { logWin(size: $0) }
+                    action: { logWin(size: $0) },
+                    onHold: { isNewHabitMenuOpen = true }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
@@ -2031,7 +2077,8 @@ struct MainAppView: View {
             cornerRadius: cornerRadius,
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
-            action: { logWin(size: $0) }
+            action: { logWin(size: $0) },
+            onHold: { isNewHabitMenuOpen = true }
         )
         .frame(width: f.width, height: f.height)
         .offset(x: f.minX, y: 0)
@@ -2072,16 +2119,23 @@ struct MainAppView: View {
                 .font(Typography.headerMedium)
                 .foregroundStyle(.primary.opacity(0.6))
 
-            Text("Press the empty block\nto record something you did.")
+            // Teaches the whole interaction in one sentence, on the one
+            // screen where there is nothing else to read. Both halves of the
+            // rule — tap does it, hold plans it — and after that the gestures
+            // are the same everywhere: tapping an outlined block marks it
+            // done, holding one edits it.
+            Text("Tap the empty block to record something you did.\nHold it to plan something instead.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            // No "or plan your day". There is nowhere else to go: planning
+            // is adding an outlined block to this same tower.
             Button {
                 HapticsEngine.lightTap()
-                selectedTab = .today
+                isNewHabitMenuOpen = true
             } label: {
-                Text("or plan your day")
+                Text("or add something now")
                     .font(Typography.bodySmall)
                     .foregroundStyle(.primary.opacity(0.4))
             }

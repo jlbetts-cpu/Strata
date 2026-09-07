@@ -193,7 +193,7 @@ struct PlanItemRow: View {
                 if isCompletedToday || isSkippedToday || !item.habit.isTodo {
                     if let switchTab {
                         Button {
-                            switchTab(.today)
+                            switchTab(.tower)
                             HapticsEngine.lightTap()
                         } label: {
                             HStack {

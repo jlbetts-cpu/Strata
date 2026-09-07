@@ -18,6 +18,8 @@ struct NextSlotButton: View {
     /// Reports the size being drawn, so the tower can show where it would land.
     let onSizeChanged: (BlockSize) -> Void
     let action: (BlockSize) -> Void
+    /// Touch and hold: add something to do later, rather than logging one now.
+    let onHold: () -> Void
 
 
     /// -1 = compressing under the finger, +1 = released.
@@ -156,6 +158,21 @@ struct NextSlotButton: View {
         .animation(GridConstants.tapSquashSpring, value: isDown)
         .scaleEffect(scale)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        // One rule, both kinds of block: **tap does the thing, hold configures
+        // it.** Tapping an outlined block marks it done; tapping this one logs
+        // a win. Holding an outlined block edits it; holding this one adds
+        // something to do later. There is nothing else to learn, and nothing
+        // that only works if you already know it.
+        //
+        // Before the hold there was no route to adding a habit at all — the
+        // screen that used to own it was folded into the tower and its door
+        // went with it.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+                HapticsEngine.tick()
+                onHold()
+            }
+        )
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { fire(size: .small, velocity: 0) }

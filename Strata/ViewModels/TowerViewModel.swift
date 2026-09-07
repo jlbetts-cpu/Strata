@@ -270,6 +270,71 @@ final class TowerViewModel {
         return findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &gridCopy)
     }
 
+    /// Today's unfinished habits, packed onto the tower above what is built.
+    ///
+    /// This is what replaced the Today tab. An unfinished habit is not a row on
+    /// another screen — it is the cell it is going to occupy, outlined, sitting
+    /// on top of the blocks that are already standing. The tower then shows the
+    /// whole day at once: what you did, and what is still outlined above it.
+    ///
+    /// Packed in list order onto a copy of the built grid, so they take the
+    /// same cells the real blocks would and the tower's shape is honest about
+    /// where the day is going.
+    ///
+    /// Returns the grid with them marked, so the next slot can be placed above
+    /// the pending ones rather than underneath them.
+    func packPending(_ habits: [Habit], on startingGrid: [[Bool]]) -> (blocks: [PlacedIncompleteBlock], gridAfter: [[Bool]]) {
+        var grid = startingGrid
+        var out: [PlacedIncompleteBlock] = []
+        for habit in habits {
+            let size = habit.blockSize
+            guard let pos = findPosition(
+                columnSpan: size.columnSpan,
+                rowSpan: size.rowSpan,
+                grid: &grid
+            ) else { continue }
+            out.append(PlacedIncompleteBlock(
+                id: habit.id,
+                habit: habit,
+                column: pos.column,
+                row: pos.row,
+                columnSpan: size.columnSpan,
+                rowSpan: size.rowSpan
+            ))
+        }
+        return (out, grid)
+    }
+
+    /// Takes the next free cell for the slot and returns the grid with it
+    /// claimed, so the outlined blocks can be stacked ABOVE it.
+    ///
+    /// The order matters and it is the whole point: built blocks, then the
+    /// slot resting on them, then what you still mean to do floating above.
+    /// Packing the outlines first put them underneath, so every landing block
+    /// shoved them around to reach the gap it wanted.
+    func reserveSlot(for blockSize: BlockSize) -> (pos: (column: Int, row: Int)?, grid: [[Bool]]) {
+        var grid = currentGrid
+        let pos = findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &grid)
+
+        // Seal every row up to and including the slot's.
+        //
+        // Otherwise the packer drops the first outline into whatever gap is
+        // left beside the slot — so something you have not done yet appears
+        // BELOW the thing you press to add one, sitting in the middle of the
+        // blocks you have already earned. The three bands have to stay in
+        // order to mean anything: built, then the slot, then planned.
+        if let pos {
+            let top = pos.row + blockSize.rowSpan - 1
+            while grid.count <= top {
+                grid.append(Array(repeating: false, count: GridConstants.columnCount))
+            }
+            for row in 0...top {
+                for col in 0..<GridConstants.columnCount { grid[row][col] = true }
+            }
+        }
+        return (pos, grid)
+    }
+
     // MARK: - Boolean Grid Matrix Packing
 
     /// Scans the boolean grid from row 0 (bottom) upward to find the first

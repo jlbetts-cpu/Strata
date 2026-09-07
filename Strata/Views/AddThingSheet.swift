@@ -21,7 +21,11 @@ struct AddThingSheet: View {
 
     let modelContext: ModelContext
     let tower: Tower?
+    /// When set, the sheet edits this instead of creating something new.
+    var editing: Habit? = nil
     var onAdded: (Habit) -> Void = { _ in }
+    /// Called after the habit is deleted, so the tower can drop the outline.
+    var onDeleted: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var titleFocused: Bool
@@ -31,6 +35,10 @@ struct AddThingSheet: View {
     @State private var size: BlockSize = .small
     @State private var repeats = false
     @State private var days: Set<DayCode> = Set(DayCode.allCases)
+    @State private var loaded = false
+    @State private var confirmingDelete = false
+
+    private var isEditing: Bool { editing != nil }
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -40,7 +48,7 @@ struct AddThingSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
-                    TextField("What do you want to do?", text: $title)
+                    TextField(isEditing ? "Name" : "What do you want to do?", text: $title)
                         .font(Typography.headerMedium)
                         .focused($titleFocused)
                         .submitLabel(.done)
@@ -54,23 +62,60 @@ struct AddThingSheet: View {
                         dayControl
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+
+                    if isEditing {
+                        Button(role: .destructive) {
+                            HapticsEngine.tick()
+                            confirmingDelete = true
+                        } label: {
+                            Text("Delete")
+                                .font(Typography.bodyMedium)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 11)
+                                .background(
+                                    RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
+                                        .fill(Color.red.opacity(0.10))
+                                )
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
             }
-            .navigationTitle("Add")
+            .navigationTitle(isEditing ? "Edit" : "Add")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { save() }
+                    Button(isEditing ? "Save" : "Add") { save() }
                         .disabled(!canSave)
                         .fontWeight(.semibold)
                 }
             }
-            .onAppear { titleFocused = true }
+            .onAppear {
+                guard !loaded else { return }
+                loaded = true
+                if let habit = editing {
+                    title = habit.title
+                    category = habit.displayCategory
+                    size = habit.blockSize
+                    repeats = !habit.isTodo
+                    if !habit.frequency.isEmpty { days = Set(habit.frequency) }
+                } else {
+                    titleFocused = true
+                }
+            }
+            .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { deleteIt() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("It leaves the tower. Blocks you already earned from it stay.")
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -215,6 +260,23 @@ struct AddThingSheet: View {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let today = DateUtils.dateString(from: Date())
+
+        // Editing writes through to the habit the tower is already drawing.
+        if let habit = editing {
+            habit.title = trimmed
+            habit.category = category
+            habit.spontaneousCategoryRaw = nil
+            habit.blockSize = size
+            habit.isTodo = !repeats
+            habit.frequencyRawValues = repeats ? days.map(\.rawValue) : []
+            habit.scheduledDate = repeats ? nil : today
+            try? modelContext.save()
+            HapticsEngine.success()
+            onAdded(habit)
+            dismiss()
+            return
+        }
+
         let habit = Habit(
             title: trimmed,
             category: category,
@@ -228,6 +290,19 @@ struct AddThingSheet: View {
         try? modelContext.save()
         HapticsEngine.success()
         onAdded(habit)
+        dismiss()
+    }
+
+    /// Removes the habit. Its completed logs go with it, because a `HabitLog`
+    /// requires a habit and the tower skips any log without one — a log left
+    /// behind would be a block that can never be drawn.
+    private func deleteIt() {
+        guard let habit = editing else { return }
+        for log in habit.logs { modelContext.delete(log) }
+        modelContext.delete(habit)
+        try? modelContext.save()
+        HapticsEngine.tick()
+        onDeleted()
         dismiss()
     }
 }
