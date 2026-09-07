@@ -24,7 +24,6 @@ struct SettingsView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 0
 
     // #172/#173: Tower appearance toggles
-    @AppStorage("towerShowGhostBlock") private var towerShowGhostBlock = true
     @AppStorage("towerShowParallax") private var towerShowParallax = true
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
@@ -159,15 +158,6 @@ struct SettingsView: View {
             // MARK: - Tower Appearance (#172)
 
             Section("Tower") {
-                Toggle(isOn: $towerShowGhostBlock) {
-                    Label {
-                        Text("Ghost Block Preview")
-                    } icon: {
-                        SettingsIcon(systemName: "square.dashed")
-                    }
-                }
-                .tint(AppColors.accentWarm)
-
                 Toggle(isOn: $towerShowParallax) {
                     Label {
                         Text("3D Parallax")

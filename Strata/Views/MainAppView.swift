@@ -39,7 +39,7 @@ struct MainAppView: View {
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
     @State private var hasLoadedDemo = false
-    @State private var selectedTab: StrataTab = .wins
+    @State private var selectedTab: StrataTab = .tower
     // #270: Tower filter persistence across launches
     @AppStorage("towerFilterMode") private var towerFilterMode: TowerFilterMode = .week
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
@@ -175,6 +175,7 @@ struct MainAppView: View {
         }
     }
 
+    @State private var winSaveFailed = false
     @State private var showSettings = false
     @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
 
@@ -250,13 +251,18 @@ struct MainAppView: View {
 
                 scheduleRefresh()
             }
+            .alert("Couldn't save that win", isPresented: $winSaveFailed) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Nothing was added. Try again.")
+            }
             .fullScreenCover(isPresented: Binding(
                 get: { !onboarding.hasSeenWelcome },
                 set: { if !$0 { onboarding.hasSeenWelcome = true } }
             )) {
                 WelcomeView {
                     onboarding.hasSeenWelcome = true
-                    selectedTab = .today
+                    selectedTab = .tower
                 }
             }
             .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
@@ -268,19 +274,6 @@ struct MainAppView: View {
 
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
-            Tab(StrataTab.wins.rawValue, systemImage: StrataTab.wins.icon, value: StrataTab.wins) {
-                NavigationStack {
-                    WinsView(tower: towerManager.activeTower) { habit in
-                        // Same path a normal completion takes, so the block
-                        // lands on the tower identically.
-                        pendingDrops.append(habit)
-                    }
-                    .background { WarmBackground().ignoresSafeArea() }
-                    // No title: the tab bar says "Wins" an inch below, and the
-                    // page is one number and one button.
-                    .toolbar(.hidden, for: .navigationBar)
-                }
-            }
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
@@ -752,20 +745,6 @@ struct MainAppView: View {
         }
     }
 
-    // #101: Empty state rotating micro-copy — daily rotation (Berlyne 1971)
-    private static var emptyStateCopy: String {
-        let copies = [
-            "Complete one habit today\nand watch your first block drop",
-            "Every tower starts with\na single block",
-            "Small steps build\ntall towers",
-            "One habit at a time.\nYour tower will grow.",
-            "Ready to build something?\nHead to Today.",
-            "Your habits become blocks.\nBlocks become a tower.",
-            "Start small, build tall.\nOne block at a time.",
-        ]
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
-        return copies[dayOfYear % copies.count]
-    }
 
     // MARK: - Week Progress Data
 
@@ -904,6 +883,31 @@ struct MainAppView: View {
         HapticsEngine.lightTap()
         _ = withAnimation(GridConstants.layoutReflow) {
             refreshData()
+        }
+    }
+
+    // MARK: - Wins
+
+    /// Blocks that landed on the tower today — taps of the next slot plus
+    /// habits completed. One honest number for what today added, rather than
+    /// a count that stays still while the tower visibly grows.
+    private var blocksToday: Int {
+        let today = DateUtils.dateString(from: Date())
+        return logs.filter { $0.dateString == today && $0.completed }.count
+    }
+
+    private func logWin() {
+        do {
+            let habit = try QuickWinService.logWin(
+                context: modelContext,
+                tower: towerManager.activeTower
+            )
+            // The same path a normal completion takes, so the block lands on
+            // the tower identically.
+            pendingDrops.append(habit)
+            scheduleRefresh()
+        } catch {
+            winSaveFailed = true
         }
     }
 
@@ -1344,7 +1348,7 @@ struct MainAppView: View {
             ? []
             : (towerVM.isLoading
                ? towerVM.skeletonLayout()
-               : towerVM.skeletonLayout(blockCount: 3))
+               : [])
         let placeholderRows = placeholders.map { $0.row + $0.rowSpan }.max() ?? 0
         let layoutRows = rowCount > 0 ? rowCount : placeholderRows
         let gridH = layoutRows > 0
@@ -1370,8 +1374,10 @@ struct MainAppView: View {
                     if towerVM.isLoading {
                         skeletonGrid(skeletons: placeholders, colW: colW, gridH: gridH)
                     } else if towerVM.totalRows == 0 {
-                        // Ghost tower empty state
-                        ghostTowerEmptyState(ghosts: placeholders, colW: colW, gridH: gridH)
+                        // An empty tower gets the same next slot a full one
+                        // does — pressing it is how the first block arrives, so
+                        // it cannot be the one state without a way to press.
+                        emptyTowerSlot(colW: colW)
                     } else {
                         // Ground plane at tower foundation
                         towerGroundPlane(gridW: gridW, gridH: gridH)
@@ -1559,42 +1565,32 @@ struct MainAppView: View {
                 }
             }
 
-            // #172: Ghost block preview — respects user preference
-            // Shows where next completion will land (Kliegel 2008)
-            if towerFilterMode == .day && !animCoord.isCascading && UserDefaults.standard.object(forKey: "towerShowGhostBlock") as? Bool ?? true {
-                if let nextHabit = cachedIncompleteForTimeline.first,
-                   let pos = towerVM.computeGhostPosition(for: nextHabit.blockSize) {
-                    let ghostFrame = GridConstants.blockFrame(
-                        column: pos.column, row: pos.row,
-                        columnSpan: nextHabit.blockSize.columnSpan,
-                        rowSpan: nextHabit.blockSize.rowSpan,
-                        cellSize: colW
-                    )
-                    TimelineView(.animation(minimumInterval: 1.0 / 10, paused: false)) { timeline in
-                        let elapsed = timeline.date.timeIntervalSinceReferenceDate
-                        let pulse = (sin(elapsed * .pi) + 1) / 2
-                        let opacity = reduceMotion ? GridConstants.ghostBlockOpacity :
-                            GridConstants.ghostBlockPulseMin +
-                            (GridConstants.ghostBlockPulseMax - GridConstants.ghostBlockPulseMin) * pulse
-
-                        ZStack {
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .fill(nextHabit.category.style.baseColor.opacity(opacity))
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .strokeBorder(
-                                    nextHabit.category.style.baseColor.opacity(0.2),
-                                    style: StrokeStyle(lineWidth: 2, dash: [GridConstants.ghostBlockDashLength])
-                                )
-                            if let icon = nextHabit.category.iconName {
-                                Image(systemName: icon)
-                                    .font(.system(size: GridConstants.iconCategory, weight: .medium, design: .rounded))
-                                    .foregroundStyle(nextHabit.category.style.baseColor.opacity(0.25))
-                            }
-                        }
-                        .frame(width: ghostFrame.width, height: ghostFrame.height)
-                        .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
-                    }
-                }
+            // The next slot, as a button.
+            //
+            // This was a passive preview of where your next scheduled habit
+            // would land, behind a Settings toggle. It is now the way a win is
+            // logged: press the empty slot and a block drops into it. That
+            // replaces the Wins tab, which was a whole page to say one thing
+            // the tower can say in the place where it happens.
+            //
+            // It sits at computeGhostPosition, so it is always exactly where
+            // the block will land. The tower is bottom-aligned and the scroll
+            // opens at the top, so the slot is on screen when the tab opens.
+            if !animCoord.isCascading,
+               let pos = towerVM.computeGhostPosition(for: .small) {
+                let ghostFrame = GridConstants.blockFrame(
+                    column: pos.column, row: pos.row,
+                    columnSpan: 1, rowSpan: 1,
+                    cellSize: colW
+                )
+                NextSlotButton(
+                    blocksToday: blocksToday,
+                    reduceMotion: reduceMotion,
+                    cornerRadius: cornerRadius,
+                    action: logWin
+                )
+                .frame(width: ghostFrame.width, height: ghostFrame.height)
+                .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
             }
         }
         .accessibilityElement(children: .combine)
@@ -1680,6 +1676,26 @@ struct MainAppView: View {
 
     // MARK: - Ghost Tower Empty State
 
+    /// The next slot on an empty tower: one cell, on the ground.
+    ///
+    /// This replaces a decorative three-block footing. A row of ghosts that
+    /// cannot be pressed says "blocks go here" to someone who is looking for
+    /// how to put one there; one slot that can be pressed answers it.
+    @ViewBuilder
+    private func emptyTowerSlot(colW: CGFloat) -> some View {
+        let f = GridConstants.blockFrame(
+            column: 0, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
+        )
+        NextSlotButton(
+            blocksToday: blocksToday,
+            reduceMotion: reduceMotion,
+            cornerRadius: cornerRadius,
+            action: logWin
+        )
+        .frame(width: f.width, height: f.height)
+        .offset(x: f.minX, y: 0)
+    }
+
     /// The faint footing an empty tower sits on. Blocks only — the invitation
     /// is `towerEmptyStateMessage`, drawn as a centred overlay, because the two
     /// were in one ZStack and the copy landed on top of the ghosts.
@@ -1702,17 +1718,20 @@ struct MainAppView: View {
         }
     }
 
+    /// The invitation on an empty tower.
+    ///
+    /// It used to end in a filled "Go to Today" button, which was the loudest
+    /// thing on the page and pointed away from it. There is a pressable slot on
+    /// the ground now, so the copy names that instead, and scheduling is a
+    /// quiet second line rather than the headline.
     private var towerEmptyStateMessage: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "square.stack.3d.up")
-                .iconSize(GridConstants.iconEmptyState, relativeTo: .largeTitle, weight: .light)
-                .foregroundStyle(.primary.opacity(0.25))
+        VStack(spacing: 10) {
             // #103: Time-of-day greeting
             Text(Self.timeOfDayGreeting)
                 .font(Typography.headerMedium)
                 .foregroundStyle(.primary.opacity(0.6))
-            // #101: Empty state rotating micro-copy (Berlyne 1971 — novelty)
-            Text(Self.emptyStateCopy)
+
+            Text("Press the empty block\nto record something you did.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -1721,14 +1740,12 @@ struct MainAppView: View {
                 HapticsEngine.lightTap()
                 selectedTab = .today
             } label: {
-                Text("Go to Today")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(AppColors.accentWarm, in: Capsule())
+                Text("or plan your day")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(.primary.opacity(0.4))
             }
-            .padding(.top, 4)
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

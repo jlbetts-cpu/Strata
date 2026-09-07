@@ -179,6 +179,14 @@ struct BlockContentOverlay: View {
     let timeText: String?
     var hasImage: Bool = false
 
+    /// An unlabeled win carries no text at all — no title, no time.
+    ///
+    /// "Win" is not a name, it is the absence of one, and a block that says it
+    /// is louder than the thing it describes. The block's colour already says
+    /// "uncategorised" and its presence already says "this happened"; a label
+    /// repeating that is the only part of it that could be wrong.
+    private var isUnlabelledWin: Bool { category == .unlabeled }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             // An unlabeled win draws no icon: the corner mark says which of
@@ -195,17 +203,19 @@ struct BlockContentOverlay: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Spacer()
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(rowSpan > 1 ? 2 : 1)
-                    .minimumScaleFactor(0.65)
+                if !isUnlabelledWin {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(rowSpan > 1 ? 2 : 1)
+                        .minimumScaleFactor(0.65)
 
-                if let time = timeText {
-                    Text(time)
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .contentTransition(.interpolate)
+                    if let time = timeText {
+                        Text(time)
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .contentTransition(.interpolate)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .bottomLeading)

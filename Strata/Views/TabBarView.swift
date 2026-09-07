@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum StrataTab: String, CaseIterable {
-    case wins = "Wins"
     case tower = "Tower"
     case today = "Today"
     case plan = "Plan"
@@ -9,7 +8,6 @@ enum StrataTab: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .wins: return "plus.circle"
         case .tower: return "square.stack"
         case .today: return "calendar"
         case .plan: return "list.bullet.clipboard"
@@ -19,7 +17,6 @@ enum StrataTab: String, CaseIterable {
 
     var selectedIcon: String {
         switch self {
-        case .wins: return "plus.circle.fill"
         case .tower: return "square.stack.fill"
         case .today: return "calendar.fill"
         case .plan: return "list.bullet.clipboard.fill"
