@@ -11,7 +11,9 @@ become 2.5D blocks that stack into a tower. Tabs, in order:
 **Tower** (the record, and the home tab) · **Today** (the timeline) ·
 **Plan** (capture and scheduling) · **Insights** (and Settings)
 
-There is no Wins tab. Logging something you already did is the empty slot at
+The tower header carries a Day / Week / Month picker on the right; the period
+label stays out, because the control already names the period. There is no
+Wins tab. Logging something you already did is the empty slot at
 the top of the tower: press it, a block drops into it. The slot sits at
 `TowerViewModel.computeGhostPosition`, so it is always exactly where the block
 will land.
@@ -112,11 +114,73 @@ here as a shader. The water is a `Canvas` for exactly this reason. (Metal
 itself works, and the toolchain is installed — it is a 688 MB Xcode component,
 `xcodebuild -downloadComponent MetalToolchain`.)
 
+**An `Equatable` View will silently stop updating from `@Observable` state.**
+This has now broken three separate features and it never errors, warns or
+crashes — the animation runs to completion and nothing moves.
+
+`AnimatedBlockView` is `View, Equatable`. Its `==` compares stored properties,
+and the per-block animation state is a shared reference: both sides hold the
+SAME object, so any value on it is always "equal". SwiftUI then has no reason
+to re-evaluate the child, and observation does not reliably reach it.
+
+- The drop phases work only by accident: the grid reads `dropPhase` for
+  `zIndex`, which re-renders the row.
+- The jubilation wave did NOT work. The coordinator set `jubilationLift = -10`
+  on every block and no body ever saw a non-zero value.
+
+**The rule: read the driving value where the framework cannot miss it** — in
+the grid's own body, not inside a memoised child, and not only inside a
+`ForEach` closure (reads in there are not a dependency you can rely on). The
+dance reads `animCoord.danceTick` at the top of the grid body for exactly this
+reason. Same family of bug: `state(for:)` creates on demand, so a view body
+calling it can create a rival instance the coordinator never mutates —
+`ensureStates(for:)` now seeds them all before anything renders.
+
+**Verify what your instrument is pointed at before trusting a null result.**
+A "does the tower move" probe reported the dance as 0px of movement across 341
+frames. It was measuring the water reflection's edge, which sits just below the
+tower and does not participate. Measuring the tower's TOP edge showed a clean
+22px lift. A null result from an instrument aimed at the wrong thing looks
+exactly like success. Two other measurement errors this session: a colour
+detector that saturated once the tower grew into its sample band, and an
+aggregate frame count that looked healthy while 8 of 10 individual drops never
+animated. **Classify every event and report the count, never an aggregate.**
+
 **The tower renders `FlippableBlockView`, not `HabitBlockView`.** Both exist.
 If a block looks wrong on the tower, that is the file.
 
 **Measure before you diagnose a colour.** The "top light" gradient nobody could
 find was located by sampling pixels down a screenshot, not by reading code.
+
+## The drop, and the dance
+
+The fall starts **off screen**, always. Its start offset is measured from the
+grid's real position in the window (`TowerGeometryProbe`) and captured ONCE
+when the drop is queued, so nothing in flight can move it. Three earlier
+versions derived it live — from `towerScrollOffset` (stale; republished only in
+8pt steps), from `gridH` (jerked up a row-pitch on drops that completed a row),
+and as a fixed distance above the slot (started low on a short tower, which
+read as blocks rising from the bottom). Do not reintroduce any of those.
+
+The fall is gravity: `t = sqrt(2d/g)` at one `g`, on a constant-acceleration
+curve. All masses fall the same, because they do. Mass decides the landing
+only. Do not add easing-out at the end — a falling object does not decelerate
+into the ground, and arriving at peak speed is what makes the landing land.
+
+**The tower dances every tenth win** (`GridConstants.danceEvery`). One wave,
+two phases, delays taken from each block's row. It refuses to start while
+anything is dropping. Known gap: the water reflection does not participate, so
+the tower sways and its reflection sits still.
+
+## Product direction
+
+`docs/product-direction.md` — the pivot: Strata visualises the wins in your
+day. Four tabs (Tower, Today-as-checklist, Calendar, Insights), and the rule
+that settles arguments: **recording a win must be the fastest thing in the
+app.** Today and Plan are being replaced by one checklist.
+
+`docs/case-study.md` — collected material for the write-up: the measurement
+method, every bug and what made it invisible, and the before/after numbers.
 
 ## Settled — do not reopen
 
