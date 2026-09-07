@@ -923,21 +923,20 @@ struct MainAppView: View {
 
     private func startSkeletonBuildUp() {
         skeletonBuildTask?.cancel()
+        // The placeholder arrives as one object, quietly.
+        //
+        // It used to pop its eight blocks in one at a time, 50ms apart, each
+        // scaling up from 0.3 with a bounce — and then delete all eight the
+        // moment real data arrived. On an empty tower that meant watching a
+        // tower build itself out of nothing and then vanish, which is both the
+        // least calm thing on the screen and a claim about your day that is
+        // not true. A placeholder's job is to be unremarkable until the real
+        // thing replaces it.
         if reduceMotion {
             visibleSkeletonCount = 8
-            return
-        }
-        // Skeleton pop-in — bouncier than gentleReveal for playful stagger effect
-        withAnimation(GridConstants.skeletonPop) {
-            visibleSkeletonCount = 1
-        }
-        skeletonBuildTask = Task { @MainActor in
-            for i in 2...8 {
-                try? await Task.sleep(for: .milliseconds(50))
-                guard !Task.isCancelled else { return }
-                withAnimation(GridConstants.skeletonPop) {
-                    visibleSkeletonCount = i
-                }
+        } else {
+            withAnimation(GridConstants.gentleReveal) {
+                visibleSkeletonCount = 8
             }
         }
     }
@@ -1793,14 +1792,11 @@ struct MainAppView: View {
             )
             SkeletonBlockView(width: f.width, height: f.height)
                 .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.3, anchor: .bottom).combined(with: .opacity),
-                        removal: .opacity
-                    )
-                )
         }
         }
+        // One fade for the whole placeholder, in and out, so it never reads as
+        // eight separate things arriving and eight separate things leaving.
+        .transition(.opacity)
     }
 
     @ViewBuilder
