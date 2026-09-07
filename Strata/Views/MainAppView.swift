@@ -146,7 +146,6 @@ struct MainAppView: View {
 
     // Tower scroll
     @State private var isScrolled: Bool = false
-    @State private var scrollToDropID: UUID? = nil
     @State private var scrollToTopTrigger = 0
     @State private var towerScrollOffset: CGFloat = 0
     @State private var screenHeight: CGFloat = 0
@@ -683,7 +682,7 @@ struct MainAppView: View {
                         namespace: blockExpansion,
                         modelContext: modelContext,
                         onDismiss: { dismissCard() },
-                        onLayoutChanged: { reloadTowerWithAnimation() }
+                        onLayoutChanged: { repackTower() }
                     )
                     .onAppear { HapticsEngine.lightTap() }
                 }
@@ -965,6 +964,22 @@ struct MainAppView: View {
             try? await Task.sleep(for: remaining)
             guard !Task.isCancelled else { return }
             stopSkeletonBuildUp()
+        }
+    }
+
+    /// A block's footprint changed, so the grid repacks around it.
+    ///
+    /// This used to call `reloadTowerWithAnimation`, which raises `isLoading`
+    /// and puts the placeholder up — so changing a block's size made the whole
+    /// tower vanish into the loading skeleton, wait out a forced 300ms floor,
+    /// and come back rebuilt. That is why resizing did not look like the tower
+    /// rearranging: it wasn't. It was a reload wearing a resize's clothes.
+    ///
+    /// A resize is a layout change. The blocks move to their new places, once,
+    /// in one animation, while you watch.
+    private func repackTower() {
+        _ = withAnimation(GridConstants.layoutReflow) {
+            refreshData()
         }
     }
 
@@ -1552,11 +1567,14 @@ struct MainAppView: View {
         let claimed = awaitingDropIDs
         refreshData()
 
-        if let first = claimed.first(where: { id in
-            towerVM.placedBlocks.contains { $0.id == id }
-        }) {
-            scrollToDropID = first
-        }
+        // No second scroll.
+        //
+        // This used to centre the new block a moment after scrolling to the
+        // top — two scrolls for one drop, the second firing while the block
+        // was still in the air. The tower slid underneath a falling block,
+        // which is both a premature animation and the tower moving when
+        // nothing asked it to. Scrolling to the top already brings the slot
+        // into view, because the slot is at the top of the tower.
         // animCoord.isCascading cleared by drain loop when it finishes
 
         // Block tap discovery hint (one-time, after first drop)
@@ -1763,14 +1781,6 @@ struct MainAppView: View {
                 let nowScrolled = newOffset > 0
                 if wasScrolled != nowScrolled {
                     isScrolled = nowScrolled
-                }
-            }
-            .onChange(of: scrollToDropID) {
-                if let id = scrollToDropID {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        proxy.scrollTo(id, anchor: .center)
-                    }
-                    scrollToDropID = nil
                 }
             }
             .onChange(of: scrollToTopTrigger) {
