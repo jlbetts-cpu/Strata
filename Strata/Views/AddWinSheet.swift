@@ -353,8 +353,13 @@ struct AddWinSheet: View {
     /// and grows one a moment later is the flash this avoids.
     private func attach(_ image: UIImage, to log: HabitLog) {
         let id = log.id
+        // Trimmed to the block's shape before it is written. The block clips
+        // the photo anyway, so anything outside that shape is bytes on disk
+        // for a picture nobody can see.
+        let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
+        let framed = ImageManager.trimmed(image, toAspect: aspect)
         Task { @MainActor in
-            if let name = try? await ImageManager.shared.save(image: image, for: id) {
+            if let name = try? await ImageManager.shared.save(image: framed, for: id) {
                 log.imageFileName = name
                 try? modelContext.save()
             }

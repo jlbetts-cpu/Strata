@@ -382,6 +382,7 @@ struct MainAppView: View {
         TabView(selection: $selectedTab) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
+                    .preferredColorScheme(.light)
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -402,19 +403,21 @@ struct MainAppView: View {
             // you can name it after. Shooting from here logs the win straight
             // away with the photo already on it.
             Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
-                // No `.preferredColorScheme(.dark)`.
+                // Dark here, light everywhere else.
                 //
-                // It is SwiftUI's only supported route to a light status bar,
-                // and it is window-scoped by design — so it also took the tab
-                // bar dark, and the selected Camera item went dark glyph on a
-                // dark pill. The tab bar is the one piece of chrome that is on
-                // screen everywhere; the status bar is four glyphs. Chrome
-                // that is always visible wins, and the app stays light
-                // throughout as it was decided to.
+                // This is not the app having a dark mode. It is that the
+                // camera is a hole in the page — the lens is off, so it is
+                // black, and white is what shows up on black. The window
+                // scheme is the only supported route to a light status bar,
+                // and it is window-scoped, so every other tab asserts `.light`
+                // and the window is simply whatever tab you are looking at.
                 //
-                // The camera reads the status bar back with its own scrim
-                // instead. See `CameraView.statusScrim`.
+                // The tab bar goes dark with it, which is now right rather
+                // than a bug: with `.tint(.primary)` the selected item is
+                // white on the camera and black everywhere else, so the
+                // highlight is always the same colour as the icons beside it.
                 cameraTab
+                    .preferredColorScheme(.dark)
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
@@ -438,8 +441,17 @@ struct MainAppView: View {
                         )
                     }
                 }
+                .preferredColorScheme(.light)
             }
         }
+        // The highlight is the icon colour, not an accent.
+        //
+        // The tab bar was tinted with the app's warm accent, which made the
+        // selected item a third colour that appears nowhere else in the
+        // chrome. `.primary` resolves to black on the light tabs and white on
+        // the camera, so the selected item is always simply the same colour as
+        // the icons next to it, only filled in.
+        .tint(.primary)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { _, newTab in
             HapticsEngine.tick()
@@ -1199,8 +1211,10 @@ struct MainAppView: View {
             // face on rather than growing one a moment after it lands.
             if let photo, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
                 let id = log.id
+                let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
+                let framed = ImageManager.trimmed(photo, toAspect: aspect)
                 Task { @MainActor in
-                    if let name = try? await ImageManager.shared.save(image: photo, for: id) {
+                    if let name = try? await ImageManager.shared.save(image: framed, for: id) {
                         log.imageFileName = name
                         try? modelContext.save()
                         scheduleRefresh()

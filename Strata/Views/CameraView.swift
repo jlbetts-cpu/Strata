@@ -69,8 +69,6 @@ struct CameraView: View {
     }
 
     private let cornerRadius: CGFloat = 20
-    /// Breathing room between the viewfinder and the edges of the screen.
-    private let previewInset: CGFloat = 4
     /// Distance from the right edge to the centre of the control column.
     private let controlInset: CGFloat = 40
     private let shutterOuter: CGFloat = 80
@@ -101,15 +99,17 @@ struct CameraView: View {
             // third was partly behind the tab bar, so the middle band read as
             // longer than the two it sits between.
             let w = geo.size.width
-            let h = geo.size.height
+            // Full width, hard to the top and the side walls, and stopping
+            // just above the tab bar.
+            let h = geo.size.height + geo.safeAreaInsets.top
 
             ZStack {
                 CameraPreview(session: camera.session)
 
-                guides(w: w, h: h)
+                guides(w: w, h: h, topInset: geo.safeAreaInsets.top)
                     .allowsHitTesting(false)
 
-                header()
+                header(topInset: geo.safeAreaInsets.top)
 
                 controls(w: w, h: h)
 
@@ -118,10 +118,29 @@ struct CameraView: View {
             }
             .frame(width: w, height: h)
             .background(Color(red: 0.031, green: 0.031, blue: 0.031))
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            // Square at the top where it meets the edge of the screen, rounded
+            // where it ends — which is the shape the Figma draws, and only
+            // makes sense because something is behind it.
+            .clipShape(
+                .rect(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: cornerRadius,
+                    bottomTrailingRadius: cornerRadius,
+                    topTrailingRadius: 0
+                )
+            )
+            .offset(y: -geo.safeAreaInsets.top)
         }
-        .padding(.horizontal, previewInset)
-        .padding(.vertical, previewInset)
+        // No `.ignoresSafeArea` on the GeometryReader.
+        //
+        // It reports ZERO insets once you tell it to ignore them, so the
+        // header lost the value it needs to clear the notch and printed the
+        // count straight through the clock. The reader keeps its real insets;
+        // the preview reaches the top by being drawn taller and offset up by
+        // exactly that inset instead.
+        //
+        // The viewfinder reaches the top and both walls; only the bottom stays
+        // clear, so the tab bar keeps the app's own light ground under it.
         .background { WarmBackground().ignoresSafeArea() }
         .task { await camera.start() }
         .onDisappear {
@@ -132,12 +151,12 @@ struct CameraView: View {
 
     // MARK: - Guides
 
-    private func guides(w: CGFloat, h: CGFloat) -> some View {
+    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat) -> some View {
         // The break exists to hold the count. With no count — the camera
         // opened from the add sheet, where the tally would mean nothing —
         // there is nothing to make room for, so the line runs unbroken.
-        let gapTop = winCount == nil ? h : Header.topPadding - Header.breathing
-        let gapBottom = winCount == nil ? h : Header.topPadding + Header.height + Header.breathing
+        let gapTop = winCount == nil ? h : topInset + Header.topPadding - Header.breathing
+        let gapBottom = winCount == nil ? h : topInset + Header.topPadding + Header.height + Header.breathing
 
         return ZStack(alignment: .topLeading) {
             // The first vertical is broken where the header crosses it. The
@@ -207,7 +226,7 @@ struct CameraView: View {
     /// The count sits at exactly the tower's offset — the same padding below
     /// the safe area, the same horizontal inset — so moving between the two
     /// screens does not move the number.
-    private func header() -> some View {
+    private func header(topInset: CGFloat) -> some View {
         HStack(alignment: .center, spacing: 0) {
             if let winCount {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -228,11 +247,9 @@ struct CameraView: View {
         }
         .frame(height: Header.height)
         .padding(.horizontal, GridConstants.horizontalPadding)
-        // Just the padding. This container already starts below the notch —
-        // only the GUIDES work in full-screen coordinates, because they are
-        // drawn over a full-bleed preview. Adding the inset here too counted
-        // it twice and dropped the count clean out of the gap cut for it.
-        .padding(.top, Header.topPadding)
+        // The preview starts at the very top of the screen now, so the header
+        // has to clear the notch itself.
+        .padding(.top, topInset + Header.topPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

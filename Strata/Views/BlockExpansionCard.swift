@@ -18,7 +18,6 @@ struct BlockExpansionCard: View {
     @State private var showContent = false
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoError = false
-    @State private var imageToCrop: UIImage? = nil
     @State private var isSavingPhoto = false
     @State private var showPhotoSourceDialog = false
     @State private var showLibraryPicker = false
@@ -401,7 +400,7 @@ struct BlockExpansionCard: View {
                       let img = await Task.detached(operation: { UIImage(data: data) }).value else {
                     showPhotoError = true; return
                 }
-                imageToCrop = img
+                await savePhoto(img)
             }
         }
         .confirmationDialog("Add Photo", isPresented: $showPhotoSourceDialog) {
@@ -413,33 +412,12 @@ struct BlockExpansionCard: View {
         .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
             CameraPickerView(
-                onCapture: { image in showCamera = false; imageToCrop = image },
+                onCapture: { image in
+                    showCamera = false
+                    Task { await savePhoto(image) }
+                },
                 onCancel: { showCamera = false }
             )
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { imageToCrop != nil },
-            set: { if !$0 { imageToCrop = nil } }
-        )) {
-            if let img = imageToCrop {
-                PhotoCropView(
-                    image: img,
-                    blockContext: BlockPreviewContext(
-                        title: block.habit.title,
-                        category: block.habit.category,
-                        blockSize: block.habit.blockSize,
-                        timeText: nil
-                    ),
-                    onCrop: { cropped in
-                        imageToCrop = nil
-                        Task { await savePhoto(cropped) }
-                    },
-                    onCancel: {
-                        imageToCrop = nil
-                        selectedItem = nil
-                    }
-                )
-            }
         }
         .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
             Button("OK", role: .cancel) {}
@@ -484,7 +462,13 @@ struct BlockExpansionCard: View {
         HapticsEngine.tick()
     }
 
-    // MARK: - Photo Save (receives cropped image from PhotoCropView)
+    // MARK: - Photo Save
+    //
+    // No crop screen. The block clips the photo to its own shape regardless,
+    // so a step that asks you to choose which part survives is a step to
+    // confirm what the block was going to do anyway. `ImageManager.trimmed`
+    // takes the centre at the block's aspect ratio before saving, so the file
+    // on disk is exactly what appears on the tower.
 
     @MainActor
     private func savePhoto(_ img: UIImage) async {
@@ -501,8 +485,10 @@ struct BlockExpansionCard: View {
         case .medium: (768, 0.75)
         case .hard: (1024, 0.80)
         }
+        let aspect = CGFloat(block.habit.blockSize.columnSpan) / CGFloat(block.habit.blockSize.rowSpan)
+        let framed = ImageManager.trimmed(img, toAspect: aspect)
         do {
-            let fileName = try await ImageManager.shared.save(image: img, for: block.log.id, maxDimension: maxDim, quality: quality)
+            let fileName = try await ImageManager.shared.save(image: framed, for: block.log.id, maxDimension: maxDim, quality: quality)
             block.log.imageFileName = fileName
             try? modelContext.save()
             selectedItem = nil

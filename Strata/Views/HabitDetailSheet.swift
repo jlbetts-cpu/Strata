@@ -10,7 +10,6 @@ struct HabitDetailSheet: View {
 
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoError = false
-    @State private var imageToCrop: UIImage? = nil
     @State private var isSavingPhoto = false
     @State private var showPhotoSourceDialog = false
     @State private var showLibraryPicker = false
@@ -159,7 +158,10 @@ struct HabitDetailSheet: View {
         .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
             CameraPickerView(
-                onCapture: { image in showCamera = false; imageToCrop = image },
+                onCapture: { image in
+                    showCamera = false
+                    Task { await savePhoto(image) }
+                },
                 onCancel: { showCamera = false }
             )
         }
@@ -169,31 +171,7 @@ struct HabitDetailSheet: View {
                 guard let newItem else { return }
                 guard let data = try? await newItem.loadTransferable(type: Data.self),
                       let img = await Task.detached(operation: { UIImage(data: data) }).value else { return }
-                imageToCrop = img
-            }
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { imageToCrop != nil },
-            set: { if !$0 { imageToCrop = nil } }
-        )) {
-            if let img = imageToCrop {
-                PhotoCropView(
-                    image: img,
-                    blockContext: BlockPreviewContext(
-                        title: habit.title,
-                        category: habit.category,
-                        blockSize: habit.blockSize,
-                        timeText: habit.scheduledTime.map { BlockTimeFormatter.format12Hour($0) }
-                    ),
-                    onCrop: { cropped in
-                        imageToCrop = nil
-                        Task { await savePhoto(cropped) }
-                    },
-                    onCancel: {
-                        imageToCrop = nil
-                        selectedItem = nil
-                    }
-                )
+                await savePhoto(img)
             }
         }
         .alert("Photo couldn't be saved", isPresented: $showPhotoError, actions: {
@@ -298,13 +276,17 @@ struct HabitDetailSheet: View {
             ImageManager.shared.deleteImage(fileName: oldFileName)
         }
 
+        // Trimmed to the block's shape, which is what the crop screen used to
+        // ask you to do by hand and what the block does to it anyway.
+        let aspect = CGFloat(habit.blockSize.columnSpan) / CGFloat(habit.blockSize.rowSpan)
+        let framed = ImageManager.trimmed(img, toAspect: aspect)
         let (maxDim, quality): (CGFloat, CGFloat) = switch habit.blockSize {
         case .small: (512, 0.70)
         case .medium: (768, 0.75)
         case .hard: (1024, 0.80)
         }
         do {
-            let fileName = try await ImageManager.shared.save(image: img, for: todayLog.id, maxDimension: maxDim, quality: quality)
+            let fileName = try await ImageManager.shared.save(image: framed, for: todayLog.id, maxDimension: maxDim, quality: quality)
             todayLog.imageFileName = fileName
             try? modelContext.save()
             selectedItem = nil

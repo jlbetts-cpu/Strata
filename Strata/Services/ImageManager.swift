@@ -26,6 +26,38 @@ final class ImageManager: @unchecked Sendable {
 
     /// Resizes and encodes to HEIC (or JPEG fallback), writes to disk.
     /// Returns the generated fileName (e.g. "UUID.heic").
+    /// Trims an image to an aspect ratio, from the centre.
+    ///
+    /// This is what replaced the crop screen. A block clips its photo to its
+    /// own shape anyway, so the pixels outside that shape are stored, resized
+    /// and decoded for a picture nobody can see — a 4:3 photo on a 2:1 block
+    /// wastes a third of the file. Trimming first means what is on disk is
+    /// what is on the block.
+    ///
+    /// Centre is the right default rather than a compromise: the middle of the
+    /// frame is where people put the subject, so a centre trim keeps it and a
+    /// crop screen mostly confirms what a centre trim would have done anyway.
+    static func trimmed(_ image: UIImage, toAspect aspect: CGFloat) -> UIImage {
+        guard let cg = image.cgImage, aspect > 0 else { return image }
+        // In the image's own orientation, which is what `cgImage` is in.
+        let upright = image.imageOrientation == .up
+        let w = CGFloat(cg.width), h = CGFloat(cg.height)
+        let target = upright ? aspect : 1 / aspect
+        let current = w / h
+        guard abs(current - target) > 0.01 else { return image }
+
+        let box: CGRect
+        if current > target {
+            let newW = h * target
+            box = CGRect(x: (w - newW) / 2, y: 0, width: newW, height: h)
+        } else {
+            let newH = w / target
+            box = CGRect(x: 0, y: (h - newH) / 2, width: w, height: newH)
+        }
+        guard let cropped = cg.cropping(to: box.integral) else { return image }
+        return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)
+    }
+
     func save(image: UIImage, for logID: UUID, maxDimension: CGFloat = 1024, quality: CGFloat = 0.80) async throws -> String {
         let heicSupported = Self.isHEICSupported()
         let ext = heicSupported ? "heic" : "jpg"
