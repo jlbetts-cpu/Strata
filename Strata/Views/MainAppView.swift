@@ -368,9 +368,11 @@ struct MainAppView: View {
         }
         .sheet(isPresented: $isSharing) {
             if let image = TowerShare.image(
-                blocks: MiniTowerPacker.pack(filteredLogs),
-                winCount: towerVM.placedBlocks.count,
-                date: Date()
+                blocks: towerVM.placedBlocks,
+                mergeGroups: towerVM.mergeGroups,
+                groupedIDs: towerVM.groupedBlockIDs,
+                coveredIDs: towerVM.coveredBlockIDs,
+                modelContext: modelContext
             ) {
                 ShareSheet(activityItems: [image])
             }
@@ -1356,9 +1358,11 @@ struct MainAppView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
                 guard let image = TowerShare.image(
-                    blocks: MiniTowerPacker.pack(filteredLogs),
-                    winCount: towerVM.placedBlocks.count,
-                    date: Date()
+                    blocks: towerVM.placedBlocks,
+                    mergeGroups: towerVM.mergeGroups,
+                    groupedIDs: towerVM.groupedBlockIDs,
+                    coveredIDs: towerVM.coveredBlockIDs,
+                    modelContext: modelContext
                 ), let data = image.pngData() else { return }
                 let url = URL.documentsDirectory.appending(path: "share-card.png")
                 try? data.write(to: url)

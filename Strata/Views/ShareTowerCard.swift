@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -26,9 +27,11 @@ import UIKit
 /// it, and the tower is distinctive enough that anyone who wants to know what
 /// it is will ask.
 struct ShareTowerCard: View {
-    let blocks: [TowerBarChart.MiniBlock]
-    let winCount: Int
-    let date: Date
+    let blocks: [PlacedBlock]
+    let mergeGroups: [MergeGroup]
+    let groupedIDs: Set<UUID>
+    let coveredIDs: Set<UUID>
+    let modelContext: ModelContext
 
     /// Story size. Rendered at 3x for a 1080x1920 image.
     static let size = CGSize(width: 360, height: 640)
@@ -38,122 +41,106 @@ struct ShareTowerCard: View {
     var body: some View {
         ZStack {
             WarmBackground()
-
-            // The whole composition is centred as ONE group.
-            //
-            // Pinning the count to the top and the tower to the bottom left
-            // about a third of the card empty down the middle — which is not
-            // minimalism, it is a gap. Keeping the two together and floating
-            // the pair puts equal air above and below, and the eye reads a
-            // caption and its picture rather than two things at opposite ends.
-            VStack(alignment: .leading, spacing: 26) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(winCount)")
-                            .font(.system(size: 64, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.85))
-                        Text(winCount == 1 ? "win" : "wins")
-                            .font(.system(size: 25, weight: .regular, design: .rounded))
-                            .foregroundStyle(.primary.opacity(0.35))
-                    }
-                    Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                        .font(.system(size: 15, weight: .regular, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.28))
-                }
-
-                tower
-            }
-            .padding(.horizontal, 26)
+            tower
         }
         .frame(width: Self.size.width, height: Self.size.height)
     }
 
-    /// The blocks, scaled so the whole tower fits the card whatever its height.    /// The blocks, scaled so the whole tower fits the card whatever its height.
+    /// The real tower, at whatever size fits the card.
     ///
-    /// A tall day and a short day both have to look composed, so the cell size
-    /// is solved for rather than fixed — capped so three blocks do not become
-    /// billboards.
+    /// The blocks are `FlippableBlockView` — the same view the tower draws, so
+    /// the card gets the rim, the frosted band, the contact shading, the
+    /// merged runs and the photos, because it IS them. Rebuilding a simplified
+    /// tower for the card meant maintaining a second one that would drift, and
+    /// shipping a picture of the app that did not look like the app.
+    ///
+    /// The count and the date are gone with it. The blocks say how many there
+    /// are by being there; a number beside them is the same fact twice, and a
+    /// date is something the post already carries.
     private var tower: some View {
         let columns = CGFloat(GridConstants.columnCount)
-        let available = CGSize(width: Self.size.width - 52, height: Self.size.height * 0.58)
-        let gap: CGFloat = 5
-        let byWidth = (available.width - (columns - 1) * gap) / columns
+        let spacing = GridConstants.spacing
+        // Room for the tower and the water under it.
+        let available = CGSize(
+            width: Self.size.width - 44,
+            height: Self.size.height - 96 - reflectionDepth
+        )
+        let byWidth = (available.width - (columns - 1) * spacing) / columns
         let byHeight = rows > 0
-            ? (available.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
+            ? (available.height - CGFloat(rows - 1) * spacing) / CGFloat(rows)
             : byWidth
-        let cell = min(byWidth, byHeight, 74)
-        let w = columns * cell + (columns - 1) * gap
-        let h = rows > 0 ? CGFloat(rows) * cell + CGFloat(rows - 1) * gap : 0
+        // Capped so three blocks do not become billboards.
+        let cell = min(byWidth, byHeight, 82)
+        let gridW = columns * cell + (columns - 1) * spacing
+        let gridH = rows > 0 ? CGFloat(rows) * cell + CGFloat(rows - 1) * spacing : 0
+        let radius = cell * 0.147
 
         return VStack(spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                Color.clear.frame(width: w, height: h)
-                ForEach(blocks) { block in
-                    blockShape(block, cell: cell, gap: gap)
-                }
-            }
-            .frame(width: w, height: h)
-
-            // The tower stands on its reflection here too.
-            //
-            // Without it the blocks float — a diagram of a tower rather than
-            // the tower, and the one thing anyone who has used the app would
-            // notice missing. It is the same trick the real page uses: the
-            // shape again, flipped, faded to nothing.
             ZStack(alignment: .topLeading) {
-                Color.clear.frame(width: w, height: reflectionDepth)
-                ForEach(bottomRow) { block in
-                    blockShape(block, cell: cell, gap: gap, reflected: true)
+                Color.clear.frame(width: gridW, height: gridH)
+
+                ForEach(mergeGroups) { group in
+                    MergedGroupView(
+                        group: group,
+                        cellSize: cell,
+                        gridWidth: gridW,
+                        gridHeight: gridH
+                    )
+                }
+
+                ForEach(blocks) { block in
+                    let f = GridConstants.blockFrame(
+                        column: block.column, row: block.row,
+                        columnSpan: block.columnSpan, rowSpan: block.rowSpan,
+                        cellSize: cell
+                    )
+                    FlippableBlockView(
+                        block: block,
+                        width: f.width,
+                        height: f.height,
+                        cornerRadius: radius,
+                        modelContext: modelContext,
+                        isGroupMember: groupedIDs.contains(block.id),
+                        isCovered: coveredIDs.contains(block.id)
+                    )
+                    .frame(width: f.width, height: f.height)
+                    .offset(x: f.minX, y: gridH - f.minY - f.height)
                 }
             }
-            .frame(width: w, height: reflectionDepth, alignment: .topLeading)
-            // Centre anchor, not `.top`. Flipping about the top edge maps
-            // y to -y, which sent the whole reflection UPWARD out of its own
-            // frame and drew nothing at all.
-            .scaleEffect(y: -1)
-            .mask(
-                LinearGradient(
-                    colors: [.black.opacity(0.30), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            .frame(width: gridW, height: gridH)
+
+            TowerReflection(
+                facets: facets(cell: cell),
+                impacts: [],
+                gridWidth: gridW,
+                cornerRadius: radius,
+                reduceMotion: true
             )
-            .blur(radius: 1.5)
+            .frame(width: gridW, height: reflectionDepth)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var reflectionDepth: CGFloat { 44 }
+    private var reflectionDepth: CGFloat { TowerReflection.depth }
 
-    /// Only the bottom row reaches the water — what is nearest is what
-    /// reflects, and a full mirrored tower reads as a second tower.
-    private var bottomRow: [TowerBarChart.MiniBlock] {
-        blocks.filter { $0.row == 0 }
-    }
-
-    private func blockShape(
-        _ block: TowerBarChart.MiniBlock,
-        cell: CGFloat,
-        gap: CGFloat,
-        reflected: Bool = false
-    ) -> some View {
-        let bw = CGFloat(block.columnSpan) * cell + CGFloat(block.columnSpan - 1) * gap
-        let bh = CGFloat(block.rowSpan) * cell + CGFloat(block.rowSpan - 1) * gap
-        return RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
-            .fill(block.colour)
-            .frame(width: bw, height: reflected ? min(bh, reflectionDepth) : bh)
-            // The rim the tower's blocks wear, so the shared picture is the
-            // same object rather than a flat diagram of it.
-            .overlay {
-                if !reflected {
-                    RoundedRectangle(cornerRadius: cell * 0.147, style: .continuous)
-                        .strokeBorder(.white.opacity(0.45), lineWidth: 1)
-                }
+    /// What of the tower reaches the water: the bottom row, as colour and
+    /// width — the same rule the live page uses.
+    private func facets(cell: CGFloat) -> [TowerReflection.Facet] {
+        blocks
+            .filter { $0.row == 0 }
+            .map { block in
+                let f = GridConstants.blockFrame(
+                    column: block.column, row: 0,
+                    columnSpan: block.columnSpan, rowSpan: 1,
+                    cellSize: cell
+                )
+                return TowerReflection.Facet(
+                    id: block.id,
+                    x: f.minX,
+                    width: f.width,
+                    color: block.habit.displayCategory.style.baseColor
+                )
             }
-            .offset(
-                x: CGFloat(block.column) * (cell + gap),
-                y: reflected ? 0 : -CGFloat(block.row) * (cell + gap)
-            )
     }
 }
 
@@ -161,9 +148,25 @@ struct ShareTowerCard: View {
 enum TowerShare {
 
     @MainActor
-    static func image(blocks: [TowerBarChart.MiniBlock], winCount: Int, date: Date) -> UIImage? {
+    static func image(
+        blocks: [PlacedBlock],
+        mergeGroups: [MergeGroup],
+        groupedIDs: Set<UUID>,
+        coveredIDs: Set<UUID>,
+        modelContext: ModelContext
+    ) -> UIImage? {
         let renderer = ImageRenderer(
-            content: ShareTowerCard(blocks: blocks, winCount: winCount, date: date)
+            content: ShareTowerCard(
+                blocks: blocks,
+                mergeGroups: mergeGroups,
+                groupedIDs: groupedIDs,
+                coveredIDs: coveredIDs,
+                modelContext: modelContext
+            )
+            // The card renders outside the tower's view tree, so the
+            // environment the blocks read has to be handed to them.
+            .environment(\.towerFilterMode, .day)
+            .environment(\.perfectDayDates, [])
         )
         // 3x gives 1080x1920 — the size stories are actually stored at, so the
         // platform never has to resample it.
