@@ -22,9 +22,33 @@ enum QuickWinService {
     /// belonging to no weekday. Used for counting today's wins without adding a
     /// field to the schema.
     static func isWin(_ habit: Habit) -> Bool {
-        // The flag is authoritative for anything logged since it existed; the
-        // shape test keeps older wins recognisable.
-        habit.isQuickWin || (habit.isTodo && habit.frequencyRawValues.isEmpty)
+        // The flag, and only the flag.
+        //
+        // This used to fall back to the SHAPE — one-time, no weekday — for
+        // habits predating the flag. A one-off task added from the add sheet is
+        // exactly that shape, so every "just today" thing anyone added was
+        // classified as a win and vanished from the tower before it could be
+        // drawn. `migrateLegacyWins` stamps the old ones once instead, so the
+        // shape test is not needed at runtime and cannot misfire again.
+        habit.isQuickWin
+    }
+
+    /// Marks pre-flag wins, once.
+    ///
+    /// Every habit that matches the old shape was a win under the old rules —
+    /// nothing else could create one — so this is exact rather than a guess.
+    /// Runs before the first tower build, so no habit is ever seen unstamped.
+    static func migrateLegacyWins(context: ModelContext) {
+        guard let all = try? context.fetch(FetchDescriptor<Habit>()) else { return }
+        var changed = false
+        for habit in all where !habit.isQuickWin
+            && habit.isTodo
+            && habit.frequencyRawValues.isEmpty
+            && habit.title == untitled {
+            habit.isQuickWin = true
+            changed = true
+        }
+        if changed { try? context.save() }
     }
 
     /// A colour for a win nobody has categorised yet.

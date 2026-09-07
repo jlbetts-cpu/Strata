@@ -559,6 +559,7 @@ struct MainAppView: View {
     /// the cache optimistically, then queue the drop. The cascade and the
     /// tower do not know or care where the tick came from.
     private func tickHabit(_ habit: Habit) {
+
         timelineVM.completeHabit(habit)
         cachedCompletedHabitIDsForSelectedDate.insert(habit.id)
         if healthKitService.verifiedHabitIDs.contains(habit.id) {
@@ -1255,6 +1256,8 @@ struct MainAppView: View {
         hasSetUp = true
         HapticsEngine.prepare()
         cachedTowerTitle = computeTowerTitle()
+        // Before anything reads `isWin`.
+        QuickWinService.migrateLegacyWins(context: modelContext)
         towerManager.ensureDefaultTower(context: modelContext)
         towerManager.loadActiveTower(context: modelContext)
         #if DEBUG
@@ -1701,19 +1704,21 @@ struct MainAppView: View {
         // no way to reach the slot. It is also why a drop into that row was
         // never seen falling: the whole fall happened above the scrollable
         // area.
-        // Built blocks, then the slot resting on them, then what you still
-        // mean to do floating above it. In that order, always.
+        // Built blocks, then what you still mean to do, then the slot on top
+        // of all of it.
         //
-        // The outlines used to be packed FIRST, which put them below the slot —
-        // so every block that landed had to shove them aside to reach the gap
-        // it wanted, and the things you had not done yet skittered around the
-        // screen whenever you finished one. Reserving the slot first means the
-        // stack above it only ever rises.
-        let reserved = towerVM.reserveSlot(for: drawingSize)
-        let slotPos = reserved.pos
-        let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
-        let pending = towerVM.packPending(pendingHabits, on: reserved.grid)
+        // The slot is the roof: everything the day contains sits under it, and
+        // the one empty cell is always the highest thing on the tower. Sliding
+        // it under the outlines put the thing you press for a NEW block in the
+        // middle of the stack, which reads as a gap rather than as the top.
+        //
+        // Packing the outlines first is also what keeps them still: they take
+        // their cells before the slot claims one, so growing or shrinking the
+        // slot cannot shuffle them.
+        let pending = towerVM.packPending(pendingHabits)
         let pendingRows = pending.blocks.map { $0.row + $0.rowSpan }.max() ?? 0
+        let slotPos = towerVM.ghostPosition(for: drawingSize, on: pending.gridAfter)
+        let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
         let layoutRows = rowCount > 0 || pendingRows > 0
             ? max(max(rowCount, pendingRows), slotRows)
             : placeholderRows
@@ -1791,7 +1796,7 @@ struct MainAppView: View {
                                 width: f.width,
                                 height: f.height,
                                 cornerRadius: cornerRadius,
-                                onCheck: { tickHabit(item.habit) },
+                                onComplete: { tickHabit(item.habit) },
                                 onOpen: { editingHabit = item.habit }
                             )
                             .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
@@ -1963,7 +1968,7 @@ struct MainAppView: View {
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
                     action: { logWin(size: $0) },
-                    onHold: { isNewHabitMenuOpen = true }
+                    onOpenMenu: { isNewHabitMenuOpen = true }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
@@ -2078,7 +2083,7 @@ struct MainAppView: View {
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
             action: { logWin(size: $0) },
-            onHold: { isNewHabitMenuOpen = true }
+            onOpenMenu: { isNewHabitMenuOpen = true }
         )
         .frame(width: f.width, height: f.height)
         .offset(x: f.minX, y: 0)
@@ -2124,7 +2129,7 @@ struct MainAppView: View {
             // rule — tap does it, hold plans it — and after that the gestures
             // are the same everywhere: tapping an outlined block marks it
             // done, holding one edits it.
-            Text("Tap the empty block to record something you did.\nHold it to plan something instead.")
+            Text("Hold the empty block to record something you did.\nTap it to plan something instead.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

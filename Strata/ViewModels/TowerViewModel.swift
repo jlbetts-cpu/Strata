@@ -283,8 +283,8 @@ final class TowerViewModel {
     ///
     /// Returns the grid with them marked, so the next slot can be placed above
     /// the pending ones rather than underneath them.
-    func packPending(_ habits: [Habit], on startingGrid: [[Bool]]) -> (blocks: [PlacedIncompleteBlock], gridAfter: [[Bool]]) {
-        var grid = startingGrid
+    func packPending(_ habits: [Habit]) -> (blocks: [PlacedIncompleteBlock], gridAfter: [[Bool]]) {
+        var grid = currentGrid
         var out: [PlacedIncompleteBlock] = []
         for habit in habits {
             let size = habit.blockSize
@@ -312,27 +312,10 @@ final class TowerViewModel {
     /// slot resting on them, then what you still mean to do floating above.
     /// Packing the outlines first put them underneath, so every landing block
     /// shoved them around to reach the gap it wanted.
-    func reserveSlot(for blockSize: BlockSize) -> (pos: (column: Int, row: Int)?, grid: [[Bool]]) {
-        var grid = currentGrid
-        let pos = findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &grid)
-
-        // Seal every row up to and including the slot's.
-        //
-        // Otherwise the packer drops the first outline into whatever gap is
-        // left beside the slot — so something you have not done yet appears
-        // BELOW the thing you press to add one, sitting in the middle of the
-        // blocks you have already earned. The three bands have to stay in
-        // order to mean anything: built, then the slot, then planned.
-        if let pos {
-            let top = pos.row + blockSize.rowSpan - 1
-            while grid.count <= top {
-                grid.append(Array(repeating: false, count: GridConstants.columnCount))
-            }
-            for row in 0...top {
-                for col in 0..<GridConstants.columnCount { grid[row][col] = true }
-            }
-        }
-        return (pos, grid)
+    /// The next free cell on a grid that already has the pending blocks in it.
+    func ghostPosition(for blockSize: BlockSize, on grid: [[Bool]]) -> (column: Int, row: Int)? {
+        var copy = grid
+        return findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &copy)
     }
 
     // MARK: - Boolean Grid Matrix Packing

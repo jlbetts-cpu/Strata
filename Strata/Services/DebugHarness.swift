@@ -41,6 +41,12 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// One-off tasks for today, so the "just today" path can be checked
+    /// without tapping through the add sheet.
+    static var seedTodos: Int {
+        Int(argument("-strataSeedTodos") ?? "0") ?? 0
+    }
+
     /// Ticks n rows on the checklist, so the tick-to-block loop can be filmed.
     /// Nothing on this machine can tap, and that loop is the whole point of
     /// the screen, so it needs a way to run without one.
@@ -70,6 +76,7 @@ enum DebugHarness {
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
+            || argument("-strataSeedTodos") != nil
             || argument("-strataSeedMono") != nil
     }
 
@@ -139,6 +146,24 @@ enum DebugHarness {
                 scheduledTime: i < 4 ? times[i % times.count] : nil,
                 timeOfDay: .anytime,
                 sortOrder: i
+            )
+            habit.tower = tower
+            context.insert(habit)
+        }
+
+        // One-off tasks, exactly as `AddThingSheet` creates them: today's date,
+        // no weekday, and NOT a quick win.
+        let todayStr = DateUtils.dateString(from: Date())
+        let todoTitles = ["Book the dentist", "Reply to Sam", "Renew the pass"]
+        for i in 0..<seedTodos {
+            let habit = Habit(
+                title: todoTitles[i % todoTitles.count],
+                category: categories[(i + 2) % categories.count],
+                blockSize: .small,
+                frequency: [],
+                isTodo: true,
+                scheduledDate: todayStr,
+                sortOrder: 100 + i
             )
             habit.tower = tower
             context.insert(habit)

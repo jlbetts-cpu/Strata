@@ -18,8 +18,8 @@ struct NextSlotButton: View {
     /// Reports the size being drawn, so the tower can show where it would land.
     let onSizeChanged: (BlockSize) -> Void
     let action: (BlockSize) -> Void
-    /// Touch and hold: add something to do later, rather than logging one now.
-    let onHold: () -> Void
+    /// A quick tap: open the menu rather than logging anything.
+    let onOpenMenu: () -> Void
 
 
     /// -1 = compressing under the finger, +1 = released.
@@ -29,6 +29,10 @@ struct NextSlotButton: View {
     /// How far the finger has been dragged from where it went down.
     @State private var drawn: CGFloat = 0
     @State private var lastSize: BlockSize = .small
+    @State private var pressStarted = Date()
+
+    /// Below this, a still press is a tap.
+    private static let tapCeiling: Double = 0.28
 
     /// The size the drag has committed to, with a deadband on the way back.
     ///
@@ -158,21 +162,16 @@ struct NextSlotButton: View {
         .animation(GridConstants.tapSquashSpring, value: isDown)
         .scaleEffect(scale)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        // One rule, both kinds of block: **tap does the thing, hold configures
-        // it.** Tapping an outlined block marks it done; tapping this one logs
-        // a win. Holding an outlined block edits it; holding this one adds
-        // something to do later. There is nothing else to learn, and nothing
-        // that only works if you already know it.
+        // One rule, both kinds of block: **tap opens it, hold does it.**
         //
-        // Before the hold there was no route to adding a habit at all — the
-        // screen that used to own it was folded into the tower and its door
-        // went with it.
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.35).onEnded { _ in
-                HapticsEngine.tick()
-                onHold()
-            }
-        )
+        // A tap on an outlined block opens its details; a tap here opens the
+        // menu, which is also the only route to adding a habit now that the
+        // screen which owned that lives inside the tower. Holding an outlined
+        // block completes it; holding this one draws a win out of the slot and
+        // drops it.
+        //
+        // The irreversible action is the one that cannot happen by accident,
+        // and it is the one with somewhere to put progress.
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { fire(size: .small, velocity: 0) }
@@ -192,6 +191,7 @@ struct NextSlotButton: View {
             .onChanged { value in
                 if !isDown {
                     isDown = true
+                    pressStarted = Date()
                     HapticsEngine.tick()
                     withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
                 }
@@ -213,7 +213,30 @@ struct NextSlotButton: View {
                 withAnimation(GridConstants.slotSnap) { onSizeChanged(next) }
             }
             .onEnded { value in
+                // A gesture that never began cannot end in a block.
+                //
+                // `DragGesture(minimumDistance: 0)` can deliver `onEnded`
+                // without a matching `onChanged` when the view is rebuilt under
+                // a touch — and the tower rebuilds constantly. A logged win is
+                // not reversible enough to be produced by a gesture nobody
+                // made, so a run that never set `isDown` is discarded.
+                guard isDown else { return }
                 isDown = false
+                // A quick, still press is a tap: open the menu instead.
+                //
+                // A tap is a drag of zero distance, so this gesture sees both
+                // and has to tell them apart. Held long enough, or moved at
+                // all, and you meant to draw a block out.
+                let held = Date().timeIntervalSince(pressStarted)
+                let moved = hypot(value.translation.width, value.translation.height) > 6
+                guard moved || held >= Self.tapCeiling else {
+                    withAnimation(GridConstants.snapBack) { charge = 0 }
+                    drawn = 0
+                    lastSize = .small
+                    onSizeChanged(.small)
+                    onOpenMenu()
+                    return
+                }
                 let size: BlockSize = reduceMotion ? .small : released(value)
                 fire(size: size, velocity: releaseSpeed(value))
                 withAnimation(GridConstants.elasticPop) { charge = 1 }
