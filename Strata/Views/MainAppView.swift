@@ -51,7 +51,6 @@ struct MainAppView: View {
     private let towerFilterMode: TowerFilterMode = .day
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
-    @State private var towerImpactScale: CGFloat = 1.0
     @State private var motionCoord = DeviceMotionCoordinator()
 
     // Drop queue: habits completed in timeline, awaiting tower release
@@ -1244,23 +1243,14 @@ struct MainAppView: View {
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
             recordWaterImpact(blockID: landedID, mass: mass)
             SoundEngine.blockImpact(mass: mass) // Bimodal: haptic + audio (Vroomen 2000)
-            // Whole-tower compression, and only for a block with real mass.
+            // No whole-tower compression.
             //
-            // This scales the ENTIRE stack, so it moves every block on screen.
-            // Firing it for a Quick block meant the most routine action in the
-            // app nudged the whole page — the same reason the ripple is now
-            // gated. Kept small enough to be felt rather than seen.
-            if mass >= 2 {
-                withAnimation(.easeOut(duration: 0.06)) {
-                    towerImpactScale = 1.0 - 0.003
-                }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(60))
-                    withAnimation(GridConstants.naturalSettle) {
-                        towerImpactScale = 1.0
-                    }
-                }
-            }
+            // It scaled the ENTIRE stack on impact, so a landing moved every
+            // block on screen at once — the tower flexing rather than standing.
+            // Even at 0.3% that is several points at the top of a tall tower,
+            // and it is the last thing still contradicting "one structure".
+            // The landing is carried by the block that landed, the haptic and
+            // the water, all of which are local to where it happened.
         }
         // Post-cascade settle — the tower exhales (Gestalt Pragnanz closure)
         animCoord.onAllDropsComplete = { [self] in
@@ -1563,11 +1553,6 @@ struct MainAppView: View {
 
             try? await Task.sleep(for: .seconds(reduceMotion ? 0.5 : 1.5))
 
-            if !reduceMotion {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                    towerImpactScale = 1.0
-                }
-            }
 
             // "Your first block." — shows in ALL motion modes
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 800))
@@ -1688,7 +1673,6 @@ struct MainAppView: View {
                         }
                     }
                 }
-                .scaleEffect(y: towerImpactScale, anchor: .bottom)
                 // Device parallax — tower shifts with phone tilt (Harrison 2011)
                 .rotation3DEffect(.degrees(motionCoord.pitch * 2.5), axis: (1, 0, 0), perspective: 0.8)
                 .rotation3DEffect(.degrees(motionCoord.roll * 2.5), axis: (0, 1, 0), perspective: 0.8)
@@ -2345,8 +2329,14 @@ struct MainAppView: View {
             }
             .scaleEffect(x: rippleScaleX, y: rippleScaleY, anchor: .bottom)
             .offset(y: rippleOffsetY)
-            // #34: Parallax depth — higher rows shift slightly more (subtle depth cue)
-            .offset(y: reduceMotion ? 0 : CGFloat(block.row) * 0.0003 * towerScrollOffset)
+            // No per-row parallax.
+            //
+            // Higher rows used to shift more than lower ones as the tower
+            // scrolled, as a depth cue. It is the one effect that directly
+            // contradicts the tower being a single structure: the rows slide
+            // against each other, and because `towerScrollOffset` is only
+            // republished in 8pt steps it did it in visible jumps rather than
+            // smoothly. The tower moves as one object or it is not one object.
             // Jubilation wave — rotation, lift, glow (perfect day celebration)
             .rotationEffect(.degrees(animState.jubilationWobble))
             .offset(y: animState.jubilationLift)
