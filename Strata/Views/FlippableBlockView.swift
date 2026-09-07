@@ -62,14 +62,18 @@ struct FlippableBlockView: View {
     }
 
     var body: some View {
-        if isGroupMember {
-            Color.clear
-                .frame(width: width, height: height)
-                .contentShape(Rectangle())
-                .onTapGesture { onTap?() }
-        } else {
-            blockBody
-        }
+        // A member fades out rather than disappearing, revealing the group
+        // shape drawn underneath it.
+        //
+        // The two differ only where it matters: as a block it has its own rim
+        // and its own frosted band, as part of the group it has neither unless
+        // it is on the outside. Swapping them in one frame popped. Crossfading
+        // them over a fifth of a second reads as the block melting into the
+        // shape, which is the join actually happening rather than a substitution.
+        blockBody
+            .opacity(isGroupMember ? 0 : 1)
+            .animation(GridConstants.blockMeld, value: isGroupMember)
+            .contentShape(Rectangle())
     }
 
     private var blockBody: some View {

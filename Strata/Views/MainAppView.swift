@@ -41,7 +41,14 @@ struct MainAppView: View {
     @State private var hasLoadedDemo = false
     @State private var selectedTab: StrataTab = .tower
     // #270: Tower filter persistence across launches
-    @AppStorage("towerFilterMode") private var towerFilterMode: TowerFilterMode = .week
+    /// The tower shows today, and only today.
+    ///
+    /// Week and Month views were a filter over the same blocks; dropping them
+    /// removes a control, a title that changed under you, a redundant "N today"
+    /// in the header and a whole class of "why is that block here" question.
+    /// The value is kept rather than the enum deleted because block chrome,
+    /// patina and day separators all read it.
+    private let towerFilterMode: TowerFilterMode = .day
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerImpactScale: CGFloat = 1.0
@@ -314,26 +321,31 @@ struct MainAppView: View {
             }
     }
 
+    /// Extracted from `mainContent`: that body is a four-Tab TabView already at
+    /// the type-checker's ceiling, and removing the toolbar was enough to tip
+    /// it over.
+    private var towerTabRoot: some View {
+        NavigationStack {
+            // No navigation bar at all. The header below carries the count, and
+            // there is no longer a filter to put anywhere.
+            towerTab
+                .toolbar(.hidden, for: .navigationBar)
+        }
+        .sheet(isPresented: $isNewHabitMenuOpen) {
+            NewHabitMenu(
+                isPresented: $isNewHabitMenuOpen,
+                modelContext: modelContext,
+                onCreated: { scheduleRefresh() },
+                prefillTime: newHabitPrefillTime,
+                tower: towerManager.activeTower
+            )
+        }
+    }
+
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
-                NavigationStack {
-                    towerTab
-                        // No navigation bar at all. The filter said "Day" and
-                        // the title said "Today" — the same fact twice, an inch
-                        // apart, in two type styles. The tally below carries
-                        // both, and the filter is a control inside it.
-                        .toolbar(.hidden, for: .navigationBar)
-                }
-                .sheet(isPresented: $isNewHabitMenuOpen) {
-                    NewHabitMenu(
-                        isPresented: $isNewHabitMenuOpen,
-                        modelContext: modelContext,
-                        onCreated: { scheduleRefresh() },
-                        prefillTime: newHabitPrefillTime,
-                        tower: towerManager.activeTower
-                    )
-                }
+                towerTabRoot
             }
             .badge(pendingDrops.count)
             Tab("Today", systemImage: "calendar", value: StrataTab.today) {
@@ -362,10 +374,7 @@ struct MainAppView: View {
                             HapticsEngine.lightTap()
                             isNewHabitMenuOpen = true
                         },
-                        onNavigateToTower: { filterMode in
-                            pendingTowerFilterMode = filterMode
-                            selectedTab = .tower
-                        }
+                        onNavigateToTower: { _ in selectedTab = .tower }
                     )
                     .environment(\.switchTab, { selectedTab = $0 })
                     .toolbar { insightsToolbar }
@@ -383,11 +392,6 @@ struct MainAppView: View {
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { _, newTab in
             HapticsEngine.tick()
-            // Apply pending filter from Insights → Tower navigation
-            if newTab == .tower, let mode = pendingTowerFilterMode {
-                towerFilterMode = mode
-                pendingTowerFilterMode = nil
-            }
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
             }
@@ -463,54 +467,35 @@ struct MainAppView: View {
             .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
     }
 
-    /// The whole header: what the tower is, and what it is showing.
+    /// The whole header: one number, and what it counts.
     ///
-    /// This replaces a navigation bar plus a separate tally. There were four
-    /// text elements across the top of the page and two of them said the same
-    /// thing — a "Day" filter beside a "Today" title. Now there is one block of
-    /// information on the left and one control on the right, and the period
-    /// appears once, as the subject of the sentence the numbers are making.
+    /// It has lost a filter control, a period label and a height, in that
+    /// order. The tower is today only now, so the period is a constant and a
+    /// constant is not information. The height was a second way of saying what
+    /// the tower already shows by being tall. What is left is the count and the
+    /// word for what it counts.
+    ///
+    /// "Wins", not "blocks": a block is what the thing is made of, a win is
+    /// what it means.
     private var towerHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(towerVM.placedBlocks.count)")
-                        .font(.system(size: 40, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.85))
-                        .contentTransition(.numericText())
-                    Text(towerVM.placedBlocks.count == 1 ? "block" : "blocks")
-                        .font(Typography.bodyMedium)
-                        .foregroundStyle(.primary.opacity(0.35))
-                }
-                Text(tallyDetail)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(.primary.opacity(0.3))
-                    .contentTransition(.numericText())
-            }
-            .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
-            .accessibilityElement(children: .combine)
-
-            Spacer(minLength: 12)
-
-            TowerFilterMenuButton(selection: $towerFilterMode)
-                .padding(.top, 6)
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("\(towerVM.placedBlocks.count)")
+                .font(.system(size: 40, weight: .medium, design: .rounded))
+                .foregroundStyle(.primary.opacity(0.85))
+                .contentTransition(.numericText())
+            Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
+                .font(Typography.bodyMedium)
+                .foregroundStyle(.primary.opacity(0.35))
+            Spacer(minLength: 0)
         }
+        .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
+        .accessibilityElement(children: .combine)
         .padding(.horizontal, hPad)
         .padding(.top, 4)
-    }
-
-    /// The period, the height, and today — in that order, because the period is
-    /// what the big number is counting and the rest qualifies it.
-    private var tallyDetail: String {
-        var parts = [cachedTowerTitle]
-        let metres = Int(towerVM.altimeterHeight)
-        if metres > 0 { parts.append("\(metres)m") }
-        // Not while the filter is already showing only today — the big number
-        // IS today's count then, and "Today · 6m · 6 today" says it twice.
-        if towerFilterMode != .day, blocksToday > 0 {
-            parts.append("\(blocksToday) today")
-        }
-        return parts.joined(separator: " · ")
+        // Air between the count and the top of a tall tower. Without it a
+        // tower that reaches the top of the scroll runs straight into the
+        // number and the page reads as crowded.
+        .padding(.bottom, 20)
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -1011,6 +996,31 @@ struct MainAppView: View {
         waterImpacts.removeAll { now - $0.start > TowerReflection.Impact.lifetime }
     }
 
+    /// Merge groups over SETTLED blocks only.
+    ///
+    /// A falling block was joining its group the moment the tower rebuilt,
+    /// which is before it lands — so the destination was already painted in
+    /// while the block was still in the air, and the block then passed over its
+    /// own filled slot on the way down. That is the lighter patch, and it is
+    /// also why the merge never looked like a merge: there was nothing left to
+    /// join by the time it arrived.
+    ///
+    /// Costs nothing in the common case: with nothing animating this is the
+    /// value the view model already computed.
+    private var liveMergeGroups: [MergeGroup] {
+        let animating = animCoord.activelyAnimatingIDs
+        guard !animating.isEmpty else { return towerVM.mergeGroups }
+        return BlockMerge.groups(
+            for: towerVM.placedBlocks.filter { !animating.contains($0.id) }
+        )
+    }
+
+    private var liveGroupedIDs: Set<UUID> {
+        let animating = animCoord.activelyAnimatingIDs
+        guard !animating.isEmpty else { return towerVM.groupedBlockIDs }
+        return Set(liveMergeGroups.flatMap(\.memberIDs))
+    }
+
     /// What of the tower reaches the water: the bottom row, as colour and
     /// width. A reflection at the base of something shows only what is nearest
     /// the surface, so nothing above row 0 contributes and nothing but position
@@ -1099,23 +1109,6 @@ struct MainAppView: View {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                 .foregroundStyle(AppColors.accentWarm)
-        }
-    }
-
-    // The tower carries the filter and nothing else. Settings moved to
-    // Insights: it is a place you go to look at the app, which is where the
-    // switches that change the app belong. The tower is the record.
-    @ToolbarContentBuilder
-    private var towerToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) {
-                TowerFilterMenuButton(selection: $towerFilterMode)
-            }
-            .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) {
-                TowerFilterMenuButton(selection: $towerFilterMode)
-            }
         }
     }
 
@@ -1585,7 +1578,7 @@ struct MainAppView: View {
 
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
-                        ForEach(towerVM.mergeGroups) { group in
+                        ForEach(liveMergeGroups) { group in
                             MergedGroupView(
                                 group: group,
                                 cellSize: colW,
@@ -1730,6 +1723,7 @@ struct MainAppView: View {
         ZStack(alignment: .topLeading) {
             TowerBlocksForEach(
                 visibleBlocks: visibleBlocks, animCoord: animCoord, towerVM: towerVM,
+                groupedIDs: liveGroupedIDs,
                 colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
                 collapsedHeaderHeight: collapsedHeaderHeight,
                 towerScrollOffset: towerScrollOffset,
@@ -1957,6 +1951,9 @@ struct MainAppView: View {
         let visibleBlocks: [PlacedBlock]
         let animCoord: TowerAnimationCoordinator
         let towerVM: TowerViewModel
+        /// Members of a merged run, computed over settled blocks only so a
+        /// falling block does not join its group before it lands.
+        let groupedIDs: Set<UUID>
         let colW: CGFloat
         let gridH: CGFloat
         let safeAreaTop: CGFloat
@@ -1995,7 +1992,7 @@ struct MainAppView: View {
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
                     milestoneNumber: towerVM.milestoneBlockIDs[block.id],
-                    isGroupMember: towerVM.groupedBlockIDs.contains(block.id),
+                    isGroupMember: groupedIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock
                 )
@@ -2064,16 +2061,26 @@ struct MainAppView: View {
             let dropOffset: CGFloat = switch phase {
             case .falling:
                 {
-                    // Start above the viewport, but not so far above that most
-                    // of the fall happens off screen. At -400 the block covered
-                    // its whole visible run in the last third of an already
-                    // short animation, so what you saw was an arrival rather
-                    // than a fall. Clamped to a range now: high enough to enter
-                    // from off screen, close enough that the travel reads.
+                    // Start just above the visible top, not a fixed distance
+                    // above the slot.
+                    //
+                    // `dynamicOffset` already means "just off the top of what
+                    // the viewer can see". Forcing a minimum of 240 on top of
+                    // that pushed the start ABOVE the viewport whenever the
+                    // slot was near the top — the animation ran in full and
+                    // none of it was on screen, which is why the drop appeared
+                    // to fire only some of the time. It always fired; it was
+                    // sometimes invisible.
+                    //
+                    // A short visible fall beats a long unseen one, so the
+                    // dynamic value wins. The floor is only there so a slot
+                    // already at the very top still gets a fall rather than an
+                    // appearance; the ceiling stops a deep scroll turning it
+                    // into a long empty wait.
                     let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
                     let blockInScrollContent = paddingTop + (gridH - frame.maxY)
                     let dynamicOffset = towerScrollOffset - blockInScrollContent - frame.height - 60
-                    return max(min(dynamicOffset, -240), -520)
+                    return min(max(dynamicOffset, -520), -120)
                 }()
             case .squash, .stretch, .wobble: CGFloat(0)
             case .none: CGFloat(0)

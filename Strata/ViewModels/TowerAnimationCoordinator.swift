@@ -49,6 +49,7 @@ final class TowerAnimationCoordinator {
 
     func enqueueDrop(blockIDs: Set<UUID>) {
         guard !blockIDs.isEmpty else { return }
+
         // Immediately set falling phase so blocks render offscreen
         // on the same frame they enter placedBlocks — prevents flash
         if !reduceMotion {
@@ -297,6 +298,7 @@ final class TowerAnimationCoordinator {
 
     private func triggerDropAnimation(for blockIDs: Set<UUID>) async {
         guard !blockIDs.isEmpty else { return }
+
 
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.2)) {
