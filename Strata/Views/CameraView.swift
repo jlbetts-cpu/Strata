@@ -71,14 +71,22 @@ struct CameraView: View {
         static let breathing: CGFloat = 14
     }
 
-    private let cornerRadius: CGFloat = 20
+    /// Rounder than the design's 20.
+    ///
+    /// The Figma draws the viewfinder against a bezel it never leaves. Here it
+    /// stops above the tab bar, so the curve is a real edge you look at rather
+    /// than a corner tucked into the phone's own — and at 20 it read as a
+    /// square that had been slightly softened rather than as a shape.
+    private let cornerRadius: CGFloat = 34
+    /// Air between the bottom of the viewfinder and the tab bar.
+    private let tabGap: CGFloat = 14
+    /// Air between the shutter and the bottom edge of the viewfinder.
+    private let shutterBottomGap: CGFloat = 40
     /// Distance from the right edge to the centre of the control column.
     private let controlInset: CGFloat = 40
     private let shutterOuter: CGFloat = 80
     private let shutterInner: CGFloat = 66
-    /// Where the design puts the shutter's centre: 131pt up from the bottom of
-    /// an 874pt frame. Kept as the reference the runtime placement matches.
-    private let shutterBottomGap: CGFloat = 874.0 - 743.0
+
 
     var body: some View {
         GeometryReader { geo in
@@ -94,7 +102,7 @@ struct CameraView: View {
             // about the add sheet's camera.
             let bottomInset = fillsScreen ? geo.safeAreaInsets.bottom : 0
             let w = geo.size.width
-            let h = geo.size.height + topInset + bottomInset
+            let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
                 CameraPreview(session: camera.session)
@@ -104,7 +112,7 @@ struct CameraView: View {
 
                 header(topInset: topInset)
 
-                controls(w: w, h: h, bottomInset: bottomInset)
+                controls(w: w, h: h, topInset: topInset, bottomInset: bottomInset)
 
                 warmFlash
                     .allowsHitTesting(false)
@@ -243,8 +251,8 @@ struct CameraView: View {
 
     // MARK: - Controls
 
-    private func controls(w: CGFloat, h: CGFloat, bottomInset: CGFloat) -> some View {
-        let shutterCentre = h - bottomInset - shutterOuter / 2 - 26
+    private func controls(w: CGFloat, h: CGFloat, topInset: CGFloat, bottomInset: CGFloat) -> some View {
+        let shutterCentre = h - bottomInset - shutterOuter / 2 - shutterBottomGap
         // Where a thumb already is. The two settings you actually change while
         // shooting were in the top right corner, which on a phone this size is
         // a two-handed reach — so in practice you either put the phone down or
@@ -268,18 +276,34 @@ struct CameraView: View {
             .accessibilityLabel("Switch camera")
 
             if let onClose {
+                // Below the status bar, not under it.
+                //
+                // This sat at y=34 in a space whose origin is the top of the
+                // SCREEN, so it landed inside the status bar and beside the
+                // Dynamic Island — drawn, but with the system's own touch
+                // areas over most of it, which is why it could not be pressed.
+                // Measuring down from the safe inset puts it in the app's
+                // space, where the whole 44pt target belongs to it.
+                //
+                // 44pt is the HIG minimum for a touch target and the button is
+                // exactly that, with the glyph smaller inside it — the tappable
+                // area is bigger than the mark, which is the point.
                 Button {
                     HapticsEngine.lightTap()
                     onClose()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                        .background(Circle().fill(.black.opacity(0.28)))
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .position(x: w - 30, y: 34)
+                .position(
+                    x: w - GridConstants.horizontalPadding - 22,
+                    y: topInset + 22 + Header.topPadding
+                )
                 .accessibilityLabel("Close camera")
             }
         }
