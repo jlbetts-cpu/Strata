@@ -40,6 +40,71 @@ struct BlockExpansionCard: View {
         )
     }
 
+    /// Editing the title writes straight through to the habit.
+    ///
+    /// An untitled win reads as empty rather than as the word "Win", so the
+    /// placeholder can do the explaining and the field is never pre-filled with
+    /// something you have to delete before you can type.
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: {
+                let t = currentHabit.title
+                return t == QuickWinService.untitled ? "" : t
+            },
+            set: { new in
+                let trimmed = new.trimmingCharacters(in: .whitespacesAndNewlines)
+                currentHabit.title = trimmed.isEmpty ? QuickWinService.untitled : trimmed
+                try? modelContext.save()
+            }
+        )
+    }
+
+    /// Size, with what it costs.
+    ///
+    /// Effort and duration are separate ideas in this app (a Quick thing can
+    /// still take an hour), but at the moment of sizing a block the only
+    /// question is how much room it takes, so the control shows the number it
+    /// implies rather than making you hold the mapping in your head.
+    private var sizeControl: some View {
+        HStack(spacing: 6) {
+            ForEach([BlockSize.small, .medium, .hard], id: \.self) { size in
+                let isSelected = currentHabit.blockSize == size
+                Button {
+                    guard !isSelected else { return }
+                    HapticsEngine.tick()
+                    withAnimation(GridConstants.motionSmooth) {
+                        currentHabit.blockSize = size
+                    }
+                    try? modelContext.save()
+                } label: {
+                    VStack(spacing: 1) {
+                        Text(size.effortLabel)
+                            .font(Typography.bodySmall)
+                        Text(BlockExpansionCard.durationLabel(size))
+                            .font(Typography.caption2)
+                            .foregroundStyle(isSelected ? .white.opacity(0.7) : .primary.opacity(0.35))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(
+                        isSelected ? AnyShapeStyle(currentHabit.category.style.baseColor)
+                                   : AnyShapeStyle(GridConstants.fillTrack),
+                        in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
+                    )
+                    .foregroundStyle(isSelected ? .white : .primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(size.effortLabel), \(BlockExpansionCard.durationLabel(size))")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+    }
+
+    static func durationLabel(_ size: BlockSize) -> String {
+        let m = Int(size.durationMinutes)
+        return m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m")
+    }
+
     // #389: Rotating note prompts
     private var notePrompt: String {
         let prompts = ["Add a note…", "How did it feel?", "What did you learn?", "Any thoughts?", "Worth remembering?"]
@@ -106,12 +171,20 @@ struct BlockExpansionCard: View {
             if showContent {
                 VStack(alignment: .leading, spacing: GridConstants.cardContentSpacing) {
                     // Title + category + time
+                    //
+                    // The title is a field, not a label. This card was the only
+                    // place a block's name appeared and the only place it could
+                    // not be changed, so a win logged in one tap could never be
+                    // told what it was. Typing here IS the edit — no edit mode,
+                    // no save button, the same as changing a cell in a sheet.
                     HStack {
                         categoryGlyph
-                        Text(currentHabit.title)
+                        TextField("Name this block", text: titleBinding)
                             .font(Typography.brandCardTitle)
                             .foregroundStyle(.primary)
-                        Spacer()
+                            .textInputAutocapitalization(.sentences)
+                            .submitLabel(.done)
+                        Spacer(minLength: 8)
                         if let time = currentLog.completedAt {
                             Text(time, style: .time)
                                 .font(Typography.caption)
@@ -119,6 +192,8 @@ struct BlockExpansionCard: View {
                         }
                     }
                     .animation(GridConstants.crossFade, value: block.id)
+
+                    sizeControl
 
                     // HealthKit verification badge
                     if currentLog.verifiedByHealthKit {

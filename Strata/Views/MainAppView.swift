@@ -175,6 +175,11 @@ struct MainAppView: View {
         }
     }
 
+    /// Set by `-strataOpenSheet block`: expand the first block once the tower
+    /// has finished building, since a block card is only reachable by tapping.
+    /// Always present, only ever set in DEBUG — a `#if` around a @State that
+    /// something in `body` binds to costs more than the property does.
+    @State private var wantsDebugExpand = false
     @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
     @State private var showSettings = false
@@ -186,6 +191,12 @@ struct MainAppView: View {
             .onChange(of: reduceMotion) { _, newValue in
                 animCoord.reduceMotion = newValue
             }
+            .modifier(DebugExpandFirstBlock(
+                blockCount: towerVM.placedBlocks.count,
+                firstBlockID: towerVM.placedBlocks.first?.id,
+                wants: $wantsDebugExpand,
+                expanded: $expandedBlockID
+            ))
             .onChange(of: habits.count) { guard !towerVM.isLoading else { return }; scheduleRefresh() }
             .onChange(of: towerFilterMode) {
                 cachedTowerTitle = computeTowerTitle()
@@ -1088,8 +1099,9 @@ struct MainAppView: View {
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         if let tab = DebugHarness.startTab { selectedTab = tab }
         switch DebugHarness.openSheet {
-        case "settings": selectedTab = .tower; showSettings = true
+        case "settings": selectedTab = .insights; showSettings = true
         case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
+        case "block":    selectedTab = .tower; wantsDebugExpand = true
         default:         break
         }
         #endif
@@ -2393,4 +2405,29 @@ private struct TowerAuroraView: View {
         .environment(EventKitService())
         .environment(HealthKitService())
         .environment(FocusFilterService())
+}
+
+/// Opens a block's card without a tap, for screenshots.
+///
+/// A block card is only reachable by tapping the block, and nothing on this
+/// machine can tap. Extracted into a modifier rather than written inline
+/// because `MainAppView.body` is at the type-checker's ceiling and one more
+/// `.onChange` on it fails to compile.
+private struct DebugExpandFirstBlock: ViewModifier {
+    let blockCount: Int
+    let firstBlockID: UUID?
+    @Binding var wants: Bool
+    @Binding var expanded: UUID?
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.onChange(of: blockCount) { _, count in
+            guard wants, count > 0 else { return }
+            wants = false
+            expanded = firstBlockID
+        }
+        #else
+        content
+        #endif
+    }
 }
