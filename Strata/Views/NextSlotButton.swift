@@ -30,6 +30,16 @@ struct NextSlotButton: View {
 
     /// The size the drag has committed to, with a deadband on the way back.
     ///
+    /// **The direction you drag is the direction the block grows.** Sideways
+    /// widens it; up makes it tall. That is not a mapping to learn, because the
+    /// sizes are literally those shapes: `medium` is 2x1 and `hard` is 2x2, so
+    /// pulling sideways makes the wide one and pulling up adds the height.
+    ///
+    /// It used to be pure distance in any direction — one step for medium, two
+    /// for hard — so the same 92pt pull meant "tall" whether you went up, down,
+    /// left or right, and reaching the biggest size meant dragging twice as far
+    /// in a direction that said nothing about what you would get.
+    ///
     /// It SNAPS. A block can only be one of three sizes, so a slot that
     /// stretches smoothly between them is showing a state the block can never
     /// be in — and then jumps anyway when you let go. It steps between the
@@ -39,17 +49,21 @@ struct NextSlotButton: View {
     /// Growing takes a full step; shrinking gives one back only after coming
     /// `slotStepHysteresis` further, so a finger resting on a threshold does
     /// not flicker between two sizes on the tremors of a real hand.
-    private func size(for distance: CGFloat, from current: BlockSize) -> BlockSize {
+    private func size(lateral: CGFloat, up: CGFloat, from current: BlockSize) -> BlockSize {
         let step = GridConstants.slotStep
         let back = GridConstants.slotStepHysteresis
         switch current {
         case .small:
-            return distance >= step * 2 ? .hard : (distance >= step ? .medium : .small)
+            if up >= step { return .hard }
+            return lateral >= step ? .medium : .small
         case .medium:
-            if distance >= step * 2 { return .hard }
-            return distance < step - back ? .small : .medium
+            if up >= step { return .hard }
+            return lateral >= step - back ? .medium : .small
         case .hard:
-            return distance < step * 2 - back ? .medium : .hard
+            // Up holds it tall; letting the height go drops to whatever the
+            // sideways pull still justifies.
+            if up >= step - back { return .hard }
+            return lateral >= step - back ? .medium : .small
         }
     }
 
@@ -156,8 +170,13 @@ struct NextSlotButton: View {
                     withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
                 }
                 guard !reduceMotion else { return }
-                drawn = resisted(hypot(value.translation.width, value.translation.height))
-                let next = size(for: drawn, from: lastSize)
+                let lateral = resisted(abs(value.translation.width))
+                // Up is negative in this coordinate space. Dragging DOWN grows
+                // nothing — there is no shorter block than one cell, and
+                // pulling a block down out of the tower means nothing yet.
+                let up = resisted(max(-value.translation.height, 0))
+                drawn = max(lateral, up)
+                let next = size(lateral: lateral, up: up, from: lastSize)
                 guard next != lastSize else { return }
                 lastSize = next
                 // A haptic on every crossing, in both directions — the only
@@ -203,21 +222,27 @@ struct NextSlotButton: View {
     ///
     /// No hysteresis here: that exists to stop a resting finger flickering
     /// between two sizes, and this is a single decision taken once.
+    ///
+    /// Projected per axis, so a flick upward is heading for the tall block and
+    /// a flick sideways for the wide one — the same rule as during the drag.
     private func released(_ value: DragGesture.Value) -> BlockSize {
-        let projected = drawn + GridConstants.project(velocity: releaseSpeed(value))
+        let lateral = abs(value.translation.width)
+            + GridConstants.project(velocity: abs(value.velocity.width))
+        let up = max(-value.translation.height, 0)
+            + GridConstants.project(velocity: max(-value.velocity.height, 0))
         let step = GridConstants.slotStep
-        if projected >= step * 2 { return .hard }
-        if projected >= step { return .medium }
-        return .small
+        if up >= step { return .hard }
+        return lateral >= step ? .medium : .small
     }
 
-    /// Resistance past the largest size.
+    /// Resistance past the last stop on an axis.
     ///
-    /// Deep is the last stop, so dragging beyond it has nowhere to go. Stopping
-    /// dead reads as the gesture breaking; giving back progressively less reads
-    /// as having reached the end of something real.
+    /// Each axis now has exactly one meaningful step, so the limit is one step
+    /// rather than two. Dragging beyond it has nowhere to go: stopping dead
+    /// reads as the gesture breaking, while giving back progressively less
+    /// reads as having reached the end of something real.
     private func resisted(_ distance: CGFloat) -> CGFloat {
-        let limit = GridConstants.slotStep * 2
+        let limit = GridConstants.slotStep
         guard distance > limit else { return distance }
         return limit + GridConstants.rubberband(
             overshoot: distance - limit,
