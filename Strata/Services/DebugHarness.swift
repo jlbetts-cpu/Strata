@@ -41,6 +41,13 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// Ticks n rows on the checklist, so the tick-to-block loop can be filmed.
+    /// Nothing on this machine can tap, and that loop is the whole point of
+    /// the screen, so it needs a way to run without one.
+    static var autoChecks: Int {
+        Int(argument("-strataAutoCheck") ?? "0") ?? 0
+    }
+
     /// Forces the colour a logged win wears, so a drop that MERGES can be
     /// filmed. The least-used picker deliberately avoids repeats, so a normal
     /// run never drops a block next to its own colour.
@@ -62,6 +69,7 @@ enum DebugHarness {
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
+            || argument("-strataAutoCheck") != nil
             || argument("-strataSeedMono") != nil
     }
 

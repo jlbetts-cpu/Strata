@@ -202,6 +202,7 @@ struct MainAppView: View {
     /// something in `body` binds to costs more than the property does.
     @State private var wantsDebugExpand = false
     @State private var debugAutoWinsLeft = 0
+    @State private var debugAutoChecksLeft = 0
     /// Blocks that have been logged but not yet seen falling.
     ///
     /// The drop animation used to depend on WHICH build happened to place the
@@ -229,6 +230,17 @@ struct MainAppView: View {
             .onChange(of: reduceMotion) { _, newValue in
                 animCoord.reduceMotion = newValue
             }
+            .modifier(DebugAutoCheck(
+                doneCount: cachedCompletedHabitIDsForSelectedDate.count,
+                remaining: $debugAutoChecksLeft,
+                next: {
+                    cachedAllHabitsForSelectedDate.first {
+                        !cachedCompletedHabitIDsForSelectedDate.contains($0.id)
+                            && !QuickWinService.isWin($0)
+                    }
+                },
+                fire: { tickHabit($0) }
+            ))
             .modifier(DebugAutoWin(
                 blockCount: towerVM.placedBlocks.count,
                 remaining: $debugAutoWinsLeft,
@@ -365,22 +377,16 @@ struct MainAppView: View {
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
             // red notification dot on the tab you were already looking at.
-            Tab("Today", systemImage: "calendar", value: StrataTab.today) {
-                NavigationStack {
-                    timelineTabContent
-                        .environment(\.switchTab, { selectedTab = $0 })
-                        // The date, not "Today": it changes as you move through
-                        // the week, so it carries something the tab bar cannot.
-                        .navigationTitle(timelineSelectedDate.formatted(.dateTime.month(.wide).day()))
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar { todayToolbar }
-                }
-            }
-            Tab("Plan", systemImage: "list.bullet.clipboard", value: StrataTab.plan) {
-                NavigationStack {
-                    PlanPageView()
-                        .environment(\.switchTab, { selectedTab = $0 })
-                }
+            // Today is a checklist now, and Plan is gone.
+            //
+            // They were two places to schedule the same habit, and neither was
+            // where the reward is. What replaced both is the shape of the
+            // spreadsheet the owner actually tracks in: a row, a box, a tick —
+            // and ticking drops a block on the tower, which is the whole loop.
+            // No navigation bar: the header carries the count, the way the
+            // tower's does.
+            Tab("Today", systemImage: "checklist", value: StrataTab.today) {
+                checklistTab
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
@@ -517,6 +523,43 @@ struct MainAppView: View {
         // tower that reaches the top of the scroll runs straight into the
         // number and the page reads as crowded.
         .padding(.bottom, 20)
+    }
+
+    /// Today, as a checklist. Ticking a row drops a block on the tower.
+    ///
+    /// Kept as its own property because `mainContent` is at the type checker's
+    /// ceiling — see CLAUDE.md.
+    private var checklistTab: some View {
+        ChecklistView(
+            habits: cachedAllHabitsForSelectedDate,
+            completedHabitIDs: cachedCompletedHabitIDsForSelectedDate,
+            skippedHabitIDs: cachedSkippedHabitIDsForSelectedDate,
+            events: eventKitService.todaysEvents,
+            onComplete: { tickHabit($0) },
+            onUndo: { habit in
+                timelineVM.undoCompletion(habit)
+                cachedCompletedHabitIDsForSelectedDate.remove(habit.id)
+                scheduleRefresh()
+            },
+            onAddTodo: {
+                isNewHabitMenuOpen = true
+            }
+        )
+    }
+
+    /// Ticking a row. Exactly the path the timeline used: save first, update
+    /// the cache optimistically, then queue the drop. The cascade and the
+    /// tower do not know or care where the tick came from.
+    private func tickHabit(_ habit: Habit) {
+        timelineVM.completeHabit(habit)
+        cachedCompletedHabitIDsForSelectedDate.insert(habit.id)
+        if healthKitService.verifiedHabitIDs.contains(habit.id) {
+            let dateStr = TimelineViewModel.dateString(from: Date())
+            if let log = habit.logs.first(where: { $0.dateString == dateStr }) {
+                log.verifiedByHealthKit = true
+            }
+        }
+        pendingDrops.append(habit)
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -664,19 +707,15 @@ struct MainAppView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
 
-                    if towerFilterMode == .day,
-                       let nextHabit = incompleteForTimeline.first {
-                        TowerNextUpPill(
-                            habitTitle: nextHabit.title,
-                            category: nextHabit.category,
-                            onTap: {
-                                HapticsEngine.lightTap()
-                                selectedTab = .today
-                            }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .animation(GridConstants.gentleReveal, value: incompleteForTimeline.first?.id)
-                    }
+                    // No "Next up" pill.
+                    //
+                    // Nothing sits under the tower — it stands on its
+                    // reflection with the tab bar directly beneath, and this
+                    // was a frosted capsule wedged between the two, on the one
+                    // screen that is supposed to be only the tower. It also
+                    // pointed away from the page it was covering, at a
+                    // checklist that is now one tap away in the tab bar and
+                    // says the same thing better.
                 }
                 .padding(.bottom, 16)
             }
@@ -766,7 +805,7 @@ struct MainAppView: View {
                 isNewHabitMenuOpen = true
             },
             onEditInPlan: { _ in
-                selectedTab = .plan
+                selectedTab = .today
             },
             towerBlockCount: towerVM.placedBlocks.count,
             onboarding: onboarding,
@@ -1244,6 +1283,7 @@ struct MainAppView: View {
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
+        debugAutoChecksLeft = DebugHarness.autoChecks
         if let tab = DebugHarness.startTab { selectedTab = tab }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
@@ -2816,6 +2856,29 @@ private struct DebugAutoWin: ViewModifier {
             guard !Task.isCancelled, remaining > 0 else { return }
             remaining -= 1
             fire()
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// Ticks checklist rows without a finger, so the tick-to-block loop can be
+/// filmed on a machine that cannot tap.
+private struct DebugAutoCheck: ViewModifier {
+    let doneCount: Int
+    @Binding var remaining: Int
+    let next: () -> Habit?
+    let fire: (Habit) -> Void
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.task(id: doneCount) {
+            guard remaining > 0 else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, remaining > 0, let habit = next() else { return }
+            remaining -= 1
+            fire(habit)
         }
         #else
         content
