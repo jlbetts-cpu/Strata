@@ -58,6 +58,10 @@ enum QuickWinService {
         title: String = untitled,
         category: HabitCategory = .unlabeled,
         size: BlockSize = .small,
+        /// The colour to wear. Passed in rather than picked here so the slot
+        /// can show it before the block exists, and so what was promised is
+        /// what arrives.
+        spontaneous: HabitCategory? = nil,
         context: ModelContext,
         tower: Tower?
     ) throws -> (habit: Habit, logID: UUID) {
@@ -76,8 +80,11 @@ enum QuickWinService {
         // Unlabeled, so it draws no icon — but carrying a colour, so it still
         // looks like part of the tower. Two facts, stored separately.
         if category == .unlabeled {
-            let siblings = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
-            habit.spontaneousCategoryRaw = spontaneousCategory(existing: siblings).rawValue
+            let colour = spontaneous ?? {
+                let siblings = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+                return spontaneousCategory(existing: siblings)
+            }()
+            habit.spontaneousCategoryRaw = colour.rawValue
         }
         context.insert(habit)
 

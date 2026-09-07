@@ -202,6 +202,7 @@ struct MainAppView: View {
     /// The size currently being drawn out of the next slot, so the slot can
     /// move to where a block of THAT size would actually land.
     @State private var drawingSize: BlockSize = .small
+    @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
@@ -1053,19 +1054,28 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
-    /// The colour the next win will be, decided before it is logged so the
-    /// slot can show it while you draw.
-    private var nextWinCategory: HabitCategory {
-        QuickWinService.spontaneousCategory(existing: Array(habits))
+    /// The colour the next win will be — decided ONCE, held, and handed to
+    /// `logWin` unchanged.
+    ///
+    /// This was a computed property calling a picker that breaks ties at
+    /// random, so it returned a different colour on every body evaluation: the
+    /// slot flickered through colours while you dragged, and then `logWin`
+    /// called it a second time, so the block that landed was a third colour
+    /// again. What the slot promises is now what drops.
+    private func rerollNextWinCategory() {
+        nextWinCategory = QuickWinService.spontaneousCategory(existing: Array(habits))
     }
 
     private func logWin(size: BlockSize = .small) {
         do {
+            // The colour the slot has been showing, not a fresh roll.
             let win = try QuickWinService.logWin(
                 size: size,
+                spontaneous: nextWinCategory,
                 context: modelContext,
                 tower: towerManager.activeTower
             )
+            rerollNextWinCategory()
             // Claim the animation up front. Whichever build ends up placing
             // this block hands it to the animator; see `enqueueArrivals`.
             awaitingDropIDs.insert(win.logID)
@@ -1144,6 +1154,7 @@ struct MainAppView: View {
         towerManager.loadActiveTower(context: modelContext)
         #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
+        rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
         if let tab = DebugHarness.startTab { selectedTab = tab }
         switch DebugHarness.openSheet {
@@ -2001,7 +2012,15 @@ struct MainAppView: View {
                 .offset(x: f.minX, y: gridH - f.minY - f.height)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
                 .accessibilitySortPriority(-Double(block.row))
-                .transition(.opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
+                // A newly dropped block gets NO insertion transition. It was
+                // fading in over 0.2s while simultaneously falling, so the
+                // first half of the fall happened at low opacity and what you
+                // saw was the block appearing near its slot — "it just spawns
+                // in and then there's a ripple". It is opaque from the first
+                // frame and the fall is the whole of its entrance.
+                .transition(isNewlyDropped
+                            ? .identity
+                            : .opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
             }
         }
     }
@@ -2033,7 +2052,15 @@ struct MainAppView: View {
         @Environment(\.modelContext) private var modelContext
 
         static func == (lhs: Self, rhs: Self) -> Bool {
+            // The habit's own properties MUST be in here. Comparing only the
+            // id and the frame meant a category change — same block, same
+            // slot — compared equal, so SwiftUI skipped the redraw and the new
+            // colour did not appear until something else forced a rebuild.
+            // That is "editing a block only takes effect when I add another".
             lhs.block.id == rhs.block.id
+            && lhs.block.habit.displayCategory == rhs.block.habit.displayCategory
+            && lhs.block.habit.title == rhs.block.habit.title
+            && lhs.block.habit.blockSize == rhs.block.habit.blockSize
             && lhs.frame == rhs.frame
             && lhs.isNewlyDropped == rhs.isNewlyDropped
             && lhs.gridH == rhs.gridH
@@ -2189,8 +2216,16 @@ struct MainAppView: View {
                     x: 0,
                     y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale
                 )
-                // Foundation blocks — slightly darker
-                .brightness(isFoundation ? -0.02 : 0)
+                // Foundation darkening removed.
+                //
+                // Measured: a merged shape rendered (14,173,116) and a
+                // standalone block of the same colour (9,168,111). The entire
+                // difference was this 2% — a merged run draws one flat fill and
+                // never had it. So a block landing into a group visibly
+                // lightened at the moment it joined, which is precisely the
+                // thing a merge must not do. Two percent was never legible as a
+                // depth cue on its own, and the contact shade does that job
+                // properly now.
                 // Crown — white top edge on topmost blocks
                 .overlay(alignment: .top) {
                     if isCrown {
