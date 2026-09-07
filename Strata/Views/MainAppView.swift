@@ -1283,7 +1283,12 @@ struct MainAppView: View {
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
             recordWaterImpact(blockID: landedID, mass: mass)
-            SoundEngine.blockImpact(mass: mass) // Bimodal: haptic + audio (Vroomen 2000)
+            // The column too, so the landing is heard where it is seen.
+            // `blockImpact` has always taken it and always been called without
+            // it, so the stereo placement its own comment describes has never
+            // once happened.
+            let landedColumn = towerVM.placedBlocks.first(where: { $0.id == landedID })?.column ?? 2
+            SoundEngine.blockImpact(mass: mass, column: landedColumn) // Bimodal: haptic + audio (Vroomen 2000)
             // No whole-tower compression.
             //
             // It scaled the ENTIRE stack on impact, so a landing moved every
