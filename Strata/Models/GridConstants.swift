@@ -186,6 +186,46 @@ enum GridConstants {
     /// out slow — light arrives at once and decays.
     static let slotBloomIn = Animation.easeOut(duration: 0.10)
     static let slotBloomOut = Animation.easeOut(duration: 0.45)
+
+    /// Deceleration rate for momentum projection (docs/apple-design.md §6).
+    ///
+    /// 0.998 is the scroll-like default; lower is snappier. Chosen by working
+    /// out where realistic gestures actually land, because the slot has only
+    /// three stops a few dozen points apart and a scroll-sized projection
+    /// overshoots all of them:
+    ///
+    ///                          0.998      0.994      0.990
+    ///   slow nudge  (20pt, 120)  Regular    Small      Small
+    ///   drag+hold   (50pt,   0)  Regular    Regular    Regular
+    ///   brisk flick (20pt, 600)  Deep       Deep       Regular
+    ///   hard flick  (20pt,1400)  Deep       Deep       Deep
+    ///
+    /// At 0.998 anything but a crawl reaches Deep. At 0.994 a brisk flick still
+    /// skips Regular, so Regular is only reachable by dragging. 0.990 is the
+    /// rate at which all three sizes can be reached by flicking AND by
+    /// dragging, which is what makes the projection assist the choice instead
+    /// of taking it.
+    static let slotDecelerationRate: Double = 0.990
+
+    /// Where a flick would come to rest, given the velocity it was released at.
+    ///
+    /// The exponential-decay form Apple ships, NOT the textbook v²/(2a) —
+    /// docs/apple-design.md is explicit that they differ and which one feels
+    /// right.
+    static func project(velocity: CGFloat,
+                        decelerationRate d: Double = slotDecelerationRate) -> CGFloat {
+        (velocity / 1000) * CGFloat(d / (1 - d))
+    }
+
+    /// Progressive resistance past a boundary (docs/apple-design.md §9).
+    ///
+    /// A hard stop reads as frozen. This lets the drag keep moving while
+    /// giving back less and less, which reads as "responsive, but there is
+    /// nothing more here".
+    static func rubberband(overshoot: CGFloat, dimension: CGFloat,
+                           constant: CGFloat = 0.55) -> CGFloat {
+        (overshoot * dimension * constant) / (dimension + constant * abs(overshoot))
+    }
     /// Skeleton pop-in during loading
     static let skeletonPop = Animation.spring(response: 0.35, dampingFraction: 0.65)
 

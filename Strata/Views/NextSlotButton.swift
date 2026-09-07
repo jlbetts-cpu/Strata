@@ -105,7 +105,7 @@ struct NextSlotButton: View {
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { fire(size: .small) }
+        .accessibilityAction { fire(size: .small, velocity: 0) }
         .accessibilityLabel("Log a win")
         .accessibilityHint("Drops a block onto your tower. Drag out to make it bigger.")
     }
@@ -126,7 +126,7 @@ struct NextSlotButton: View {
                     withAnimation(GridConstants.tapSquashSpring) { charge = -1 }
                 }
                 guard !reduceMotion else { return }
-                drawn = hypot(value.translation.width, value.translation.height)
+                drawn = resisted(hypot(value.translation.width, value.translation.height))
                 let next = size(for: drawn, from: lastSize)
                 guard next != lastSize else { return }
                 lastSize = next
@@ -137,10 +137,10 @@ struct NextSlotButton: View {
                 HapticsEngine.snap()
                 withAnimation(GridConstants.slotSnap) { onSizeChanged(next) }
             }
-            .onEnded { _ in
+            .onEnded { value in
                 isDown = false
-                let size: BlockSize = reduceMotion ? .small : lastSize
-                fire(size: size)
+                let size: BlockSize = reduceMotion ? .small : released(value)
+                fire(size: size, velocity: releaseSpeed(value))
                 withAnimation(GridConstants.elasticPop) { charge = 1 }
                 withAnimation(GridConstants.slotBloomIn) { glow = 1 }
                 Task { @MainActor in
@@ -151,9 +151,61 @@ struct NextSlotButton: View {
             }
     }
 
-    private func fire(size: BlockSize) {
+    /// The component of the release velocity along the direction of the drag,
+    /// in points per second. Sideways wobble at the end of a pull outward
+    /// should not read as slowing down, so only motion along the drag counts.
+    private func releaseSpeed(_ value: DragGesture.Value) -> CGFloat {
+        let d = hypot(value.translation.width, value.translation.height)
+        guard d > 1 else { return 0 }
+        let ux = value.translation.width / d
+        let uy = value.translation.height / d
+        return value.velocity.width * ux + value.velocity.height * uy
+    }
+
+    /// The size a flick is HEADING for, not the one it happened to stop on.
+    ///
+    /// docs/apple-design.md §6: project where the gesture is going and snap to
+    /// the stop nearest that, rather than to the nearest stop from the release
+    /// point. It is the difference between a flick that throws the slot open
+    /// and one that drops it wherever your finger ran out of room — and it is
+    /// what lets a quick outward flick mean Deep without dragging the full
+    /// distance.
+    ///
+    /// No hysteresis here: that exists to stop a resting finger flickering
+    /// between two sizes, and this is a single decision taken once.
+    private func released(_ value: DragGesture.Value) -> BlockSize {
+        let projected = drawn + GridConstants.project(velocity: releaseSpeed(value))
+        let step = GridConstants.slotStep
+        if projected >= step * 2 { return .hard }
+        if projected >= step { return .medium }
+        return .small
+    }
+
+    /// Resistance past the largest size.
+    ///
+    /// Deep is the last stop, so dragging beyond it has nowhere to go. Stopping
+    /// dead reads as the gesture breaking; giving back progressively less reads
+    /// as having reached the end of something real.
+    private func resisted(_ distance: CGFloat) -> CGFloat {
+        let limit = GridConstants.slotStep * 2
+        guard distance > limit else { return distance }
+        return limit + GridConstants.rubberband(
+            overshoot: distance - limit,
+            dimension: GridConstants.slotStep
+        )
+    }
+
+    private func fire(size: BlockSize, velocity: CGFloat) {
         HapticsEngine.snap()
-        withAnimation(GridConstants.naturalSettle) { drawn = 0 }
+        // Velocity handoff (docs/apple-design.md §5): the settle continues at
+        // the speed the finger was moving, so there is no seam between dragging
+        // and animating. Normalised by the distance left to travel, which is
+        // what a spring's initialVelocity expects.
+        let remaining = max(drawn, 1)
+        withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0.18,
+                                           initialVelocity: Double(velocity / remaining))) {
+            drawn = 0
+        }
         lastSize = .small
         onSizeChanged(.small)
         action(size)
