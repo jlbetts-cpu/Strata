@@ -181,6 +181,18 @@ struct MainAppView: View {
     /// something in `body` binds to costs more than the property does.
     @State private var wantsDebugExpand = false
     @State private var debugAutoWinsLeft = 0
+    /// Blocks that have been logged but not yet seen falling.
+    ///
+    /// The drop animation used to depend on WHICH build happened to place the
+    /// block: the cascade diffed the tower, and a refresh arriving first (from
+    /// the habit count changing, a timer, a HealthKit verification) consumed
+    /// that diff, leaving the cascade to fall back on re-deriving the log id
+    /// from the habit's relationship — which sometimes came back empty. That is
+    /// why the drop played most of the time and not always.
+    ///
+    /// An id is claimed the moment a win is logged and cleared the moment the
+    /// tower places it. No diff, no ordering, no race.
+    @State private var awaitingDropIDs: Set<UUID> = []
     @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
     @State private var showSettings = false
@@ -1030,17 +1042,18 @@ struct MainAppView: View {
 
     private func logWin(size: BlockSize = .small) {
         do {
-            let habit = try QuickWinService.logWin(
+            let win = try QuickWinService.logWin(
                 size: size,
                 context: modelContext,
                 tower: towerManager.activeTower
             )
+            // Claim the animation up front. Whichever build ends up placing
+            // this block hands it to the animator; see `enqueueArrivals`.
+            awaitingDropIDs.insert(win.logID)
             // The same path a normal completion takes, so the block lands on
-            // the tower identically.
-            // No refresh here: appending to pendingDrops starts the cascade,
-            // and the cascade refreshes. Doing it here as well built the tower
-            // twice and made the new block flash before it fell.
-            pendingDrops.append(habit)
+            // the tower identically. No refresh here: appending to pendingDrops
+            // starts the cascade, and the cascade refreshes.
+            pendingDrops.append(win.habit)
         } catch {
             winSaveFailed = true
         }
@@ -1270,21 +1283,8 @@ struct MainAppView: View {
         refreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled else { return }
-            let hadBuilt = towerVM.hasBuiltOnce
-            let dropped = refreshData()
-            // EVERY block that arrives falls.
-            //
-            // This return value used to be discarded, so only blocks that came
-            // through `cascadeDropPendingBlocks` were ever handed to the
-            // animator. Anything arriving by another route — completing a habit
-            // elsewhere, a HealthKit verification, the minute timer noticing a
-            // new log — appeared in its final place with a ghost slot behind it
-            // and no fall. That is the "some fall, some don't".
-            //
-            // Not on the first build, when every block is new relative to an
-            // empty set and the whole tower would cascade on launch.
-            guard hadBuilt, !dropped.isEmpty, !animCoord.isCascading else { return }
-            for id in dropped { enqueueDrop(blockIDs: [id]) }
+            // Enqueueing lives in refreshData, so every path gets it.
+            refreshData()
         }
     }
 
@@ -1313,9 +1313,11 @@ struct MainAppView: View {
         let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
         timelineVM.loadToday(habits: towerHabits, logs: logs)
         recomputeTimelineHabits(logsByDate: logsByDate)
+        let hadBuiltBefore = towerVM.hasBuiltOnce
         let droppedIDs: Set<UUID> = withAnimation(GridConstants.heavySettle) {
             towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
         }
+        enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         towerVM.computeDaySeparators(perfectDayDates: perfectDayDates)
         updateVisibleDateTitle()
         weekCompletedDates = allCompletedDateStrings
@@ -1383,6 +1385,25 @@ struct MainAppView: View {
         return droppedIDs
     }
 
+    /// Hands every block that just arrived to the drop animator, exactly once.
+    ///
+    /// The single place this happens. It runs after every build, so it does not
+    /// matter which path caused the block to appear — a win, a habit completed
+    /// elsewhere, a HealthKit verification, the minute timer. Whichever build
+    /// places the block animates it.
+    ///
+    /// Not on the first build, when every block is new relative to an empty set
+    /// and the whole tower would cascade on launch.
+    private func enqueueArrivals(diff: Set<UUID>, hadBuiltBefore: Bool) {
+        let placed = Set(towerVM.placedBlocks.map(\.id))
+        let claimed = awaitingDropIDs.intersection(placed)
+        awaitingDropIDs.subtract(placed)
+        guard hadBuiltBefore else { return }
+        var toAnimate = diff.union(claimed)
+        toAnimate.subtract(animCoord.activelyAnimatingIDs)
+        for id in toAnimate { enqueueDrop(blockIDs: [id]) }
+    }
+
     private func enqueueDrop(blockIDs: Set<UUID>) {
         animCoord.enqueueDrop(blockIDs: blockIDs)
     }
@@ -1421,28 +1442,15 @@ struct MainAppView: View {
         scrollToTopTrigger += 1
         try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s scroll settle
 
-        // Capture the log IDs we KNOW are new before refreshData() can consume them.
-        // This fixes a race where refreshData() (via timer or other trigger) already updated
-        // previousBlockIDs, causing buildTower() to return empty newlyDroppedIDs.
-        let todayStr = TimelineViewModel.dateString(from: Date())
-        let pendingLogIDs: Set<UUID> = Set(habits.compactMap { habit in
-            habit.logs.first(where: { $0.dateString == todayStr && $0.completed })?.id
-        })
+        // The animation is claimed in `logWin` and handed over by
+        // `refreshData`, so this only has to make the tower rebuild.
+        let claimed = awaitingDropIDs
+        refreshData()
 
-        let droppedIDs = refreshData()
-
-        // Use explicitly tracked IDs — fall back to buildTower's diff if available
-        let animateIDs = droppedIDs.isEmpty
-            ? pendingLogIDs.intersection(Set(towerVM.placedBlocks.map(\.id)))
-            : droppedIDs
-
-        if let firstDropped = animateIDs.first {
-            scrollToDropID = firstDropped
-        }
-
-        // Enqueue individually for sequential animation (coordinator drains with 60ms gaps)
-        for droppedID in animateIDs {
-            enqueueDrop(blockIDs: [droppedID])
+        if let first = claimed.first(where: { id in
+            towerVM.placedBlocks.contains { $0.id == id }
+        }) {
+            scrollToDropID = first
         }
         // animCoord.isCascading cleared by drain loop when it finishes
 

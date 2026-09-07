@@ -60,7 +60,7 @@ enum QuickWinService {
         size: BlockSize = .small,
         context: ModelContext,
         tower: Tower?
-    ) throws -> Habit {
+    ) throws -> (habit: Habit, logID: UUID) {
         let today = DateUtils.dateString(from: Date())
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -86,6 +86,10 @@ enum QuickWinService {
         context.insert(log)
 
         try context.save()
-        return habit
+        // The log's id is returned rather than looked up later: it is the id
+        // the tower will place, and re-deriving it from habit.logs afterwards
+        // is exactly the lookup that intermittently came back empty and cost
+        // the block its drop animation.
+        return (habit, log.id)
     }
 }
