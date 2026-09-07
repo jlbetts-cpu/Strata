@@ -45,9 +45,17 @@ struct AddWinSheet: View {
     @State private var isSaving = false
 
     private var isEditing: Bool { editing != nil }
-    private var canSave: Bool {
-        !isSaving && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    /// A name is optional.
+    ///
+    /// Naming a win is the slowest part of logging one, and the app already
+    /// has a block that carries no text — that is what the empty slot drops
+    /// when you hold it. Requiring a name here made the sheet stricter than
+    /// the gesture beside it for no reason, and the most common thing anyone
+    /// wants to record is one they cannot be bothered to describe.
+    ///
+    /// An unnamed block is a colour and a size, which is a perfectly good
+    /// thing to have done.
+    private var canSave: Bool { !isSaving }
 
     var body: some View {
         NavigationStack {
@@ -340,8 +348,13 @@ struct AddWinSheet: View {
     }
 
     private func save() {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isSaving else { return }
+        let typed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `untitled` is the sentinel a nameless block already uses: the block
+        // views check for it and draw no text at all, and the title field
+        // shows it back as an empty placeholder rather than as the word "Win"
+        // for you to delete.
+        let trimmed = typed.isEmpty ? QuickWinService.untitled : typed
+        guard !isSaving else { return }
         isSaving = true
 
         if let habit = editing {
