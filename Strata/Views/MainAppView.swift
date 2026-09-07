@@ -205,6 +205,9 @@ struct MainAppView: View {
     /// so it can be changed without an animation; see `mainContent`.
     @State private var windowScheme: ColorScheme = .light
     @State private var isSharing = false
+    /// The block currently being carried, and the one it would land on.
+    @State private var liftedBlockID: UUID?
+    @State private var dropTargetID: UUID?
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -627,6 +630,51 @@ struct MainAppView: View {
         // tower that reaches the top of the scroll runs straight into the
         // number and the page reads as crowded.
         .padding(.bottom, 20)
+    }
+
+    /// Which block is under a point in the grid's coordinate space.
+    ///
+    /// Arithmetic rather than hit testing: the grid is a fixed pitch, so the
+    /// cell under the finger is a division, and the block owning that cell is
+    /// a lookup. Hit testing would have meant a gesture per block, and a drag
+    /// that starts on one and ends on another is one gesture crossing several
+    /// views — the kind each of them only sees half of.
+    private func block(at point: CGPoint, colW: CGFloat, gridH: CGFloat) -> PlacedBlock? {
+        let pitch = colW + spacing
+        let column = Int(floor(point.x / pitch))
+        // The grid is drawn with row 0 at the BOTTOM, so y has to be flipped
+        // back before it means a row.
+        let row = Int(floor((gridH - point.y) / pitch))
+        guard column >= 0, column < GridConstants.columnCount, row >= 0 else { return nil }
+        return towerVM.placedBlocks.first { block in
+            column >= block.column && column < block.column + block.columnSpan
+                && row >= block.row && row < block.row + block.rowSpan
+        }
+    }
+
+    /// Moves one block to sit where another one is, and writes the new order
+    /// down for every block so it survives the next build.
+    ///
+    /// The tower packs in sequence, so reordering IS reordering the sequence —
+    /// there is no "put it at these coordinates", because a block's coordinates
+    /// are a consequence of what came before it. Moving a Deep block ahead of a
+    /// Quick one can change the shape of everything above them, which is
+    /// correct: that is what the tower would have looked like if you had done
+    /// them in that order.
+    private func reorder(carried: UUID, before target: UUID) {
+        var order = towerVM.placedBlocks.map(\.log)
+        guard let from = order.firstIndex(where: { $0.id == carried }),
+              let to = order.firstIndex(where: { $0.id == target }),
+              from != to else { return }
+        let moving = order.remove(at: from)
+        order.insert(moving, at: to)
+        // Every block gets an explicit position, not just the two that moved:
+        // a partial order would leave the rest sorting by time and interleave
+        // unpredictably on the next build.
+        for (index, log) in order.enumerated() { log.towerOrder = index }
+        try? modelContext.save()
+        HapticsEngine.success()
+        repackTower()
     }
 
     /// Ticking a row. Exactly the path the timeline used: save first, update
@@ -1354,6 +1402,17 @@ struct MainAppView: View {
         if let tab = DebugHarness.startTab {
             selectTab(tab)
         }
+        if let move = DebugHarness.reorder {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                let blocks = towerVM.placedBlocks
+                guard move.from < blocks.count, move.to < blocks.count else { return }
+                print("[REORDER] before: \(blocks.map { $0.habit.title.prefix(6) })")
+                reorder(carried: blocks[move.from].id, before: blocks[move.to].id)
+                try? await Task.sleep(for: .seconds(1))
+                print("[REORDER] after:  \(towerVM.placedBlocks.map { $0.habit.title.prefix(6) })")
+            }
+        }
         if DebugHarness.dumpsShareCard {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
@@ -1889,6 +1948,47 @@ struct MainAppView: View {
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset,
                                          slotPos: slotPos)
+                        // Hold a block to pick it up, drag it onto another,
+                        // let go to put it there.
+                        //
+                        // The gesture lives on the GRID rather than on each
+                        // block: a drag that starts on one block and ends over
+                        // another is one gesture crossing several views, and a
+                        // per-block gesture only ever knows about its own. Here
+                        // the whole grid is one coordinate space, so the block
+                        // under the finger is arithmetic rather than hit
+                        // testing.
+                        .highPriorityGesture(
+                            LongPressGesture(minimumDuration: 0.35)
+                                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+                                .onChanged { value in
+                                    guard case .second(true, let drag) = value else { return }
+                                    guard let drag else {
+                                        // The press has landed but the finger
+                                        // has not moved yet: pick up whatever
+                                        // it is on.
+                                        return
+                                    }
+                                    if liftedBlockID == nil {
+                                        guard let picked = block(at: drag.startLocation, colW: colW, gridH: gridH) else { return }
+                                        HapticsEngine.snap()
+                                        liftedBlockID = picked.id
+                                    }
+                                    let over = block(at: drag.location, colW: colW, gridH: gridH)
+                                    let next = over?.id == liftedBlockID ? nil : over?.id
+                                    if next != dropTargetID {
+                                        if next != nil { HapticsEngine.tick() }
+                                        dropTargetID = next
+                                    }
+                                }
+                                .onEnded { _ in
+                                    if let carried = liftedBlockID, let target = dropTargetID {
+                                        reorder(carried: carried, before: target)
+                                    }
+                                    liftedBlockID = nil
+                                    dropTargetID = nil
+                                }
+                        )
 
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
@@ -2007,7 +2107,10 @@ struct MainAppView: View {
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
                         expandedBlockID = id
                     }
-                }
+                },
+                liftedBlockID: liftedBlockID,
+                dropTargetID: dropTargetID,
+                onDrag: { _, _ in }
             )
 
             // Day separators (Week/Month modes)
@@ -2251,6 +2354,9 @@ struct MainAppView: View {
         let reduceMotion: Bool
         let colorScheme: ColorScheme
         let onTapExpandBlock: (UUID) -> Void
+        let liftedBlockID: UUID?
+        let dropTargetID: UUID?
+        let onDrag: (UUID, CGPoint?) -> Void
 
         var body: some View {
             // Read the dance's phase counter here, at the top of the grid's
@@ -2285,7 +2391,10 @@ struct MainAppView: View {
                     isGroupMember: groupedIDs.contains(block.id),
                     willMerge: mergeDestinedIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
-                    onTapExpandBlock: onTapExpandBlock
+                    onTapExpandBlock: onTapExpandBlock,
+                    liftedBlockID: liftedBlockID,
+                    dropTargetID: dropTargetID,
+                    onDrag: onDrag
                 )
                 .frame(width: f.width, height: f.height)
                 // The dance has to be read HERE.
@@ -2346,6 +2455,11 @@ struct MainAppView: View {
         let willMerge: Bool
         let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
+        let liftedBlockID: UUID?
+        let dropTargetID: UUID?
+        /// Reports the carried block and where the finger is, in the grid's
+        /// own space. Nil location means the drag ended.
+        let onDrag: (UUID, CGPoint?) -> Void
 
         @Environment(\.modelContext) private var modelContext
 
@@ -2493,7 +2607,9 @@ struct MainAppView: View {
                         if !isExpanded {
                             onTapExpandBlock(block.id)
                         }
-                    }
+                    },
+                    isLifted: liftedBlockID == block.id,
+                    isDropTarget: dropTargetID == block.id
                 )
                 .matchedGeometryEffect(id: block.id, in: blockExpansionNamespace)
                 .opacity(isExpanded ? 0 : block.isSkipped ? 0.30 : 1)

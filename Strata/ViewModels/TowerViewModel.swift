@@ -101,7 +101,20 @@ final class TowerViewModel {
         // Include completed AND skipped blocks, oldest first so newest land on top
         let eligibleLogs = logs
             .filter { ($0.completed || $0.skipped) && $0.habit != nil }
-            .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
+            // Moved blocks first, in the order you put them; everything else
+            // in the order it happened. A tower nobody has rearranged sorts
+            // exactly as it always did.
+            .sorted { a, b in
+                switch (a.towerOrder, b.towerOrder) {
+                case let (x?, y?): return x == y
+                    ? (a.completedAt ?? .distantPast) < (b.completedAt ?? .distantPast)
+                    : x < y
+                case (_?, nil):    return true
+                case (nil, _?):    return false
+                default:
+                    return (a.completedAt ?? .distantPast) < (b.completedAt ?? .distantPast)
+                }
+            }
 
         let useDayBoundaries = filterMode != .day
 

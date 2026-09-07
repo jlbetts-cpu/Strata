@@ -45,6 +45,15 @@ enum DebugHarness {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
     }
 
+    /// Moves one block to another's position, so the reorder can be checked
+    /// without a finger. `-strataReorder <from>,<to>` in placement order.
+    static var reorder: (from: Int, to: Int)? {
+        guard let raw = argument("-strataReorder") else { return nil }
+        let parts = raw.split(separator: ",").compactMap { Int($0) }
+        guard parts.count == 2 else { return nil }
+        return (parts[0], parts[1])
+    }
+
     /// Renders the share card to a PNG in the app container and exits the
     /// need to tap anything. The card is an `ImageRenderer` output, so a
     /// screenshot of the share SHEET only ever shows a thumbnail of it — this
@@ -98,6 +107,7 @@ enum DebugHarness {
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
             || argument("-strataFlipTabs") != nil
+            || argument("-strataReorder") != nil
             || dumpsShareCard
             || argument("-strataSeedMono") != nil
     }

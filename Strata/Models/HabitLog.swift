@@ -31,6 +31,19 @@ final class HabitLog {
     var verifiedByHealthKit: Bool = false
     var subtasks: [SubTask] = []
 
+    /// Where this block sits in the tower, when you have moved it.
+    ///
+    /// Nil means "wherever it landed" — the tower packs in completion order,
+    /// which is the right default because that is the order the day actually
+    /// happened in. Dragging a block writes an explicit position for every
+    /// block in the tower, so the arrangement survives the next launch and the
+    /// next drop.
+    ///
+    /// Defaulted rather than optional-with-migration: SwiftData adds it in
+    /// place, and every existing log keeps nil, which is the behaviour they
+    /// already had.
+    var towerOrder: Int? = nil
+
     var hasDrawerContent: Bool {
         (note != nil && !note!.isEmpty)
         || !caption.isEmpty

@@ -32,6 +32,10 @@ struct FlippableBlockView: View {
     var isCovered: Bool = false
     var onTap: (() -> Void)? = nil
     var showOverlay: Bool = true
+    /// True while this block is the one being carried.
+    var isLifted: Bool = false
+    /// True when releasing would land the carried block here.
+    var isDropTarget: Bool = false
 
     @State private var tapTrigger: Int = 0
 
@@ -114,6 +118,22 @@ struct FlippableBlockView: View {
             // a merged block to edit it. A member is also drawn at zero
             // opacity, so the hit area has to be declared here, after that,
             // rather than inherited from something visible.
+            // Picked up, or marked as where it would land.
+            //
+            // A lifted block scales UP and gains a shadow — the two things
+            // that read as "off the surface" without moving it, so the finger
+            // stays over what it grabbed. The target dims rather than growing:
+            // if both changed size the whole tower would ripple while you
+            // dragged, and only one of them is in your hand.
+            .scaleEffect(isLifted ? 1.06 : 1)
+            .shadow(
+                color: .black.opacity(isLifted ? 0.22 : 0),
+                radius: isLifted ? 16 : 0,
+                y: isLifted ? 10 : 0
+            )
+            .brightness(isDropTarget ? -0.05 : 0)
+            .animation(GridConstants.slotSnap, value: isLifted)
+            .animation(GridConstants.motionSmooth, value: isDropTarget)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .simultaneousGesture(
                 TapGesture()
