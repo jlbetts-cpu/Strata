@@ -9,6 +9,8 @@ struct FlippableBlockView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     let modelContext: ModelContext
+    /// Sides that continue into a same-colour neighbour.
+    var merged: MergedEdges = .none
     var onTap: (() -> Void)? = nil
     var showOverlay: Bool = true
 
@@ -55,7 +57,8 @@ struct FlippableBlockView: View {
             // so the full 0.20 wash under white text caps contrast below 4.5:1
             // however dark the scrim beneath it is. The source escapes this
             // because its text sits near the TOP of the band on a 565pt block.
-            washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity
+            washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity,
+            merged: merged
         ) {
             ZStack {
             if hasImage {

@@ -34,10 +34,36 @@ struct BlockSurface<Fill: View>: View {
     /// composite's luminance at its own alpha, and 0.20 under white text caps
     /// contrast below 4.5:1 however dark the scrim beneath it is.
     var washOpacity: Double = GridConstants.blockScrimOpacity
+    /// Sides that continue into a same-colour neighbour. Those corners go
+    /// square and those edges lose their rim, so the two blocks read as one
+    /// piece. The caller is responsible for growing the frame across the gap.
+    var merged: MergedEdges = .none
     @ViewBuilder var fill: () -> Fill
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    /// Per-corner radii, square wherever an edge is shared.
+    private var shape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: merged.topLeadingSquare ? 0 : cornerRadius,
+            bottomLeadingRadius: merged.bottomLeadingSquare ? 0 : cornerRadius,
+            bottomTrailingRadius: merged.bottomTrailingSquare ? 0 : cornerRadius,
+            topTrailingRadius: merged.topTrailingSquare ? 0 : cornerRadius,
+            style: .continuous
+        )
+    }
+
+    /// Hides the rim along shared edges only.
+    ///
+    /// The rim is stroked around the whole shape, so on a merged edge it would
+    /// draw a white line straight down the middle of what is meant to be one
+    /// piece. Masking the STROKE (not the block) with a rectangle inset on the
+    /// shared sides removes it there and leaves the fill continuous.
+    private var rimMask: some View {
+        let w = GridConstants.blockRimWidth * scale * 2
+        return Rectangle()
+            .padding(.top, merged.contains(.top) ? w : 0)
+            .padding(.bottom, merged.contains(.bottom) ? w : 0)
+            .padding(.leading, merged.contains(.leading) ? w : 0)
+            .padding(.trailing, merged.contains(.trailing) ? w : 0)
     }
 
     /// The rim, brightest along the top edge.
@@ -59,12 +85,18 @@ struct BlockSurface<Fill: View>: View {
         )
     }
 
+    /// The frosted band lives at the block's bottom edge. When the block
+    /// continues downward there IS no bottom edge, so the band would draw a
+    /// pale step across the middle of what should be one piece.
+    private var continuesDown: Bool { merged.contains(.bottom) }
+
     private var surface: some View {
         fill()
-            .overlay(BlockWash(opacity: washOpacity))
+            .overlay(BlockWash(opacity: continuesDown ? 0 : washOpacity))
             .clipShape(shape)
             .overlay(
                 shape.strokeBorder(rim, lineWidth: GridConstants.blockRimWidth * scale)
+                    .mask(rimMask)
             )
     }
 
@@ -94,15 +126,26 @@ struct BlockSurface<Fill: View>: View {
     }
 
     var body: some View {
-        ZStack {
-            surface
-                .blur(radius: GridConstants.blockRimBlur * scale)
-                .mask(blurredMask)
-            surface.mask(sharpMask)
+        Group {
+            if continuesDown {
+                // No bottom edge to soften, so no sharp/blurred handover — the
+                // two-copy mask exists to put the rim out of focus inside the
+                // band, and there is no band here.
+                surface
+            } else {
+                ZStack {
+                    surface
+                        .blur(radius: GridConstants.blockRimBlur * scale)
+                        .mask(blurredMask)
+                    surface.mask(sharpMask)
+                }
+            }
         }
         .compositingGroup()
+        // A block that continues downward must not cast onto the block it
+        // continues into, or the join reads as a crease.
         .shadow(
-            color: .black.opacity(GridConstants.blockShadowOpacity),
+            color: .black.opacity(continuesDown ? 0 : GridConstants.blockShadowOpacity),
             radius: GridConstants.blockShadowRadius,
             x: 0,
             y: GridConstants.blockShadowY

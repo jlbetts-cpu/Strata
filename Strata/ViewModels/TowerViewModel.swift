@@ -50,8 +50,18 @@ final class TowerViewModel {
     var isLoading: Bool = true
     // Cascade drop tracking
     private(set) var newlyDroppedIDs: Set<UUID> = []
+    /// Which sides of each block continue into a same-colour neighbour.
+    /// Recomputed on rebuild, never per frame.
+    private(set) var mergedEdges: [UUID: MergedEdges] = [:]
     private(set) var staggerDelayCache: [UUID: Double] = [:]
     private var previousBlockIDs: Set<UUID> = []
+    /// False until the first build has happened.
+    ///
+    /// On that first build every block is "new" relative to an empty set, and
+    /// animating the whole tower in as a cascade on launch is neither wanted
+    /// nor affordable. Callers use `hasBuiltOnce` to tell "the tower just
+    /// loaded" from "a block just arrived".
+    private(set) var hasBuiltOnce = false
     private var dropCleanupTask: Task<Void, Never>? = nil
 
     // Day separators (Week/Month modes)
@@ -143,8 +153,10 @@ final class TowerViewModel {
         let newIDs = Set(placed.map(\.id))
         newlyDroppedIDs = newIDs.subtracting(previousBlockIDs)
         previousBlockIDs = newIDs
+        defer { hasBuiltOnce = true }
 
         placedBlocks = placed
+        mergedEdges = BlockMerge.compute(for: placed)
         incompleteBlocks = []
         currentGrid = grid
         milestoneBlockIDs = milestones

@@ -1269,7 +1269,21 @@ struct MainAppView: View {
         refreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled else { return }
-            refreshData()
+            let hadBuilt = towerVM.hasBuiltOnce
+            let dropped = refreshData()
+            // EVERY block that arrives falls.
+            //
+            // This return value used to be discarded, so only blocks that came
+            // through `cascadeDropPendingBlocks` were ever handed to the
+            // animator. Anything arriving by another route — completing a habit
+            // elsewhere, a HealthKit verification, the minute timer noticing a
+            // new log — appeared in its final place with a ghost slot behind it
+            // and no fall. That is the "some fall, some don't".
+            //
+            // Not on the first build, when every block is new relative to an
+            // empty set and the whole tower would cascade on launch.
+            guard hadBuilt, !dropped.isEmpty, !animCoord.isCascading else { return }
+            for id in dropped { enqueueDrop(blockIDs: [id]) }
         }
     }
 
@@ -1923,6 +1937,7 @@ struct MainAppView: View {
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
                     milestoneNumber: towerVM.milestoneBlockIDs[block.id],
+                    merged: towerVM.mergedEdges[block.id] ?? .none,
                     onTapExpandBlock: onTapExpandBlock
                 )
                 .frame(width: f.width, height: f.height)
@@ -1955,6 +1970,7 @@ struct MainAppView: View {
         let isFoundation: Bool
         let isCrown: Bool
         let milestoneNumber: Int?
+        let merged: MergedEdges
         let onTapExpandBlock: (UUID) -> Void
 
         @Environment(\.modelContext) private var modelContext
@@ -1973,6 +1989,19 @@ struct MainAppView: View {
             && lhs.isFoundation == rhs.isFoundation
             && lhs.isCrown == rhs.isCrown
             && lhs.milestoneNumber == rhs.milestoneNumber
+            && lhs.merged == rhs.merged
+        }
+
+        /// Half the grid gap on every shared side, and the matching shift so
+        /// the block grows INTO the gap rather than away from its slot.
+        private var mergeGrow: (width: CGFloat, height: CGFloat, dx: CGFloat, dy: CGFloat) {
+            let g = GridConstants.spacing / 2
+            let l = merged.contains(.leading) ? g : 0
+            let t = merged.contains(.trailing) ? g : 0
+            // `top` is up the tower, which is -y on screen; `bottom` is +y.
+            let up = merged.contains(.top) ? g : 0
+            let down = merged.contains(.bottom) ? g : 0
+            return (l + t, up + down, -l, -up)
         }
 
         var body: some View {
@@ -2039,10 +2068,16 @@ struct MainAppView: View {
 
                 FlippableBlockView(
                     block: block,
-                    width: frame.width,
-                    height: frame.height,
+                    // Grown across the grid gap on every shared side, so two
+                    // merged blocks actually touch. Without this they would
+                    // have square corners with 4pt of page still showing
+                    // between them, which looks like a mistake rather than a
+                    // join.
+                    width: frame.width + mergeGrow.width,
+                    height: frame.height + mergeGrow.height,
                     cornerRadius: cornerRadius,
                     modelContext: modelContext,
+                    merged: merged,
                     onTap: {
                         if !isExpanded {
                             onTapExpandBlock(block.id)
@@ -2091,17 +2126,23 @@ struct MainAppView: View {
                     radius: dropShadowRadius, x: 0, y: dropShadowY
                 )
                 // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
+                //
+                // Not onto the block directly below when the two are one piece:
+                // a shadow there draws a crease across the middle of the shape,
+                // which was the last visible seam after the band and the rim
+                // were dealt with.
                 .shadow(
-                    color: .black.opacity(0.04),
+                    color: .black.opacity(merged.contains(.bottom) ? 0 : 0.04),
                     radius: GridConstants.shadowRadius + CGFloat(block.row) * GridConstants.depthShadowScale,
                     x: 0,
                     y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale
                 )
-                // Foundation blocks — slightly darker
-                .brightness(isFoundation ? -0.02 : 0)
+                // Foundation blocks — slightly darker. Not while merged: a
+                // step in brightness halfway down one shape is a seam too.
+                .brightness(isFoundation && !merged.contains(.top) ? -0.02 : 0)
                 // Crown — white top edge on topmost blocks
                 .overlay(alignment: .top) {
-                    if isCrown {
+                    if isCrown && !merged.contains(.top) {
                         Rectangle()
                             .fill(.white.opacity(0.15))
                             .frame(height: 1)
@@ -2118,6 +2159,9 @@ struct MainAppView: View {
             .rotationEffect(.degrees(animState.jubilationWobble))
             .offset(y: animState.jubilationLift)
             .brightness(animState.jubilationGlow)
+            // Grown blocks expand into the gap, so shift back by what they
+            // gained on the leading and top sides to keep the slot aligned.
+            .offset(x: mergeGrow.dx, y: mergeGrow.dy)
         }
 
         private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
