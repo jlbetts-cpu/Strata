@@ -10,6 +10,10 @@ struct BlockExpansionCard: View {
     let namespace: Namespace.ID
     let modelContext: ModelContext
     let onDismiss: () -> Void
+    /// Called when a change alters the block's footprint, so the tower can
+    /// repack. Without it a resized block kept its old shape until the next
+    /// drop happened to rebuild the grid.
+    var onLayoutChanged: () -> Void = {}
 
     @State private var showContent = false
     @State private var selectedItem: PhotosPickerItem? = nil
@@ -76,6 +80,9 @@ struct BlockExpansionCard: View {
                         currentHabit.blockSize = size
                     }
                     try? modelContext.save()
+                    // The block's footprint just changed, so the grid has to
+                    // repack around it now rather than at the next drop.
+                    onLayoutChanged()
                 } label: {
                     VStack(spacing: 1) {
                         Text(size.effortLabel)
@@ -95,6 +102,48 @@ struct BlockExpansionCard: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(size.effortLabel), \(BlockExpansionCard.durationLabel(size))")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+    }
+
+    /// Which of the six this block is.
+    ///
+    /// A win arrives with a colour already picked for it, because a colourless
+    /// block is invisible on this page. This is where that guess gets
+    /// corrected — one tap, no menu, and the block re-colours under your
+    /// finger while the card is still open.
+    private var categoryControl: some View {
+        HStack(spacing: 6) {
+            ForEach(HabitCategory.selectable, id: \.self) { cat in
+                let isSelected = currentHabit.category == cat
+                Button {
+                    guard !isSelected else { return }
+                    HapticsEngine.tick()
+                    withAnimation(GridConstants.motionSmooth) {
+                        currentHabit.category = cat
+                    }
+                    try? modelContext.save()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(cat.style.baseColor)
+                            .frame(width: 26, height: 26)
+                        if isSelected {
+                            Circle()
+                                .strokeBorder(.white, lineWidth: 2)
+                                .frame(width: 26, height: 26)
+                            Circle()
+                                .strokeBorder(cat.style.baseColor, lineWidth: 1.5)
+                                .frame(width: 31, height: 31)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(cat.rawValue.capitalized)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
@@ -194,6 +243,7 @@ struct BlockExpansionCard: View {
                     .animation(GridConstants.crossFade, value: block.id)
 
                     sizeControl
+                    categoryControl
 
                     // HealthKit verification badge
                     if currentLog.verifiedByHealthKit {

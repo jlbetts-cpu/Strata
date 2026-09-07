@@ -25,12 +25,24 @@ enum QuickWinService {
         habit.isTodo && habit.frequencyRawValues.isEmpty
     }
 
+    /// A colour for a win nobody has categorised yet.
+    ///
+    /// It used to be a neutral grey, on the principle that colour is for
+    /// categories you chose. In practice that made the block that claims the
+    /// least also the only one that did not belong to the page — grey when it
+    /// was solid, invisible when it was translucent. A win now arrives wearing
+    /// one of the six, picked at random, and the block's card is where that
+    /// guess gets corrected. Being wrong and fixable beats being colourless.
+    static func spontaneousCategory() -> HabitCategory {
+        HabitCategory.selectable.randomElement() ?? .health
+    }
+
     /// Creates a completed one-time habit for today and returns it, so the
     /// caller can hand it to the tower's drop cascade.
     @discardableResult
     static func logWin(
         title: String = untitled,
-        category: HabitCategory = .unlabeled,
+        category: HabitCategory = spontaneousCategory(),
         size: BlockSize = .small,
         context: ModelContext,
         tower: Tower?

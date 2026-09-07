@@ -197,7 +197,16 @@ struct MainAppView: View {
                 wants: $wantsDebugExpand,
                 expanded: $expandedBlockID
             ))
-            .onChange(of: habits.count) { guard !towerVM.isLoading else { return }; scheduleRefresh() }
+            // Not while a drop is queued. Inserting the habit changes
+            // habits.count, which used to refresh the tower immediately — so
+            // the block appeared in its final place, then vanished when the
+            // cascade started it from above, then fell. That is the flash.
+            // The cascade does its own refresh; this one only exists for
+            // changes that arrive from elsewhere.
+            .onChange(of: habits.count) {
+                guard !towerVM.isLoading, pendingDrops.isEmpty else { return }
+                scheduleRefresh()
+            }
             .onChange(of: towerFilterMode) {
                 cachedTowerTitle = computeTowerTitle()
                 animCoord.clearAnimationStates() // #430: Clear stale animation on filter change
@@ -289,9 +298,11 @@ struct MainAppView: View {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 NavigationStack {
                     towerTab
-                        .navigationTitle(cachedTowerTitle)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar { towerToolbar }
+                        // No navigation bar at all. The filter said "Day" and
+                        // the title said "Today" — the same fact twice, an inch
+                        // apart, in two type styles. The tally below carries
+                        // both, and the filter is a control inside it.
+                        .toolbar(.hidden, for: .navigationBar)
                 }
                 .sheet(isPresented: $isNewHabitMenuOpen) {
                     NewHabitMenu(
@@ -428,46 +439,57 @@ struct MainAppView: View {
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
             // but its own reflection.
-            .overlay(alignment: .topLeading) { towerTally }
+            .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
     }
 
-    /// What the tower is, in one place.
+    /// The whole header: what the tower is, and what it is showing.
     ///
-    /// One number, large enough to read at a glance — it was a 0.3-opacity
-    /// caption competing with a second count beside the next slot. Both are
-    /// here now: the total is the headline, and today is the quiet half of the
-    /// line under it.
-    @ViewBuilder
-    private var towerTally: some View {
-        let count = towerVM.placedBlocks.count
-        if count > 0 {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("\(count)")
-                        .font(.system(.title, design: .rounded, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.75))
+    /// This replaces a navigation bar plus a separate tally. There were four
+    /// text elements across the top of the page and two of them said the same
+    /// thing — a "Day" filter beside a "Today" title. Now there is one block of
+    /// information on the left and one control on the right, and the period
+    /// appears once, as the subject of the sentence the numbers are making.
+    private var towerHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(towerVM.placedBlocks.count)")
+                        .font(.system(size: 40, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.85))
                         .contentTransition(.numericText())
-                    Text(count == 1 ? "block" : "blocks")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(.primary.opacity(0.4))
+                    Text(towerVM.placedBlocks.count == 1 ? "block" : "blocks")
+                        .font(Typography.bodyMedium)
+                        .foregroundStyle(.primary.opacity(0.35))
                 }
                 Text(tallyDetail)
-                    .font(Typography.caption)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(.primary.opacity(0.3))
                     .contentTransition(.numericText())
             }
-            .padding(.leading, hPad)
-            .padding(.top, 6)
-            .animation(GridConstants.motionSmooth, value: count)
-            .allowsHitTesting(false)
+            .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
             .accessibilityElement(children: .combine)
+
+            Spacer(minLength: 12)
+
+            TowerFilterMenuButton(selection: $towerFilterMode)
+                .padding(.top, 6)
         }
+        .padding(.horizontal, hPad)
+        .padding(.top, 4)
     }
 
+    /// The period, the height, and today — in that order, because the period is
+    /// what the big number is counting and the rest qualifies it.
     private var tallyDetail: String {
+        var parts = [cachedTowerTitle]
         let metres = Int(towerVM.altimeterHeight)
-        let today = blocksToday
-        return today > 0 ? "\(metres)m · \(today) today" : "\(metres)m"
+        if metres > 0 { parts.append("\(metres)m") }
+        // Not while the filter is already showing only today — the big number
+        // IS today's count then, and "Today · 6m · 6 today" says it twice.
+        if towerFilterMode != .day, blocksToday > 0 {
+            parts.append("\(blocksToday) today")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -651,7 +673,8 @@ struct MainAppView: View {
                         dailyPhotoBlocks: cachedDailyPhotoBlocks,
                         namespace: blockExpansion,
                         modelContext: modelContext,
-                        onDismiss: { dismissCard() }
+                        onDismiss: { dismissCard() },
+                        onLayoutChanged: { reloadTowerWithAnimation() }
                     )
                     .onAppear { HapticsEngine.lightTap() }
                 }
@@ -1007,8 +1030,10 @@ struct MainAppView: View {
             )
             // The same path a normal completion takes, so the block lands on
             // the tower identically.
+            // No refresh here: appending to pendingDrops starts the cascade,
+            // and the cascade refreshes. Doing it here as well built the tower
+            // twice and made the new block flash before it fell.
             pendingDrops.append(habit)
-            scheduleRefresh()
         } catch {
             winSaveFailed = true
         }

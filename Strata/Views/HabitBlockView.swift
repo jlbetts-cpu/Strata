@@ -179,13 +179,15 @@ struct BlockContentOverlay: View {
     let timeText: String?
     var hasImage: Bool = false
 
-    /// An unlabeled win carries no text at all — no title, no time.
+    /// A block nobody has named carries no text at all — no title, no time.
     ///
     /// "Win" is not a name, it is the absence of one, and a block that says it
-    /// is louder than the thing it describes. The block's colour already says
-    /// "uncategorised" and its presence already says "this happened"; a label
-    /// repeating that is the only part of it that could be wrong.
-    private var isUnlabelledWin: Bool { category == .unlabeled }
+    /// is louder than the thing it describes. Its presence already says "this
+    /// happened"; a label repeating that is the only part of it that could be
+    /// wrong. Naming it in the card gives it its text.
+    private var isUnnamed: Bool {
+        title == QuickWinService.untitled || title.isEmpty
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -203,7 +205,7 @@ struct BlockContentOverlay: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Spacer()
-                if !isUnlabelledWin {
+                if !isUnnamed {
                     Text(title)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)

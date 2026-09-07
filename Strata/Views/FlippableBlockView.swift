@@ -105,16 +105,6 @@ struct FlippableBlockView: View {
                     .frame(height: min(84, height * 0.95))
                 }
 
-            } else if block.habit.category == .unlabeled {
-                // A win you have not named yet.
-                //
-                // It was a warm grey — the heaviest, muddiest thing on the
-                // page, and the darkest block in a tower of light colours,
-                // which is backwards: it is the block that claims the least.
-                // Now the page shows through it. It is present and it holds
-                // its place in the grid, but it has no colour of its own
-                // because nothing has been chosen for it yet.
-                Color.white.opacity(GridConstants.blockUnnamedOpacity)
             } else {
                 // Flat colour.
                 //
