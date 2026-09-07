@@ -170,6 +170,17 @@ It seeds through the same `QuickWinService.logWin` and `Habit.init` the app
 uses, and suppresses the HealthKit sheet (a system alert no script can dismiss).
 Onboarding is skipped from outside with `simctl spawn <dev> defaults write`.
 
+`-strataAutoWin n` presses the next slot n times, two seconds apart, so the
+drop cascade can be watched without a tap.
+
+**To judge an animation, burst-capture and count.** `simctl io screenshot`
+samples at roughly 3Hz, so: run with `-strataAutoWin 8`, take ~70 screenshots
+back to back, and count how many catch the thing mid-flight. That is how the
+"blocks stopped falling" report was resolved — they were falling, and exactly
+one frame in seventy caught one, which is the same thing as not falling as far
+as anyone watching is concerned. It is a coarse instrument: use it to tell
+"never" from "sometimes", not to measure a duration.
+
 **Allow ~16 seconds after launch before screenshotting.** A shorter delay
 catches the loading skeleton and has repeatedly been mistaken for a bug.
 

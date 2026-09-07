@@ -35,6 +35,12 @@ enum DebugHarness {
         argument("-strataOpenSheet")?.lowercased()
     }
 
+    /// Presses the next slot this many times a moment after launch, so the
+    /// drop cascade can be watched without a tap.
+    static var autoWins: Int {
+        Int(argument("-strataAutoWin") ?? "0") ?? 0
+    }
+
     /// True when this launch is a harness run at all. Used to suppress the
     /// HealthKit permission sheet, which is a system alert no script can
     /// dismiss and which covers whatever was being photographed.
@@ -47,6 +53,7 @@ enum DebugHarness {
         argument("-strataSeedWins") != nil
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
+            || argument("-strataAutoWin") != nil
     }
 
     /// Replaces all habits and logs with a deterministic fixture.

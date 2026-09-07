@@ -63,10 +63,13 @@ enum GridConstants {
     static let rippleReleaseSpring = Animation.spring(response: 0.35, dampingFraction: 0.60)
 
     // MARK: - Squash & Stretch (linear in mass — rigid material)
-    static func squashScaleY(mass: CGFloat) -> CGFloat { 0.025 * mass }
-    static func squashScaleX(mass: CGFloat) -> CGFloat { 0.015 * mass }
-    static func stretchScaleY(mass: CGFloat) -> CGFloat { 0.012 * mass }
-    static func stretchScaleX(mass: CGFloat) -> CGFloat { 0.008 * mass }
+    // Impact deformation. Raised along with the fall duration: a block that is
+    // now visibly falling has visible momentum, and landing without deforming
+    // reads as stopping rather than as arriving.
+    static func squashScaleY(mass: CGFloat) -> CGFloat { 0.042 * mass }
+    static func squashScaleX(mass: CGFloat) -> CGFloat { 0.026 * mass }
+    static func stretchScaleY(mass: CGFloat) -> CGFloat { 0.020 * mass }
+    static func stretchScaleX(mass: CGFloat) -> CGFloat { 0.013 * mass }
 
     // MARK: - Shadow
 

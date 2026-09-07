@@ -29,12 +29,26 @@ enum QuickWinService {
     ///
     /// It used to be a neutral grey, on the principle that colour is for
     /// categories you chose. In practice that made the block that claims the
-    /// least also the only one that did not belong to the page — grey when it
-    /// was solid, invisible when it was translucent. A win now arrives wearing
-    /// one of the six, picked at random, and the block's card is where that
-    /// guess gets corrected. Being wrong and fixable beats being colourless.
-    static func spontaneousCategory() -> HabitCategory {
-        HabitCategory.selectable.randomElement() ?? .health
+    /// least also the only one that did not belong to the page. A win now
+    /// arrives wearing one of the six, and the block's card is where that guess
+    /// gets corrected. Being wrong and fixable beats being colourless.
+    ///
+    /// **Least-used, not random.** True randomness clusters: six colours drawn
+    /// independently will hand you the same one five times often enough to
+    /// notice, and a tower that comes out mostly pink looks like a bug rather
+    /// than like chance. Picking the colour the tower currently has least of
+    /// spreads them without anyone having to think about it, and ties break
+    /// randomly so it is not a predictable rotation either.
+    static func spontaneousCategory(existing: [Habit]) -> HabitCategory {
+        var counts: [HabitCategory: Int] = [:]
+        for cat in HabitCategory.selectable { counts[cat] = 0 }
+        for habit in existing {
+            let shown = habit.displayCategory
+            if counts[shown] != nil { counts[shown]! += 1 }
+        }
+        let fewest = counts.values.min() ?? 0
+        let leastUsed = counts.filter { $0.value == fewest }.map(\.key)
+        return leastUsed.randomElement() ?? .health
     }
 
     /// Creates a completed one-time habit for today and returns it, so the
@@ -62,7 +76,8 @@ enum QuickWinService {
         // Unlabeled, so it draws no icon — but carrying a colour, so it still
         // looks like part of the tower. Two facts, stored separately.
         if category == .unlabeled {
-            habit.spontaneousCategoryRaw = spontaneousCategory().rawValue
+            let siblings = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+            habit.spontaneousCategoryRaw = spontaneousCategory(existing: siblings).rawValue
         }
         context.insert(habit)
 

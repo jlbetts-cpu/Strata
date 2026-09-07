@@ -180,6 +180,7 @@ struct MainAppView: View {
     /// Always present, only ever set in DEBUG — a `#if` around a @State that
     /// something in `body` binds to costs more than the property does.
     @State private var wantsDebugExpand = false
+    @State private var debugAutoWinsLeft = 0
     @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
     @State private var showSettings = false
@@ -191,6 +192,11 @@ struct MainAppView: View {
             .onChange(of: reduceMotion) { _, newValue in
                 animCoord.reduceMotion = newValue
             }
+            .modifier(DebugAutoWin(
+                blockCount: towerVM.placedBlocks.count,
+                remaining: $debugAutoWinsLeft,
+                fire: { logWin() }
+            ))
             .modifier(DebugExpandFirstBlock(
                 blockCount: towerVM.placedBlocks.count,
                 firstBlockID: towerVM.placedBlocks.first?.id,
@@ -1122,6 +1128,7 @@ struct MainAppView: View {
         towerManager.loadActiveTower(context: modelContext)
         #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
+        debugAutoWinsLeft = DebugHarness.autoWins
         if let tab = DebugHarness.startTab { selectedTab = tab }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
@@ -1977,10 +1984,16 @@ struct MainAppView: View {
             let dropOffset: CGFloat = switch phase {
             case .falling:
                 {
+                    // Start above the viewport, but not so far above that most
+                    // of the fall happens off screen. At -400 the block covered
+                    // its whole visible run in the last third of an already
+                    // short animation, so what you saw was an arrival rather
+                    // than a fall. Clamped to a range now: high enough to enter
+                    // from off screen, close enough that the travel reads.
                     let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
                     let blockInScrollContent = paddingTop + (gridH - frame.maxY)
                     let dynamicOffset = towerScrollOffset - blockInScrollContent - frame.height - 60
-                    return min(dynamicOffset, -400)
+                    return max(min(dynamicOffset, -240), -520)
                 }()
             case .squash, .stretch, .wobble: CGFloat(0)
             case .none: CGFloat(0)
@@ -2450,6 +2463,27 @@ private struct DebugExpandFirstBlock: ViewModifier {
             guard wants, count > 0 else { return }
             wants = false
             expanded = firstBlockID
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// Presses the next slot without a tap, for watching the drop cascade.
+private struct DebugAutoWin: ViewModifier {
+    let blockCount: Int
+    @Binding var remaining: Int
+    let fire: () -> Void
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.task(id: blockCount) {
+            guard remaining > 0 else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, remaining > 0 else { return }
+            remaining -= 1
+            fire()
         }
         #else
         content

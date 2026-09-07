@@ -315,9 +315,16 @@ final class TowerAnimationCoordinator {
         } else { mass = 1 }
         landedMassTier = mass
 
-        // Gravity-correct durations & curves (accelerate through impact)
+        // Gravity-correct durations & curves (accelerate through impact).
+        //
+        // Was 0.28 / 0.38 / 0.50. Measured by burst-capturing the simulator
+        // during eight drops: exactly ONE frame in seventy caught a block in
+        // flight. The fall was real and essentially unseeable, which is why it
+        // read as the block simply appearing. Long enough to register, still
+        // short enough that logging six things in a row does not become a
+        // queue you wait through.
         let fallDuration: Double = switch mass {
-        case 1: 0.28; case 2: 0.38; default: 0.50
+        case 1: 0.44; case 2: 0.54; default: 0.66
         }
 
         // Phase 1: Falling
