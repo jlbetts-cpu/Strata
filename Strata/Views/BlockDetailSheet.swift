@@ -98,12 +98,14 @@ struct BlockDetailSheet: View {
         }
         .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
-            CameraPickerView(
-                onCapture: { image in
+            // The app's own viewfinder, not `UIImagePickerController`.
+            CameraView(
+                onCaptured: { image in
                     showCamera = false
                     Task { await savePhotoDirectly(image) }
                 },
-                onCancel: { showCamera = false }
+                onClose: { showCamera = false },
+                fillsScreen: true
             )
         }
         .onChange(of: selectedItem) { _, newItem in

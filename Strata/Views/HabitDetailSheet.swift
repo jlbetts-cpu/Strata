@@ -157,12 +157,17 @@ struct HabitDetailSheet: View {
         }
         .photosPicker(isPresented: $showLibraryPicker, selection: $selectedItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
-            CameraPickerView(
-                onCapture: { image in
+            // The app's own viewfinder, not `UIImagePickerController`.
+            //
+            // `CameraPickerView` is the stock iOS camera — a different app's
+            // chrome dropped into the middle of this one.
+            CameraView(
+                onCaptured: { image in
                     showCamera = false
                     Task { await savePhoto(image) }
                 },
-                onCancel: { showCamera = false }
+                onClose: { showCamera = false },
+                fillsScreen: true
             )
         }
         .onChange(of: selectedItem) { _, newItem in

@@ -753,36 +753,43 @@ struct MainAppView: View {
             // else. The tower stands on its reflection with the tab bar
             // directly beneath it, and that is the whole page.
             .background { WarmBackground().ignoresSafeArea() }
+            // Tapping a block opens the same sheet that made it.
+            //
+            // It used to expand into `BlockExpansionCard` — a floating card
+            // behind a frosted scrim, with the block flying into a hero image
+            // through a matched-geometry effect. Handsome, and the wrong
+            // shape: editing a win asks the same four questions as adding one,
+            // so it should be the same sheet with the answers filled in.
+            //
+            // It also fixes the camera. That card reached for
+            // `CameraPickerView`, which is `UIImagePickerController` — the
+            // stock iOS camera, with none of this app's chrome. The sheet uses
+            // the app's own viewfinder.
             .overlay {
-                if let expandedID = expandedBlockID,
-                   let block = towerVM.placedBlocks.first(where: { $0.id == expandedID }) {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .ignoresSafeArea()
-                        .onTapGesture { dismissCard() }
-                        .transition(.opacity)
-                        .accessibilityHidden(true)
-
-                    // #86: Milestone celebration overlay
-                    if let milestone = pendingMilestone {
-                        MilestoneCelebration(milestone: milestone) {
-                            pendingMilestone = nil
-                        }
-                        .transition(.opacity)
-                        .zIndex(200)
+                if expandedBlockID != nil, let milestone = pendingMilestone {
+                    MilestoneCelebration(milestone: milestone) {
+                        pendingMilestone = nil
                     }
-
-                    // Floating card
-                    BlockExpansionCard(
-                        block: block,
-                        dailyPhotoBlocks: cachedDailyPhotoBlocks,
-                        namespace: blockExpansion,
-                        modelContext: modelContext,
-                        onDismiss: { dismissCard() },
-                        onLayoutChanged: { repackTower() }
-                    )
-                    .onAppear { HapticsEngine.lightTap() }
+                    .transition(.opacity)
+                    .zIndex(200)
                 }
+            }
+            .sheet(item: Binding(
+                get: {
+                    expandedBlockID.flatMap { id in
+                        towerVM.placedBlocks.first { $0.id == id }
+                    }
+                },
+                set: { if $0 == nil { dismissCard() } }
+            )) { block in
+                AddWinSheet(
+                    modelContext: modelContext,
+                    tower: towerManager.activeTower,
+                    editing: block.habit,
+                    editingLog: block.log,
+                    onSaved: { _ in repackTower() },
+                    onDeleted: { repackTower() }
+                )
             }
     }
 
