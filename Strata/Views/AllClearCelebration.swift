@@ -103,7 +103,7 @@ struct AllClearCelebration: View {
             startTime = Date()
             // #134: Celebration alternative for VoiceOver
             if UIAccessibility.isVoiceOverRunning {
-                UIAccessibility.post(notification: .announcement, argument: "Celebration! Perfect day achieved. All habits completed.")
+                UIAccessibility.post(notification: .announcement, argument: "Every win logged today.")
             }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(Int(GridConstants.confettiDuration * 1000)))

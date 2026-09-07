@@ -204,8 +204,7 @@ struct MainAppView: View {
     /// Light on every page but the camera. Held separately from `selectedTab`
     /// so it can be changed without an animation; see `mainContent`.
     @State private var windowScheme: ColorScheme = .light
-    /// Bumped when leaving the camera, to force a fresh tab bar.
-    @State private var tabBarGeneration = 0
+    @State private var isSharing = false
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -353,7 +352,7 @@ struct MainAppView: View {
             .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your habits couldn't be loaded from storage. You can still use the app, but changes won't be saved between sessions. Try restarting the app — if the problem persists, use Settings → Export Data to save your information.")
+                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting — if it keeps happening, use Settings → Export Data to save what you have.")
             }
     }
 
@@ -366,6 +365,15 @@ struct MainAppView: View {
             // there is no longer a filter to put anywhere.
             towerTab
                 .toolbar(.hidden, for: .navigationBar)
+        }
+        .sheet(isPresented: $isSharing) {
+            if let image = TowerShare.image(
+                blocks: MiniTowerPacker.pack(filteredLogs),
+                winCount: towerVM.placedBlocks.count,
+                date: Date()
+            ) {
+                ShareSheet(activityItems: [image])
+            }
         }
         .sheet(isPresented: $isNewHabitMenuOpen) {
             AddWinSheet(
@@ -461,21 +469,23 @@ struct MainAppView: View {
                 windowScheme = newTab == .camera ? .dark : .light
             }
         }
-        // Rebuild the bar when the camera stops being behind it.
+        // The tab bar is NOT rebuilt when leaving the camera.
         //
-        // The tab bar is Liquid Glass: it samples what is behind it and CACHES
-        // that sample. Measured, same page and same window scheme — a tower
-        // that had never shown the camera read 0.956, one that had read 0.341.
-        // It was not failing to follow the scheme; it was still wearing the
-        // black it picked up over the viewfinder, and nothing invalidates
-        // that: not the window scheme, not
-        // `toolbarBackgroundVisibility(.hidden)`, not
-        // `toolbarColorScheme`, not a `UITabBarAppearance`.
+        // It is Liquid Glass: it samples what is behind it and caches that, so
+        // after a full-screen viewfinder it stays dark — measured at 0.341
+        // against 0.956 for a tower that had never shown the camera. Four ways
+        // to make it re-sample were tried: `UITabBarAppearance`,
+        // `toolbarColorScheme(_:for: .tabBar)`,
+        // `toolbarBackgroundVisibility(.hidden)`, and changing the TabView's
+        // `.id`. Only the last worked — and it BREAKS `selection`: a TabView
+        // with an `.id` ignores its selection binding and sits on its first
+        // tab, so `-strataStartTab insights` landed on Wins and so would any
+        // deep link. Re-asserting the selection afterwards does not help,
+        // because the binding is ignored from the first render.
         //
-        // Changing the identity is the one thing that does, because it makes a
-        // new bar rather than asking the old one to think again. It costs a
-        // rebuild of the tab content on the way OUT of the camera only.
-        .id(tabBarGeneration)
+        // Navigation that works beats chrome that is the right shade. The bar
+        // staying dark after the camera is a known cost, written down here so
+        // the next person does not spend the afternoon on it again.
         // Black on light, white on dark.
         //
         // A single fixed colour was tried and it is worse: the best any one
@@ -488,9 +498,6 @@ struct MainAppView: View {
         .tint(.primary)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { oldTab, newTab in
-            if oldTab == .camera && newTab != .camera {
-                tabBarGeneration += 1
-            }
             HapticsEngine.tick()
             if newTab == .tower && !pendingDrops.isEmpty {
                 Task { await cascadeDropPendingBlocks() }
@@ -587,10 +594,28 @@ struct MainAppView: View {
                 .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
-            TowerRangePicker(selection: Binding(
-                get: { towerFilterMode },
-                set: { towerFilterMode = $0 }
-            ))
+            // Share, where the range picker was.
+            //
+            // The tower is today. A picker offering two other spans was
+            // offering to make it something else, on the one screen whose
+            // whole claim is "here is what you did today" — and the record of
+            // other days is what Insights is for. What belongs in that corner
+            // is the thing you actually want when the tower looks good, which
+            // is to show somebody.
+            Button {
+                HapticsEngine.lightTap()
+                isSharing = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
+                    .foregroundStyle(.primary.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(towerVM.placedBlocks.isEmpty)
+            .opacity(towerVM.placedBlocks.isEmpty ? 0.3 : 1)
+            .accessibilityLabel("Share your tower")
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
@@ -616,6 +641,24 @@ struct MainAppView: View {
             }
         }
         pendingDrops.append(habit)
+    }
+
+    /// Moves to a tab from code, and makes it stick.
+    ///
+    /// Assigning during `setup` alone is a race: `setup` runs on the first
+    /// `onAppear`, and the TabView commits its own default selection during
+    /// the same layout pass — sometimes after us. Re-asserting on the next
+    /// runloop turn costs nothing and removes the coin flip. It showed up as a
+    /// launch argument landing on the wrong tab, but any deep link would hit
+    /// the same race.
+    private func selectTab(_ tab: StrataTab) {
+        selectedTab = tab
+        windowScheme = tab == .camera ? .dark : .light
+        Task { @MainActor in
+            guard selectedTab != tab else { return }
+            selectedTab = tab
+            windowScheme = tab == .camera ? .dark : .light
+        }
     }
 
     /// Extracted, like the other tab roots. `mainContent` is a three-Tab
@@ -1307,8 +1350,7 @@ struct MainAppView: View {
         debugAutoChecksLeft = DebugHarness.autoChecks
         debugTabFlipsLeft = DebugHarness.tabFlips
         if let tab = DebugHarness.startTab {
-            selectedTab = tab
-            windowScheme = tab == .camera ? .dark : .light
+            selectTab(tab)
         }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
@@ -2140,35 +2182,29 @@ struct MainAppView: View {
     /// thing on the page and pointed away from it. There is a pressable slot on
     /// the ground now, so the copy names that instead, and scheduling is a
     /// quiet second line rather than the headline.
+    /// The screen on an empty morning.
+    ///
+    /// This is the most-seen screen in the app: every day starts here. So it
+    /// gets less, not more.
+    ///
+    /// Gone: the greeting, which changed four times a day and was never the
+    /// reason anyone opened the app; the two-line gesture manual, which
+    /// explained a rule that no longer exists; and the secondary button, which
+    /// offered a second way to do the one thing the slot right above it does.
+    /// A morning does not need to be briefed.
+    ///
+    /// What is left points at the slot — the only thing on the screen — and
+    /// says what pressing it is for, once, quietly.
     private var towerEmptyStateMessage: some View {
-        VStack(spacing: 10) {
-            // #103: Time-of-day greeting
-            Text(Self.timeOfDayGreeting)
+        VStack(spacing: 7) {
+            Text("Nothing yet today")
                 .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.6))
+                .foregroundStyle(.primary.opacity(0.55))
 
-            // Teaches the whole interaction in one sentence, on the one
-            // screen where there is nothing else to read. Both halves of the
-            // rule — tap does it, hold plans it — and after that the gestures
-            // are the same everywhere: tapping an outlined block marks it
-            // done, holding one edits it.
-            Text("Hold the empty block to record something you did.\nTap it to plan something instead.")
+            Text("Hold the block to log your first win.")
                 .font(Typography.bodySmall)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary.opacity(0.35))
                 .multilineTextAlignment(.center)
-
-            // No "or plan your day". There is nowhere else to go: planning
-            // is adding an outlined block to this same tower.
-            Button {
-                HapticsEngine.lightTap()
-                isNewHabitMenuOpen = true
-            } label: {
-                Text("or add something now")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(.primary.opacity(0.4))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

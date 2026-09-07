@@ -81,7 +81,7 @@ struct AddWinSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isEditing ? "Save" : "Add") { save() }
                         .disabled(!canSave)
-                        .fontWeight(.semibold)
+                        .fontWeight(.medium)
                 }
             }
             .onAppear(perform: load)
@@ -216,7 +216,7 @@ struct AddWinSheet: View {
             .overlay(alignment: .bottomTrailing) {
                 if photo != nil {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white)
                         .padding(7)
                         .background(Circle().fill(.black.opacity(0.35)))
@@ -255,7 +255,7 @@ struct AddWinSheet: View {
                             .frame(width: 34, height: 34)
                         if let icon = cat.iconName {
                             Image(systemName: icon)
-                                .iconSize(13, relativeTo: .footnote, weight: .semibold)
+                                .iconSize(13, relativeTo: .footnote, weight: .medium)
                                 .foregroundStyle(.white)
                         }
                         if isSelected {

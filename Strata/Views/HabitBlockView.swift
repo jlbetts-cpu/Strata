@@ -205,7 +205,7 @@ struct BlockContentOverlay: View {
                 Spacer()
                 if !isUnnamed {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(.white)
                         .lineLimit(rowSpan > 1 ? 2 : 1)
                         .minimumScaleFactor(0.65)
@@ -214,13 +214,13 @@ struct BlockContentOverlay: View {
                         // darkened until anything would be legible on it.
                         .shadow(color: .black.opacity(hasImage ? 0.55 : 0), radius: 3, x: 0, y: 1)
 
-                    if let time = timeText {
-                        Text(time)
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
-                            .foregroundStyle(.white.opacity(hasImage ? 0.85 : 0.6))
-                            .shadow(color: .black.opacity(hasImage ? 0.5 : 0), radius: 2, x: 0, y: 1)
-                            .contentTransition(.interpolate)
-                    }
+                    // No time on the block.
+                    //
+                    // A tower of a dozen blocks was a dozen timestamps nobody
+                    // reads — the same information twelve times, in the one
+                    // place the app is meant to be a picture rather than a
+                    // log. What a block says is what you did; when you did it
+                    // is on the card if you ever want it.
                 }
             }
             .frame(maxWidth: .infinity, alignment: .bottomLeading)

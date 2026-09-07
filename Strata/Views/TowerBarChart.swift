@@ -105,7 +105,13 @@ struct TowerBarChart: View {
         // Opens showing the most recent period, which is the one you came to
         // look at — a chart of your own history that starts at the beginning
         // is a chart you have to scroll before it says anything.
-        .defaultScrollAnchor(.trailing)
+        //
+        // `.topTrailing`, not `.trailing`. A UnitPoint carries BOTH axes and
+        // `.trailing` is (1, 0.5), so the vertical half of it was applying to
+        // the page's own scroll view and opening Insights halfway down —
+        // past the count, the streak and the chart it was meant to be
+        // anchoring. The x is what this needs; the y has to be 0.
+        .defaultScrollAnchor(.topTrailing)
     }
 }
 

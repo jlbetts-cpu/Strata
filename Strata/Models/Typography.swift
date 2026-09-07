@@ -2,6 +2,10 @@ import SwiftUI
 
 enum Typography {
     // MARK: - Brand (SF Pro Rounded — unified single-font system)
+    // TWO WEIGHTS, EVERYWHERE: medium for anything that is a heading, a
+    // number or a control, regular for everything you read. Semibold, light
+    // and bold are not in the app's voice — a third weight is a third level of
+    // emphasis, and every screen here has at most two things to say.
     static let brandLogo = Font.system(.title2, design: .rounded, weight: .medium)
     static let brandHeader = Font.system(.title3, design: .rounded, weight: .medium)
     static let brandSubheader = Font.system(.headline, design: .rounded, weight: .medium)

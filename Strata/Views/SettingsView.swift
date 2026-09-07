@@ -210,7 +210,7 @@ struct SettingsView: View {
                 if healthKitService.isAuthorized {
                     let connectedHabits = habits.filter { $0.healthKitType != nil }
                     if connectedHabits.isEmpty {
-                        Text("No habits connected to Apple Health yet")
+                        Text("Nothing connected to Apple Health yet")
                             .font(Typography.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -322,7 +322,7 @@ struct SettingsView: View {
                         dismiss()
                     }
                 } message: {
-                    Text("This will permanently delete all habits, logs, and photos. This cannot be undone.")
+                    Text("This will permanently delete every win, its photo, and your tower. This cannot be undone.")
                 }
             }
 
@@ -612,7 +612,16 @@ private struct SettingsIcon: View {
 
 // MARK: - Share Sheet (UIKit Bridge)
 
-private struct ShareSheet: UIViewControllerRepresentable {
+/// The system share sheet.
+///
+/// `UIActivityViewController` rather than a hand-built row of app buttons: it
+/// already knows which apps the person has, which ones they use most, and how
+/// each one wants an image handed to it — and Instagram and Snapchat both take
+/// a story image through it. A custom sheet is a worse version of that which
+/// needs updating every time somebody installs something.
+///
+/// Not `private`: the tower shares through it too.
+struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

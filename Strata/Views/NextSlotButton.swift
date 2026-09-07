@@ -145,7 +145,7 @@ struct NextSlotButton: View {
                 )
 
             Image(systemName: "plus")
-                .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .semibold)
+                .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
                 .foregroundStyle(
                     AppColors.warmBlack
                         .opacity((isDown ? 0.52 : 0.38) * (1 - drawProgress))

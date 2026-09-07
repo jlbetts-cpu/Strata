@@ -40,7 +40,7 @@ struct WelcomeView: View {
             // Copy
             VStack(spacing: 8) {
                 Group {
-                    Text("Every habit you finish")
+                    Text("Every win you log")
                     + Text("\nbecomes a block.")
                 }
                 .font(Typography.headerMedium)
@@ -72,7 +72,7 @@ struct WelcomeView: View {
                         .background(AppColors.accentWarm, in: Capsule())
                 }
                 .accessibilityLabel("Start stacking")
-                .accessibilityHint("Begin building your habit tower")
+                .accessibilityHint("Start your tower")
 
                 Button {
                     HapticsEngine.tick()

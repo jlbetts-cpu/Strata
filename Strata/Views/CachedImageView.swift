@@ -27,7 +27,7 @@ struct CachedImageView: View {
                     .frame(width: width, height: height)
                     .overlay(
                         Image(systemName: "photo")
-                            .font(.system(size: min(width, height) * 0.25, weight: .light))
+                            .font(.system(size: min(width, height) * 0.25, weight: .regular))
                             .foregroundStyle(.secondary.opacity(0.5))
                     )
                     .onTapGesture {
