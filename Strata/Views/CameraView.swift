@@ -16,6 +16,8 @@ struct CameraView: View {
     /// Hands back the captured photo. Nil means the viewer backed out.
     var onCaptured: (UIImage) -> Void = { _ in }
     var onClose: (() -> Void)? = nil
+    /// Today's count, shown in the gap the guides leave open.
+    var winCount: Int? = nil
 
     @State private var camera = CameraService()
     @State private var flashOpacity: Double = 0
@@ -28,9 +30,15 @@ struct CameraView: View {
     /// Rule-of-quarters guides. Two verticals and two horizontals, which is
     /// what the design specifies — not a full nine-cell thirds grid.
     private enum Guide {
-        static let verticalX: [CGFloat] = [0.2516, 0.7394]
-        static let horizontalY: [CGFloat] = [0.2580, 0.5000]
-        /// The break in the first vertical, left open for the logo.
+        /// Thirds, evenly. The Figma has them at 0.25/0.74 and 0.26/0.50,
+        /// which is a designer eyeballing a grid rather than a grid — the
+        /// cells came out different sizes. This is the rule of thirds the
+        /// iPhone camera draws, and it is the one everybody composing a shot
+        /// is expecting.
+        static let verticalX: [CGFloat] = [1.0 / 3.0, 2.0 / 3.0]
+        static let horizontalY: [CGFloat] = [1.0 / 3.0, 2.0 / 3.0]
+        /// The break in the first vertical, left open for the mark and the
+        /// count. Kept at the design's proportions.
         static let gapTop: CGFloat = 48.0 / 874.0
         static let gapBottom: CGFloat = 127.0 / 874.0
         static let colour = Color.white.opacity(0.28)
@@ -66,18 +74,44 @@ struct CameraView: View {
                     )
                     .ignoresSafeArea()
 
-                guides(w: w, h: h)
-                    .allowsHitTesting(false)
+                // Drawn over the whole preview, which is full-bleed — so the
+                // thirds have to be thirds of the SCREEN, not of the area left
+                // over after the tab bar. Computed against the safe box they
+                // came out at 0.35 and 0.63: not thirds, and not even
+                // symmetrical.
+                guides(
+                    w: w + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
+                    h: h + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+                )
+                .offset(x: -geo.safeAreaInsets.leading, y: -geo.safeAreaInsets.top)
+                .allowsHitTesting(false)
 
                 controls(w: w, h: h, bottomInset: geo.safeAreaInsets.bottom)
+
+                if let winCount {
+                    tally(winCount, topInset: geo.safeAreaInsets.top)
+                        .allowsHitTesting(false)
+                }
 
                 warmFlash
                     .allowsHitTesting(false)
             }
         }
         .background(Color.black.ignoresSafeArea())
+        // No `.preferredColorScheme(.dark)`.
+        //
+        // It was here so the status bar would be legible on a black preview.
+        // Applied inside a tab it propagates to the WHOLE WINDOW: `.primary`
+        // flipped to white, so the tower's "N wins" became white text on the
+        // light background and vanished, and the tab bar stayed dark after
+        // leaving the camera. The app is light-only by decision and one screen
+        // does not get to argue with that.
+        //
+        // It turned out not to be needed: over a black preview the status bar
+        // renders light on its own. Hiding it instead was worse — collapsing
+        // the top safe area made the tab bar draw a ghost of itself along the
+        // top edge.
         .statusBarHidden(false)
-        .preferredColorScheme(.dark)
         .task { await camera.start() }
         .onDisappear {
             camera.stop()
@@ -119,13 +153,40 @@ struct CameraView: View {
         .frame(width: w, height: h, alignment: .topLeading)
     }
 
+    /// The count, in the gap.
+    ///
+    /// The guides leave a break in the top-left vertical, and this is what
+    /// goes in it. It sits at exactly the offset the tower's header uses — the
+    /// same 4pt below the safe area, the same horizontal padding, the same
+    /// 40pt rounded numeral — so moving between the two screens does not move
+    /// the number. It is the same fact in the same place, wearing the colours
+    /// of whichever page you are on.
+    private func tally(_ count: Int, topInset: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("\(count)")
+                .font(.system(size: 40, weight: .medium, design: .rounded))
+                .foregroundStyle(Color(white: 0.96))
+                .contentTransition(.numericText())
+            Text(count == 1 ? "win" : "wins")
+                .font(Typography.bodyMedium)
+                .foregroundStyle(Color(white: 0.96).opacity(0.55))
+            Spacer(minLength: 0)
+        }
+        // Legible over anything the lens happens to be pointing at.
+        .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 1)
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.top, topInset + 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: - Controls
 
     private func controls(w: CGFloat, h: CGFloat, bottomInset: CGFloat) -> some View {
         // The design has nothing below the shutter; this screen has a tab bar.
         // Measuring up from the safe area keeps the same visual gap under the
         // button that the design has, instead of letting the tab bar sit on it.
-        let shutterCentre = h - bottomInset - shutterOuter / 2 - 34
+        let shutterCentre = h - bottomInset - shutterOuter / 2 - 52
         return ZStack(alignment: .topLeading) {
             glyphButton("arrow.triangle.2.circlepath") {
                 withAnimation(GridConstants.motionSmooth) { camera.flip() }
@@ -175,21 +236,31 @@ struct CameraView: View {
         .buttonStyle(.plain)
     }
 
-    /// A ring and a disc, as in the design: the outline is the button's edge
-    /// and the fill is the shutter itself, so pressing it can compress the
-    /// fill inside a rim that stays put.
+    /// A block, not a circle.
+    ///
+    /// Everything you make in this app is a block, and this is the button that
+    /// makes one. A circle here was a camera's shutter; a rounded square is
+    /// this app's shutter. The proportions are the block's own — the corner
+    /// radius is 14.7% of the side, the same ratio every block on the tower
+    /// uses, so it reads as the same object at a different size.
+    ///
+    /// Still a rim and a fill: the outline is the button's edge and the fill is
+    /// the shutter itself, so pressing it compresses the fill inside a rim that
+    /// stays put.
     private var shutter: some View {
-        ZStack {
-            Circle()
+        let outerRadius = shutterOuter * 0.147
+        let innerRadius = shutterInner * 0.147
+        return ZStack {
+            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                 .strokeBorder(Color(white: 0.90), lineWidth: 1)
                 .frame(width: shutterOuter, height: shutterOuter)
 
-            Circle()
+            RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
                 .fill(Color(white: 0.90))
                 .frame(width: shutterInner, height: shutterInner)
                 .scaleEffect(shutterScale)
         }
-        .contentShape(Circle())
+        .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
         .onTapGesture { fire() }
         .accessibilityLabel("Take photo")
         .accessibilityAddTraits(.isButton)

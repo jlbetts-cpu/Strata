@@ -560,11 +560,16 @@ struct MainAppView: View {
     /// The camera tab. A shot here becomes a win with that photo as its face,
     /// and the tower is where you land afterwards to watch it drop.
     private var cameraTab: some View {
-        CameraView(onCaptured: { image in
-            logWin(size: .small, photo: image)
-            selectedTab = .tower
-        })
-        .ignoresSafeArea()
+        // No `.ignoresSafeArea()` here. The preview ignores it from the
+        // inside; the screen needs real insets so the shutter can be placed
+        // above the tab bar and the count below the notch.
+        CameraView(
+            onCaptured: { image in
+                logWin(size: .small, photo: image)
+                selectedTab = .tower
+            },
+            winCount: towerVM.placedBlocks.count
+        )
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
