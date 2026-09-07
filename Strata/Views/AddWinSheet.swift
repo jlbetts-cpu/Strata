@@ -107,8 +107,10 @@ struct AddWinSheet: View {
                     photo = image
                     showCamera = false
                 },
-                onClose: { showCamera = false }
+                onClose: { showCamera = false },
+                fillsScreen: true
             )
+            .preferredColorScheme(.dark)
         }
         // Two sources, asked once.
         //

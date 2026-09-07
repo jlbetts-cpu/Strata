@@ -18,6 +18,9 @@ struct CameraView: View {
     var onClose: (() -> Void)? = nil
     /// Today's count, shown in the gap the guides leave open.
     var winCount: Int? = nil
+    /// True when nothing else is on screen — presented as its own sheet rather
+    /// than as a tab with a bar beneath it.
+    var fillsScreen: Bool = false
 
     @State private var camera = CameraService()
     @State private var flashOpacity: Double = 0
@@ -79,68 +82,53 @@ struct CameraView: View {
 
     var body: some View {
         GeometryReader { geo in
-            // The preview lives INSIDE the safe area, on the app's own
-            // background, rather than under the status bar and the tab bar.
+            let topInset = geo.safeAreaInsets.top
+            // Presented on its own there is no tab bar to leave room for, so
+            // it takes the whole screen. In the tab it stops just above the
+            // bar, which is what keeps the app's light ground under the bar
+            // rather than a black viewfinder.
             //
-            // Three complaints had one cause. The tab bar is Liquid Glass: it
-            // samples whatever is behind it, so a full-bleed black viewfinder
-            // turned it dark, and it re-sampled only once the black had
-            // finished sliding away — which is the lag between leaving the
-            // camera and the bar going light again. Sitting the preview above
-            // it means there is never anything dark to sample, so the bar is
-            // light on every screen and there is no transition to be late.
-            //
-            // Same for the status bar: on the warm ground its dark text is
-            // legible on its own, so the pale gradient that was propping it up
-            // is gone.
-            //
-            // And the thirds are now thirds of the PREVIEW. Drawn over the
-            // whole screen they were exact but did not look it — the bottom
-            // third was partly behind the tab bar, so the middle band read as
-            // longer than the two it sits between.
+            // Without this the modal camera drew to the top of the home
+            // indicator and left a stray light strip below itself with the
+            // rounded corners floating above it — which is what was broken
+            // about the add sheet's camera.
+            let bottomInset = fillsScreen ? geo.safeAreaInsets.bottom : 0
             let w = geo.size.width
-            // Full width, hard to the top and the side walls, and stopping
-            // just above the tab bar.
-            let h = geo.size.height + geo.safeAreaInsets.top
+            let h = geo.size.height + topInset + bottomInset
 
             ZStack {
                 CameraPreview(session: camera.session)
 
-                guides(w: w, h: h, topInset: geo.safeAreaInsets.top)
+                guides(w: w, h: h, topInset: topInset)
                     .allowsHitTesting(false)
 
-                header(topInset: geo.safeAreaInsets.top)
+                header(topInset: topInset)
 
-                controls(w: w, h: h)
+                controls(w: w, h: h, bottomInset: bottomInset)
 
                 warmFlash
                     .allowsHitTesting(false)
             }
             .frame(width: w, height: h)
             .background(Color(red: 0.031, green: 0.031, blue: 0.031))
-            // Square at the top where it meets the edge of the screen, rounded
-            // where it ends — which is the shape the Figma draws, and only
-            // makes sense because something is behind it.
+            // Square where it meets the edge of the screen, rounded where it
+            // stops short of one — the shape the Figma draws, and one that
+            // only makes sense because something is behind it. Full screen, it
+            // rounds nothing.
             .clipShape(
                 .rect(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: cornerRadius,
-                    bottomTrailingRadius: cornerRadius,
+                    bottomLeadingRadius: fillsScreen ? 0 : cornerRadius,
+                    bottomTrailingRadius: fillsScreen ? 0 : cornerRadius,
                     topTrailingRadius: 0
                 )
             )
-            .offset(y: -geo.safeAreaInsets.top)
+            .offset(y: -topInset)
         }
-        // No `.ignoresSafeArea` on the GeometryReader.
-        //
-        // It reports ZERO insets once you tell it to ignore them, so the
-        // header lost the value it needs to clear the notch and printed the
-        // count straight through the clock. The reader keeps its real insets;
-        // the preview reaches the top by being drawn taller and offset up by
-        // exactly that inset instead.
-        //
-        // The viewfinder reaches the top and both walls; only the bottom stays
-        // clear, so the tab bar keeps the app's own light ground under it.
+        // No `.ignoresSafeArea` on the GeometryReader: it reports ZERO insets
+        // once told to ignore them, and the header needs the real value to
+        // clear the notch. The preview reaches the edges by being drawn taller
+        // and offset instead.
         .background { WarmBackground().ignoresSafeArea() }
         .task { await camera.start() }
         .onDisappear {
@@ -255,8 +243,8 @@ struct CameraView: View {
 
     // MARK: - Controls
 
-    private func controls(w: CGFloat, h: CGFloat) -> some View {
-        let shutterCentre = h - shutterOuter / 2 - 26
+    private func controls(w: CGFloat, h: CGFloat, bottomInset: CGFloat) -> some View {
+        let shutterCentre = h - bottomInset - shutterOuter / 2 - 26
         // Where a thumb already is. The two settings you actually change while
         // shooting were in the top right corner, which on a phone this size is
         // a two-handed reach — so in practice you either put the phone down or
