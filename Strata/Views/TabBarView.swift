@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum StrataTab: String, CaseIterable {
-    case tower = "Tower"
+    case tower = "Wins"
     case camera = "Camera"
     case insights = "Insights"
 

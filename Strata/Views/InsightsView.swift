@@ -6,6 +6,7 @@ struct InsightsView: View {
     let logs: [HabitLog]
     var onAddHabit: (() -> Void)? = nil
     var onNavigateToTower: ((TowerFilterMode) -> Void)? = nil
+    var openSettings: (() -> Void)? = nil
 
     @AppStorage("insightsRange") private var rangeRaw: String = TowerFilterMode.day.rawValue
     private var range: TowerFilterMode {
@@ -32,20 +33,15 @@ struct InsightsView: View {
                         Image(systemName: "chart.bar")
                             .font(Typography.brandHeader)
                             .foregroundStyle(Color.primary.opacity(0.35))
-                        Text("Complete habits to see your journey here")
+                        Text("Nothing to show yet")
                             .font(Typography.headerMedium)
                             .foregroundStyle(Color.primary.opacity(0.6))
-                        Text("Complete habits on the Today tab\nto track your progress here")
+                        Text("Log a win and it shows up here.")
                             .font(Typography.bodySmall)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
-                }
-
-                // SECTION 1: STREAKS (Hero)
-                if !viewModel.streaks.isEmpty {
-                    streaksSection
                 }
 
                 // SECTION 2: PHOTO CALENDAR
@@ -57,15 +53,19 @@ struct InsightsView: View {
                     dayDetailCard(for: dayInsight)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.bottom, 100)
         }
         .background { WarmBackground().ignoresSafeArea() }
-        // No title — the tab bar says "Insights". The bar itself stays, because
-        // Settings now lives here: a place you go to look at the app is where
-        // the switches that change it belong.
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        // No navigation bar at all, so the count sits where the other pages'
+        // counts sit.
+        //
+        // The bar was reserving about 44pt above the content, which put this
+        // page's numeral that much lower than the identical numeral on the
+        // tower and the camera — one number, three heights. Settings moves
+        // into the header row, which is where it can live without costing a
+        // bar.
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.compute(habits: habits, logs: logs)
         }
@@ -97,8 +97,25 @@ struct InsightsView: View {
                     get: { range },
                     set: { range = $0 }
                 ))
+                Button {
+                    HapticsEngine.lightTap()
+                    openSettings?()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
+                        .foregroundStyle(.primary.opacity(0.45))
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
             }
-            .padding(.horizontal, 4)
+
+            if dailyStreak > 0 {
+                Text(dailyStreak == 1 ? "1 day in a row" : "\(dailyStreak) days in a row")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(.primary.opacity(0.40))
+            }
 
             TowerBarChart(
                 columns: columns,
@@ -173,107 +190,38 @@ struct InsightsView: View {
         return f
     }()
 
-    // MARK: - Streaks Section
+    // MARK: - The streak
 
-    private var streaksSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("STREAKS")
-                .font(Typography.caption)
-                .tracking(0.5)
-                .foregroundStyle(Color.primary.opacity(0.5))
+    /// One streak: consecutive days you logged something.
+    ///
+    /// Per-habit streaks went with repeating habits — there is nothing left to
+    /// keep a streak ON. A streak per habit was also the wrong count for this
+    /// app even when it had them: it rewards doing the same thing, and the
+    /// tower rewards doing anything. This counts days you showed up, which is
+    /// the only claim the data can still make.
+    ///
+    /// Today not being logged yet does not break it. A streak that resets at
+    /// midnight and shames you until lunch is measuring the clock, not you —
+    /// so the count runs back from today if today has something, and from
+    /// yesterday if it does not.
+    private var dailyStreak: Int {
+        let calendar = Calendar.current
+        var days = Set<String>()
+        for log in logs where log.completed { days.insert(log.dateString) }
+        guard !days.isEmpty else { return 0 }
 
-            let sortedStreaks = viewModel.streaks.sorted { $0.streak > $1.streak }
-            let displayedStreaks = showAllStreaks ? sortedStreaks : Array(sortedStreaks.prefix(3))
-            ForEach(displayedStreaks, id: \.habit.id) { item in
-                NavigationLink {
-                    HabitCalendarView(
-                        habit: item.habit,
-                        logs: logs,
-                        currentStreak: item.streak,
-                        bestStreak: item.bestStreak
-                    )
-                } label: {
-                    HStack(spacing: 12) {
-                        // A block, not an icon in a tinted circle: the same
-                        // square at the same corner ratio the tower uses, so
-                        // the row is marked by the thing it is counting.
-                        RoundedRectangle(cornerRadius: 22 * 0.147, style: .continuous)
-                            .fill(item.habit.displayCategory.style.baseColor)
-                            .frame(width: 22, height: 22)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.habit.title)
-                                .font(Typography.bodyMedium)
-                                .foregroundStyle(.primary)
-                            if item.habit.graceDays > 0 {
-                                Text("\(item.habit.graceDays)d grace")
-                                    .font(Typography.caption2)
-                                    .foregroundStyle(Color.primary.opacity(0.5))
-                            }
-                        }
-
-                        Spacer()
-
-                        Text("\(item.streak)")
-                            .font(Typography.headerLarge)
-                            .foregroundStyle(.primary.opacity(item.streak > 0 ? 0.85 : 0.28))
-
-                        Text(item.streak == 1 ? "day" : "days")
-                            .font(Typography.caption)
-                            .foregroundStyle(Color.primary.opacity(0.4))
-
-                        Image(systemName: "chevron.right")
-                            .font(Typography.caption2)
-                            .foregroundStyle(Color.primary.opacity(0.4))
-                    }
-                    // No card.
-                    //
-                    // Each of these was a rounded rect filled with a gradient
-                    // of its category's colour — a tinted panel per row, three
-                    // of them stacked, on a page whose only real objects are
-                    // blocks. A white rim, a frosted band or a filled well says
-                    // "you built this and it is standing on something", which
-                    // is a block's claim; a list of streaks is a list. Rows and
-                    // a hairline, like everywhere else.
-                    .padding(.vertical, 11)
-                    .padding(.horizontal, 4)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button {
-                        onNavigateToTower?(.week)
-                    } label: {
-                        Label("View on Tower", systemImage: "square.stack.fill")
-                    }
-                    Button {
-                        switchTab?(.tower)
-                    } label: {
-                        Label("View in Today", systemImage: "calendar")
-                    }
-                }
-
-                if item.habit.id != displayedStreaks.last?.habit.id {
-                    Rectangle()
-                        .fill(.primary.opacity(0.06))
-                        .frame(height: 0.5)
-                        .padding(.leading, 38)
-                }
-            }
-
-            // Progressive disclosure (Miller 1956, Shneiderman 1996)
-            if sortedStreaks.count > 3 {
-                Button {
-                    withAnimation(GridConstants.gentleReveal) { showAllStreaks.toggle() }
-                } label: {
-                    Text(showAllStreaks ? "Show less" : "Show all \(sortedStreaks.count) habits")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-            }
+        var cursor = Date()
+        if !days.contains(Self.dateFormatter.string(from: cursor)) {
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor) else { return 0 }
+            cursor = yesterday
         }
+        var count = 0
+        while days.contains(Self.dateFormatter.string(from: cursor)) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return count
     }
 
     // MARK: - Calendar Section

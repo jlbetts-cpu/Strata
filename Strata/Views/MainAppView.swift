@@ -201,6 +201,9 @@ struct MainAppView: View {
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
+    /// Light on every page but the camera. Held separately from `selectedTab`
+    /// so it can be changed without an animation; see `mainContent`.
+    @State private var windowScheme: ColorScheme = .light
     /// Bumped when leaving the camera, to force a fresh tab bar.
     @State private var tabBarGeneration = 0
     /// The habit whose sheet is open, from a long press on an outlined block.
@@ -386,29 +389,15 @@ struct MainAppView: View {
     }
 
     private var mainContent: some View {
-        // Switching tabs does not animate the appearance change.
-        //
-        // The tower and Insights are always light and the camera is always
-        // dark — none of them is transitioning to anything, they simply ARE
-        // what they are. But `preferredColorScheme` is a window property, so
-        // moving between two tabs that declare different ones makes SwiftUI
-        // crossfade the window, and a crossfade of a thing that was never in
-        // between reads as a hiccup.
-        //
-        // Setting the selection inside a transaction with animations disabled
-        // makes the swap land on one frame: the screen you left was light, the
-        // screen you arrived at is dark, and there is no state in between for
-        // anything to be caught in.
-        TabView(selection: Binding(
-            get: { selectedTab },
-            set: { newTab in
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) { selectedTab = newTab }
-            }
-        )) {
-            Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
+        TabView(selection: $selectedTab) {
+            // Hollow when it is not the page you are on, filled when it
+            // is. One glyph in two states says "here" without needing the
+            // label, the colour or the pill to say it as well — and it is what
+            // every tab bar on the platform does, so it needs no learning.
+            Tab(value: StrataTab.tower) {
                 towerTabRoot
+                        } label: {
+                Label("Wins", systemImage: selectedTab == .tower ? "square.stack.fill" : "square.stack")
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -428,47 +417,50 @@ struct MainAppView: View {
             // different moments: you photograph the thing when it happens, and
             // you can name it after. Shooting from here logs the win straight
             // away with the photo already on it.
-            Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
+            Tab(value: StrataTab.camera) {
                 cameraTab
+            } label: {
+                Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
             }
-            Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
-                NavigationStack {
-                    InsightsView(
-                        habits: Array(habits),
-                        logs: Array(logs),
-                        onAddHabit: {
-                            HapticsEngine.lightTap()
-                            isNewHabitMenuOpen = true
-                        },
-                        onNavigateToTower: { _ in selectedTab = .tower }
-                    )
-                    .environment(\.switchTab, { selectedTab = $0 })
-                    .toolbar { insightsToolbar }
-                }
-                .sheet(isPresented: $showSettings) {
-                    NavigationStack {
-                        SettingsView(
-                            onboarding: onboarding,
-                            onResetAllData: { resetTower() }
-                        )
-                    }
-                }
+            Tab(value: StrataTab.insights) {
+                insightsTabRoot
+            } label: {
+                Label("Insights", systemImage: selectedTab == .insights ? "chart.bar.fill" : "chart.bar")
             }
         }
-        // ONE declaration, driven by the selection.
+        // The window's appearance, changed without an animation.
         //
-        // This was three: `.light` on the tower, `.dark` on the camera,
-        // `.light` on Insights. In a TabView the content of a tab you are not
-        // looking at stays in the hierarchy — so after leaving the camera its
-        // `.dark` was still being declared, competing with the tower's
-        // `.light`, and which one the window resolved to was down to ordering.
-        // That is the tab bar "not understanding it is in the light again":
-        // nothing had told it, because two views were still arguing.
+        // Two things had to be true and they pulled against each other.
         //
-        // A single modifier on the TabView cannot disagree with itself. The
-        // window is dark when the camera is the selected tab and light
-        // otherwise, and that is the whole rule.
-        .preferredColorScheme(selectedTab == .camera ? .dark : .light)
+        // It has to be ONE declaration. It was three — `.light` on the tower,
+        // `.dark` on the camera, `.light` on Insights — and in a TabView the
+        // content of a tab you are not looking at stays in the hierarchy, so
+        // after leaving the camera its `.dark` was still being declared,
+        // competing with the tower's `.light`, and which one won came down to
+        // ordering. That is the appearance "not understanding it is in the
+        // light again": two views were still arguing about it.
+        //
+        // And it must not crossfade. The tower and Insights are always light,
+        // the camera is always dark; none of them is transitioning to
+        // anything, so a blend through a state that never existed reads as a
+        // hiccup.
+        //
+        // A separate value, updated in a transaction with animations disabled,
+        // gets both. Deriving it inline from `selectedTab` cannot: the change
+        // arrives carrying whatever transaction the tab switch brought with
+        // it. An earlier attempt wrapped the SELECTION in a custom binding
+        // instead — which fixed the animation and quietly broke programmatic
+        // navigation, because the TabView writes its own selection back
+        // through that binding on appear and overwrote anything set during
+        // setup.
+        .preferredColorScheme(windowScheme)
+        .onChange(of: selectedTab) { _, newTab in
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                windowScheme = newTab == .camera ? .dark : .light
+            }
+        }
         // Rebuild the bar when the camera stops being behind it.
         //
         // The tab bar is Liquid Glass: it samples what is behind it and CACHES
@@ -624,6 +616,34 @@ struct MainAppView: View {
             }
         }
         pendingDrops.append(habit)
+    }
+
+    /// Extracted, like the other tab roots. `mainContent` is a three-Tab
+    /// TabView already at the type-checker's ceiling — adding one parameter to
+    /// the Insights call tipped it over with "unable to type-check this
+    /// expression in reasonable time". See CLAUDE.md.
+    private var insightsTabRoot: some View {
+        NavigationStack {
+            InsightsView(
+                habits: Array(habits),
+                logs: Array(logs),
+                onAddHabit: {
+                    HapticsEngine.lightTap()
+                    isNewHabitMenuOpen = true
+                },
+                onNavigateToTower: { _ in selectedTab = .tower },
+                openSettings: { showSettings = true }
+            )
+            .environment(\.switchTab, { selectedTab = $0 })
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView(
+                    onboarding: onboarding,
+                    onResetAllData: { resetTower() }
+                )
+            }
+        }
     }
 
     /// The camera tab. A shot here becomes a win with that photo as its face,
@@ -1358,7 +1378,10 @@ struct MainAppView: View {
         debugAutoWinsLeft = DebugHarness.autoWins
         debugAutoChecksLeft = DebugHarness.autoChecks
         debugTabFlipsLeft = DebugHarness.tabFlips
-        if let tab = DebugHarness.startTab { selectedTab = tab }
+        if let tab = DebugHarness.startTab {
+            selectedTab = tab
+            windowScheme = tab == .camera ? .dark : .light
+        }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .insights; showSettings = true
         case "add":      selectedTab = .tower; isNewHabitMenuOpen = true

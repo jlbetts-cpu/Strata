@@ -26,7 +26,11 @@ enum DebugHarness {
     /// Tab to open on launch, from `-strataStartTab <raw value, lowercased>`.
     static var startTab: StrataTab? {
         guard let raw = argument("-strataStartTab") else { return nil }
-        return StrataTab.allCases.first { $0.rawValue.lowercased() == raw.lowercased() }
+        let wanted = raw.lowercased()
+        // "tower" still works: the tab was called that for most of this
+        // project's life and every script and note that mentions it says so.
+        if wanted == "tower" { return .tower }
+        return StrataTab.allCases.first { $0.rawValue.lowercased() == wanted }
     }
 
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
