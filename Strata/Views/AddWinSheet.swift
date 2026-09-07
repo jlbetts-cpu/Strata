@@ -226,8 +226,16 @@ struct AddWinSheet: View {
             // Grows from the top left, where a block is anchored, so the
             // change reads as the block getting bigger rather than as the box
             // moving.
+            //
+            // No `.animation` here. Changing the size is ONE change and it has
+            // to be one animation: this modifier ran the well on `slotSnap`
+            // while the button's fill and everything the well pushes down the
+            // page ran on the `motionSmooth` of the `withAnimation` that set
+            // the value — two springs at different rates and different
+            // damping, which is exactly why the parts looked like they were
+            // moving separately. The transaction at the source now covers all
+            // of it.
             .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(GridConstants.slotSnap, value: size)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
@@ -273,7 +281,10 @@ struct AddWinSheet: View {
                 let isSelected = size == option
                 Button {
                     HapticsEngine.tick()
-                    withAnimation(GridConstants.motionSmooth) { size = option }
+                    // One transaction for the whole change: the well
+                    // resizes, the sections below it move up or down, and
+                    // this button fills — all on the same spring.
+                    withAnimation(GridConstants.slotSnap) { size = option }
                 } label: {
                     Text(option.effortLabel)
                         .font(Typography.bodySmall)

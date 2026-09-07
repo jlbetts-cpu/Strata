@@ -109,24 +109,6 @@ enum AppColors {
     static let accentWarm = Color(hex: 0x403D39)
     static let accentPurple = Color(hex: 0xA689FA)
 
-    /// The one highlight colour, on light and on dark.
-    ///
-    /// The tab bar is light on most screens and dark on the camera, and a
-    /// highlight that has to change with it is a highlight you have to think
-    /// about — it was `.primary`, which meant the selected item was a
-    /// different colour on different tabs and read as two different controls.
-    ///
-    /// **4.5:1 on both grounds is impossible, and this is the proof.** To
-    /// clear 4.5 against the app's off-white a colour needs luminance ≤ 0.168;
-    /// to clear it against the viewfinder's near-black it needs ≥ 0.186. The
-    /// windows do not overlap, so no colour exists that does both.
-    ///
-    /// The best any colour can do is sit at the geometric mean of the two
-    /// grounds — L = 0.177 — which gives exactly 4.33:1 against each. That is
-    /// what this is. It clears WCAG 1.4.11's 3:1 for interface components on
-    /// both with room to spare, and falls a little short of the 4.5:1 body-text
-    /// bar, which no colour could have met here.
-    static let accentEither = Color(hex: 0xAD6135)
     static let healthGreen = Color(hex: 0x34C48B)
     static let warmRed = Color(hex: 0xE85D4A)
     /// Ghost block background for incomplete timeline habits (light mode) — 12% luminance contrast to warm background (WCAG AA)

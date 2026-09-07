@@ -91,18 +91,16 @@ struct CameraView: View {
     var body: some View {
         GeometryReader { geo in
             let topInset = geo.safeAreaInsets.top
-            // Presented on its own there is no tab bar to leave room for, so
-            // it takes the whole screen. In the tab it stops just above the
-            // bar — and that is not a preference, it is the only way the bar
-            // stays light.
+            // Edge to edge, both here and presented on its own.
             //
-            // The iOS 26 tab bar is Liquid Glass: it samples what is behind
-            // it, so a viewfinder running underneath turns it black and takes
-            // the selected item with it. Three ways to stop it were tried and
-            // none reaches that bar: `UITabBarAppearance` (the glass bar does
-            // not use the proxy), `toolbarColorScheme(.light, for: .tabBar)`,
-            // and `toolbarBackground(_:for: .tabBar)` with `.visible`. Not
-            // putting black behind it is what is left.
+            // The tab bar goes dark over it — it is Liquid Glass and samples
+            // what is behind it, and three ways to stop that were tried and
+            // none reaches it (`UITabBarAppearance`,
+            // `toolbarColorScheme(_:for: .tabBar)`, and
+            // `toolbarBackground(_:for: .tabBar)`). That is fine now rather
+            // than a bug: the camera declares the dark scheme, so the bar's
+            // icons and its highlight go white, which is what belongs on a
+            // black viewfinder anyway.
             //
             // Without this the modal camera drew to the top of the home
             // indicator and left a stray light strip below itself with the

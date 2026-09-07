@@ -446,13 +446,16 @@ struct MainAppView: View {
                 .preferredColorScheme(.light)
             }
         }
-        // One highlight colour, on light and on dark.
+        // Black on light, white on dark.
         //
-        // It was `.primary`, which resolves differently on each ground — so
-        // the selected item was one colour on the tower and another on the
-        // camera, and read as two different controls. See `accentEither` for
-        // why 4.33:1 on both is the ceiling.
-        .tint(AppColors.accentEither)
+        // A single fixed colour was tried and it is worse: the best any one
+        // colour can manage against BOTH the app's off-white and the
+        // viewfinder's near-black is 4.33:1, and a hue that compromises for
+        // two grounds looks chosen for neither. `.primary` is simply the ink
+        // of whichever ground it is on — maximum contrast on both, and the
+        // same colour as the icons beside it, which is what "the highlight is
+        // the icon colour" meant.
+        .tint(.primary)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { _, newTab in
             HapticsEngine.tick()
@@ -593,7 +596,8 @@ struct MainAppView: View {
                 logWin(size: .small, photo: image)
                 selectedTab = .tower
             },
-            winCount: towerVM.placedBlocks.count
+            winCount: towerVM.placedBlocks.count,
+            fillsScreen: true
         )
     }
 
