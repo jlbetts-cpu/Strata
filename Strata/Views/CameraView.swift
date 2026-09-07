@@ -30,19 +30,40 @@ struct CameraView: View {
     /// Rule-of-quarters guides. Two verticals and two horizontals, which is
     /// what the design specifies — not a full nine-cell thirds grid.
     private enum Guide {
-        /// Thirds, evenly. The Figma has them at 0.25/0.74 and 0.26/0.50,
-        /// which is a designer eyeballing a grid rather than a grid — the
-        /// cells came out different sizes. This is the rule of thirds the
-        /// iPhone camera draws, and it is the one everybody composing a shot
-        /// is expecting.
+        /// Thirds, evenly. The Figma has them at 0.25/0.74 across and
+        /// 0.26/0.50 down, which is a designer eyeballing a grid rather than a
+        /// grid — the cells came out different sizes. This is the rule of
+        /// thirds the iPhone camera draws, and the one anybody composing a
+        /// shot is expecting.
         static let verticalX: [CGFloat] = [1.0 / 3.0, 2.0 / 3.0]
         static let horizontalY: [CGFloat] = [1.0 / 3.0, 2.0 / 3.0]
-        /// The break in the first vertical, left open for the mark and the
-        /// count. Kept at the design's proportions.
-        static let gapTop: CGFloat = 48.0 / 874.0
-        static let gapBottom: CGFloat = 127.0 / 874.0
-        static let colour = Color.white.opacity(0.28)
-        static let width: CGFloat = 0.5
+
+        /// Pure white, one weight, everywhere.
+        ///
+        /// It was a 0.5pt grey. Half a point does not land on a pixel boundary
+        /// at 3x, so each line was antialiased across two rows by a different
+        /// amount depending on where it fell — the lines were the same value
+        /// and visibly different weights. A full point is exact at every
+        /// scale, and white matches the icons and the count rather than being
+        /// a fourth grey nobody chose.
+        static let colour = Color.white.opacity(0.55)
+        static let width: CGFloat = 1
+    }
+
+    /// The header the grid is built around.
+    ///
+    /// The count, the flip and the flash all sit on one line, and the break in
+    /// the left vertical is measured FROM that line rather than copied from the
+    /// design's 48-127pt. The gap exists to hold the header, so the header is
+    /// what decides where it starts and stops — that is the difference between
+    /// the count sitting in the gap and the count happening to overlap it.
+    private enum Header {
+        /// Matches the tower's `.padding(.top, 4)` exactly, so the number does
+        /// not move between the two screens.
+        static let topPadding: CGFloat = 4
+        static let height: CGFloat = 52
+        /// Air between the header and the cut ends of the line.
+        static let breathing: CGFloat = 14
     }
 
     private let cornerRadius: CGFloat = 20
@@ -81,17 +102,18 @@ struct CameraView: View {
                 // symmetrical.
                 guides(
                     w: w + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
-                    h: h + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+                    h: h + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom,
+                    // In the guides' own space, which starts at the top of the
+                    // screen rather than below the notch.
+                    gapTop: geo.safeAreaInsets.top + Header.topPadding - Header.breathing,
+                    gapBottom: geo.safeAreaInsets.top + Header.topPadding + Header.height + Header.breathing
                 )
                 .offset(x: -geo.safeAreaInsets.leading, y: -geo.safeAreaInsets.top)
                 .allowsHitTesting(false)
 
                 controls(w: w, h: h, bottomInset: geo.safeAreaInsets.bottom)
 
-                if let winCount {
-                    tally(winCount, topInset: geo.safeAreaInsets.top)
-                        .allowsHitTesting(false)
-                }
+                header()
 
                 warmFlash
                     .allowsHitTesting(false)
@@ -121,85 +143,101 @@ struct CameraView: View {
 
     // MARK: - Guides
 
-    private func guides(w: CGFloat, h: CGFloat) -> some View {
+    private func guides(w: CGFloat, h: CGFloat, gapTop: CGFloat, gapBottom: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
-            // The first vertical is broken near the top. The gap is not a
-            // rendering artefact — it is reserved space for the mark, and the
-            // line resuming below it is what makes the break read as
+            // The first vertical is broken where the header crosses it. The
+            // gap is not a rendering artefact — it is the header's space, and
+            // the line resuming below it is what makes the break read as
             // deliberate rather than as a line that failed to draw.
-            let x0 = Guide.verticalX[0] * w
+            let x0 = round(Guide.verticalX[0] * w)
             Rectangle()
                 .fill(Guide.colour)
-                .frame(width: Guide.width, height: Guide.gapTop * h)
+                .frame(width: Guide.width, height: max(gapTop, 0))
                 .offset(x: x0, y: 0)
 
             Rectangle()
                 .fill(Guide.colour)
-                .frame(width: Guide.width, height: h - Guide.gapBottom * h)
-                .offset(x: x0, y: Guide.gapBottom * h)
+                .frame(width: Guide.width, height: max(h - gapBottom, 0))
+                .offset(x: x0, y: gapBottom)
 
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: h)
-                .offset(x: Guide.verticalX[1] * w, y: 0)
+                .offset(x: round(Guide.verticalX[1] * w), y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
                     .fill(Guide.colour)
                     .frame(width: w, height: Guide.width)
-                    .offset(x: 0, y: fraction * h)
+                    // Rounded to a whole point for the same reason the width
+                    // is: a line at a fractional offset is smeared across two
+                    // pixel rows and reads lighter than its neighbour.
+                    .offset(x: 0, y: round(fraction * h))
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
     }
 
-    /// The count, in the gap.
+    /// The count, the flip and the flash — one line, in the gap.
     ///
-    /// The guides leave a break in the top-left vertical, and this is what
-    /// goes in it. It sits at exactly the offset the tower's header uses — the
-    /// same 4pt below the safe area, the same horizontal padding, the same
-    /// 40pt rounded numeral — so moving between the two screens does not move
-    /// the number. It is the same fact in the same place, wearing the colours
-    /// of whichever page you are on.
-    private func tally(_ count: Int, topInset: CGFloat) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("\(count)")
-                .font(.system(size: 40, weight: .medium, design: .rounded))
-                .foregroundStyle(Color(white: 0.96))
-                .contentTransition(.numericText())
-            Text(count == 1 ? "win" : "wins")
-                .font(Typography.bodyMedium)
-                .foregroundStyle(Color(white: 0.96).opacity(0.55))
+    /// They were three things at three heights: the count at the top left, the
+    /// flip 86pt down the right edge, the flash 54pt below that. Nothing lined
+    /// up with anything, which is what made the screen read as wonky. On one
+    /// bar they are a header, and the break in the grid line is cut to fit it.
+    ///
+    /// The count sits at exactly the tower's offset — the same padding below
+    /// the safe area, the same horizontal inset — so moving between the two
+    /// screens does not move the number.
+    private func header() -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            if let winCount {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text("\(winCount)")
+                        .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                    Text(winCount == 1 ? "win" : "wins")
+                        .font(Typography.bodyMedium)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                // Legible over whatever the lens is pointing at.
+                .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
+                .accessibilityElement(children: .combine)
+            }
+
             Spacer(minLength: 0)
+
+            HStack(spacing: 2) {
+                glyphButton("arrow.triangle.2.circlepath") {
+                    withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                }
+                .accessibilityLabel("Switch camera")
+
+                glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
+                    camera.isFlashOn.toggle()
+                }
+                .accessibilityLabel(camera.isFlashOn ? "Flash on" : "Flash off")
+            }
         }
-        // Legible over anything the lens happens to be pointing at.
-        .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 1)
+        .frame(height: Header.height)
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, topInset + 4)
+        // Just the padding. This container already starts below the notch —
+        // only the GUIDES work in full-screen coordinates, because they are
+        // drawn over a full-bleed preview. Adding the inset here too counted
+        // it twice and dropped the count clean out of the gap cut for it.
+        .padding(.top, Header.topPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Controls
 
     private func controls(w: CGFloat, h: CGFloat, bottomInset: CGFloat) -> some View {
-        // The design has nothing below the shutter; this screen has a tab bar.
-        // Measuring up from the safe area keeps the same visual gap under the
-        // button that the design has, instead of letting the tab bar sit on it.
-        let shutterCentre = h - bottomInset - shutterOuter / 2 - 52
+        // Just above the tab bar, not floating in the frame. The design has
+        // nothing below the shutter; this screen has a tab bar, and measuring
+        // up from the safe area keeps a deliberate gap under the button
+        // instead of letting the two collide or drift apart.
+        let shutterCentre = h - bottomInset - shutterOuter / 2 - 18
         return ZStack(alignment: .topLeading) {
-            glyphButton("arrow.triangle.2.circlepath") {
-                withAnimation(GridConstants.motionSmooth) { camera.flip() }
-            }
-            .position(x: w - controlInset, y: 86)
-            .accessibilityLabel("Switch camera")
-
-            glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
-                camera.isFlashOn.toggle()
-            }
-            .position(x: w - controlInset, y: 140)
-            .accessibilityLabel(camera.isFlashOn ? "Flash on" : "Flash off")
-
             shutter
                 .position(x: w / 2, y: shutterCentre)
 
@@ -210,12 +248,12 @@ struct CameraView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color(white: 0.90))
+                        .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .position(x: controlInset, y: 86)
+                .position(x: w / 2, y: shutterCentre + shutterOuter / 2 + 34)
                 .accessibilityLabel("Close camera")
             }
         }
@@ -229,7 +267,7 @@ struct CameraView: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(Color(white: 0.90))
+                .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .contentShape(Rectangle())
         }
@@ -252,11 +290,11 @@ struct CameraView: View {
         let innerRadius = shutterInner * 0.147
         return ZStack {
             RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                .strokeBorder(Color(white: 0.90), lineWidth: 1)
+                .strokeBorder(.white, lineWidth: 1)
                 .frame(width: shutterOuter, height: shutterOuter)
 
             RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                .fill(Color(white: 0.90))
+                .fill(.white)
                 .frame(width: shutterInner, height: shutterInner)
                 .scaleEffect(shutterScale)
         }

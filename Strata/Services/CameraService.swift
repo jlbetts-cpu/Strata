@@ -111,6 +111,31 @@ final class CameraService: NSObject {
         isCapturing = true
         onCaptured = completion
 
+        // The selfie is saved the way you were looking at it.
+        //
+        // The preview is mirrored — a front camera has to be, or reaching left
+        // moves you right and framing yourself is impossible. But
+        // `AVCapturePhotoOutput` saves the UNMIRRORED frame by default: the
+        // view from the lens, which is how other people see you and is not the
+        // face you just composed. Every parting, every crooked smile, is on
+        // the wrong side, and it is the single most common "why do I look
+        // weird in this photo" complaint.
+        //
+        // Apple added "Mirror Front Camera" in iOS 14 for exactly this, off by
+        // default. Here it is always on, because there is no case in this app
+        // where you want a photo that disagrees with the viewfinder you framed
+        // it in.
+        //
+        // Set on the CONNECTION rather than by rotating the UIImage after the
+        // fact. `automaticallyAdjustsVideoMirroring` has to be turned off
+        // first or the assignment is silently ignored.
+        if let connection = output.connection(with: .video) {
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = usesScreenFlash
+            }
+        }
+
         let settings = AVCapturePhotoSettings()
         // Only the rear camera has a lamp to fire.
         if !usesScreenFlash, output.supportedFlashModes.contains(.on) {
@@ -129,17 +154,11 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
         let data = photo.fileDataRepresentation()
         Task { @MainActor in
             self.isCapturing = false
-            let image = data.flatMap(UIImage.init(data:))
-            // The front camera records what the LENS sees, which is the mirror
-            // image of the preview you were looking at. Flipping it back is
-            // what makes the photo match the moment you took it.
-            let corrected: UIImage?
-            if self.facing == .front, let image, let cg = image.cgImage {
-                corrected = UIImage(cgImage: cg, scale: image.scale, orientation: .leftMirrored)
-            } else {
-                corrected = image
-            }
-            self.onCaptured?(corrected)
+            // No orientation surgery here. Mirroring is set on the capture
+            // connection before the shot; rebuilding the UIImage with
+            // `.leftMirrored` afterwards also ROTATED it a quarter turn, which
+            // is why that approach is wrong and not just redundant.
+            self.onCaptured?(data.flatMap(UIImage.init(data:)))
             self.onCaptured = nil
         }
     }

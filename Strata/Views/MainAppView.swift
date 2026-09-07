@@ -382,6 +382,7 @@ struct MainAppView: View {
         TabView(selection: $selectedTab) {
             Tab("Tower", systemImage: "square.stack.fill", value: StrataTab.tower) {
                 towerTabRoot
+                    .preferredColorScheme(.light)
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -403,6 +404,18 @@ struct MainAppView: View {
             // away with the photo already on it.
             Tab("Camera", systemImage: "camera.fill", value: StrataTab.camera) {
                 cameraTab
+                    // The status bar has to be light over a black viewfinder,
+                    // and `preferredColorScheme` is SwiftUI's only supported
+                    // route to that — it is window-scoped by design.
+                    //
+                    // The bug was never that this was here; it was that
+                    // nothing put the window BACK. Leaving the camera left the
+                    // window dark, so the tower drew white text on its light
+                    // ground and the tab bar stayed dark. Every other tab now
+                    // asserts `.light`, so the window is whatever the visible
+                    // tab says it is and returning is not something that can
+                    // fail to happen.
+                    .preferredColorScheme(.dark)
             }
             Tab("Insights", systemImage: "chart.bar", value: StrataTab.insights) {
                 NavigationStack {
@@ -426,6 +439,7 @@ struct MainAppView: View {
                         )
                     }
                 }
+                .preferredColorScheme(.light)
             }
         }
         .modifier(TabBarCollapseModifier())
@@ -519,7 +533,7 @@ struct MainAppView: View {
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(towerVM.placedBlocks.count)")
-                .font(.system(size: 40, weight: .medium, design: .rounded))
+                .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
             Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")

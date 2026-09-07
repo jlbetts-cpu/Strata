@@ -184,6 +184,12 @@ enum GridConstants {
     static let slotStepHysteresis: CGFloat = 12
     /// The bloom left behind when a block is released from the slot. In fast,
     /// out slow — light arrives at once and decays.
+    /// The size of the big number in a page header.
+    ///
+    /// One constant, because the tower and the camera show the same count and
+    /// it must not change size between them.
+    static let tallyNumeral: CGFloat = 44
+
     // MARK: - The tower's dance
 
     /// A wave that travels up the tower on every tenth win.
