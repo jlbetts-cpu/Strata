@@ -184,6 +184,27 @@ enum GridConstants {
     static let slotStepHysteresis: CGFloat = 12
     /// The bloom left behind when a block is released from the slot. In fast,
     /// out slow — light arrives at once and decays.
+    // MARK: - The tower's dance
+
+    /// A wave that travels up the tower on every tenth win.
+    ///
+    /// A celebration is one of the few places bounce is earned: something
+    /// travelled through the stack, so the stack may overshoot a little. It is
+    /// still small — this is the tower enjoying itself, not the tower coming
+    /// apart. apple-design.md §11 still applies at the top of a tall stack.
+    static let danceRise = Animation.spring(response: 0.30, dampingFraction: 0.52)
+    static let danceSettle = Animation.spring(response: 0.40, dampingFraction: 0.78)
+    static let danceLift: CGFloat = -10
+    static let danceTilt: Double = 2.4
+    static let danceGlow: Double = 0.05
+    /// Gap between one row starting to rise and the next, so the wave reads as
+    /// travelling rather than as the whole tower twitching at once.
+    static let danceRowDelay: Double = 0.045
+    /// The wave crosses the tower in at most this long, however tall it is.
+    static let danceTravelCap: Double = 0.90
+    /// One dance per this many wins.
+    static let danceEvery: Int = 10
+
     /// How far above the top of the screen a block starts its fall.
     ///
     /// The block has to come from somewhere, and "somewhere" has to be off

@@ -225,110 +225,83 @@ final class TowerAnimationCoordinator {
     // #404: Celebration cancellation safety — track tasks for cleanup
     private var jubilationTask: Task<Void, Never>?
 
+    /// Bumped once per phase of the dance.
+    ///
+    /// The grid reads this so that a phase change is guaranteed to invalidate
+    /// it. Per-block reads inside a `ForEach` closure are not a dependency the
+    /// grid can rely on — the wave was setting `jubilationLift` on all ten
+    /// blocks and not one view body ever saw a non-zero value. One counter read
+    /// at the top of the grid's body is a dependency SwiftUI cannot miss.
+    private(set) var danceTick: Int = 0
+
+    /// The tower dances: one wave, travelling bottom to top.
+    ///
+    /// The previous version ran five sequential `withAnimation` calls per row
+    /// with a sleep between each, then a whole second return wave doing it
+    /// again — roughly seven animation steps and a sound per row, up to three
+    /// seconds of continuously rewritten state. That is a lot of moving parts
+    /// to keep coherent, and any drop landing in the middle of it fought the
+    /// wave for the same properties. This is two phases: every block is told
+    /// once to rise and once to settle, each with a delay taken from its own
+    /// row, and SwiftUI staggers them. The wave travels because the delays
+    /// differ, not because something is sequencing it frame by frame.
+    ///
+    /// Rows tilt in alternating directions so the tower sways through the wave
+    /// rather than leaning as one slab.
     func triggerJubilation(placedBlocks: [PlacedBlock]) {
-        guard !isJubilating, !reduceMotion else { return }
+        guard !isJubilating, !reduceMotion, !placedBlocks.isEmpty else { return }
+        // Never on top of a drop. The dance and the drop write the same block
+        // state, and a block that is still falling has not got a resting place
+        // to dance around yet.
+        guard !isCascading, activelyAnimatingIDs.isEmpty else { return }
         isJubilating = true
 
         let maxRow = placedBlocks.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
-        let rowDelay = min(0.07, 2.5 / Double(max(maxRow, 10))) // Adaptive: caps wave at ~2.5s
+        let rowDelay = min(GridConstants.danceRowDelay,
+                           GridConstants.danceTravelCap / Double(max(maxRow, 1)))
+        let travel = Double(maxRow) * rowDelay
 
         jubilationTask?.cancel()
         jubilationTask = Task { @MainActor in
-            // === OUTGOING WAVE (bottom → top) — 4 oscillations, ±3.5° ===
-            for row in 0...maxRow {
-                // #404: Check for cancellation on each iteration
-                guard !Task.isCancelled else { resetJubilationState(placedBlocks: placedBlocks); return }
-                let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
+            SoundEngine.completionTone(category: .health, pitchShift: 0)
+            danceTick += 1
 
-                // Sway RIGHT — big, slow, visible
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.35)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = 3.5
-                        s.jubilationLift = -6
-                        s.jubilationGlow = 0.08
-                    }
+            for block in placedBlocks {
+                let delay = Double(block.row) * rowDelay
+                let tilt = block.row.isMultiple(of: 2)
+                    ? GridConstants.danceTilt
+                    : -GridConstants.danceTilt
+                withAnimation(GridConstants.danceRise.delay(delay)) {
+                    let s = state(for: block.id)
+                    s.jubilationLift = GridConstants.danceLift
+                    s.jubilationWobble = tilt
+                    s.jubilationGlow = GridConstants.danceGlow
                 }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
-
-                // Sway LEFT
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.35)) {
-                    for block in rowBlocks {
-                        state(for: block.id).jubilationWobble = -3.5
-                    }
-                }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 1_000_000_000))
-
-                // Sway RIGHT (decay)
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.45)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = 2.0
-                        s.jubilationLift = -3
-                        s.jubilationGlow = 0.04
-                    }
-                }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.8 * 1_000_000_000))
-
-                // Sway LEFT (final oscillation)
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.50)) {
-                    for block in rowBlocks {
-                        state(for: block.id).jubilationWobble = -1.0
-                    }
-                }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.5 * 1_000_000_000))
-
-                // Settle
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = 0
-                        s.jubilationLift = 0
-                        s.jubilationGlow = 0
-                    }
-                }
-
-                // Ascending glissando
-                let pitch = Double(row) * (150.0 / Double(max(maxRow, 1)))
-                SoundEngine.completionTone(category: .health, pitchShift: pitch)
-
-                if row == maxRow / 2 { HapticsEngine.lightTap() }
-                if row == maxRow { HapticsEngine.success() }
             }
 
-            // === RETURN WAVE (top → bottom, half amplitude) ===
-            try? await Task.sleep(for: .milliseconds(200))
+            try? await Task.sleep(for: .seconds(travel + 0.24))
+            guard !Task.isCancelled else {
+                resetJubilationState(placedBlocks: placedBlocks)
+                isJubilating = false
+                return
+            }
+            HapticsEngine.success()
+            SoundEngine.completionTone(category: .health, pitchShift: 140)
+            danceTick += 1
 
-            for row in stride(from: maxRow, through: 0, by: -1) {
-                let rowBlocks = placedBlocks.filter { $0.row <= row && $0.row + $0.rowSpan > row }
-                // #48: Return wave amplitude decays proportional to row (top = full, bottom = minimal)
-                let rowFraction = maxRow > 0 ? Double(row) / Double(maxRow) : 1.0
-                let amplitude = 0.3 + 0.7 * rowFraction // 30% at bottom, 100% at top
-
-                withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = -1.0 * amplitude
-                        s.jubilationLift = -2 * amplitude
-                        s.jubilationGlow = 0.03 * amplitude
-                    }
+            for block in placedBlocks {
+                let delay = Double(block.row) * rowDelay
+                withAnimation(GridConstants.danceSettle.delay(delay)) {
+                    let s = state(for: block.id)
+                    s.jubilationLift = 0
+                    s.jubilationWobble = 0
+                    s.jubilationGlow = 0
                 }
-                try? await Task.sleep(nanoseconds: UInt64(rowDelay * 0.6 * 1_000_000_000))
-
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                    for block in rowBlocks {
-                        let s = state(for: block.id)
-                        s.jubilationWobble = 0
-                        s.jubilationLift = 0
-                        s.jubilationGlow = 0
-                    }
-                }
-
-                let pitch = 200.0 - Double(row) * (150.0 / Double(max(maxRow, 1)))
-                SoundEngine.completionTone(category: .health, pitchShift: pitch)
             }
 
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: .seconds(travel + 0.50))
+            // Belt and braces: whatever happened above, nothing stays tilted.
+            resetJubilationState(placedBlocks: placedBlocks)
             isJubilating = false
         }
     }

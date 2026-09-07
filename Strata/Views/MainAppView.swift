@@ -526,6 +526,12 @@ struct MainAppView: View {
         }
     }
 
+    /// Which multiple of ten the tower has already danced for.
+    ///
+    /// Seeded from the current count on first build, so opening the app on a
+    /// tower that is already at thirty does not set it off.
+    @State private var lastDanceMilestone: Int? = nil
+
     @State private var cachedTowerTitle: String = ""
 
     private func computeTowerTitle() -> String {
@@ -1282,6 +1288,27 @@ struct MainAppView: View {
             // threshold; this was an order of magnitude over it.
             Task { @MainActor in
 
+                // Every tenth win, the tower dances.
+                //
+                // The wave already existed but only a perfect day could set it
+                // off, which most days are not — so the thing most worth
+                // seeing almost never fired. A round number of wins is
+                // something every user reaches, on their own terms, and it is
+                // the tower's own count rather than a judgement about the day.
+                //
+                // Keyed to the milestone rather than the count, so it fires
+                // once when you cross it and never again on a rebuild or a tab
+                // switch.
+                let wins = towerVM.placedBlocks.count
+                let milestone = wins / GridConstants.danceEvery
+                if wins > 0, wins % GridConstants.danceEvery == 0,
+                   milestone != lastDanceMilestone {
+                    lastDanceMilestone = milestone
+                    try? await Task.sleep(for: .milliseconds(180))
+                    HapticsEngine.reward()
+                    animCoord.triggerJubilation(placedBlocks: towerVM.placedBlocks)
+                }
+
                 // Perfect day jubilation — blocks dance bottom-to-top (Schultz 1997)
                 let todayStr = TimelineViewModel.dateString(from: Date())
                 if towerFilterMode == .day && perfectDayDates.contains(todayStr) && lastCelebrationDate != todayStr {
@@ -1389,6 +1416,13 @@ struct MainAppView: View {
         timelineVM.loadToday(habits: towerHabits, logs: logs)
         recomputeTimelineHabits(logsByDate: logsByDate)
         let hadBuiltBefore = towerVM.hasBuiltOnce
+        // Seed the dance milestone from whatever is already there, so a tower
+        // that opens at thirty wins does not immediately celebrate thirty.
+        defer {
+            if lastDanceMilestone == nil {
+                lastDanceMilestone = towerVM.placedBlocks.count / GridConstants.danceEvery
+            }
+        }
         var droppedIDs: Set<UUID> = []
         // Insert the block and start it falling in ONE transaction.
         //
@@ -2069,6 +2103,12 @@ struct MainAppView: View {
         let onTapExpandBlock: (UUID) -> Void
 
         var body: some View {
+            // Read the dance's phase counter here, at the top of the grid's
+            // body, so a phase change is guaranteed to invalidate it. Reading
+            // the per-block values inside the ForEach closure below is not a
+            // dependency SwiftUI reliably attributes to this body — which is
+            // exactly why the wave ran to completion without moving anything.
+            let _ = animCoord.danceTick
             ForEach(visibleBlocks) { block in
                 let f = GridConstants.blockFrame(
                     column: block.column, row: block.row,
@@ -2098,6 +2138,21 @@ struct MainAppView: View {
                     onTapExpandBlock: onTapExpandBlock
                 )
                 .frame(width: f.width, height: f.height)
+                // The dance has to be read HERE.
+                //
+                // These three lived inside `AnimatedBlockView`, which is an
+                // `Equatable` view. Its `==` cannot see them — they live on a
+                // shared reference the two sides hold in common — so nothing
+                // ever invalidated the child and the wave never reached the
+                // screen: the coordinator set `jubilationLift = -10` on every
+                // block and the foundation moved one pixel in a whole run.
+                // The drop phases only worked because this grid happens to
+                // read `dropPhase` below, for `zIndex`, which re-renders the
+                // row. Reading the dance here gives it the same guarantee
+                // instead of the same accident.
+                .rotationEffect(.degrees(animState.jubilationWobble))
+                .offset(y: animState.jubilationLift)
+                .brightness(animState.jubilationGlow)
                 .id(block.id)
                 .offset(x: f.minX, y: gridH - f.minY - f.height)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
@@ -2370,10 +2425,7 @@ struct MainAppView: View {
             // against each other, and because `towerScrollOffset` is only
             // republished in 8pt steps it did it in visible jumps rather than
             // smoothly. The tower moves as one object or it is not one object.
-            // Jubilation wave — rotation, lift, glow (perfect day celebration)
-            .rotationEffect(.degrees(animState.jubilationWobble))
-            .offset(y: animState.jubilationLift)
-            .brightness(animState.jubilationGlow)
+            // The dance is applied by the grid, not here. See `placedBlocksGrid`.
         }
 
         private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
