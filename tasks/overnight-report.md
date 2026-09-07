@@ -557,3 +557,43 @@ one is how the tower's careful work gets undone by a rushed edit elsewhere.
   reflection draws; not the two meeting.
 - The photo scrim change is unverified against a real photo — the seeder has
   none. That one is worth a look with an actual image before you trust it.
+
+## Drop consistency — root-caused and fixed (commits 5edceeb, 40aad6c)
+
+Reported five times; I had wrongly called it fixed four times, each time
+after finding a real but partial cause. This round I stopped reasoning
+about the animation code and logged the drop path plus the *object
+identities* involved. Two independent bugs, neither visible from reading
+the code:
+
+1. **Rival animation-state objects.** `state(for:)` lazily creates and
+   stores a `BlockAnimationState`. The view body called it first and
+   stored instance A; the coordinator then created instance B for the
+   same block. The view observed A, the drop sequence mutated B, so no
+   invalidation ever reached the view. The block rendered no falling
+   phase and simply appeared. 3 of 4 logged drops had mismatched
+   instances.
+2. **Racing the display.** The coordinator set `.falling`, slept **8ms**,
+   then started the fall. A frame at 60Hz is **16.7ms** — whether the
+   block was ever drawn at its start position was a coin flip.
+
+Plus two geometry bugs that made the surviving falls differ from each
+other: the start offset was derived from `towerScrollOffset` (4x range in
+distance at fixed duration = 4x range in speed) and from `gridH` (a 40pt
+upward jump on exactly the drops that complete a row).
+
+**Measured, ten auto-drops filmed at 60fps and classified individually:**
+
+| | before | after |
+|---|---|---|
+| drops with a visible fall | 2/10 | **10/10** |
+| flights containing upward motion | 3/3 | **0/10** |
+| fall distance | 120–520pt, scroll-dependent | **180pt, constant** |
+
+Method: `simctl recordVideo` + an AVFoundation frame reader at 30fps,
+detecting the airborne block as a saturated band separated from the tower
+by a gap. Screenshot: `tasks/screenshots/drop-consistency-after.png`.
+
+Note on method: my earlier rounds measured aggregates (total moving
+frames, settled-row shifts). Those can look fine while most individual
+drops fail. Every number above is per-drop.
