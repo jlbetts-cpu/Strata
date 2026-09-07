@@ -1727,6 +1727,10 @@ struct MainAppView: View {
                             .allowsHitTesting(false)
                     }
                 }
+                // The runway the fall happens in. Inside the scrollable
+                // content, so scrolling to the top brings it into view and the
+                // block always has the same distance to travel.
+                .padding(.top, GridConstants.dropRunway)
                 .padding(.horizontal, hPad)
                 // The tab bar's inset is already applied to this scroll view
                 // by TabView, so adding `safeAreaBottom` here counted it twice.
@@ -2169,28 +2173,28 @@ struct MainAppView: View {
 
             let dropOffset: CGFloat = switch phase {
             case .falling:
-                {
-                    // Start just above the visible top, not a fixed distance
-                    // above the slot.
-                    //
-                    // `dynamicOffset` already means "just off the top of what
-                    // the viewer can see". Forcing a minimum of 240 on top of
-                    // that pushed the start ABOVE the viewport whenever the
-                    // slot was near the top — the animation ran in full and
-                    // none of it was on screen, which is why the drop appeared
-                    // to fire only some of the time. It always fired; it was
-                    // sometimes invisible.
-                    //
-                    // A short visible fall beats a long unseen one, so the
-                    // dynamic value wins. The floor is only there so a slot
-                    // already at the very top still gets a fall rather than an
-                    // appearance; the ceiling stops a deep scroll turning it
-                    // into a long empty wait.
-                    let paddingTop = safeAreaTop + collapsedHeaderHeight + 20
-                    let blockInScrollContent = paddingTop + (gridH - frame.maxY)
-                    let dynamicOffset = towerScrollOffset - blockInScrollContent - frame.height - 60
-                    return min(max(dynamicOffset, -520), -120)
-                }()
+                // One constant. The same fall, every time.
+                //
+                // Two earlier versions of this line read the world while the
+                // block was in the air, and both made the drop inconsistent:
+                //
+                //  - Derived from `towerScrollOffset` and clamped to 120...520,
+                //    the distance depended on where the tower happened to be
+                //    scrolled and varied more than fourfold. The duration is
+                //    fixed, so the SPEED varied more than fourfold — the same
+                //    action read as a plummet or as a spawn.
+                //  - Derived from `gridH`, it moved whenever the tower grew a
+                //    row. Filmed at 60fps, the drops that COMPLETED a row (2nd,
+                //    6th, 10th of ten) jumped 40pt upward mid-fall, because
+                //    finishing a row pushes the next slot up a row and `gridH`
+                //    with it.
+                //
+                // The runway above the tower is reserved in the layout, so a
+                // constant is safe: the space is always there and the block
+                // always starts at the top of it. Nothing about the tower's
+                // height, its scroll position, or what else is landing can
+                // reach into the fall and change it.
+                -GridConstants.dropRunway
             case .squash, .stretch, .wobble: CGFloat(0)
             case .none: CGFloat(0)
             }

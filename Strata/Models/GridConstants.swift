@@ -184,6 +184,17 @@ enum GridConstants {
     static let slotStepHysteresis: CGFloat = 12
     /// The bloom left behind when a block is released from the slot. In fast,
     /// out slow — light arrives at once and decays.
+    /// Empty space reserved above the tower for a block to fall through.
+    ///
+    /// Reserving it inside the scrollable content is what makes the fall the
+    /// same every time. Without it the runway was whatever happened to be
+    /// on screen, so the distance depended on the scroll position and the fall
+    /// varied more than fourfold at a fixed duration — the same drop read as a
+    /// plummet or as a spawn depending on where the tower was sitting.
+    ///
+    /// Costs nothing to look at: the tower is bottom-anchored, so this is space
+    /// that was already empty.
+    static let dropRunway: CGFloat = 180
     static let slotBloomIn = Animation.easeOut(duration: 0.10)
     static let slotBloomOut = Animation.easeOut(duration: 0.45)
 
