@@ -77,24 +77,16 @@ struct MainAppView: View {
     @State private var expandedBlockID: UUID? = nil
     @Namespace private var blockExpansion
 
-    // Onboarding
-    @StateObject private var onboarding = OnboardingState()
 
     // #109: Comeback celebration
     @AppStorage("lastCompletionDateString") private var lastCompletionDateString: String = ""
 
     // #386: Perfect day anticipation
 
-    // Block tap discovery hint (legacy — replaced by onboarding.hasSeenFirstBlockHint)
-    @AppStorage("hasSeenBlockTapHint") private var hasSeenBlockTapHint = false
-    @State private var showBlockTapHint = false
-    @State private var hintBlockID: UUID? = nil
 
     // First block magic (Phase 5 — Murdock 1962 primacy effect)
     @AppStorage("hasSeenFirstDrop") private var hasSeenFirstDrop = false
-    @AppStorage("hasSeenHealthKitVerification") private var hasSeenHealthKitVerification = false
     @AppStorage("lastDayBoundaryCheck") private var lastDayBoundaryCheck: String = ""
-    @State private var showFirstBlockLabel = false
 
     // Tower Aurora (Phase 5 — Skinner 1938 variable reward)
     @AppStorage("lastAuroraWeek") private var lastAuroraWeek: Int = 0
@@ -113,7 +105,6 @@ struct MainAppView: View {
     @State private var visibleSkeletonCount: Int = 0
     @State private var skeletonBuildTask: Task<Void, Never>?
     @State private var reloadTask: Task<Void, Never>?
-    @State private var hintDismissTask: Task<Void, Never>?
 
     // Setup guard
     @State private var hasSetUp = false
@@ -366,26 +357,12 @@ struct MainAppView: View {
                 guard let habitIDs = notification.userInfo?["habitIDs"] as? [UUID] else { return }
                 HapticsEngine.lightTap()
 
-                // First-ever flag — row handles celebration haptic now
-                if !hasSeenHealthKitVerification {
-                    hasSeenHealthKitVerification = true
-                }
-
                 scheduleRefresh()
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Nothing was added. Try again.")
-            }
-            .fullScreenCover(isPresented: Binding(
-                get: { !onboarding.hasSeenWelcome },
-                set: { if !$0 { onboarding.hasSeenWelcome = true } }
-            )) {
-                WelcomeView {
-                    onboarding.hasSeenWelcome = true
-                    selectedTab = .tower
-                }
             }
             .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
                 Button("OK", role: .cancel) {}
@@ -727,7 +704,6 @@ struct MainAppView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView(
-                    onboarding: onboarding,
                     onResetAllData: { resetTower() }
                 )
             }
@@ -1531,18 +1507,6 @@ struct MainAppView: View {
             let remaining = max(.zero, .milliseconds(300) - elapsed)
             try? await Task.sleep(for: remaining)
             stopSkeletonBuildUp()
-
-            // Block tap discovery hint for existing users
-            if !hasSeenBlockTapHint && !towerVM.placedBlocks.isEmpty {
-                hintBlockID = towerVM.placedBlocks.last?.id
-                try? await Task.sleep(for: .seconds(1.0))
-                withAnimation(GridConstants.gentleReveal) { showBlockTapHint = true }
-                hasSeenBlockTapHint = true
-                hintDismissTask = Task {
-                    try? await Task.sleep(for: .seconds(3.0))
-                    withAnimation(GridConstants.crossFade) { showBlockTapHint = false; hintBlockID = nil }
-                }
-            }
         }
     }
 
@@ -1783,18 +1747,6 @@ struct MainAppView: View {
         // into view, because the slot is at the top of the tower.
         // animCoord.isCascading cleared by drain loop when it finishes
 
-        // Block tap discovery hint (one-time, after first drop)
-        if !hasSeenBlockTapHint && !habits.isEmpty {
-            hintBlockID = towerVM.placedBlocks.last?.id
-            try? await Task.sleep(for: .seconds(1.5))
-            withAnimation(GridConstants.gentleReveal) { showBlockTapHint = true }
-            hasSeenBlockTapHint = true
-            hintDismissTask = Task {
-                try? await Task.sleep(for: .seconds(3.0))
-                withAnimation(GridConstants.crossFade) { showBlockTapHint = false; hintBlockID = nil }
-            }
-        }
-
         // #50: First Block haptic choreography — lightTap→pause→reward→pause→success
         if isFirstDrop {
             hasSeenFirstDrop = true
@@ -1804,18 +1756,6 @@ struct MainAppView: View {
             try? await Task.sleep(for: .milliseconds(300))
             HapticsEngine.success()
 
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.5 : 1.5))
-
-
-            // "Your first block." — shows in ALL motion modes
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 800))
-            withAnimation(GridConstants.gentleReveal) {
-                showFirstBlockLabel = true
-            }
-            try? await Task.sleep(for: .seconds(2))
-            withAnimation(GridConstants.crossFade) {
-                showFirstBlockLabel = false
-            }
         }
     }
 
@@ -1872,7 +1812,7 @@ struct MainAppView: View {
         // has to be told about it or the container reserves no space for any
         // of it and it hangs outside the measured bounds.
         let waterDepth = TowerReflection.depth
-        let footerReserve: CGFloat = waterDepth + (showFirstBlockLabel ? 30 : 0)
+        let footerReserve: CGFloat = waterDepth
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -1967,14 +1907,6 @@ struct MainAppView: View {
                         // fixed place at the top of the page (`towerTally`) so
                         // the tower can stand on its water with the tab bar
                         // directly beneath it, rather than on a caption.
-                        if showFirstBlockLabel {
-                            Text("Your first block.")
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(.primary.opacity(0.5))
-                                .frame(width: gridW, alignment: .center)
-                                .offset(y: gridH + waterDepth + 6)
-                                .transition(.opacity)
-                        }
                     }
                 }
                 // Device parallax — tower shifts with phone tilt (Harrison 2011)
@@ -2086,7 +2018,6 @@ struct MainAppView: View {
                 collapsedHeaderHeight: collapsedHeaderHeight,
                 towerScrollOffset: towerScrollOffset,
                 cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
-                showBlockTapHint: showBlockTapHint, hintBlockID: hintBlockID,
                 blockExpansionNamespace: blockExpansion,
                 reduceMotion: reduceMotion, colorScheme: colorScheme,
                 onTapExpandBlock: { id in
@@ -2344,8 +2275,6 @@ struct MainAppView: View {
         let towerScrollOffset: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
-        let showBlockTapHint: Bool
-        let hintBlockID: UUID?
         let blockExpansionNamespace: Namespace.ID
         let reduceMotion: Bool
         let colorScheme: ColorScheme
@@ -2379,8 +2308,7 @@ struct MainAppView: View {
                     collapsedHeaderHeight: collapsedHeaderHeight,
                     towerScrollOffset: towerScrollOffset,
                     cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
-                    showBlockTapHint: showBlockTapHint, hintBlockID: hintBlockID,
-                    blockExpansionNamespace: blockExpansionNamespace,
+                        blockExpansionNamespace: blockExpansionNamespace,
                     reduceMotion: reduceMotion, colorScheme: colorScheme,
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
@@ -2469,8 +2397,6 @@ struct MainAppView: View {
         let towerScrollOffset: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
-        let showBlockTapHint: Bool
-        let hintBlockID: UUID?
         let blockExpansionNamespace: Namespace.ID
         let reduceMotion: Bool
         let colorScheme: ColorScheme
@@ -2507,8 +2433,6 @@ struct MainAppView: View {
             && lhs.gridH == rhs.gridH
             && lhs.towerScrollOffset == rhs.towerScrollOffset
             && lhs.expandedBlockID == rhs.expandedBlockID
-            && lhs.showBlockTapHint == rhs.showBlockTapHint
-            && lhs.hintBlockID == rhs.hintBlockID
             && lhs.reduceMotion == rhs.reduceMotion
             && lhs.colorScheme == rhs.colorScheme
             && lhs.isFoundation == rhs.isFoundation
@@ -2658,18 +2582,6 @@ struct MainAppView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .allowsHitTesting(false)
-                    }
-                }
-                .overlay {
-                    if showBlockTapHint && hintBlockID == block.id {
-                        Text("Tap to explore")
-                            .font(Typography.caption)
-                            .foregroundStyle(.white.opacity(0.9))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                            .allowsHitTesting(false)
                     }
                 }
                 .scaleEffect(x: impactScaleX, y: impactScaleY, anchor: .bottom)
@@ -2860,38 +2772,27 @@ struct MainAppView: View {
         try? modelContext.delete(model: Tower.self)
         try? modelContext.save()
 
-        // 3. Reset UserDefaults (onboarding, tower selection, hints, plan prefs)
+        // 3. Reset UserDefaults (tower selection, first-drop, day boundary)
+        //
+        // The eleven `onb_*` keys and `hasSeenBlockTapHint` used to be listed
+        // here. They belonged to an onboarding system that has been removed —
+        // and of the nine flags it wrote, exactly one was ever read back.
+        // `hasCompletedFirstHabit` was in the list too and was never declared
+        // anywhere at all.
         for key in [
             "activeTowerID",
-            "onb_welcome", "onb_hold", "onb_skip", "onb_firstBlock",
-            "onb_nlp", "onb_drag", "onb_photo", "onb_week",
-            "onb_contextMenu", "onb_sessionCount",
-            "hasSeenBlockTapHint", "hasCompletedFirstHabit",
-            "hasSeenHealthKitVerification", "lastDayBoundaryCheck",
+            "hasSeenFirstDrop", "lastDayBoundaryCheck",
             "sectionExpanded", "smartViewOverrides", "planSortMode"
         ] {
             UserDefaults.standard.removeObject(forKey: key)
         }
 
-        // 4. Reset in-memory @AppStorage / @StateObject properties
-        hasSeenBlockTapHint = false
-        onboarding.hasSeenWelcome = false
-        onboarding.hasSeenHoldHint = false
-        onboarding.hasSeenSkipHint = false
-        onboarding.hasSeenFirstBlockHint = false
-        onboarding.hasSeenNLPHint = false
-        onboarding.hasSeenDragHint = false
-        onboarding.hasSeenPhotoHint = false
-        onboarding.hasSeenWeekHint = false
-        onboarding.hasSeenContextMenuHint = false
-        onboarding.sessionCount = 0
-        onboarding.dismissHint()
+        // 4. Reset in-memory @AppStorage properties
+        hasSeenFirstDrop = false
 
         // 5. Reset in-memory view state
         pendingDrops = []
         expandedBlockID = nil
-        showBlockTapHint = false
-        hintBlockID = nil
         animCoord.reset()
         selectedTab = .tower
 

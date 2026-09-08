@@ -4,7 +4,6 @@ import UserNotifications
 import StoreKit
 
 struct SettingsView: View {
-    var onboarding: OnboardingState?
     var onResetAllData: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -314,18 +313,6 @@ struct SettingsView: View {
             // MARK: - Section 4: Support
 
             Section("Support") {
-                Button {
-                    HapticsEngine.lightTap()
-                    replayTutorial()
-                } label: {
-                    Label {
-                        Text("Replay Tutorial")
-                            .foregroundStyle(.primary)
-                    } icon: {
-                        SettingsIcon(systemName: "arrow.counterclockwise")
-                    }
-                }
-
                 Link(destination: URL(string: "mailto:support@strataapp.co")!) {
                     Label {
                         HStack {
@@ -381,12 +368,6 @@ struct SettingsView: View {
 
             #if DEBUG
             Section("Debug") {
-                Button {
-                    resetOnboardingFlags()
-                } label: {
-                    Label("Reset Onboarding", systemImage: "arrow.counterclockwise")
-                }
-
                 Button(role: .destructive) {
                     onResetAllData?()
                     dismiss()
@@ -422,12 +403,6 @@ struct SettingsView: View {
                     HapticsEngine.lightTap()
                 } label: {
                     Label("Reset Aurora Cooldown", systemImage: "sparkles")
-                }
-                Button {
-                    UserDefaults.standard.set(false, forKey: "hasSeenBlockTapHint")
-                    HapticsEngine.lightTap()
-                } label: {
-                    Label("Reset Block Tap Hint", systemImage: "hand.point.up")
                 }
             }
             #endif
@@ -554,36 +529,6 @@ struct SettingsView: View {
         showExportShare = true
     }
 
-    // MARK: - Replay Tutorial
-
-    private func replayTutorial() {
-        guard let onboarding else { return }
-        onboarding.hasSeenWelcome = false
-        onboarding.hasSeenHoldHint = false
-        onboarding.hasSeenSkipHint = false
-        onboarding.hasSeenFirstBlockHint = false
-        onboarding.hasSeenNLPHint = false
-        onboarding.hasSeenDragHint = false
-        onboarding.hasSeenPhotoHint = false
-        onboarding.hasSeenWeekHint = false
-        onboarding.hasSeenContextMenuHint = false
-        onboarding.dismissHint()
-        UserDefaults.standard.removeObject(forKey: "hasSeenBlockTapHint")
-        dismiss()
-    }
-
-    // MARK: - Reset Onboarding (Debug)
-
-    private func resetOnboardingFlags() {
-        for key in [
-            "onb_welcome", "onb_hold", "onb_skip", "onb_firstBlock",
-            "onb_nlp", "onb_drag", "onb_photo", "onb_week",
-            "onb_contextMenu", "onb_sessionCount",
-            "hasSeenBlockTapHint", "hasCompletedFirstHabit"
-        ] {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
-    }
 }
 
 // MARK: - Settings Icon Badge
