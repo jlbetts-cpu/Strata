@@ -49,26 +49,15 @@ struct SettingsView: View {
 
             Section {
                 VStack(spacing: 12) {
-                    // Mini tower — 3 stacked blocks
-                    VStack(spacing: 4) {
-                        MiniBlockPreview(category: .creativity, blockSize: .small, title: "", showTitle: false)
-                            .frame(width: 40, height: 40)
-                            .offset(x: 2)
-
-                        HStack(spacing: 4) {
-                            MiniBlockPreview(category: .focus, blockSize: .small, title: "", showTitle: false)
-                                .frame(width: 40, height: 40)
-                            MiniBlockPreview(category: .health, blockSize: .small, title: "", showTitle: false)
-                                .frame(width: 40, height: 40)
-                        }
-
-                        HStack(spacing: 4) {
-                            MiniBlockPreview(category: .social, blockSize: .small, title: "", showTitle: false)
-                                .frame(width: 40, height: 40)
-                            MiniBlockPreview(category: .mindfulness, blockSize: .medium, title: "", showTitle: false)
-                                .frame(width: 84, height: 40)
-                        }
-                    }
+                    // The mark, not a five-block diorama.
+                    //
+                    // This was a little tower built from `MiniBlockPreview`,
+                    // which had drifted a long way from the real block: a
+                    // diagonal gradient and a frosted overlay, no rim, no band
+                    // — the styling the tower left behind. `StrataMark` is
+                    // drawn from `BlockSurface`, so it is the same object the
+                    // rest of the app is made of and cannot drift again.
+                    StrataMark(side: 72)
 
                     Text("Strata")
                         .font(Typography.brandLogo)
