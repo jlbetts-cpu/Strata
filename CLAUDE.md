@@ -220,6 +220,43 @@ setting the height, a day with no arc collapsed to its numeral.)
   cleared"). Fill means fully completed; outline means closed with skips.
 - The mini-block preview is intentionally smaller-scaled chrome, not a bug.
 
+## Gestures CAN be tested — use `StrataUITests`
+
+The line below about nothing being able to tap the simulator is true of
+`osascript` and false of XCUITest, which drives the simulator through the test
+runner and needs no macOS accessibility permission. `StrataUITests/TowerGestureTests.swift`
+presses, holds, drags and swipes for real. It is slow — 30s to 200s per test,
+and the whole file is 10+ minutes — so run it in the background and never
+build while it is running: rebuilding the products mid-run makes every test in
+the run fail, which looks exactly like a regression.
+
+Read results from the xcresult, not stdout (test `print` does not reach the
+xcodebuild log):
+
+    xcrun xcresulttool get test-results tests --path <newest .xcresult>
+
+**What XCUITest cannot do here:** synthesise the lift that begins a UIKit drag
+session. `press(forDuration:thenDragTo:)` drives a `DragGesture` fine and does
+NOT trigger `.draggable`. So drag-and-drop reordering is verifiable up to the
+drop and no further; that is why the ordering rule lives in `TowerOrdering` as
+a plain function with unit tests.
+
+**Any recogniser on a block starves the tower's ScrollView.** Measured, by
+swiping a 44-block tower and fingerprinting every label's position:
+`highPriorityGesture(drag)`, `simultaneousGesture(drag)`,
+`LongPressGesture.sequenced(before: DragGesture)` and a bare
+`.onLongPressGesture` all give **0.0pt** of scroll. A `TapGesture` is the one
+exception. `.draggable`/`.dropDestination` also scroll normally, which is why
+rearranging uses them. Do not reintroduce a gesture-based reorder.
+
+`.gesture(cond ? someGesture : nil)` still installs a recogniser for the nil
+case. Make the MODIFIER conditional, not the gesture.
+
+**Two settling traps.** A seeded tower runs a drop cascade per block; swiping
+before it finishes reports no scroll. Allow ~16s. And a tower reuses titles, so
+"the first Walk" is a different element before and after a scroll — assert on
+the whole set of label positions, never one match.
+
 ## Screenshots without a tap
 
 There is no accessibility permission for `osascript` on this machine, so
