@@ -288,23 +288,17 @@ struct CameraView: View {
                 // 44pt is the HIG minimum for a touch target and the button is
                 // exactly that, with the glyph smaller inside it — the tappable
                 // area is bigger than the mark, which is the point.
-                Button {
-                    HapticsEngine.lightTap()
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(.black.opacity(0.28)))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
+                GlassIconButton(
+                    systemName: "xmark",
+                    tint: .white,
+                    glyphSize: 16,
+                    accessibilityLabel: "Close camera",
+                    action: onClose
+                )
                 .position(
                     x: w - GridConstants.horizontalPadding - 22,
                     y: topInset + 22 + Header.topPadding
                 )
-                .accessibilityLabel("Close camera")
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)

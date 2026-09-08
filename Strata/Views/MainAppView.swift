@@ -610,20 +610,14 @@ struct MainAppView: View {
             // other days is what Insights is for. What belongs in that corner
             // is the thing you actually want when the tower looks good, which
             // is to show somebody.
-            Button {
-                HapticsEngine.lightTap()
+            GlassIconButton(
+                systemName: "square.and.arrow.up",
+                accessibilityLabel: "Share your tower"
+            ) {
                 isSharing = true
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
-                    .foregroundStyle(.primary.opacity(0.45))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .disabled(towerVM.placedBlocks.isEmpty)
             .opacity(towerVM.placedBlocks.isEmpty ? 0.3 : 1)
-            .accessibilityLabel("Share your tower")
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)

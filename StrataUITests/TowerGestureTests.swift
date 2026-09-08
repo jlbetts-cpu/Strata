@@ -204,4 +204,36 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),
                       "a nonsense search still showed albums")
     }
+
+    /// A photo opens from a day and the glass close button shuts it.
+    ///
+    /// This is the whole point of History — a photograph taken last week has to
+    /// be reachable — and it is also the only way to prove the Liquid Glass
+    /// close button is actually hittable, since `.glassEffect` sits between the
+    /// glyph and the touch.
+    @MainActor
+    func testAPhotoOpensFromADayAndCloses() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "insights",
+                               "-strataSeedHistory", "14", "-strataOpenDay", "2"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 40),
+                      "the day screen has no photos section")
+        Thread.sleep(forTimeInterval: 4)
+
+        let photo = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Close'")).count
+        XCTAssertEqual(photo, 0, "a close button exists before a photo was opened")
+
+        // The photo grid sits under the PHOTOS heading.
+        let heading = app.staticTexts["PHOTOS"]
+        let firstPhoto = heading.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: 90))
+        firstPhoto.tap()
+
+        let close = app.buttons["Close photo"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "tapping a photo opened nothing")
+        close.tap()
+        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 10),
+                      "the glass close button did not dismiss the photo")
+    }
 }

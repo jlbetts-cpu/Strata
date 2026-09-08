@@ -83,18 +83,12 @@ struct HistoryView: View {
                 .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
-            Button {
-                HapticsEngine.lightTap()
+            GlassIconButton(
+                systemName: "gearshape",
+                accessibilityLabel: "Settings"
+            ) {
                 openSettings?()
-            } label: {
-                Image(systemName: "gearshape")
-                    .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .regular)
-                    .foregroundStyle(.primary.opacity(0.45))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
         }
     }
 

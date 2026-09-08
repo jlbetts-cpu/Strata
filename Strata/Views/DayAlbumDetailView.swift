@@ -154,14 +154,13 @@ private struct PhotoViewer: View {
                 .ignoresSafeArea()
         }
         .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
+            GlassIconButton(
+                systemName: "xmark",
+                tint: .white,
+                glyphSize: 16,
+                accessibilityLabel: "Close photo",
+                action: onClose
+            )
             // Clear of the status bar and the Dynamic Island — a close button
             // at y=34 in screen coordinates is not pressable, which this app
             // has already learned once.
