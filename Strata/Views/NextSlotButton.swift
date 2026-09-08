@@ -309,7 +309,19 @@ struct NextSlotButton: View {
             drawn = 0
         }
         lastSize = .small
-        onSizeChanged(.small)
+        // NOT `onSizeChanged(.small)` here.
+        //
+        // That call reset the parent's `drawingSize`, which is what sizes the
+        // slot's own frame — so the moment you let go, the slot you had just
+        // drawn at 2x2 snapped back to a single square. And it stayed there,
+        // visibly, because the slot is only hidden once `animCoord.isCascading`
+        // flips, which happens after `logWin` queues the drop and the cascade
+        // waits out a 300ms scroll settle. That gap is the "it shrinks before
+        // the block drops" — a third of a second of the wrong-sized slot
+        // sitting where the right-sized block is about to land.
+        //
+        // Resetting to `.small` is bookkeeping for the NEXT win. It belongs
+        // after this one has landed, and the parent does it there.
         action(size)
     }
 }

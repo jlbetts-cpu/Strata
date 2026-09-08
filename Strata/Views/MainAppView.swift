@@ -1737,6 +1737,16 @@ struct MainAppView: View {
         let claimed = awaitingDropIDs
         refreshData()
 
+        // Reset the drawn size here, not on release.
+        //
+        // `isCascading` is already true by this point, so the slot is hidden
+        // and the reset is invisible. Doing it in `NextSlotButton.fire` meant
+        // the slot shrank to 1x1 the instant your finger lifted and then sat
+        // there for the 300ms scroll settle above, before the correctly-sized
+        // block arrived — which read as the slot shrinking and the block
+        // dropping as two separate events.
+        drawingSize = .small
+
         // No second scroll.
         //
         // This used to centre the new block a moment after scrolling to the

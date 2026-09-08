@@ -124,4 +124,34 @@ final class TowerGestureTests: XCTestCase {
                        "holding a block opened its edit sheet")
     }
 
+    // MARK: - The next slot
+
+    /// Drawing a bigger block and letting go must not shrink the slot first.
+    ///
+    /// The slot's size comes from the parent's `drawingSize`, and
+    /// `NextSlotButton.fire` used to reset that to `.small` the instant the
+    /// finger lifted — while the slot was still on screen for the 300ms scroll
+    /// settle before the cascade hides it. This drags the slot out to a bigger
+    /// size, releases, and films it; the frames are checked separately.
+    @MainActor
+    func testDrawingABiggerBlockThenReleasing() throws {
+        let app = launch(wins: 4)
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 30), "no next slot on the tower")
+        Thread.sleep(forTimeInterval: 8)
+
+        // The tally, not the block count. A win logged from the slot is
+        // untitled, and an untitled block deliberately draws NO text at all —
+        // so counting labels cannot see it arrive. The header numeral can.
+        XCTAssertTrue(app.staticTexts["4"].exists, "tally did not start at 4")
+
+        // Out to the side is "medium" — 46pt is GridConstants.slotStep.
+        let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let out = start.withOffset(CGVector(dx: 70, dy: 0))
+        start.press(forDuration: 0.15, thenDragTo: out,
+                    withVelocity: .slow, thenHoldForDuration: 0.5)
+
+        XCTAssertTrue(app.staticTexts["5"].waitForExistence(timeout: 15),
+                      "dragging the slot out and releasing logged nothing")
+    }
 }
