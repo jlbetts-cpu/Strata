@@ -264,24 +264,9 @@ struct SettingsView: View {
                 }
 
                 if eventKitService.isAuthorized {
-                    Text("Calendar events appear as context on your timeline")
+                    Text("Calendar events appear as context on your day")
                         .font(Typography.caption)
                         .foregroundStyle(.secondary)
-                }
-            }
-
-            // MARK: - Section 2: Customization
-
-            Section("Customization") {
-                Label {
-                    HStack {
-                        Text("Customization")
-                        Spacer()
-                        Text("Coming soon")
-                            .foregroundStyle(.secondary)
-                    }
-                } icon: {
-                    SettingsIcon(systemName: "paintbrush.fill")
                 }
             }
 
@@ -370,12 +355,26 @@ struct SettingsView: View {
 
             // MARK: - Section 5: Legal
 
+            // MARK: - Section 5: Legal
+            //
+            // These were links to strataapp.co/privacy and /terms. The domain
+            // does not resolve — curl gets no response at all, not a 404 — so
+            // both rows were dead ends, including the one App Review opens.
+            // The policy is in the app now, where it is true regardless of
+            // what is hosted. A hosted copy is still required for App Store
+            // Connect; see tasks/app-store-readiness.md.
             Section {
-                Link("Privacy Policy", destination: URL(string: "https://strataapp.co/privacy")!)
-                    .foregroundStyle(.secondary)
-
-                Link("Terms of Service", destination: URL(string: "https://strataapp.co/terms")!)
-                    .foregroundStyle(.secondary)
+                NavigationLink {
+                    PrivacyPolicyView()
+                } label: {
+                    Label {
+                        Text("Privacy")
+                    } icon: {
+                        SettingsIcon(systemName: "hand.raised.fill")
+                    }
+                }
+            } footer: {
+                Text("Everything you log stays on this device. Strata has no account and no server.")
             }
 
             // MARK: - Section 6: Debug
