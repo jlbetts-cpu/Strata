@@ -132,9 +132,21 @@ struct TowerReflection: View {
                     // down the page and inviting a scroll to something that is
                     // not there. Real water at a shallow angle returns very
                     // little.
-                    .init(color: facet.color.opacity(0.30), location: 0.0),
-                    .init(color: facet.color.opacity(0.17), location: 0.32),
-                    .init(color: facet.color.opacity(0.04), location: 0.74),
+                    // Softer at the waterline than it was, and carried
+                    // further down.
+                    //
+                    // At 0.30/0.17/0.04 the colour was at a third strength
+                    // right under the block and effectively gone by 34 of the
+                    // 46pt — measured off a screenshot: the green under a
+                    // bottom-row block read 173,214,197 against a 250,248,245
+                    // ground, then flattened. A saturated slab that stops is a
+                    // coloured shadow, which is exactly what it was being
+                    // taken for. Half the strength spread over the whole depth
+                    // reads as water instead: still visibly the block's
+                    // colour, never a band with an edge.
+                    .init(color: facet.color.opacity(0.16), location: 0.0),
+                    .init(color: facet.color.opacity(0.11), location: 0.34),
+                    .init(color: facet.color.opacity(0.05), location: 0.68),
                     .init(color: facet.color.opacity(0.0), location: 1.0)
                 ]),
                 startPoint: .zero,
@@ -149,7 +161,7 @@ struct TowerReflection: View {
         for facet in facets {
             let r = CGRect(x: facet.x, y: 0, width: facet.width, height: 1.6)
             ctx.fill(Path(roundedRect: r, cornerRadius: 0.8),
-                     with: .color(.white.opacity(0.32)))
+                     with: .color(.white.opacity(0.22)))
         }
 
         // Light catching the ripples.
