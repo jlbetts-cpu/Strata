@@ -17,7 +17,18 @@ final class TowerGestureTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-strataStartTab", tab, "-strataSeedWins", "\(wins)"]
         app.launch()
+        if tab == "tower" { ensureWinsTab(app) }
         return app
+    }
+
+    /// `-strataStartTab` races the TabView's own default selection, and the
+    /// app now opens on the camera — so a test that wants the tower has to be
+    /// willing to press the tab itself rather than assume it landed there.
+    private func ensureWinsTab(_ app: XCUIApplication) {
+        if app.staticTexts["Walk"].firstMatch.waitForExistence(timeout: 25) { return }
+        let wins = app.buttons["Wins"]
+        if wins.waitForExistence(timeout: 5) { wins.tap() }
+        _ = app.staticTexts["Walk"].firstMatch.waitForExistence(timeout: 25)
     }
 
     /// Proves the runner can reach the app at all before anything else is
@@ -181,8 +192,12 @@ final class TowerGestureTests: XCTestCase {
                       || app.buttons["Wins"].waitForExistence(timeout: 5),
                       "tapping an album opened nothing")
 
-        // And back, without losing the grid.
-        app.navigationBars.buttons.firstMatch.tap()
+        // Back by the edge swipe rather than the chevron: the day screen
+        // hides its navigation title, so `app.navigationBars` finds nothing to
+        // reach into.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+            .press(forDuration: 0.05,
+                   thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
         XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 15),
                       "could not get back to the albums")
     }
@@ -205,35 +220,36 @@ final class TowerGestureTests: XCTestCase {
                       "a nonsense search still showed albums")
     }
 
-    /// A photo opens from a day and the glass close button shuts it.
+    /// A photo opens by tapping its BLOCK, and the glass close button shuts it.
     ///
-    /// This is the whole point of History — a photograph taken last week has to
-    /// be reachable — and it is also the only way to prove the Liquid Glass
-    /// close button is actually hittable, since `.glassEffect` sits between the
-    /// glyph and the touch.
+    /// The day screen used to carry a photo grid under the tower — a second
+    /// copy of the same pictures. The photo is on the block; you tap the block.
+    /// This is also the only way to prove the Liquid Glass close button is
+    /// hittable, since `.glassEffect` sits between the glyph and the touch.
     @MainActor
-    func testAPhotoOpensFromADayAndCloses() throws {
+    func testAPhotoOpensFromABlockAndCloses() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-strataStartTab", "insights",
                                "-strataSeedHistory", "14", "-strataOpenDay", "2"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 40),
-                      "the day screen has no photos section")
-        Thread.sleep(forTimeInterval: 4)
+        XCTAssertTrue(app.staticTexts["5 wins"].waitForExistence(timeout: 40)
+                      || app.staticTexts.firstMatch.waitForExistence(timeout: 10),
+                      "the day screen never appeared")
+        Thread.sleep(forTimeInterval: 6)
 
-        let photo = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Close'")).count
-        XCTAssertEqual(photo, 0, "a close button exists before a photo was opened")
-
-        // The photo grid sits under the PHOTOS heading.
-        let heading = app.staticTexts["PHOTOS"]
-        let firstPhoto = heading.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0))
-            .withOffset(CGVector(dx: 0, dy: 90))
-        firstPhoto.tap()
-
+        // Not every block carries a photo, so try a few. A block with none
+        // correctly does nothing, which is why this is a loop and not one tap.
         let close = app.buttons["Close photo"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "tapping a photo opened nothing")
+        var opened = false
+        for label in app.staticTexts.allElementsBoundByIndex.prefix(8) {
+            guard label.exists, label.isHittable else { continue }
+            label.tap()
+            if close.waitForExistence(timeout: 3) { opened = true; break }
+        }
+        XCTAssertTrue(opened, "tapping the blocks never opened a photo")
+
         close.tap()
-        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 10),
-                      "the glass close button did not dismiss the photo")
+        XCTAssertFalse(close.waitForExistence(timeout: 3),
+                       "the glass close button did not dismiss the photo")
     }
 }

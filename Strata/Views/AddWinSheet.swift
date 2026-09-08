@@ -26,6 +26,10 @@ struct AddWinSheet: View {
     /// When set, the sheet edits this block's habit instead of creating one.
     var editing: Habit? = nil
     var editingLog: HabitLog? = nil
+    /// A photograph the sheet opens already holding — a shot just taken on
+    /// the camera tab, which lands here to be named and sized rather than
+    /// going straight onto the tower unnamed.
+    var initialPhoto: UIImage? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -36,6 +40,12 @@ struct AddWinSheet: View {
     @State private var category: HabitCategory = .health
     @State private var size: BlockSize = .small
     @State private var photo: UIImage?
+    /// Whether the user touched the photo at all this time round.
+    ///
+    /// Without it, every save rewrote the image — re-encoding a JPEG that had
+    /// already been encoded, losing a little each time, for an edit that was
+    /// only ever a rename.
+    @State private var photoChanged = false
     @State private var showCamera = false
     @State private var choosingSource = false
     @State private var pickerItem: PhotosPickerItem?
@@ -113,6 +123,7 @@ struct AddWinSheet: View {
             CameraView(
                 onCaptured: { image in
                     photo = image
+                    photoChanged = true
                     showCamera = false
                 },
                 onClose: { showCamera = false },
@@ -137,7 +148,10 @@ struct AddWinSheet: View {
             Button("Take a photo") { showCamera = true }
             Button("Choose from library") { showLibrary = true }
             if photo != nil {
-                Button("Remove photo", role: .destructive) { photo = nil }
+                Button("Remove photo", role: .destructive) {
+                    photo = nil
+                    photoChanged = true
+                }
             }
             Button("Cancel", role: .cancel) { }
         }
@@ -148,6 +162,7 @@ struct AddWinSheet: View {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
                     photo = image
+                    photoChanged = true
                 }
                 pickerItem = nil
             }
@@ -335,6 +350,10 @@ struct AddWinSheet: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
+        if let initialPhoto {
+            photo = initialPhoto
+            photoChanged = true
+        }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
             category = habit.displayCategory
@@ -363,8 +382,20 @@ struct AddWinSheet: View {
             habit.spontaneousCategoryRaw = nil
             habit.blockSize = size
             try? modelContext.save()
-            if let log = editingLog, let photo {
-                attach(photo, to: log)
+            if photoChanged, let log = editingLog {
+                if let photo {
+                    attach(photo, to: log)
+                } else {
+                    // Removing a photo used to do nothing at all: the dialog
+                    // set `photo` to nil, and the save path only ever ran when
+                    // there WAS a photo, so `imageFileName` was never cleared
+                    // and the block kept its face.
+                    if let name = log.imageFileName {
+                        ImageManager.shared.deleteImage(fileName: name)
+                    }
+                    log.imageFileName = nil
+                    try? modelContext.save()
+                }
             }
             HapticsEngine.success()
             onSaved(habit)
@@ -400,15 +431,22 @@ struct AddWinSheet: View {
     /// Saved before the sheet closes, not after: the tower reads
     /// `imageFileName` on its next build, and a block that arrives with no face
     /// and grows one a moment later is the flash this avoids.
+    /// The photograph is stored WHOLE, not cropped to the block it is going on.
+    ///
+    /// It used to be trimmed to the block's aspect before writing, on the
+    /// reasoning that the block clips it anyway so the rest is bytes nobody can
+    /// see. That is true right up until the block is resized — and then the
+    /// already-cropped picture was loaded back, cropped AGAIN to the new
+    /// aspect, and written. Every resize cropped the crop, so the subject
+    /// zoomed further out of frame each time until it was gone.
+    ///
+    /// `CachedImageView` draws with `.scaledToFill()`, so the block crops to
+    /// its own shape at display time, from the whole image, every time. Which
+    /// means a resize now re-frames rather than re-crops, and is reversible.
     private func attach(_ image: UIImage, to log: HabitLog) {
         let id = log.id
-        // Trimmed to the block's shape before it is written. The block clips
-        // the photo anyway, so anything outside that shape is bytes on disk
-        // for a picture nobody can see.
-        let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
-        let framed = ImageManager.trimmed(image, toAspect: aspect)
         Task { @MainActor in
-            if let name = try? await ImageManager.shared.save(image: framed, for: id) {
+            if let name = try? await ImageManager.shared.save(image: image, for: id) {
                 log.imageFileName = name
                 try? modelContext.save()
             }

@@ -65,6 +65,12 @@ enum GridConstants {
     /// Hairlines and card strokes.
     static let fillHairline = Color.primary.opacity(0.08)
     static let horizontalPadding: CGFloat = 16
+    /// How far a tally digit's ink sits inside its own layout box.
+    ///
+    /// Measured off a screenshot: with the header padded to 16pt the numeral's
+    /// first dark pixel was at 20pt while the first block's colour started at
+    /// 16pt. Type is aligned optically or it is not aligned.
+    static let tallyOpticalInset: CGFloat = 4
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
     static let headerDividerOpacity: Double = 0.06

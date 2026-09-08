@@ -36,7 +36,7 @@ struct DayAlbumDetailView: View {
                 tower
                     .frame(maxWidth: .infinity)
                     .padding(.top, 20)
-                if !photos.isEmpty { photoGrid }
+
             }
             .padding(.bottom, 110)
         }
@@ -96,13 +96,29 @@ struct DayAlbumDetailView: View {
     /// views read have to be supplied by hand — there is nothing to inherit
     /// them from here. `TowerShare` learned this the same way.
     private var tower: some View {
+        // Full size, the same cell the Wins tab draws at.
+        //
+        // It was capped at 74 so a three-block day would not become a
+        // billboard — but the effect on a normal day was a miniature of the
+        // tower rather than the tower, which is the one thing this screen is
+        // for. It fills the width now, exactly as the live tower does.
         StaticTowerView(
             blocks: vm.placedBlocks,
             mergeGroups: vm.mergeGroups,
             groupedIDs: vm.groupedBlockIDs,
             coveredIDs: vm.coveredBlockIDs,
             modelContext: modelContext,
-            maxCell: 74
+            width: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2,
+            maxCell: 200,
+            onTapBlock: { block in
+                // The photo is ON the block. A separate grid underneath was a
+                // second copy of the same pictures, and it pushed the tower —
+                // the thing you came here to look at — up the screen to make
+                // room for it.
+                guard let name = block.log.imageFileName else { return }
+                HapticsEngine.lightTap()
+                viewing = name
+            }
         )
         .environment(\.towerFilterMode, .day)
         .environment(\.perfectDayDates, [])
@@ -110,35 +126,7 @@ struct DayAlbumDetailView: View {
 
     // MARK: - Photographs
 
-    private var photoGrid: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("PHOTOS")
-                .font(Typography.caption2)
-                .kerning(0.8)
-                .foregroundStyle(.primary.opacity(0.35))
-                .padding(.horizontal, GridConstants.horizontalPadding)
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 6),
-                GridItem(.flexible(), spacing: 6),
-                GridItem(.flexible(), spacing: 6)
-            ], spacing: 6) {
-                ForEach(photos, id: \.self) { name in
-                    Button { HapticsEngine.lightTap(); viewing = name } label: {
-                        CachedImageView(fileName: name, width: 118, height: 118,
-                                        cornerRadius: GridConstants.radiusControl)
-                            .aspectRatio(1, contentMode: .fill)
-                            .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusControl,
-                                                        style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, GridConstants.horizontalPadding)
-        }
-        .padding(.top, 40)
-    }
-}
+ }
 
 /// One photograph, full size.
 private struct PhotoViewer: View {

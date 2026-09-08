@@ -37,7 +37,14 @@ struct MainAppView: View {
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
     @State private var hasLoadedDemo = false
-    @State private var selectedTab: StrataTab = .tower
+    /// The camera, not the tower.
+    ///
+    /// Logging a win is the thing the app is for, and a photograph is the
+    /// fastest way to log one — so the app opens on the viewfinder rather than
+    /// on the record of what you already did.
+    @State private var selectedTab: StrataTab = .camera
+    /// A shot waiting to become a win, held while the add sheet opens.
+    @State private var capturedPhoto: UIImage?
     // #270: Tower filter persistence across launches
     /// The tower shows today, and only today.
     ///
@@ -160,6 +167,11 @@ struct MainAppView: View {
     @State private var safeAreaBottom: CGFloat = 0
 
     private let hPad: CGFloat = GridConstants.horizontalPadding
+
+    /// The tower's own width — what the header aligns to.
+    private var towerGridWidth: CGFloat {
+        CGFloat(columns) * currentColW + CGFloat(columns - 1) * spacing
+    }
     private let spacing: CGFloat = GridConstants.spacing
     private let columns = GridConstants.columnCount
     private let cornerRadius: CGFloat = GridConstants.cornerRadius
@@ -265,7 +277,6 @@ struct MainAppView: View {
     @State private var drawingSize: BlockSize = .small
     @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
-    @State private var waterImpacts: [TowerReflection.Impact] = []
     @State private var winSaveFailed = false
     @State private var showSettings = false
     @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
@@ -383,10 +394,11 @@ struct MainAppView: View {
                 ShareSheet(activityItems: [image])
             }
         }
-        .sheet(isPresented: $isNewHabitMenuOpen) {
+        .sheet(isPresented: $isNewHabitMenuOpen, onDismiss: { capturedPhoto = nil }) {
             AddWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
+                initialPhoto: capturedPhoto,
                 onSaved: { _ in scheduleRefresh() }
             )
         }
@@ -595,9 +607,14 @@ struct MainAppView: View {
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(towerVM.placedBlocks.count)")
-                .font(JaroFont.size(GridConstants.tallyNumeral))
+                .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
+                // Optical, not geometric. A digit's ink starts inside its
+                // layout box — measured at 4pt for SF Pro Rounded at 64pt — so
+                // a box aligned to the grid still LOOKS indented next to a
+                // block, whose colour goes right to its edge.
+                .padding(.leading, -GridConstants.tallyOpticalInset)
             Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
                 .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.35))
@@ -621,7 +638,18 @@ struct MainAppView: View {
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
-        .padding(.horizontal, hPad)
+        // Constrained to the GRID's width, not the page's.
+        //
+        // The tower is leading-aligned inside the padded page, and four
+        // columns rarely divide the remaining width exactly — so the grid ends
+        // a couple of points short of the page's trailing padding. Padding the
+        // header by `hPad` on both sides therefore put the share button past
+        // the tower's right edge. Measured: tower right 383.7pt, button right
+        // 386pt. Giving the header the grid's own width lands both on the same
+        // line whatever the screen.
+        .frame(width: towerGridWidth, alignment: .leading)
+        .padding(.leading, hPad)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
         // Air between the count and the top of a tall tower. Without it a
         // tower that reaches the top of the scroll runs straight into the
@@ -790,16 +818,22 @@ struct MainAppView: View {
         }
     }
 
-    /// The camera tab. A shot here becomes a win with that photo as its face,
-    /// and the tower is where you land afterwards to watch it drop.
+    /// The camera tab.
+    ///
+    /// A shot used to become a win immediately — logged untitled, at the
+    /// smallest size, dropped on the tower. Which meant every photograph
+    /// arrived as a block you then had to find and open to name. It goes to
+    /// the add sheet now, already holding the picture, so naming and sizing
+    /// happen once while you are still thinking about the thing you did.
     private var cameraTab: some View {
         // No `.ignoresSafeArea()` here. The preview ignores it from the
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
         CameraView(
             onCaptured: { image in
-                logWin(size: .small, photo: image)
+                capturedPhoto = image
                 selectedTab = .tower
+                isNewHabitMenuOpen = true
             },
             fillsScreen: true
         )
@@ -1141,23 +1175,7 @@ struct MainAppView: View {
     /// in the water, so anything landing on it travels down through it. Rings
     /// spread from the landing block's own column, which is what makes the
     /// water feel attached to the tower rather than played at it.
-    private func recordWaterImpact(blockID: UUID, mass: Int) {
-        guard !reduceMotion,
-              let block = towerVM.placedBlocks.first(where: { $0.id == blockID }) else { return }
-        let f = GridConstants.blockFrame(
-            column: block.column, row: 0,
-            columnSpan: block.columnSpan, rowSpan: 1,
-            cellSize: currentColW
-        )
-        let now = Date().timeIntervalSinceReferenceDate
-        waterImpacts.append(
-            TowerReflection.Impact(id: UUID(), x: f.midX, start: now, mass: mass)
-        )
-        // Drop anything that has finished spreading. Cheap, and it keeps the
-        // array from growing across a long cascade.
-        waterImpacts.removeAll { now - $0.start > TowerReflection.Impact.lifetime }
-    }
-
+ 
     /// Merge groups over SETTLED blocks only.
     ///
     /// A falling block was joining its group the moment the tower rebuilt,
@@ -1195,64 +1213,7 @@ struct MainAppView: View {
     /// width. A reflection at the base of something shows only what is nearest
     /// the surface, so nothing above row 0 contributes and nothing but position
     /// and colour survives.
-    private func reflectionFacets(colW: CGFloat) -> [TowerReflection.Facet] {
-        // Reflect what is DRAWN, not what is stored.
-        //
-        // One facet per block put a gap in the water everywhere the tower had a
-        // seam — including seams that no longer exist, because a merged run is
-        // one object with no gaps in it. The water was reflecting the data
-        // model rather than the tower.
-        //
-        // Bottom-row cells are walked left to right and merged into one facet
-        // wherever consecutive cells belong to the same merged group, so the
-        // reflection spans the join exactly as the shape above it does.
-        let bottom = towerVM.placedBlocks.filter { $0.row == 0 }
-        guard !bottom.isEmpty else { return [] }
-
-        var groupOf: [UUID: UUID] = [:]
-        for group in towerVM.mergeGroups {
-            for member in group.memberIDs { groupOf[member] = group.id }
-        }
-
-        // Cell index -> the block occupying it.
-        var byColumn: [Int: PlacedBlock] = [:]
-        for block in bottom {
-            for c in block.column..<(block.column + block.columnSpan) {
-                byColumn[c] = block
-            }
-        }
-
-        var facets: [TowerReflection.Facet] = []
-        var column = 0
-        while column < GridConstants.columnCount {
-            guard let block = byColumn[column] else { column += 1; continue }
-            let runKey = groupOf[block.id]
-            var end = column
-            // Extend while the next cell is in the same merged run. A block not
-            // in a group runs only as far as its own span.
-            while let next = byColumn[end + 1],
-                  runKey != nil ? groupOf[next.id] == runKey : next.id == block.id {
-                end += 1
-            }
-            let startX = GridConstants.blockFrame(
-                column: column, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
-            ).minX
-            let endFrame = GridConstants.blockFrame(
-                column: end, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
-            )
-            facets.append(
-                TowerReflection.Facet(
-                    id: block.id,
-                    x: startX,
-                    width: endFrame.maxX - startX,
-                    color: block.habit.displayCategory.style.baseColor
-                )
-            )
-            column = end + 1
-        }
-        return facets
-    }
-
+ 
     // MARK: - Wins
 
     /// Blocks that landed on the tower today — taps of the next slot plus
@@ -1295,10 +1256,11 @@ struct MainAppView: View {
             // face on rather than growing one a moment after it lands.
             if let photo, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
                 let id = log.id
-                let aspect = CGFloat(size.columnSpan) / CGFloat(size.rowSpan)
-                let framed = ImageManager.trimmed(photo, toAspect: aspect)
+                // Stored whole. The block crops to its own shape when it draws
+                // (`scaledToFill`), so cropping to disk as well only made a
+                // later resize crop the crop — see `AddWinSheet.attach`.
                 Task { @MainActor in
-                    if let name = try? await ImageManager.shared.save(image: framed, for: id) {
+                    if let name = try? await ImageManager.shared.save(image: photo, for: id) {
                         log.imageFileName = name
                         try? modelContext.save()
                         scheduleRefresh()
@@ -1429,7 +1391,6 @@ struct MainAppView: View {
         }
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
-            recordWaterImpact(blockID: landedID, mass: mass)
             // The column too, so the landing is heard where it is seen.
             // `blockImpact` has always taken it and always been called without
             // it, so the stereo placement its own comment describes has never
@@ -1818,8 +1779,8 @@ struct MainAppView: View {
         // edge. `.offset` does not affect layout, so the sizing spacer below
         // has to be told about it or the container reserves no space for any
         // of it and it hangs outside the measured bounds.
-        let waterDepth = TowerReflection.depth
-        let footerReserve: CGFloat = waterDepth
+        // Nothing under the tower now, so nothing to reserve for it.
+        let footerReserve: CGFloat = 0
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -1834,7 +1795,7 @@ struct MainAppView: View {
                                // the reflection under the first slot hangs
                                // outside the measured bounds and is clipped.
                                height: max(gridH, 1)
-                                   + (rowCount > 0 ? footerReserve : colW + waterDepth))
+                                   + footerReserve)
                         // Where the grid really is, so a fall can start above
                         // the screen. Writes to a plain object, not to state —
                         // see `TowerGeometryProbe`.
@@ -1856,44 +1817,11 @@ struct MainAppView: View {
                         // Only when there is nothing outlined either: a day
                         // with habits still to do is not an empty tower, it is
                         // a tower that has not been built yet.
-                        // The slot stands in the water too.
-                        //
-                        // An empty tower drew no reflection at all, so the
-                        // very first thing anyone sees is the one screen where
-                        // the tower is not standing on anything — and then the
-                        // water appears from nowhere the moment a first block
-                        // lands. The surface is the ground this page is built
-                        // on; it should be there before there is anything on
-                        // it.
-                        TowerReflection(
-                            facets: [TowerReflection.Facet(
-                                id: emptySlotFacetID,
-                                x: 0,
-                                width: colW,
-                                color: nextWinCategory.style.baseColor
-                            )],
-                            impacts: [],
-                            gridWidth: gridW,
-                            cornerRadius: cornerRadius,
-                            reduceMotion: reduceMotion
-                        )
-                        .opacity(0.5)
-                        .offset(y: colW + 1)
-
                         emptyTowerSlot(colW: colW)
                     } else {
                         // Ground plane at tower foundation, and the water
                         // it sits on.
                         towerGroundPlane(gridW: gridW, gridH: gridH)
-
-                        TowerReflection(
-                            facets: reflectionFacets(colW: colW),
-                            impacts: waterImpacts,
-                            gridWidth: gridW,
-                            cornerRadius: cornerRadius,
-                            reduceMotion: reduceMotion
-                        )
-                        .offset(y: gridH + 1)
 
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.

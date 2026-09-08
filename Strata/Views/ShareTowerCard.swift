@@ -109,40 +109,15 @@ struct ShareTowerCard: View {
             }
             .frame(width: gridW, height: gridH)
 
-            TowerReflection(
-                facets: facets(cell: cell),
-                impacts: [],
-                gridWidth: gridW,
-                cornerRadius: radius,
-                reduceMotion: true
-            )
-            .frame(width: gridW, height: reflectionDepth)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var reflectionDepth: CGFloat { TowerReflection.depth }
+    private var reflectionDepth: CGFloat { 0 }
 
     /// What of the tower reaches the water: the bottom row, as colour and
     /// width — the same rule the live page uses.
-    private func facets(cell: CGFloat) -> [TowerReflection.Facet] {
-        blocks
-            .filter { $0.row == 0 }
-            .map { block in
-                let f = GridConstants.blockFrame(
-                    column: block.column, row: 0,
-                    columnSpan: block.columnSpan, rowSpan: 1,
-                    cellSize: cell
-                )
-                return TowerReflection.Facet(
-                    id: block.id,
-                    x: f.minX,
-                    width: f.width,
-                    color: block.habit.displayCategory.style.baseColor
-                )
-            }
-    }
-}
+ }
 
 /// Renders the card to an image and hands it to the share sheet.
 enum TowerShare {

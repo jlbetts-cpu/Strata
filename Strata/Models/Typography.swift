@@ -34,12 +34,13 @@ enum Typography {
 
 // MARK: - Jaro
 
-/// The display face, used for the app's own name and for the one big number
-/// on each screen.
+/// The display face, used for the app's own name. Nothing else.
 ///
-/// Everything else stays SF Pro Rounded. Jaro is a display face — chunky,
-/// geometric, tight-fitting — which is what makes it right for a wordmark and
-/// a tally numeral and wrong for a block title or a settings row.
+/// It was briefly on the tally numeral too. Jaro's digits are as geometric as
+/// its letters, which made the one number on each screen read as part of the
+/// logo rather than as a count of your day — SF Pro Rounded says the number
+/// and gets out of the way. Jaro is the wordmark and the mark, and that is
+/// the whole of its job.
 ///
 /// It is a variable font with an optical-size axis (6–72, default 14). iOS
 /// picks an instance by point size on its own once the font is registered, so

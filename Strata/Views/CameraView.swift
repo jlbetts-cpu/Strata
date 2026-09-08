@@ -22,6 +22,9 @@ struct CameraView: View {
 
     @State private var camera = CameraService()
     @State private var flashOpacity: Double = 0
+    /// Whether the composition guides are drawn. Remembered, because it is a
+    /// preference about how you shoot rather than a per-session choice.
+    @AppStorage("cameraShowsGuides") private var showGuides = true
     @State private var shutterScale: CGFloat = 1
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -114,8 +117,11 @@ struct CameraView: View {
             ZStack {
                 CameraPreview(session: camera.session)
 
-                guides(w: w, h: h, topInset: topInset)
-                    .allowsHitTesting(false)
+                if showGuides {
+                    guides(w: w, h: h, topInset: topInset)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
 
                 header(topInset: topInset)
 
@@ -260,6 +266,26 @@ struct CameraView: View {
         // thumb already sweeps to reach the button it is going for anyway.
         let flankOffset = shutterOuter / 2 + 34
         return ZStack(alignment: .topLeading) {
+            // Outboard of the flash, on the left, as asked. That does leave
+            // two controls on one side of the shutter and one on the other —
+            // the alternative was splitting a pair that belong together, and
+            // an off-centre row reads better than a grid toggle exiled to the
+            // opposite corner from the thing it toggles.
+            // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
+            // but `grid` is a 3x3 of separate tiles — an app-grid mark — and
+            // this one is a rectangle divided by two verticals and two
+            // horizontals, which is the thing it turns on.
+            //
+            // Dimmed rather than swapped for a slashed variant, because there
+            // is no `rectangle.split.3x3.slash`. It stays a visible, pressable
+            // control either way, so the guides can always be brought back.
+            glyphButton("rectangle.split.3x3") {
+                withAnimation(GridConstants.motionSmooth) { showGuides.toggle() }
+            }
+            .opacity(showGuides ? 1 : 0.5)
+            .position(x: w / 2 - flankOffset - 48, y: shutterCentre)
+            .accessibilityLabel(showGuides ? "Hide the grid" : "Show the grid")
+
             glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
                 camera.isFlashOn.toggle()
             }
