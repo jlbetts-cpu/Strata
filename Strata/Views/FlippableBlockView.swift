@@ -193,6 +193,15 @@ struct FlippableBlockView: View {
                 // begins around 54% of an 86pt row, while a proportional ramp
                 // does not reach full dark until 81% — fine on Figma's 565pt
                 // block, and it leaves the title over open photo detail here.
+                // Only when there is a title to protect.
+                //
+                // The veil exists for one reason: white text on a photograph
+                // is unreadable without it. A block nobody named draws no text
+                // at all, so on those it was darkening the bottom of the
+                // picture to make nothing legible — which is just a dark
+                // gradient across a block, and a block is meant to be one flat
+                // colour.
+                if !BlockContentOverlay.isUnnamed(block.habit.title) {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     // A veil, not a shade.
@@ -216,6 +225,7 @@ struct FlippableBlockView: View {
                         endPoint: .bottom
                     )
                     .frame(height: min(84, height * 0.95))
+                }
                 }
 
             } else {

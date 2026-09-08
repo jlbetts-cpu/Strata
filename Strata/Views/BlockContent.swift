@@ -104,6 +104,12 @@ struct BlockContentOverlay: View {
     /// happened"; a label repeating that is the only part of it that could be
     /// wrong. Naming it in the card gives it its text.
     private var isUnnamed: Bool {
+        Self.isUnnamed(title)
+    }
+
+    /// Shared so the block view can ask the same question before deciding
+    /// whether a photograph needs a veil under text that is not there.
+    static func isUnnamed(_ title: String) -> Bool {
         title == QuickWinService.untitled || title.isEmpty
     }
 

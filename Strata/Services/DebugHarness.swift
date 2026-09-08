@@ -258,11 +258,15 @@ enum DebugHarness {
                         context: context,
                         tower: tower
                     ) else { continue }
-                    // Most days carry photographs, and some carry three or
-                    // more, because the cover fans up to three and a fixture
-                    // that never reaches three leaves the fan unexercised —
-                    // which is the whole design.
-                    if i != 1, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                    // Most PAST days carry photographs — some three or more,
+                    // because an album cover fans up to three and a fixture
+                    // that never reaches three leaves the fan unexercised.
+                    //
+                    // Today is deliberately left without any. Today is what
+                    // the Wins tab shows, and a tower made entirely of blocks
+                    // wearing stand-in photographs is not what the tower looks
+                    // like — it made the fixture read as a bug in the app.
+                    if back > 0, i != 1, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
                             for: win.logID,
                             category: categories[n % categories.count]
