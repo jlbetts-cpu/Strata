@@ -222,18 +222,40 @@ struct MainAppView: View {
         (towerShowParallax && !reduceMotion) ? 1 : 0
     }
 
-    /// The block a carried one is hovering over, so it can answer.
-    @State private var dropTargetID: UUID?
+    // MARK: - Rearranging the tower
+    //
+    // Dragging a block does not pick it up. The block leaves its slot, the
+    // tower reorganises live to show where it would land, and letting go keeps
+    // that arrangement — so what you see before you release is what you get.
+    // Dragging away and releasing puts it back.
+    //
+    // Nothing is written to SwiftData until the drop. The proposal lives
+    // entirely in `previewOrder`, because an unrelated `context.save()` — a
+    // HealthKit verification, a win logged from a Shortcut — would otherwise
+    // persist an arrangement the user never released.
+
+    /// The block being carried, or nil when nothing is being rearranged.
+    @State private var carriedBlockID: UUID?
+    /// The committed order, snapshotted at lift. What a cancel returns to.
+    /// The order IS the whole state of an arrangement: `buildTower` derives
+    /// every coordinate from the sequence.
+    @State private var committedOrder: [UUID] = []
+    /// The order currently on screen. Nil means "showing the committed one".
+    @State private var previewOrder: [UUID]?
+    /// The block the finger is over. Internal — it has no visual of its own.
+    @State private var hoverTargetID: UUID?
+    /// Fires the restore when the finger stays off every block. Cancelled by
+    /// any new hover, and by a drop.
+    @State private var restoreTask: Task<Void, Never>?
 
     /// Stable id for the empty slot's reflection, so the water does not
     /// rebuild its facet every time the view re-evaluates.
     private let emptySlotFacetID = UUID()
 
-    /// The tower is being rearranged. Read by the grid so every block can
-    /// answer — it has to be read where SwiftUI cannot miss it, not inside the
-    /// memoised block view, for the reason CLAUDE.md gives about `Equatable`
-    /// views and observable state.
-    private var liftActive: Bool { dropTargetID != nil }
+    /// The tower is being rearranged. Read at the top of the grid's body so
+    /// SwiftUI cannot miss it — not inside the memoised block view, for the
+    /// reason CLAUDE.md gives about `Equatable` views and observable state.
+    private var isRearranging: Bool { carriedBlockID != nil }
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -650,19 +672,122 @@ struct MainAppView: View {
     /// cell under the finger is a division, and the block owning that cell is
     /// a lookup. Hit testing would have meant a gesture per block, and a drag
     /// that starts on one and ends on another is one gesture crossing several
-     /// Ticking a row. Exactly the path the timeline used: save first, update
+     // MARK: - Rearranging
+
+    /// A block has been lifted. Remember where everything was, and take the
+    /// carried one out of the tower so the gap closes under the finger.
+    private func beginRearrange(_ id: UUID) {
+        guard carriedBlockID == nil else { return }
+        restoreTask?.cancel(); restoreTask = nil
+        committedOrder = towerVM.placedBlocks.map(\.id)
+        carriedBlockID = id
+        hoverTargetID = nil
+        previewOrder = committedOrder.filter { $0 != id }
+        HapticsEngine.snap()
+        reflowTowerOrder()
+    }
+
+    /// The finger has entered or left a block.
+    private func hover(_ id: UUID, targeted: Bool) {
+        guard let carried = carriedBlockID, id != carried else { return }
+        if targeted {
+            // Any new target cancels a pending restore. Crossing from one
+            // block to the next fires `false` on the old one and `true` on the
+            // new one a frame or two apart, so without this the tower would
+            // snap back on every crossing.
+            restoreTask?.cancel(); restoreTask = nil
+            guard hoverTargetID != id else { return }
+            hoverTargetID = id
+            previewOrder = TowerOrdering.reordered(ids: committedOrder, moving: carried, onto: id)
+            HapticsEngine.tick()
+            reflowTowerOrder()
+        } else if hoverTargetID == id {
+            hoverTargetID = nil
+            scheduleRestore()
+        }
+    }
+
+    /// Nothing is under the finger any more.
+    ///
+    /// iOS 18 gives no drag-session-ended callback — `.draggable` has no
+    /// completion, `DropDelegate` has no session-end, and `DragSession` /
+    /// `onDragSessionUpdated` are iOS 26. So this does not detect the end of
+    /// the drag; it detects leaving the tower, which is what a cancel looks
+    /// like from here. `commitRearrange` cancels this as its first statement,
+    /// which makes the delivery order of `isTargeted:false` and the drop
+    /// irrelevant.
+    private func scheduleRestore() {
+        restoreTask?.cancel()
+        restoreTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            guard !Task.isCancelled, carriedBlockID != nil else { return }
+            cancelRearrange()
+        }
+    }
+
+    private func commitRearrange(_ carried: UUID, onto target: UUID) {
+        restoreTask?.cancel(); restoreTask = nil
+        defer { endRearrange() }
+        guard carried != target else { return }
+        // The tower is already showing this arrangement from the last hover,
+        // so the write is the only thing left to do. `scheduleRefresh` puts the
+        // heavy `refreshData` on the next tick, out of the way of the system's
+        // own drop-completion animation.
+        TowerOrdering.commit(moving: carried, onto: target,
+                             logs: towerVM.placedBlocks.map(\.log),
+                             context: modelContext) { scheduleRefresh() }
+    }
+
+    private func cancelRearrange() {
+        previewOrder = nil
+        endRearrange()
+        reflowTowerOrder()
+    }
+
+    private func endRearrange() {
+        carriedBlockID = nil
+        hoverTargetID = nil
+        previewOrder = nil
+        committedOrder = []
+        restoreTask?.cancel(); restoreTask = nil
+    }
+
+    /// Repack the tower to the arrangement currently being proposed.
+    ///
+    /// Deliberately NOT `repackTower()`. That calls `refreshData()`, which is a
+    /// full recompute — HealthKit sync, an index over every log, week data,
+    /// perfect days, timeline reload, milestone detection — and, worst of all,
+    /// `enqueueArrivals`. That does not merely queue animations: it CONSUMES
+    /// `awaitingDropIDs`, so one reflow during a pending drop silently eats
+    /// that block's fall. It is the intermittent-drop bug `awaitingDropIDs`
+    /// was written to kill, re-armed.
+    ///
+    /// `buildTower` alone is enough, because it also recomputes the merge
+    /// groups, covered ids, crown, foundation, milestones and row count —
+    /// everything the grid reads.
+    private func reflowTowerOrder() {
+        // `buildTower` sets `newlyDroppedIDs` by diffing against the previous
+        // ids. During a reflow that set is identical, so it comes out empty —
+        // which would clear a drop that is still in the air. Refuse to run
+        // while anything is falling; the drag simply does not reflow until the
+        // tower is still.
+        guard !animCoord.isCascading, animCoord.activelyAnimatingIDs.isEmpty else { return }
+        let order = previewOrder ?? committedOrder
+        guard !order.isEmpty else { return }
+        let byID = Dictionary(filteredLogs.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let logs = order.compactMap { byID[$0] }
+        _ = withAnimation(GridConstants.slotSnap) {
+            towerVM.buildTower(from: logs, filterMode: towerFilterMode, preserveOrder: true)
+        }
+    }
+
+    /// Ticking a row. Exactly the path the timeline used: save first, update
     /// the cache optimistically, then queue the drop. The cascade and the
     /// tower do not know or care where the tick came from.
     private func tickHabit(_ habit: Habit) {
 
         timelineVM.completeHabit(habit)
         cachedCompletedHabitIDsForSelectedDate.insert(habit.id)
-        if healthKitService.verifiedHabitIDs.contains(habit.id) {
-            let dateStr = TimelineViewModel.dateString(from: Date())
-            if let log = habit.logs.first(where: { $0.dateString == dateStr }) {
-                log.verifiedByHealthKit = true
-            }
-        }
         pendingDrops.append(habit)
     }
 
@@ -1160,6 +1285,13 @@ struct MainAppView: View {
     /// Costs nothing in the common case: with nothing animating this is the
     /// value the view model already computed.
     private var liveMergeGroups: [MergeGroup] {
+        // No merged runs while rearranging. A `MergeGroup`'s id is its lowest
+        // member's UUID, so it changes the moment membership does — and the
+        // `ForEach` over these would insert and remove whole shapes on every
+        // reflow, hard-cutting instead of moving. Every block drawing itself
+        // is also the better reading: you are moving one object, so the
+        // objects should be individually legible while you do it.
+        guard !isRearranging else { return [] }
         let animating = animCoord.activelyAnimatingIDs
         guard !animating.isEmpty else { return towerVM.mergeGroups }
         return BlockMerge.groups(
@@ -1168,6 +1300,7 @@ struct MainAppView: View {
     }
 
     private var liveGroupedIDs: Set<UUID> {
+        guard !isRearranging else { return [] }
         let animating = animCoord.activelyAnimatingIDs
         guard !animating.isEmpty else { return towerVM.groupedBlockIDs }
         return Set(liveMergeGroups.flatMap(\.memberIDs))
@@ -2037,17 +2170,11 @@ struct MainAppView: View {
                         expandedBlockID = id
                     }
                 },
-                liftedBlockID: dropTargetID,
-                liftActive: liftActive,
-                onReorder: { carried, target in
-                    TowerOrdering.commit(moving: carried, onto: target,
-                                         logs: towerVM.placedBlocks.map(\.log),
-                                         context: modelContext) { repackTower() }
-                    dropTargetID = nil
-                },
-                onDropTarget: { id in
-                    withAnimation(GridConstants.motionSmooth) { dropTargetID = id }
-                }
+                liftedBlockID: carriedBlockID,
+                liftActive: isRearranging,
+                onLift: { id in beginRearrange(id) },
+                onDrop: { carried, target in commitRearrange(carried, onto: target) },
+                onHover: { id, targeted in hover(id, targeted: targeted) }
             )
 
             // Day separators (Week/Month modes)
@@ -2121,6 +2248,10 @@ struct MainAppView: View {
         let blocks = towerVM.placedBlocks
         // For small towers, render everything
         guard blocks.count > 30 else { return blocks }
+        // And during a rearrange, because rows shift as the tower reflows and
+        // a culled block would pop in and out mid-animation. Still culled on a
+        // very large tower, where the popping costs less than the frames.
+        guard !(isRearranging && blocks.count <= 120) else { return blocks }
 
         let cellStride = colW + spacing
         guard cellStride > 0 else { return blocks }
@@ -2291,8 +2422,9 @@ struct MainAppView: View {
         let onTapExpandBlock: (UUID) -> Void
         let liftedBlockID: UUID?
         let liftActive: Bool
-        let onReorder: (UUID, UUID) -> Void
-        let onDropTarget: (UUID?) -> Void
+        let onLift: (UUID) -> Void
+        let onDrop: (UUID, UUID) -> Void
+        let onHover: (UUID, Bool) -> Void
 
         var body: some View {
             // Read the dance's phase counter here, at the top of the grid's
@@ -2329,8 +2461,9 @@ struct MainAppView: View {
                     onTapExpandBlock: onTapExpandBlock,
                     liftedBlockID: liftedBlockID,
                     liftActive: liftActive,
-                    onReorder: onReorder,
-                    onDropTarget: onDropTarget
+                    onLift: onLift,
+                    onDrop: onDrop,
+                    onHover: onHover
                 )
                 .frame(width: f.width, height: f.height)
                 // Hold a block and drag it onto another to rearrange.
@@ -2353,15 +2486,29 @@ struct MainAppView: View {
                 // auto-scroll at the tower's edges, and a cancel that puts the
                 // block back. See `BlockMove`, and `TowerOrdering` for the
                 // part of this that can be tested.
-                .draggable(BlockMove(id: block.id)) {
-                    BlockDragPreview(block: block, side: min(f.width, f.height))
+                // The payload is an autoclosure evaluated at lift, which is
+                // the only place the id of the block being dragged is
+                // available at all — `isTargeted` hands you a Bool and
+                // nothing else, and the payload only reappears in the drop.
+                // The state write is deferred so it does not happen inside a
+                // view-update pass.
+                .draggable({
+                    Task { @MainActor in onLift(block.id) }
+                    return BlockMove(id: block.id)
+                }()) {
+                    // Nothing follows the finger. The block has already left
+                    // its slot and the tower has closed the gap, so a chip
+                    // travelling around above the page would be a second copy
+                    // of something that is already visible in its proposed
+                    // position.
+                    Color.clear.frame(width: 1, height: 1)
                 }
                 .dropDestination(for: BlockMove.self) { items, _ in
                     guard let moved = items.first, moved.id != block.id else { return false }
-                    onReorder(moved.id, block.id)
+                    onDrop(moved.id, block.id)
                     return true
                 } isTargeted: { targeted in
-                    onDropTarget(targeted ? block.id : nil)
+                    onHover(block.id, targeted)
                 }
                 // The dance has to be read HERE.
                 //
@@ -2423,8 +2570,9 @@ struct MainAppView: View {
         let liftActive: Bool
         /// Reports the carried block and where the finger is, in the grid's
         /// own space. Nil location means the drag ended.
-        let onReorder: (UUID, UUID) -> Void
-        let onDropTarget: (UUID?) -> Void
+        let onLift: (UUID) -> Void
+        let onDrop: (UUID, UUID) -> Void
+        let onHover: (UUID, Bool) -> Void
 
         @Environment(\.modelContext) private var modelContext
 
@@ -2451,6 +2599,12 @@ struct MainAppView: View {
             && lhs.isGroupMember == rhs.isGroupMember
             && lhs.willMerge == rhs.willMerge
             && lhs.isCovered == rhs.isCovered
+            // Without this the lift never renders at all. `AnimatedBlockView`
+            // is `Equatable`, so SwiftUI only re-evaluates it when `==` says
+            // something changed — and `liftedBlockID` was not among the
+            // nineteen properties it compared. This is the same trap
+            // CLAUDE.md documents for the dance and the jubilation wave.
+            && lhs.liftedBlockID == rhs.liftedBlockID
         }
 
 
@@ -2571,8 +2725,7 @@ struct MainAppView: View {
                             onTapExpandBlock(block.id)
                         }
                     },
-                    isLifted: liftedBlockID == block.id,
-                    isDimmed: liftedBlockID != nil && liftedBlockID != block.id
+                    isLifted: liftedBlockID == block.id
                 )
                 .matchedGeometryEffect(id: block.id, in: blockExpansionNamespace)
                 .opacity(isExpanded ? 0 : block.isSkipped ? 0.30 : 1)

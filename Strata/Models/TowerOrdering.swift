@@ -27,10 +27,23 @@ enum TowerOrdering {
     /// index means the moved block lands on the target's old position in both
     /// directions, which is also the only symmetric answer.
     static func reordered<T: Identifiable>(_ items: [T], moving: T.ID, onto target: T.ID) -> [T] {
+        let order = reordered(ids: items.map(\.id), moving: moving, onto: target)
+        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        return order.compactMap { byID[$0] }
+    }
+
+    /// The same rule over bare identifiers.
+    ///
+    /// A drag in progress is a proposal that exists only as an array of ids —
+    /// nothing has been written down yet — so it needs this shape. Both
+    /// entry points go through one implementation on purpose: the index
+    /// subtlety below is exactly the kind of thing that gets fixed in one copy
+    /// and not the other.
+    static func reordered<ID: Hashable>(ids: [ID], moving: ID, onto target: ID) -> [ID] {
         guard moving != target,
-              let from = items.firstIndex(where: { $0.id == moving }),
-              let to = items.firstIndex(where: { $0.id == target }) else { return items }
-        var result = items
+              let from = ids.firstIndex(of: moving),
+              let to = ids.firstIndex(of: target) else { return ids }
+        var result = ids
         let block = result.remove(at: from)
         result.insert(block, at: min(to, result.count))
         return result

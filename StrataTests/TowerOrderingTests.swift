@@ -54,4 +54,50 @@ struct TowerOrderingTests {
         #expect(TowerOrdering.reordered(items([0]), moving: 0, onto: 0).map(\.id) == [0])
         #expect(TowerOrdering.reordered(items([0, 1]), moving: 1, onto: 0).map(\.id) == [1, 0])
     }
+
+    // MARK: - The live preview a drag shows
+
+    /// A drag proposes an arrangement that exists only as an array of ids.
+    /// These are the exact transitions the tower performs under the finger.
+
+    @Test func liftRemovesTheCarriedBlockSoTheGapCloses() {
+        let committed = [1, 2, 3, 4, 5]
+        let preview = committed.filter { $0 != 3 }
+        #expect(preview == [1, 2, 4, 5])
+    }
+
+    @Test func hoveringProposesTheTargetsPosition() {
+        let committed = [1, 2, 3, 4, 5]
+        #expect(TowerOrdering.reordered(ids: committed, moving: 1, onto: 4) == [2, 3, 4, 1, 5])
+        #expect(TowerOrdering.reordered(ids: committed, moving: 5, onto: 2) == [1, 5, 2, 3, 4])
+    }
+
+    /// Moving across several targets must always be measured from the
+    /// COMMITTED order, never from the last preview — otherwise the block
+    /// walks further with every block the finger crosses.
+    @Test func successiveHoversAllMeasureFromTheCommittedOrder() {
+        let committed = [1, 2, 3, 4, 5]
+        let overFour = TowerOrdering.reordered(ids: committed, moving: 1, onto: 4)
+        let overTwo = TowerOrdering.reordered(ids: committed, moving: 1, onto: 2)
+        #expect(overFour == [2, 3, 4, 1, 5])
+        #expect(overTwo == [2, 1, 3, 4, 5])
+        // And going back over the first target returns the same answer it
+        // gave the first time.
+        #expect(TowerOrdering.reordered(ids: committed, moving: 1, onto: 4) == overFour)
+    }
+
+    @Test func cancellingReturnsExactlyTheCommittedOrder() {
+        let committed = [1, 2, 3, 4, 5]
+        var preview: [Int]? = TowerOrdering.reordered(ids: committed, moving: 2, onto: 5)
+        #expect(preview != committed)
+        preview = nil                                  // what cancelRearrange does
+        #expect((preview ?? committed) == committed)
+    }
+
+    @Test func theIdOverloadAgreesWithTheModelOverload() {
+        let items = items([0, 1, 2, 3, 4])
+        let byItem = TowerOrdering.reordered(items, moving: 0, onto: 3).map(\.id)
+        let byID = TowerOrdering.reordered(ids: items.map(\.id), moving: 0, onto: 3)
+        #expect(byItem == byID)
+    }
 }

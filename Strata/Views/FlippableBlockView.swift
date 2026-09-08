@@ -35,8 +35,6 @@ struct FlippableBlockView: View {
     /// True while this block is the one being carried.
     var isLifted: Bool = false
     /// True when releasing would land the carried block here.
-    /// Something else is lifted, so this block is not the subject.
-    var isDimmed: Bool = false
 
     @State private var tapTrigger: Int = 0
 
@@ -132,17 +130,14 @@ struct FlippableBlockView: View {
                 radius: isLifted ? 16 : 0,
                 y: isLifted ? 10 : 0
             )
-            // Everything that is NOT in your hand steps back.
+            // No dimming of the other blocks.
             //
-            // The lift used to be scale and shadow alone, and against a tower
-            // of equally bright blocks a 6% scale is nearly invisible — which
-            // is most of why it was not clear what had been picked up. Dimming
-            // the rest is the same move the Home screen makes, and it reads
-            // instantly because it changes the whole page rather than one
-            // block by a small amount.
-            .opacity(isDimmed ? 0.4 : 1)
+            // That was here to make the lift legible when a 6% scale was the
+            // only signal. It is not needed now and it actively hurts: the
+            // whole point of reflowing live is to show you the rearranged
+            // TOWER, and dimming forty blocks to 0.4 hides the very thing you
+            // are being shown.
             .animation(GridConstants.slotSnap, value: isLifted)
-            .animation(GridConstants.motionSmooth, value: isDimmed)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .simultaneousGesture(
                 TapGesture()

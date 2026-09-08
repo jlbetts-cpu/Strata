@@ -94,13 +94,21 @@ final class TowerViewModel {
     // MARK: - Build Unified Grid
 
     @discardableResult
-    func buildTower(from logs: [HabitLog], filterMode: TowerFilterMode = .day) -> Set<UUID> {
+    /// - Parameter preserveOrder: take `logs` in the order given instead of
+    ///   sorting them. Used while a block is being dragged: the caller is
+    ///   showing a *proposed* arrangement that exists only in an array, and
+    ///   nothing has been written to `towerOrder` yet — so sorting by
+    ///   `towerOrder` here would quietly throw the proposal away and repack
+    ///   the tower exactly as it already was.
+    func buildTower(from logs: [HabitLog],
+                    filterMode: TowerFilterMode = .day,
+                    preserveOrder: Bool = false) -> Set<UUID> {
         // Boolean grid matrix: grid[row][col] = true means occupied
         var grid = [[Bool]]()
 
         // Include completed AND skipped blocks, oldest first so newest land on top
-        let eligibleLogs = logs
-            .filter { ($0.completed || $0.skipped) && $0.habit != nil }
+        let filtered = logs.filter { ($0.completed || $0.skipped) && $0.habit != nil }
+        let eligibleLogs = preserveOrder ? filtered : filtered
             // Moved blocks first, in the order you put them; everything else
             // in the order it happened. A tower nobody has rearranged sorts
             // exactly as it always did.
