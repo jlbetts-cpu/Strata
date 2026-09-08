@@ -74,12 +74,34 @@ enum DebugHarness {
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
     private static func seedPhoto(for logID: UUID, category: HabitCategory) -> String? {
+        // A soft vertical wash, and no hard edges anywhere.
+        //
+        // This used to be a flat field with a white bar across it, to make the
+        // layers of the album fan tell themselves apart. On an album cover
+        // that was fine; on a BLOCK it read as a line drawn through the middle
+        // of the block, and a tower of them looked broken. A fixture is not
+        // allowed to look like a bug.
         let size = CGSize(width: 900, height: 1200)
+        let base = UIColor(category.style.baseColor)
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        base.getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        let top = UIColor(hue: h, saturation: max(sat - 0.18, 0),
+                          brightness: min(b + 0.16, 1), alpha: 1)
+        let bottom = UIColor(hue: h, saturation: min(sat + 0.10, 1),
+                             brightness: max(b - 0.18, 0), alpha: 1)
         let image = UIGraphicsImageRenderer(size: size).image { ctx in
-            UIColor(category.style.baseColor).setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            UIColor(white: 1, alpha: 0.22).setFill()
-            ctx.fill(CGRect(x: 0, y: size.height * 0.62, width: size.width, height: 8))
+            let space = CGColorSpaceCreateDeviceRGB()
+            guard let gradient = CGGradient(colorsSpace: space,
+                                            colors: [top.cgColor, bottom.cgColor] as CFArray,
+                                            locations: [0, 1]) else {
+                base.setFill(); ctx.fill(CGRect(origin: .zero, size: size)); return
+            }
+            ctx.cgContext.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: size.width * 0.2, y: 0),
+                end: CGPoint(x: size.width * 0.8, y: size.height),
+                options: []
+            )
         }
         guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

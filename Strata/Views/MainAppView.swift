@@ -53,11 +53,20 @@ struct MainAppView: View {
     /// so being able to see a week or a month of it belongs here — and the
     /// period label does NOT come back with it: the control names the period,
     /// so a title saying the same thing would be the same fact twice.
-    @AppStorage("towerFilterMode") private var towerFilterModeRaw: String = TowerFilterMode.day.rawValue
-    private var towerFilterMode: TowerFilterMode {
-        get { TowerFilterMode(rawValue: towerFilterModeRaw) ?? .day }
-        nonmutating set { towerFilterModeRaw = newValue.rawValue }
-    }
+    /// The tower is today. Not a setting.
+    ///
+    /// This used to be `@AppStorage("towerFilterMode")` driven by a
+    /// Day / Week / Month picker in the header — and when the share button
+    /// replaced that picker, the stored value kept driving the tower with
+    /// nothing left to change it. Anyone whose value happened to be Week or
+    /// Month was permanently stuck looking at a month of blocks with a date
+    /// and a count printed under them, and no way back.
+    ///
+    /// It is a constant now because the product answer is not "make the
+    /// picker reachable again": the tower is the record of TODAY, and other
+    /// days are what History is for. The stale key is cleared on launch so
+    /// existing installs recover.
+    private let towerFilterMode: TowerFilterMode = .day
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerProbe = TowerGeometryProbe()
@@ -159,24 +168,8 @@ struct MainAppView: View {
     private var filteredLogs: [HabitLog] { cachedFilteredLogs }
 
     private func recomputeFilteredLogs(logsByDate: [String: [HabitLog]]) {
-        let calendar = Calendar.current
-        let now = Date()
-        switch towerFilterMode {
-        case .day:
-            let todayStr = TimelineViewModel.dateString(from: now)
-            cachedFilteredLogs = logsByDate[todayStr] ?? []
-        case .week:
-            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
-            let weekStartStr = TimelineViewModel.dateString(from: startOfWeek)
-            cachedFilteredLogs = logsByDate.flatMap { key, value in key >= weekStartStr ? value : [] }
-        case .month:
-            // This month. It returned EVERY log ever recorded, which made
-            // "Month" mean "all time" and grew without bound.
-            let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
-            let monthStartStr = TimelineViewModel.dateString(from: startOfMonth)
-            cachedFilteredLogs = logsByDate.flatMap { key, value in key >= monthStartStr ? value : [] }
-        }
-        // Filter by active tower
+        let todayStr = TimelineViewModel.dateString(from: Date())
+        cachedFilteredLogs = logsByDate[todayStr] ?? []
         if let activeTowerID = towerManager.activeTower?.id {
             cachedFilteredLogs = cachedFilteredLogs.filter { $0.habit?.tower?.id == activeTowerID }
         }
@@ -853,78 +846,9 @@ struct MainAppView: View {
 
     @State private var cachedTowerTitle: String = ""
 
-    private func computeTowerTitle() -> String {
-        switch towerFilterMode {
-        case .day:
-            return "Today"
-        case .week, .month:
-            let dateStrings = cachedFilteredLogs.map(\.dateString)
-            guard let earliestStr = dateStrings.min(), let latestStr = dateStrings.max() else {
-                return towerFilterMode == .week ? "This Week" : Date().formatted(.dateTime.month(.wide))
-            }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            guard let earliest = formatter.date(from: earliestStr),
-                  let latest = formatter.date(from: latestStr) else {
-                return towerFilterMode == .week ? "This Week" : Date().formatted(.dateTime.month(.wide))
-            }
-            let cal = Calendar.current
-            if cal.isDate(earliest, inSameDayAs: latest) {
-                return earliest.formatted(.dateTime.month(.wide).day())
-            } else {
-                let startStr = earliest.formatted(.dateTime.month(.abbreviated).day())
-                let endStr = latest.formatted(.dateTime.month(.abbreviated).day())
-                return "\(startStr) – \(endStr)"
-            }
-        }
-    }
+    private func computeTowerTitle() -> String { "Today" }
 
-    private func updateVisibleDateTitle() {
-        guard towerFilterMode != .day else { return }
-        let blocks = towerVM.placedBlocks
-        guard !blocks.isEmpty else { return }
-
-        let colW = currentColW
-        let cellStride = colW + spacing
-        guard cellStride > 0 else { return }
-
-        let rowCount = towerVM.totalRows
-        let gridH = rowCount > 0
-            ? CGFloat(rowCount) * colW + CGFloat(rowCount - 1) * spacing
-            : 0
-
-        let visibleTop = towerScrollOffset - collapsedHeaderHeight - 150
-        let visibleBottom = towerScrollOffset + screenHeight + 150
-
-        let visibleDateStrings: Set<String> = blocks.reduce(into: []) { result, block in
-            let blockY = gridH - CGFloat(block.row + block.rowSpan) * cellStride
-            let blockBottom = gridH - CGFloat(block.row) * cellStride
-            if blockBottom >= visibleTop && blockY <= visibleBottom {
-                result.insert(block.log.dateString)
-            }
-        }
-
-        guard !visibleDateStrings.isEmpty else { return }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dates = visibleDateStrings.compactMap { formatter.date(from: $0) }.sorted()
-        guard let earliest = dates.first, let latest = dates.last else { return }
-
-        let newTitle: String
-        if Calendar.current.isDate(earliest, inSameDayAs: latest) {
-            newTitle = earliest.formatted(.dateTime.month(.wide).day())
-        } else {
-            let startStr = earliest.formatted(.dateTime.month(.abbreviated).day())
-            let endStr = latest.formatted(.dateTime.month(.abbreviated).day())
-            newTitle = "\(startStr) – \(endStr)"
-        }
-
-        if newTitle != cachedTowerTitle {
-            cachedTowerTitle = newTitle
-        }
-    }
-
+ 
     private var todayCompletedCount: Int { timelineVM.completedToday.count }
     private var todayTotalCount: Int { timelineVM.todaysHabits.count }
 
@@ -1467,6 +1391,12 @@ struct MainAppView: View {
         towerManager.ensureDefaultTower(context: modelContext)
         towerManager.loadActiveTower(context: modelContext)
         #if DEBUG
+        // The tower is pinned to today now. Anyone whose stored value was Week
+        // or Month was stuck there — the picker that set it was replaced by
+        // the share button — so the key goes, rather than sitting in defaults
+        // waiting to be read by something.
+        UserDefaults.standard.removeObject(forKey: "towerFilterMode")
+
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
@@ -1676,8 +1606,6 @@ struct MainAppView: View {
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         }
-        towerVM.computeDaySeparators(perfectDayDates: perfectDayDates)
-        updateVisibleDateTitle()
         weekCompletedDates = allCompletedDateStrings
         recomputeIncompleteTimeline()
 
@@ -2054,7 +1982,6 @@ struct MainAppView: View {
             } action: { oldOffset, newOffset in
                 if abs(newOffset - towerScrollOffset) > 8 {
                     towerScrollOffset = newOffset
-                    updateVisibleDateTitle()
                 }
                 let wasScrolled = oldOffset > 0
                 let nowScrolled = newOffset > 0
@@ -2120,16 +2047,6 @@ struct MainAppView: View {
                 onDrop: { carried, target in commitRearrange(carried, onto: target) },
                 onHover: { id, targeted in hover(id, targeted: targeted) }
             )
-
-            // Day separators (Week/Month modes)
-            if towerFilterMode != .day {
-                let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
-                ForEach(towerVM.daySeparators) { sep in
-                    let sepY = gridH - CGFloat(sep.gridRow) * (colW + spacing) + 2
-                    DaySeparatorView(separator: sep, gridWidth: gridW)
-                        .offset(y: sepY)
-                }
-            }
 
             // The next slot, as a button.
             //

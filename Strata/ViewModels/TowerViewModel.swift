@@ -69,7 +69,6 @@ final class TowerViewModel {
     private var dropCleanupTask: Task<Void, Never>? = nil
 
     // Day separators (Week/Month modes)
-    private(set) var daySeparators: [DaySeparator] = []
 
     // Tower metadata
     private(set) var milestoneBlockIDs: [UUID: Int] = [:]     // blockID → block number (10th, 50th, etc.)
@@ -248,38 +247,7 @@ final class TowerViewModel {
 
     // MARK: - Day Separators
 
-    func computeDaySeparators(perfectDayDates: Set<String>) {
-        guard !placedBlocks.isEmpty else { daySeparators = []; return }
-
-        // Group blocks by dateString
-        var blocksByDate: [String: [PlacedBlock]] = [:]
-        for block in placedBlocks {
-            blocksByDate[block.log.dateString, default: []].append(block)
-        }
-
-        // Sort dates
-        let sortedDates = blocksByDate.keys.sorted()
-        guard sortedDates.count > 1 else { daySeparators = []; return }
-
-        var separators: [DaySeparator] = []
-        for (index, dateStr) in sortedDates.enumerated() {
-            guard index > 0 else { continue } // No separator before first day
-            let blocks = blocksByDate[dateStr] ?? []
-            let minRow = blocks.map(\.row).min() ?? 0
-            let displayLabel = BlockTimeFormatter.dateLabel(from: dateStr)
-
-            separators.append(DaySeparator(
-                id: dateStr,
-                displayLabel: displayLabel,
-                blockCount: blocks.count,
-                isPerfectDay: perfectDayDates.contains(dateStr),
-                gridRow: minRow
-            ))
-        }
-
-        daySeparators = separators
-    }
-
+ 
     func staggerDelay(for block: PlacedBlock) -> Double {
         staggerDelayCache[block.id] ?? 0
     }
