@@ -57,9 +57,7 @@ struct SettingsView: View {
                     // rest of the app is made of and cannot drift again.
                     StrataMark(side: 72)
 
-                    Text("Strata")
-                        .font(Typography.brandLogo)
-                        .kerning(Typography.brandLogoKerning)
+                    StrataWordmark(size: 30)
 
                     Text("Version \(appVersion)")
                         .font(Typography.caption)

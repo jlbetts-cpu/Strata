@@ -595,7 +595,7 @@ struct MainAppView: View {
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(towerVM.placedBlocks.count)")
-                .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
+                .font(JaroFont.size(GridConstants.tallyNumeral))
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
             Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
@@ -807,7 +807,6 @@ struct MainAppView: View {
                 logWin(size: .small, photo: image)
                 selectedTab = .tower
             },
-            winCount: towerVM.placedBlocks.count,
             fillsScreen: true
         )
     }

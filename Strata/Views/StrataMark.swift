@@ -31,13 +31,35 @@ struct StrataMark: View {
         }
         .frame(width: side, height: side)
         .overlay {
+            // 0.88, not the 0.62 an SF Rounded S wanted. Jaro's S is a much
+            // narrower letterform, so the same fraction left it floating in
+            // the middle of the block with margin on every side. This puts its
+            // cap height at ~58% of the block, which is what the icon does.
             Text("S")
-                .font(.system(size: side * 0.60, weight: .bold, design: .rounded))
+                .font(JaroFont.size(side * 0.88))
                 .foregroundStyle(.white)
                 // The letter's optical centre sits slightly below its bounding
                 // box centre, which is why this is not simply centred.
                 .offset(y: -side * 0.01)
         }
         .accessibilityLabel("Strata")
+    }
+}
+
+
+/// The app's name, set in Jaro.
+///
+/// One view so the camera's wordmark and the Settings header cannot drift into
+/// two different sizes of the same word — which is exactly what happened to the
+/// mini tower this file replaced.
+struct StrataWordmark: View {
+    var size: CGFloat = 28
+    var color: Color = .primary
+
+    var body: some View {
+        Text("Strata")
+            .font(JaroFont.size(size))
+            .foregroundStyle(color)
+            .accessibilityLabel("Strata")
     }
 }

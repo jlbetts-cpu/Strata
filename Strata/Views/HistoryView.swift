@@ -76,7 +76,7 @@ struct HistoryView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Text("\(totalWins)")
-                .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
+                .font(JaroFont.size(GridConstants.tallyNumeral))
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
             Text(totalWins == 1 ? "win" : "wins")

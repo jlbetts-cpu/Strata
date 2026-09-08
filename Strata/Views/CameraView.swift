@@ -16,8 +16,6 @@ struct CameraView: View {
     /// Hands back the captured photo. Nil means the viewer backed out.
     var onCaptured: (UIImage) -> Void = { _ in }
     var onClose: (() -> Void)? = nil
-    /// Today's count, shown in the gap the guides leave open.
-    var winCount: Int? = nil
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
     var fillsScreen: Bool = false
@@ -69,6 +67,9 @@ struct CameraView: View {
         static let height: CGFloat = 72
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
+        /// Jaro at 61pt sets "Strata" 147pt wide with a 41pt cap height —
+        /// the wordmark's measured box in the Figma frame.
+        static let wordmarkSize: CGFloat = 61
     }
 
     /// Rounder than the design's 20.
@@ -154,11 +155,12 @@ struct CameraView: View {
     // MARK: - Guides
 
     private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat) -> some View {
-        // The break exists to hold the count. With no count — the camera
-        // opened from the add sheet, where the tally would mean nothing —
-        // there is nothing to make room for, so the line runs unbroken.
-        let gapTop = winCount == nil ? h : topInset + Header.topPadding - Header.breathing
-        let gapBottom = winCount == nil ? h : topInset + Header.topPadding + Header.height + Header.breathing
+        // The break holds the wordmark, which is always drawn — so unlike the
+        // count it replaced, the line is always broken. The gap is not a
+        // rendering artefact: it is the wordmark's space, and the line
+        // resuming below it is what makes the break read as deliberate.
+        let gapTop = topInset + Header.topPadding - Header.breathing
+        let gapBottom = topInset + Header.topPadding + Header.height + Header.breathing
 
         return ZStack(alignment: .topLeading) {
             // The first vertical is broken where the header crosses it. The
@@ -230,20 +232,12 @@ struct CameraView: View {
     /// screens does not move the number.
     private func header(topInset: CGFloat) -> some View {
         HStack(alignment: .center, spacing: 0) {
-            if let winCount {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text("\(winCount)")
-                        .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                    Text(winCount == 1 ? "win" : "wins")
-                        .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
-                }
+            // 61pt, solved rather than chosen: it is the size at which Jaro
+            // sets "Strata" 147pt wide with a 41pt cap height, which is the
+            // wordmark's measured box in the Figma frame.
+            StrataWordmark(size: Self.Header.wordmarkSize, color: .white)
                 // Legible over whatever the lens is pointing at.
                 .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
-                .accessibilityElement(children: .combine)
-            }
 
             Spacer(minLength: 0)
         }
