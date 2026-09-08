@@ -206,8 +206,43 @@ struct MainAppView: View {
     @State private var windowScheme: ColorScheme = .light
     @State private var isSharing = false
     /// The block currently being carried, and the one it would land on.
-    @State private var liftedBlockID: UUID?
+    // MARK: - Rearranging the tower
+    //
+    // The first version of this was wrong twice over and both are worth
+    // writing down.
+    //
+    // It read "which block is under the finger", moved the carried block to
+    // that block's index, and repacked on release — so you could not see what
+    // you were going to get until you had it, and a 2x2 or a merged run covers
+    // several cells, which made "the block under the finger" often not the one
+    // meant.
+    //
+    // Worse, it was a `DragGesture`, and any gesture attached inside the
+    // tower's ScrollView takes the touch away from it. High priority,
+    // simultaneous, and a long press sequenced before a drag were all tried
+    // and all three stopped the tower scrolling: a UI test swiping a 44-block
+    // tower measured 0.0pt with a gesture attached and a clean scroll without
+    // one. Reordering now goes through the system's drag and drop, which is
+    // the mechanism scroll views were built to coexist with. See `BlockMove`.
+    @AppStorage("towerShowParallax") private var towerShowParallax = true
+
+    /// 1 when the tower may tilt with the phone, 0 when it may not.
+    private var towerParallaxAmount: Double {
+        (towerShowParallax && !reduceMotion) ? 1 : 0
+    }
+
+    /// The block a carried one is hovering over, so it can answer.
     @State private var dropTargetID: UUID?
+
+    /// Stable id for the empty slot's reflection, so the water does not
+    /// rebuild its facet every time the view re-evaluates.
+    private let emptySlotFacetID = UUID()
+
+    /// The tower is being rearranged. Read by the grid so every block can
+    /// answer — it has to be read where SwiftUI cannot miss it, not inside the
+    /// memoised block view, for the reason CLAUDE.md gives about `Equatable`
+    /// views and observable state.
+    private var liftActive: Bool { dropTargetID != nil }
     /// The habit whose sheet is open, from a long press on an outlined block.
     @State private var editingHabit: Habit?
     /// Blocks that have been logged but not yet seen falling.
@@ -638,46 +673,7 @@ struct MainAppView: View {
     /// cell under the finger is a division, and the block owning that cell is
     /// a lookup. Hit testing would have meant a gesture per block, and a drag
     /// that starts on one and ends on another is one gesture crossing several
-    /// views — the kind each of them only sees half of.
-    private func block(at point: CGPoint, colW: CGFloat, gridH: CGFloat) -> PlacedBlock? {
-        let pitch = colW + spacing
-        let column = Int(floor(point.x / pitch))
-        // The grid is drawn with row 0 at the BOTTOM, so y has to be flipped
-        // back before it means a row.
-        let row = Int(floor((gridH - point.y) / pitch))
-        guard column >= 0, column < GridConstants.columnCount, row >= 0 else { return nil }
-        return towerVM.placedBlocks.first { block in
-            column >= block.column && column < block.column + block.columnSpan
-                && row >= block.row && row < block.row + block.rowSpan
-        }
-    }
-
-    /// Moves one block to sit where another one is, and writes the new order
-    /// down for every block so it survives the next build.
-    ///
-    /// The tower packs in sequence, so reordering IS reordering the sequence —
-    /// there is no "put it at these coordinates", because a block's coordinates
-    /// are a consequence of what came before it. Moving a Deep block ahead of a
-    /// Quick one can change the shape of everything above them, which is
-    /// correct: that is what the tower would have looked like if you had done
-    /// them in that order.
-    private func reorder(carried: UUID, before target: UUID) {
-        var order = towerVM.placedBlocks.map(\.log)
-        guard let from = order.firstIndex(where: { $0.id == carried }),
-              let to = order.firstIndex(where: { $0.id == target }),
-              from != to else { return }
-        let moving = order.remove(at: from)
-        order.insert(moving, at: to)
-        // Every block gets an explicit position, not just the two that moved:
-        // a partial order would leave the rest sorting by time and interleave
-        // unpredictably on the next build.
-        for (index, log) in order.enumerated() { log.towerOrder = index }
-        try? modelContext.save()
-        HapticsEngine.success()
-        repackTower()
-    }
-
-    /// Ticking a row. Exactly the path the timeline used: save first, update
+     /// Ticking a row. Exactly the path the timeline used: save first, update
     /// the cache optimistically, then queue the drop. The cascade and the
     /// tower do not know or care where the tick came from.
     private func tickHabit(_ habit: Habit) {
@@ -1402,17 +1398,6 @@ struct MainAppView: View {
         if let tab = DebugHarness.startTab {
             selectTab(tab)
         }
-        if let move = DebugHarness.reorder {
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                let blocks = towerVM.placedBlocks
-                guard move.from < blocks.count, move.to < blocks.count else { return }
-                print("[REORDER] before: \(blocks.map { $0.habit.title.prefix(6) })")
-                reorder(carried: blocks[move.from].id, before: blocks[move.to].id)
-                try? await Task.sleep(for: .seconds(1))
-                print("[REORDER] after:  \(towerVM.placedBlocks.map { $0.habit.title.prefix(6) })")
-            }
-        }
         if DebugHarness.dumpsShareCard {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
@@ -1897,7 +1882,12 @@ struct MainAppView: View {
 
                     Color.clear
                         .frame(width: gridW,
-                               height: max(gridH, 1) + (rowCount > 0 ? footerReserve : 0))
+                               // The empty state reserves the water too — an
+                               // `.offset` does not add height, so without this
+                               // the reflection under the first slot hangs
+                               // outside the measured bounds and is clipped.
+                               height: max(gridH, 1)
+                                   + (rowCount > 0 ? footerReserve : colW + waterDepth))
                         // Where the grid really is, so a fall can start above
                         // the screen. Writes to a plain object, not to state —
                         // see `TowerGeometryProbe`.
@@ -1919,6 +1909,30 @@ struct MainAppView: View {
                         // Only when there is nothing outlined either: a day
                         // with habits still to do is not an empty tower, it is
                         // a tower that has not been built yet.
+                        // The slot stands in the water too.
+                        //
+                        // An empty tower drew no reflection at all, so the
+                        // very first thing anyone sees is the one screen where
+                        // the tower is not standing on anything — and then the
+                        // water appears from nowhere the moment a first block
+                        // lands. The surface is the ground this page is built
+                        // on; it should be there before there is anything on
+                        // it.
+                        TowerReflection(
+                            facets: [TowerReflection.Facet(
+                                id: emptySlotFacetID,
+                                x: 0,
+                                width: colW,
+                                color: nextWinCategory.style.baseColor
+                            )],
+                            impacts: [],
+                            gridWidth: gridW,
+                            cornerRadius: cornerRadius,
+                            reduceMotion: reduceMotion
+                        )
+                        .opacity(0.5)
+                        .offset(y: colW + 1)
+
                         emptyTowerSlot(colW: colW)
                     } else {
                         // Ground plane at tower foundation, and the water
@@ -1948,47 +1962,6 @@ struct MainAppView: View {
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset,
                                          slotPos: slotPos)
-                        // Hold a block to pick it up, drag it onto another,
-                        // let go to put it there.
-                        //
-                        // The gesture lives on the GRID rather than on each
-                        // block: a drag that starts on one block and ends over
-                        // another is one gesture crossing several views, and a
-                        // per-block gesture only ever knows about its own. Here
-                        // the whole grid is one coordinate space, so the block
-                        // under the finger is arithmetic rather than hit
-                        // testing.
-                        .highPriorityGesture(
-                            LongPressGesture(minimumDuration: 0.35)
-                                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
-                                .onChanged { value in
-                                    guard case .second(true, let drag) = value else { return }
-                                    guard let drag else {
-                                        // The press has landed but the finger
-                                        // has not moved yet: pick up whatever
-                                        // it is on.
-                                        return
-                                    }
-                                    if liftedBlockID == nil {
-                                        guard let picked = block(at: drag.startLocation, colW: colW, gridH: gridH) else { return }
-                                        HapticsEngine.snap()
-                                        liftedBlockID = picked.id
-                                    }
-                                    let over = block(at: drag.location, colW: colW, gridH: gridH)
-                                    let next = over?.id == liftedBlockID ? nil : over?.id
-                                    if next != dropTargetID {
-                                        if next != nil { HapticsEngine.tick() }
-                                        dropTargetID = next
-                                    }
-                                }
-                                .onEnded { _ in
-                                    if let carried = liftedBlockID, let target = dropTargetID {
-                                        reorder(carried: carried, before: target)
-                                    }
-                                    liftedBlockID = nil
-                                    dropTargetID = nil
-                                }
-                        )
 
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
@@ -2005,8 +1978,16 @@ struct MainAppView: View {
                     }
                 }
                 // Device parallax — tower shifts with phone tilt (Harrison 2011)
-                .rotation3DEffect(.degrees(motionCoord.pitch * 2.5), axis: (1, 0, 0), perspective: 0.8)
-                .rotation3DEffect(.degrees(motionCoord.roll * 2.5), axis: (0, 1, 0), perspective: 0.8)
+                //
+                // Gated on the Settings toggle, which until now was an
+                // `@AppStorage` key nobody read: the switch moved and the
+                // tower kept tilting. Also gated on Reduce Motion, since a
+                // view that swings with the phone is exactly what that setting
+                // is asking about.
+                .rotation3DEffect(.degrees(towerParallaxAmount * motionCoord.pitch * 2.5),
+                                  axis: (1, 0, 0), perspective: 0.8)
+                .rotation3DEffect(.degrees(towerParallaxAmount * motionCoord.roll * 2.5),
+                                  axis: (0, 1, 0), perspective: 0.8)
                 // Tower Aurora — rare, earned, beautiful (Skinner 1938)
                 .overlay {
                     if showAurora && !reduceMotion {
@@ -2044,6 +2025,11 @@ struct MainAppView: View {
                     }
                 }
             }
+            // Only once a block is genuinely lifted. Disabling it any earlier
+            // would be the old bug in a different costume: the tower has to
+            // scroll normally right up until the moment something is in hand.
+            // Only while arranging. The whole point of separating the press from
+            // the drag is that the tower scrolls normally the rest of the time.
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
             } action: { oldOffset, newOffset in
@@ -2104,13 +2090,23 @@ struct MainAppView: View {
                 blockExpansionNamespace: blockExpansion,
                 reduceMotion: reduceMotion, colorScheme: colorScheme,
                 onTapExpandBlock: { id in
+                    // The release of a long press is not a tap, and a tap
+                    // while arranging is not a request to edit.
                     withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
                         expandedBlockID = id
                     }
                 },
-                liftedBlockID: liftedBlockID,
-                dropTargetID: dropTargetID,
-                onDrag: { _, _ in }
+                liftedBlockID: dropTargetID,
+                liftActive: liftActive,
+                onReorder: { carried, target in
+                    TowerOrdering.commit(moving: carried, onto: target,
+                                         logs: towerVM.placedBlocks.map(\.log),
+                                         context: modelContext) { repackTower() }
+                    dropTargetID = nil
+                },
+                onDropTarget: { id in
+                    withAnimation(GridConstants.motionSmooth) { dropTargetID = id }
+                }
             )
 
             // Day separators (Week/Month modes)
@@ -2355,8 +2351,9 @@ struct MainAppView: View {
         let colorScheme: ColorScheme
         let onTapExpandBlock: (UUID) -> Void
         let liftedBlockID: UUID?
-        let dropTargetID: UUID?
-        let onDrag: (UUID, CGPoint?) -> Void
+        let liftActive: Bool
+        let onReorder: (UUID, UUID) -> Void
+        let onDropTarget: (UUID?) -> Void
 
         var body: some View {
             // Read the dance's phase counter here, at the top of the grid's
@@ -2393,10 +2390,41 @@ struct MainAppView: View {
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock,
                     liftedBlockID: liftedBlockID,
-                    dropTargetID: dropTargetID,
-                    onDrag: onDrag
+                    liftActive: liftActive,
+                    onReorder: onReorder,
+                    onDropTarget: onDropTarget
                 )
                 .frame(width: f.width, height: f.height)
+                // Hold a block and drag it onto another to rearrange.
+                //
+                // The system's drag and drop, and that is not a preference —
+                // it is the only mechanism that does both jobs. Every
+                // hand-rolled gesture was tried and measured with a UI test
+                // that swipes a 44-block tower: a `DragGesture` high-priority,
+                // the same simultaneous, a long press sequenced before one,
+                // and a bare `.onLongPressGesture` ALL reported 0.0pt of
+                // scroll, against a clean scroll with nothing attached. A
+                // ScrollView will not claim a pan another recogniser has
+                // claimed, and there is no public way to change that. A
+                // TapGesture is the one exception, which is why tapping a
+                // block to edit it was never a problem.
+                //
+                // Drag and drop does not compete: the system owns the press
+                // that lifts, so a press that becomes a pan stays a pan. It
+                // also brings the lift animation, a preview under the finger,
+                // auto-scroll at the tower's edges, and a cancel that puts the
+                // block back. See `BlockMove`, and `TowerOrdering` for the
+                // part of this that can be tested.
+                .draggable(BlockMove(id: block.id)) {
+                    BlockDragPreview(block: block, side: min(f.width, f.height))
+                }
+                .dropDestination(for: BlockMove.self) { items, _ in
+                    guard let moved = items.first, moved.id != block.id else { return false }
+                    onReorder(moved.id, block.id)
+                    return true
+                } isTargeted: { targeted in
+                    onDropTarget(targeted ? block.id : nil)
+                }
                 // The dance has to be read HERE.
                 //
                 // These three lived inside `AnimatedBlockView`, which is an
@@ -2456,10 +2484,11 @@ struct MainAppView: View {
         let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
         let liftedBlockID: UUID?
-        let dropTargetID: UUID?
+        let liftActive: Bool
         /// Reports the carried block and where the finger is, in the grid's
         /// own space. Nil location means the drag ended.
-        let onDrag: (UUID, CGPoint?) -> Void
+        let onReorder: (UUID, UUID) -> Void
+        let onDropTarget: (UUID?) -> Void
 
         @Environment(\.modelContext) private var modelContext
 
@@ -2609,7 +2638,7 @@ struct MainAppView: View {
                         }
                     },
                     isLifted: liftedBlockID == block.id,
-                    isDropTarget: dropTargetID == block.id
+                    isDimmed: liftedBlockID != nil && liftedBlockID != block.id
                 )
                 .matchedGeometryEffect(id: block.id, in: blockExpansionNamespace)
                 .opacity(isExpanded ? 0 : block.isSkipped ? 0.30 : 1)
