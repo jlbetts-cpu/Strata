@@ -1739,7 +1739,6 @@ struct MainAppView: View {
 
         // The animation is claimed in `logWin` and handed over by
         // `refreshData`, so this only has to make the tower rebuild.
-        let claimed = awaitingDropIDs
         refreshData()
 
         // Reset the drawn size here, not on release.
@@ -2472,8 +2471,6 @@ struct MainAppView: View {
 
         var body: some View {
             let phase = animState.dropPhase
-            let isAnimating = phase != nil
-            let isNew = isAnimating || isNewlyDropped
             let mass = CGFloat(block.habit.blockSize.massTier)
 
             let dropOffset: CGFloat = switch phase {
