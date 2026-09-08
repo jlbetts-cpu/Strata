@@ -5,16 +5,19 @@ hours, so that a new session does not repeat them.
 
 ## What this is
 
-A SwiftUI + SwiftData iOS habit tracker. You complete habits; completed habits
-become 2.5D blocks that stack into a tower. Tabs, in order:
+A SwiftUI + SwiftData iOS **win tracker**. You log something you already did;
+it becomes a 2.5D block, and the blocks stack into a tower. Three tabs:
 
-**Tower** (the record, and the home tab) · **Today** (the timeline) ·
-**Plan** (capture and scheduling) · **Insights** (and Settings)
+**Wins** (the tower — the record, and the home tab) · **Camera** ·
+**History** (albums, and Settings)
 
-The tower header carries a Day / Week / Month picker on the right; the period
-label stays out, because the control already names the period. There is no
-Wins tab. Logging something you already did is the empty slot at
-the top of the tower: press it, a block drops into it. The slot sits at
+Habits, repeating tasks, the Today timeline and the Plan tab are all gone. So
+is Insights, which History replaced. If you find code or a doc that talks about
+any of them, it is stale.
+
+The tower header carries the win count and a share button. Logging a win is the
+empty slot at the top of the tower: press it, a block drops in; drag it out
+first to draw a bigger one. The slot sits at
 `TowerViewModel.computeGhostPosition`, so it is always exactly where the block
 will land.
 
@@ -189,8 +192,10 @@ method, every bug and what made it invisible, and the before/after numbers.
   block's identity, not the letterforms.
 - **Light appearance only** (`UIUserInterfaceStyle = Light`), chosen 2026-09-06.
 - **SF Symbols only.** No second icon pack, no custom assets.
-- **Insights is the owner's implementation.** A parallel one was written against
-  an old snapshot and dropped. Do not reintroduce it.
+- **History replaced Insights** (2026-09-07, owner's call). The bar chart
+  survived and sits at the top of it; `InsightsView` and the long-dead
+  `InsightsViewModel` are both deleted. The dropped month-calendar concept is
+  still not to be reintroduced — History was built fresh to a Figma.
 - **Accent is `AppColors.accentWarm`** (`AccentColor.colorset`). It was stock
   sky blue, which is where every "this looks like default iOS" complaint came
   from — tab bar, menu labels, links all inherit it.
@@ -218,7 +223,12 @@ setting the height, a day with no arc collapsed to its numeral.)
 
 - `checkmark.circle.fill` (green, "All done!") vs `checkmark.circle` (grey, "All
   cleared"). Fill means fully completed; outline means closed with skips.
-- The mini-block preview is intentionally smaller-scaled chrome, not a bug.
+
+(The mini-block preview used to be listed here as "intentionally smaller-scaled
+chrome, not a bug". The owner overrode that on 2026-09-07: it had drifted to a
+diagonal gradient with no rim and no band, which is the styling the tower left
+behind. `MiniBlockPreview` is deleted and `StrataMark` — built on the real
+`BlockSurface` — took its one remaining call site.)
 
 ## Gestures CAN be tested — use `StrataUITests`
 
@@ -256,6 +266,67 @@ case. Make the MODIFIER conditional, not the gesture.
 before it finishes reports no scroll. Allow ~16s. And a tower reuses titles, so
 "the first Walk" is a different element before and after a scroll — assert on
 the whole set of label positions, never one match.
+
+## Rearranging, and the rules that fall out of it
+
+Dragging a block does not pick it up. The block leaves its slot, the tower
+reflows live to show where it would land, and letting go keeps that
+arrangement. **Nothing is written to SwiftData until the drop** — an unrelated
+`context.save()` would otherwise persist a preview the user never released.
+
+**There is no drag-cancellation callback on iOS 18.** `.draggable` has no
+completion, `DropDelegate` has no session-end, and `DragConfiguration` /
+`DragSession` / `.onDragSessionUpdated` are iOS 26. So the cancel is a debounce
+on `isTargeted:false`, and `commitRearrange` cancels it first thing, which
+makes delivery ordering irrelevant.
+
+**Never call `repackTower()` during a drag.** It goes through `refreshData()`,
+and `enqueueArrivals` in there does not merely queue animations — it CONSUMES
+`awaitingDropIDs`, so one reflow during a pending drop silently eats that
+block's fall. `reflowTowerOrder()` calls `buildTower` and nothing else, and
+refuses to run while anything is animating (a reflow makes `newlyDroppedIDs`
+empty, which would clear a drop still in the air).
+
+**`buildTower(preserveOrder:)`** exists because the proposal lives in an array
+of ids, and the default sort by `towerOrder` would throw it away.
+
+While rearranging, three things are suppressed: merged runs (a `MergeGroup`'s
+id is its lowest member's UUID, so it re-keys on every reflow and hard-cuts),
+block culling (rows shift, so culled blocks pop), and milestone detection.
+
+**The `Equatable` trap struck a fourth time here.** `AnimatedBlockView.==`
+compared nineteen properties and `liftedBlockID` was not one of them, so the
+lift had never rendered at all. Anything new that a block view reacts to must
+be added to `==`.
+
+## History, and why it does not use `@Query`
+
+`@Query` has no fetch limit, materialises its whole result, and re-runs on
+every context save — and this app saves constantly. `HistoryViewModel` uses
+explicit `FetchDescriptor`s paged eight weeks at a time, over a lexicographic
+range on `dateString`, with `#Index<HabitLog>([\.dateString])` keeping it off a
+table scan.
+
+**`MainAppView`'s own query stays narrowed to the current month.** That is
+load-bearing, not a bug: `refreshData()` walks every log it holds, on a hot
+path.
+
+**A past day is built with a SECOND `TowerViewModel`.** `buildTower` mutates
+its instance and schedules a cleanup task, so running it for a past day on the
+live one leaves the Wins tab showing yesterday. `StaticTowerView` draws the
+result, and the caller must hand in `\.towerFilterMode` and
+`\.perfectDayDates` by name — the block views read both and there is nothing
+to inherit outside the tower tab.
+
+**`MiniTowerView` is shared** by the chart's bars and an album's photoless
+cover, on purpose: they are the same object at two sizes.
+
+`QuickWinService.logWin` takes an `on date:` so a fixture can span weeks —
+without it the app can only ever create today, and nothing in History could be
+measured. `-strataSeedHistory <days>` uses it. Its seeded photos are written
+**synchronously** straight to the image directory: bridging `ImageManager`'s
+async save back with a semaphore deadlocks the main actor during launch and the
+app comes up blank. Measured, once.
 
 ## Screenshots without a tap
 
@@ -331,6 +402,24 @@ Do not add to it; fixing the existing ones is a worthwhile separate pass.
 - Stage your own paths: `git commit -- <paths>`. Never `-a`, never `add -A` —
   that is how two simulator recording folders ended up committed.
 - The owner builds from `main`. Work parked on a branch is invisible to him.
+
+## Running on a real device
+
+Signing is automatic, team `W34J6358L7`, bundle `JaydenBetts.Strata`, and both
+entitlement files are **empty** — nothing beyond a plain development profile is
+needed. Keep them that way unless a capability is genuinely used: HealthKit's
+entitlements were the first thing to fail provisioning.
+
+**An empty usage-description string is a device crash, not a warning.**
+`INFOPLIST_KEY_NSHealthShareUsageDescription` was `""` and iOS terminated the
+app the moment `setup()` asked for HealthKit. It never appeared on the
+simulator, where HealthKit is unavailable and the call short-circuits. Anything
+new that touches a protected resource needs a real string before it is called.
+
+To check the code is device-ready without a profile:
+
+    xcodebuild -scheme Strata -destination 'generic/platform=iOS' \
+        CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
 ## Safety
 
