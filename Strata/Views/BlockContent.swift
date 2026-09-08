@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// The two things every block view shares: how a time is written, and what is
+/// drawn on the face.
+///
+/// They used to live in `HabitBlockView.swift` alongside a block view that only
+/// `TowerView` rendered — and `TowerView` was referenced by nothing. Deleting
+/// the dead view would have taken these with it, so they moved here first.
+/// `FlippableBlockView` (the one the tower actually renders) and
+/// `TowerViewModel` both depend on them.
+
 // MARK: - Time Formatting Helpers
 
 enum BlockTimeFormatter {
@@ -78,98 +87,6 @@ enum BlockTimeFormatter {
     }
 }
 
-// MARK: - Completed Block (Flat Squircle)
-
-struct HabitBlockView: View {
-    let block: PlacedBlock
-    let cellSize: CGFloat
-    let onTap: () -> Void
-
-    @State private var tapTrigger: Int = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.towerFilterMode) private var towerFilterMode
-    @Environment(\.perfectDayDates) private var perfectDayDates
-
-    // displayCategory, not category: an unchosen block still needs a colour.
-    private var style: CategoryStyle {
-        block.habit.displayCategory.style
-    }
-
-    private var borderHighlight: Color { style.lightTint }
-    private var massTier: CGFloat { CGFloat(block.habit.blockSize.massTier) }
-    private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }
-    private var tapSquashY: CGFloat { 0.97 + (massTier - 1) * 0.006 }
-
-    private var blockFrame: CGRect {
-        block.frame(cellSize: cellSize)
-    }
-
-    private var patinaOpacity: Double {
-        guard towerFilterMode != .day else { return 0 }
-        guard perfectDayDates.contains(block.log.dateString) else { return 0 }
-        guard let blockDate = BlockTimeFormatter.dateFormatter.date(from: block.log.dateString) else {
-            return GridConstants.patinaMaxOpacity
-        }
-        let daysAgo = max(0, Calendar.current.dateComponents([.day], from: blockDate, to: Date()).day ?? 0)
-        return min(GridConstants.patinaMaxOpacity, 0.05 + Double(daysAgo) * GridConstants.patinaGrowthRate)
-    }
-
-    private var timeText: String? {
-        BlockTimeFormatter.displayText(
-            filterMode: towerFilterMode,
-            dateString: block.log.dateString,
-            scheduledTime: block.habit.scheduledTime,
-            durationMinutes: block.habit.blockSize.durationMinutes,
-            completedAt: block.log.completedAt
-        )
-    }
-
-    var body: some View {
-        BlockSurface {
-            style.baseColor
-        }
-        .frame(width: blockFrame.width, height: blockFrame.height)
-        // Text sits ABOVE the blurred band, as in Figma — the title and time
-        // nodes (255:107/108) are drawn after the band node, so they stay sharp
-        // on a softened ground.
-        .overlay(
-            BlockContentOverlay(
-                title: block.habit.title,
-                category: block.habit.category,
-                rowSpan: block.rowSpan,
-                timeText: timeText
-            )
-        )
-        // Perfect-day patina — golden surface wash (not stroke)
-        .overlay {
-            if patinaOpacity > 0 {
-                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
-                    .fill(GridConstants.patinaGold.opacity(patinaOpacity * 0.5))
-                    .blendMode(.overlay)
-            }
-        }
-        // Tap bounce: fast squash → bouncy pop-back
-        .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
-            content
-                .scaleEffect(
-                    x: phase ? tapSquashX : 1.0,
-                    y: phase ? tapSquashY : 1.0
-                )
-                .brightness(phase ? -0.03 : 0)
-        } animation: { phase in
-            phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
-        }
-        .accessibilityLabel("\(block.habit.title), \(block.habit.category.rawValue)")
-        .accessibilityHint("Tap to expand")
-        .contentShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
-        .onTapGesture {
-            HapticsEngine.lightTap()
-            tapTrigger += 1
-            onTap()
-        }
-    }
-
-}
 
 // MARK: - Shared Block Content Overlay
 
