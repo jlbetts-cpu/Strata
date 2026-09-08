@@ -16,6 +16,15 @@ struct MergedGroupView: View {
     let cellSize: CGFloat
     let gridWidth: CGFloat
     let gridHeight: CGFloat
+    /// Everything the block's look is made of, scaled together.
+    ///
+    /// The corner radius, the rim and the shadow are absolute values tuned
+    /// against the tower's ~86.5pt cell. Drawing the same absolutes at the
+    /// Insights chart's 34pt cell is not the tower at a smaller size, it is a
+    /// different block: a 12pt radius becomes 35% of the side, so a square
+    /// reads as a pill, and the shadow ends up bigger than the thing casting
+    /// it. Anywhere the cell is not the tower's, pass the ratio.
+    var styleScale: CGFloat = 1
 
     private var style: CategoryStyle { group.category.style }
 
@@ -25,7 +34,7 @@ struct MergedGroupView: View {
             cellSize: cellSize,
             spacing: GridConstants.spacing,
             gridHeight: gridHeight,
-            cornerRadius: GridConstants.blockCornerRadius
+            cornerRadius: GridConstants.blockCornerRadius * styleScale
         )
     }
 
@@ -73,15 +82,15 @@ struct MergedGroupView: View {
             .offset(y: bandTop)
             .clipShape(shape)
 
-            shape.stroke(rim, lineWidth: GridConstants.blockRimWidth)
+            shape.stroke(rim, lineWidth: GridConstants.blockRimWidth * styleScale)
         }
         .frame(width: gridWidth, height: gridHeight, alignment: .topLeading)
         .compositingGroup()
         .shadow(
             color: .black.opacity(GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
+            radius: GridConstants.blockShadowRadius * styleScale,
             x: 0,
-            y: GridConstants.blockShadowY
+            y: GridConstants.blockShadowY * styleScale
         )
         .allowsHitTesting(false)
         .accessibilityHidden(true)

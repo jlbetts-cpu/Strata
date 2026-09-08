@@ -94,7 +94,10 @@ struct TowerBarChart: View {
                                 // A day with nothing is not a gap in the chart.
                                 // It is a day with nothing, and it should be
                                 // possible to see that it was one.
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                RoundedRectangle(
+                                    cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+                                    style: .continuous
+                                )
                                     .fill(AppColors.warmBlack.opacity(0.06))
                                     .frame(width: barWidth, height: cell)
                             }
@@ -127,7 +130,8 @@ struct TowerBarChart: View {
                                     ),
                                     cellSize: cell,
                                     gridWidth: barWidth,
-                                    gridHeight: height(forRows: column.rows)
+                                    gridHeight: height(forRows: column.rows),
+                                    styleScale: cell / GridConstants.blockReferenceCell
                                 )
                             }
                         }

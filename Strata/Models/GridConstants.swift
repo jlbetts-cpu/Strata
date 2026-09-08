@@ -11,6 +11,31 @@ enum GridConstants {
     /// 12.7pt at an 86.5pt cell. 16 read noticeably rounder than the source when
     /// the two were put side by side at native size.
     static let blockCornerRadius: CGFloat = 12
+
+    /// Reference cell the block proportions were drawn against — 4 columns on
+    /// a 402pt screen. `blockCornerRadius` is 12 at this width, which is the
+    /// Figma ratio; anywhere the cell is a different size the radius has to be
+    /// scaled or it is a different shape. The Insights chart draws at up to
+    /// 34pt, where a flat 12 is 35% of the side: a pill, not a block.
+    static let blockReferenceCell: CGFloat = 86.5
+
+    /// The block corner radius at a cell of any size.
+    ///
+    /// A block drawn smaller has to be drawn rounder-in-proportion, not
+    /// rounder. `blockCornerRadius` is the value at `blockReferenceCell`; at a
+    /// 34pt chart cell the same flat 12 is 35% of the side and reads as a pill.
+    static func blockCornerRadius(forCell cellSize: CGFloat) -> CGFloat {
+        blockCornerRadius * (cellSize / blockReferenceCell)
+    }
+
+    /// How long a finger has to rest on a block before it lifts.
+    ///
+    /// 0.4s, not the 0.35 this started at. Below about 0.4 a hold competes
+    /// with the start of a scroll — the finger is often still for 300ms before
+    /// a deliberate flick — and blocks were lifting when someone meant to
+    /// scroll the tower. It is also comfortably above the ~0.25s that reads as
+    /// a tap, so the tap-to-edit gesture is unaffected.
+    static let liftHoldDuration: Double = 0.4
     static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
     static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
 
