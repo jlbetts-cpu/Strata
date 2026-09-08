@@ -88,10 +88,16 @@ enum QuickWinService {
         /// can show it before the block exists, and so what was promised is
         /// what arrives.
         spontaneous: HabitCategory? = nil,
+        /// When the win happened. Defaults to now, which is every real call
+        /// site — a win is something you just did. It is a parameter at all so
+        /// a seeded fixture can span more than one day: without it the app can
+        /// only ever create today's data, and nothing about History could be
+        /// looked at, let alone measured.
+        on date: Date = Date(),
         context: ModelContext,
         tower: Tower?
     ) throws -> (habit: Habit, logID: UUID) {
-        let today = DateUtils.dateString(from: Date())
+        let today = DateUtils.dateString(from: date)
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let habit = Habit(
@@ -117,6 +123,7 @@ enum QuickWinService {
 
         let log = HabitLog(habit: habit, dateString: today, completed: true)
         log.markCompleted()
+        log.completedAt = date
         context.insert(log)
 
         try context.save()

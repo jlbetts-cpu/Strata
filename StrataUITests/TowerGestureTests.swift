@@ -154,4 +154,54 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["5"].waitForExistence(timeout: 15),
                       "dragging the slot out and releasing logged nothing")
     }
+
+    // MARK: - History
+
+    private func launchHistory(days: Int = 26) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "insights", "-strataSeedHistory", "\(days)"]
+        app.launch()
+        return app
+    }
+
+    /// The whole point of the tab: a photo taken last week has to be reachable.
+    @MainActor
+    func testAnAlbumOpensItsDayAndComesBack() throws {
+        let app = launchHistory()
+        XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 40),
+                      "no albums on the History tab")
+        Thread.sleep(forTimeInterval: 6)
+
+        // An album's accessibility label carries the day and the win count.
+        let album = app.buttons.matching(NSPredicate(format: "label CONTAINS 'wins'")).firstMatch
+        XCTAssertTrue(album.exists, "no album card found")
+        album.tap()
+
+        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 15)
+                      || app.buttons["Wins"].waitForExistence(timeout: 5),
+                      "tapping an album opened nothing")
+
+        // And back, without losing the grid.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 15),
+                      "could not get back to the albums")
+    }
+
+    /// Search filters the record without touching the store.
+    @MainActor
+    func testSearchNarrowsTheAlbums() throws {
+        let app = launchHistory()
+        let field = app.textFields["Search your wins"]
+        XCTAssertTrue(field.waitForExistence(timeout: 40), "no search field")
+        Thread.sleep(forTimeInterval: 6)
+
+        let before = app.buttons.matching(NSPredicate(format: "label CONTAINS 'wins'")).count
+        XCTAssertGreaterThan(before, 1, "not enough albums to filter")
+
+        field.tap()
+        field.typeText("zzzznotathing")
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),
+                      "a nonsense search still showed albums")
+    }
 }

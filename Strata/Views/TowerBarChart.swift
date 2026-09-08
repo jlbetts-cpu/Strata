@@ -29,9 +29,13 @@ struct TowerBarChart: View {
         /// The blocks resolved into merged runs, so the bar is the shape the
         /// tower actually was rather than a pile of separate squares.
         var runs: [MiniTowerPacker.Run] { MiniTowerPacker.runs(in: blocks) }
+        /// The day this bar stands for, when it stands for one.
+        /// A column in the month range is a month, so it has none —
+        /// and tapping it has no single day to open.
+        var dateString: String? = nil
     }
 
-    struct MiniBlock: Identifiable {
+    struct MiniBlock: Identifiable, Equatable {
         let id: UUID
         let column: Int
         let row: Int
@@ -53,9 +57,17 @@ struct TowerBarChart: View {
     /// between COLUMNS still holds because they all share one scale. A fixed
     /// cell made the whole chart small whenever the busiest day was quiet.
     var maxBarHeight: CGFloat = 300
-
     /// Never bigger than this, or two wins become a poster.
-    private let maxCell: CGFloat = 34
+    ///
+    /// A parameter because the chart has two jobs now. On its own it is the
+    /// page and can afford a 34pt cell; above the albums in History it is a
+    /// summary, and a 34pt cell makes each bar 150pt wide so only two days fit
+    /// on screen at once — which is not a fortnight, it is two towers.
+    var maxCell: CGFloat = 34
+    /// Tapping a bar opens that day. Optional, because a read-only use of the
+    /// chart has nowhere to go.
+    var onSelect: ((Column) -> Void)?
+
     private let minCell: CGFloat = 8
     private let gapRatio: CGFloat = 0.17
     private let columnGap: CGFloat = 20
@@ -86,61 +98,26 @@ struct TowerBarChart: View {
                         // Every bar reserves the full height, so they share a
                         // baseline and the empty space above a short one is
                         // part of the reading.
-                        ZStack(alignment: .bottomLeading) {
-                            Color.clear
-                                .frame(width: barWidth, height: height(forRows: max(maxRows, 1)))
-
-                            if column.blocks.isEmpty {
-                                // A day with nothing is not a gap in the chart.
-                                // It is a day with nothing, and it should be
-                                // possible to see that it was one.
-                                RoundedRectangle(
-                                    cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-                                    style: .continuous
-                                )
-                                    .fill(AppColors.warmBlack.opacity(0.06))
-                                    .frame(width: barWidth, height: cell)
-                            }
-
-                            // Merged runs, exactly as the tower draws them.
-                            //
-                            // A day of five green wins is ONE shape on the
-                            // tower, so a chart that draws it as five squares
-                            // is a chart of different days than the ones you
-                            // lived. `MergedShape` is the same shape type the
-                            // tower uses, at a smaller cell size — the runs
-                            // even keep their notches.
-                            // `MergedGroupView` — the tower's own view, not a
-                            // flat copy of it.
-                            //
-                            // The bars were plain fills, so the chart was a
-                            // diagram of the tower rather than the tower at a
-                            // smaller size: no rim, no frosted band at the
-                            // foot of a run, no shadow. Using the real view
-                            // means the styling cannot drift, and it means the
-                            // runs keep their notches for free.
-                            ForEach(Array(column.runs.enumerated()), id: \.offset) { index, run in
-                                MergedGroupView(
-                                    group: MergeGroup(
-                                        id: UUID(),
-                                        category: run.category,
-                                        cells: run.cells,
-                                        memberIDs: [],
-                                        bottomRow: run.bottomRow
-                                    ),
-                                    cellSize: cell,
-                                    gridWidth: barWidth,
-                                    gridHeight: height(forRows: column.rows),
-                                    styleScale: cell / GridConstants.blockReferenceCell
-                                )
-                            }
-                        }
-                        .frame(width: barWidth, alignment: .bottomLeading)
+                        // The bar IS a mini tower — the same view an album
+                        // cover uses, so the two cannot drift apart.
+                        MiniTowerView(
+                            blocks: column.blocks,
+                            cell: cell,
+                            gap: gap,
+                            reservedRows: max(maxRows, 1)
+                        )
 
                         Text(column.label)
                             .font(Typography.caption)
                             .foregroundStyle(.primary.opacity(column.isCurrent ? 0.75 : 0.32))
                             .frame(width: barWidth)
+                    }
+                    // A TapGesture is the one recogniser a ScrollView is happy
+                    // to share — every other kind was measured to starve it.
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard column.dateString != nil else { return }
+                        onSelect?(column)
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(column.label): \(column.winCount) wins")

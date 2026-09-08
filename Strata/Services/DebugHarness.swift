@@ -1,6 +1,8 @@
 #if DEBUG
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 
 /// Launch-argument hooks so a screenshot can be taken of an exact state.
 ///
@@ -30,7 +32,18 @@ enum DebugHarness {
         // "tower" still works: the tab was called that for most of this
         // project's life and every script and note that mentions it says so.
         if wanted == "tower" { return .tower }
+        // Likewise "insights": the tab is History now, and every screenshot
+        // script and task note written before that says the old name.
+        if wanted == "insights" { return .history }
         return StrataTab.allCases.first { $0.rawValue.lowercased() == wanted }
+    }
+
+    /// A day to push straight into on launch, from `-strataOpenDay <n>`,
+    /// where n is days back from today. The day screen is behind a tap on an
+    /// album, and a tap is the one thing a screenshot script cannot do.
+    static var openDayBack: Int? {
+        guard let raw = argument("-strataOpenDay") else { return nil }
+        return Int(raw)
     }
 
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
@@ -43,6 +56,42 @@ enum DebugHarness {
     /// drop cascade can be watched without a tap.
     static var autoWins: Int {
         Int(argument("-strataAutoWin") ?? "0") ?? 0
+    }
+
+    /// A stand-in photograph, written straight to the image directory.
+    ///
+    /// Synchronous on purpose, and NOT through `ImageManager.save`, which is
+    /// `async`. Seeding runs on the main actor during launch, and bridging an
+    /// async save back with a semaphore deadlocks it instantly — the task
+    /// cannot get the actor the semaphore is holding, so the app comes up as a
+    /// blank white screen. Measured, once.
+    ///
+    /// The file name is the same shape `ImageManager` writes, and it lands in
+    /// the same directory, so a seeded photo is loaded by exactly the code
+    /// path a captured one is.
+    ///
+    /// A flat colour rather than anything photographic: the point of the
+    /// fixture is to exercise the fan, the caching and the round trip, and a
+    /// solid field makes it obvious which layer of the stack is which.
+    private static func seedPhoto(for logID: UUID, category: HabitCategory) -> String? {
+        let size = CGSize(width: 900, height: 1200)
+        let image = UIGraphicsImageRenderer(size: size).image { ctx in
+            UIColor(category.style.baseColor).setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            UIColor(white: 1, alpha: 0.22).setFill()
+            ctx.fill(CGRect(x: 0, y: size.height * 0.62, width: size.width, height: 8))
+        }
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("strata-images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let name = "\(logID.uuidString)_seed.jpg"
+        do {
+            try data.write(to: dir.appendingPathComponent(name))
+            return name
+        } catch {
+            return nil
+        }
     }
 
     /// Renders the share card to a PNG in the app container and exits the
@@ -92,6 +141,7 @@ enum DebugHarness {
     /// True when the run asked for seeding, so `setup()` knows to wipe first.
     static var wantsSeed: Bool {
         argument("-strataSeedWins") != nil
+            || argument("-strataSeedHistory") != nil
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
@@ -160,6 +210,45 @@ enum DebugHarness {
                 size: sizes[i % sizes.count],
                 context: context, tower: tower
             )
+        }
+
+        // A record that spans weeks, so History has something real to be
+        // looked at. Everything else here seeds today, which is all the app
+        // can produce on its own — `QuickWinService.logWin` takes a date now
+        // for exactly this reason.
+        let historyDays = Int(argument("-strataSeedHistory") ?? "0") ?? 0
+        if historyDays > 0 {
+            let calendar = Calendar.current
+            for back in 0..<historyDays {
+                guard let day = calendar.date(byAdding: .day, value: -back, to: Date()) else { continue }
+                // Not every day has wins. A history with no gaps in it is not
+                // a history, and the empty days are half of what the chart
+                // above the albums is for.
+                if back % 7 == 3 || back % 11 == 5 { continue }
+                let count = 2 + (back * 3) % 6
+                for i in 0..<count {
+                    let n = back * 7 + i
+                    guard let win = try? QuickWinService.logWin(
+                        title: titles[n % titles.count],
+                        category: categories[n % categories.count],
+                        size: sizes[n % sizes.count],
+                        on: day,
+                        context: context,
+                        tower: tower
+                    ) else { continue }
+                    // Most days carry photographs, and some carry three or
+                    // more, because the cover fans up to three and a fixture
+                    // that never reaches three leaves the fan unexercised —
+                    // which is the whole design.
+                    if i != 1, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                        log.imageFileName = seedPhoto(
+                            for: win.logID,
+                            category: categories[n % categories.count]
+                        )
+                    }
+                }
+            }
+            try? context.save()
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0

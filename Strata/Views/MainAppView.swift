@@ -469,10 +469,10 @@ struct MainAppView: View {
             } label: {
                 Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
             }
-            Tab(value: StrataTab.insights) {
-                insightsTabRoot
+            Tab(value: StrataTab.history) {
+                historyTabRoot
             } label: {
-                Label("Insights", systemImage: selectedTab == .insights ? "chart.bar.fill" : "chart.bar")
+                Label("History", systemImage: StrataTab.history.icon)
             }
         }
         // The window's appearance, changed without an animation.
@@ -813,19 +813,11 @@ struct MainAppView: View {
     /// TabView already at the type-checker's ceiling — adding one parameter to
     /// the Insights call tipped it over with "unable to type-check this
     /// expression in reasonable time". See CLAUDE.md.
-    private var insightsTabRoot: some View {
-        NavigationStack {
-            InsightsView(
-                habits: Array(habits),
-                logs: Array(logs),
-                onAddHabit: {
-                    HapticsEngine.lightTap()
-                    isNewHabitMenuOpen = true
-                },
-                onNavigateToTower: { _ in selectedTab = .tower },
-                openSettings: { showSettings = true }
-            )
-        }
+    private var historyTabRoot: some View {
+        // No `NavigationStack` here — `HistoryView` owns its own, because it
+        // needs the path to push a day from two places: an album, and a bar
+        // on the chart.
+        HistoryView(openSettings: { showSettings = true })
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView(
@@ -1523,7 +1515,7 @@ struct MainAppView: View {
             }
         }
         switch DebugHarness.openSheet {
-        case "settings": selectedTab = .insights; showSettings = true
+        case "settings": selectedTab = .history; showSettings = true
         case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         default:         break

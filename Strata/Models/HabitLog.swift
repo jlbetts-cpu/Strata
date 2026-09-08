@@ -9,6 +9,12 @@ struct SubTask: Codable, Equatable, Identifiable {
 
 @Model
 final class HabitLog {
+    /// Indexed on `dateString` because History pages through the record a week
+    /// at a time with a range predicate on it. Without the index that page is
+    /// a table scan of every log ever written. Additive: the store migrates in
+    /// place.
+    #Index<HabitLog>([\.dateString])
+
     var id: UUID = UUID()
     var habit: Habit?
     var dateString: String // YYYY-MM-DD format for easy lookup
