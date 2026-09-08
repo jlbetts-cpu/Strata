@@ -2,22 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Strata uses only the encryption iOS provides (HTTPS). Declaring this
-	     is what stops App Store Connect asking for export compliance on every
-	     single upload. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>co.strataapp.blockmove</string>
-			<key>UTTypeDescription</key>
-			<string>Strata Block</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Strata Block</string>
+			<key>UTTypeIdentifier</key>
+			<string>co.strataapp.blockmove</string>
 		</dict>
 	</array>
 </dict>

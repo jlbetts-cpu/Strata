@@ -31,8 +31,6 @@ struct MainAppView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(HealthKitService.self) private var healthKitService
-    @Environment(EventKitService.self) private var eventKitService
     @Environment(FocusFilterService.self) private var focusFilterService
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
@@ -355,31 +353,9 @@ struct MainAppView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
-                    // Belt and suspenders: refresh HealthKit on every foreground
-                    healthKitService.refreshProgress()
-                    healthKitService.evaluateThresholds()
-                    healthKitService.startForegroundPolling()
-
-                    // Refresh calendar events for selected date
-                    eventKitService.fetchEvents(for: timelineSelectedDate)
-
-                    // Day-boundary auto-complete: silently complete unacknowledged verified habits from previous days
-                    performDayBoundaryAutoComplete()
-
-                    // Refresh Focus Filter state
                     focusFilterService.refresh()
-
-                    // Reindex Spotlight to update completion status
                     SpotlightIndexer.reindex(container: SharedModelContainer.shared)
-                } else if newPhase == .background {
-                    healthKitService.stopForegroundPolling()
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .healthKitHabitVerified)) { notification in
-                guard let habitIDs = notification.userInfo?["habitIDs"] as? [UUID] else { return }
-                HapticsEngine.lightTap()
-
-                scheduleRefresh()
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
@@ -1524,27 +1500,6 @@ struct MainAppView: View {
         timelineVM.modelContext = modelContext
         habitManagerVM.modelContext = modelContext
 
-        // HealthKit setup: sync connected habits and start observers
-        syncHealthKitConnectedHabits()
-        healthKitService.checkAvailability()
-        #if DEBUG
-        let mayAskForHealth = !DebugHarness.isActive
-        #else
-        let mayAskForHealth = true
-        #endif
-        if healthKitService.isAvailable && mayAskForHealth {
-            Task {
-                await healthKitService.requestAccess()
-                healthKitService.setupObservers()
-                healthKitService.refreshProgress()
-                healthKitService.startForegroundPolling()
-            }
-        }
-
-        // Calendar setup
-        if eventKitService.isAuthorized {
-            eventKitService.fetchTodaysEvents()
-        }
         animCoord.reduceMotion = reduceMotion
         animCoord.lookupMass = { [towerVM] id in
             towerVM.placedBlocks.first(where: { $0.id == id })?.habit.blockSize.massTier
@@ -1673,9 +1628,6 @@ struct MainAppView: View {
 
     @discardableResult
     private func refreshData() -> Set<UUID> {
-        // Keep HealthKit service in sync with current habits
-        syncHealthKitConnectedHabits()
-
         // Single-pass log index — O(n) once, then O(1) lookups downstream
         var logsByDate: [String: [HabitLog]] = [:]
         var allCompletedDateStrings: Set<String> = []
@@ -2869,46 +2821,6 @@ struct MainAppView: View {
     }
     #endif
 
-    // MARK: - HealthKit Integration
-
-    /// Sync connected HealthKit habits to the service
-    private func syncHealthKitConnectedHabits() {
-        healthKitService.connectedHabits = habits.compactMap { habit in
-            guard let type = habit.healthKitType else { return nil }
-            return (id: habit.id, type: type, threshold: habit.healthKitThreshold ?? 0)
-        }
-    }
-
-    /// Day-boundary auto-complete: silently complete unacknowledged verified habits from yesterday
-    private func performDayBoundaryAutoComplete() {
-        let todayStr = TimelineViewModel.dateString(from: Date())
-        guard lastDayBoundaryCheck != todayStr else { return }
-        lastDayBoundaryCheck = todayStr
-
-        // Find yesterday's date
-        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
-        let yesterdayStr = TimelineViewModel.dateString(from: yesterday)
-
-        // Find HealthKit-connected habits that were verified yesterday but not acknowledged
-        let connectedHabits = habits.filter { $0.healthKitType != nil }
-        for habit in connectedHabits {
-            let hasLog = habit.logs.contains { $0.dateString == yesterdayStr && $0.completed }
-            if !hasLog {
-                // Check if there's an existing log to update, or create a new one
-                if let existingLog = habit.logs.first(where: { $0.dateString == yesterdayStr }) {
-                    existingLog.completed = true
-                    existingLog.completedAt = yesterday
-                    existingLog.verifiedByHealthKit = true
-                } else {
-                    let log = HabitLog(habit: habit, dateString: yesterdayStr, completed: true)
-                    log.completedAt = yesterday
-                    log.verifiedByHealthKit = true
-                    modelContext.insert(log)
-                }
-            }
-        }
-        try? modelContext.save()
-    }
 
     private func resetTower() {
         // 1. Delete all image files from disk (must read file names before deleting entities)
@@ -3099,8 +3011,6 @@ private struct TowerAuroraView: View {
 #Preview {
     MainAppView()
         .modelContainer(for: [Habit.self, HabitLog.self, MoodLog.self, Tower.self], inMemory: true)
-        .environment(EventKitService())
-        .environment(HealthKitService())
         .environment(FocusFilterService())
 }
 

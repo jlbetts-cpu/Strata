@@ -11,6 +11,4 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .modelContainer(for: [Habit.self, HabitLog.self, MoodLog.self], inMemory: true)
-        .environment(EventKitService())
-        .environment(HealthKitService())
 }

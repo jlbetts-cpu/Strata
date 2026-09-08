@@ -10,8 +10,6 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(HealthKitService.self) private var healthKitService
-    @Environment(EventKitService.self) private var eventKitService
 
     @Query private var habits: [Habit]
     @Query private var logs: [HabitLog]
@@ -164,98 +162,6 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.accentWarm)
-            }
-
-            // MARK: - Apple Health
-
-            Section {
-                HStack {
-                    Label {
-                        Text("Apple Health")
-                    } icon: {
-                        SettingsIcon(systemName: "heart.fill")
-                    }
-
-                    Spacer()
-
-                    if healthKitService.isAuthorized {
-                        Text("Connected")
-                            .font(Typography.caption)
-                            .foregroundStyle(AppColors.healthGreen)
-                    } else if healthKitService.isAvailable {
-                        Button("Connect") {
-                            Task { await healthKitService.requestAccess() }
-                        }
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(AppColors.healthGreen)
-                    } else {
-                        Text("Not Available")
-                            .font(Typography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if healthKitService.isAuthorized {
-                    let connectedHabits = habits.filter { $0.healthKitType != nil }
-                    if connectedHabits.isEmpty {
-                        Text("Nothing connected to Apple Health yet")
-                            .font(Typography.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(connectedHabits, id: \.id) { habit in
-                            HStack(spacing: 8) {
-                                if let icon = habit.category.iconName {
-                                    Image(systemName: icon)
-                                        .iconSize(11, relativeTo: .footnote, weight: .medium)
-                                        .foregroundStyle(habit.category.style.baseColor)
-                                }
-                                Text(habit.title)
-                                    .font(Typography.bodySmall)
-                                Spacer()
-                                if let typeStr = habit.healthKitType,
-                                   let type = HealthKitHabitType(rawValue: typeStr) {
-                                    Text(type.displayName)
-                                        .font(Typography.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-            } header: {
-                Text("Integrations")
-            }
-
-            // MARK: - Calendar
-
-            Section {
-                HStack {
-                    Label {
-                        Text("Calendar")
-                    } icon: {
-                        SettingsIcon(systemName: "calendar")
-                    }
-
-                    Spacer()
-
-                    if eventKitService.isAuthorized {
-                        Text("Connected")
-                            .font(Typography.caption)
-                            .foregroundStyle(AppColors.healthGreen)
-                    } else {
-                        Button("Connect") {
-                            Task { await eventKitService.requestAccess() }
-                        }
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(AppColors.healthGreen)
-                    }
-                }
-
-                if eventKitService.isAuthorized {
-                    Text("Calendar events appear as context on your day")
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             // MARK: - Section 3: Data
