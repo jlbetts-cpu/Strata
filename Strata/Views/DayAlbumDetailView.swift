@@ -86,8 +86,9 @@ struct DayAlbumDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: GridConstants.tallyNumeral * 0.52,
-                              weight: .medium, design: .rounded))
+                // The shared screen title, not a fraction of the tally
+                // numeral. Every page that names itself now uses one size.
+                .font(Typography.screenTitle)
                 .foregroundStyle(.primary.opacity(0.85))
                 // One line. "Saturday 5 September" wrapping to two puts the
                 // win count halfway down the screen and pushes the tower with
@@ -95,7 +96,7 @@ struct DayAlbumDetailView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text("\(logs.count) \(logs.count == 1 ? "win" : "wins")")
-                .font(Typography.bodySmall)
+                .font(Typography.screenSubtitle)
                 .foregroundStyle(.primary.opacity(0.35))
         }
         .padding(.horizontal, GridConstants.horizontalPadding)

@@ -70,7 +70,11 @@ enum GridConstants {
     /// Measured off a screenshot: with the header padded to 16pt the numeral's
     /// first dark pixel was at 20pt while the first block's colour started at
     /// 16pt. Type is aligned optically or it is not aligned.
-    static let tallyOpticalInset: CGFloat = 4
+    ///
+    /// Proportional, because the 4pt was measured at a 64pt numeral and the
+    /// tally is 34pt now. A fixed 4pt would over-correct by nearly a
+    /// half-width and push the digit past the grid the other way.
+    static let tallyOpticalInset: CGFloat = 4 * (tallyNumeral / 64)
 
     // MARK: - Header alignment
 
@@ -249,10 +253,18 @@ enum GridConstants {
     ///
     /// One constant, because the tower and the camera show the same count and
     /// it must not change size between them.
-    static let tallyNumeral: CGFloat = 64
+    /// The tally is a screen title, and every screen title is one size.
+    ///
+    /// It was 64 — nearly double every other header, so moving between tabs
+    /// changed the scale of the page. Rendered side by side at 64 and 34, the
+    /// smaller one reads as composed and the larger one as shouting; the
+    /// tower is the thing on this screen worth looking at, and the count is a
+    /// caption for it.
+    static let tallyNumeral: CGFloat = Typography.screenTitleSize
     /// The word beside it. Sized with the numeral rather than left at a body
     /// size, or the pair stops reading as one object as the numeral grows.
-    static let tallyWord: CGFloat = 24
+    /// The word beside the tally, scaled with it.
+    static let tallyWord: CGFloat = 18
 
     // MARK: - The tower's dance
 

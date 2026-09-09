@@ -11,8 +11,6 @@ import SwiftUI
 struct AlbumCarousel: View {
     let albums: [Album]
     var onSelect: (AlbumRoute) -> Void = { _ in }
-    /// The tail card into the full record. Nil hides it.
-    var onSeeAll: (() -> Void)?
 
     /// Two tower cells across, so a cover on the shelf is the same size as a
     /// 2x2 on the tower above it. Derived rather than typed: on any screen the
@@ -41,16 +39,6 @@ struct AlbumCarousel: View {
                     }
                     .buttonStyle(.plain)
                 }
-
-                if let onSeeAll {
-                    Button {
-                        HapticsEngine.lightTap()
-                        onSeeAll()
-                    } label: {
-                        SeeAllCard(width: cardWidth)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             .scrollTargetLayout()
             .padding(.horizontal, GridConstants.horizontalPadding)
@@ -68,12 +56,13 @@ private struct AlbumCard: View {
         VStack(alignment: .leading, spacing: 0) {
             AlbumCoverView(photoFileNames: album.photoFileNames, side: width)
             Text(album.title)
-                .font(.system(size: 20, weight: .medium, design: .rounded))
+                .font(Typography.headerLarge)
                 .foregroundStyle(.primary.opacity(0.85))
                 .lineLimit(1)
                 .padding(.top, 13)
             Text(album.subtitle)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .font(Typography.sectionLabel)
+                .kerning(Typography.sectionKerning)
                 .foregroundStyle(.primary.opacity(0.35))
                 .lineLimit(1)
                 .padding(.top, 3)
@@ -81,46 +70,5 @@ private struct AlbumCard: View {
         .frame(width: width, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(album.title), \(album.subtitle)")
-    }
-}
-
-/// The way to everything the shelf does not fit.
-///
-/// The lowfi has only a carousel, which would put the whole record behind
-/// twenty-odd cards and make anything older unreachable — the opposite of what
-/// this tab is for. One tail card keeps the paged grid alive for the cost of
-/// almost no new code.
-private struct SeeAllCard: View {
-    let width: CGFloat
-
-    private var height: CGFloat { width / AlbumCoverView.aspect }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RoundedRectangle(cornerRadius: 20 * (width / 156), style: .continuous)
-                .fill(GridConstants.fillWell)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20 * (width / 156), style: .continuous)
-                        .strokeBorder(GridConstants.fillHairline, lineWidth: 1)
-                }
-                .overlay {
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.35))
-                }
-                .frame(width: width, height: height)
-            Text("All memories")
-                .font(.system(size: 20, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.85))
-                .lineLimit(1)
-                .padding(.top, 13)
-            Text("EVERY DAY")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.35))
-                .padding(.top, 3)
-        }
-        .frame(width: width, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("All memories")
     }
 }

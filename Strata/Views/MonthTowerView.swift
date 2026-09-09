@@ -81,15 +81,28 @@ struct MonthTowerView: View {
     }
 }
 
-/// `< SEPTEMBER >`.
+/// `‹ SEPTEMBER ›`, where the month itself is a menu.
+///
+/// The chevrons step one month at a time, which is what you want most of the
+/// time. Tapping the name opens a native menu of every month there is, which
+/// is what you want when the thing you are looking for is last summer —
+/// eleven presses away by chevron.
+///
+/// A `Menu` rather than a wheel or a sheet: it is the platform's own control
+/// for "choose one of these", it renders as UIKit's menu with no styling of
+/// ours on it, and it needs no room on the page when it is closed.
 ///
 /// The chevrons are **disabled and dimmed at the edges, never hidden**: a
 /// control that vanishes reads as a bug, and a disabled button is what
-/// VoiceOver can actually describe. No wraparound — a year is not a carousel.
+/// VoiceOver can describe. No wraparound — a year is not a carousel.
 struct MonthPicker: View {
     let title: String
     let canGoBack: Bool
     let canGoForward: Bool
+    /// Every month there is, newest first, with what to call each one.
+    var months: [Date] = []
+    var titleFor: (Date) -> String = { _ in "" }
+    var onSelect: (Date) -> Void = { _ in }
     let onBack: () -> Void
     let onForward: () -> Void
 
@@ -97,11 +110,33 @@ struct MonthPicker: View {
         HStack(spacing: 0) {
             chevron("chevron.left", enabled: canGoBack, label: "Previous month", action: onBack)
             Spacer(minLength: 0)
-            Text(title)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.55))
-                .kerning(0.6)
-                .contentTransition(.opacity)
+
+            Menu {
+                ForEach(months, id: \.self) { month in
+                    Button {
+                        onSelect(month)
+                    } label: {
+                        Text(titleFor(month).capitalized)
+                        if titleFor(month) == title { Image(systemName: "checkmark") }
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(Typography.sectionLabel)
+                        .kerning(Typography.sectionKerning)
+                        .foregroundStyle(.primary.opacity(0.55))
+                        .contentTransition(.opacity)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(0.35))
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 44)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Month, \(title). Choose another")
+
             Spacer(minLength: 0)
             chevron("chevron.right", enabled: canGoForward, label: "Next month", action: onForward)
         }

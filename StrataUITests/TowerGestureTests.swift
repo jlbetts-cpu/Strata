@@ -374,47 +374,10 @@ final class TowerGestureTests: XCTestCase {
     }
 
     /// Search filters the record without touching the store.
-    /// Search lives on the full record, not on the shelf.
-    ///
-    /// Memories used to carry its own field; the design audit found it was the
-    /// heaviest element on the page and duplicated the one already here, so it
-    /// went. This drives the one that remains.
-    @MainActor
-    func testSearchNarrowsTheShelf() throws {
-        let app = launchMemories(extra: ["-strataOpenAllAlbums"])
-        let field = app.textFields["Search your wins"]
-        XCTAssertTrue(field.waitForExistence(timeout: 40), "no search field")
-        Thread.sleep(forTimeInterval: 4)
-
-        let matching = NSPredicate(format: "label CONTAINS 'wins'")
-        let before = app.buttons.matching(matching).count
-        XCTAssertGreaterThan(before, 1, "not enough albums to filter")
-
-        // Tap until the keyboard is actually up.
-        //
-        // One tap is not reliable here: the paging sentinel keeps loading
-        // weeks while the test is running, and a tap that lands during a
-        // layout pass does nothing. This failed on focus once and on the
-        // assertion once, with the same code both times — the churn moves
-        // which step loses.
-        var focused = false
-        for _ in 0..<4 {
-            field.tap()
-            if app.keyboards.element.waitForExistence(timeout: 6) { focused = true; break }
-        }
-        XCTAssertTrue(focused, "the search field never took focus")
-        field.typeText("zzzznotathing")
-
-        // Wait for the grid to actually empty rather than sleeping and
-        // hoping. A fixed sleep raced the paging sentinel — this failed once
-        // and passed on a re-run with the same code, which is the definition
-        // of a test not worth having.
-        expectation(for: NSPredicate(format: "count == 0"),
-                    evaluatedWith: app.buttons.matching(matching), handler: nil)
-        waitForExpectations(timeout: 20)
-        XCTAssertTrue(app.staticTexts["Nothing matches that."].exists,
-                      "the grid emptied but said nothing about why")
-    }
+    // Search went with the paged album grid (2026-09-09). The month tower
+    // reaches every day and the gallery reaches every photograph, so the third
+    // list of the same record — and the field over it — were clutter. If
+    // search returns it needs its own test.
 
     /// A photo opens by tapping its BLOCK, and the glass close button shuts it.
     ///

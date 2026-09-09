@@ -96,10 +96,9 @@ enum DebugHarness {
         argument("-strataOpenCurated").flatMap(Int.init)
     }
 
-    /// Pushes the full paged grid, which is otherwise behind the shelf's tail
-    /// card.
-    static var opensAllAlbums: Bool {
-        ProcessInfo.processInfo.arguments.contains("-strataOpenAllAlbums")
+    /// Which moment card to open, from `-strataOpenMoment <index>`.
+    static var openMomentIndex: Int? {
+        argument("-strataOpenMoment").flatMap(Int.init)
     }
 
     /// Seeds a few plan lines, from `-strataSeedPlan <n>`. The plan is behind

@@ -281,46 +281,82 @@ struct AddWinSheet: View {
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
     }
 
-    /// Colour, as the blocks it is.
+    /// Colour, as circles.
     ///
-    /// It was a row of circles with an icon in each. Circles are not in this
-    /// app's vocabulary — every coloured thing in Strata is a block, and a
-    /// swatch shaped like something else makes the choice look like it belongs
-    /// to a different product. Unpicked, a chip is the slot its block would
-    /// fill; picked, it is the block.
+    /// These were briefly blocks, on the rule that every surface you can act
+    /// on is one. The owner preferred the circles (2026-09-09) and that
+    /// settles it: a swatch is not a block you are placing, it is a property
+    /// of the block you are describing, and a round chip reads as a property
+    /// in a way a small square does not. The blocks are still what the SIZE
+    /// control and the photo well are made of.
     private var categoryControl: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             ForEach(HabitCategory.selectable, id: \.self) { cat in
-                BlockChip(category: cat, isSelected: category == cat) {
+                let isSelected = category == cat
+                Button {
+                    HapticsEngine.tick()
                     withAnimation(GridConstants.motionSmooth) { category = cat }
                 } label: {
-                    if let icon = cat.iconName {
-                        Image(systemName: icon)
-                            .iconSize(13, relativeTo: .footnote, weight: .medium)
+                    ZStack {
+                        Circle()
+                            .fill(cat.style.baseColor)
+                            .frame(width: 34, height: 34)
+                        if let icon = cat.iconName {
+                            Image(systemName: icon)
+                                .iconSize(13, relativeTo: .footnote, weight: .medium)
+                                .foregroundStyle(.white)
+                        }
+                        if isSelected {
+                            Circle()
+                                .strokeBorder(.primary.opacity(0.75), lineWidth: 2)
+                                .frame(width: 42, height: 42)
+                        }
                     }
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel(cat.rawValue)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }
     }
 
-    /// Size, as the shapes the sizes are.
+    /// Size, named.
     ///
-    /// It was a segmented control reading "Quick / Regular / Deep" — words for
-    /// shapes, on a screen whose entire subject is shapes. The tower already
-    /// teaches this mapping by letting you drag the slot out into the size you
-    /// want; teaching it again in a second language is how an app stops
-    /// feeling like one thing.
+    /// It was briefly the three shapes at true proportion, which is more
+    /// honest about what a size IS — and the owner preferred the words
+    /// (2026-09-09). They are right that this is the one place a name helps:
+    /// the shapes tell you the geometry, the words tell you what the geometry
+    /// is FOR, and "Deep" is the thing you are actually choosing.
     private var sizeControl: some View {
-        BlockSizePicker(size: Binding(
-            get: { size },
-            set: { newValue in
-                // One transaction for the whole change: the well resizes and
-                // everything below it moves on the same spring.
-                withAnimation(GridConstants.slotSnap) { size = newValue }
+        HStack(spacing: 6) {
+            ForEach([BlockSize.small, .medium, .hard], id: \.self) { option in
+                let isSelected = size == option
+                Button {
+                    HapticsEngine.tick()
+                    // One transaction for the whole change: the well resizes,
+                    // the sections below it move, and this button fills — all
+                    // on the same spring.
+                    withAnimation(GridConstants.slotSnap) { size = option }
+                } label: {
+                    Text(option.effortLabel)
+                        .font(Typography.bodySmall)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            isSelected ? AnyShapeStyle(category.style.baseColor)
+                                       : AnyShapeStyle(GridConstants.fillTrack),
+                            in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
+                        )
+                        .foregroundStyle(isSelected ? .white : .primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(option.effortLabel)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
-        ), category: category)
+        }
     }
 
     private var deleteButton: some View {

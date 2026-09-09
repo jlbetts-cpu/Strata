@@ -27,6 +27,8 @@ enum AlbumKind: Hashable {
     case day(String)
     /// A normalised title key — see `Album.titleKey`.
     case curated(String)
+    /// A moment in time, by rule id — see `Album.Moment`.
+    case moment(String)
 }
 
 /// Which album a screen is showing.
@@ -37,6 +39,7 @@ enum AlbumKind: Hashable {
 enum AlbumRoute: Hashable {
     case day(String)
     case curated(String)
+    case moment(String)
 }
 
 /// One card in the carousel.
@@ -61,6 +64,7 @@ struct Album: Identifiable, Equatable {
         switch kind {
         case .day(let key):     return .day(key)
         case .curated(let key): return .curated(key)
+        case .moment(let id):   return .moment(id)
         }
     }
 }
@@ -269,25 +273,65 @@ extension Album {
 
     // MARK: The carousel
 
-    /// What the shelf shows: curated first, then days newest-first.
+    /// What the shelf shows: moments first, then repeated interests.
     ///
-    /// Curated leads because sorted by recency a curated album would sit behind
-    /// a week of day cards and never be seen — and "what do you keep doing" is
-    /// the one thing the carousel says that the month tower below it cannot.
+    /// **Days are not on it any more.** They were, and the shelf ran to two
+    /// dozen near-identical cards that said nothing the month tower above them
+    /// did not already say better — the month gives you every day at a glance
+    /// and opens any of them. What is left is the two kinds of album you could
+    /// not have found yourself: when something happened, and what you keep
+    /// doing.
+    ///
+    /// Moments lead, the way a Flashback leads Snapchat's Memories. They are
+    /// the only cards that appear without you having done anything to make
+    /// them, which is what makes the screen worth opening on a day you have
+    /// not logged anything.
+    ///
+    /// Returns an empty array when there is nothing worth showing, and the
+    /// screen then draws no shelf at all rather than a heading over a gap.
+    /// How far back a REPEATED INTEREST counts.
+    ///
+    /// Separate from the fetch, which now reaches back years so that moments
+    /// and the gallery have something to work with. An interest is something
+    /// you are still doing, and without this a title you stopped two years ago
+    /// would come back as a current one.
+    static let interestWindowDays = 180
+
     static func carousel(from records: [WinRecord],
                          calendar: Calendar,
                          now: Date,
-                         maxCurated: Int = Album.maxCurated,
-                         maxDays: Int = 24) -> [Album] {
-        let curated = Array(curatedAlbums(from: records, calendar: calendar).prefix(maxCurated))
-        // A photograph belongs to exactly one log, which has one habit, which
-        // has one title, which maps to one key — so two curated albums can
-        // never share a print. No guard is needed for that case, only for the
-        // curated-versus-day one.
-        let coverPrints = Set(curated.flatMap { $0.photoFileNames.prefix(3) })
-        let days = dayAlbums(from: records, calendar: calendar, now: now,
-                             demoting: coverPrints)
-        return curated + days.prefix(maxDays)
+                         maxCurated: Int = Album.maxCurated) -> [Album] {
+        let moments = moments(from: records, calendar: calendar, now: now)
+
+        let cutoff = calendar.date(byAdding: .day, value: -interestWindowDays, to: now)
+            ?? .distantPast
+        let recent = records.filter { $0.completedAt >= cutoff }
+        let curated = Array(curatedAlbums(from: recent, calendar: calendar).prefix(maxCurated))
+
+        return moments + curated
+    }
+
+    /// Every photograph, newest first, with what it was.
+    ///
+    /// A photograph belongs to exactly one win, so its title is simply that
+    /// win's — no grouping and nothing to disambiguate.
+    static func gallery(from records: [WinRecord]) -> [GalleryPhoto] {
+        records
+            .filter(\.hasPhoto)
+            .sorted { $0.completedAt > $1.completedAt }
+            .compactMap { record in
+                guard let name = record.photoFileName else { return nil }
+                let title = record.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                return GalleryPhoto(
+                    fileName: name,
+                    // A win logged in one tap has no name, and the block draws
+                    // no text for it. The gallery does the same rather than
+                    // captioning it "Win".
+                    title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
+                    date: record.completedAt,
+                    dateString: record.dateString
+                )
+            }
     }
 
     // MARK: - Dates
@@ -332,6 +376,52 @@ extension Album {
                 size: habit.blockSize,
                 photoFileName: log.imageFileName
             )
+        }
+    }
+}
+
+/// One photograph in the gallery, and what it was of.
+struct GalleryPhoto: Identifiable, Equatable {
+    var id: String { fileName }
+    let fileName: String
+    /// The win's title, or nil when the win was never named. A win logged in
+    /// one tap has no name and its block draws no text; the gallery does the
+    /// same rather than captioning it "Win".
+    let title: String?
+    let date: Date
+    let dateString: String
+}
+
+/// A run of photographs under one heading — a month of the gallery.
+struct GallerySection: Identifiable, Equatable {
+    /// `yyyy-MM`.
+    let id: String
+    /// "September" this year, "September 2025" otherwise.
+    let title: String
+    let photos: [GalleryPhoto]
+}
+
+extension Album {
+    /// The gallery, grouped by month.
+    ///
+    /// Month, not day. Snapchat's Memories groups by month once you are past
+    /// the most recent few, and a day heading over one photograph is a heading
+    /// with nothing under it — which is most days.
+    static func gallerySections(_ photos: [GalleryPhoto],
+                                calendar: Calendar,
+                                now: Date) -> [GallerySection] {
+        var byMonth: [String: [GalleryPhoto]] = [:]
+        for photo in photos {
+            byMonth[String(photo.dateString.prefix(7)), default: []].append(photo)
+        }
+        let thisYear = calendar.component(.year, from: now)
+        return byMonth.keys.sorted(by: >).map { key in
+            let sorted = (byMonth[key] ?? []).sorted { $0.date > $1.date }
+            let df = DateFormatter()
+            let sameYear = Int(key.prefix(4)) == thisYear
+            df.dateFormat = sameYear ? "MMMM" : "MMMM yyyy"
+            let title = sorted.first.map { df.string(from: $0.date) } ?? key
+            return GallerySection(id: key, title: title, photos: sorted)
         }
     }
 }

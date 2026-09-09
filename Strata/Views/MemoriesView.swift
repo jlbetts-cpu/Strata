@@ -29,21 +29,21 @@ struct MemoriesView: View {
     /// 48pt, from the lowfi. Named because the header's top padding is solved
     /// from it — a title's cap sits further down its layout box the bigger it
     /// is, so the two cannot be set independently.
-    private static let titleSize: CGFloat = 48
-
     @Environment(\.modelContext) private var modelContext
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
+    @State private var viewing: String?
 
     var openSettings: (() -> Void)?
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     titleRow
                         .padding(.horizontal, GridConstants.horizontalPadding)
-                        .padding(.top, GridConstants.headerTopPadding(forTitleSize: Self.titleSize))
+                        .padding(.top, GridConstants.headerTopPadding(
+                            forTitleSize: Typography.screenTitleSize))
 
                     if vm.carousel.isEmpty && vm.month.isEmpty {
                         emptyState
@@ -56,28 +56,40 @@ struct MemoriesView: View {
                         // around 60% down and was cut off by the tab bar. The
                         // page now opens on the thing worth looking at, and
                         // the photographs sit under it.
-                        Section {
-                            monthTower
-                        } header: {
-                            monthHeader
+                        monthHeader
+                        monthTower
+
+                        // No heading over a gap. When nothing has earned a
+                        // card the shelf is not drawn at all — only what there
+                        // is to show gets shown.
+                        if !vm.carousel.isEmpty {
+                            sectionLabel("ALBUMS")
+                            shelf
                         }
 
-                        sectionLabel("ALBUMS")
-                        shelf
+                        PhotoGalleryGrid(sections: vm.gallery) { photo in
+                            viewing = photo.fileName
+                        }
                     }
                 }
                 .padding(.bottom, 110)
             }
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
+            .fullScreenCover(item: Binding(
+                get: { viewing.map(ViewedPhoto.init) },
+                set: { viewing = $0?.id }
+            )) { photo in
+                PhotoViewer(fileName: photo.id) { viewing = nil }
+            }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))
                 case .curated(let key):
-                    CuratedAlbumView(titleKey: key)
-                case .allAlbums:
-                    AllAlbumsView(vm: vm) { path.append(.day($0)) }
+                    PhotoCollectionView(source: .interest(key))
+                case .moment(let id):
+                    PhotoCollectionView(source: .moment(id))
                 }
             }
         }
@@ -98,7 +110,13 @@ struct MemoriesView: View {
                 }
                 if index < curated.count { path.append(.curated(curated[index])) }
             }
-            if DebugHarness.opensAllAlbums { path.append(.allAlbums) }
+            if let index = DebugHarness.openMomentIndex {
+                let moments = vm.carousel.compactMap { album -> String? in
+                    if case .moment(let id) = album.kind { return id }
+                    return nil
+                }
+                if index < moments.count { path.append(.moment(moments[index])) }
+            }
             #endif
         }
     }
@@ -110,7 +128,7 @@ struct MemoriesView: View {
             // No win tally. The count belongs to the tower's header; this
             // screen is about the photographs, not how many there are.
             Text("Memories")
-                .font(.system(size: Self.titleSize, weight: .medium, design: .rounded))
+                .font(Typography.screenTitle)
                 .foregroundStyle(.primary.opacity(0.85))
             Spacer(minLength: 0)
             GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
@@ -122,8 +140,8 @@ struct MemoriesView: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14, weight: .medium, design: .rounded))
-            .kerning(0.8)
+            .font(Typography.sectionLabel)
+            .kerning(Typography.sectionKerning)
             .foregroundStyle(.primary.opacity(0.35))
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, 30)
@@ -139,9 +157,9 @@ struct MemoriesView: View {
                 switch route {
                 case .day(let key):     path.append(.day(key))
                 case .curated(let key): path.append(.curated(key))
+                case .moment(let id):   path.append(.moment(id))
                 }
-            },
-            onSeeAll: { path.append(.allAlbums) }
+            }
         )
     }
 
@@ -152,17 +170,19 @@ struct MemoriesView: View {
             title: vm.monthTitle,
             canGoBack: vm.canGoBack,
             canGoForward: vm.canGoForward,
+            months: vm.availableMonths,
+            titleFor: { vm.title(for: $0) },
+            onSelect: { month in
+                withAnimation(GridConstants.crossFade) {
+                    vm.select(month: month, context: modelContext)
+                }
+            },
             onBack: { withAnimation(GridConstants.crossFade) { vm.step(months: -1, context: modelContext) } },
             onForward: { withAnimation(GridConstants.crossFade) { vm.step(months: 1, context: modelContext) } }
         )
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, 24)
-        .padding(.bottom, 8)
-        // A pinned header sits over content that scrolls beneath it, so it
-        // needs an opaque ground and a hit shape of its own — without them the
-        // blocks passing under it take the taps meant for the chevrons.
-        .background { WarmBackground() }
-        .contentShape(Rectangle())
+        .padding(.top, 20)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder
@@ -202,9 +222,11 @@ struct MemoriesView: View {
     }
 }
 
+private struct ViewedPhoto: Identifiable { let id: String }
+
 /// Where the Memories tab can go.
 enum MemoriesRoute: Hashable {
     case day(String)
     case curated(String)
-    case allAlbums
+    case moment(String)
 }

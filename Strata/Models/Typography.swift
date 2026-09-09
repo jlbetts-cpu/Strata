@@ -30,6 +30,36 @@ enum Typography {
     // Kerning (SF Rounded has built-in optical kerning — no manual adjustment needed)
     static let headerKerning: CGFloat = 0
     static let titleKerning: CGFloat = 0
+
+    // MARK: - The screen scale
+    //
+    // Three sizes for everything a screen says about itself, and no more.
+    //
+    // The app had drifted to a different title size per screen — Memories at
+    // 48, a day at 33, an assortment of `.title3`/`.headline` elsewhere — so
+    // moving between tabs meant the same kind of thing arriving at a different
+    // weight each time. Less variety is the whole point: a page with one title
+    // size and one label size has a hierarchy you can read without looking for
+    // it.
+
+    /// The one screen title. Every page that names itself uses this.
+    ///
+    /// 34pt is the platform's own large title, not a number picked to look
+    /// impressive. The 48 it replaces came from a lowfi and made the title the
+    /// loudest thing on a page whose subject is photographs and blocks.
+    static let screenTitleSize: CGFloat = 34
+    static let screenTitle = Font.system(size: screenTitleSize, weight: .medium, design: .rounded)
+
+    /// The line under a screen title: "2 wins", a date, a count.
+    static let screenSubtitle = Font.system(size: 15, weight: .regular, design: .rounded)
+
+    /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
+    /// One size for all of them, so a heading is recognisable as a heading.
+    static let sectionLabel = Font.system(size: 13, weight: .medium, design: .rounded)
+    static let sectionKerning: CGFloat = 0.8
+
+    /// A photograph's caption in the gallery.
+    static let photoCaption = Font.system(size: 12, weight: .medium, design: .rounded)
 }
 
 // MARK: - Jaro
