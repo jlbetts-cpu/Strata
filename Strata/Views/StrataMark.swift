@@ -174,56 +174,61 @@ struct MemoriesTitle: View {
 
 // MARK: - The mark
 
-/// The app's mark: the owner's `S`, knocked out of one of the app's blocks.
+/// The app's mark: layers, made of the app's own blocks.
 ///
-/// The same drawing as the wordmark's first letter, so the icon, the Settings
-/// header and the camera all show one letterform rather than three things
-/// that resemble each other.
+/// **Why this is not a letter.** It was an `S` — the owner's own, the same
+/// drawing as the wordmark's first letter — and a single-letter monogram is
+/// the hardest kind of mark there is. It carries no meaning of its own, so it
+/// works only by ACCUMULATING recognition: it is what you use once people
+/// already know you, not what you use to become known. Marks that depict what
+/// the thing does measurably outperform abstract ones, and at tile size the
+/// whole game is being unlike your neighbours — a home screen is a wall of
+/// squircles with letters on them, so another letter is camouflage.
 ///
-/// **It is a block, and that is the whole idea.** A bare pink S on the page
-/// was the mark for a day and it was thin — a light monoline has nothing to
-/// hold at 44pt, and it shared no material with anything else in the app. On
-/// a block it does: `BlockSurface` gives it the rim brightest along the top
-/// edge and the frosted band across the bottom, which is the one texture this
-/// app is made of. The letter sits on it in white, which is what the mark was
-/// before the S existed — a single pink block with a white letter on it.
+/// Strata already owns an object. The block is the app, and nothing else on a
+/// phone looks like it. Three of them, each narrower than the one below, is a
+/// tower being built and it is also what the word means: strata are layers.
+///
+/// **It is drawn with the real `BlockSurface`**, not with a picture of one, so
+/// the mark cannot drift away from the blocks it is a mark for. Change the rim
+/// or the band and this follows. The app icon is the same three blocks from
+/// `tools/make_app_icon.py`, which mirrors those constants — that copy is the
+/// one to keep in step.
+///
+/// The composition was chosen by rendering seventeen candidates at 1024 and at
+/// 62pt and looking: one block reads as a colour swatch, six turn to mush, a
+/// multicoloured stack reads as a generic squares icon, and every asymmetric
+/// arrangement is less legible than the centred one.
 struct StrataMark: View {
-    /// The block's side. The letter is sized off it.
+    /// The mark's overall width. Height comes out at half of it.
     var side: CGFloat = 44
 
-    /// How much of the block's side the letter's cap takes.
-    ///
-    /// 0.46 rather than a tighter fit. The `S` is 33 wide to 28 tall, so at
-    /// 0.46 it sets 24pt across a 44pt block — a little over half the width,
-    /// which leaves the block reading as a block. Past about 0.55 the letter
-    /// starts to touch the rim and the two stop being separate objects.
-    private static let capRatio: CGFloat = 0.46
-    private static let aspect: CGFloat = 33.0 / 28.0
+    /// Column span of each layer, bottom first, out of six.
+    private static let layers: [CGFloat] = [6, 4, 2]
+    private static let columns: CGFloat = 6
+    /// Each layer is two of the six columns tall, so the mark is 6 x 6 in
+    /// grid terms and half as tall as it is wide in points.
+    private static let layerRows: CGFloat = 2
 
     private var pink: Color { HabitCategory.mindfulness.style.baseColor }
+    private var cell: CGFloat { side / Self.columns }
+    private var gutter: CGFloat { cell * GridConstants.spacing / GridConstants.blockReferenceCell }
+    private var layerHeight: CGFloat { cell * Self.layerRows - gutter }
 
     var body: some View {
-        BlockSurface(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: side),
-            scale: side / GridConstants.blockReferenceCell
-        ) {
-            pink
+        VStack(spacing: gutter) {
+            ForEach(Array(Self.layers.reversed()), id: \.self) { span in
+                let width = cell * span - gutter
+                BlockSurface(
+                    cornerRadius: GridConstants.blockCornerRadius(forCell: min(width, layerHeight)),
+                    scale: min(width, layerHeight) / GridConstants.blockReferenceCell
+                ) {
+                    pink
+                }
+                .frame(width: width, height: layerHeight)
+            }
         }
-        .frame(width: side, height: side)
-        .overlay {
-            Image("StrataSMark")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: side * Self.capRatio * Self.aspect,
-                       height: side * Self.capRatio)
-                .foregroundStyle(.white)
-                // Optically centred, not geometrically. The frosted band sits
-                // across the bottom 26% of a block, so a letter on the exact
-                // centre line has more clear field above it than below and
-                // reads as having slipped down.
-                .offset(y: -side * 0.02)
-        }
+        .frame(width: side, height: cell * Self.layerRows * CGFloat(Self.layers.count))
         .accessibilityElement()
         .accessibilityLabel("Strata")
     }

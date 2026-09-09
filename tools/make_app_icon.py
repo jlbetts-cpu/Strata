@@ -555,33 +555,94 @@ def render_letter_block(ground, surface, size=1024, margin=0.19):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def rounded_mask(W, rect, radius):
+    m = Image.new("L", (W, W), 0)
+    ImageDraw.Draw(m).rounded_rectangle(rect, radius=radius, fill=255)
+    return m
+
+
+def rounded_outline(rect, radius, steps=14):
+    """A rounded rectangle as a polygon, for `chromed` to stroke as a rim."""
+    x0, y0, x1, y1 = rect
+    pts = []
+    for cx, cy, a0, a1 in ((x1 - radius, y0 + radius, -90, 0),
+                           (x1 - radius, y1 - radius, 0, 90),
+                           (x0 + radius, y1 - radius, 90, 180),
+                           (x0 + radius, y0 + radius, 180, 270)):
+        for i in range(steps + 1):
+            a = math.radians(a0 + (a1 - a0) * i / steps)
+            pts.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
+    return pts
+
+
+# The mark: three of the app's blocks, each narrower than the one below.
+# Column, row, column span, row span on a 6x6 grid, row 0 at the BOTTOM.
+ZIGGURAT = [(0, 0, 6, 2), (1, 2, 4, 2), (2, 4, 2, 2)]
+GUTTER_RATIO = 4 / 86.5       # GridConstants.spacing over the reference cell
+
+
+def render_mark(colour, ground, size=1024, margin=0.16, cols=6, rows=6,
+                blocks=ZIGGURAT):
+    """The Strata mark: layers, made of the app's own blocks.
+
+    WHY THIS AND NOT A LETTER
+    -------------------------
+    The mark was an `S` for a week and the research says a single-letter
+    monogram is the hardest kind of mark there is: it carries no meaning of
+    its own, so it works only by ACCUMULATING recognition — it is what you use
+    once people already know you, not what you use to become known. Icons that
+    depict what the app does measurably outperform abstract ones, and at tile
+    size the whole game is being unlike your neighbours: a home screen is a
+    wall of squircles with letters on them, so another letter is camouflage.
+
+    Strata already owns an object. The block — flat colour, white rim
+    brightest along its top edge, bottom 26% out of focus — is the app, and
+    nothing else on a phone looks like it. Three of them, each narrower than
+    the one below, is a tower being built AND it is what the word means.
+
+    Composition and colour were both chosen by rendering, not by argument.
+    Seventeen candidates at 1024 and at 62pt: one block reads as a colour
+    swatch, six blocks turn to mush, a multicoloured stack reads as a generic
+    squares icon, and every asymmetric arrangement is less legible than the
+    centred one. Pink over white because a white block is not a Strata block —
+    in this app colour is what a block IS.
+    """
+    W = size * SS
+    avail = W * (1 - 2 * margin)
+    cell = avail / max(cols, rows)
+    gutter = cell * GUTTER_RATIO
+    gw, gh = cols * cell, rows * cell
+    ox, oy = (W - gw) / 2, (W - gh) / 2
+
+    img = Image.new("RGB", (W, W), ground)
+    for col, row, cs, rs in blocks:
+        x0 = ox + col * cell + gutter / 2
+        x1 = ox + (col + cs) * cell - gutter / 2
+        y1 = oy + gh - row * cell - gutter / 2
+        y0 = oy + gh - (row + rs) * cell + gutter / 2
+        radius = min(x1 - x0, y1 - y0) * (GridRadius := 0.147)
+        rect = (x0, y0, x1, y1)
+        surf = chromed(rounded_mask(W, rect, radius),
+                       rounded_outline(rect, radius), colour, W, y0, y1, x0, x1)
+        img.paste(surf, (0, 0), surf.split()[3])
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    # The owner's own `S`, as one of the app's blocks: white, on the app's
-    # warm black.
-    #
-    # Four combinations were rendered and compared at 1024 and at 60pt. A pink
-    # field fills the tile with the app's loudest colour and leaves the letter
-    # nothing to catch; pink on pink is the prettiest large and turns to mush
-    # small. Black won the ground, and then white won the letter — both the
-    # owner's calls, and the pair is also the highest contrast of the four,
-    # which is what an icon is judged on at 60pt.
-    #
-    # The chrome still does its work on a white letter here, which it could
-    # not do on a white letter on pink: against black the rim along the top
-    # edge and the frosted band across the bottom 26% both read, and that is
-    # the whole reason the S is a block and not a shape.
-    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
+    # Three of the app's blocks, each narrower than the one below — see
+    # `render_mark` for why this is not a letter any more.
+    render_mark(colour=PINK, ground=WARM_BLACK).save(
         os.path.join(OUT, "AppIcon-light.png"))
     # Dark is the same drawing. The light one is already dark, and an icon
     # that changes identity between appearances is two icons.
-    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
+    render_mark(colour=PINK, ground=WARM_BLACK).save(
         os.path.join(OUT, "AppIcon-dark.png"))
     # Tinted is recoloured by iOS off luminance, so it has to be monochrome
     # going in — colour here would only be thrown away.
-    render_letter_block(ground=(0, 0, 0), surface=(250, 250, 250)).save(
+    render_mark(colour=(250, 250, 250), ground=(0, 0, 0)).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
