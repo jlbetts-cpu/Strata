@@ -49,9 +49,30 @@ struct DayAlbumDetailView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                    Spacer(minLength: 24)
-                    tower
-                        .frame(maxWidth: .infinity)
+                    // The tower is bottom-anchored because a tower stands.
+                    // A sentence is not a tower: pushed to the bottom it
+                    // hugs the tab bar and reads as a caption for nothing, so
+                    // the empty state sits under the header where you are
+                    // already looking.
+                    if logs.isEmpty {
+                        // A day you did not log anything on.
+                        //
+                        // Unreachable from inside the app — you arrive at a
+                        // day from an album or a month block, and both need at
+                        // least one win — but `-strataOpenDay` gets here, and
+                        // a screen that renders a title over nothing is a
+                        // screen somebody will eventually see.
+                        Text("Nothing logged this day.")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(.primary.opacity(0.35))
+                            .padding(.horizontal, GridConstants.horizontalPadding)
+                            .padding(.top, 28)
+                        Spacer(minLength: 24)
+                    } else {
+                        Spacer(minLength: 24)
+                        tower
+                            .frame(maxWidth: .infinity)
+                    }
                     // The tab bar's room, as CONTENT rather than as padding.
                     // Padding sits inside the min-height frame, so the spacer
                     // stopped 110pt short and the tower floated in the middle
