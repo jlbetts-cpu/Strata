@@ -129,7 +129,12 @@ private struct DayPhotoSlideshow: View {
     let phase: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var index = 0
+    /// The picture underneath, always fully opaque, and the one fading in on
+    /// top of it. Two slots rather than one index, because the substrate must
+    /// never be visible — see below.
+    @State private var base: String?
+    @State private var top: String?
+    @State private var topOpacity: Double = 0
 
     /// How long one photograph holds.
     ///
@@ -137,27 +142,53 @@ private struct DayPhotoSlideshow: View {
     /// quick enough to catch the eye while you are reading below it is a
     /// distraction rather than a detail.
     private static let dwell: Duration = .seconds(5)
+    /// And how long the handover takes. Slow enough to read as a dissolve
+    /// rather than a cut.
+    private static let fade: Double = 0.7
 
     var body: some View {
         ZStack {
-            if let name = fileNames.isEmpty ? nil : fileNames[index % fileNames.count] {
-                CachedImageView(fileName: name, width: size.width,
-                                height: size.height, cornerRadius: 0)
-                    .frame(width: size.width, height: size.height)
-                    .id(name)
-                    .transition(.opacity)
-            }
+            if let base { picture(base) }
+            if let top { picture(top).opacity(topOpacity) }
         }
-        .animation(GridConstants.crossFade, value: index)
-        .task(id: fileNames.first) {
-            guard fileNames.count > 1, !reduceMotion else { return }
-            // Offset the first tick so the month does not turn over at once.
-            try? await Task.sleep(for: .seconds(Double(phase % 7) * 0.7))
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.dwell)
-                guard !Task.isCancelled else { return }
-                index += 1
-            }
+        .task(id: fileNames) { await run() }
+    }
+
+    private func picture(_ name: String) -> some View {
+        CachedImageView(fileName: name, width: size.width,
+                        height: size.height, cornerRadius: 0)
+            .frame(width: size.width, height: size.height)
+    }
+
+    /// **The outgoing picture stays fully opaque underneath the incoming one.**
+    ///
+    /// A `.transition(.opacity)` on a single slot crossfades symmetrically —
+    /// both copies pass through partial alpha at once, which composites to
+    /// less than opaque and lets the block's colour show through the middle of
+    /// every handover. That is the same mistake `BlockSurface` documents about
+    /// its two masked copies, in a different place. One layer holds at 1 while
+    /// the other comes up, and the swap happens after it has arrived.
+    private func run() async {
+        base = fileNames.first
+        top = nil
+        topOpacity = 0
+        guard fileNames.count > 1, !reduceMotion else { return }
+
+        // Offset the first tick so the month does not turn over at once.
+        try? await Task.sleep(for: .seconds(Double(phase % 7) * 0.7))
+        var next = 1
+        while !Task.isCancelled {
+            try? await Task.sleep(for: Self.dwell)
+            guard !Task.isCancelled else { return }
+            let name = fileNames[next % fileNames.count]
+            top = name
+            withAnimation(.easeInOut(duration: Self.fade)) { topOpacity = 1 }
+            try? await Task.sleep(for: .seconds(Self.fade))
+            guard !Task.isCancelled else { return }
+            base = name
+            top = nil
+            topOpacity = 0
+            next += 1
         }
     }
 }
