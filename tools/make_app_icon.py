@@ -35,6 +35,8 @@ from fontTools.ttLib import TTFont
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import make_logo as logo
 FONT = os.path.join(ROOT, "Strata/Resources/Jaro.ttf")
 OUT = os.path.join(ROOT, "Strata/Assets.xcassets/AppIcon.appiconset")
 
@@ -365,16 +367,19 @@ def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    render_letter(KNOCKOUT_GROUND, KNOCKOUT_INK).save(
+    # The mark, drawn from `make_logo`'s geometry rather than set from a font
+    # — so the icon, the SVGs and `StrataMarkShape` are one drawing.
+    #
+    # Pink on white (owner's call, 2026-09-09). It was white on pink; a pink
+    # field fills the whole tile and shouts, and the app the icon opens is a
+    # pale page with coloured blocks on it.
+    logo.render(ink=PINK, ground=(255, 255, 255), size=1024).save(
         os.path.join(OUT, "AppIcon-light.png"))
-    # Dark: the same mark on a deeper pink. Not on black — a pink icon that
-    # turns black in dark mode is a different icon, and people find an app by
-    # its colour before they read its shape.
-    render_letter(KNOCKOUT_GROUND_DARK, KNOCKOUT_INK).save(
+    # Dark: the same letter, the same pink, on the app's own near-black.
+    logo.render(ink=PINK, ground=WARM_BLACK, size=1024).save(
         os.path.join(OUT, "AppIcon-dark.png"))
-    # Tinted: iOS reads luminance and applies the user's own hue, so the mark
-    # carries on shape alone.
-    render_letter((0, 0, 0), (250, 250, 250)).save(
+    # Tinted: iOS reads luminance and applies the user's own hue.
+    logo.render(ink=(250, 250, 250), ground=(0, 0, 0), size=1024).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
