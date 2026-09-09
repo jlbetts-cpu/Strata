@@ -44,9 +44,15 @@ enum PhotoLibrarySaver {
     /// itself has already saved and the photograph is on its block either way,
     /// so a banner here would report a problem the person cannot act on and
     /// did not ask about.
+    /// - Parameter respectingPreference: whether the Settings toggle applies.
+    ///   It does for the automatic save after a capture, which is what the
+    ///   toggle is about. It does NOT when somebody presses "Save to Photos"
+    ///   on a picture they are looking at: that is an explicit request, and
+    ///   silently ignoring it because of a setting they turned off months ago
+    ///   would be a button that does nothing.
     @discardableResult
-    static func save(_ image: UIImage) async -> Bool {
-        guard isEnabled else { return false }
+    static func save(_ image: UIImage, respectingPreference: Bool = true) async -> Bool {
+        if respectingPreference, !isEnabled { return false }
 
         let status = await withCheckedContinuation { continuation in
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { continuation.resume(returning: $0) }

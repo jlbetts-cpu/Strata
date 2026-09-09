@@ -413,6 +413,16 @@ final class TowerGestureTests: XCTestCase {
         }
         XCTAssertTrue(opened, "tapping the blocks never opened a photo")
 
+        // Saving is the one thing anybody wants to do with a photograph they
+        // are looking at, and it has to be a visible button rather than a
+        // gesture — anything hidden is a thing nobody finds.
+        let save = app.buttons["Save to Photos"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5),
+                      "the viewer offers no way to save the photo")
+        save.tap()
+        XCTAssertTrue(app.buttons["Saved to Photos"].waitForExistence(timeout: 20),
+                      "saving to Photos did not report success")
+
         close.tap()
         XCTAssertFalse(close.waitForExistence(timeout: 3),
                        "the glass close button did not dismiss the photo")

@@ -51,45 +51,47 @@ struct PhotoGalleryGrid: View {
             HapticsEngine.lightTap()
             onSelect(photo)
         } label: {
-            GeometryReader { geo in
-                let side = geo.size.width
-                CachedImageView(
-                    fileName: photo.fileName,
-                    width: side,
-                    height: side,
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: side)
-                )
-                .frame(width: side, height: side)
-                .clipShape(RoundedRectangle(
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: side),
-                    style: .continuous))
-                .overlay(alignment: .bottomLeading) {
-                    if let title = photo.title {
-                        Text(title)
-                            .font(Typography.photoCaption)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .padding(.horizontal, 7)
-                            .padding(.bottom, 6)
-                            // A scrim only where the text is. A full overlay
-                            // dims every photograph to caption one line of it.
-                            .background(alignment: .bottom) {
-                                LinearGradient(
-                                    colors: [.clear, .black.opacity(0.45)],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                                .frame(height: side * 0.42)
-                                .allowsHitTesting(false)
-                            }
-                    }
-                }
-                .clipShape(RoundedRectangle(
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: side),
-                    style: .continuous))
+            VStack(alignment: .leading, spacing: 6) {
+                thumbnail(photo)
+                // The title sits UNDER the photograph, not on it.
+                //
+                // It was white text over a dark gradient, which is what every
+                // photo grid does and exactly what this app does not: a block
+                // is a flat colour under a white rim, and a smear of black up
+                // the bottom of a picture is the one gesture in the app that
+                // looks like it came from somewhere else. Underneath, the
+                // caption reads better, the photograph is not dimmed to make
+                // room for it, and the grid gains a rhythm the blocks already
+                // have.
+                Text(photo.title ?? " ")
+                    .font(Typography.photoCaption)
+                    .foregroundStyle(.primary.opacity(photo.title == nil ? 0 : 0.55))
+                    .lineLimit(1)
+                    .padding(.horizontal, 2)
             }
-            .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(photo.title ?? "Photo")
+    }
+
+    private func thumbnail(_ photo: GalleryPhoto) -> some View {
+        GeometryReader { geo in
+            let side = geo.size.width
+            let radius = GridConstants.blockCornerRadius(forCell: side)
+            CachedImageView(fileName: photo.fileName, width: side,
+                            height: side, cornerRadius: radius)
+                .frame(width: side, height: side)
+                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                .overlay {
+                    // A photograph in this app is a photograph on a BLOCK, and
+                    // a block's edge is a white rim. The same one the tower's
+                    // photo blocks wear.
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(.white.opacity(0.55),
+                                      lineWidth: GridConstants.blockRimWidth
+                                          * (side / GridConstants.blockReferenceCell))
+                }
+        }
+        .aspectRatio(1, contentMode: .fit)
     }
 }

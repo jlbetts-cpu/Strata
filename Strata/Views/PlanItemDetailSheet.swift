@@ -90,7 +90,7 @@ struct PlanItemDetailSheet: View {
     /// a row of swatches would be a picture of a colour, and this is a picture
     /// of the thing.
     private var colours: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 2) {
             ForEach(HabitCategory.selectable, id: \.self) { category in
                 Button {
                     item.categoryRaw = category.rawValue
@@ -112,6 +112,10 @@ struct PlanItemDetailSheet: View {
                     }
                     .scaleEffect(item.category == category ? 1.0 : 0.86)
                     .animation(GridConstants.motionSnappy, value: item.category)
+                    // The block stays 34pt; what you can hit is 44. A swatch
+                    // sized to its own artwork is a swatch you have to aim at.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(describing: category))
@@ -124,7 +128,7 @@ struct PlanItemDetailSheet: View {
     // MARK: - Days
 
     private var days: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(weekdayOrder, id: \.self) { day in
                 let on = item.repeatDays.contains(day)
                 Button {
@@ -136,17 +140,21 @@ struct PlanItemDetailSheet: View {
                     Text(letter(for: day))
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(on ? .white : .primary.opacity(0.55))
-                        .frame(width: 38, height: 38)
+                        // 44, not 38: seven of them still fit across the
+                        // page, and a day you have to aim at is a day you set
+                        // by accident.
+                        .frame(width: 44, height: 44)
                         .background {
-                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 38),
+                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 44),
                                              style: .continuous)
                                 .fill(on ? item.category.style.baseColor : GridConstants.fillWell)
                         }
                         .overlay {
-                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 38),
+                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 44),
                                              style: .continuous)
                                 .strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: 1)
                         }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(calendar.weekdaySymbols[day - 1])

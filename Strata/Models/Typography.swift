@@ -42,24 +42,42 @@ enum Typography {
     // size and one label size has a hierarchy you can read without looking for
     // it.
 
+    /// **Text STYLES, not point sizes.**
+    ///
+    /// These were `.system(size:)`, which is a fixed size and does not move
+    /// when somebody turns Dynamic Type up. That is the single most-used
+    /// accessibility setting on iOS and this app is meant to be handed to
+    /// someone's grandmother, so a title that ignores it is not a small
+    /// omission.
+    ///
+    /// Each style below is the one whose DEFAULT size is the number that was
+    /// there before, so nothing moves at the default setting and everything
+    /// moves together at any other: large title 34, subheadline 15, footnote
+    /// 13, caption 12.
+
     /// The one screen title. Every page that names itself uses this.
     ///
-    /// 34pt is the platform's own large title, not a number picked to look
-    /// impressive. The 48 it replaces came from a lowfi and made the title the
-    /// loudest thing on a page whose subject is photographs and blocks.
+    /// 34pt at the default size is the platform's own large title, not a
+    /// number picked to look impressive. The 48 it replaced came from a lowfi
+    /// and made the title the loudest thing on a page whose subject is
+    /// photographs and blocks.
+    static let screenTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
+
+    /// The metric behind it, for layout that has to do arithmetic — the
+    /// header's cap-height padding, and the tally numeral. Fixed, because a
+    /// layout constant cannot be a font.
     static let screenTitleSize: CGFloat = 34
-    static let screenTitle = Font.system(size: screenTitleSize, weight: .medium, design: .rounded)
 
     /// The line under a screen title: "2 wins", a date, a count.
-    static let screenSubtitle = Font.system(size: 15, weight: .regular, design: .rounded)
+    static let screenSubtitle = Font.system(.subheadline, design: .rounded)
 
     /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
-    /// One size for all of them, so a heading is recognisable as a heading.
-    static let sectionLabel = Font.system(size: 13, weight: .medium, design: .rounded)
+    /// One style for all of them, so a heading is recognisable as a heading.
+    static let sectionLabel = Font.system(.footnote, design: .rounded, weight: .medium)
     static let sectionKerning: CGFloat = 0.8
 
     /// A photograph's caption in the gallery.
-    static let photoCaption = Font.system(size: 12, weight: .medium, design: .rounded)
+    static let photoCaption = Font.system(.caption, design: .rounded, weight: .medium)
 }
 
 // MARK: - Jaro

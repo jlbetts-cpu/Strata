@@ -263,7 +263,9 @@ enum GridConstants {
     static let tallyNumeral: CGFloat = Typography.screenTitleSize
     /// The word beside it. Sized with the numeral rather than left at a body
     /// size, or the pair stops reading as one object as the numeral grows.
-    /// The word beside the tally, scaled with it.
+    /// The word beside the tally used to be sized here. It uses
+    /// `Typography.screenSubtitle` now, like every other line under a title,
+    /// so it scales with Dynamic Type.
     static let tallyWord: CGFloat = 18
 
     // MARK: - The tower's dance

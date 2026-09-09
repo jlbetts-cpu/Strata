@@ -24,28 +24,25 @@ struct PhotoCollectionView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var sections: [GallerySection] = []
     @State private var title = ""
-    @State private var viewing: String?
+    @State private var viewing: ViewedPhoto?
 
     private let calendar = Calendar.current
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PhotoGalleryGrid(sections: sections) { viewing = $0.fileName }
+            PhotoGalleryGrid(sections: sections) {
+                viewing = ViewedPhoto(id: $0.fileName, title: $0.title)
+            }
                 .padding(.bottom, 110)
         }
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
-        .fullScreenCover(item: Binding(
-            get: { viewing.map(Viewed.init) },
-            set: { viewing = $0?.id }
-        )) { photo in
-            PhotoViewer(fileName: photo.id) { viewing = nil }
+        .fullScreenCover(item: $viewing) { photo in
+            PhotoViewer(fileName: photo.id, title: photo.title) { viewing = nil }
         }
     }
-
-    private struct Viewed: Identifiable { let id: String }
 
     private func load() {
         var descriptor = FetchDescriptor<HabitLog>()

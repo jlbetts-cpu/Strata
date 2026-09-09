@@ -24,9 +24,17 @@ struct DayAlbumDetailView: View {
     @State private var logs: [HabitLog] = []
     @State private var viewing: String?
 
-    /// Room under the tower for the floating tab bar, which draws over the
-    /// scroll view rather than inside its safe area.
-    private static let tabBarClearance: CGFloat = 110
+    /// The last gap under the tower, on top of what the scroll view already
+    /// reserves for the floating tab bar.
+    ///
+    /// **Measured against the Wins tab rather than reasoned about.** It was
+    /// 110, on the assumption that the tab bar's room had to be added by hand;
+    /// the scroll view was already reserving it, so the day's tower floated
+    /// 194pt above the bottom against the real tower's 91pt — which is exactly
+    /// the "it does not start at the bottom" the owner reported. At 0 the gap
+    /// came out 83pt. 8 is the remainder, and the two towers now stand on the
+    /// same line.
+    private static let tabBarClearance: CGFloat = 8
 
     private var photos: [String] {
         logs.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }

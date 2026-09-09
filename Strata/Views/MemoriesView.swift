@@ -32,7 +32,7 @@ struct MemoriesView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
-    @State private var viewing: String?
+    @State private var viewing: ViewedPhoto?
 
     var openSettings: (() -> Void)?
 
@@ -68,7 +68,7 @@ struct MemoriesView: View {
                         }
 
                         PhotoGalleryGrid(sections: vm.gallery) { photo in
-                            viewing = photo.fileName
+                            viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                         }
                     }
                 }
@@ -76,11 +76,8 @@ struct MemoriesView: View {
             }
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
-            .fullScreenCover(item: Binding(
-                get: { viewing.map(ViewedPhoto.init) },
-                set: { viewing = $0?.id }
-            )) { photo in
-                PhotoViewer(fileName: photo.id) { viewing = nil }
+            .fullScreenCover(item: $viewing) { photo in
+                PhotoViewer(fileName: photo.id, title: photo.title) { viewing = nil }
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
@@ -222,7 +219,12 @@ struct MemoriesView: View {
     }
 }
 
-private struct ViewedPhoto: Identifiable { let id: String }
+struct ViewedPhoto: Identifiable, Equatable {
+    /// The image's file name, which is also its identity.
+    let id: String
+    /// What the win was called, or nil if it was never named.
+    var title: String?
+}
 
 /// Where the Memories tab can go.
 enum MemoriesRoute: Hashable {

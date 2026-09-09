@@ -663,7 +663,10 @@ struct MainAppView: View {
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(towerVM.placedBlocks.count)")
-                .font(.system(size: GridConstants.tallyNumeral, weight: .medium, design: .rounded))
+                // The screen title, in digits — the same token every other
+                // page's title uses, so it scales with Dynamic Type instead of
+                // staying at 34 while the word beside it grows.
+                .font(Typography.screenTitle)
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
                 // Optical, not geometric. A digit's ink starts inside its
@@ -672,7 +675,7 @@ struct MainAppView: View {
                 // block, whose colour goes right to its edge.
                 .padding(.leading, -GridConstants.tallyOpticalInset)
             Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
-                .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
+                .font(Typography.screenSubtitle)
                 .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
             // The plan, where sharing was, which was where the range picker
