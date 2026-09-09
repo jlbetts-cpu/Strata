@@ -681,10 +681,18 @@ struct MainAppView: View {
                 // a box aligned to the grid still LOOKS indented next to a
                 // block, whose colour goes right to its edge.
                 .padding(.leading, -GridConstants.tallyOpticalInset)
-            // The word, drawn, on the same body as the numeral — see
-            // `WinsWord`. It was SF Pro Rounded at a subheadline size, which
-            // made a two-word header into two faces at two sizes.
-            WinsWord(count: towerVM.placedBlocks.count)
+            // SF Pro Rounded, at a subheadline size.
+            //
+            // It was drawn for one build, on the numeral's own 28-unit body,
+            // so the pair was one face at one size. The owner's call is this
+            // one, and the reasoning holds up: the count is the fact and the
+            // word is a caption for it, so the word being quieter AND smaller
+            // is the header saying which of the two you are meant to read.
+            // Matched in size it stopped being a caption and became half of a
+            // two-word title.
+            Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
             // The plan, where sharing was, which was where the range picker
             // was before that.

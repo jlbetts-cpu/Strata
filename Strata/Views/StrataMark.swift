@@ -172,45 +172,6 @@ struct MemoriesTitle: View {
     }
 }
 
-/// "win" / "wins", the word under the tower's count, in the same hand.
-///
-/// It was SF Pro Rounded at a subheadline size, which made the header two
-/// faces at two sizes to say one thing. It is now the same drawing the count
-/// is, on the same 28-unit body, so the pair reads as one object.
-///
-/// **The singular is cut from the plural**, by `tools/make_win_singular.py`,
-/// which drops the rightmost of the five contours. Asking for a second export
-/// would have risked two drawings that only nearly match; this way they are
-/// literally the same letterforms, and the sidebearing is the one the export
-/// already had.
-///
-/// `size` is the drawing's whole body, so handing it
-/// `Typography.screenTitleCap` puts the `i`'s dot on the numeral's cap line
-/// and its x-height at 21.02/28 of that — which is what lowercase beside
-/// figures is supposed to do, rather than a size anybody picked.
-struct WinsWord: View {
-    let count: Int
-    var size: CGFloat = Typography.screenTitleCap
-    var color: Color = .primary.opacity(0.35)
-
-    /// From the drawings' viewBoxes: 132 x 28 and 98.87 x 28.
-    static let pluralAspect: CGFloat = 132.0 / 28.0
-    static let singularAspect: CGFloat = 98.87 / 28.0
-
-    private var isPlural: Bool { count != 1 }
-
-    var body: some View {
-        DrawnLettering(asset: isPlural ? "WinsWord" : "WinWord",
-                       aspect: isPlural ? Self.pluralAspect : Self.singularAspect,
-                       size: size, color: color,
-                       label: isPlural ? "wins" : "win",
-                       relativeTo: .largeTitle)
-            // The ink runs to the bottom of the body, so the drawing's bottom
-            // IS its baseline — which lets it sit on the numeral's real one.
-            .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
-    }
-}
-
 // MARK: - The mark
 
 /// The app's mark: the owner's `S`, knocked out of one of the app's blocks.

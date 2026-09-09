@@ -250,14 +250,15 @@ method, every bug and what made it invisible, and the before/after numbers.
 - **The wordmark is 6.5:1**, against Jaro's 2.4:1. Sizes tuned for Jaro will
   overflow: the camera's 61pt ran the word 396pt across a 370pt page and
   clipped the final `a`. See the camera entry above for where it landed.
-- **The tower header's word is drawn too**, on the same 28-unit body as the
-  digits (`WinsWord`). Handing it `Typography.screenTitleCap` puts the `i`'s
-  dot on the numeral's cap line and its x-height at 21.02/28 of that, which is
-  what lowercase beside figures does — measured, both sit on one baseline to
-  0.00pt. **The singular is CUT from the plural** by
-  `tools/make_win_singular.py`, which drops the rightmost of the five
-  contours, so "win" and "wins" are literally the same letterforms rather than
-  two exports that nearly match.
+- **The tower header's word stays SF Pro Rounded at a subheadline size.** It
+  was drawn on the numeral's own 28-unit body for one build — one face, one
+  size, baselines agreeing to 0.00pt — and the owner's call is the smaller
+  type. The reasoning holds: the count is the fact and the word is a caption
+  for it, so the word being quieter AND smaller is the header saying which of
+  the two you are meant to read. Matched in size it stopped being a caption
+  and became half of a two-word title. The drawings survive in
+  `brand/wins-owner.svg` and `brand/win-owner.svg`; the imagesets and the
+  `WinsWord` view are gone.
 - **The mark is a BLOCK with the letter on it**, not a bare letter.
   `StrataMark` draws a real `BlockSurface` in mindfulness pink with the `S` in
   white over it, and the app icon is the same idea inverted — the S itself is
