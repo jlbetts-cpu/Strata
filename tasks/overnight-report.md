@@ -1182,3 +1182,60 @@ rim along its top edge and the frosted band across its bottom 26%.
 - Nothing has been seen on a real device.
 - The roll-up animation's MOTION was not photographed; only that the glyphs
   render whole with `.contentTransition(.numericText())` applied.
+
+---
+
+# 2026-09-09 (later) — Memories as a photo app, and a new mark
+
+Bad news first.
+
+**I measured the month blocks wrong twice and both times it looked like the
+feature was broken.** The seeded photos are flat gradients coloured by
+category, so a block showing its photograph looks almost exactly like a block
+showing its colour — and the single block I sampled to check was, by luck, the
+one day of four with no photo. It had been working from the first build. A
+`[DIAG]` print settled it (`logs=11 withImage=4 recs=11 recsWithPhoto=4`,
+`packed blocks=4 withPhotos=3`) and the proof on the pixels is a vertical
+gradient down blocks 5 and 8 and none down block 9.
+
+**A UI test failed for an environmental reason that reads exactly like a
+regression.** `testAPhotoOpensFromABlockAndCloses` reported "saving to Photos
+did not report success". Uninstalling the app to get a clean store also resets
+the add-only Photos permission, and that prompt is a system alert no test can
+dismiss. `xcrun simctl privacy <dev> grant photos-add JaydenBetts.Strata`.
+
+**The photo viewer had two real defects, both only visible on a phone.** It
+drew the picture `scaledToFill` at screen size, so a portrait photograph on a
+19.5:9 display lost about half its width; and the title sat in the black under
+the picture rather than on it.
+
+## What was done
+
+**The gallery is the camera roll.** Edge to edge, three across, square, a 2pt
+hairline, no corner, no rim, no caption, month headings pinned.
+
+**The viewer is a viewer.** Fitted not cropped, caption on the picture, the
+whole run swipeable, and share / save / delete on a toolbar where Photos puts
+them. Delete removes the PHOTOGRAPH and says so — the win keeps its block.
+
+**The month's blocks show that day's photographs**, cycling on a phase taken
+from each block's own day number so one or two change at a time rather than
+the whole month blinking at once.
+
+**The mark is layers, not a letter.** Research, then seventeen candidates
+rendered at 1024 and at 62pt. The `S` loses on three counts: a single-letter
+monogram carries no meaning of its own and works only by accumulating
+recognition; marks that depict what a thing does outperform abstract ones; and
+at tile size a home screen is already a wall of squircles with letters on
+them. Three of the app's own blocks, each narrower than the one below — a
+tower being built, and what the word means.
+
+## Screenshots
+
+- `tasks/screenshots/logo-mark-after.png` — the new mark over the wordmark
+
+## Not verified
+
+- Nothing has been seen on a real device.
+- The month's crossfade was not photographed mid-flight; only that the right
+  photographs are on the right blocks.
