@@ -146,23 +146,46 @@ struct PlanSheet: View {
                 }
             }
 
-            // The way in, the way Reminders does it: the line itself stays a
-            // text field, and everything about the line lives behind one
-            // button that does not compete with typing.
-            Button { detail = item } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(.primary.opacity(0.28))
-                    .padding(8)
-                    .contentShape(Rectangle())
+            // The way in, the way Reminders does it — and, like Reminders,
+            // only on the line you are actually on.
+            //
+            // Drawn on every row it was six identical glyphs down the right
+            // edge of a page whose whole job is to look like somewhere you
+            // write. On the focused row it is one control, next to the thing
+            // it acts on, and the rest of the list is text.
+            //
+            // It stays in the accessibility tree either way: hiding a control
+            // from VoiceOver because it is visually quiet would make the
+            // repeat settings unreachable without sighted aim.
+            if focused == item.id {
+                Button { detail = item } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundStyle(.primary.opacity(0.34))
+                        .padding(8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Options for \(item.text)")
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Options for \(item.text)")
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.vertical, 13)
         .contentShape(Rectangle())
-        .swipeActions(edge: .trailing) {
+        .animation(GridConstants.motionSnappy, value: focused)
+        // A context menu, not `.swipeActions`.
+        //
+        // Swipe actions only exist inside a `List`, and this is a
+        // `LazyVStack` — so the swipe-to-delete that was here did nothing at
+        // all. A long press works in any container, and it is also what keeps
+        // both actions reachable on the rows whose info button is not drawn:
+        // VoiceOver surfaces a context menu as custom actions, so nothing is
+        // hidden behind having to focus the line first.
+        .contextMenu {
+            Button { detail = item } label: {
+                Label("Options", systemImage: "info.circle")
+            }
             Button(role: .destructive) { delete(item) } label: {
                 Label("Delete", systemImage: "trash")
             }

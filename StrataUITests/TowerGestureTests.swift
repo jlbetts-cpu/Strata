@@ -234,7 +234,15 @@ final class TowerGestureTests: XCTestCase {
         if !back.waitForExistence(timeout: 15) {
             add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
             XCTFail("cancelling the add sheet threw the plan line away")
+            return
         }
+
+        // And it is CHECKED. Pressing the block is what finishes a line — the
+        // add sheet that follows is an offer to also put it on the tower, so
+        // cancelling that must not un-finish it. The bullet's label carries
+        // the state.
+        XCTAssertTrue(back.label.contains("done"),
+                      "the line came back unchecked: \(back.label)")
     }
 
     // MARK: - Memories
