@@ -29,6 +29,8 @@ struct AddWinSheet: View {
     /// A photograph the sheet opens already holding — a shot just taken on
     /// the camera tab, which lands here to be named and sized rather than
     /// going straight onto the tower unnamed.
+    /// Pre-filled title, when the win is being written from a plan line.
+    var initialTitle: String? = nil
     var initialPhoto: UIImage? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
@@ -353,6 +355,9 @@ struct AddWinSheet: View {
         if let initialPhoto {
             photo = initialPhoto
             photoChanged = true
+        }
+        if let initialTitle, !initialTitle.isEmpty {
+            title = initialTitle
         }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title

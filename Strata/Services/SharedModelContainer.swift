@@ -8,7 +8,7 @@ enum SharedModelContainer {
     private(set) static var isUsingInMemoryFallback = false
 
     static let shared: ModelContainer = {
-        let schema = Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self])
+        let schema = Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self])
         let config = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false

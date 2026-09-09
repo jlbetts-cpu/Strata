@@ -102,6 +102,12 @@ enum DebugHarness {
         ProcessInfo.processInfo.arguments.contains("-strataOpenAllAlbums")
     }
 
+    /// Seeds a few plan lines, from `-strataSeedPlan <n>`. The plan is behind
+    /// a button, so without this there is nothing to photograph.
+    static var seedPlan: Int? {
+        argument("-strataSeedPlan").flatMap(Int.init)
+    }
+
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
     /// Settings and the add sheet are modals with no other scriptable route in.
     static var openSheet: String? {
@@ -250,6 +256,20 @@ enum DebugHarness {
             for habit in habits { context.delete(habit) }
         }
         try? context.save()
+
+        if let planned = seedPlan, planned > 0 {
+            if let old = try? context.fetch(FetchDescriptor<PlanItem>()) {
+                for item in old { context.delete(item) }
+            }
+            let lines = ["Run the loop", "Send the invoice", "Call the landlord",
+                         "Read a chapter", "Stretch for ten"]
+            let colours = HabitCategory.selectable
+            for i in 0..<min(planned, lines.count) {
+                context.insert(PlanItem(text: lines[i], order: i,
+                                        category: colours[i % colours.count]))
+            }
+            try? context.save()
+        }
 
         let wins = Int(argument("-strataSeedWins") ?? "0") ?? 0
         let categories = HabitCategory.selectable

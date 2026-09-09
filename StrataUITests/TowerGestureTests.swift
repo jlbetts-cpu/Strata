@@ -193,6 +193,50 @@ final class TowerGestureTests: XCTestCase {
         slot.press(forDuration: 6.0)
     }
 
+    // MARK: - Plan
+
+    /// Pressing a plan line's block opens the add sheet with the line already
+    /// written, and the line survives backing out of that sheet.
+    ///
+    /// The second half is the part worth testing: the item is deleted when the
+    /// win SAVES, not when the block is pressed, so cancelling must not lose
+    /// what you typed.
+    @MainActor
+    func testAPlanLineOpensTheAddSheetPrefilled() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "tower", "-strataSeedWins", "3",
+                               "-strataSeedPlan", "5"]
+        app.launch()
+
+        let line = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'Send the invoice'")).firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 40), "the plan did not open")
+        line.tap()
+
+        // The add sheet's title field. Its LABEL is the placeholder; the text
+        // in it is its VALUE — asserting on the label finds nothing however
+        // well the pre-fill works.
+        let field = app.textFields["What did you do?"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "the add sheet did not open")
+        XCTAssertEqual(field.value as? String, "Send the invoice",
+                       "the title was not pre-filled from the plan line")
+
+        // Back out. The line must still be there — checked, because pressing
+        // the block is what finishes it, but not gone.
+        app.swipeDown(velocity: .fast)
+        Thread.sleep(forTimeInterval: 3)
+        let plan = app.buttons["Plan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 15),
+                      "did not get back to the tower after the add sheet")
+        plan.tap()
+        let back = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'Send the invoice'")).firstMatch
+        if !back.waitForExistence(timeout: 15) {
+            add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
+            XCTFail("cancelling the add sheet threw the plan line away")
+        }
+    }
+
     // MARK: - Memories
 
     private func launchMemories(days: Int = 60, extra: [String] = []) -> XCUIApplication {

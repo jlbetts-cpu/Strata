@@ -116,7 +116,21 @@ struct MainAppView: View {
     @State private var pendingMilestone: Milestone? = nil
 
     // New habit menu
-    @State private var isNewHabitMenuOpen: Bool = false
+    /// What the add sheet is being opened WITH.
+    ///
+    /// This used to be three separate pieces of `@State` behind an
+    /// `isPresented` flag, and the flag lost its payload: measured, the plan
+    /// line's text was set correctly and then read back as nil when the sheet
+    /// was built, because swapping one sheet for another runs the incoming
+    /// sheet's `onDismiss` during reconciliation and that is what cleared it.
+    ///
+    /// `.sheet(item:)` makes the payload the identity of the presentation, so
+    /// there is nothing left for anything else to null out.
+    @State private var winDraft: WinDraft?
+    /// Held while the plan sheet is still on screen, and promoted to
+    /// `winDraft` once it has finished dismissing.
+    @State private var pendingDraft: WinDraft?
+    @State private var isPlanning = false
 
     // Skeleton build-up animation
     @State private var visibleSkeletonCount: Int = 0
@@ -213,7 +227,6 @@ struct MainAppView: View {
     private static func scheme(for tab: StrataTab) -> ColorScheme {
         tab == .camera ? .dark : .light
     }
-    @State private var isSharing = false
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
     //
@@ -398,23 +411,39 @@ struct MainAppView: View {
             towerTab
                 .toolbar(.hidden, for: .navigationBar)
         }
-        .sheet(isPresented: $isSharing) {
-            if let image = TowerShare.image(
-                blocks: towerVM.placedBlocks,
-                mergeGroups: towerVM.mergeGroups,
-                groupedIDs: towerVM.groupedBlockIDs,
-                coveredIDs: towerVM.coveredBlockIDs,
-                modelContext: modelContext
-            ) {
-                ShareSheet(activityItems: [image])
+        // The add sheet opens from the plan's DISMISSAL, not from the same
+        // closure that closes it. Setting `isPlanning = false` and
+        // Setting one flag false and another true together asks UIKit to present a sheet
+        // while another is still dismissing, and the second one is silently
+        // dropped — which is exactly what happened: the line was tapped, the
+        // plan closed, and nothing opened.
+        // The add sheet opens from the plan's DISMISSAL, not from the same
+        // closure that closes it. Asking UIKit to present a sheet while
+        // another is still dismissing drops the second one silently.
+        .sheet(isPresented: $isPlanning, onDismiss: {
+            if let pending = pendingDraft {
+                winDraft = pending
+                pendingDraft = nil
+            }
+        }) {
+            PlanSheet { item in
+                // Hand the line to the add sheet rather than completing it
+                // here: a win needs a size and a colour, and the block has to
+                // be dropped rather than ticked.
+                pendingDraft = WinDraft(title: item.text, planItemID: item.id)
+                isPlanning = false
             }
         }
-        .sheet(isPresented: $isNewHabitMenuOpen, onDismiss: { capturedPhoto = nil }) {
+        .sheet(item: $winDraft, onDismiss: { capturedPhoto = nil }) { draft in
             AddWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
-                initialPhoto: capturedPhoto,
-                onSaved: { _ in scheduleRefresh() }
+                initialTitle: draft.title,
+                initialPhoto: draft.photo,
+                onSaved: { _ in
+                    if let id = draft.planItemID { markPlanItemDone(id) }
+                    scheduleRefresh()
+                }
             )
         }
         // Long-pressing an outlined block opens the same sheet, in edit mode.
@@ -429,6 +458,18 @@ struct MainAppView: View {
                 onDeleted: { scheduleRefresh() }
             )
         }
+    }
+
+    /// Marks the plan line a win was written from as done.
+    ///
+    /// Done, not deleted: a completed line stays on the plan for the rest of
+    /// the day so you can see what you got through. `PlanItem.sweep` clears
+    /// one-offs when the day turns.
+    private func markPlanItemDone(_ id: UUID) {
+        let descriptor = FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })
+        guard let item = (try? modelContext.fetch(descriptor))?.first else { return }
+        item.completedAt = Date()
+        try? modelContext.save()
     }
 
     private var mainContent: some View {
@@ -634,22 +675,20 @@ struct MainAppView: View {
                 .font(.system(size: GridConstants.tallyWord, weight: .regular, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.35))
             Spacer(minLength: 0)
-            // Share, where the range picker was.
+            // The plan, where sharing was, which was where the range picker
+            // was before that.
             //
-            // The tower is today. A picker offering two other spans was
-            // offering to make it something else, on the one screen whose
-            // whole claim is "here is what you did today" — and the record of
-            // other days is what Insights is for. What belongs in that corner
-            // is the thing you actually want when the tower looks good, which
-            // is to show somebody.
+            // Sharing is a thing you do occasionally and can be reached other
+            // ways; planning is a thing some people do every morning, and it
+            // has to be one press from the tower or it will not happen. This
+            // corner takes whichever of the two is used more, and it is not
+            // the one that needs an audience.
             GlassIconButton(
-                systemName: "square.and.arrow.up",
-                accessibilityLabel: "Share your tower"
+                systemName: "checklist",
+                accessibilityLabel: "Plan"
             ) {
-                isSharing = true
+                isPlanning = true
             }
-            .disabled(towerVM.placedBlocks.isEmpty)
-            .opacity(towerVM.placedBlocks.isEmpty ? 0.3 : 1)
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
@@ -851,7 +890,7 @@ struct MainAppView: View {
             onCaptured: { image in
                 capturedPhoto = image
                 selectedTab = .tower
-                isNewHabitMenuOpen = true
+                winDraft = WinDraft(photo: image)
             },
             fillsScreen: true
         )
@@ -1323,7 +1362,7 @@ struct MainAppView: View {
     private var addHabitButton: some View {
         Button {
             HapticsEngine.lightTap()
-            isNewHabitMenuOpen = true
+            winDraft = WinDraft()
         } label: {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
@@ -1370,6 +1409,10 @@ struct MainAppView: View {
         // waiting to be read by something.
         UserDefaults.standard.removeObject(forKey: "towerFilterMode")
 
+        // Yesterday off the plan: finished one-offs go, finished repeats come
+        // back unchecked. Anything unfinished is left exactly where it is.
+        PlanItem.sweep(context: modelContext)
+
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
@@ -1381,6 +1424,7 @@ struct MainAppView: View {
         if DebugHarness.testsPhotoSave {
             DebugHarness.runPhotoSaveProbe()
         }
+        if DebugHarness.seedPlan != nil { isPlanning = true }
         if DebugHarness.dumpsShareCard {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
@@ -1398,7 +1442,7 @@ struct MainAppView: View {
         }
         switch DebugHarness.openSheet {
         case "settings": selectedTab = .memories; showSettings = true
-        case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
+        case "add":      selectedTab = .tower; winDraft = WinDraft()
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         default:         break
         }
@@ -2017,7 +2061,7 @@ struct MainAppView: View {
                     previewCategory: nextWinCategory,
                     onSizeChanged: { drawingSize = $0 },
                     action: { logWin(size: $0) },
-                    onOpenMenu: { isNewHabitMenuOpen = true }
+                    onOpenMenu: { winDraft = WinDraft() }
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
@@ -2104,7 +2148,7 @@ struct MainAppView: View {
             previewCategory: nextWinCategory,
             onSizeChanged: { drawingSize = $0 },
             action: { logWin(size: $0) },
-            onOpenMenu: { isNewHabitMenuOpen = true }
+            onOpenMenu: { winDraft = WinDraft() }
         )
         .frame(width: f.width, height: f.height)
         .offset(x: f.minX, y: 0)
