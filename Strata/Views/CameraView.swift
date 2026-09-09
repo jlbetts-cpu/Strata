@@ -24,8 +24,17 @@ struct CameraView: View {
     @State private var flashOpacity: Double = 0
     /// Whether the composition guides are drawn. Remembered, because it is a
     /// preference about how you shoot rather than a per-session choice.
-    @AppStorage("cameraShowsGuides") private var showGuides = true
+    ///
+    /// Plain `@State` over an explicit `UserDefaults` read, not `@AppStorage`.
+    /// The wrapper version read `false` on a launch where the key did not
+    /// exist at all and never changed when toggled, while the flash button —
+    /// same button helper, same action path, `@Observable` storage — toggled
+    /// correctly in the same run. Measured, twice.
     @State private var shutterScale: CGFloat = 1
+
+    /// Seconds left, while a timed shot counts down. Nil when idle.
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -117,7 +126,7 @@ struct CameraView: View {
             ZStack {
                 CameraPreview(session: camera.session)
 
-                if showGuides {
+                if camera.showsGuides {
                     guides(w: w, h: h, topInset: topInset)
                         .allowsHitTesting(false)
                         .transition(.opacity)
@@ -125,10 +134,26 @@ struct CameraView: View {
 
                 header(topInset: topInset)
 
+                // The count, over the frame. Big and central because you are
+                // standing in the shot looking at the lens, not at a corner.
+                if let countdown {
+                    Text("\(countdown)")
+                        .font(.system(size: 96, weight: .light, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 14)
+                        .transition(.opacity.combined(with: .scale(scale: 1.25)))
+                        .id(countdown)
+                        .allowsHitTesting(false)
+                        .accessibilityLabel("\(countdown) seconds")
+                }
+
                 controls(w: w, h: h, topInset: topInset, bottomInset: bottomInset)
 
                 warmFlash
                     .allowsHitTesting(false)
+                    #if DEBUG
+                    .onAppear { if DebugHarness.holdsRingLight { flashOpacity = 1 } }
+                    #endif
             }
             .frame(width: w, height: h)
             .background(Color(red: 0.031, green: 0.031, blue: 0.031))
@@ -258,62 +283,61 @@ struct CameraView: View {
     // MARK: - Controls
 
     private func controls(w: CGFloat, h: CGFloat, topInset: CGFloat, bottomInset: CGFloat) -> some View {
-        let shutterCentre = h - bottomInset - shutterOuter / 2 - shutterBottomGap
-        // Where a thumb already is. The two settings you actually change while
-        // shooting were in the top right corner, which on a phone this size is
-        // a two-handed reach — so in practice you either put the phone down or
-        // you never touch them. Beside the shutter they sit inside the arc the
-        // thumb already sweeps to reach the button it is going for anyway.
-        let flankOffset = shutterOuter / 2 + 34
-        return ZStack(alignment: .topLeading) {
-            // Outboard of the flash, on the left, as asked. That does leave
-            // two controls on one side of the shutter and one on the other —
-            // the alternative was splitting a pair that belong together, and
-            // an off-centre row reads better than a grid toggle exiled to the
-            // opposite corner from the thing it toggles.
-            // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
-            // but `grid` is a 3x3 of separate tiles — an app-grid mark — and
-            // this one is a rectangle divided by two verticals and two
-            // horizontals, which is the thing it turns on.
-            //
-            // Dimmed rather than swapped for a slashed variant, because there
-            // is no `rectangle.split.3x3.slash`. It stays a visible, pressable
-            // control either way, so the guides can always be brought back.
-            glyphButton("rectangle.split.3x3") {
-                withAnimation(GridConstants.motionSmooth) { showGuides.toggle() }
-            }
-            .opacity(showGuides ? 1 : 0.5)
-            .position(x: w / 2 - flankOffset - 48, y: shutterCentre)
-            .accessibilityLabel(showGuides ? "Hide the grid" : "Show the grid")
+        // An HStack, not five individually `.position`ed children.
+        //
+        // Each `.position` expands its child to fill the whole container, so
+        // the row was five full-screen layers stacked on top of each other and
+        // only the last one reliably took a touch. The grid toggle was the
+        // first, and it never fired: measured, its accessibility value stayed
+        // "off" across two taps while the flash — same helper, same action
+        // path — toggled correctly in the same run.
+        //
+        // A row also makes the arrangement honest: two settings either side of
+        // the shutter, symmetrical, inside the arc a thumb already sweeps.
+        ZStack(alignment: .bottom) {
+            HStack(spacing: 0) {
+                // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
+                // but `grid` is a 3x3 of separate tiles — an app-grid mark —
+                // and this is a rectangle divided by two verticals and two
+                // horizontals, which is the thing it turns on. Dimmed rather
+                // than slashed, because there is no slashed variant; it stays
+                // visible and pressable so the guides can always come back.
+                glyphButton("rectangle.split.3x3",
+                            label: camera.showsGuides ? "Hide the grid" : "Show the grid",
+                            identifier: "gridToggle",
+                            value: camera.showsGuides ? "on" : "off",
+                            dimmed: !camera.showsGuides) {
+                    withAnimation(GridConstants.motionSmooth) { camera.showsGuides.toggle() }
+                    UserDefaults.standard.set(camera.showsGuides, forKey: "cameraShowsGuides")
+                }
 
-            glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill") {
-                camera.isFlashOn.toggle()
-            }
-            .position(x: w / 2 - flankOffset, y: shutterCentre)
-            .accessibilityLabel(camera.isFlashOn ? "Flash on" : "Flash off")
+                Spacer(minLength: 0)
 
-            shutter
-                .position(x: w / 2, y: shutterCentre)
+                glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill",
+                            label: camera.isFlashOn ? "Flash on" : "Flash off",
+                            identifier: "flashToggle",
+                            value: camera.isFlashOn ? "on" : "off") {
+                    camera.isFlashOn.toggle()
+                }
 
-            glyphButton("arrow.triangle.2.circlepath") {
-                withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                Spacer(minLength: 0)
+
+                shutter
+
+                Spacer(minLength: 0)
+
+                glyphButton("arrow.triangle.2.circlepath", label: "Switch camera") {
+                    withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                }
+
+                Spacer(minLength: 0)
+
+                timerButton
             }
-            .position(x: w / 2 + flankOffset, y: shutterCentre)
-            .accessibilityLabel("Switch camera")
+            .padding(.horizontal, 44)
+            .padding(.bottom, bottomInset + shutterBottomGap)
 
             if let onClose {
-                // Below the status bar, not under it.
-                //
-                // This sat at y=34 in a space whose origin is the top of the
-                // SCREEN, so it landed inside the status bar and beside the
-                // Dynamic Island — drawn, but with the system's own touch
-                // areas over most of it, which is why it could not be pressed.
-                // Measuring down from the safe inset puts it in the app's
-                // space, where the whole 44pt target belongs to it.
-                //
-                // 44pt is the HIG minimum for a touch target and the button is
-                // exactly that, with the glyph smaller inside it — the tappable
-                // area is bigger than the mark, which is the point.
                 GlassIconButton(
                     systemName: "xmark",
                     tint: .white,
@@ -321,13 +345,41 @@ struct CameraView: View {
                     accessibilityLabel: "Close camera",
                     action: onClose
                 )
-                .position(
-                    x: w - GridConstants.horizontalPadding - 22,
-                    y: topInset + 22 + Header.topPadding
-                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.trailing, GridConstants.horizontalPadding)
+                // Below the status bar, not under it: at y=34 in screen
+                // coordinates this landed beside the Dynamic Island, drawn but
+                // with the system's touch areas over most of it.
+                .padding(.top, topInset + Header.topPadding)
             }
         }
-        .frame(width: w, height: h, alignment: .topLeading)
+        .frame(width: w, height: h, alignment: .bottom)
+    }
+
+    /// Off / 3s / 10s, cycling, exactly the set iOS Camera offers.
+    private var timerButton: some View {
+        glyphButton(camera.timerSeconds == 0 ? "timer" : "timer",
+                    label: camera.timerSeconds == 0 ? "Timer off" : "Timer \(camera.timerSeconds) seconds",
+                    identifier: "timerToggle",
+                    value: "\(camera.timerSeconds)",
+                    dimmed: camera.timerSeconds == 0) {
+            withAnimation(GridConstants.motionSmooth) {
+                camera.timerSeconds = camera.timerSeconds == 0 ? 3 : (camera.timerSeconds == 3 ? 10 : 0)
+            }
+            UserDefaults.standard.set(camera.timerSeconds, forKey: "cameraTimerSeconds")
+        }
+        .overlay(alignment: .bottom) {
+            // The chosen delay, under the glyph — iOS shows the number too,
+            // because "timer on" is not the same as "timer set to what".
+            if camera.timerSeconds > 0 {
+                Text("\(camera.timerSeconds)")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.35), radius: 4)
+                    .offset(y: 4)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     /// No box.
@@ -337,19 +389,41 @@ struct CameraView: View {
     /// the busiest, and a setting does not need a container to be a setting —
     /// the glyph is the control. The shutter keeps its rim because it is the
     /// one thing here that is a button rather than a toggle.
-    private func glyphButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    /// The label belongs ON the button.
+    ///
+    /// These used to be `.accessibilityLabel(...)` applied after `.position()`,
+    /// which wraps the button in a container that fills the ZStack — so the
+    /// label was attached to the wrapper, not the control, and it did not
+    /// track the state it was describing. The grid toggle read "Show the grid"
+    /// whether the grid was on or off, which is also why it looked like it
+    /// could not be turned back on.
+    private func glyphButton(_ symbol: String,
+                             label: String,
+                             identifier: String? = nil,
+                             value: String? = nil,
+                             dimmed: Bool = false,
+                             action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
             action()
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 21, weight: .regular))
-                .foregroundStyle(.white)
+                // Dimming lives on the GLYPH, not as an `.opacity` over the
+                // button. A toggle wrapped in `.opacity(...)` stopped
+                // receiving taps entirely — measured: its action never ran,
+                // proven by having it toggle the flash as a probe and watching
+                // the flash not move, while the flash's own button (identical
+                // helper, no opacity modifier) toggled every time.
+                .foregroundStyle(.white.opacity(dimmed ? 0.5 : 1))
                 .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier ?? symbol)
+        .accessibilityValue(value ?? "")
     }
 
     /// A block, not a circle.
@@ -375,7 +449,7 @@ struct CameraView: View {
                 .scaleEffect(shutterScale)
         }
         .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
-        .onTapGesture { fire() }
+        .onTapGesture { shutterPressed() }
         .accessibilityLabel("Take photo")
         .accessibilityAddTraits(.isButton)
     }
@@ -399,21 +473,100 @@ struct CameraView: View {
     /// dead centre removes every shadow that gives a face shape; light from the
     /// rim keeps the modelling and puts the catchlight in the eye.
     private var warmFlash: some View {
-        RadialGradient(
-            stops: [
-                .init(color: Color(red: 1.0, green: 0.94, blue: 0.86).opacity(0.55), location: 0.0),
-                .init(color: Color(red: 1.0, green: 0.91, blue: 0.78), location: 0.72),
-                .init(color: Color(red: 1.0, green: 0.88, blue: 0.72), location: 1.0)
-            ],
-            center: .center,
-            startRadius: 0,
-            endRadius: 620
-        )
+        GeometryReader { geo in
+            ZStack {
+                // 1. Fill. A base wash so the whole face is lifted out of the
+                //    dark rather than only its edges — without this a pure
+                //    ring carves the face into a bright outline and a dim
+                //    middle, which is a horror-film key, not a beauty light.
+                // 0.72, not 0.42. On a phone every photon comes from the same
+                // plane a foot from the face, so a dark middle does not
+                // "shape" anything the way a physical ring does — it just
+                // throws away light. Measured at 0.42 the centre sat at
+                // luminance 96 against edges of 164-243, which is a dim flash
+                // with a bright border. The ring still does its real job on
+                // top of this: the catchlight in the eye.
+                Self.warmFill
+                    .opacity(0.72)
+
+                // 2. The ring. Brightest in a band near the screen's edge and
+                //    genuinely absent through the middle third, because that
+                //    is what a ring light IS: light arriving from around the
+                //    lens rather than through it. Flat light from dead centre
+                //    removes the shadow that gives a face shape; light from
+                //    the rim keeps the modelling and puts the catchlight in
+                //    the eye.
+                // ELLIPTICAL, not radial.
+                //
+                // A circular gradient on a 402x874 screen never reaches the
+                // left and right edges: measured, a point 10% in from the side
+                // was pixel-identical to the centre, so the "ring" was lighting
+                // the top and bottom only. An elliptical gradient takes its
+                // radii from the view's own proportions, so the bright band
+                // lands on all four edges of whatever shape the screen is.
+                EllipticalGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.00),
+                        .init(color: .clear, location: 0.30),
+                        .init(color: Self.warmRing.opacity(0.30), location: 0.55),
+                        .init(color: Self.warmRing.opacity(0.90), location: 0.82),
+                        .init(color: Self.warmRing, location: 1.00)
+                    ],
+                    center: .center,
+                    startRadiusFraction: 0,
+                    endRadiusFraction: 0.62
+                )
+                .blur(radius: 28)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
         .opacity(flashOpacity)
         .ignoresSafeArea()
     }
 
+    /// ~3400K. A phone screen at full white is about 6500K, which on skin
+    /// reads clinical and blue and is why front-flash selfies look washed out.
+    /// This is the warm end of a ring light.
+    private static let warmFill = Color(red: 1.00, green: 0.90, blue: 0.78)
+    /// A touch brighter and a touch less saturated than the fill, so the rim
+    /// reads as the source and the middle as what it lights.
+    private static let warmRing = Color(red: 1.00, green: 0.95, blue: 0.88)
+
     // MARK: - Firing
+
+    /// A press either fires now or starts the countdown, and a press DURING a
+    /// countdown cancels it — which is what iOS Camera does, and the only
+    /// sensible answer once you have walked into frame and changed your mind.
+    private func shutterPressed() {
+        if countdownTask != nil {
+            cancelCountdown()
+            return
+        }
+        guard camera.timerSeconds > 0 else { fire(); return }
+        HapticsEngine.tick()
+        countdown = camera.timerSeconds
+        countdownTask = Task { @MainActor in
+            var remaining = camera.timerSeconds
+            while remaining > 0 {
+                // One tick a second, and a haptic with it — the count is on
+                // screen but you are usually looking at the lens, not at it.
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                remaining -= 1
+                countdown = remaining > 0 ? remaining : nil
+                if remaining > 0 { HapticsEngine.tick() }
+            }
+            countdownTask = nil
+            fire()
+        }
+    }
+
+    private func cancelCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+        countdown = nil
+        HapticsEngine.lightTap()
+    }
 
     private func fire() {
         guard !camera.isCapturing else { return }

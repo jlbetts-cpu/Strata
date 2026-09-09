@@ -24,6 +24,25 @@ final class CameraService: NSObject {
     /// Front-camera flash is a screen flash, so the view has to know.
     var isFlashOn = false
 
+    /// Whether the composition guides are drawn.
+    ///
+    /// It lives here, on the observable service, rather than in a `@State` or
+    /// `@AppStorage` on the view. Both of those toggled exactly ONCE and then
+    /// stopped — measured through the button's own accessibility value across
+    /// four taps: `on → off → off → off`, with the button's frame unchanged
+    /// and hittable every time. `isFlashOn`, two points away in the same row
+    /// and driven by the same button helper, toggled every time. Whatever the
+    /// cause, the observable object is the storage that demonstrably works in
+    /// this view.
+    /// No `didSet`. A property observer on an `@Observable` stored property
+    /// is where the macro's generated accessors and the observer meet, and it
+    /// is not a combination to rely on — persistence happens at the call site
+    /// instead, which is one line and cannot interfere with observation.
+    var showsGuides = UserDefaults.standard.object(forKey: "cameraShowsGuides") as? Bool ?? true
+
+    /// Off / 3 / 10 — the three delays iOS Camera offers.
+    var timerSeconds = UserDefaults.standard.integer(forKey: "cameraTimerSeconds")
+
     private let output = AVCapturePhotoOutput()
     private var input: AVCaptureDeviceInput?
     private let queue = DispatchQueue(label: "camera.session")

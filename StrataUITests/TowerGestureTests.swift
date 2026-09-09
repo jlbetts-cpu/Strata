@@ -232,10 +232,16 @@ final class TowerGestureTests: XCTestCase {
         app.launchArguments = ["-strataStartTab", "insights",
                                "-strataSeedHistory", "14", "-strataOpenDay", "2"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["5 wins"].waitForExistence(timeout: 40)
-                      || app.staticTexts.firstMatch.waitForExistence(timeout: 10),
-                      "the day screen never appeared")
-        Thread.sleep(forTimeInterval: 6)
+        // Wait for a BLOCK, not just any text. The header renders before the
+        // day's tower is built, so `staticTexts.firstMatch` succeeds while
+        // there is still nothing to tap — which is why this passed alone and
+        // failed when run after other tests had warmed the store.
+        let anyBlock = app.staticTexts.matching(
+            NSPredicate(format: "label IN {'Sketch','Deep work','Walk','Inbox zero','Called Mum','Ten minutes','Stretched','Read a chapter','Tidied desk','Ran 5k','Wrote it down','Cooked dinner'}")
+        ).firstMatch
+        XCTAssertTrue(anyBlock.waitForExistence(timeout: 45),
+                      "the day screen never drew its tower")
+        Thread.sleep(forTimeInterval: 4)
 
         // Not every block carries a photo, so try a few. A block with none
         // correctly does nothing, which is why this is a loop and not one tap.
@@ -251,5 +257,37 @@ final class TowerGestureTests: XCTestCase {
         close.tap()
         XCTAssertFalse(close.waitForExistence(timeout: 3),
                        "the glass close button did not dismiss the photo")
+    }
+
+    // MARK: - Camera
+
+    /// The grid toggle has to work in BOTH directions. Off is easy; the
+    /// reported bug is that it never comes back.
+    @MainActor
+    func testGridToggleTurnsOffAndBackOn() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "camera"]
+        app.launch()
+
+        let grid = app.buttons["gridToggle"]
+        let timer = app.buttons["timerToggle"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 30), "no grid toggle on the camera")
+        Thread.sleep(forTimeInterval: 4)
+
+        // Both directions, from whichever state it starts in — the preference
+        // persists across launches, so the test must not assume.
+        let start = grid.value as? String ?? "?"
+        grid.tap(); Thread.sleep(forTimeInterval: 2)
+        let flipped = grid.value as? String ?? "?"
+        XCTAssertNotEqual(start, flipped, "the grid toggle did nothing")
+        grid.tap(); Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(grid.value as? String ?? "?", start,
+                       "the grid could not be toggled back — this is the bug where a "
+                       + "dimmed control stops taking taps")
+
+        // The timer cycles Off / 3 / 10, as iOS Camera does.
+        let t0 = timer.value as? String ?? "?"
+        timer.tap(); Thread.sleep(forTimeInterval: 1)
+        XCTAssertNotEqual(timer.value as? String ?? "?", t0, "the timer did not change")
     }
 }

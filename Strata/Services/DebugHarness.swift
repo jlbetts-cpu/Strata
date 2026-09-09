@@ -46,6 +46,13 @@ enum DebugHarness {
         return Int(raw)
     }
 
+    /// Holds the front-camera ring light on so it can be photographed. The
+    /// simulator has no camera, so this is the only way to see the light at
+    /// all — what it looks like on a FACE is still unverifiable here.
+    static var holdsRingLight: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataRingLight")
+    }
+
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
     /// Settings and the add sheet are modals with no other scriptable route in.
     static var openSheet: String? {

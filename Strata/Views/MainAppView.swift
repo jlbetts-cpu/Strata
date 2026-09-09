@@ -2027,19 +2027,30 @@ struct MainAppView: View {
         viewportHeight: CGFloat, topInset: CGFloat
     ) -> [PlacedBlock] {
         let blocks = towerVM.placedBlocks
-        // For small towers, render everything
-        guard blocks.count > 30 else { return blocks }
-        // And during a rearrange, because rows shift as the tower reflows and
-        // a culled block would pop in and out mid-animation. Still culled on a
-        // very large tower, where the popping costs less than the frames.
-        guard !(isRearranging && blocks.count <= 120) else { return blocks }
+        // Render everything up to a size a day's tower realistically reaches.
+        //
+        // This was 30, which is about seven rows — well inside what a good day
+        // produces, so the cull was running constantly on ordinary towers.
+        guard blocks.count > 120 else { return blocks }
+        guard !isRearranging else { return blocks }
 
         let cellStride = colW + spacing
         guard cellStride > 0 else { return blocks }
 
-        // Visible content range in grid coordinates
-        let visibleTop = towerScrollOffset - topInset - 150 // buffer
-        let visibleBottom = towerScrollOffset + viewportHeight + 150
+        // A whole viewport of buffer either side, not 150pt.
+        //
+        // The cull tests each block's own extent, and a 2-row block reaches
+        // further down the grid than a 1-row block sitting at the same height
+        // — so at the boundary the tall one survived the cut and the short
+        // ones beside it did not. That is the reported "it shows part of one
+        // big block but not the smaller ones next to it": the test is per
+        // block, so blocks of different heights cross it at different scroll
+        // positions. Rather than pretend an extent test can be made
+        // height-neutral, the boundary moves a full screen off either edge,
+        // where nothing crossing it is visible.
+        let buffer = max(viewportHeight, 400)
+        let visibleTop = towerScrollOffset - topInset - buffer
+        let visibleBottom = towerScrollOffset + viewportHeight + buffer
 
         return blocks.filter { block in
             // Blocks currently animating must always render
