@@ -106,24 +106,41 @@ struct StrataMark: View {
 }
 
 
-/// The app's name.
+/// The app's name, as the owner's own letterforms.
 ///
-/// One view so the camera's wordmark and the Settings header cannot drift into
-/// two different sizes of the same word.
+/// An SVG in the asset catalogue with `preserves-vector-representation`, so it
+/// is the drawing rather than a bitmap of it and scales to any size. Rendered
+/// as a template, so `color` tints it the way the old `Text` did.
 ///
-/// Still Jaro. A wordmark constructed in the new mark's geometry lives in
-/// `brand/strata-wordmark*.svg` and `tools/make_wordmark.py`, and it is not
-/// good enough to replace a professionally drawn face yet — set beside Jaro at
-/// camera size its `a` reads as a reversed `c` and its counters close up. The
-/// mark and the wordmark do not have to be the same drawing; a heavy geometric
-/// face beside a heavy geometric letter is already one family.
+/// **Why this and not Jaro.** Jaro is a heavy angular slab; this is a wide,
+/// light, squared-off monoline with rounded corners — the same move the block
+/// makes, a rectangle with its corners softened, which is what "clean but
+/// structured" actually looks like in a letterform. It is also twice the width
+/// at the same cap height, so the camera header becomes a band across the top
+/// rather than a mark in the corner. That is a deliberate change, not a
+/// side-effect.
+///
+/// **It is a WORDMARK, not the mark.** The matching single `S` is a light
+/// monoline and disappears at 44pt in Settings and at 50pt on a home screen;
+/// `StrataMarkShape` is a solid form and holds. Two jobs, two drawings.
 struct StrataWordmark: View {
+    /// Cap height, matching what `Text`'s point size used to give.
     var size: CGFloat = 28
     var color: Color = .primary
 
+    /// The artwork's own proportions, from its viewBox: 182 x 28.
+    private static let aspect: CGFloat = 182.0 / 28.0
+    /// The drawing's cap height is its full height, so a point size maps
+    /// straight onto it.
+    private static let capRatio: CGFloat = 1.0
+
     var body: some View {
-        Text("Strata")
-            .font(JaroFont.size(size))
+        Image("StrataWordmark")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size * Self.capRatio * Self.aspect,
+                   height: size * Self.capRatio)
             .foregroundStyle(color)
             .accessibilityLabel("Strata")
     }

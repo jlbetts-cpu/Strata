@@ -85,9 +85,15 @@ struct CameraView: View {
         static let height: CGFloat = 72
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
-        /// Jaro at 61pt sets "Strata" 147pt wide with a 41pt cap height —
-        /// the wordmark's measured box in the Figma frame.
-        static let wordmarkSize: CGFloat = 61
+        /// Cap height for the wordmark.
+        ///
+        /// It was 61, which is what Jaro needed to set "Strata" 147pt wide.
+        /// The wordmark is now the owner's own letterforms, and they are a
+        /// much wider face — 6.5:1 against Jaro's 2.4:1 — so 61 ran the word
+        /// 396pt across a 370pt page and clipped the final `a`. At 40 it sets
+        /// about 260pt, which fills the header as a band without touching
+        /// either margin.
+        static let wordmarkSize: CGFloat = 40
     }
 
     /// Rounder than the design's 20.
