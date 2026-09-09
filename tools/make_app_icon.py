@@ -363,23 +363,77 @@ def render_letter(ground, ink, size=1024, margin=0.175):
     return img.resize((size, size), Image.LANCZOS)
 
 
+MARK_SVG = os.path.join(ROOT, "brand", "strata-S-owner.svg")
+
+
+def render_svg_mark(ink, ground, size=1024, margin=0.20):
+    """The owner's `S`, rasterised from its SVG.
+
+    `qlmanage` is the only SVG rasteriser on a stock Mac, and it flattens onto
+    an opaque white canvas — so the letter is recovered as a MASK by
+    thresholding the render, then painted. Reading the alpha channel does not
+    work; it comes back fully opaque everywhere, which is what made the first
+    two attempts at this produce a full-canvas bounding box.
+    """
+    import subprocess
+    import tempfile
+    from PIL import Image, ImageDraw
+
+    tmp = tempfile.mkdtemp()
+    src = open(MARK_SVG).read()
+    # Force a dark letter on white, whatever the file says.
+    src = src.replace('fill="white"', 'fill="#000000"')
+    if 'fill="#000000"' not in src:
+        src = src.replace("<path ", '<path fill="#000000" ', 1)
+    src = src.replace("<svg", '<svg style="background:#FFFFFF"', 1)
+    p = os.path.join(tmp, "mark.svg")
+    open(p, "w").write(src)
+    subprocess.run(["qlmanage", "-t", "-s", "4000", "-o", tmp, p], capture_output=True)
+    rendered = p + ".png"
+    if not os.path.exists(rendered):
+        raise RuntimeError("qlmanage did not rasterise " + MARK_SVG)
+
+    # INVERT the greyscale rather than thresholding it. A hard threshold
+    # throws away the rasteriser's antialiasing, and the result was a letter
+    # with visibly stepped edges at 1024px. Inverting keeps every intermediate
+    # value, so the mask carries the soft edge straight through.
+    grey = Image.open(rendered).convert("L")
+    mask = grey.point(lambda v: 255 - v)
+    box = mask.point(lambda v: 255 if v > 20 else 0).getbbox()
+    if box is None:
+        raise RuntimeError("no letter found in the rasterised mark")
+    mask = mask.crop(box)
+
+    SSx = 4
+    W = size * SSx
+    avail = W * (1 - 2 * margin)
+    scale = min(avail / mask.width, avail / mask.height)
+    m = mask.resize((max(1, int(mask.width * scale)), max(1, int(mask.height * scale))),
+                    Image.LANCZOS)
+    img = Image.new("RGB", (W, W), ground)
+    img.paste(Image.new("RGB", m.size, ink), ((W - m.width) // 2, (W - m.height) // 2), m)
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    # The mark, drawn from `make_logo`'s geometry rather than set from a font
-    # — so the icon, the SVGs and `StrataMarkShape` are one drawing.
+    # The owner's own `S`, so the icon, the in-app mark and the wordmark's
+    # first letter are one drawing (owner's call, 2026-09-09).
     #
-    # Pink on white (owner's call, 2026-09-09). It was white on pink; a pink
-    # field fills the whole tile and shouts, and the app the icon opens is a
-    # pale page with coloured blocks on it.
-    logo.render(ink=PINK, ground=(255, 255, 255), size=1024).save(
+    # Rasterised from the SVG rather than reproduced, for the same reason the
+    # wordmark is a vector asset: it is their letterform, not an approximation
+    # of it.
+    #
+    # Pink on white. It was white on pink; a pink field fills the whole tile
+    # and shouts, and the app the icon opens is a pale page with coloured
+    # blocks on it.
+    render_svg_mark(ink=PINK, ground=(255, 255, 255)).save(
         os.path.join(OUT, "AppIcon-light.png"))
-    # Dark: the same letter, the same pink, on the app's own near-black.
-    logo.render(ink=PINK, ground=WARM_BLACK, size=1024).save(
+    render_svg_mark(ink=PINK, ground=WARM_BLACK).save(
         os.path.join(OUT, "AppIcon-dark.png"))
-    # Tinted: iOS reads luminance and applies the user's own hue.
-    logo.render(ink=(250, 250, 250), ground=(0, 0, 0), size=1024).save(
+    render_svg_mark(ink=(250, 250, 250), ground=(0, 0, 0)).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")

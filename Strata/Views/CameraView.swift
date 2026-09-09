@@ -80,7 +80,10 @@ struct CameraView: View {
         /// which only aligned the two layout BOXES — the type inside them is a
         /// different size, so the ink did not line up.
         static var topPadding: CGFloat {
-            GridConstants.headerTopPadding(forTitleSize: wordmarkSize)
+            // Artwork, not type — see `headerArtworkTopPadding`. Using the
+            // type version put the wordmark 9.3pt above the line every other
+            // header sits on.
+            GridConstants.headerArtworkTopPadding
         }
         static let height: CGFloat = 72
         /// Air between the header and the cut ends of the line.

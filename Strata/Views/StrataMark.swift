@@ -85,22 +85,36 @@ struct StrataMarkShape: Shape {
     ]
 }
 
-/// The app's mark, at a size.
+/// The app's mark: the owner's own `S`.
 ///
-/// A flat pink letter on the page's own ground — no block behind it, no rim,
-/// no frosted band. The mark IS the block's geometry; putting it on a second
-/// block was the old construction, and two nested rounded squares is one more
-/// than the idea needs.
+/// The same drawing as the wordmark's first letter, from
+/// `brand/strata-S-owner.svg`, as a vector asset — so the mark and the
+/// wordmark are literally the same letterform rather than two things that
+/// look alike.
+///
+/// `StrataMarkShape` — the constructed blocky S — is kept below. It was the
+/// mark for a day. The argument for it was that a light monoline disappears
+/// at 44pt in Settings and at 50pt on a home screen where a solid form holds;
+/// the owner's answer is that the logo should be the new S, and that is the
+/// call. The shape stays in the file because it is generated, costs nothing,
+/// and the small-size question is a real one that may come back.
 struct StrataMark: View {
+    /// Cap height. The artwork's own proportions do the rest.
     var side: CGFloat = 44
+
+    /// From the drawing's viewBox: 33 x 28.
+    private static let aspect: CGFloat = 33.0 / 28.0
 
     /// Mindfulness pink — the app's own colour.
     private var pink: Color { HabitCategory.mindfulness.style.baseColor }
 
     var body: some View {
-        StrataMarkShape()
-            .fill(pink)
-            .frame(width: side, height: side)
+        Image("StrataSMark")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: side * Self.aspect, height: side)
+            .foregroundStyle(pink)
             .accessibilityLabel("Strata")
     }
 }

@@ -130,6 +130,16 @@ enum GridConstants {
     static func headerTopPadding(forTitleSize size: CGFloat) -> CGFloat {
         headerCapTop - roundedCapInset * size
     }
+
+    /// The same, for a header made of ARTWORK rather than type.
+    ///
+    /// A `Text` sets its cap `roundedCapInset` of the point size below its own
+    /// layout box, which is what the function above corrects for. A drawn
+    /// wordmark has no ascender space — its frame top IS its cap top — so
+    /// applying that correction pushes it up by the whole amount. Measured:
+    /// the camera's wordmark landed at 71.7pt against the 81.0pt every other
+    /// header sits on, which is the 9.25pt the correction subtracted.
+    static let headerArtworkTopPadding: CGFloat = headerCapTop
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
     static let headerDividerOpacity: Double = 0.06
