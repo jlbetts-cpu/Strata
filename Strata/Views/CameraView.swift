@@ -73,9 +73,13 @@ struct CameraView: View {
     /// what decides where it starts and stops — that is the difference between
     /// the count sitting in the gap and the count happening to overlap it.
     private enum Header {
-        /// Matches the tower's `.padding(.top, 4)` exactly, so the number does
-        /// not move between the two screens.
-        static let topPadding: CGFloat = 4
+        /// Solved from the wordmark's size, so its cap lands on the same line
+        /// as every other screen's title. It used to hard-code the tower's 4pt,
+        /// which only aligned the two layout BOXES — the type inside them is a
+        /// different size, so the ink did not line up.
+        static var topPadding: CGFloat {
+            GridConstants.headerTopPadding(forTitleSize: wordmarkSize)
+        }
         static let height: CGFloat = 72
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
@@ -272,7 +276,11 @@ struct CameraView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(height: Header.height)
+        // Top-aligned, not centred. The box is 72pt and a 61pt line is about
+        // that tall, so centring only moved the wordmark by a fraction of a
+        // point — but it put the cap somewhere the shared rule could not
+        // predict, and the rule is the point.
+        .frame(height: Header.height, alignment: .top)
         .padding(.horizontal, GridConstants.horizontalPadding)
         // The preview starts at the very top of the screen now, so the header
         // has to clear the notch itself.

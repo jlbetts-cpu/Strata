@@ -20,6 +20,11 @@ import SwiftData
 /// search border (`#aeacac`, about a third ink) is toned down, because at that
 /// weight it would be the heaviest line on a page whose hairlines are 8%.
 struct MemoriesView: View {
+    /// 48pt, from the lowfi. Named because the header's top padding is solved
+    /// from it — a title's cap sits further down its layout box the bigger it
+    /// is, so the two cannot be set independently.
+    private static let titleSize: CGFloat = 48
+
     @Environment(\.modelContext) private var modelContext
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
@@ -32,7 +37,7 @@ struct MemoriesView: View {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     titleRow
                         .padding(.horizontal, GridConstants.horizontalPadding)
-                        .padding(.top, 4)
+                        .padding(.top, GridConstants.headerTopPadding(forTitleSize: Self.titleSize))
 
                     if vm.carousel.isEmpty && vm.month.isEmpty {
                         emptyState
@@ -95,7 +100,7 @@ struct MemoriesView: View {
             // No win tally. The count belongs to the tower's header; this
             // screen is about the photographs, not how many there are.
             Text("Memories")
-                .font(.system(size: 48, weight: .medium, design: .rounded))
+                .font(.system(size: Self.titleSize, weight: .medium, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.85))
             Spacer(minLength: 0)
             GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {

@@ -71,6 +71,36 @@ enum GridConstants {
     /// first dark pixel was at 20pt while the first block's colour started at
     /// 16pt. Type is aligned optically or it is not aligned.
     static let tallyOpticalInset: CGFloat = 4
+
+    // MARK: - Header alignment
+
+    /// How far below a `Text`'s layout top SF Pro Rounded sets its CAP, as a
+    /// fraction of the point size.
+    ///
+    /// Measured on the device rather than read off the font's metrics: two
+    /// headers under identical layout, one at 64pt and one at 48pt, put their
+    /// first ink 3.7pt apart — 3.7 / 16 = 0.2313 per point.
+    static let roundedCapInset: CGFloat = 0.2313
+
+    /// Distance from the top of a screen's content area to the CAP of its
+    /// title.
+    ///
+    /// Headers cannot simply share a top padding. They are set at different
+    /// sizes, and a bigger face pushes its cap further down its own layout
+    /// box, so three screens all padded by 4pt measured 77.3pt (Memories,
+    /// 48pt), 79.7pt (Camera, 61pt) and 81.0pt (Wins, 64pt) from the top of
+    /// the screen. Small, but enough that Memories read as sitting too high.
+    ///
+    /// 18.8 is the value that leaves the Wins tally exactly where it was, so
+    /// this aligns the other two to a position already settled by eye rather
+    /// than moving all three somewhere new.
+    static let headerCapTop: CGFloat = 18.8
+
+    /// The top padding a header needs for its cap to land on `headerCapTop`.
+    /// Ask for it; do not write a number.
+    static func headerTopPadding(forTitleSize size: CGFloat) -> CGFloat {
+        headerCapTop - roundedCapInset * size
+    }
     static let headerTopPadding: CGFloat = 12
     static let headerBottomPadding: CGFloat = 8
     static let headerDividerOpacity: Double = 0.06

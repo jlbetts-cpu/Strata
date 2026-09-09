@@ -875,3 +875,48 @@ at 72pt is proportionally tiny — the rim works out at about half a point — s
 the block character reads mostly through the seams at that size. That is
 faithful to what a small block looks like, not a bug, but it is worth a look
 on a real display.
+
+### Headers on one line — 2026-09-09
+
+You said Memories looked too high and were unsure about the win total.
+Measured, from the top of the screen to the first ink of each header:
+
+| screen | title | before | after |
+|---|---|---|---|
+| Memories | 48pt | **77.3pt** | 81.0pt |
+| Camera (Strata) | 61pt | 79.7pt | 80.7pt |
+| Wins (tally) | 64pt | 81.0pt | 81.0pt |
+
+So your eye was right about Memories — it sat 3.7pt above the tally. **The win
+total was not too high**: it was the lowest of the three, and it is now the
+line the other two were moved onto, so it has not shifted at all.
+
+**Why they disagreed while all three were padded by the same 4pt.** Padding
+aligns layout BOXES, and a `Text` sets its cap further down its own box the
+bigger the type is. Measured across the two headers that shared a structure —
+64pt and 48pt, 3.7pt apart — SF Pro Rounded puts a cap **0.2313 × the point
+size** below the box top. Three sizes, three padding values needed; one padding
+value guaranteed three different answers.
+
+So the number is solved rather than written:
+
+    GridConstants.headerTopPadding(forTitleSize:)   // headerCapTop − 0.2313 × size
+
+`headerCapTop` is 18.8, chosen because it leaves the Wins tally exactly where
+it already was — this aligns the other two to a position already settled by
+eye rather than moving all three somewhere new.
+
+The camera's header also had to stop centring its wordmark in a 72pt box. A
+61pt line is about 72pt tall so centring moved it by well under a point, but it
+put the cap somewhere the shared rule could not predict, and the rule is the
+point.
+
+**Verified.** Re-measured on the simulator after the change: 81.0 / 81.0 /
+80.7pt, a spread of 0.3pt — one physical pixel at @3x, against 3.7pt before.
+Before/after with the 81.0pt line drawn across all six:
+`tasks/screenshots/header-alignment.png`. Debug, Release and
+generic/platform=iOS build.
+
+**Not verified.** Other devices and Dynamic Type. The rule is proportional so
+it should hold, but 0.2313 was measured on one simulator at one text size, and
+`headerCapTop` is in points rather than scaled.

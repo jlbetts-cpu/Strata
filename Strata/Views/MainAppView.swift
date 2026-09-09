@@ -665,7 +665,10 @@ struct MainAppView: View {
         .frame(width: towerGridWidth, alignment: .leading)
         .padding(.leading, hPad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 4)
+        // Shared with every other screen's title — see `headerTopPadding`.
+        // Works out at the 4pt this used to hard-code; the other headers move
+        // to meet it.
+        .padding(.top, GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral))
         // Air between the count and the top of a tall tower. Without it a
         // tower that reaches the top of the scroll runs straight into the
         // number and the page reads as crowded.
