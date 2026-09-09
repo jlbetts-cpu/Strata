@@ -1098,3 +1098,87 @@ cards, because that date is also inside that week last year.
 
 **Still open.** Nothing seen on a real display. Search is gone with no
 replacement. A zero-win day still renders a title and nothing else.
+
+---
+
+# 2026-09-09 — the owner's digits, the Memories title, the icon, and a real bug
+
+Bad news first.
+
+**The first block of the day never previewed its size, and it was a real
+bug.** An empty tower goes through `emptyTowerSlot`, a separate path from the
+slot inside a packed grid, and it drew a hard-coded 1x1 whatever you had
+dragged out. The drop was the right size, so nothing about the RESULT was
+wrong — only the preview, on the screen every single day begins on. Fixed, and
+`testTheFirstSlotOfTheDayGrowsAsItIsDrawn` proves it both ways: **89.0pt at
+rest and 89.0pt at its widest on the old code, against 133.5pt+ on the new.**
+
+**The font had to be rebuilt as TrueType.** Shipped first as an `.otf` with
+CFF outlines, `.contentTransition(.numericText())` clipped roughly 0.08 em off
+the bottom of every digit — a hard horizontal cut, with the word beside it
+sitting on a baseline the numerals never reached. The font's own `head`,
+`hhea`, `OS/2` and `FontBBox` were all correct. The same outlines as `glyf`
+render whole. Screenshot both ways.
+
+**`qlmanage` does not render Figma's masks**, which nearly cost the letterforms
+half their weight. Figma writes an outside stroke as three copies of one path
+— masked, filled, stroked — and `qlmanage` drops the third. Reading its output
+would have made "Memories" a 2.24-unit stem against the Strata wordmark's
+3.68. With the stroke unioned back on they are 4.24 and 4.68, which is one
+face. Measured on a scanline through both.
+
+**Two measurements were taken with the instrument pointed at the wrong thing**
+and both looked like answers. A screenshot-diff of the flattened SVGs compared
+`cmp-a.svg.png` after the loop had overwritten it with a different letter. And
+`simctl io screenshot` returned a 1206x1050 partial capture for several shots
+in a row, which made a correctly-sized wordmark measure 27.3pt instead of
+31.3pt and looked exactly like a stale build.
+
+## What was done
+
+**The numbers are the owner's own digits, as a real font.**
+`tools/make_numeral_font.py` turns the 362x28 `1234567890` strip into
+`StrataNumerals.ttf`. Metrically compatible with SF Pro Rounded, tabular, ten
+glyphs and a space. The tally and the month blocks' day numerals both use it,
+and the tally keeps its roll-up.
+
+**"Memories" is a drawing, like "Strata".** Same face, same mechanism — a
+vector asset with `preserves-vector-representation` and template rendering,
+and now scaling with Dynamic Type through `@ScaledMetric`.
+
+**All three SVGs are flattened to one filled path** by `tools/flatten_svg.py`,
+which unions each glyph's fill with its outside stroke. Memories 15422 -> 3453
+bytes (78% smaller), Strata 6129 -> 3452 (44%), the S 1538 -> 825 (47%).
+Verified against the originals at 1400px: the two single-path files differ by
+0.02% and 0.001% of pixels, which is antialiasing.
+
+**The headers all sit on one line and one cap height**, measured on the
+simulator:
+
+| header | left | ink top | cap |
+|---|---|---|---|
+| tower tally | 16.7pt | 81.7pt | 23.7pt |
+| Memories | 16.0pt | 80.7pt | 23.0pt |
+| camera wordmark | 16.0pt | 80.7pt | 31.3pt |
+
+The camera is deliberately the odd one — the owner's call, because a title
+sized for a page it does not have leaves an empty viewfinder unbalanced. It
+runs 16 to 219pt: through the first vertical guide at 134, which is broken for
+it, and 49pt short of the second at 268. It was 276pt before, which crossed
+that second line.
+
+**The icon is the `S` as a block**, in pink on the app's warm black, with the
+rim along its top edge and the frosted band across its bottom 26%.
+
+## Screenshots
+
+- `tasks/screenshots/numerals-tower-after.png` — the tally in the new digits
+- `tasks/screenshots/numerals-memories-after.png` — the drawn title, the day numerals
+- `tasks/screenshots/camera-wordmark-after.png` — the wordmark in the break
+- `tasks/screenshots/numerals-settings-after.png` — the mark as a block
+
+## Not verified
+
+- Nothing has been seen on a real device.
+- The roll-up animation's MOTION was not photographed; only that the glyphs
+  render whole with `.contentTransition(.numericText())` applied.
