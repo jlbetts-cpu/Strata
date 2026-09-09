@@ -382,13 +382,30 @@ final class TowerGestureTests: XCTestCase {
         let before = app.buttons.matching(matching).count
         XCTAssertGreaterThan(before, 1, "not enough albums to filter")
 
-        field.tap()
-        XCTAssertTrue(app.keyboards.element.waitForExistence(timeout: 8),
-                      "the search field never took focus")
+        // Tap until the keyboard is actually up.
+        //
+        // One tap is not reliable here: the paging sentinel keeps loading
+        // weeks while the test is running, and a tap that lands during a
+        // layout pass does nothing. This failed on focus once and on the
+        // assertion once, with the same code both times — the churn moves
+        // which step loses.
+        var focused = false
+        for _ in 0..<4 {
+            field.tap()
+            if app.keyboards.element.waitForExistence(timeout: 6) { focused = true; break }
+        }
+        XCTAssertTrue(focused, "the search field never took focus")
         field.typeText("zzzznotathing")
-        Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),
-                      "a nonsense search still showed albums")
+
+        // Wait for the grid to actually empty rather than sleeping and
+        // hoping. A fixed sleep raced the paging sentinel — this failed once
+        // and passed on a re-run with the same code, which is the definition
+        // of a test not worth having.
+        expectation(for: NSPredicate(format: "count == 0"),
+                    evaluatedWith: app.buttons.matching(matching), handler: nil)
+        waitForExpectations(timeout: 20)
+        XCTAssertTrue(app.staticTexts["Nothing matches that."].exists,
+                      "the grid emptied but said nothing about why")
     }
 
     /// A photo opens by tapping its BLOCK, and the glass close button shuts it.

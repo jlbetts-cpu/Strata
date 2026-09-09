@@ -242,6 +242,10 @@ enum DebugHarness {
     /// `-strataSeedWins n`   completed blocks, so the tower has n tiles.
     /// `-strataSeedHabits n` scheduled habits for today, left incomplete, so
     ///                       Today and Plan have rows and the ghost tier shows.
+    /// The titles the fixture treats as repeated interests, so the curated
+    /// shelf has exactly two cards to show and the rule can be seen working.
+    static let seededInterests: Set<String> = ["Ran 5k", "Read a chapter"]
+
     static func seed(context: ModelContext, tower: Tower?) {
         guard wantsSeed else { return }
 
@@ -342,7 +346,23 @@ enum DebugHarness {
                     // the Wins tab shows, and a tower made entirely of blocks
                     // wearing stand-in photographs is not what the tower looks
                     // like — it made the fixture read as a bug in the app.
-                    if back > 0, i != 1, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                    // Two titles are photographed every time; everything
+                    // else only on alternate days, and only its first win.
+                    //
+                    // It used to photograph nearly everything, and the result
+                    // was that all twelve titles cleared the curated gate —
+                    // five photographs, across four days, spanning two weeks —
+                    // so the shelf came back as twelve curated cards and read
+                    // as the rule being broken when it was the fixture that
+                    // was wrong. The alternate-day rule gives each other title
+                    // two or three photographs over fifty days, comfortably
+                    // under the gate, while still leaving most days with a
+                    // photograph so there are day albums to look at.
+                    let title = titles[n % titles.count]
+                    let isInterest = Self.seededInterests.contains(title)
+                    let photographed = isInterest || (i == 0 && back % 2 == 0)
+                    if back > 0, photographed,
+                       let log = win.habit.logs.first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
                             for: win.logID,
                             category: categories[n % categories.count]
