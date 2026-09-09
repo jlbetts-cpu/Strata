@@ -24,21 +24,42 @@ struct DayAlbumDetailView: View {
     @State private var logs: [HabitLog] = []
     @State private var viewing: String?
 
+    /// Room under the tower for the floating tab bar, which draws over the
+    /// scroll view rather than inside its safe area.
+    private static let tabBarClearance: CGFloat = 110
+
     private var photos: [String] {
         logs.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
             .compactMap(\.imageFileName)
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                tower
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 20)
-
+        // The day's tower STANDS, like the one on the Wins tab.
+        //
+        // It used to hang from the top of the screen with the whole rest of
+        // the page empty below it — the same object anchored two different
+        // ways on two screens, which is the sort of thing that reads as
+        // "unfinished" without anyone being able to say why. A tower grows up
+        // from the ground; the room above it is the room it has left to grow
+        // into, and that is true of a past day as much as of today.
+        //
+        // `minHeight` rather than a fixed frame, so a busy day whose tower is
+        // taller than the screen still scrolls normally.
+        GeometryReader { geo in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    Spacer(minLength: 24)
+                    tower
+                        .frame(maxWidth: .infinity)
+                    // The tab bar's room, as CONTENT rather than as padding.
+                    // Padding sits inside the min-height frame, so the spacer
+                    // stopped 110pt short and the tower floated in the middle
+                    // instead of standing at the bottom.
+                    Color.clear.frame(height: Self.tabBarClearance)
+                }
+                .frame(minHeight: geo.size.height, alignment: .top)
             }
-            .padding(.bottom, 110)
         }
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("")
