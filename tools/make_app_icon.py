@@ -559,24 +559,25 @@ def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    # The owner's own `S`, as one of the app's blocks, on the app's warm
-    # black.
+    # The owner's own `S`, as one of the app's blocks: white, on the app's
+    # warm black.
     #
-    # The field was pink for a build and the letter white. Both were rendered
-    # side by side at 1024 and at 60pt, and black won on the owner's call and
-    # on the pixels: a pink field fills the tile with the app's loudest colour
-    # and leaves the letter with nothing to catch, while on black the rim
-    # along the top edge and the frosted band across the bottom are both
-    # plainly visible — which is the whole reason the letter is a block and
-    # not a shape.
+    # Four combinations were rendered and compared at 1024 and at 60pt. A pink
+    # field fills the tile with the app's loudest colour and leaves the letter
+    # nothing to catch; pink on pink is the prettiest large and turns to mush
+    # small. Black won the ground, and then white won the letter — both the
+    # owner's calls, and the pair is also the highest contrast of the four,
+    # which is what an icon is judged on at 60pt.
     #
-    # The pink moves to the letter, which is also where it belongs: pink is a
-    # BLOCK colour in this app, and on the icon the S is the block.
-    render_letter_block(ground=WARM_BLACK, surface=PINK).save(
+    # The chrome still does its work on a white letter here, which it could
+    # not do on a white letter on pink: against black the rim along the top
+    # edge and the frosted band across the bottom 26% both read, and that is
+    # the whole reason the S is a block and not a shape.
+    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
         os.path.join(OUT, "AppIcon-light.png"))
     # Dark is the same drawing. The light one is already dark, and an icon
     # that changes identity between appearances is two icons.
-    render_letter_block(ground=WARM_BLACK, surface=PINK).save(
+    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
         os.path.join(OUT, "AppIcon-dark.png"))
     # Tinted is recoloured by iOS off luminance, so it has to be monochrome
     # going in — colour here would only be thrown away.
