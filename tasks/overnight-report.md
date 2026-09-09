@@ -1007,3 +1007,49 @@ Before and after: `tasks/screenshots/design-pass-1.png`.
 1. Extend `-strataSeedHistory` so most titles fall below the curated gate.
 2. Compose the empty space on Day, Plan and a near-empty Wins.
 3. Put it on your phone — none of this has been on a real display.
+
+### Continued, 2026-09-09 morning
+
+**The fixture can show the curated rule now.** It photographed nearly every
+win, so all twelve titles cleared the gate and the shelf came back as twelve
+curated cards — the rule looked broken when the fixture was. Two titles are
+photographed every time; every other title gets one only on its first win of
+alternate days, which lands at two or three over fifty days and stays under
+the five-photo gate. Result: exactly two curated cards, and most days still
+have a photograph so the day albums are unaffected.
+`tasks/screenshots/curated-seed-after.png`.
+
+**`testSearchNarrowsTheShelf` was flaky and is not any more.** It failed on
+the assertion once and on focus once with identical code. Cause: the paging
+sentinel keeps loading weeks while the test runs, and a tap that lands during
+a layout pass does nothing. It now taps until the keyboard is actually up and
+waits for the grid to empty rather than sleeping. Three consecutive passes.
+
+**Swipe-to-delete on a plan line had never worked.** `.swipeActions` only
+exists inside a `List` and the plan is a `LazyVStack`, so it was a no-op from
+the day it was written. It is a context menu now, which also keeps Delete and
+Options reachable on rows whose info button is not drawn — VoiceOver surfaces
+a context menu as custom actions. Deleting was still possible by backspacing
+an empty line or through the detail sheet, so this was a missing route rather
+than a trap.
+
+**The info button is on the focused row only.** Six identical glyphs down the
+right edge of a page whose job is to look like somewhere you write.
+
+**A past day's tower stands.** It hung from the top with two thirds of the
+page empty below it — the same object anchored two different ways on two
+screens. The tab bar's clearance had to become content rather than padding:
+padding sits inside the min-height frame, so the first attempt left the tower
+floating in the middle. Verified at 2, 5 and 26 wins;
+`tasks/screenshots/day-standing.png`.
+
+**The Wins tab's empty middle was left alone, deliberately.** The audit
+listed it as uncomposed space; on a second look that was wrong. The gap above
+a short tower is the room it has to grow into, and filling it would
+contradict what the tower means.
+
+All five steps of the design plan are now done. Still open: nothing has been
+seen on a real display; a zero-win day renders a title and nothing else
+(unreachable in the app, but `-strataOpenDay` can get there); and a few
+pre-block tokens (`radiusField`, `fillTrack`) are a second vocabulary for
+things the block components now cover.

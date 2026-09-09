@@ -102,3 +102,38 @@ That gives a component set the whole app can be rebuilt from:
 
 Each step is a commit, and each one is measured against the contact sheet it
 started from.
+
+## Progress, 2026-09-09
+
+All five steps are done.
+
+1. **Component set** — `BlockControls.swift`: `BlockChip`, `BlockWell`,
+   `BlockSizePicker`, all on `blockCornerRadius(forCell:)`.
+2. **Add a win** — colour is blocks, size is the three shapes at true
+   proportion, the empty photo well is the tower's own dashed slot.
+3. **Memories** — the month leads; the duplicate search field is gone; album
+   covers are 2×2 blocks holding a photograph, sized from the grid.
+4. **Settings** — every row's icon is a small block in a palette colour.
+5. **Plan and Day** — the info button appears on the focused row only, and a
+   past day's tower stands on the bottom of the screen like the real one
+   instead of hanging from the top.
+
+**The Wins tab's empty middle was deliberately not filled.** The audit listed
+it under "empty space isn't composed", and on a second look that was the wrong
+call: the gap above a short tower is the room it has left to grow into, which
+is the whole idea. Filling it would contradict what the tower means. The Day
+screen was a genuine fault because it anchored the same object the other way
+up; that is fixed.
+
+### Still open
+
+- Every rating above is against the simulator. Nothing has been judged on a
+  real display.
+- A day with zero wins renders a title and nothing else. It is unreachable in
+  the app — you can only arrive at a day from an album or a month block, and
+  both require at least one win — but `-strataOpenDay` can reach it, and if a
+  route to it ever appears it needs an empty state.
+- `Typography` still exposes tokens (`radiusField`, `fillTrack`) from before
+  the block rule. They are not wrong, but they are a second vocabulary for
+  things the block components now cover, and they should be audited before
+  anything new uses them.
