@@ -174,51 +174,144 @@ final class TowerGestureTests: XCTestCase {
                       "dragging the slot out and releasing logged nothing")
     }
 
-    // MARK: - History
+    // MARK: - Memories
 
-    private func launchHistory(days: Int = 26) -> XCUIApplication {
+    private func launchMemories(days: Int = 60, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-strataStartTab", "insights", "-strataSeedHistory", "\(days)"]
+        app.launchArguments = ["-strataStartTab", "memories",
+                               "-strataSeedHistory", "\(days)"] + extra
         app.launch()
+        dismissSystemAlerts()
         return app
     }
 
-    /// The whole point of the tab: a photo taken last week has to be reachable.
+    /// Clears the permission prompts a fresh install re-arms.
+    ///
+    /// `simctl privacy grant camera` does not suppress them, and an
+    /// interruption monitor only fires on the next interaction — which meant
+    /// `app.tap()`, and that landed on an album card and pushed a detail
+    /// screen. Three tests failed looking for elements that were one
+    /// navigation level behind them. Tapping Springboard's own button is
+    /// deterministic and touches nothing in the app.
+    private func dismissSystemAlerts() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for _ in 0..<3 {
+            let allow = springboard.buttons["Allow"]
+            guard allow.waitForExistence(timeout: 4) else { return }
+            allow.tap()
+        }
+    }
+
+    /// The whole point of the tab: a photograph taken last week has to be
+    /// reachable.
+    ///
+    /// It used to assert `staticTexts["Today"]`. That stopped being true when
+    /// albums went photographs-only — the seed deliberately gives today no
+    /// photo, so today produces no card at all. The shelf's own labels are
+    /// what to wait on now.
     @MainActor
-    func testAnAlbumOpensItsDayAndComesBack() throws {
-        let app = launchHistory()
-        XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 40),
-                      "no albums on the History tab")
-        Thread.sleep(forTimeInterval: 6)
+    func testAnAlbumOpensAndComesBack() throws {
+        let app = launchMemories()
 
-        // An album's accessibility label carries the day and the win count.
-        let album = app.buttons.matching(NSPredicate(format: "label CONTAINS 'wins'")).firstMatch
-        XCTAssertTrue(album.exists, "no album card found")
+        // `waitForExistence` on the element itself, not `waitFor…` on a
+        // sibling and then `.exists` on this one. The shelf is a `LazyHStack`,
+        // so its cards enter and leave the accessibility tree as it settles,
+        // and a bare `exists` after a sleep is exactly the race CLAUDE.md
+        // already documents — it failed here first time out.
+        let album = app.buttons.matching(NSPredicate(format: "label CONTAINS 'PHOTOS'")).firstMatch
+        XCTAssertTrue(album.waitForExistence(timeout: 40), "no album card found")
+
+        // Assert on the shelf going away rather than on `navigationBars`.
+        // The destination does have a navigation bar — verified by opening one
+        // directly with `-strataOpenCurated` — but the root hides its own with
+        // `.toolbar(.hidden,)`, and querying for one is a probe pointed at the
+        // wrong thing: it says nothing about whether the push happened.
+        let shelfLabel = app.staticTexts["ALBUMS"]
+        XCTAssertTrue(shelfLabel.waitForExistence(timeout: 10),
+                      "the shelf was not on screen to begin with")
         album.tap()
+        expectation(for: NSPredicate(format: "exists == false"),
+                    evaluatedWith: shelfLabel, handler: nil)
+        waitForExpectations(timeout: 15)
 
-        XCTAssertTrue(app.staticTexts["PHOTOS"].waitForExistence(timeout: 15)
-                      || app.buttons["Wins"].waitForExistence(timeout: 5),
-                      "tapping an album opened nothing")
-
-        // Back by the edge swipe rather than the chevron: the day screen
-        // hides its navigation title, so `app.navigationBars` finds nothing to
-        // reach into.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
             .press(forDuration: 0.05,
                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
-        XCTAssertTrue(app.staticTexts["Today"].waitForExistence(timeout: 15),
-                      "could not get back to the albums")
+        XCTAssertTrue(app.staticTexts["Memories"].waitForExistence(timeout: 15),
+                      "could not get back to the shelf")
+    }
+
+    /// A day in the month tower opens that day.
+    ///
+    /// This is the one that matters for the month picker: first-fit packing is
+    /// not monotonic, so the blocks are not in reading order and every one of
+    /// them has to be its own destination.
+    @MainActor
+    func testAMonthBlockOpensItsDay() throws {
+        let app = launchMemories()
+        let block = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Day '")).firstMatch
+        XCTAssertTrue(block.waitForExistence(timeout: 40), "no day blocks in the month tower")
+        Thread.sleep(forTimeInterval: 3)
+        block.tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 15),
+                      "tapping a month block opened nothing")
+    }
+
+    /// The picker steps back, and refuses to step past the current month.
+    @MainActor
+    func testTheMonthPickerStepsAndStopsAtToday() throws {
+        let app = launchMemories()
+        let forward = app.buttons["Next month"]
+        XCTAssertTrue(forward.waitForExistence(timeout: 40), "no month picker")
+        Thread.sleep(forTimeInterval: 3)
+
+        // Nothing later than this month exists, so forward starts disabled.
+        XCTAssertFalse(forward.isEnabled,
+                       "the picker offered a month that has not happened yet")
+
+        let back = app.buttons["Previous month"]
+        XCTAssertTrue(back.isEnabled, "60 days of seed should reach a previous month")
+        back.tap()
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(forward.isEnabled, "stepping back did not re-enable forward")
+    }
+
+    /// The picker still works once the month has scrolled under it.
+    ///
+    /// This is the part of the layout that could not be asserted from reading
+    /// it. A busy month is over a thousand points tall, so the chevrons are
+    /// only reachable because the picker is a pinned section header — and a
+    /// pinned header that is also a control is exactly where taps fall through
+    /// to the content sliding beneath it.
+    @MainActor
+    func testTheMonthPickerStaysUsableWhileScrolled() throws {
+        let app = launchMemories()
+        let back = app.buttons["Previous month"]
+        XCTAssertTrue(back.waitForExistence(timeout: 40), "no month picker")
+        Thread.sleep(forTimeInterval: 3)
+
+        // Scroll the month up under the header.
+        for _ in 0..<3 { app.swipeUp() }
+        Thread.sleep(forTimeInterval: 1)
+
+        XCTAssertTrue(back.exists, "the picker did not stay pinned")
+        XCTAssertTrue(back.isHittable, "the pinned picker is not hittable")
+        back.tap()
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(app.buttons["Next month"].isEnabled,
+                      "the pinned chevron did not change the month — taps are falling through")
     }
 
     /// Search filters the record without touching the store.
     @MainActor
-    func testSearchNarrowsTheAlbums() throws {
-        let app = launchHistory()
-        let field = app.textFields["Search your wins"]
+    func testSearchNarrowsTheShelf() throws {
+        let app = launchMemories()
+        let field = app.textFields["Search your memories"]
         XCTAssertTrue(field.waitForExistence(timeout: 40), "no search field")
-        Thread.sleep(forTimeInterval: 6)
+        Thread.sleep(forTimeInterval: 4)
 
-        let before = app.buttons.matching(NSPredicate(format: "label CONTAINS 'wins'")).count
+        let matching = NSPredicate(format: "label CONTAINS 'PHOTOS'")
+        let before = app.buttons.matching(matching).count
         XCTAssertGreaterThan(before, 1, "not enough albums to filter")
 
         field.tap()
@@ -226,8 +319,11 @@ final class TowerGestureTests: XCTestCase {
                       "the search field never took focus")
         field.typeText("zzzznotathing")
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),
-                      "a nonsense search still showed albums")
+        // The shelf empties. Asserting on a count rather than on the old
+        // "Nothing matches that." string, which belonged to the paged grid and
+        // is no longer what this screen shows.
+        XCTAssertEqual(app.buttons.matching(matching).count, 0,
+                       "a nonsense search still showed albums")
     }
 
     /// A photo opens by tapping its BLOCK, and the glass close button shuts it.
@@ -239,7 +335,7 @@ final class TowerGestureTests: XCTestCase {
     @MainActor
     func testAPhotoOpensFromABlockAndCloses() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-strataStartTab", "insights",
+        app.launchArguments = ["-strataStartTab", "memories",
                                "-strataSeedHistory", "14", "-strataOpenDay", "2"]
         app.launch()
         // Wait for a BLOCK, not just any text. The header renders before the

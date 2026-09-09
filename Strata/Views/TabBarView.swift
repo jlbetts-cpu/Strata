@@ -3,13 +3,13 @@ import SwiftUI
 enum StrataTab: String, CaseIterable {
     case tower = "Wins"
     case camera = "Camera"
-    case history = "History"
+    case memories = "Memories"
 
     var icon: String {
         switch self {
         case .tower: return "square.stack"
         case .camera: return "camera"
-        case .history: return "clock.arrow.circlepath"
+        case .memories: return "photo.stack"
         }
     }
 
@@ -17,7 +17,7 @@ enum StrataTab: String, CaseIterable {
         switch self {
         case .tower: return "square.stack.fill"
         case .camera: return "camera.fill"
-        case .history: return "clock.arrow.circlepath"
+        case .memories: return "photo.stack.fill"
         }
     }
 }

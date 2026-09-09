@@ -465,10 +465,10 @@ struct MainAppView: View {
             } label: {
                 Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
             }
-            Tab(value: StrataTab.history) {
-                historyTabRoot
+            Tab(value: StrataTab.memories) {
+                memoriesTabRoot
             } label: {
-                Label("History", systemImage: StrataTab.history.icon)
+                Label("Memories", systemImage: StrataTab.memories.icon)
             }
         }
         // The window's appearance, changed without an animation.
@@ -819,11 +819,11 @@ struct MainAppView: View {
     /// TabView already at the type-checker's ceiling — adding one parameter to
     /// the Insights call tipped it over with "unable to type-check this
     /// expression in reasonable time". See CLAUDE.md.
-    private var historyTabRoot: some View {
-        // No `NavigationStack` here — `HistoryView` owns its own, because it
-        // needs the path to push a day from two places: an album, and a bar
-        // on the chart.
-        HistoryView(openSettings: { showSettings = true })
+    private var memoriesTabRoot: some View {
+        // No `NavigationStack` here — `MemoriesView` owns its own, because it
+        // pushes from four places: an album on the shelf, a curated album, a
+        // day in the month tower, and the full grid behind the tail card.
+        MemoriesView(openSettings: { showSettings = true })
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView(
@@ -1394,7 +1394,7 @@ struct MainAppView: View {
             }
         }
         switch DebugHarness.openSheet {
-        case "settings": selectedTab = .history; showSettings = true
+        case "settings": selectedTab = .memories; showSettings = true
         case "add":      selectedTab = .tower; isNewHabitMenuOpen = true
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         default:         break

@@ -9,11 +9,13 @@ A SwiftUI + SwiftData iOS **win tracker**. You log something you already did;
 it becomes a 2.5D block, and the blocks stack into a tower. Three tabs:
 
 **Wins** (the tower — the record, and the home tab) · **Camera** ·
-**History** (albums, and Settings)
+**Memories** (albums, the month tower, and Settings)
 
 Habits, repeating tasks, the Today timeline and the Plan tab are all gone. So
-is Insights, which History replaced. If you find code or a doc that talks about
-any of them, it is stale.
+is Insights, which History replaced, and History itself, which Memories
+replaced. If you find code or a doc that talks about any of them, it is stale
+— though `-strataStartTab` still answers to `history` and `insights`, because
+every screenshot script written before the renames says one of those.
 
 The tower header carries the win count and a share button. Logging a win is the
 empty slot at the top of the tower: press it, a block drops in; drag it out
@@ -192,10 +194,15 @@ method, every bug and what made it invisible, and the before/after numbers.
   block's identity, not the letterforms.
 - **Light appearance only** (`UIUserInterfaceStyle = Light`), chosen 2026-09-06.
 - **SF Symbols only.** No second icon pack, no custom assets.
-- **History replaced Insights** (2026-09-07, owner's call). The bar chart
-  survived and sits at the top of it; `InsightsView` and the long-dead
-  `InsightsViewModel` are both deleted. The dropped month-calendar concept is
-  still not to be reintroduced — History was built fresh to a Figma.
+- **Memories replaced History replaced Insights** (2026-09-08, owner's call,
+  to a Figma lowfi at `KZsjpiFjwv3pgAwRCht4gU` node `611:109`). The
+  fourteen-day bar chart is **deleted**, and with it `TowerBarChart`,
+  `MiniTowerView`, `MiniTowerPacker` and `DayAlbum.miniBlocks` — only
+  `firstFit` survived, as `GridPacker`. Albums are **photographs only**: a day
+  with none produces no card, because a card showing a little tower is a card
+  about nothing. The dropped month-calendar concept is still not to be
+  reintroduced — the month tower is a tower, packed by the same rule the Wins
+  tab uses, not a calendar grid.
 - **Accent is `AppColors.accentWarm`** (`AccentColor.colorset`). It was stock
   sky blue, which is where every "this looks like default iOS" complaint came
   from — tab bar, menu labels, links all inherit it.
@@ -299,13 +306,19 @@ compared nineteen properties and `liftedBlockID` was not one of them, so the
 lift had never rendered at all. Anything new that a block view reacts to must
 be added to `==`.
 
-## History, and why it does not use `@Query`
+## Memories, and why it does not use `@Query`
 
 `@Query` has no fetch limit, materialises its whole result, and re-runs on
-every context save — and this app saves constantly. `HistoryViewModel` uses
-explicit `FetchDescriptor`s paged eight weeks at a time, over a lexicographic
-range on `dateString`, with `#Index<HabitLog>([\.dateString])` keeping it off a
-table scan.
+every context save — and this app saves constantly. `MemoriesViewModel` uses
+explicit `FetchDescriptor`s over lexicographic ranges on `dateString`, with
+`#Index<HabitLog>([\.dateString])` keeping them off a table scan: one trailing
+180-day window for the shelf, one month at a time for the month tower (cached
+by `"yyyy-MM"`), and the full record paged eight weeks at a time behind the
+shelf's tail card.
+
+**The month is fetched, never derived from `sections`.** Those are paged eight
+weeks deep, so deriving an older month from them would silently show a partial
+one — wrong rather than slow.
 
 **`MainAppView`'s own query stays narrowed to the current month.** That is
 load-bearing, not a bug: `refreshData()` walks every log it holds, on a hot
@@ -318,8 +331,22 @@ result, and the caller must hand in `\.towerFilterMode` and
 `\.perfectDayDates` by name — the block views read both and there is nothing
 to inherit outside the tower tab.
 
-**`MiniTowerView` is shared** by the chart's bars and an album's photoless
-cover, on purpose: they are the same object at two sizes.
+**The month tower does NOT merge adjacent same-colour blocks.**
+`MergedGroupView` fuses touching cells of one colour, and on the real tower
+that is true — they are one object. In a month, two touching blocks are two
+different days, and fusing them destroys both the tap target and the meaning.
+
+**Month blocks carry a day numeral**, which looks like an exception to "a
+block with no name shows no text" and is not: that rule is about an unnamed
+win claiming a name, and a day number is the block's coordinate. It is needed
+because `GridPacker.firstFit` is **not monotonic** — a 2×2 leaves a hole beside
+it that a *later* day drops into, so position alone does not say which day a
+block is, and every block is a destination.
+
+**The grouping is pure, and `WinRecord` is what makes that true.** `Album`'s
+statics are value functions over value types; only `Album.records(from:)`
+touches `@Model`. That is why `AlbumTests` runs on struct literals with no
+container.
 
 `QuickWinService.logWin` takes an `on date:` so a fixture can span weeks —
 without it the app can only ever create today, and nothing in History could be

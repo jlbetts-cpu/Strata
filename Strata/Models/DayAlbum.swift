@@ -2,10 +2,12 @@ import Foundation
 
 /// One day of the record, as something you can look at.
 ///
-/// A day, not a week. A tower is a day — that is what the Wins tab shows and
-/// what the chart's bars count — so an album is the same unit, and weeks are
-/// only how the grid is sectioned. Days with nothing in them produce no album
-/// at all: the chart above the grid is what shows the gaps.
+/// A day, not a week. A tower is a day — that is what the Wins tab shows — so
+/// an album is the same unit, and weeks are only how the grid is sectioned.
+///
+/// A day produces an album only if it has a PHOTOGRAPH. The gaps are shown by
+/// the month tower now, where a quiet day is a small block rather than an
+/// absent card.
 struct DayAlbum: Identifiable, Equatable {
     /// The `"yyyy-MM-dd"` string every log is grouped by.
     let id: String
@@ -19,9 +21,6 @@ struct DayAlbum: Identifiable, Equatable {
     let winCount: Int
     /// Newest first. The cover fans the first three.
     let photoFileNames: [String]
-    /// The day's tower, packed small. Always present, because a day with no
-    /// photograph still has a shape, and that is what its cover shows.
-    let miniBlocks: [TowerBarChart.MiniBlock]
     /// Lowercased title text plus every spelling of the date, so one substring
     /// scan answers "walk", "may", "14", "thursday" and "2026-05" alike.
     /// Precomputed because doing it per keystroke over a year of days is work

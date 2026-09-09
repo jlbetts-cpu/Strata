@@ -32,9 +32,10 @@ enum DebugHarness {
         // "tower" still works: the tab was called that for most of this
         // project's life and every script and note that mentions it says so.
         if wanted == "tower" { return .tower }
-        // Likewise "insights": the tab is History now, and every screenshot
-        // script and task note written before that says the old name.
-        if wanted == "insights" { return .history }
+        // Likewise "insights" and "history": the tab is Memories now, and
+        // every screenshot script and task note written before that says one
+        // of the two older names.
+        if wanted == "insights" || wanted == "history" { return .memories }
         return StrataTab.allCases.first { $0.rawValue.lowercased() == wanted }
     }
 
@@ -81,6 +82,24 @@ enum DebugHarness {
             let ok = await PhotoLibrarySaver.save(image)
             NSLog("[strata-probe] photoSave enabled=\(enabled) saved=\(ok)")
         }
+    }
+
+    /// Months back from the current one, from `-strataOpenMonth <n>`. The
+    /// month picker is behind a tap, so this is the only way to photograph a
+    /// month that is not the current one.
+    static var openMonthBack: Int? {
+        argument("-strataOpenMonth").flatMap(Int.init)
+    }
+
+    /// Which curated album to open, from `-strataOpenCurated <index>`.
+    static var openCuratedIndex: Int? {
+        argument("-strataOpenCurated").flatMap(Int.init)
+    }
+
+    /// Pushes the full paged grid, which is otherwise behind the shelf's tail
+    /// card.
+    static var opensAllAlbums: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataOpenAllAlbums")
     }
 
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
