@@ -323,21 +323,58 @@ def render_knockout(ground, ink, size=1024, gap=KNOCKOUT_GAP):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def render_letter(ground, ink, size=1024, margin=0.175):
+    """The S as a LETTER, set in Jaro, knocked out of a field.
+
+    The icon has been three things. A flat pink field with a white Jaro S; the
+    glyph taken apart into five coloured blocks; the same silhouette knocked
+    out of pink in one colour. The owner's call (2026-09-09) is the first, and
+    the reason holds up: the mark inside the app is one pink block with a
+    letter on it, and an icon that is a different construction of the same
+    letter is a second logo.
+
+    Set with Core Text rather than reproduced from the outline data, so the
+    letterform is exactly the font's.
+    """
+    from PIL import ImageFont
+    SSx = 4
+    W = size * SSx
+    img = Image.new("RGB", (W, W), ground)
+    draw = ImageDraw.Draw(img)
+
+    # Binary-search the point size that puts the cap height at the margin.
+    target = W * (1 - 2 * margin)
+    lo, hi = 10, W * 2
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        font = ImageFont.truetype(FONT, int(mid))
+        box = draw.textbbox((0, 0), "S", font=font)
+        if (box[3] - box[1]) < target:
+            lo = mid
+        else:
+            hi = mid
+    font = ImageFont.truetype(FONT, int(lo))
+    box = draw.textbbox((0, 0), "S", font=font)
+    x = (W - (box[2] - box[0])) / 2 - box[0]
+    y = (W - (box[3] - box[1])) / 2 - box[1]
+    draw.text((x, y), "S", font=font, fill=ink)
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    render_knockout(KNOCKOUT_GROUND, KNOCKOUT_INK).save(
+    render_letter(KNOCKOUT_GROUND, KNOCKOUT_INK).save(
         os.path.join(OUT, "AppIcon-light.png"))
     # Dark: the same mark on a deeper pink. Not on black — a pink icon that
     # turns black in dark mode is a different icon, and people find an app by
     # its colour before they read its shape.
-    render_knockout(KNOCKOUT_GROUND_DARK, KNOCKOUT_INK).save(
+    render_letter(KNOCKOUT_GROUND_DARK, KNOCKOUT_INK).save(
         os.path.join(OUT, "AppIcon-dark.png"))
     # Tinted: iOS reads luminance and applies the user's own hue, so the mark
-    # has to carry on shape alone — white on black, with the seams doing the
-    # work they do everywhere else.
-    render_knockout((0, 0, 0), (250, 250, 250)).save(
+    # carries on shape alone.
+    render_letter((0, 0, 0), (250, 250, 250)).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")

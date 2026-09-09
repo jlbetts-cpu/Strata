@@ -82,15 +82,39 @@ enum Typography {
 
 // MARK: - Jaro
 
-// Jaro is no longer a runtime font, and `JaroFont` is gone with the wordmark
-// that used it (2026-09-09, owner's call — beside the block-S mark it read as
-// a heavy angular slab next to five pale rounded blocks). It was also briefly
-// on the tally numeral, which made the one number on each screen look like
-// part of the logo rather than a count of your day.
-//
-// `Strata/Resources/Jaro.ttf` still ships and must stay: the app icon and
-// `StrataMark` are its S taken apart at the glyph's own inner corners, and
-// `tools/make_app_icon.py` reads the file to regenerate both. `Jaro-OFL.txt`
-// stays beside it, which is what the SIL Open Font License requires.
-//
-// So Jaro supplies GEOMETRY now, not type. Do not reintroduce it as a face.
+/// The display face, used for the app's own name and its mark. Nothing else.
+///
+/// It was removed on 2026-09-09 and restored the same day, on the owner's
+/// call. The argument for removing it was that a heavy angular slab fought the
+/// pale rounded mark beside it — which was true of the FIVE-COLOUR mark it was
+/// sitting next to, and that mark is gone. Against a single pink block with a
+/// white letter on it, which is what the mark is again, Jaro is the letter.
+///
+/// It was also briefly on the tally numeral. Jaro's digits are as geometric as
+/// its letters, which made the one number on each screen read as part of the
+/// logo rather than as a count of your day. **The wordmark and the mark, and
+/// that is the whole of its job.**
+///
+/// It is a variable font with an optical-size axis (6-72, default 14). iOS
+/// picks an instance by point size on its own once the font is registered, so
+/// a large wordmark gets the display cut and a small one a tighter one without
+/// anything here asking for it. That registration is `UIAppFonts` in
+/// Info.plist — without it `Font.custom` falls back to the system face
+/// silently, which looks exactly like the font not loading.
+///
+/// Licensed under the SIL Open Font License; `Strata/Resources/Jaro-OFL.txt`
+/// ships beside it, which is what that licence requires.
+enum JaroFont {
+    /// PostScript name, read out of the font's own `name` table rather than
+    /// guessed.
+    static let name = "Jaro-Regular"
+
+    static func size(_ points: CGFloat) -> Font {
+        .custom(name, size: points)
+    }
+
+    /// Scales with Dynamic Type, which a plain `.custom(_:size:)` does not.
+    static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
+        .custom(name, size: points, relativeTo: style)
+    }
+}

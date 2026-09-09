@@ -504,9 +504,17 @@ enum GridConstants {
     static let blockGhostRimWidth: CGFloat = 1.5
     static let blockGhostRimOpacity: Double = 0.45
 
-    static let blockShadowRadius: CGFloat = 5
-    static let blockShadowY: CGFloat = 2.5
-    static let blockShadowOpacity: Double = 0.12
+    /// Softer, and lower (2026-09-09, owner's call).
+    ///
+    /// A block is a lit plane, not an object thrown onto a table. At 0.12 with
+    /// a 5pt radius every block carried a visible dark edge under it, and
+    /// forty of them on one screen add up to a page that reads as heavy rather
+    /// than as clean. Wider and fainter reads as air under the block instead
+    /// of a drop shadow on it — which is the difference between "structured"
+    /// and "stuck on".
+    static let blockShadowRadius: CGFloat = 7
+    static let blockShadowY: CGFloat = 2
+    static let blockShadowOpacity: Double = 0.07
     static let blockShadowOpacityDark: Double = 0.20
 
     static let checkCircleSize: CGFloat = 24

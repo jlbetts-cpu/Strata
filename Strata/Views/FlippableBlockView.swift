@@ -214,12 +214,20 @@ struct FlippableBlockView: View {
                     //
                     // The title above it gains its own shadow, which is what
                     // buys back the contrast the darkness used to force.
+                    // Lighter again (2026-09-09). It went 0.80 -> 0.48 once
+                    // already; at 0.48 it is still a dark bar across the
+                    // bottom of a photograph, and a dark bar is the one thing
+                    // a block never has. The block is a flat lit plane and
+                    // everything on it should read as lit.
+                    //
+                    // The title's own shadow is what carries the contrast now,
+                    // which is why this can be a veil rather than a scrim.
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: 0.0),
-                            .init(color: AppColors.warmBlack.opacity(0.16), location: 0.35),
-                            .init(color: AppColors.warmBlack.opacity(0.40), location: 0.72),
-                            .init(color: AppColors.warmBlack.opacity(0.48), location: 1.0)
+                            .init(color: AppColors.warmBlack.opacity(0.08), location: 0.40),
+                            .init(color: AppColors.warmBlack.opacity(0.20), location: 0.75),
+                            .init(color: AppColors.warmBlack.opacity(0.26), location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
