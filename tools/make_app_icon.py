@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Builds the Strata app icon: the Jaro S, cut into five stacked blocks.
+
+    python3 tools/make_app_icon.py
+
+Writes AppIcon-light/dark/tinted.png into the asset catalogue.
+
+WHY THE S IS CUT WHERE IT IS
+----------------------------
+Jaro's S is not a curve. It is an angular ribbon whose outline has four
+INNER corners, at y = 367, 545, 815 and 1000 in font units. Cutting the
+glyph on those four lines splits it into exactly the five strokes the
+letterform is built from — a bottom arm, a riser, the middle diagonal, a
+riser, a top arm — with no seam landing anywhere arbitrary. The cuts are
+horizontal because that is how the tower stacks; a block never sits on a
+slope.
+
+So the icon is not an S with decoration applied. It is the same S, taken
+apart at its own joints, with each piece drawn as one of the app's blocks.
+
+WHY THE GENERATOR LIVES HERE
+----------------------------
+The chrome constants below are COPIES of `GridConstants`. They are
+duplicated rather than imported because this runs outside the app, and the
+duplication is the reason this file exists in the repo instead of being a
+one-off: if the block's rim, wash or band ever changes, re-run this and the
+icon follows. Keep the two in sync.
+"""
+import math
+import os
+import sys
+
+from fontTools.pens.recordingPen import RecordingPen
+from fontTools.ttLib import TTFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FONT = os.path.join(ROOT, "Strata/Resources/Jaro.ttf")
+OUT = os.path.join(ROOT, "Strata/Assets.xcassets/AppIcon.appiconset")
+
+# --- GridConstants, mirrored. Keep in sync. -------------------------------
+RIM_W_RATIO = 1.4 / 86.5      # blockRimWidth / blockReferenceCell
+RIM_FALLOFF = 0.45            # blockRimFalloff
+SCRIM = 0.10                  # blockScrimOpacity
+BAND_START = 0.74             # blockBandFeatherEnd
+BAND_FEATHER = 0.66           # blockBandFeatherStart
+BLUR_OF_WIDTH = 0.0178        # blur is 1.78% of block width — NOT of the rim
+
+# --- CategoryColors, mirrored. --------------------------------------------
+GREEN = (0x0E, 0xAD, 0x74)    # health
+BLUE = (0x40, 0xA9, 0xFF)     # work
+PURPLE = (0xAF, 0x9C, 0xFA)   # creativity
+ORANGE = (0xFD, 0xB5, 0x4F)   # focus
+PINK = (0xEC, 0x85, 0xB4)     # mindfulness — the app's own colour
+WARM_BLACK = (0x1C, 0x1A, 0x18)
+
+# Bottom to top. Chosen by measuring CIELAB distance between touching pairs
+# rather than by eye: this ordering has the largest MINIMUM separation of any
+# arrangement (dE 99 against 30 for the spectrum that looked right), so no two
+# blocks blur into one at 60pt. Pink sits on the bottom band because it is the
+# largest and pink is the colour the app already had.
+ORDER = [PINK, GREEN, PURPLE, ORANGE, BLUE]
+
+# The glyph's own inner corners.
+CUTS = [0, 367, 545, 815, 1000, 1333]
+BBOX = (90.0, 705.0, 0.0, 1333.0)   # minx, maxx, miny, maxy
+
+# The S gets 72% of the icon's height. The old icon set it at 64%, which on a
+# white ground read as timid — a knockout mark on a colour field can afford
+# more air than a coloured mark on white. Compared at 180/110/64pt against the
+# real squircle mask: below ~0.13 the slanted top and bottom arms start
+# crowding the mask's corners, above ~0.16 the mark loses presence next to
+# other icons.
+MARGIN = 0.14
+SS = 4           # supersample
+
+
+def outline(ch="S", steps=16):
+    """The glyph, flattened to a polygon."""
+    font = TTFont(FONT)
+    pen = RecordingPen()
+    font.getGlyphSet()[font.getBestCmap()[ord(ch)]].draw(pen)
+    poly, cur = [], None
+    for op, args in pen.value:
+        if op in ("moveTo", "lineTo"):
+            cur = args[0]
+            poly.append(cur)
+        elif op == "qCurveTo":
+            *ctrls, end = args
+            for i, c in enumerate(ctrls):
+                # TrueType implies an on-curve point midway between controls.
+                e = end if i + 1 == len(ctrls) else (
+                    (c[0] + ctrls[i + 1][0]) / 2, (c[1] + ctrls[i + 1][1]) / 2)
+                for j in range(1, steps + 1):
+                    t = j / steps
+                    poly.append((
+                        (1 - t) ** 2 * cur[0] + 2 * (1 - t) * t * c[0] + t * t * e[0],
+                        (1 - t) ** 2 * cur[1] + 2 * (1 - t) * t * c[1] + t * t * e[1]))
+                cur = e
+    return poly
+
+
+def band(poly, ylo, yhi):
+    """The polygon clipped to a horizontal strip (Sutherland–Hodgman)."""
+    def half(pts, inside, level):
+        out = []
+        for i, a in enumerate(pts):
+            b = pts[(i + 1) % len(pts)]
+            ain, bin_ = inside(a[1], level), inside(b[1], level)
+            if ain:
+                out.append(a)
+            if ain != bin_:
+                t = (level - a[1]) / (b[1] - a[1])
+                out.append((a[0] + t * (b[0] - a[0]), level))
+        return out
+    p = half(poly, lambda y, l: y >= l, ylo)
+    return half(p, lambda y, l: y <= l, yhi) if p else []
+
+
+def _mask(pts, W):
+    m = Image.new("L", (W, W), 0)
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    return m
+
+
+def _vgrad(W, top, bot, fn):
+    g = Image.new("L", (W, W), 0)
+    d = ImageDraw.Draw(g)
+    for y in range(max(0, int(top)), min(W, int(bot) + 1)):
+        t = (y - top) / max(1.0, bot - top)
+        d.line([(0, y), (W, y)], fill=max(0, min(255, int(255 * fn(t)))))
+    if bot < W:
+        d.rectangle([0, int(bot) + 1, W, W], fill=max(0, min(255, int(255 * fn(1.0)))))
+    return g
+
+
+def render(colours, size=1024, ground=(255, 255, 255), out=None):
+    poly = outline()
+    W = size * SS
+    minx, maxx, miny, maxy = BBOX
+    gw, gh = maxx - minx, maxy - miny
+    sc = (W * (1 - 2 * MARGIN)) / gh
+    ox = (W - gw * sc) / 2 - minx * sc
+    oy = (W + gh * sc) / 2 + miny * sc
+
+    def tf(p):
+        return (ox + p[0] * sc, oy - p[1] * sc)
+
+    cell = gh * sc / 5            # one band stands in for one tower cell
+    rim_px = RIM_W_RATIO * cell
+
+    # Everything is clipped to the S's own silhouette, so the frosted band
+    # softens the SEAMS BETWEEN blocks and never the outline of the letter.
+    silhouette = _mask([tf(p) for p in poly], W)
+
+    def flat(i, colour):
+        pts = [tf(p) for p in band(poly, CUTS[i], CUTS[i + 1])]
+        if not pts:
+            return None, None
+        m = _mask(pts, W)
+        s = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+        ImageDraw.Draw(s).polygon(pts, fill=tuple(colour) + (255,))
+        wash = Image.new("RGBA", (W, W), (255, 255, 255, int(255 * SCRIM)))
+        s = Image.alpha_composite(s, Image.composite(
+            wash, Image.new("RGBA", (W, W), (0, 0, 0, 0)), m))
+        s.putalpha(m)
+        return s, (pts, m)
+
+    # A crisp backing of flat colour, under the chromed copy. Where the band's
+    # blur thins the surface the colour beneath still shows, so the letter's
+    # outline stays sharp — a blurry edge reads as a bad export at 60pt.
+    backing = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    for i, colour in enumerate(colours):
+        s, _ = flat(i, colour)
+        if s:
+            backing = Image.alpha_composite(backing, s)
+
+    mark = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    for i, colour in enumerate(colours):
+        surf, geo = flat(i, colour)
+        if not surf:
+            continue
+        pts, m = geo
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        left, right, top, bot = min(xs), max(xs), min(ys), max(ys)
+
+        # The rim: an inner border, brightest along the top edge, because a
+        # block is lit from above rather than outlined.
+        k = max(3, int(rim_px) | 1)
+        edge = ImageChops.subtract(m, m.filter(ImageFilter.MinFilter(k)))
+        falloff = _vgrad(W, top, bot, lambda t: 1.0 if t < 0.03 else
+                         1.0 - (1 - RIM_FALLOFF) * min(1.0, (t - 0.03) / 0.5))
+        rim = Image.new("RGBA", (W, W), (255, 255, 255, 0))
+        rim.putalpha(ImageChops.multiply(edge, falloff))
+        surf = Image.alpha_composite(surf, rim)
+
+        # The frosted band: the same surface out of focus over the bottom 26%.
+        # The blur eats the rim, so the seam below each block IS that rim
+        # defocused — not a strip, and not a gradient.
+        # Blur the COLOUR over a field of the same colour, not over
+        # transparency. PIL blurs RGBA channels without premultiplying, so a
+        # naive blur averages in the black behind the transparent pixels and
+        # the block's bottom edge comes out dark — measured at (196,145,75)
+        # against a body of (253,188,96). Extending the colour past the edge
+        # first is what a premultiplied blur would have given.
+        radius = BLUR_OF_WIDTH * (right - left)
+        field = Image.new("RGB", (W, W), tuple(colour))
+        field.paste(surf.convert("RGB"), (0, 0), surf.split()[3])
+        blurred = field.filter(ImageFilter.GaussianBlur(radius)).convert("RGBA")
+        blurred.putalpha(surf.split()[3].filter(ImageFilter.GaussianBlur(radius)))
+        bandmask = _vgrad(W, top, bot, lambda t: 0.0 if t < BAND_FEATHER else
+                          min(1.0, (t - BAND_FEATHER) / (BAND_START - BAND_FEATHER)))
+        surf = Image.composite(blurred, surf, bandmask)
+        # Clipped back to this block. `BlockSurface` does NOT do this — it lets
+        # the blur spill past the bottom edge, which is right on the tower
+        # because a 4pt gutter catches it. There is no gutter here, so the
+        # spill lands on the block below and mixes two colours into a dirty
+        # line. Measured at the orange/purple seam: (198,147,77) fading through
+        # grey before the purple, where it should be light.
+        surf.putalpha(ImageChops.multiply(surf.split()[3], m))
+        mark = Image.alpha_composite(mark, surf)
+
+    mark = Image.alpha_composite(backing, mark)
+    mark.putalpha(silhouette)
+
+    img = Image.new("RGB", (W, W), ground)
+    img.paste(mark, (0, 0), mark.split()[3])
+    img = img.resize((size, size), Image.LANCZOS)
+    if out:
+        img.save(out)
+    return img
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    render(ORDER, ground=(255, 255, 255), out=os.path.join(OUT, "AppIcon-light.png"))
+    render(ORDER, ground=WARM_BLACK, out=os.path.join(OUT, "AppIcon-dark.png"))
+    # Tinted: iOS reads luminance and applies the user's own hue, so colour is
+    # no help — the blocks have to stay apart as GREYS. Alternating two light
+    # values keeps every seam readable at 60pt without any block going so dark
+    # it drops out of the tint.
+    alternating = [(250,) * 3, (190,) * 3, (250,) * 3, (190,) * 3, (250,) * 3]
+    render(alternating, ground=(0, 0, 0), out=os.path.join(OUT, "AppIcon-tinted.png"))
+    for name in ("light", "dark", "tinted"):
+        p = os.path.join(OUT, f"AppIcon-{name}.png")
+        print(f"{name:7} {Image.open(p).size}  {p}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

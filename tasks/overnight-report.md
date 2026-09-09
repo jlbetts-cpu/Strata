@@ -756,3 +756,70 @@ ordinary block.
 `packingOrderIsNotReadingOrder` pins down the thing the day numerals exist to
 answer: first-fit is not monotonic, so a 2×2 leaves a hole a *later* day
 drops into and position alone does not tell you which day a block is.
+
+### The app icon: the S, taken apart at its own joints
+
+You noticed the S looks like it has blocks in it. It does, and the
+letterform says exactly where they are.
+
+Jaro's S is not a curve — it is an angular ribbon, and its outline has four
+**inner corners**, at y = 367, 545, 815 and 1000 in font units. Cutting the
+glyph on those four lines splits it into precisely the five strokes it is
+built from: bottom arm, riser, middle diagonal, riser, top arm. No seam
+lands anywhere arbitrary, and the geometry of the S is untouched — it is the
+same outline, taken apart rather than redrawn. The cuts are horizontal
+because that is how the tower stacks; a block never sits on a slope.
+
+Each piece is then drawn as one of the app's blocks: flat colour under a 10%
+wash, a white rim that is brightest along its top edge, and the frosted band
+over its bottom 26%. That band is what gives the stack its depth — every
+block has a lit top edge and a soft bottom one, so five of them read as five
+objects resting on each other rather than as a shape with lines drawn on it.
+
+**Colour order was measured, not chosen.** Pink → green → purple → orange →
+blue, bottom to top. Of every arrangement with the brand pink on the bottom
+band (the largest), that one has the greatest MINIMUM CIELAB distance
+between touching blocks — ΔE 99, against ΔE 30 for the tidy spectrum that
+looked right by eye, whose blue/purple seam merges at small sizes.
+
+**Three artefacts, each found by sampling pixels rather than by looking.**
+
+1. The frosted band blurring past the outer silhouette made the letter's
+   bottom edge soft — fine on a tower, but at 60pt it reads as a bad export.
+   Fixed by clipping everything to the S's own outline, so the softness lives
+   only in the seams *between* blocks.
+2. A dark seam where two blocks met: `BlockSurface` deliberately lets the
+   blur spill past a block's bottom edge, which is right on the tower because
+   the 4pt gutter catches it. There is no gutter here, so the spill mixed two
+   colours. Each band is now clipped to its own block.
+3. The block's bottom edge still came out dark — (196,147,75) against a body
+   of (253,188,96). That is PIL blurring RGBA without premultiplying, so the
+   black behind the transparent pixels averages in. Blurring the colour over
+   a field of the same colour is what a premultiplied blur would have given;
+   the seam now reads (253,190,99) → (237,231,252) → the next block, which is
+   a white rim out of focus, as intended.
+
+**Size and placement, measured.** The mark is 71.9% of the icon's height and
+exactly centred (bbox centre 511.5 against an image centre of 511.5) — the
+off-centre look is an illusion from the S's opposing slants. The old icon set
+its S at 64%; compared at 180/110/64pt against the real superellipse mask,
+below ~13% margin the slanted arms crowd the mask's corners and above ~16%
+the mark loses presence beside other icons.
+
+All three appearances are generated: light on white, dark on warm black, and
+tinted as alternating light greys on black — iOS reads luminance there and
+applies the user's own hue, so colour is no help and the blocks have to stay
+apart as greys without any of them dropping out of the tint.
+
+`tools/make_app_icon.py` is in the repo rather than being a one-off, because
+its chrome constants are copies of `GridConstants`: change the rim, wash or
+band and re-run it, and the icon follows.
+
+**Verified.** Rendered, installed, and photographed on the simulator's home
+screen at true size: `tasks/screenshots/app-icon-home-after.png`, with all
+three appearances at four sizes in `tasks/screenshots/app-icon-after.png`.
+Debug, Release and generic/platform=iOS all build.
+
+**Not verified.** How it looks on a real device's display, and the tinted
+appearance under an actual user tint — the simulator can show the asset but
+not the system's own tinting pass.
