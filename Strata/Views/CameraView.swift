@@ -35,7 +35,9 @@ struct CameraView: View {
     /// Seconds left, while a timed shot counts down. Nil when idle.
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
-    @State private var previousBrightness: CGFloat = UIScreen.main.brightness
+    /// What the screen was set to before the ring light raised it. Nil when
+    /// the ring is not holding it up.
+    @State private var brightnessBeforeRing: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -155,9 +157,6 @@ struct CameraView: View {
 
                 warmFlash
                     .allowsHitTesting(false)
-                    #if DEBUG
-                    .onAppear { if DebugHarness.holdsRingLight { flashOpacity = 1 } }
-                    #endif
             }
             .frame(width: w, height: h)
             .background(Color(red: 0.031, green: 0.031, blue: 0.031))
@@ -181,9 +180,34 @@ struct CameraView: View {
         // and offset instead.
         .background { WarmBackground().ignoresSafeArea() }
         .task { await camera.start() }
+        // The ring owns screen brightness while it is lit. It is the only
+        // thing that makes the overlay actually EMIT: a warm wash on a screen
+        // at 30% lights nothing.
+        .onChange(of: ringIsArmed) { _, armed in setRingBrightness(armed) }
+        .onAppear { if ringIsArmed { setRingBrightness(true) } }
         .onDisappear {
             camera.stop()
-            UIScreen.main.brightness = previousBrightness
+            // Every exit path restores it. Leaving somebody's screen pinned at
+            // full brightness because they walked away from the camera tab is
+            // the kind of bug that gets noticed as battery drain, not as a
+            // bug.
+            setRingBrightness(false)
+        }
+    }
+
+    /// Raises the screen for the ring light, and puts it back afterwards.
+    ///
+    /// `brightnessBeforeRing` is set only on the way up and cleared on the way
+    /// down, so arming twice cannot capture 1.0 as the value to restore.
+    private func setRingBrightness(_ on: Bool) {
+        if on {
+            if brightnessBeforeRing == nil {
+                brightnessBeforeRing = UIScreen.main.brightness
+            }
+            UIScreen.main.brightness = 1.0
+        } else if let previous = brightnessBeforeRing {
+            UIScreen.main.brightness = previous
+            brightnessBeforeRing = nil
         }
     }
 
@@ -480,7 +504,14 @@ struct CameraView: View {
     /// arriving from around the lens rather than through it. Flat light from
     /// dead centre removes every shadow that gives a face shape; light from the
     /// rim keeps the modelling and puts the catchlight in the eye.
-    private var warmFlash: some View {
+    /// The warm light, at a given base-fill strength.
+    ///
+    /// Two things use it. The CAPTURE flash wants the full fill, because at
+    /// that moment nothing matters except photons on the face. The MODELLING
+    /// ring is held on while the front flash is armed so you can see yourself
+    /// before you shoot — and there the fill has to stay low, or the overlay
+    /// whites out the very preview it exists to light.
+    private func warmLight(fillOpacity: Double) -> some View {
         GeometryReader { geo in
             ZStack {
                 // 1. Fill. A base wash so the whole face is lifted out of the
@@ -495,7 +526,7 @@ struct CameraView: View {
                 // with a bright border. The ring still does its real job on
                 // top of this: the catchlight in the eye.
                 Self.warmFill
-                    .opacity(0.72)
+                    .opacity(fillOpacity)
 
                 // 2. The ring. Brightest in a band near the screen's edge and
                 //    genuinely absent through the middle third, because that
@@ -528,9 +559,36 @@ struct CameraView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
-        .opacity(flashOpacity)
         .ignoresSafeArea()
     }
+
+    /// The front flash's modelling ring, and the capture flash over it.
+    private var warmFlash: some View {
+        ZStack {
+            warmLight(fillOpacity: Self.ringFill)
+                .opacity(ringIsArmed ? Self.ringLevel : 0)
+                .animation(.easeOut(duration: 0.22), value: ringIsArmed)
+            warmLight(fillOpacity: Self.captureFill)
+                .opacity(flashOpacity)
+        }
+    }
+
+    /// Whether the ring light is lit: the flash is on and the lens is the one
+    /// pointing at you. There is nothing to model with the back camera, which
+    /// has a real flash.
+    private var ringIsArmed: Bool {
+        #if DEBUG
+        if DebugHarness.holdsRingLight { return true }
+        #endif
+        return camera.isFlashOn && camera.usesScreenFlash
+    }
+
+    /// Held on, the fill has to stay low or the overlay hides your face
+    /// instead of lighting it. The ring itself does the work.
+    private static let ringFill: Double = 0.10
+    private static let ringLevel: Double = 0.92
+    /// At the moment of capture nothing matters but light on the face.
+    private static let captureFill: Double = 0.72
 
     /// ~3400K. A phone screen at full white is about 6500K, which on skin
     /// reads clinical and blue and is why front-flash selfies look washed out.
@@ -588,10 +646,12 @@ struct CameraView: View {
         // The screen has to be BRIGHT before the shutter opens, not with it —
         // the sensor is already metering by the time a simultaneous flash
         // arrives, so a flash fired on the same frame lights nothing.
+        //
+        // Brightness is already at 1.0 here: arming the flash lights the
+        // modelling ring, and that is what raises it. `fire` only has to add
+        // the fill.
         let needsScreenFlash = camera.isFlashOn && camera.usesScreenFlash
         if needsScreenFlash {
-            previousBrightness = UIScreen.main.brightness
-            UIScreen.main.brightness = 1.0
             withAnimation(.easeOut(duration: 0.12)) { flashOpacity = 1 }
         }
 
@@ -602,7 +662,8 @@ struct CameraView: View {
             }
             camera.capture { image in
                 if needsScreenFlash {
-                    UIScreen.main.brightness = previousBrightness
+                    // Back to the ring, not to darkness — the flash is still
+                    // armed, so the light you were composing under stays.
                     withAnimation(.easeOut(duration: 0.22)) { flashOpacity = 0 }
                 }
                 guard let image else { return }
