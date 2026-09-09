@@ -92,14 +92,18 @@ enum GridConstants {
     static let horizontalPadding: CGFloat = 16
     /// How far a tally digit's ink sits inside its own layout box.
     ///
-    /// Measured off a screenshot: with the header padded to 16pt the numeral's
-    /// first dark pixel was at 20pt while the first block's colour started at
-    /// 16pt. Type is aligned optically or it is not aligned.
+    /// The problem was found on a screenshot: with the header padded to 16pt
+    /// the numeral's first dark pixel was at 20pt while the first block's
+    /// colour started at 16pt. Type is aligned optically or it is not
+    /// aligned.
     ///
-    /// Proportional, because the 4pt was measured at a 64pt numeral and the
-    /// tally is 34pt now. A fixed 4pt would over-correct by nearly a
-    /// half-width and push the digit past the grid the other way.
-    static let tallyOpticalInset: CGFloat = 4 * (tallyNumeral / 64)
+    /// The number is no longer measured off a screenshot. `StrataNumerals`
+    /// sets its digits tabular — one advance for all ten, ink centred in it —
+    /// so the sidebearing is a fact in the font's `hmtx` table and the
+    /// generator reads it out. It is the MEAN of the ten: the widest digit
+    /// carries 0.078 em of air and the narrowest 0.118, and no single
+    /// correction can be right for both.
+    static let tallyOpticalInset: CGFloat = StrataNumerals.opticalInset * tallyNumeral
 
     // MARK: - Header alignment
 

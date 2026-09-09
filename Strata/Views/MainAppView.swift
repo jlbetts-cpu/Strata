@@ -663,10 +663,17 @@ struct MainAppView: View {
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(towerVM.placedBlocks.count)")
-                // The screen title, in digits — the same token every other
-                // page's title uses, so it scales with Dynamic Type instead of
-                // staying at 34 while the word beside it grows.
-                .font(Typography.screenTitle)
+                // The owner's own digits, at the screen-title size — see
+                // `Typography.tally`. Metrically compatible with the system
+                // face, so it still scales with Dynamic Type and its cap
+                // still lands on the shared header line.
+                .font(Typography.tally)
+                // Ink, not pink. It was pink for one build, on the argument
+                // that the one number on the page should carry the brand
+                // colour; the owner's call is black, and it is the right one
+                // — pink is a BLOCK colour here, so a pink numeral reads as
+                // a label belonging to whichever blocks happen to be pink
+                // that day rather than as the count of all of them.
                 .foregroundStyle(.primary.opacity(0.85))
                 .contentTransition(.numericText())
                 // Optical, not geometric. A digit's ink starts inside its

@@ -68,6 +68,17 @@ enum Typography {
     /// layout constant cannot be a font.
     static let screenTitleSize: CGFloat = 34
 
+    /// The CAP HEIGHT of a screen title, for artwork that has to match one.
+    ///
+    /// A `Font.system(size:)` is an em size and its cap is a fraction of that
+    /// — 1443/2048 for SF Pro Rounded, read out of `SFNSRounded.ttf`'s own
+    /// `OS/2` table rather than eyeballed. A drawing's `size` IS its cap, so
+    /// handing a drawn title the 34 would set it 41% taller than the type it
+    /// replaced. Measured before this existed: "Memories" came out with a
+    /// 33.3pt cap against the tower tally's 23.3pt, on two screens that are
+    /// meant to have the same title.
+    static let screenTitleCap: CGFloat = screenTitleSize * 1443 / 2048
+
     /// The line under a screen title: "2 wins", a date, a count.
     static let screenSubtitle = Font.system(.subheadline, design: .rounded)
 
@@ -78,6 +89,19 @@ enum Typography {
 
     /// A photograph's caption in the gallery.
     static let photoCaption = Font.system(.caption, design: .rounded, weight: .medium)
+
+    /// Any number the app states as a fact about your day: the win tally, a
+    /// day's numeral on a month block, a photo count. The owner's own digits
+    /// — see `StrataNumerals`.
+    ///
+    /// **Numbers, never words.** The face has ten glyphs and a space; a
+    /// `Text` in it that contains a letter renders `.notdef`. Anything with a
+    /// word in it stays on `screenTitle` / `screenSubtitle`.
+    static let tally = StrataNumerals.relative(screenTitleSize, to: .largeTitle)
+
+    /// The same digits, at a size the caller solves for — a month block's
+    /// numeral scales off its cell, not off the type scale.
+    static func numeral(_ points: CGFloat) -> Font { StrataNumerals.size(points) }
 }
 
 // MARK: - Jaro
@@ -109,6 +133,55 @@ enum JaroFont {
     /// guessed.
     static let name = "Jaro-Regular"
 
+    static func size(_ points: CGFloat) -> Font {
+        .custom(name, size: points)
+    }
+
+    /// Scales with Dynamic Type, which a plain `.custom(_:size:)` does not.
+    static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
+        .custom(name, size: points, relativeTo: style)
+    }
+}
+
+// MARK: - Strata Numerals
+
+/// The owner's own digits, as a real font.
+///
+/// They arrived as one Figma export — a 362x28 strip spelling `1234567890`.
+/// Shipping the strip would have meant writing a layout engine: measuring
+/// advances, positioning ten `Image`s, and hand-rolling the roll-up that
+/// `Text` gets for free from `.contentTransition(.numericText())`. So
+/// `tools/make_numeral_font.py` turns it into `StrataNumerals.otf` instead,
+/// which is what was asked for — "treat it like you would any other font".
+///
+/// **Metrically compatible with SF Pro Rounded**: 2048 upem, ascent 1980,
+/// descent -432, cap 1443, all copied from `SFNSRounded.ttf`'s own tables. A
+/// `Text` in this font therefore has the same layout box and the same cap
+/// position as a `Text` in the system face at the same point size, so the two
+/// mix on a line and `GridConstants.headerTopPadding(forTitleSize:)` works on
+/// both without a second constant.
+///
+/// **The digits are tabular** — one advance for all ten, each centred in it.
+/// A count that changes must not reflow the word beside it, and a numeral
+/// that animates its digits must not jitter its neighbours. It is also a wide
+/// face: the advance is 0.947 em against SF Pro's ~0.57, so three digits set
+/// about two and a half times a cap height.
+///
+/// Registered by `UIAppFonts` in Info.plist. Without that entry `Font.custom`
+/// falls back to the system face **silently**, which looks exactly like the
+/// font not loading.
+enum StrataNumerals {
+    /// PostScript name, as written by the generator.
+    static let name = "StrataNumerals-Regular"
+
+    /// The mean left sidebearing, as a fraction of point size — measured out
+    /// of the font's own `hmtx` table, not guessed. Tabular centring puts
+    /// real space to the left of every digit (0.078 em for the widest, 0.118
+    /// for the narrowest), so a numeral aligned to a grid line still LOOKS
+    /// indented beside a block, whose colour goes right to its edge.
+    static let opticalInset: CGFloat = 0.0892
+
+    /// Fixed size. For anything that has to do arithmetic with the result.
     static func size(_ points: CGFloat) -> Font {
         .custom(name, size: points)
     }

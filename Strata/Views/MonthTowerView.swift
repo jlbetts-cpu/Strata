@@ -70,7 +70,11 @@ struct MonthTowerView: View {
                 // It sits inside `BlockSurface`'s frosted band, which is
                 // already the lighter region, so it does not fight the colour.
                 Text("\(block.dayOfMonth)")
-                    .font(.system(size: cell * 0.16, weight: .medium, design: .rounded))
+                    // The owner's digits, like every other number in the
+                    // app. Solved off the cell rather than the type scale:
+                    // this numeral is the block's coordinate, so it has to
+                    // stay in proportion to the block.
+                    .font(Typography.numeral(cell * 0.16))
                     .foregroundStyle(.white.opacity(0.55))
                     .padding(cell * 0.11)
                     .accessibilityHidden(true)
