@@ -195,68 +195,29 @@ method, every bug and what made it invisible, and the before/after numbers.
   it is Rounded *Semibold*, because a wordmark is drawn artwork rather than
   interface type and at 61pt white over a viewfinder Medium reads thin. Do not
   spread Semibold into the UI.
-- **Jaro is geometry, not a face** (2026-09-09, owner's call). It set the
-  wordmark until it stopped matching the mark — a heavy, black, angular slab
-  next to five pale rounded blocks; the kinship was real and invisible, and
-  rendering the pairing settled it. `JaroFont` and the `UIAppFonts`
-  registration are gone. `Strata/Resources/Jaro.ttf` still ships and must stay:
-  the app icon and `StrataMark` are its S taken apart at the glyph's own inner
-  corners, and `tools/make_app_icon.py` reads the file to regenerate both
-  (`--swift` re-emits the mark's polygons). `Jaro-OFL.txt` stays beside it, as
-  the licence requires. Do not reintroduce Jaro as a font.
-- **`StrataMark` and the app icon are the same object.** Both are the five-block
-  S from the same generator. A pink block with a white letter on it is what the
-  mark used to be; it stopped matching the icon the moment the icon became this,
-  which is what the owner noticed. If one changes, regenerate the other.
-- **Light appearance only** (`UIUserInterfaceStyle = Light`), chosen 2026-09-06.
-- **SF Symbols only.** No second icon pack, no custom assets.
-- **Memories is a self-curating gallery** (2026-09-09). Three time rules
-  (`AlbumMoment`) do the curating — the same date one to three years back,
-  the same week last year, last month — copied from Snapchat's Flashback,
-  which triggers on a saved snap at least a year old TO THE DAY. Under the
-  shelf is a month-by-month photo grid. **Days are not on the shelf**: the
-  month tower reaches every day, so a second list of them was clutter, and
-  `AllAlbumsView`, `DayAlbum`, `WeekSection` and the week paging went with
-  it. There is no search anywhere in the app now. The shelf is not drawn at
-  all when nothing has earned a card.
-- **Type scales with Dynamic Type.** The screen scale is text STYLES
-  (`.largeTitle`, `.subheadline`, `.footnote`, `.caption`), each chosen so its
-  default size is the number that was there before — so nothing moves at the
-  default setting and everything moves together at any other. It was
-  `.system(size:)`, which is fixed and ignores the most-used accessibility
-  setting on iOS. `Typography.screenTitleSize` survives as the layout metric
-  for the header's cap-height maths, which cannot be a font.
-- **44pt minimum on everything you can press.** Audited 2026-09-09: the plan
-  row's info button was 33, the detail sheet's colour swatches 34 and its
-  weekday buttons 38. The artwork keeps its size; the hit area is 44.
-- **Two weights, and they are now actually two.** An audit of every `.font(`
-  in `Strata/Views` found a `.light` on the camera's 96pt countdown — a third
-  weight on the largest thing on any screen — and four stray `.semibold`s.
-  All five are medium now. The ONLY remaining exception is
-  `StrataWordmark`, which is documented on the type itself.
-- **One screen title size, 34pt** (`Typography.screenTitle`), used by every
-  page that names itself, including the Wins tally. They were 48, 33 and 64,
-  so changing tabs changed the scale of the page. `tallyOpticalInset` is
-  proportional to the numeral because its 4pt was measured at 64.
-- **The ground is no longer warm** (`WarmBackground`, name kept deliberately —
-  see its doc). Six candidates were rendered against the full block palette:
-  CIELAB separation varied by two units across all of them, so contrast was
-  never the question. The warmth was a yellow cast pulling against the cool
-  half of the palette.
-- **The add sheet's size control uses WORDS and its colour control uses
-  CIRCLES** (owner's call, 2026-09-09). Both were briefly blocks under the
-  "everything is a block" rule. A swatch is a property of the block you are
-  describing rather than a block you are placing, and the words say what the
-  geometry is *for*. Do not convert them back.
-- **Memories replaced History replaced Insights** (2026-09-08, owner's call,
-  to a Figma lowfi at `KZsjpiFjwv3pgAwRCht4gU` node `611:109`). The
-  fourteen-day bar chart is **deleted**, and with it `TowerBarChart`,
-  `MiniTowerView`, `MiniTowerPacker` and `DayAlbum.miniBlocks` — only
-  `firstFit` survived, as `GridPacker`. Albums are **photographs only**: a day
-  with none produces no card, because a card showing a little tower is a card
-  about nothing. The dropped month-calendar concept is still not to be
-  reintroduced — the month tower is a tower, packed by the same rule the Wins
-  tab uses, not a calendar grid.
+- **Jaro is the wordmark and the mark, and nothing else.** Removed on
+  2026-09-09 and restored the same day, both on the owner's call. The removal's
+  argument — a heavy angular slab fighting the pale mark beside it — was true
+  of the FIVE-COLOUR block-S it was standing next to, and that mark is gone.
+  Against one pink block with a white letter on it, Jaro is the letter. The
+  icon, `StrataMark` and `StrataWordmark` are one construction: pink field,
+  white Jaro S. `UIAppFonts` in Info.plist is what registers it — without that
+  `Font.custom` falls back to the system face silently, which looks exactly
+  like the font not loading. `tools/make_app_icon.py` sets the glyph with the
+  real font. `Jaro-OFL.txt` ships beside the `.ttf`, as the licence requires.
+  **Do not put Jaro on numbers** — it was briefly on the tally and made the one
+  number on each screen read as part of the logo rather than as a count.
+- **Do not stack translucent copies of a block.** Album covers fanned three
+  prints, rotated and dropped to half opacity, after a photo-album Figma. A
+  block is a single flat lit plane; overlapping ghosts of it are clutter
+  dressed as depth. One photograph, fading in on `gentleReveal`.
+  (2026-09-09, owner's call.)
+- **Light, not heavy.** The block shadow is 0.07 at a 7pt radius (was 0.12 at
+  5) and the photo block's caption veil tops out at 0.26 (was 0.48, and 0.80
+  before that). The direction has only ever gone one way and it is always the
+  owner's: a block is a lit plane, and anything dark on or under it reads as
+  weight the design does not want. The look being aimed at is "clean but
+  structured" — the block itself is the reference.
 - **Accent is `AppColors.accentWarm`** (`AccentColor.colorset`). It was stock
   sky blue, which is where every "this looks like default iOS" complaint came
   from — tab bar, menu labels, links all inherit it.
