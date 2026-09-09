@@ -42,8 +42,11 @@ struct MemoriesView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     titleRow
                         .padding(.horizontal, GridConstants.horizontalPadding)
-                        .padding(.top, GridConstants.headerTopPadding(
-                            forTitleSize: Typography.screenTitleSize))
+                        // Artwork, not type: `headerArtworkTopPadding`. The
+                        // other version subtracts the distance a `Text` sets
+                        // its cap below its own layout box, and a drawing has
+                        // no ascender to give back.
+                        .padding(.top, GridConstants.headerArtworkTopPadding)
 
                     if vm.carousel.isEmpty && vm.month.isEmpty {
                         emptyState
@@ -121,17 +124,33 @@ struct MemoriesView: View {
     // MARK: - Title
 
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        // Top-aligned, not baseline-aligned.
+        //
+        // A `Text` and the gear are within a few points of each other in
+        // height, so a baseline rule put both near the row's top. A DRAWING
+        // is only as tall as its cap — 24pt against the gear's 44 — so the
+        // row's top became the gear's top and the title fell 7.6pt below the
+        // line every other header sits on. Measured. Aligning to the top
+        // makes the title's top the row's top, which is what the shared
+        // padding is measured against, and the gear is centred on the cap by
+        // hand.
+        HStack(alignment: .top, spacing: 8) {
             // No win tally. The count belongs to the tower's header; this
             // screen is about the photographs, not how many there are.
-            Text("Memories")
-                .font(Typography.screenTitle)
-                .foregroundStyle(.primary.opacity(0.85))
+            // The owner's own letterforms, like the app's name on the
+            // camera — see `MemoriesTitle`. Ink, not pink: the tally is the
+            // one number the app states and it takes the brand colour, but a
+            // page title in the same pink would put two shouts on a screen
+            // whose subject is photographs.
+            MemoriesTitle(color: .primary.opacity(0.85))
             Spacer(minLength: 0)
             GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
                 openSettings?()
             }
-            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 12 }
+            // Centred on the title's cap. It overhangs the row upwards, into
+            // the safe-area gap, which is empty — the alternative is a row as
+            // tall as the button with the title floating inside it.
+            .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
         }
     }
 

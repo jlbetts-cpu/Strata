@@ -22,7 +22,9 @@ struct GlassIconButton: View {
     let systemName: String
     /// The glyph's colour. `.white` over a viewfinder, `.primary` on a page.
     var tint: Color = .primary
-    var size: CGFloat = 44
+    /// The HIG's minimum target, and the one every one of these is.
+    static let defaultSide: CGFloat = 44
+    var size: CGFloat = GlassIconButton.defaultSide
     var glyphSize: CGFloat = 17
     var accessibilityLabel: String
     let action: () -> Void

@@ -85,18 +85,37 @@ struct CameraView: View {
             // header sits on.
             GridConstants.headerArtworkTopPadding
         }
-        static let height: CGFloat = 72
-        /// Air between the header and the cut ends of the line.
-        static let breathing: CGFloat = 14
         /// Cap height for the wordmark.
         ///
-        /// It was 61, which is what Jaro needed to set "Strata" 147pt wide.
-        /// The wordmark is now the owner's own letterforms, and they are a
-        /// much wider face — 6.5:1 against Jaro's 2.4:1 — so 61 ran the word
-        /// 396pt across a 370pt page and clipped the final `a`. At 40 it sets
-        /// about 260pt, which fills the header as a band without touching
-        /// either margin.
-        static let wordmarkSize: CGFloat = 40
+        /// Cap height for the wordmark. Bigger than a page title, on
+        /// purpose.
+        ///
+        /// It was 61 — what Jaro needed to set "Strata" 147pt wide — then 40,
+        /// then 28, then `Typography.screenTitleCap` at 23.96. The face is
+        /// 6.5:1 against Jaro's 2.4:1, so 61 ran the word 396pt across a
+        /// 370pt page and clipped the final `a`, and 40 still ran it to 276pt
+        /// — across the SECOND vertical guide, which sits at 268 on a 402pt
+        /// screen. The guides are the composition, and a title lying over two
+        /// thirds of them is covering the grid rather than sitting in it.
+        ///
+        /// **Then 24 was too small**, and that is the owner's read of it: the
+        /// other screens are a title over a page of content, and this one is a
+        /// wordmark over an empty viewfinder with nothing else in the top
+        /// two thirds to hold the other end of it. A title matched to a page
+        /// it does not have leaves the frame unbalanced.
+        ///
+        /// 32 sets the word 208pt: from the margin at 16 to 224, crossing the
+        /// first vertical at 134 — the one that is broken for it — and
+        /// stopping 44pt short of the second.
+        static let wordmarkSize: CGFloat = 32
+        /// The break in the first vertical is cut to the wordmark exactly, so
+        /// the word is centred in it by construction rather than by a second
+        /// number that has to be kept in step. It used to be 72, sized for a
+        /// 61pt wordmark, which left a 40pt word hanging at the top of a gap
+        /// half again as tall as it was.
+        static var height: CGFloat { wordmarkSize }
+        /// Air between the header and the cut ends of the line.
+        static let breathing: CGFloat = 14
     }
 
     /// Rounder than the design's 20.
@@ -303,19 +322,18 @@ struct CameraView: View {
     /// screens does not move the number.
     private func header(topInset: CGFloat) -> some View {
         HStack(alignment: .center, spacing: 0) {
-            // 61pt, solved rather than chosen: it is the size at which Jaro
-            // sets "Strata" 147pt wide with a 41pt cap height, which is the
-            // wordmark's measured box in the Figma frame.
+            // Sized to the grid rather than to the page — see
+            // `Header.wordmarkSize`.
             StrataWordmark(size: Self.Header.wordmarkSize, color: .white)
                 // Legible over whatever the lens is pointing at.
                 .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
 
             Spacer(minLength: 0)
         }
-        // Top-aligned, not centred. The box is 72pt and a 61pt line is about
-        // that tall, so centring only moved the wordmark by a fraction of a
-        // point — but it put the cap somewhere the shared rule could not
-        // predict, and the rule is the point.
+        // Top-aligned, and now the box is the wordmark's own height, so
+        // top-aligned and centred are the same placement — which is the
+        // point: the break holds the word and nothing else, so the word
+        // cannot drift inside it.
         .frame(height: Header.height, alignment: .top)
         .padding(.horizontal, GridConstants.horizontalPadding)
         // The preview starts at the very top of the screen now, so the header
