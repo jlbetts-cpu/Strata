@@ -84,7 +84,11 @@ struct MemoriesView: View {
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(item: $viewing) { photo in
-                PhotoViewer(fileName: photo.id, title: photo.title) { viewing = nil }
+                // The whole roll, so the next photograph is a swipe away.
+                PhotoViewer(photos: vm.gallery.flatMap(\.photos),
+                            startAt: photo.id,
+                            onClose: { viewing = nil },
+                            onDelete: { _ in vm.reload(context: modelContext) })
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {

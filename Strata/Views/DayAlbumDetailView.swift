@@ -41,6 +41,15 @@ struct DayAlbumDetailView: View {
             .compactMap(\.imageFileName)
     }
 
+    /// The same photographs, with what each one was of, for the viewer.
+    ///
+    /// Through `Album.gallery` rather than assembled here, so this screen's
+    /// idea of which wins count as unnamed is the gallery's idea rather than a
+    /// second copy of the rule.
+    private var galleryPhotos: [GalleryPhoto] {
+        Album.gallery(from: Album.records(from: logs))
+    }
+
     var body: some View {
         // The day's tower STANDS, like the one on the Wins tab.
         //
@@ -93,22 +102,27 @@ struct DayAlbumDetailView: View {
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            let key = route.dateString
-            var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == key })
-            d.relationshipKeyPathsForPrefetching = [\.habit]
-            logs = (try? modelContext.fetch(d)) ?? []
-            _ = vm.buildTower(from: logs, filterMode: .day)
-        }
+        .task { reload() }
         .fullScreenCover(item: Binding(
             get: { viewing.map(PhotoID.init) },
             set: { viewing = $0?.id }
         )) { photo in
-            PhotoViewer(fileName: photo.id) { viewing = nil }
+            PhotoViewer(photos: galleryPhotos,
+                        startAt: photo.id,
+                        onClose: { viewing = nil },
+                        onDelete: { _ in reload() })
         }
     }
 
     private struct PhotoID: Identifiable { let id: String }
+
+    private func reload() {
+        let key = route.dateString
+        var d = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == key })
+        d.relationshipKeyPathsForPrefetching = [\.habit]
+        logs = (try? modelContext.fetch(d)) ?? []
+        _ = vm.buildTower(from: logs, filterMode: .day)
+    }
 
     // MARK: - Header
 

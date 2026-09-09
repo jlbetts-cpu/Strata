@@ -40,7 +40,10 @@ struct PhotoCollectionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
         .fullScreenCover(item: $viewing) { photo in
-            PhotoViewer(fileName: photo.id, title: photo.title) { viewing = nil }
+            PhotoViewer(photos: sections.flatMap(\.photos),
+                        startAt: photo.id,
+                        onClose: { viewing = nil },
+                        onDelete: { _ in load() })
         }
     }
 

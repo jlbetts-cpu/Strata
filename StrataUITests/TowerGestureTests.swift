@@ -518,9 +518,14 @@ final class TowerGestureTests: XCTestCase {
         }
         XCTAssertTrue(opened, "tapping the blocks never opened a photo")
 
-        // Saving is the one thing anybody wants to do with a photograph they
-        // are looking at, and it has to be a visible button rather than a
-        // gesture — anything hidden is a thing nobody finds.
+        // The toolbar Photos has, minus the parts this app has nothing to put
+        // behind. All three are visible buttons rather than gestures —
+        // anything hidden is a thing nobody finds.
+        XCTAssertTrue(app.buttons["Share photo"].waitForExistence(timeout: 5),
+                      "the viewer offers no way to share the photo")
+        XCTAssertTrue(app.buttons["Remove photo"].exists,
+                      "the viewer offers no way to delete the photo")
+
         let save = app.buttons["Save to Photos"]
         XCTAssertTrue(save.waitForExistence(timeout: 5),
                       "the viewer offers no way to save the photo")

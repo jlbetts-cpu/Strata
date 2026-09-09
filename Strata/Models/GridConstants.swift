@@ -90,6 +90,16 @@ enum GridConstants {
     /// Hairlines and card strokes.
     static let fillHairline = Color.primary.opacity(0.08)
     static let horizontalPadding: CGFloat = 16
+    /// The darkest a caption's veil over a photograph is allowed to get.
+    ///
+    /// White type on a photograph is unreadable without one, and the answer
+    /// here has always been the shortest, lightest veil that works rather
+    /// than a smear of black up the picture. It was 0.80, then 0.48, then
+    /// this — the direction has only ever gone one way and it is always the
+    /// owner's call. `FlippableBlockView` and `PhotoViewer` both use it, so
+    /// the caption on a block and the caption on the same photograph full
+    /// screen are the same weight.
+    static let photoVeilOpacity: Double = 0.26
     /// How far a tally digit's ink sits inside its own layout box.
     ///
     /// The problem was found on a screenshot: with the header padded to 16pt

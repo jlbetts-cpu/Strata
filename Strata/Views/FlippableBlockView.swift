@@ -227,7 +227,7 @@ struct FlippableBlockView: View {
                             .init(color: .clear, location: 0.0),
                             .init(color: AppColors.warmBlack.opacity(0.08), location: 0.40),
                             .init(color: AppColors.warmBlack.opacity(0.20), location: 0.75),
-                            .init(color: AppColors.warmBlack.opacity(0.26), location: 1.0)
+                            .init(color: AppColors.warmBlack.opacity(GridConstants.photoVeilOpacity), location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
