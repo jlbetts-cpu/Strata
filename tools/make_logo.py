@@ -44,12 +44,19 @@ OUT = os.path.join(ROOT, "brand")
 # first attempt did that and produced a Z, because a wedge that tapers to a
 # point leaves the two bars joined by a hairline.
 BAR = 0.300          # bar height, top and bottom
-SLASH = 0.500        # the slash's HORIZONTAL thickness
-                     # Chosen by rendering 0.36 / 0.43 / 0.50 / 0.57 side by
-                     # side: below 0.43 the slash reads as a hairline joining
-                     # two bars, above 0.50 the counters start closing and the
-                     # letter turns into a solid lozenge.
+SLASH = 0.560        # the slash's HORIZONTAL thickness
+                     # Rendered at 0.36 / 0.43 / 0.50 / 0.56 / 0.62 side by
+                     # side. Below 0.43 the slash reads as a hairline joining
+                     # two bars; at 0.50 the two triangular counters were
+                     # bigger than the owner wanted; past 0.56 they close up
+                     # and the letter turns into a lozenge.
 RADIUS = 0.147       # the block's corner radius, as a fraction of the side
+INNER_RADIUS = 0.075 # every interior angle
+                     # The interior angles used to be knife-sharp, on the rule
+                     # that a block has no rounded inside corners. True of a
+                     # block; not true of a letter cut from one, where the two
+                     # acute corners where the slash meets the bars came to
+                     # points sharp enough to look like a rendering artefact.
 
 
 def mark_points():
@@ -73,70 +80,43 @@ def mark_points():
     return pts, {0, 1, 5, 6}
 
 
-def rounded_path(points, radius, round_only):
-    """An SVG path, rounding only the vertices named in `round_only`."""
-    n = len(points)
-    out = []
-    for i, p in enumerate(points):
-        prev = points[(i - 1) % n]
-        nxt = points[(i + 1) % n]
-        if i not in round_only:
-            out.append(("L", p))
-            continue
-        # Trim back along both edges by `radius`, then arc between.
-        def unit(a, b):
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            d = math.hypot(dx, dy) or 1.0
-            return (dx / d, dy / d)
-        ui = unit(p, prev)
-        uo = unit(p, nxt)
-        a = (p[0] + ui[0] * radius, p[1] + ui[1] * radius)
-        b = (p[0] + uo[0] * radius, p[1] + uo[1] * radius)
-        out.append(("L", a))
-        out.append(("A", (radius, b)))
-    # Emit.
-    d = []
-    first = out[0]
-    d.append(f"M {first[1][0]:.5f} {first[1][1]:.5f}")
-    for kind, val in out[1:]:
-        if kind == "L":
-            d.append(f"L {val[0]:.5f} {val[1]:.5f}")
-        else:
-            r, b = val
-            d.append(f"A {r:.5f} {r:.5f} 0 0 1 {b[0]:.5f} {b[1]:.5f}")
+def rounded_path(points, radii):
+    """An SVG path, rounding each vertex by its own radius."""
+    flat = rounded_polygon(points, radii)
+    d = [f"M {flat[0][0]:.5f} {flat[0][1]:.5f}"]
+    for x, y in flat[1:]:
+        d.append(f"L {x:.5f} {y:.5f}")
     d.append("Z")
     return " ".join(d)
 
 
-def svg(size=512, ink="#EC85B4", ground="#FFFFFF", padding=0.16):
-    pts, outer = mark_points()
-    # Only the four OUTER corners round. Every inner vertex is a cut face,
-    # and a block has no rounded interior angles.
-    path = rounded_path(pts, RADIUS, outer)
-    scale = size * (1 - 2 * padding)
-    off = size * padding
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
-  <rect width="{size}" height="{size}" fill="{ground}"/>
-  <g transform="translate({off:.3f} {off:.3f}) scale({scale:.5f})">
-    <path d="{path}" fill="{ink}" fill-rule="nonzero"/>
-  </g>
-</svg>
-'''
+def _corner_radius(p, prev, nxt, wanted):
+    """A radius the corner can actually take.
+
+    Trimming back by more than half of either adjacent edge turns the corner
+    inside out. The slash meets the bars at a very acute angle, so this clamp
+    is what lets the interior corners round at all.
+    """
+    a = math.hypot(p[0] - prev[0], p[1] - prev[1])
+    b = math.hypot(p[0] - nxt[0], p[1] - nxt[1])
+    return min(wanted, a * 0.5, b * 0.5)
 
 
-def rounded_polygon(points, radius, round_only, steps=24):
+def rounded_polygon(points, radii, steps=28):
     """The outline as a flat point list, arcs sampled.
 
-    One polygon, so a rasteriser needs nothing but `polygon()`. The first
-    attempt at this painted the ground back into each corner and laid a disc
-    over the inside, which put four pink circles OUTSIDE the letter — a
-    reminder that "cheaper than deriving the arc" usually is not.
+    `radii` is one wanted radius per vertex; 0 leaves the corner sharp. One
+    polygon out, so a rasteriser needs nothing but `polygon()`. An earlier
+    attempt painted the ground back into each corner and laid a disc over the
+    inside, which put four pink circles OUTSIDE the letter — "cheaper than
+    deriving the arc" usually is not.
     """
     n = len(points)
     out = []
     for i, p in enumerate(points):
         prev, nxt = points[(i - 1) % n], points[(i + 1) % n]
-        if i not in round_only:
+        r = _corner_radius(p, prev, nxt, radii[i])
+        if r <= 0:
             out.append(p)
             continue
 
@@ -146,8 +126,8 @@ def rounded_polygon(points, radius, round_only, steps=24):
             return (dx / d, dy / d)
 
         ui, uo = unit(p, prev), unit(p, nxt)
-        a_pt = (p[0] + ui[0] * radius, p[1] + ui[1] * radius)
-        b_pt = (p[0] + uo[0] * radius, p[1] + uo[1] * radius)
+        a_pt = (p[0] + ui[0] * r, p[1] + ui[1] * r)
+        b_pt = (p[0] + uo[0] * r, p[1] + uo[1] * r)
         # Quadratic through the corner — the same curve `addQuadCurve` draws
         # on the Swift side, so the two renderings agree.
         for k in range(steps + 1):
@@ -159,6 +139,12 @@ def rounded_polygon(points, radius, round_only, steps=24):
     return out
 
 
+def radii_for(points, outer):
+    """Outer corners take the block's radius; every other vertex takes the
+    softer interior one."""
+    return [RADIUS if i in outer else INNER_RADIUS for i in range(len(points))]
+
+
 def render(ink=(0xEC, 0x85, 0xB4), ground=(255, 255, 255), size=1024, padding=0.175):
     """The mark, rasterised. Same polygon as the SVG, so they cannot drift."""
     from PIL import Image, ImageDraw
@@ -166,7 +152,7 @@ def render(ink=(0xEC, 0x85, 0xB4), ground=(255, 255, 255), size=1024, padding=0.
     W = size * SS
     img = Image.new("RGB", (W, W), ground)
     pts, outer = mark_points()
-    flat = rounded_polygon(pts, RADIUS, outer)
+    flat = rounded_polygon(pts, radii_for(pts, outer))
     scale = W * (1 - 2 * padding)
     off = W * padding
     ImageDraw.Draw(img).polygon(
@@ -174,10 +160,27 @@ def render(ink=(0xEC, 0x85, 0xB4), ground=(255, 255, 255), size=1024, padding=0.
     return img.resize((size, size), Image.LANCZOS)
 
 
+def svg(size=512, ink="#EC85B4", ground="#FFFFFF", padding=0.175):
+    """The mark as an SVG, from the same polygon everything else uses."""
+    pts, outer = mark_points()
+    path = rounded_path(pts, radii_for(pts, outer))
+    scale = size * (1 - 2 * padding)
+    off = size * padding
+    ground_rect = f'<rect width="{size}" height="{size}" fill="{ground}"/>' if ground else ""
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
+  {ground_rect}
+  <g transform="translate({off:.3f} {off:.3f}) scale({scale:.5f})">
+    <path d="{path}" fill="{ink}"/>
+  </g>
+</svg>
+'''
+
+
 def emit_swift():
     """The mark as a SwiftUI `Shape`, so the app draws the vector rather than
     shipping a bitmap of it."""
     pts, outer = mark_points()
+    radii = radii_for(pts, outer)
     print("    // Generated by tools/make_logo.py --swift. Do not hand-edit.")
     print("    /// The mark's outline in a unit square, y DOWN.")
     print("    static let outline: [CGPoint] = [")
@@ -185,10 +188,15 @@ def emit_swift():
     for i in range(0, len(rows), 3):
         print("        " + ", ".join(rows[i:i + 3]) + ("," if i + 3 < len(rows) else ""))
     print("    ]")
-    print(f"    /// Which vertices round — the four outer corners only.")
-    print(f"    static let roundedCorners: Set<Int> = {sorted(outer)}".replace("[", "[").replace("]", "]"))
-    print(f"    /// The block's corner radius, as a fraction of the side.")
-    print(f"    static let cornerRatio: CGFloat = {RADIUS}")
+    print("    /// One wanted radius per vertex, as a fraction of the side.")
+    print("    /// The outer corners take the block's ratio; the interior")
+    print("    /// angles take a smaller one, so the counters read as cut")
+    print("    /// rather than as knife points.")
+    print("    static let cornerRadii: [CGFloat] = [")
+    rr = [f"{r:.4f}" for r in radii]
+    for i in range(0, len(rr), 5):
+        print("        " + ", ".join(rr[i:i + 5]) + ("," if i + 5 < len(rr) else ""))
+    print("    ]")
 
 
 def main():
