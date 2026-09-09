@@ -18,6 +18,14 @@ import SwiftUI
 /// a picture is scanning, and a scan wants an occasional date to orient on.
 struct PhotoGalleryGrid: View {
     let sections: [GallerySection]
+    /// Where the viewer should appear to come FROM.
+    ///
+    /// Given one, each cell becomes a zoom source and the viewer grows out of
+    /// the thumbnail you tapped instead of sliding up over the page. That is
+    /// the difference between a photo app and a screen that presents a sheet:
+    /// the picture you touched is the picture that opens, and nothing else
+    /// moves.
+    var transitionNamespace: Namespace.ID?
     var onSelect: (GalleryPhoto) -> Void = { _ in }
 
     /// Two points, the way a camera roll does it.
@@ -80,5 +88,20 @@ struct PhotoGalleryGrid: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(photo.title ?? "Photo")
+        .matchedTransitionSource(id: photo.id, in: transitionNamespace)
+    }
+}
+
+private extension View {
+    /// `matchedTransitionSource` wants a real namespace; this is the version
+    /// that tolerates not having one, so a caller that does not animate is not
+    /// forced to invent a namespace it never uses.
+    @ViewBuilder
+    func matchedTransitionSource(id: String, in namespace: Namespace.ID?) -> some View {
+        if let namespace {
+            self.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            self
+        }
     }
 }

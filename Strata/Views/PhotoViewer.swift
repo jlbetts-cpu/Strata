@@ -27,7 +27,6 @@ struct PhotoViewer: View {
     var onDelete: (GalleryPhoto) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
-    @State private var index: Int = 0
     @State private var confirmingDelete = false
     @State private var saving = false
     @State private var saved: Set<String> = []
@@ -40,31 +39,59 @@ struct PhotoViewer: View {
     /// have no shared idea of how many full-size images are in memory at
     /// once; a window of three, pruned on every move, does.
     @State private var images: [String: UIImage] = [:]
+    /// Which photograph is on screen, by identity. `scrollPosition` wants an
+    /// id, and identity survives a deletion changing every index.
+    @State private var currentID: String?
+    /// True while the picture on screen is zoomed in. The deck stops paging
+    /// then, or a pan across a magnified photo would flick to the next one.
+    @State private var isZoomed = false
 
     private var current: GalleryPhoto? {
-        photos.indices.contains(index) ? photos[index] : nil
+        photos.first { $0.id == currentID } ?? photos.first
+    }
+
+    private var index: Int {
+        photos.firstIndex { $0.id == currentID } ?? 0
     }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            TabView(selection: $index) {
-                ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in
-                    PhotoPage(photo: photo, image: images[photo.fileName])
-                        .tag(position)
+            // A paging `ScrollView`, not a `TabView`.
+            //
+            // `TabView`'s page style owns its own horizontal gesture and there
+            // is no way to switch it off, so panning around a zoomed-in
+            // photograph flicked to the next one. A scroll view can be told to
+            // stop, which is the whole reason for the swap — and it also lets
+            // the deck be keyed by identity rather than by index, so deleting
+            // a photograph does not renumber everything behind it.
+            GeometryReader { geo in
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 0) {
+                        ForEach(photos) { photo in
+                            PhotoPage(photo: photo,
+                                      image: images[photo.fileName],
+                                      isCurrent: photo.id == currentID,
+                                      onZoomChanged: { isZoomed = $0 })
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .id(photo.id)
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $currentID)
+                .scrollIndicators(.hidden)
+                .scrollDisabled(isZoomed)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
         }
-        .task(id: index) { await loadWindow() }
+        .task(id: currentID) { await loadWindow() }
         .overlay(alignment: .top) { header }
         .overlay(alignment: .bottom) { toolbar }
         .statusBarHidden()
-        .onAppear {
-            index = photos.firstIndex { $0.id == startAt } ?? 0
-        }
+        .onAppear { currentID = startAt }
         .confirmationDialog("Remove this photo?",
                             isPresented: $confirmingDelete,
                             titleVisibility: .visible) {
@@ -115,6 +142,31 @@ struct PhotoViewer: View {
     /// edit and no metadata worth an info panel, and a toolbar of controls
     /// that do nothing is the opposite of feeling native.
     private var toolbar: some View {
+        VStack(spacing: 18) {
+            // The title, in the black.
+            //
+            // It was on the photograph, over a veil, which is what every photo
+            // app does and what this one was asked not to do. In the letterbox
+            // it needs no veil at all, the picture is never dimmed to make
+            // room for it, and there is nothing between you and the thing you
+            // opened.
+            //
+            // Reserved whether or not there is one, so the toolbar does not
+            // step up and down as you swipe past an unnamed win.
+            Text(current?.title ?? " ")
+                .font(Typography.headerMedium)
+                .foregroundStyle(.white.opacity(current?.title == nil ? 0 : 0.95))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 24)
+                .animation(GridConstants.crossFade, value: currentID)
+
+            controlRow
+        }
+        .padding(.bottom, 34)
+    }
+
+    private var controlRow: some View {
         HStack(spacing: 0) {
             if let current, let image = shareImage {
                 ShareLink(item: image,
@@ -139,7 +191,6 @@ struct PhotoViewer: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 44)
-        .padding(.bottom, 34)
         .animation(GridConstants.motionSnappy, value: saved)
     }
 
@@ -222,21 +273,41 @@ struct PhotoViewer: View {
 
 // MARK: - One page
 
-/// One photograph, fitted, with its caption inside it.
-///
-/// The caption is on the picture because it belongs to the picture — the
-/// title is the name of the win this is a photograph of. Below it, in the
-/// letterbox, it reads as a label attached to the screen instead.
+/// One photograph, fitted, and zoomable.
 ///
 /// **`aspectRatio(_:contentMode:)`, not `scaledToFit()`.** They look the same
 /// and they are not: `scaledToFit` leaves the VIEW filling its frame with the
-/// image drawn inside it, so an overlay lands in the black. Given the image's
-/// own ratio, the view's bounds ARE the picture, and `.overlay(alignment:
-/// .bottom)` lands on it.
+/// image drawn inside it, so anything measured off it measures the letterbox.
+/// Given the image's own ratio, the view's bounds ARE the picture.
+///
+/// **Nothing shows behind it.** No placeholder colour, no shimmer, no spinner
+/// on top of the picture — a full-screen viewer that flashes something else
+/// first is the thing that makes an app feel put together out of parts. The
+/// frame is black until the photograph is there, and then it is the
+/// photograph.
+///
+/// Zoom is pinch and double tap, both of which snap back to fit when they land
+/// below 1. Panning is rubber-banded at the edges rather than hard-stopped,
+/// per `docs/apple-design.md`, and only exists while zoomed — which is also
+/// when the deck stops paging, or a pan would flick to the next picture.
 private struct PhotoPage: View {
     let photo: GalleryPhoto
     /// Handed in, not loaded here — see `PhotoViewer.images`.
     let image: UIImage?
+    let isCurrent: Bool
+    var onZoomChanged: (Bool) -> Void = { _ in }
+
+    @State private var scale: CGFloat = 1
+    @State private var committedScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var committedOffset: CGSize = .zero
+
+    /// Where a double tap takes you. Apple's is about this — far enough to be
+    /// worth the tap, near enough that the second tap back is not a fall.
+    private static let doubleTapScale: CGFloat = 2.5
+    private static let maxScale: CGFloat = 6
+
+    private var zoomed: Bool { committedScale > 1.01 }
 
     var body: some View {
         ZStack {
@@ -246,39 +317,96 @@ private struct PhotoPage: View {
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
-                    .overlay(alignment: .bottom) { caption }
+                    .scaleEffect(scale)
+                    .offset(offset)
                     .transition(.opacity)
-            } else {
-                ProgressView().tint(.white.opacity(0.5))
             }
         }
+        // A fade, and only a fade. The picture arriving by appearing is the
+        // one moment a viewer can look cheap.
         .animation(GridConstants.gentleReveal, value: image != nil)
+        .contentShape(Rectangle())
+        .gesture(magnify)
+        .simultaneousGesture(pan)
+        .gesture(doubleTap)
+        .onChange(of: zoomed) { _, now in onZoomChanged(now) }
+        .onChange(of: isCurrent) { _, now in
+            // A page that scrolled away keeps its state in a `LazyHStack`.
+            // Coming back to a photograph still magnified from last time is
+            // not what anybody means by going back to it.
+            if !now { reset(animated: false) }
+        }
     }
 
-    @ViewBuilder
-    private var caption: some View {
-        if let title = photo.title {
-            Text(title)
-                .font(Typography.headerMedium)
-                .foregroundStyle(.white)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 18)
-                .frame(maxWidth: .infinity)
-                .background(alignment: .bottom) {
-                    // The veil the photo blocks use, at the number they use —
-                    // white type on a photograph is unreadable without one,
-                    // and this app's answer to that has always been the
-                    // shortest, lightest one that works rather than a smear
-                    // of black up the picture.
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(GridConstants.photoVeilOpacity)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: 120)
-                    .allowsHitTesting(false)
+    // MARK: - Gestures
+
+    private var magnify: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                scale = min(committedScale * value.magnification, Self.maxScale)
+            }
+            .onEnded { _ in
+                if scale <= 1.01 {
+                    reset(animated: true)
+                } else {
+                    committedScale = scale
+                    withAnimation(GridConstants.motionSnappy) { clampOffset() }
+                    committedOffset = offset
                 }
+            }
+    }
+
+    private var pan: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard zoomed else { return }
+                offset = CGSize(width: committedOffset.width + value.translation.width,
+                                height: committedOffset.height + value.translation.height)
+            }
+            .onEnded { _ in
+                guard zoomed else { return }
+                withAnimation(GridConstants.motionSnappy) { clampOffset() }
+                committedOffset = offset
+            }
+    }
+
+    private var doubleTap: some Gesture {
+        TapGesture(count: 2).onEnded {
+            HapticsEngine.tick()
+            withAnimation(GridConstants.motionSnappy) {
+                if zoomed {
+                    scale = 1; offset = .zero
+                } else {
+                    scale = Self.doubleTapScale; offset = .zero
+                }
+            }
+            committedScale = scale
+            committedOffset = offset
+        }
+    }
+
+    /// Keeps the picture from being dragged off the screen.
+    ///
+    /// Proportional to how far in you are rather than a fixed number: at 2x
+    /// there is half a frame of slack in each direction, at 6x there is five
+    /// times as much, and one constant cannot be right for both.
+    private func clampOffset() {
+        let slack = (committedScale - 1) / 2
+        let limitX = UIScreen.main.bounds.width * slack
+        let limitY = UIScreen.main.bounds.height * slack
+        offset = CGSize(width: min(max(offset.width, -limitX), limitX),
+                        height: min(max(offset.height, -limitY), limitY))
+    }
+
+    private func reset(animated: Bool) {
+        let apply = {
+            scale = 1; offset = .zero
+            committedScale = 1; committedOffset = .zero
+        }
+        if animated {
+            withAnimation(GridConstants.motionSnappy) { apply() }
+        } else {
+            apply()
         }
     }
 }

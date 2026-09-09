@@ -96,6 +96,17 @@ enum DebugHarness {
         argument("-strataOpenCurated").flatMap(Int.init)
     }
 
+    /// Which gallery photograph to open the viewer on, from
+    /// `-strataOpenPhoto <index>`.
+    ///
+    /// The viewer is behind a tap, so without this it can only be photographed
+    /// by racing a UI test with a screenshot loop — which caught it in one
+    /// frame out of thirty and missed it entirely on the first try. Both new
+    /// Memories screens needed a flag of their own for the same reason.
+    static var openPhotoIndex: Int? {
+        argument("-strataOpenPhoto").flatMap(Int.init)
+    }
+
     /// Which moment card to open, from `-strataOpenMoment <index>`.
     static var openMomentIndex: Int? {
         argument("-strataOpenMoment").flatMap(Int.init)

@@ -33,6 +33,8 @@ struct MemoriesView: View {
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
+    /// Ties each thumbnail to the viewer that opens out of it.
+    @Namespace private var photoTransition
 
     var openSettings: (() -> Void)?
 
@@ -74,7 +76,8 @@ struct MemoriesView: View {
                         // inset to the page margin; the camera roll is the one
                         // that is not, because a photo grid with a margin is a
                         // set of cards.
-                        PhotoGalleryGrid(sections: vm.gallery) { photo in
+                        PhotoGalleryGrid(sections: vm.gallery,
+                                         transitionNamespace: photoTransition) { photo in
                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                         }
                     }
@@ -89,6 +92,8 @@ struct MemoriesView: View {
                             startAt: photo.id,
                             onClose: { viewing = nil },
                             onDelete: { _ in vm.reload(context: modelContext) })
+                    // Out of the thumbnail, not up from the bottom.
+                    .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
@@ -117,6 +122,13 @@ struct MemoriesView: View {
                     return nil
                 }
                 if index < curated.count { path.append(.curated(curated[index])) }
+            }
+            if let index = DebugHarness.openPhotoIndex {
+                let photos = vm.gallery.flatMap(\.photos)
+                if index < photos.count {
+                    viewing = ViewedPhoto(id: photos[index].fileName,
+                                          title: photos[index].title)
+                }
             }
             if let index = DebugHarness.openMomentIndex {
                 let moments = vm.carousel.compactMap { album -> String? in

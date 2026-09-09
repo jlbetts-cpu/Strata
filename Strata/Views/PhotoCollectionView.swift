@@ -25,12 +25,14 @@ struct PhotoCollectionView: View {
     @State private var sections: [GallerySection] = []
     @State private var title = ""
     @State private var viewing: ViewedPhoto?
+    @Namespace private var photoTransition
 
     private let calendar = Calendar.current
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PhotoGalleryGrid(sections: sections) {
+            PhotoGalleryGrid(sections: sections,
+                             transitionNamespace: photoTransition) {
                 viewing = ViewedPhoto(id: $0.fileName, title: $0.title)
             }
                 .padding(.bottom, 110)
@@ -44,6 +46,7 @@ struct PhotoCollectionView: View {
                         startAt: photo.id,
                         onClose: { viewing = nil },
                         onDelete: { _ in load() })
+                .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
         }
     }
 
