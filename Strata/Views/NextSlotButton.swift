@@ -94,6 +94,21 @@ struct NextSlotButton: View {
         Double(min(drawn / (GridConstants.slotStep * 0.5), 1))
     }
 
+    /// How strongly the slot wears the colour it is about to become.
+    ///
+    /// This used to be `drawProgress` alone, which meant the colour only
+    /// arrived if you dragged — so the commonest action in the app, a plain
+    /// hold for a small block, showed no colour at all and the block's colour
+    /// was a surprise that fell out of the sky. A finger down is already the
+    /// commitment; `apple-design.md` §1 asks for the response on pointer-DOWN,
+    /// not on release.
+    ///
+    /// It still tops out where it did. The slot must stay a GHOST — see the
+    /// note on `body` — so this drives a tint and an outline, never a surface.
+    private var colourStrength: Double {
+        max(isDown ? 0.60 : 0, drawProgress)
+    }
+
     /// Strong enough to be seen on an off-white page.
     ///
     /// This was 0.18, which on this background is very close to not being
@@ -133,13 +148,13 @@ struct NextSlotButton: View {
                 .fill(recess)
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(previewCategory.style.baseColor.opacity(drawProgress * 0.14))
+                .fill(previewCategory.style.baseColor.opacity(colourStrength * 0.14))
 
             // The outline stays dashed the whole way, and takes on the colour.
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(
-                    drawProgress > 0
-                        ? AnyShapeStyle(previewCategory.style.baseColor.opacity(0.30 + drawProgress * 0.55))
+                    colourStrength > 0
+                        ? AnyShapeStyle(previewCategory.style.baseColor.opacity(0.30 + colourStrength * 0.55))
                         : AnyShapeStyle(outline),
                     style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
                 )
@@ -148,7 +163,7 @@ struct NextSlotButton: View {
                 .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
                 .foregroundStyle(
                     AppColors.warmBlack
-                        .opacity((isDown ? 0.52 : 0.38) * (1 - drawProgress))
+                        .opacity((isDown ? 0.52 : 0.38) * (1 - colourStrength))
                 )
                 .scaleEffect(1 + charge * 0.18)
         }

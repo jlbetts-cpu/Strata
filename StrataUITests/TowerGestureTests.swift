@@ -174,6 +174,25 @@ final class TowerGestureTests: XCTestCase {
                       "dragging the slot out and releasing logged nothing")
     }
 
+    /// Holds the slot open so a screenshot burst can catch its press state.
+    ///
+    /// Not an assertion — XCUITest cannot photograph the middle of its own
+    /// gesture. It exists so `simctl io screenshot` running alongside can, and
+    /// the pixels get judged outside. Skipped unless asked for by name.
+    @MainActor
+    func testHoldTheSlotForACapture() throws {
+        guard ProcessInfo.processInfo.environment["STRATA_HOLD_SLOT"] != nil else {
+            throw XCTSkip("diagnostic only")
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "tower", "-strataSeedWins", "3"]
+        app.launch()
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 40), "no next slot")
+        Thread.sleep(forTimeInterval: 14)
+        slot.press(forDuration: 6.0)
+    }
+
     // MARK: - Memories
 
     private func launchMemories(days: Int = 60, extra: [String] = []) -> XCUIApplication {
