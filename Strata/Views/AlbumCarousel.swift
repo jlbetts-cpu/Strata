@@ -20,7 +20,9 @@ struct AlbumCarousel: View {
             forGridWidth: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2)
         return cell * 2 + GridConstants.spacing
     }
-    private let gap: CGFloat = 15
+    /// `gapItem`, not the lowfi's 15. A shelf of cards is a set of items and
+    /// takes the same step the photo grid does.
+    private let gap: CGFloat = GridConstants.gapItem
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -59,13 +61,13 @@ private struct AlbumCard: View {
                 .font(Typography.headerLarge)
                 .foregroundStyle(.primary.opacity(0.85))
                 .lineLimit(1)
-                .padding(.top, 13)
+                .padding(.top, GridConstants.gapItem)
             Text(album.subtitle)
                 .font(Typography.sectionLabel)
                 .kerning(Typography.sectionKerning)
                 .foregroundStyle(.primary.opacity(0.35))
                 .lineLimit(1)
-                .padding(.top, 3)
+                .padding(.top, 2)
         }
         .frame(width: width, alignment: .leading)
         .accessibilityElement(children: .combine)

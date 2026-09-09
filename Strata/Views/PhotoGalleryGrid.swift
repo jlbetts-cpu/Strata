@@ -18,10 +18,14 @@ struct PhotoGalleryGrid: View {
     let sections: [GallerySection]
     var onSelect: (GalleryPhoto) -> Void = { _ in }
 
-    /// Three across, at the tower's own gutter, so the gallery sits on the
-    /// same grid as everything else on the page.
+    /// Three across.
+    ///
+    /// At the tower's 4pt gutter this read as cramped, and it was the wrong
+    /// borrowing: blocks touch because touching is what makes them one object,
+    /// and a set of photographs is not one object. `gapItem` is the step for
+    /// things that merely sit beside each other.
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: GridConstants.spacing),
+        Array(repeating: GridItem(.flexible(), spacing: GridConstants.gapItem),
               count: 3)
     }
 
@@ -33,10 +37,10 @@ struct PhotoGalleryGrid: View {
                     .kerning(Typography.sectionKerning)
                     .foregroundStyle(.primary.opacity(0.35))
                     .padding(.horizontal, GridConstants.horizontalPadding)
-                    .padding(.top, 30)
-                    .padding(.bottom, 12)
+                    .padding(.top, GridConstants.gapSection)
+                    .padding(.bottom, GridConstants.gapLabel)
 
-                LazyVGrid(columns: columns, spacing: GridConstants.spacing) {
+                LazyVGrid(columns: columns, spacing: GridConstants.gapItem) {
                     ForEach(section.photos) { photo in
                         cell(photo)
                     }

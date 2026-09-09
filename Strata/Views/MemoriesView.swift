@@ -141,8 +141,8 @@ struct MemoriesView: View {
             .kerning(Typography.sectionKerning)
             .foregroundStyle(.primary.opacity(0.35))
             .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, 30)
-            .padding(.bottom, 12)
+            .padding(.top, GridConstants.gapSection)
+            .padding(.bottom, GridConstants.gapLabel)
     }
 
     // MARK: - The shelf
@@ -178,8 +178,8 @@ struct MemoriesView: View {
             onForward: { withAnimation(GridConstants.crossFade) { vm.step(months: 1, context: modelContext) } }
         )
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, 20)
-        .padding(.bottom, 10)
+        .padding(.top, GridConstants.gapItem)
+        .padding(.bottom, GridConstants.gapTight)
     }
 
     @ViewBuilder
@@ -197,7 +197,7 @@ struct MemoriesView: View {
                 onSelect: { path.append(.day($0)) }
             )
             .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 8)
+            .padding(.top, GridConstants.gapTight)
             // The month is REPLACED, not moved, so it cross-fades. A spring
             // would claim the blocks travelled somewhere.
             .id(vm.monthTitle)

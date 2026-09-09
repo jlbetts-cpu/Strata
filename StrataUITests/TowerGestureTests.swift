@@ -404,12 +404,27 @@ final class TowerGestureTests: XCTestCase {
 
         // Not every block carries a photo, so try a few. A block with none
         // correctly does nothing, which is why this is a loop and not one tap.
+        //
+        // The query is re-evaluated on every pass rather than snapshotted with
+        // `allElementsBoundByIndex` up front: the tower is still settling, the
+        // accessibility tree changes under a held array, and this test failed
+        // once and passed on a re-run with identical code. That is the trap
+        // CLAUDE.md names.
+        // Tap BLOCKS, by the seed's own title set — not "the first eight
+        // static texts", which is mostly the header and which stopped finding
+        // a photograph at all once the fixture was made sparse enough to
+        // exercise the curated rule. Blocks are matched by the same predicate
+        // that waits for the tower above.
         let close = app.buttons["Close photo"]
+        let blocks = app.staticTexts.matching(
+            NSPredicate(format: "label IN {'Sketch','Deep work','Walk','Inbox zero','Called Mum','Ten minutes','Stretched','Read a chapter','Tidied desk','Ran 5k','Wrote it down','Cooked dinner'}")
+        )
         var opened = false
-        for label in app.staticTexts.allElementsBoundByIndex.prefix(8) {
-            guard label.exists, label.isHittable else { continue }
-            label.tap()
-            if close.waitForExistence(timeout: 3) { opened = true; break }
+        for index in 0..<max(blocks.count, 1) {
+            let block = blocks.element(boundBy: index)
+            guard block.exists, block.isHittable else { continue }
+            block.tap()
+            if close.waitForExistence(timeout: 4) { opened = true; break }
         }
         XCTAssertTrue(opened, "tapping the blocks never opened a photo")
 

@@ -125,6 +125,26 @@ is the whole idea. Filling it would contradict what the tower means. The Day
 screen was a genuine fault because it anchored the same object the other way
 up; that is fixed.
 
+### What did not survive contact
+
+`BlockControls.swift` — `BlockChip`, `BlockWell`, `BlockSizePicker` — is
+**deleted**. It was step 1 of the plan above, and two things unpicked it:
+
+- The owner preferred the add sheet's original **circles** for colour and
+  **words** for size (2026-09-09), which removed both consumers of `BlockChip`
+  and `BlockSizePicker`. They are right: a swatch is a property of the block
+  you are describing rather than a block you are placing, and the words say
+  what the geometry is *for*.
+- `BlockWell`'s only consumer was `AllAlbumsView`'s search field, and that
+  screen went when the month tower and the gallery made a third list of the
+  same record redundant.
+
+The rule the components existed to serve did survive, and is visible in the
+Settings icons, the plan bullets, the month tower and the album covers — all
+of which use `BlockSurface` directly. What the episode actually shows is that
+"every surface you can act on is a block" was too strong: it is right for
+things that stand FOR a block, and wrong for things that merely describe one.
+
 ### Still open
 
 - Every rating above is against the simulator. Nothing has been judged on a

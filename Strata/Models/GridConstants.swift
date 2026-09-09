@@ -2,7 +2,32 @@ import SwiftUI
 
 enum GridConstants {
     static let columnCount = 4
+    /// The tower's gutter, and ONLY the tower's.
+    ///
+    /// 4pt is deliberately tight because blocks that touch read as one built
+    /// object — that is the whole effect the tower is after. It is the wrong
+    /// number for anything that is a set of separate things, and it had leaked
+    /// into the photo gallery, where three photographs 4pt apart read as
+    /// cramped rather than as stacked. Use the `gap` scale below for those.
     static let spacing: CGFloat = 4
+
+    // MARK: - The spacing scale
+    //
+    // Everything that is not the tower's gutter comes from here. There were
+    // thirteen distinct hard-coded values across the views — 2, 4, 5, 6, 7, 8,
+    // 10, 12, 14, 16, 18, 24 — which is not a rhythm, it is an absence of one.
+    //
+    // Four steps on a 4pt grid, and nothing between them. If a layout wants a
+    // number that is not here, the answer is almost always the nearest step.
+
+    /// Between things that belong to each other — a glyph and its label.
+    static let gapTight: CGFloat = 8
+    /// Between items in a set — photographs in a grid, chips in a row.
+    static let gapItem: CGFloat = 12
+    /// Between a heading and what it heads.
+    static let gapLabel: CGFloat = 16
+    /// Between one section and the next.
+    static let gapSection: CGFloat = 32
     static let cornerRadius: CGFloat = 8
     /// Habit blocks on tower + timeline.
     ///
