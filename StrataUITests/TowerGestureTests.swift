@@ -73,9 +73,16 @@ final class TowerGestureTests: XCTestCase {
     /// and come back at a coincidentally similar y. If the content moves at
     /// all, this changes.
     private func towerFingerprint(_ app: XCUIApplication) -> [String] {
-        app.staticTexts.allElementsBoundByIndex
-            .map { "\($0.label)@\(Int($0.frame.midY))" }
-            .sorted()
+        // Two known labels, not every element on screen. Enumerating
+        // `allElementsBoundByIndex` races the accessibility tree — it resolves
+        // a count, then indexes, and the snapshot can change in between
+        // ("No matches found for Element at index 46"). Two blocks moving is
+        // all the evidence a scroll needs.
+        ["Walk", "Sketch"].compactMap { title -> String? in
+            let e = app.staticTexts[title].firstMatch
+            guard e.exists else { return nil }
+            return "\(title)@\(Int(e.frame.midY))"
+        }
     }
 
     @MainActor
@@ -154,7 +161,8 @@ final class TowerGestureTests: XCTestCase {
         // The tally, not the block count. A win logged from the slot is
         // untitled, and an untitled block deliberately draws NO text at all —
         // so counting labels cannot see it arrive. The header numeral can.
-        XCTAssertTrue(app.staticTexts["4"].exists, "tally did not start at 4")
+        XCTAssertTrue(app.staticTexts["4"].waitForExistence(timeout: 20),
+                      "tally did not start at 4")
 
         // Out to the side is "medium" — 46pt is GridConstants.slotStep.
         let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
@@ -214,6 +222,8 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertGreaterThan(before, 1, "not enough albums to filter")
 
         field.tap()
+        XCTAssertTrue(app.keyboards.element.waitForExistence(timeout: 8),
+                      "the search field never took focus")
         field.typeText("zzzznotathing")
         Thread.sleep(forTimeInterval: 2)
         XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),

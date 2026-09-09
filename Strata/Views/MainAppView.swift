@@ -42,7 +42,10 @@ struct MainAppView: View {
     /// Logging a win is the thing the app is for, and a photograph is the
     /// fastest way to log one — so the app opens on the viewfinder rather than
     /// on the record of what you already did.
-    @State private var selectedTab: StrataTab = .camera
+    /// The tab the app opens on. A constant so the window's colour scheme can
+    /// be seeded from the same value rather than a second copy of it.
+    private static let launchTab: StrataTab = .camera
+    @State private var selectedTab: StrataTab = MainAppView.launchTab
     /// A shot waiting to become a win, held while the add sheet opens.
     @State private var capturedPhoto: UIImage?
     // #270: Tower filter persistence across launches
@@ -197,7 +200,19 @@ struct MainAppView: View {
     @State private var debugTabFlipsLeft = 0
     /// Light on every page but the camera. Held separately from `selectedTab`
     /// so it can be changed without an animation; see `mainContent`.
-    @State private var windowScheme: ColorScheme = .light
+    ///
+    /// Seeded from the tab the app OPENS on, not hardcoded to `.light`. It was
+    /// only ever updated by `.onChange(of: selectedTab)` — and once the app
+    /// started opening on the camera, the tab never changed, so the change
+    /// never fired and the window stayed light behind a black viewfinder. The
+    /// tab bar's icons came up black on black.
+    @State private var windowScheme: ColorScheme = MainAppView.scheme(for: MainAppView.launchTab)
+
+    /// The one place that decides. Both the initial value and every later
+    /// change go through it, so they cannot disagree.
+    private static func scheme(for tab: StrataTab) -> ColorScheme {
+        tab == .camera ? .dark : .light
+    }
     @State private var isSharing = false
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
@@ -486,7 +501,7 @@ struct MainAppView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                windowScheme = newTab == .camera ? .dark : .light
+                windowScheme = Self.scheme(for: newTab)
             }
         }
         // The tab bar is NOT rebuilt when leaving the camera.
@@ -1821,8 +1836,6 @@ struct MainAppView: View {
                     } else {
                         // Ground plane at tower foundation, and the water
                         // it sits on.
-                        towerGroundPlane(gridW: gridW, gridH: gridH)
-
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
                         ForEach(liveMergeGroups) { group in
@@ -2065,50 +2078,7 @@ struct MainAppView: View {
 
     // MARK: - Tower Ground Plane
 
-    private func towerGroundPlane(gridW: CGFloat, gridH: CGFloat) -> some View {
-        // Momentum Ground Glow — warms toward green as daily completions accumulate
-        // Research: Goal Gradient Effect (Hull 1932, Kivetz 2006)
-        let warmth = min(1.0, Double(todayCompletedCount) / Double(max(todayTotalCount, 1)))
-        let neutralColor = AppColors.warmBlack.opacity(0.15)
-        let glowColor = AppColors.healthGreen.opacity(warmth * 0.35)
-
-        return ZStack {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: neutralColor, location: 0.3),
-                    .init(color: neutralColor, location: 0.7),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: gridW, height: 3)
-
-            // Green warmth overlay — blends in as completions increase
-            if warmth > 0 {
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: glowColor, location: 0.25),
-                        .init(color: glowColor, location: 0.75),
-                        .init(color: .clear, location: 1)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: gridW, height: 3)
-                .blur(radius: 5)
-                .animation(GridConstants.progressFill, value: warmth)
-            }
-        }
-        .shadow(
-            color: AppColors.warmBlack.opacity(0.12),
-            radius: 4, x: 0, y: 2
-        )
-        .offset(y: gridH)
-    }
-
+ 
 
     // MARK: - Ghost Tower Empty State
 
