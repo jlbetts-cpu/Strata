@@ -27,6 +27,7 @@ one-off: if the block's rim, wash or band ever changes, re-run this and the
 icon follows. Keep the two in sync.
 """
 import math
+import re
 import os
 import sys
 
@@ -415,25 +416,171 @@ def render_svg_mark(ink, ground, size=1024, margin=0.20):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def svg_polygon(path, steps=18):
+    """The S's outline as one flat polygon, in its own SVG units.
+
+    `brand/strata-S-owner.svg` is a single closed contour — the flattened
+    union of the drawing's fill and its outside stroke, written by
+    `tools/flatten_svg.py`. One contour means the chrome pipeline below can
+    treat the letter as a block: `_mask` fills it, `MinFilter` erodes it into
+    a rim, and the band clips to it.
+
+    Flattened here rather than rasterised by `qlmanage`, which is what this
+    used to do. The rasteriser flattens onto opaque white, so the letter had
+    to be recovered from luminance and resampled — two lossy steps, and the
+    first version of it had visibly stepped edges. Sampling the curves gives
+    the geometry exactly.
+    """
+    from fontTools.pens.recordingPen import RecordingPen
+    from fontTools.svgLib.path import parse_path
+
+    d = re.findall(r'<path d="([^"]+)"', open(path).read())[0]
+    rec = RecordingPen()
+    parse_path(d, rec)
+
+    pts, cur = [], None
+
+    def sample(p0, ctrl):
+        out = []
+        for i in range(1, steps + 1):
+            t = i / steps
+            if len(ctrl) == 2:
+                (x1, y1), (x2, y2) = ctrl
+                out.append(((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * x1 + t * t * x2,
+                            (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * y1 + t * t * y2))
+            else:
+                (x1, y1), (x2, y2), (x3, y3) = ctrl
+                out.append((
+                    (1 - t) ** 3 * p0[0] + 3 * (1 - t) ** 2 * t * x1
+                    + 3 * (1 - t) * t * t * x2 + t ** 3 * x3,
+                    (1 - t) ** 3 * p0[1] + 3 * (1 - t) ** 2 * t * y1
+                    + 3 * (1 - t) * t * t * y2 + t ** 3 * y3))
+        return out
+
+    for op, args in rec.value:
+        if op == "moveTo":
+            cur = args[0]
+            pts.append(cur)
+        elif op == "lineTo":
+            cur = args[0]
+            pts.append(cur)
+        elif op in ("curveTo", "qCurveTo"):
+            seg = sample(cur, list(args))
+            pts += seg
+            cur = seg[-1]
+    return pts
+
+
+def chromed(mask, outline_pts, colour, W, top, bot, left, right):
+    """One block's surface, with the rim and the frosted band on it.
+
+    The same three moves `render` makes, lifted out so the letter and the tile
+    can both take them. See `BlockChrome.swift` for why each is built this way
+    — in particular, the blur has to happen over a field of the block's own
+    colour or PIL averages in the black behind the transparent pixels and the
+    bottom edge comes out dirty.
+    """
+    surf = Image.new("RGBA", (W, W), tuple(colour) + (255,))
+    wash = Image.new("RGBA", (W, W), (255, 255, 255, int(255 * SCRIM)))
+    surf = Image.alpha_composite(surf, wash)
+    surf.putalpha(mask)
+
+    # The rim, as a stroke clipped back inside the mask.
+    #
+    # `render` erodes with a `MinFilter` instead, which is exact but is
+    # O(pixels x kernel^2): the letter is one block rather than a fifth of
+    # one, so its rim kernel is five times wider, and at 4096px that took
+    # minutes rather than seconds. Stroking the outline and intersecting is
+    # the same region and is linear in the path.
+    rim_px = max(3, int(RIM_W_RATIO * (bot - top) * 1.15))
+    stroke = Image.new("L", (W, W), 0)
+    ImageDraw.Draw(stroke).line(list(outline_pts) + [outline_pts[0]],
+                                fill=255, width=rim_px * 2, joint="curve")
+    edge = ImageChops.multiply(stroke, mask)
+    falloff = _vgrad(W, top, bot, lambda t: 1.0 if t < 0.03 else
+                     1.0 - (1 - RIM_FALLOFF) * min(1.0, (t - 0.03) / 0.5))
+    rim = Image.new("RGBA", (W, W), (255, 255, 255, 0))
+    rim.putalpha(ImageChops.multiply(edge, falloff))
+    surf = Image.alpha_composite(surf, rim)
+
+    radius = BLUR_OF_WIDTH * (right - left)
+    field = Image.new("RGB", (W, W), tuple(colour))
+    field.paste(surf.convert("RGB"), (0, 0), surf.split()[3])
+    blurred = field.filter(ImageFilter.GaussianBlur(radius)).convert("RGBA")
+    blurred.putalpha(surf.split()[3].filter(ImageFilter.GaussianBlur(radius)))
+    bandmask = _vgrad(W, top, bot, lambda t: 0.0 if t < BAND_FEATHER else
+                      min(1.0, (t - BAND_FEATHER) / (BAND_START - BAND_FEATHER)))
+    surf = Image.composite(blurred, surf, bandmask)
+    surf.putalpha(ImageChops.multiply(surf.split()[3], mask))
+    return surf
+
+
+def render_letter_block(ground, surface, size=1024, margin=0.19):
+    """The icon: the owner's `S` as one of the app's blocks, on a pink field.
+
+    The mark used to be a flat pink `S` on white, and before that the Jaro `S`
+    cut into five stacked blocks. The five-block version is what "that pretty
+    gradient" refers to: the rim catching light along each block's top edge
+    and the frosted band softening the seam below it. A single flat letter has
+    neither, which is why it read as a sticker.
+
+    So the chrome goes on the letter. The `S` is a block — one flat colour,
+    a white rim brightest along its top edge, the bottom 26% of it out of
+    focus — standing on the app's own pink. It is the same construction as
+    every block in the tower, applied to a shape that happens to be a letter.
+    """
+    W = size * SS
+    poly = svg_polygon(MARK_SVG)
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    gw, gh = max(xs) - min(xs), max(ys) - min(ys)
+    sc = W * (1 - 2 * margin) / max(gw, gh)
+    ox = (W - gw * sc) / 2 - min(xs) * sc
+    oy = (W - gh * sc) / 2 - min(ys) * sc
+    pts = [(ox + x * sc, oy + y * sc) for x, y in poly]
+    left, right = min(p[0] for p in pts), max(p[0] for p in pts)
+    top, bot = min(p[1] for p in pts), max(p[1] for p in pts)
+
+    mask = _mask(pts, W)
+    # A crisp backing under the chromed copy, for the reason `render` gives:
+    # where the band's blur thins the surface the flat colour still shows, so
+    # the letter's silhouette stays sharp at 60pt.
+    backing = Image.new("RGBA", (W, W), tuple(surface) + (255,))
+    backing.putalpha(mask)
+    letter = Image.alpha_composite(
+        backing, chromed(mask, pts, surface, W, top, bot, left, right))
+
+    img = Image.new("RGB", (W, W), ground)
+    img.paste(letter, (0, 0), letter.split()[3])
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    # The owner's own `S`, so the icon, the in-app mark and the wordmark's
-    # first letter are one drawing (owner's call, 2026-09-09).
+    # The owner's own `S`, as one of the app's blocks, on the app's warm
+    # black.
     #
-    # Rasterised from the SVG rather than reproduced, for the same reason the
-    # wordmark is a vector asset: it is their letterform, not an approximation
-    # of it.
+    # The field was pink for a build and the letter white. Both were rendered
+    # side by side at 1024 and at 60pt, and black won on the owner's call and
+    # on the pixels: a pink field fills the tile with the app's loudest colour
+    # and leaves the letter with nothing to catch, while on black the rim
+    # along the top edge and the frosted band across the bottom are both
+    # plainly visible — which is the whole reason the letter is a block and
+    # not a shape.
     #
-    # Pink on white. It was white on pink; a pink field fills the whole tile
-    # and shouts, and the app the icon opens is a pale page with coloured
-    # blocks on it.
-    render_svg_mark(ink=PINK, ground=(255, 255, 255)).save(
+    # The pink moves to the letter, which is also where it belongs: pink is a
+    # BLOCK colour in this app, and on the icon the S is the block.
+    render_letter_block(ground=WARM_BLACK, surface=PINK).save(
         os.path.join(OUT, "AppIcon-light.png"))
-    render_svg_mark(ink=PINK, ground=WARM_BLACK).save(
+    # Dark is the same drawing. The light one is already dark, and an icon
+    # that changes identity between appearances is two icons.
+    render_letter_block(ground=WARM_BLACK, surface=PINK).save(
         os.path.join(OUT, "AppIcon-dark.png"))
-    render_svg_mark(ink=(250, 250, 250), ground=(0, 0, 0)).save(
+    # Tinted is recoloured by iOS off luminance, so it has to be monochrome
+    # going in — colour here would only be thrown away.
+    render_letter_block(ground=(0, 0, 0), surface=(250, 250, 250)).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
