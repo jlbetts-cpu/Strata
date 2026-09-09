@@ -242,14 +242,22 @@ method, every bug and what made it invisible, and the before/after numbers.
   nothing in the top two thirds to hold the other end of it. Its size is also
   bounded by the composition guides: at 40 the word ran to 276pt and crossed
   the SECOND vertical at 268, which is a title covering the grid rather than
-  sitting in it. At 32 it runs 16 to 224 — through the first vertical, which
-  is broken for it, and 44pt short of the second.
+  sitting in it. At 32 it measures 16 to 219 — through the first vertical,
+  which is broken for it, and 49pt short of the second.
 - **`Header.height` on the camera IS the wordmark's cap height.** The break in
   the first vertical is cut to the word, so the word is centred in it by
   construction rather than by a second number that has to be kept in step.
 - **The wordmark is 6.5:1**, against Jaro's 2.4:1. Sizes tuned for Jaro will
   overflow: the camera's 61pt ran the word 396pt across a 370pt page and
-  clipped the final `a`. It is 40 now, setting about 260pt.
+  clipped the final `a`. See the camera entry above for where it landed.
+- **The tower header's word is drawn too**, on the same 28-unit body as the
+  digits (`WinsWord`). Handing it `Typography.screenTitleCap` puts the `i`'s
+  dot on the numeral's cap line and its x-height at 21.02/28 of that, which is
+  what lowercase beside figures does — measured, both sit on one baseline to
+  0.00pt. **The singular is CUT from the plural** by
+  `tools/make_win_singular.py`, which drops the rightmost of the five
+  contours, so "win" and "wins" are literally the same letterforms rather than
+  two exports that nearly match.
 - **The mark is a BLOCK with the letter on it**, not a bare letter.
   `StrataMark` draws a real `BlockSurface` in mindfulness pink with the `S` in
   white over it, and the app icon is the same idea inverted — the S itself is

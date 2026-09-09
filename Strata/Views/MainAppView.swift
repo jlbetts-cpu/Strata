@@ -681,9 +681,10 @@ struct MainAppView: View {
                 // a box aligned to the grid still LOOKS indented next to a
                 // block, whose colour goes right to its edge.
                 .padding(.leading, -GridConstants.tallyOpticalInset)
-            Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(.primary.opacity(0.35))
+            // The word, drawn, on the same body as the numeral — see
+            // `WinsWord`. It was SF Pro Rounded at a subheadline size, which
+            // made a two-word header into two faces at two sizes.
+            WinsWord(count: towerVM.placedBlocks.count)
             Spacer(minLength: 0)
             // The plan, where sharing was, which was where the range picker
             // was before that.
