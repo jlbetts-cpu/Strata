@@ -174,6 +174,96 @@ final class TowerGestureTests: XCTestCase {
                       "dragging the slot out and releasing logged nothing")
     }
 
+    /// The FIRST slot of the day grows as you draw it out.
+    ///
+    /// The empty tower is its own code path — `emptyTowerSlot` rather than the
+    /// slot inside the packed grid — and it used to draw a hard-coded 1x1
+    /// whatever size you had dragged out. The drop was the right size, so
+    /// nothing about the RESULT was wrong; only the preview was, and every
+    /// day starts on this screen, so it was the first thing anyone saw the
+    /// gesture do.
+    ///
+    /// **The gesture runs on a background queue and the frame is read from
+    /// the test thread**, because `press(forDuration:thenDragTo:)` blocks
+    /// until the finger lifts — by which point the block has dropped and the
+    /// slot is back to one cell. There is no way to measure a live preview
+    /// from inside the call that produces it.
+    @MainActor
+    func testTheFirstSlotOfTheDayGrowsAsItIsDrawn() throws {
+        let app = XCUIApplication()
+        // `-strataSeedWins` at all is what makes the harness wipe the store
+        // first, so 0 is how an empty tower is asked for — not by omitting it.
+        app.launchArguments = ["-strataStartTab", "tower",
+                               "-strataSeedWins", "0",
+                               "-strataSeedHabits", "0",
+                               "-strataSeedUnlabeled", "0"]
+        app.launch()
+        if app.buttons["Wins"].waitForExistence(timeout: 10) { app.buttons["Wins"].tap() }
+        let slot = app.buttons["Log a win"].firstMatch
+        XCTAssertTrue(slot.waitForExistence(timeout: 40), "no first slot on an empty tower")
+        Thread.sleep(forTimeInterval: 10)
+        // The whole point is the EMPTY tower's own code path, so a test that
+        // ran against a tower with blocks in it would pass without ever
+        // reaching the thing it is checking.
+        // The empty state's own copy, not the tally: the header combines its
+        // children for VoiceOver, so the numeral is not a `staticText` of its
+        // own to match on.
+        XCTAssertTrue(app.staticTexts["Nothing yet today"].waitForExistence(timeout: 10),
+                      "the tower is not empty, so this is not the first slot of the day")
+
+        let before = slot.frame.width
+        XCTAssertGreaterThan(before, 0, "the slot has no width to grow from")
+
+        // Sampled on a background queue while the gesture runs here. It is
+        // this way round because event synthesis throws
+        // "Must be called on the main thread" off it — measured, and the
+        // reason this test is not the other way round.
+        //
+        // One sample could land either side of the spring, so it keeps the
+        // widest the slot is ever seen at rather than a single reading.
+        let widest = Sampler(element: slot, start: before)
+        let sampling = expectation(description: "sampling finished")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let deadline = Date().addingTimeInterval(4.5)
+            while Date() < deadline {
+                widest.observe()
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+            sampling.fulfill()
+        }
+
+        let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.15,
+                    thenDragTo: start.withOffset(CGVector(dx: 70, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 4.0)
+        wait(for: [sampling], timeout: 15)
+
+        XCTAssertGreaterThan(widest.value, before * 1.5,
+                             "the first slot of the day did not grow while being drawn out "
+                             + "(\(before)pt at rest, \(widest.value)pt widest during the drag)")
+    }
+
+    /// The widest an element has been seen at, sampled off the test thread.
+    private final class Sampler: @unchecked Sendable {
+        private let element: XCUIElement
+        private let lock = NSLock()
+        private var widest: CGFloat
+
+        init(element: XCUIElement, start: CGFloat) {
+            self.element = element
+            self.widest = start
+        }
+
+        func observe() {
+            let w = element.frame.width
+            lock.lock(); widest = max(widest, w); lock.unlock()
+        }
+
+        var value: CGFloat {
+            lock.lock(); defer { lock.unlock() }; return widest
+        }
+    }
+
     /// Holds the slot open so a screenshot burst can catch its press state.
     ///
     /// Not an assertion — XCUITest cannot photograph the middle of its own

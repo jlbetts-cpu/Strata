@@ -1843,9 +1843,12 @@ struct MainAppView: View {
         // planning lives elsewhere.
         let slotPos = towerVM.computeGhostPosition(for: drawingSize)
         let slotRows = slotPos.map { $0.row + drawingSize.rowSpan } ?? 0
-        let layoutRows = rowCount > 0
-            ? max(rowCount, slotRows)
-            : placeholderRows
+        // The tallest of the three things the container has to hold. It used
+        // to be `rowCount > 0 ? max(rowCount, slotRows) : placeholderRows`,
+        // which dropped `slotRows` on an EMPTY tower — so the first slot of
+        // the day could be dragged out to a 2x2 and the grid stayed one cell
+        // tall, leaving the drawn block outside the scrollable content.
+        let layoutRows = max(rowCount, slotRows, placeholderRows)
         let gridH = layoutRows > 0
             ? CGFloat(layoutRows) * colW + CGFloat(layoutRows - 1) * spacing
             : 0
@@ -1892,7 +1895,7 @@ struct MainAppView: View {
                         // Only when there is nothing outlined either: a day
                         // with habits still to do is not an empty tower, it is
                         // a tower that has not been built yet.
-                        emptyTowerSlot(colW: colW)
+                        emptyTowerSlot(colW: colW, gridH: gridH)
                     } else {
                         // Ground plane at tower foundation, and the water
                         // it sits on.
@@ -2142,15 +2145,25 @@ struct MainAppView: View {
 
     // MARK: - Ghost Tower Empty State
 
-    /// The next slot on an empty tower: one cell, on the ground.
+    /// The next slot on an empty tower: the first block of the day, on the
+    /// ground.
     ///
     /// This replaces a decorative three-block footing. A row of ghosts that
     /// cannot be pressed says "blocks go here" to someone who is looking for
     /// how to put one there; one slot that can be pressed answers it.
+    ///
+    /// **It is sized from `drawingSize`, exactly like the slot on a tower
+    /// that already has blocks in it.** It used to be a hard-coded 1x1, which
+    /// meant dragging out of it reported the size, previewed nothing, and
+    /// then dropped a block bigger than the slot you had drawn. Every day
+    /// starts on this screen, so that was the first thing anyone saw the
+    /// gesture do — and it was the one place it did not work.
     @ViewBuilder
-    private func emptyTowerSlot(colW: CGFloat) -> some View {
+    private func emptyTowerSlot(colW: CGFloat, gridH: CGFloat) -> some View {
         let f = GridConstants.blockFrame(
-            column: 0, row: 0, columnSpan: 1, rowSpan: 1, cellSize: colW
+            column: 0, row: 0,
+            columnSpan: drawingSize.columnSpan, rowSpan: drawingSize.rowSpan,
+            cellSize: colW
         )
         NextSlotButton(
             reduceMotion: reduceMotion,
@@ -2161,7 +2174,10 @@ struct MainAppView: View {
             onOpenMenu: { winDraft = WinDraft() }
         )
         .frame(width: f.width, height: f.height)
-        .offset(x: f.minX, y: 0)
+        // Bottom-anchored, through the same helper the placed blocks use, so
+        // the block grows UP off the ground the way the tower does rather
+        // than down through it.
+        .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
     }
 
     /// The faint footing an empty tower sits on. Blocks only — the invitation
