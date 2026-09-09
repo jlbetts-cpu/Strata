@@ -1375,6 +1375,9 @@ struct MainAppView: View {
         if let tab = DebugHarness.startTab {
             selectTab(tab)
         }
+        if DebugHarness.testsPhotoSave {
+            DebugHarness.runPhotoSaveProbe()
+        }
         if DebugHarness.dumpsShareCard {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))

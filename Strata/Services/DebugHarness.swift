@@ -53,6 +53,36 @@ enum DebugHarness {
         ProcessInfo.processInfo.arguments.contains("-strataRingLight")
     }
 
+    /// Exercises the camera-roll write and prints the outcome.
+    ///
+    /// `CameraView.fire()` is the real call site, and it cannot be reached in
+    /// the simulator — there is no camera, so `CameraService.capture` never
+    /// produces an image. This drives `PhotoLibrarySaver.save` directly with a
+    /// generated one, which covers the part most likely to be wrong: the
+    /// add-only authorisation and the `PHAssetChangeRequest` write. What it
+    /// does NOT cover is orientation and resolution of a real frame, which is
+    /// a device check.
+    static var testsPhotoSave: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataTestPhotoSave")
+    }
+
+    /// Writes a generated image to the camera roll and prints the result to
+    /// the device log, where `simctl spawn log stream` can read it.
+    static func runPhotoSaveProbe() {
+        Task { @MainActor in
+            let size = CGSize(width: 1200, height: 1600)
+            let image = UIGraphicsImageRenderer(size: size).image { ctx in
+                UIColor.systemPink.setFill()
+                ctx.fill(CGRect(origin: .zero, size: size))
+                UIColor.white.setFill()
+                ctx.fill(CGRect(x: 100, y: 100, width: 400, height: 400))
+            }
+            let enabled = PhotoLibrarySaver.isEnabled
+            let ok = await PhotoLibrarySaver.save(image)
+            NSLog("[strata-probe] photoSave enabled=\(enabled) saved=\(ok)")
+        }
+    }
+
     /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
     /// Settings and the add sheet are modals with no other scriptable route in.
     static var openSheet: String? {

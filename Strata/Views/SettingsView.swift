@@ -22,6 +22,10 @@ struct SettingsView: View {
 
     // #172/#173: Tower appearance toggles
     @AppStorage("towerShowParallax") private var towerShowParallax = true
+    /// The same defaults key `PhotoLibrarySaver` reads, so the toggle and the
+    /// service share one source of truth rather than mirroring each other.
+    /// Both default to on.
+    @AppStorage(PhotoLibrarySaver.defaultsKey) private var savesToCameraRoll = true
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     @State private var reminderTime = Date()
@@ -140,6 +144,19 @@ struct SettingsView: View {
             }
 
             // MARK: - Tower Appearance (#172)
+
+            // MARK: - Camera
+
+            Section("Camera") {
+                Toggle(isOn: $savesToCameraRoll) {
+                    Label {
+                        Text("Save to Photos")
+                    } icon: {
+                        SettingsIcon(systemName: "photo.on.rectangle.angled")
+                    }
+                }
+                .tint(AppColors.accentWarm)
+            }
 
             Section("Tower") {
                 Toggle(isOn: $towerShowParallax) {

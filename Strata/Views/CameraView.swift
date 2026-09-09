@@ -599,6 +599,16 @@ struct CameraView: View {
                 }
                 guard let image else { return }
                 HapticsEngine.success()
+                // The full-resolution frame, before `ImageManager` downscales
+                // it to 1024px for the block. This is the only place it
+                // exists, so it is the only place the camera roll can be
+                // given the real photograph.
+                //
+                // No second haptic on success: `HapticsEngine.success()` above
+                // has already confirmed the shot, and buzzing again when a
+                // background write lands would be two confirmations for one
+                // action.
+                Task { await PhotoLibrarySaver.save(image) }
                 onCaptured(image)
             }
         }

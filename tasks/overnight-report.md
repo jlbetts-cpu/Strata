@@ -682,3 +682,77 @@ store held the rewritten indices afterwards. Debug and Release build.
 a lift, whether the drag tracks a finger. Only the reorder it performs.
 Also `-strataStartTab insights` still loses the race intermittently — it
 landed on Camera once during this pass and needed a relaunch.
+
+---
+
+## Memories + camera roll — 2026-09-08
+
+### Photos now leave the app
+
+A shot taken in Strata existed only inside Strata: `ImageManager` writes a
+1024px HEIC into the app container and nothing else.
+
+`PhotoLibrarySaver` writes to the camera roll from `CameraView.fire()`,
+using the **full-resolution** frame — the one straight off
+`photo.fileDataRepresentation()`, before `ImageManager` downscales it. That
+is the only place the real photograph exists. Add-only authorisation, so the
+app never asks to read your library. A "Save to Photos" toggle sits in a new
+**Camera** section in Settings, defaulting on; it and the service share one
+defaults key rather than mirroring each other.
+
+`NSPhotoLibraryAddUsageDescription` did not exist in this project and is now
+in both build configurations. It is a *different* key from the
+`NSPhotoLibraryUsageDescription` already there, and a missing one terminates
+the app on device — this project has already been bitten by exactly that with
+`NSHealthShareUsageDescription`.
+
+**Judgement call: no second haptic.** The plan said `lightTap()` on success.
+`fire()` already fires `HapticsEngine.success()` when the shutter closes, so
+buzzing again when the background write lands would be two confirmations for
+one action. Failure is silent for the same reason it is elsewhere — the win
+saved, the photo is on its block, and a banner would report a problem nobody
+can act on.
+
+**Verified, by measurement rather than inspection.** The simulator has no
+camera, so `fire()` cannot be reached there — `CameraService.capture` never
+produces an image. A new `-strataTestPhotoSave` flag drives
+`PhotoLibrarySaver.save` directly, which covers the part most likely to be
+wrong. Both branches were run:
+
+| photos-add | result | DCIM |
+|---|---|---|
+| revoked | `enabled=true saved=false` | nothing written |
+| granted | `enabled=true saved=true` | `IMG_0012.JPG`, 3600×4800 |
+
+The written asset is the probe's own image — pink field, white square in the
+top-left — at full resolution and correctly oriented:
+`tasks/screenshots/photo-save-after.jpg`.
+`tasks/screenshots/photo-save-before.png` is the camera-permission alert that
+a fresh install puts up first, which is what blocked the first attempt.
+
+**Not verified.** A real frame from a real camera: orientation and resolution
+off the front camera in particular, which mirrors, and which has caught this
+project before. That is a device check.
+
+### The packing rule, extracted
+
+`firstFit` moved out of `MiniTowerPacker` (where it was private) into
+`GridPacker`, because the month tower has to settle blocks by exactly the
+rule the real tower uses or it stops looking like the same object.
+
+`MonthTower` is a **sibling** of `MiniTowerPacker`, not a generalisation:
+different input (days vs. logs), different output (a date string that is also
+a route vs. a UUID), different way of deciding size. Sharing anything above
+`firstFit` would need closures over both ends and would throw the route away.
+
+Ladder: **1–2 small, 3–6 medium, 7+ hard.** A rank encoding, not a ratio one
+— the sizes are 1, 2 and 4 cells and perceived area grows about as area^0.7,
+so mapping a count linearly onto area over-reads the big days twice. The cuts
+put ~8% of active days in the top bin, which keeps a 2×2 rare enough to still
+read as large, and make `.medium` the modal bin so the ordinary day is the
+ordinary block.
+
+**Verified.** 36 unit tests in 4 suites pass, 23 of them new.
+`packingOrderIsNotReadingOrder` pins down the thing the day numerals exist to
+answer: first-fit is not monotonic, so a 2×2 leaves a hole a *later* day
+drops into and position alone does not tell you which day a block is.
