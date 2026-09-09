@@ -113,6 +113,11 @@ final class CameraService: NSObject {
             session.addInput(newInput)
             input = newInput
             facing = next
+            // A new device starts at its own 1x with its own metering. Without
+            // this the pill keeps reading whatever the old lens was at, and
+            // the first pinch jumps.
+            zoom = 1
+            exposureBias = 0
         } else {
             session.addInput(current)
         }
@@ -122,6 +127,131 @@ final class CameraService: NSObject {
     /// The front camera has no lamp, so its flash is the screen. The view owns
     /// that; this says which kind is in play.
     var usesScreenFlash: Bool { facing == .front }
+
+    // MARK: - Zoom
+
+    /// How far in the lens is, as a multiple. 1 is the lens's own field.
+    private(set) var zoom: CGFloat = 1
+
+    /// The most this camera will go to.
+    ///
+    /// Capped at 8 whatever the hardware claims. Past that a wide-angle lens
+    /// is enlarging pixels rather than resolving anything, and a control that
+    /// keeps moving while the picture stops improving is a control that lies.
+    /// The front camera usually maxes out far below it and the `min` handles
+    /// that on its own.
+    var maxZoom: CGFloat {
+        guard let device = input?.device else { return 1 }
+        return min(device.activeFormat.videoMaxZoomFactor, 8)
+    }
+
+    /// Whether the lens can move at all, so the view can leave the control out
+    /// rather than draw one that does nothing.
+    var canZoom: Bool { maxZoom > 1.05 }
+
+    // MARK: - Focus and exposure
+
+    /// How far the exposure is pushed, in stops. 0 is what the camera chose.
+    private(set) var exposureBias: Float = 0
+
+    /// The range this device will accept, so the view can clamp a drag rather
+    /// than discovering the limit by being refused.
+    var exposureBiasRange: ClosedRange<Float> {
+        guard let device = input?.device else { return 0...0 }
+        return device.minExposureTargetBias...device.maxExposureTargetBias
+    }
+
+    /// Points the lens at a spot, in DEVICE coordinates (0-1, origin top-left
+    /// of the sensor's landscape frame). The view converts from the layer.
+    ///
+    /// Focus and exposure are pointed together, which is what a tap on the
+    /// native camera does: you are not saying "measure light here" or "sharpen
+    /// here", you are saying "this is the subject".
+    ///
+    /// Both modes are set only if the device supports them. A front camera
+    /// usually has fixed focus and will refuse `focusPointOfInterest`
+    /// entirely — asking anyway throws, and a throw here would take the
+    /// exposure change down with it.
+    func focus(at point: CGPoint) {
+        guard let device = input?.device else { return }
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported {
+                device.focusPointOfInterest = point
+            }
+            if device.isFocusModeSupported(.autoFocus) {
+                device.focusMode = .autoFocus
+            }
+            if device.isExposurePointOfInterestSupported {
+                device.exposurePointOfInterest = point
+            }
+            if device.isExposureModeSupported(.autoExpose) {
+                device.exposureMode = .autoExpose
+            }
+            // A tap is a fresh reading, so the bias it was carrying no longer
+            // describes anything.
+            device.setExposureTargetBias(0)
+            exposureBias = 0
+            device.unlockForConfiguration()
+        } catch {
+            // Being reconfigured. The next tap carries the same intent.
+        }
+    }
+
+    /// Pushes the exposure up or down, in stops, clamped to what the device
+    /// accepts. Safe to call on every frame of a drag.
+    func setExposureBias(_ stops: Float) {
+        guard let device = input?.device else { return }
+        let clamped = min(max(stops, device.minExposureTargetBias),
+                          device.maxExposureTargetBias)
+        guard abs(clamped - exposureBias) > 0.01 else { return }
+        do {
+            try device.lockForConfiguration()
+            device.setExposureTargetBias(clamped)
+            device.unlockForConfiguration()
+            exposureBias = clamped
+        } catch { }
+    }
+
+    /// Back to whatever the camera decides on its own, everywhere in the
+    /// frame. What flipping or leaving the screen should leave behind.
+    func resetFocus() {
+        guard let device = input?.device else { return }
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.setExposureTargetBias(0)
+            exposureBias = 0
+            device.unlockForConfiguration()
+        } catch { }
+    }
+
+    /// Sets the zoom, clamped. Safe to call on every frame of a pinch.
+    ///
+    /// The device has to be LOCKED to be written to, and a lock left open
+    /// makes every later configuration change fail silently — which is why
+    /// this is one function and not a begin/change/end trio anybody could get
+    /// half-right.
+    func setZoom(_ factor: CGFloat) {
+        guard let device = input?.device else { return }
+        let clamped = min(max(factor, 1), maxZoom)
+        guard abs(clamped - zoom) > 0.001 else { return }
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+            zoom = clamped
+        } catch {
+            // A device that will not lock is one that is being reconfigured.
+            // Dropping the frame is right; the next pinch event carries the
+            // same intent.
+        }
+    }
 
     // MARK: - Capture
 

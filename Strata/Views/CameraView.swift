@@ -38,6 +38,22 @@ struct CameraView: View {
     /// What the screen was set to before the ring light raised it. Nil when
     /// the ring is not holding it up.
     @State private var brightnessBeforeRing: CGFloat?
+    /// Where the lens was when the current pinch began. A `MagnifyGesture`
+    /// reports a magnification RELATIVE to the start of the gesture, so
+    /// multiplying it by a live value would compound on every frame.
+    @State private var zoomAtPinchStart: CGFloat?
+    /// Where the last tap-to-focus landed, in the viewfinder's own space, and
+    /// when — the reticle fades itself out.
+    @State private var focusPoint: CGPoint?
+    @State private var focusShownAt = Date.distantPast
+    /// The exposure the current drag started from, for the same reason the
+    /// pinch keeps one.
+    @State private var biasAtDragStart: Float?
+    /// The layer, so a point on screen can be turned into a point on the
+    /// sensor. `.resizeAspectFill` crops, and the crop depends on the preview's
+    /// aspect against the format's — arithmetic here would be a second copy of
+    /// a conversion AVFoundation already does exactly.
+    @State private var previewBox = PreviewLayerBox()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -158,7 +174,11 @@ struct CameraView: View {
             let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
-                CameraPreview(session: camera.session)
+                CameraPreview(session: camera.session, box: previewBox)
+
+                // The gestures the native camera has, on the viewfinder and
+                // under the chrome, so the buttons still take their own taps.
+                viewfinderGestures(w: w, h: h)
 
                 if camera.showsGuides {
                     guides(w: w, h: h, topInset: topInset)
@@ -240,6 +260,97 @@ struct CameraView: View {
             UIScreen.main.brightness = previous
             brightnessBeforeRing = nil
         }
+    }
+
+    // MARK: - Viewfinder gestures
+
+    /// Pinch to zoom, tap to focus, drag to expose, double tap to flip.
+    ///
+    /// One transparent layer carrying all four rather than four modifiers
+    /// spread over the preview: the guards between them only work if they can
+    /// see each other. A pinch also produces a drag translation, so without
+    /// `zoomAtPinchStart` in the drag's guard the exposure would swing every
+    /// time you zoomed.
+    ///
+    /// The double tap is `exclusively(before:)` the single one, which costs
+    /// the single tap a recognition delay. That is the same trade the native
+    /// camera makes and it is unavoidable: nothing can know a tap was single
+    /// until the window for a second one has passed.
+    private func viewfinderGestures(w: CGFloat, h: CGFloat) -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture(count: 2)
+                    .onEnded { _ in
+                        HapticsEngine.snap()
+                        withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                        focusPoint = nil
+                    }
+                    .exclusively(before:
+                        SpatialTapGesture(count: 1).onEnded { value in
+                            focus(at: value.location)
+                        }
+                    )
+            )
+            .simultaneousGesture(
+                MagnifyGesture()
+                    .onChanged { value in
+                        let start = zoomAtPinchStart ?? camera.zoom
+                        if zoomAtPinchStart == nil { zoomAtPinchStart = start }
+                        camera.setZoom(start * value.magnification)
+                    }
+                    .onEnded { _ in zoomAtPinchStart = nil }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { value in
+                        // Only while the reticle is up, and never during a
+                        // pinch — two fingers moving apart is also a drag.
+                        guard focusPoint != nil, zoomAtPinchStart == nil else { return }
+                        let start = biasAtDragStart ?? camera.exposureBias
+                        if biasAtDragStart == nil { biasAtDragStart = start }
+                        // Up is brighter. 120pt to a stop, so the whole usable
+                        // range is about a screen and a half of travel — far
+                        // enough that a shaky thumb does not blow the picture
+                        // out, short enough to reach the end.
+                        camera.setExposureBias(start + Float(-value.translation.height / 120))
+                        focusShownAt = Date()
+                    }
+                    .onEnded { _ in biasAtDragStart = nil }
+            )
+            .overlay(alignment: .topLeading) { reticle }
+            .frame(width: w, height: h)
+    }
+
+    /// The yellow square, and the sun you drag.
+    ///
+    /// Scaled down into place rather than faded in: the native camera's
+    /// reticle arrives by contracting onto the point, which reads as the lens
+    /// gathering onto the subject. It dims to 0.4 once it has settled and
+    /// leaves after four seconds — long enough to drag the exposure, short
+    /// enough not to become part of the picture.
+    @ViewBuilder
+    private var reticle: some View {
+        if let point = focusPoint {
+            FocusReticle(bias: camera.exposureBias, range: camera.exposureBiasRange)
+                .position(point)
+                .transition(.scale(scale: 1.4).combined(with: .opacity))
+                .allowsHitTesting(false)
+                .task(id: focusShownAt) {
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(GridConstants.gentleReveal) { focusPoint = nil }
+                }
+        }
+    }
+
+    private func focus(at location: CGPoint) {
+        guard let layer = previewBox.layer else { return }
+        let devicePoint = layer.captureDevicePointConverted(fromLayerPoint: location)
+        camera.focus(at: devicePoint)
+        HapticsEngine.tick()
+        withAnimation(GridConstants.motionSnappy) { focusPoint = location }
+        focusShownAt = Date()
     }
 
     // MARK: - Guides
@@ -357,6 +468,19 @@ struct CameraView: View {
         // A row also makes the arrangement honest: two settings either side of
         // the shutter, symmetrical, inside the arc a thumb already sweeps.
         ZStack(alignment: .bottom) {
+            VStack(spacing: 16) {
+            // Above the shutter, clear of it. It was an overlay on the row,
+            // and the row's top IS the shutter's top — so it sat on the
+            // button.
+            //
+            // Its height is reserved whether or not it is there. The pill
+            // comes and goes with the zoom, and a control that appears by
+            // pushing the shutter down is a control that moves the one thing
+            // on this screen that must not move.
+            ZStack { zoomPill }
+                .frame(height: 34)
+                .animation(GridConstants.motionSnappy, value: camera.zoom)
+
             HStack(spacing: 0) {
                 // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
                 // but `grid` is a 3x3 of separate tiles — an app-grid mark —
@@ -396,6 +520,7 @@ struct CameraView: View {
 
                 timerButton
             }
+            }
             .padding(.horizontal, 44)
             .padding(.bottom, bottomInset + shutterBottomGap)
 
@@ -416,6 +541,59 @@ struct CameraView: View {
             }
         }
         .frame(width: w, height: h, alignment: .bottom)
+    }
+
+    /// How far the lens is in, above the shutter.
+    ///
+    /// iOS Camera puts a row of lens buttons there — 0.5x, 1x, 3x — one per
+    /// physical camera. This app uses the wide-angle lens only, so a row of
+    /// buttons would be a row of one, and a control offering a single choice
+    /// is not a choice. What is left is the part that is true here: a readout
+    /// of where the lens is.
+    ///
+    /// **It is not there at 1x.** At the lens's own field there is nothing to
+    /// report and nothing to undo, and a permanent `1x` badge is a label for a
+    /// state that is not worth naming. It appears when you pinch and leaves
+    /// when you come back.
+    ///
+    /// **Tapping it returns to 1x**, which is also what makes it leave.
+    /// Getting back from 4.7x by pinching outward takes several passes and
+    /// usually overshoots; one tap is the undo, and it is the same gesture
+    /// Apple gives the lens buttons.
+    @ViewBuilder
+    private var zoomPill: some View {
+        if camera.canZoom, camera.zoom > 1.005 {
+            Button {
+                HapticsEngine.lightTap()
+                withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
+            } label: {
+                Text(Self.zoomLabel(camera.zoom))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 34)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            // After the layout, not before: the material takes its shape from
+            // the final frame.
+            .zoomGlass()
+            // It grows out of the shutter's line rather than fading in on the
+            // spot, which is what makes it read as belonging to the gesture
+            // that produced it.
+            .transition(.scale(scale: 0.7).combined(with: .opacity))
+            .accessibilityLabel("Zoom \(Self.zoomLabel(camera.zoom))")
+            .accessibilityHint("Returns to 1x")
+        }
+    }
+
+    /// `1x`, `2.4x` — one decimal, and none when it is a round number, which
+    /// is what iOS Camera does.
+    static func zoomLabel(_ factor: CGFloat) -> String {
+        let rounded = (factor * 10).rounded() / 10
+        return rounded == rounded.rounded()
+            ? String(format: "%.0fx", rounded)
+            : String(format: "%.1fx", rounded)
     }
 
     /// Off / 3s / 10s, cycling, exactly the set iOS Camera offers.
@@ -719,21 +897,98 @@ struct CameraView: View {
 /// `AVCaptureVideoPreviewLayer` is the only thing that can render the session,
 /// and it has to be resized by hand — a layer does not participate in Auto
 /// Layout, so without this it keeps whatever bounds it had when it was made.
+/// Somewhere to keep the preview layer.
+///
+/// A plain reference box, not `@Observable`: nothing re-renders when the layer
+/// arrives, it is only read inside a gesture handler that runs long after.
+@MainActor
+final class PreviewLayerBox {
+    var layer: AVCaptureVideoPreviewLayer?
+}
+
 private struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    let box: PreviewLayerBox
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.backgroundColor = .black
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
+        box.layer = view.previewLayer
         return view
     }
 
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        box.layer = uiView.previewLayer
+    }
 
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    }
+}
+
+
+// MARK: - Focus reticle
+
+/// The native camera's focus square, and its exposure sun.
+///
+/// Yellow because that is what a focus reticle is on this platform, and this
+/// is the one place in the app where matching the system beats matching the
+/// app: a person pointing a camera has a lifetime of knowing what a yellow
+/// square on a viewfinder means, and spending that to make the reticle pink
+/// would buy nothing.
+private struct FocusReticle: View {
+    let bias: Float
+    let range: ClosedRange<Float>
+
+    private static let side: CGFloat = 74
+    private static let travel: CGFloat = 34
+
+    /// Where the sun sits beside the square. Up is brighter, which is the
+    /// direction the drag goes.
+    private var sunOffset: CGFloat {
+        guard range.upperBound > range.lowerBound else { return 0 }
+        let span = Double(max(abs(range.lowerBound), abs(range.upperBound)))
+        let unit = span == 0 ? 0 : Double(bias) / span
+        return -CGFloat(max(-1, min(1, unit))) * Self.travel
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .strokeBorder(Color(red: 1, green: 0.82, blue: 0.24), lineWidth: 1.4)
+                .frame(width: Self.side, height: Self.side)
+
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.24))
+                .offset(y: sunOffset)
+                .animation(GridConstants.motionSnappy, value: sunOffset)
+                .shadow(color: .black.opacity(0.35), radius: 3)
+        }
+        // The square is what is pointed at, so the pair has to hang off the
+        // square's centre rather than the row's — otherwise tapping puts the
+        // gap between them on the subject.
+        .offset(x: 12)
+    }
+}
+
+
+private extension View {
+    /// Liquid Glass where there is any, and the closest thing there was
+    /// before it.
+    ///
+    /// `.interactive()` because this one is a button — the skill's rule is
+    /// that the interactive variant is an affordance and putting it on
+    /// decoration claims something untrue.
+    @ViewBuilder
+    func zoomGlass() -> some View {
+        if #available(iOS 26, *) {
+            self.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self.background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }
