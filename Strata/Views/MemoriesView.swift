@@ -70,6 +70,10 @@ struct MemoriesView: View {
                             shelf
                         }
 
+                        // Edge to edge. Every other thing on this page is
+                        // inset to the page margin; the camera roll is the one
+                        // that is not, because a photo grid with a margin is a
+                        // set of cards.
                         PhotoGalleryGrid(sections: vm.gallery) { photo in
                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                         }
