@@ -214,7 +214,7 @@ enum MiniTowerPacker {
         for log in eligible {
             guard let habit = log.habit else { continue }
             let size = habit.blockSize
-            guard let pos = firstFit(
+            guard let pos = GridPacker.firstFit(
                 columnSpan: size.columnSpan,
                 rowSpan: size.rowSpan,
                 grid: &grid
@@ -231,40 +231,4 @@ enum MiniTowerPacker {
         return out
     }
 
-    /// The same scan the tower uses: from the foundation up, first position
-    /// that fits, marking the cells as it goes. Append-only, so a block never
-    /// displaces one already placed.
-    private static func firstFit(
-        columnSpan: Int,
-        rowSpan: Int,
-        grid: inout [[Bool]]
-    ) -> (column: Int, row: Int)? {
-        let cols = GridConstants.columnCount
-        let maxStart = cols - columnSpan
-        guard maxStart >= 0 else { return nil }
-
-        var row = 0
-        while row < 400 {
-            while grid.count < row + rowSpan {
-                grid.append(Array(repeating: false, count: cols))
-            }
-            for col in 0...maxStart {
-                var fits = true
-                outer: for r in row..<(row + rowSpan) {
-                    for c in col..<(col + columnSpan) where grid[r][c] {
-                        fits = false
-                        break outer
-                    }
-                }
-                if fits {
-                    for r in row..<(row + rowSpan) {
-                        for c in col..<(col + columnSpan) { grid[r][c] = true }
-                    }
-                    return (col, row)
-                }
-            }
-            row += 1
-        }
-        return nil
-    }
 }
