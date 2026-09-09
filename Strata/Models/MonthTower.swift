@@ -20,6 +20,9 @@ enum MonthTower {
         let winCount: Int
         /// The day's dominant `displayCategory` — see `dominantCategory`.
         let category: HabitCategory
+        /// The day's photographs, newest first. Empty for a day nobody
+        /// photographed, which is most of them.
+        var photoFileNames: [String] = []
 
         var id: String { dateString }
         var size: BlockSize { MonthTower.size(forWinCount: winCount) }
@@ -31,6 +34,9 @@ enum MonthTower {
         let dayOfMonth: Int
         let winCount: Int
         let category: HabitCategory
+        /// The day's photographs, newest first — what the block shows, if it
+        /// shows anything but its colour.
+        var photoFileNames: [String] = []
         let column: Int
         let row: Int
         let columnSpan: Int
@@ -128,6 +134,7 @@ enum MonthTower {
                 dayOfMonth: day.dayOfMonth,
                 winCount: day.winCount,
                 category: day.category,
+                photoFileNames: day.photoFileNames,
                 column: pos.column,
                 row: pos.row,
                 columnSpan: size.columnSpan,

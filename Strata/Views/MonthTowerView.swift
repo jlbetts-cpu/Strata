@@ -51,9 +51,22 @@ struct MonthTowerView: View {
         } label: {
             BlockSurface(
                 cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
-                scale: cell / GridConstants.blockReferenceCell
+                scale: cell / GridConstants.blockReferenceCell,
+                // A white wash floors a photograph's luminance at its own
+                // alpha. The tower's photo blocks drop to 0.06 for exactly
+                // this reason and these are the same object.
+                washOpacity: block.photoFileNames.isEmpty
+                    ? GridConstants.blockScrimOpacity : 0.06
             ) {
-                block.category.style.baseColor
+                ZStack {
+                    // The colour is still under the picture, not replaced by
+                    // it: it is what the block IS while the photograph
+                    // decodes, and it is what shows through the rim.
+                    block.category.style.baseColor
+                    DayPhotoSlideshow(fileNames: block.photoFileNames,
+                                      size: size,
+                                      phase: block.dayOfMonth)
+                }
             }
             .frame(width: size.width, height: size.height)
             .overlay(alignment: .bottomLeading) {
@@ -75,13 +88,77 @@ struct MonthTowerView: View {
                     // this numeral is the block's coordinate, so it has to
                     // stay in proportion to the block.
                     .font(Typography.numeral(cell * 0.16))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.white.opacity(block.photoFileNames.isEmpty ? 0.55 : 0.9))
+                    // Only on a photograph, and only as much as it takes.
+                    // On flat colour the numeral sits in the frosted band and
+                    // needs nothing; on a picture it can land on anything.
+                    .shadow(color: .black.opacity(block.photoFileNames.isEmpty ? 0 : 0.45),
+                            radius: 3, y: 1)
                     .padding(cell * 0.11)
                     .accessibilityHidden(true)
             }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Day \(block.dayOfMonth), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")")
+    }
+}
+
+// MARK: - The photographs on a day
+
+/// A day's photographs, cycling on its block.
+///
+/// The month used to be thirty blocks of flat colour, which said how much you
+/// did and nothing about what it was. A day you photographed has the answer
+/// sitting in the store; showing it turns the month from a chart into the
+/// thing the page is for.
+///
+/// **A stagger, not a slideshow.** Thirty blocks crossfading on one clock is a
+/// wall that blinks, and the eye reads a blink as an alert. Each block's phase
+/// comes from its own day number, so at any moment one or two are changing and
+/// the month reads as alive rather than as animated. Reduce Motion turns it off
+/// entirely and leaves the newest photograph, which is the right still frame.
+///
+/// A block with one photograph does not cycle, and a block with none draws
+/// nothing at all — no placeholder, no shimmer. A day is allowed to just be a
+/// colour.
+private struct DayPhotoSlideshow: View {
+    let fileNames: [String]
+    let size: CGSize
+    /// What makes this block's clock its own. The day of the month, so two
+    /// blocks side by side are never in step.
+    let phase: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var index = 0
+
+    /// How long one photograph holds.
+    ///
+    /// Long. This is a page you scroll past, not a screensaver, and anything
+    /// quick enough to catch the eye while you are reading below it is a
+    /// distraction rather than a detail.
+    private static let dwell: Duration = .seconds(5)
+
+    var body: some View {
+        ZStack {
+            if let name = fileNames.isEmpty ? nil : fileNames[index % fileNames.count] {
+                CachedImageView(fileName: name, width: size.width,
+                                height: size.height, cornerRadius: 0)
+                    .frame(width: size.width, height: size.height)
+                    .id(name)
+                    .transition(.opacity)
+            }
+        }
+        .animation(GridConstants.crossFade, value: index)
+        .task(id: fileNames.first) {
+            guard fileNames.count > 1, !reduceMotion else { return }
+            // Offset the first tick so the month does not turn over at once.
+            try? await Task.sleep(for: .seconds(Double(phase % 7) * 0.7))
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.dwell)
+                guard !Task.isCancelled else { return }
+                index += 1
+            }
+        }
     }
 }
 

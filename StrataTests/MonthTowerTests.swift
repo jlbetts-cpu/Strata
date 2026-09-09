@@ -150,3 +150,63 @@ struct MonthTowerTests {
         #expect(second.column > first.column)
     }
 }
+
+/// A day's photographs reach the block that draws it.
+///
+/// The month blocks show the day's pictures now, and the path from the store
+/// to the block runs through two value types and a packer. It broke silently
+/// the first time — the blocks rendered flat colour and nothing errored,
+/// because an empty array of file names is a perfectly good day that nobody
+/// photographed.
+@Suite("Month photographs")
+@MainActor
+struct MonthPhotoTests {
+
+    private func record(day: Int, photo: String?) -> WinRecord {
+        var components = DateComponents()
+        components.year = 2026; components.month = 9; components.day = day
+        components.hour = 12
+        let date = Calendar(identifier: .gregorian).date(from: components)!
+        return WinRecord(
+            dateString: String(format: "2026-09-%02d", day),
+            completedAt: date,
+            title: "Walk",
+            category: .health,
+            size: .small,
+            photoFileName: photo
+        )
+    }
+
+    @Test("a photographed day carries its file names onto its block")
+    func photosReachTheBlock() {
+        let packed = MemoriesViewModel.pack(
+            [record(day: 3, photo: "a.heic"), record(day: 3, photo: "b.heic")],
+            calendar: Calendar(identifier: .gregorian)
+        )
+        let block = packed.blocks.first { $0.dayOfMonth == 3 }
+        #expect(block?.photoFileNames.count == 2)
+    }
+
+    @Test("newest first, so a block showing one shows the last thing that happened")
+    func newestFirst() {
+        var early = record(day: 4, photo: "early.heic")
+        early = WinRecord(dateString: early.dateString,
+                          completedAt: early.completedAt.addingTimeInterval(-3600),
+                          title: early.title, category: early.category,
+                          size: early.size, photoFileName: "early.heic")
+        let packed = MemoriesViewModel.pack(
+            [early, record(day: 4, photo: "late.heic")],
+            calendar: Calendar(identifier: .gregorian)
+        )
+        #expect(packed.blocks.first { $0.dayOfMonth == 4 }?.photoFileNames.first == "late.heic")
+    }
+
+    @Test("a day nobody photographed carries none")
+    func unphotographedDay() {
+        let packed = MemoriesViewModel.pack(
+            [record(day: 5, photo: nil)],
+            calendar: Calendar(identifier: .gregorian)
+        )
+        #expect(packed.blocks.first { $0.dayOfMonth == 5 }?.photoFileNames.isEmpty == true)
+    }
+}

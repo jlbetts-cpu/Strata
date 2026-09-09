@@ -191,7 +191,12 @@ final class MemoriesViewModel {
                 winCount: group.count,
                 category: MonthTower.dominantCategory(
                     group.map { (category: $0.category, at: $0.completedAt) }
-                )
+                ),
+                // Newest first, so a block that shows only one shows the
+                // last thing that happened that day.
+                photoFileNames: group
+                    .sorted { $0.completedAt > $1.completedAt }
+                    .compactMap(\.photoFileName)
             )
         }
         return MonthTower.pack(days)
