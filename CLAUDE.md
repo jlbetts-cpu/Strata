@@ -210,6 +210,29 @@ method, every bug and what made it invisible, and the before/after numbers.
   which is what the owner noticed. If one changes, regenerate the other.
 - **Light appearance only** (`UIUserInterfaceStyle = Light`), chosen 2026-09-06.
 - **SF Symbols only.** No second icon pack, no custom assets.
+- **Memories is a self-curating gallery** (2026-09-09). Three time rules
+  (`AlbumMoment`) do the curating — the same date one to three years back,
+  the same week last year, last month — copied from Snapchat's Flashback,
+  which triggers on a saved snap at least a year old TO THE DAY. Under the
+  shelf is a month-by-month photo grid. **Days are not on the shelf**: the
+  month tower reaches every day, so a second list of them was clutter, and
+  `AllAlbumsView`, `DayAlbum`, `WeekSection` and the week paging went with
+  it. There is no search anywhere in the app now. The shelf is not drawn at
+  all when nothing has earned a card.
+- **One screen title size, 34pt** (`Typography.screenTitle`), used by every
+  page that names itself, including the Wins tally. They were 48, 33 and 64,
+  so changing tabs changed the scale of the page. `tallyOpticalInset` is
+  proportional to the numeral because its 4pt was measured at 64.
+- **The ground is no longer warm** (`WarmBackground`, name kept deliberately —
+  see its doc). Six candidates were rendered against the full block palette:
+  CIELAB separation varied by two units across all of them, so contrast was
+  never the question. The warmth was a yellow cast pulling against the cool
+  half of the palette.
+- **The add sheet's size control uses WORDS and its colour control uses
+  CIRCLES** (owner's call, 2026-09-09). Both were briefly blocks under the
+  "everything is a block" rule. A swatch is a property of the block you are
+  describing rather than a block you are placing, and the words say what the
+  geometry is *for*. Do not convert them back.
 - **Memories replaced History replaced Insights** (2026-09-08, owner's call,
   to a Figma lowfi at `KZsjpiFjwv3pgAwRCht4gU` node `611:109`). The
   fourteen-day bar chart is **deleted**, and with it `TowerBarChart`,

@@ -1053,3 +1053,48 @@ seen on a real display; a zero-win day renders a title and nothing else
 (unreachable in the app, but `-strataOpenDay` can get there); and a few
 pre-block tokens (`radiusField`, `fillTrack`) are a second vocabulary for
 things the block components now cover.
+
+### Memories, second pass — 2026-09-09
+
+**Researched, not guessed.** Snapchat surfaces a Flashback whenever you have a
+saved snap at least a year old *to the day*, puts it at the top of Memories,
+and titles it by what is in it. Apple Photos does the same under "On This Day".
+Worth copying because it asks nothing of the user: the calendar curates, so the
+screen has something on a day you have not opened it in months.
+
+`AlbumMoment` is three rules and no more — the same date one to three years
+back, the same week last year, the whole of last month. They earn a card at
+three photographs rather than the five a repeated interest needs, because a
+moment's claim is smaller and three is what fills the cover's fan.
+
+**Under the shelf is a photo gallery**, month by month, every photograph
+carrying its win's title.
+
+**Days left the shelf**, and the paged album grid went with them —
+`AllAlbumsView`, `DayAlbum`, `WeekSection`, the week paging and the search
+field. The month tower reaches every day and the gallery reaches every
+photograph; a third list of the same record was clutter. Search now has no
+screen at all, which is a real removal rather than a hidden one.
+
+**Reverted on your preference:** size is words again, colour is circles.
+
+**One title size, 34pt.** Memories was 48, a day 33, the tally 64 — changing
+tabs changed the scale of the page. The tally comes down with them and its
+optical inset is proportional now, because the 4pt was measured at 64.
+
+**The month header no longer pins**, and the month name is a native `Menu` of
+every month there is.
+
+**The ground stops being warm.** Six candidates rendered against the full block
+palette: CIELAB separation varied by two units across all of them, so contrast
+was never the question — the warmth was a yellow cast pulling against the blue,
+purple and green half of the palette. What ships is the faintest cool lift.
+`tasks/screenshots/ground-candidates.png`.
+
+**Verified.** 74 unit tests in 6 suites, 14 new and all on date arithmetic:
+leap days, a previous month shorter than this one, weeks crossing a year. One
+caught my own wrong expectation — three photographs a year ago today earn TWO
+cards, because that date is also inside that week last year.
+
+**Still open.** Nothing seen on a real display. Search is gone with no
+replacement. A zero-win day still renders a title and nothing else.
