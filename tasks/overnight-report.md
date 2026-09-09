@@ -920,3 +920,90 @@ generic/platform=iOS build.
 **Not verified.** Other devices and Dynamic Type. The rule is proportional so
 it should hold, but 0.2313 was measured on one simulator at one text size, and
 `headerCapTop` is in points rather than scaled.
+
+---
+
+## Overnight, 2026-09-09
+
+### Bad news first
+
+- **The curated-album rule still cannot be judged from the fixture.** The seed
+  photographs nearly every title, so every one clears the gate and the shelf is
+  all curated cards (capped at four). The rule is unit-tested exactly; it is
+  the fixture that is wrong. Still outstanding.
+- **The design work is one pass, not a finished redesign.** `docs/design-audit.md`
+  rates every screen and lists five steps; three are done. Day and Plan
+  composition, and the Wins screen's empty middle, are not.
+- **Nothing here is verified on a device.** Everything below is the simulator.
+
+### Four things you asked for, done
+
+**The slot shows its colour when you hold it.** It only tinted while you
+dragged OUT to make a bigger block, so the commonest gesture in the app — a
+plain hold for a small one — showed nothing and the colour arrived as a
+surprise falling from the sky. Proven by burst capture: 74 of 200 frames carry
+the coral the next block was going to be. Two instrument errors on the way,
+both the trap CLAUDE.md names — the first burst photographed a previous launch
+still on screen, the second missed the press because 70 frames spans 12
+seconds and the press starts at 14.
+
+**The ring light stays on.** It existed for the 200ms of the exposure, so it
+lit the photograph and nothing else. Armed, it is now a ring — base fill 0.72
+down to 0.10, so the overlay lights your face instead of hiding it — and the
+full flash stacks on top at capture, returning to the ring afterwards rather
+than to darkness. Measured: centre luminance 22, edges 111/112/146. The ring
+owns screen brightness now and every exit path restores it.
+
+**A plan, as blocks you have not built yet.** Unchecked, a bullet is an
+outline carrying no colour — the tower's own word for "nothing here yet".
+Checked, it is a real block in its colour with a tick. Return makes the next
+line, backspace on an empty one removes it and moves the caret up, pressing
+below the list starts a line, and repeats live behind an info button as they
+do in Reminders. A finished line stays until the day turns; `PlanItem.sweep`
+clears finished one-offs at the next launch on a new day, brings finished
+repeats back unchecked, and leaves anything unfinished alone.
+
+**The app icon is pink again, and it is the same logo as the mark inside.**
+Five coloured bands render beautifully at 1024px and turn to mush at 50 — the
+riser bands come out four pixels tall and the colours average into a blob.
+Rendered side by side at 210/110/70/50, one colour knocked out of a pink field
+reads instantly at every size. The blocks are still all there; the field shows
+through the seams. `StrataMark` is the same construction, so there is one logo
+rather than two.
+
+### The design audit
+
+`docs/design-audit.md`, written from a single contact sheet of every screen
+(`tasks/screenshots/design-audit-before.png`). The honest finding:
+
+| Screen | Was | Now |
+|---|---|---|
+| Wins (full) | 8.5 | 8.5 |
+| Camera | 8.0 | 8.0 |
+| Plan | — | 6.5 |
+| Add a win | 5.5 | rebuilt |
+| Memories | 5.0 | rebuilt |
+| Settings | 4.0 | rebuilt |
+
+**Strata is beautiful exactly where it is made of blocks and anonymous
+everywhere else.** One rule fixes that, and it is now a component set:
+*every surface you can act on is a block, or it gets out of the way.*
+
+- **Add a win** had colour as CIRCLES and size as a segmented control reading
+  "Quick / Regular / Deep" — words for shapes, on a screen whose subject is
+  shapes. Colour is blocks now; size is the three shapes at true proportion;
+  the empty photo well is the tower's own dashed slot.
+- **Memories** opened on a search field with the month tower 60% down and cut
+  off. The month leads now, and the search field is gone — `AllAlbumsView`
+  already had one over the whole record. Album covers stopped being 156×254
+  Photos cards and became 2×2 blocks holding a photograph.
+- **Settings** scored lowest because nothing on it was Strata. Its icons are
+  small blocks now.
+
+Before and after: `tasks/screenshots/design-pass-1.png`.
+
+### What I would do next
+
+1. Extend `-strataSeedHistory` so most titles fall below the curated gate.
+2. Compose the empty space on Day, Plan and a near-empty Wins.
+3. Put it on your phone — none of this has been on a real display.

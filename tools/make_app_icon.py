@@ -54,12 +54,30 @@ ORANGE = (0xFD, 0xB5, 0x4F)   # focus
 PINK = (0xEC, 0x85, 0xB4)     # mindfulness — the app's own colour
 WARM_BLACK = (0x1C, 0x1A, 0x18)
 
-# Bottom to top. Chosen by measuring CIELAB distance between touching pairs
-# rather than by eye: this ordering has the largest MINIMUM separation of any
-# arrangement (dE 99 against 30 for the spectrum that looked right), so no two
-# blocks blur into one at 60pt. Pink sits on the bottom band because it is the
-# largest and pink is the colour the app already had.
-ORDER = [PINK, GREEN, PURPLE, ORANGE, BLUE]
+# The mark is ONE colour, knocked out of a field.
+#
+# It was five, one per band, ordered by measured CIELAB separation. On a
+# 1024px render that is lovely. At 50pt on a home screen it is mush: the two
+# riser bands are four pixels tall, the colours average together, and what
+# survives is a vague colourful blob rather than a letter. Rendered side by
+# side at 210/110/70/50 the single-colour version reads instantly at every
+# size and the five-colour one stops being legible below about 100.
+#
+# So the blocks are still there — you can see all five, because the field
+# shows through the seams between them — but the thing you recognise from
+# across a home screen is one confident shape in the app's own pink.
+KNOCKOUT_GROUND = PINK
+KNOCKOUT_INK = (255, 255, 255)
+KNOCKOUT_GROUND_DARK = (0xC8, 0x6B, 0x98)   # mindfulness `darkShade`
+
+# The gap between bands, in font units.
+#
+# The tower's gutter is 4pt on an 86.5pt cell — 4.6%. Held to that here, a
+# band is ~267 units tall, so the seam is 12 units, which at 50pt on a home
+# screen is a third of a pixel and disappears. 26 is what survives the
+# smallest size the icon is ever drawn at, which is the size that decides
+# whether anyone recognises it.
+KNOCKOUT_GAP = 26.0
 
 # The glyph's own inner corners.
 CUTS = [0, 367, 545, 815, 1000, 1333]
@@ -283,18 +301,44 @@ def emit_swift(eps=2.0):
     print(f"    static let aspect: CGFloat = {gw / gh:.4f}")
 
 
+def render_knockout(ground, ink, size=1024, gap=KNOCKOUT_GAP):
+    """The S in one colour, with the field showing through its seams."""
+    poly = outline()
+    W = size * SS
+    minx, maxx, miny, maxy = BBOX
+    gw, gh = maxx - minx, maxy - miny
+    sc = (W * (1 - 2 * MARGIN)) / gh
+    ox = (W - gw * sc) / 2 - minx * sc
+    oy = (W + gh * sc) / 2 + miny * sc
+
+    img = Image.new("RGB", (W, W), ground)
+    draw = ImageDraw.Draw(img)
+    for i in range(5):
+        lo = CUTS[i] + (gap / 2 if i else 0)
+        hi = CUTS[i + 1] - (gap / 2 if i < 4 else 0)
+        pts = band(poly, lo, hi)
+        if not pts:
+            continue
+        draw.polygon([(ox + p[0] * sc, oy - p[1] * sc) for p in pts], fill=ink)
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    render(ORDER, ground=(255, 255, 255), out=os.path.join(OUT, "AppIcon-light.png"))
-    render(ORDER, ground=WARM_BLACK, out=os.path.join(OUT, "AppIcon-dark.png"))
-    # Tinted: iOS reads luminance and applies the user's own hue, so colour is
-    # no help — the blocks have to stay apart as GREYS. Alternating two light
-    # values keeps every seam readable at 60pt without any block going so dark
-    # it drops out of the tint.
-    alternating = [(250,) * 3, (190,) * 3, (250,) * 3, (190,) * 3, (250,) * 3]
-    render(alternating, ground=(0, 0, 0), out=os.path.join(OUT, "AppIcon-tinted.png"))
+    render_knockout(KNOCKOUT_GROUND, KNOCKOUT_INK).save(
+        os.path.join(OUT, "AppIcon-light.png"))
+    # Dark: the same mark on a deeper pink. Not on black — a pink icon that
+    # turns black in dark mode is a different icon, and people find an app by
+    # its colour before they read its shape.
+    render_knockout(KNOCKOUT_GROUND_DARK, KNOCKOUT_INK).save(
+        os.path.join(OUT, "AppIcon-dark.png"))
+    # Tinted: iOS reads luminance and applies the user's own hue, so the mark
+    # has to carry on shape alone — white on black, with the seams doing the
+    # work they do everywhere else.
+    render_knockout((0, 0, 0), (250, 250, 250)).save(
+        os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
         print(f"{name:7} {Image.open(p).size}  {p}")

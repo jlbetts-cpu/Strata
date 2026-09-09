@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The app's mark: the S, taken apart into the blocks it is made of.
+/// The app's mark: a block with the S cut out of it.
 ///
 /// Jaro's S is not a curve — it is an angular ribbon, and its outline has four
 /// INNER corners. Cutting the glyph on those four lines splits it into exactly
@@ -10,8 +10,13 @@ import SwiftUI
 ///
 /// This is the same construction as the app icon, from the same generator, so
 /// the thing on the home screen and the thing inside the app cannot drift into
-/// two different logos. It replaced a pink block with a white letter on it,
-/// which stopped matching the icon the moment the icon became this.
+/// two different logos.
+///
+/// It was five coloured bands for a day. That reads beautifully at 1024px and
+/// turns to mush at 50 — the two riser bands come out four pixels tall and the
+/// colours average into a blob. One colour, with the field showing through the
+/// seams, survives every size the mark is drawn at, and it is the pink the app
+/// had before any of this.
 ///
 /// The polygons are generated rather than typed:
 ///
@@ -24,85 +29,64 @@ import SwiftUI
 /// edge, and the frosted band over the bottom 26% — reproduced for a `Path`.
 /// If `BlockSurface` changes, change this with it.
 struct StrataMark: View {
-    /// The mark's height. Width follows from the letterform.
-    var height: CGFloat = 44
+    /// The mark is square: a block with the letter cut out of it.
+    var side: CGFloat = 44
 
-    private var width: CGFloat { height * Self.aspect }
+    /// Mindfulness pink — the app's own colour, and the one the icon wears.
+    private var pink: Color { HabitCategory.mindfulness.style.baseColor }
 
-    /// Bottom to top, matching the icon. The order was chosen by measuring
-    /// CIELAB distance between touching blocks, not by eye — see
-    /// `tools/make_app_icon.py`.
-    private static let colours: [HabitCategory] = [
-        .mindfulness, .health, .creativity, .focus, .work
-    ]
+    /// The gap between the S's bands, as a fraction of the mark's height.
+    /// `KNOCKOUT_GAP` in the generator, over the glyph's 1333-unit height.
+    private static let seam: CGFloat = 26.0 / 1333.0
+
+    /// The letter's own proportions inside the block. It is inset so the
+    /// knockout does not run into the block's rim.
+    private static let inset: CGFloat = 0.16
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(Array(Self.bands.enumerated()), id: \.offset) { index, points in
-                block(points, category: Self.colours[index])
-            }
+        BlockSurface(
+            cornerRadius: GridConstants.blockCornerRadius(forCell: side),
+            // Rim weight and blur are absolutes tuned to the tower's cell; at
+            // 44pt an unscaled 1.4pt rim is nearly twice as heavy in
+            // proportion. `BlockSurface` already takes the ratio.
+            scale: side / GridConstants.blockReferenceCell
+        ) {
+            pink
         }
-        .frame(width: width, height: height)
+        .frame(width: side, height: side)
+        .overlay { letter }
         .accessibilityLabel("Strata")
     }
 
-    private func block(_ points: [CGPoint], category: HabitCategory) -> some View {
-        let path = Self.path(points, width: width, height: height)
-        let box = path.boundingRect
-        // Blur is a fraction of the block's WIDTH, as it is on a real block —
-        // never of the rim, which is a separate element.
-        let blur = max(0.4, box.width * 0.0178)
-
-        return surface(path, category: category)
-            .mask(alignment: .topLeading) {
-                // The sharp copy reaches down to the band and stops; the
-                // blurred one underneath is already at full opacity by then,
-                // so the two never sum to less than opaque.
-                LinearGradient(
-                    stops: [
-                        .init(color: .white, location: GridConstants.blockBandFeatherEnd),
-                        .init(color: .clear, location: min(1, GridConstants.blockBandFeatherEnd + 0.12))
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(width: box.width, height: box.height)
-                .offset(x: box.minX, y: box.minY)
+    /// The S, cut out of the block in white, with the pink showing through the
+    /// seams between its five bands.
+    private var letter: some View {
+        let h = side * (1 - Self.inset * 2)
+        let w = h * Self.aspect
+        return ZStack(alignment: .topLeading) {
+            ForEach(Array(Self.bands.enumerated()), id: \.offset) { index, points in
+                Self.path(points, width: w, height: h,
+                          seam: Self.seam, index: index)
+                    .fill(.white)
             }
-            .background(alignment: .topLeading) {
-                surface(path, category: category)
-                    .blur(radius: blur)
-                    // Clipped back to its own block. `BlockSurface` lets the
-                    // blur spill past the bottom edge, which is right on the
-                    // tower because the 4pt gutter catches it. There is no
-                    // gutter here, so the spill would land on the block below
-                    // and mix two colours into a dirty seam.
-                    .clipShape(path)
-            }
-    }
-
-    private func surface(_ path: Path, category: HabitCategory) -> some View {
-        ZStack {
-            path.fill(category.style.baseColor)
-            path.fill(.white.opacity(GridConstants.blockScrimOpacity))
-            // The rim, brightest along the top edge: a block is lit from
-            // above, not outlined. Stroked at double width and clipped, which
-            // is the inner border `strokeBorder` would give if a `Path` were
-            // insettable.
-            path.stroke(
-                LinearGradient(
-                    colors: [.white, .white.opacity(GridConstants.blockRimFalloff)],
-                    startPoint: .top, endPoint: .bottom
-                ),
-                lineWidth: GridConstants.blockRimWidth * 2 * (height / (5 * GridConstants.blockReferenceCell))
-            )
-            .clipShape(path)
         }
+        .frame(width: w, height: h)
     }
 
-    private static func path(_ points: [CGPoint], width: CGFloat, height: CGFloat) -> Path {
+    /// One band, inset by half a seam top and bottom so the field shows
+    /// through between them. The polygons are normalised into a unit box, so
+    /// trimming in y is a straight clamp.
+    private static func path(_ points: [CGPoint], width: CGFloat, height: CGFloat,
+                             seam: CGFloat, index: Int) -> Path {
+        // Band boundaries in the same normalised space the points use.
+        let cuts: [CGFloat] = [0, 0.2498, 0.3886, 0.5911, 0.7247, 1.0]
+        let top = cuts[4 - index] + (index == 4 ? 0 : seam / 2)
+        let bottom = cuts[5 - index] - (index == 0 ? 0 : seam / 2)
+
         var p = Path()
         for (i, pt) in points.enumerated() {
-            let q = CGPoint(x: pt.x * width, y: pt.y * height)
+            let y = min(max(pt.y, top), bottom)
+            let q = CGPoint(x: pt.x * width, y: y * height)
             if i == 0 { p.move(to: q) } else { p.addLine(to: q) }
         }
         p.closeSubpath()
