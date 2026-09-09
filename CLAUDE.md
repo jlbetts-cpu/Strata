@@ -284,11 +284,27 @@ method, every bug and what made it invisible, and the before/after numbers.
   of those and each was defensible; together they made a photo grid that
   looked designed rather than like photographs. The titles moved onto the
   photograph in the viewer, which is where anybody actually reads one.
-- **A photo viewer FITS, and its caption is on the picture.** Use
-  `aspectRatio(_:contentMode:)`, not `scaledToFit()` — they look identical
-  and are not: `scaledToFit` leaves the view filling its frame with the image
-  drawn inside it, so an overlay lands in the letterbox. Given the image's own
-  ratio the view's bounds ARE the picture.
+- **A photo viewer FITS, and its caption is in the BLACK, not on the
+  picture** (2026-09-09, owner's call — it was on the picture for one build).
+  Use `aspectRatio(_:contentMode:)`, not `scaledToFit()`, wherever anything
+  has to be measured against the picture: they look identical and are not —
+  `scaledToFit` leaves the view filling its frame with the image drawn inside
+  it, so an overlay lands in the letterbox. Given the image's own ratio the
+  view's bounds ARE the picture.
+- **The photo deck is a paging `ScrollView`, not a `TabView`.** `TabView`'s
+  page style owns its horizontal gesture and there is no way to switch it off,
+  so panning a zoomed-in photograph flicked to the next one. A scroll view can
+  be told to stop. It is also keyed by identity rather than index, so deleting
+  a photograph does not renumber the deck behind it.
+- **A photo opens out of its thumbnail**, via `matchedTransitionSource` +
+  `.navigationTransition(.zoom(sourceID:in:))`. Not a sheet sliding up.
+- **A crossfade must never reveal what is under it.** `.transition(.opacity)`
+  on one slot fades both copies through partial alpha at once, the pair
+  composites to less than opaque, and the substrate shows through the middle
+  of the handover — a block's flat colour, in the month tower's case. Hold the
+  outgoing layer at full opacity underneath and bring the incoming one up on
+  top, then swap. Same mistake `BlockSurface` documents about its own two
+  masked copies.
 - **Deleting a photo removes the PHOTOGRAPH, never the win.** `PhotoRemoval`
   clears `imageFileName`, saves, and only then deletes the file. A delete
   button inside a photo viewer that silently shortened your tower would be the
@@ -344,6 +360,33 @@ chrome, not a bug". The owner overrode that on 2026-09-07: it had drifted to a
 diagonal gradient with no rim and no band, which is the styling the tower left
 behind. `MiniBlockPreview` is deleted and `StrataMark` — built on the real
 `BlockSurface` — took its one remaining call site.)
+
+## The camera's gestures
+
+Pinch to zoom, double tap to flip, tap to focus, drag to expose — all four on
+ONE transparent layer over the viewfinder and under the chrome, because the
+guards between them only work if they can see each other. A pinch also
+produces a drag translation, so the drag's guard has to check the pinch's own
+state or the exposure swings every time you zoom. The double tap is
+`exclusively(before:)` the single one, which costs the single tap a
+recognition delay; that is unavoidable and the native camera has it too.
+
+**Every device write locks and unlocks in one function.** A lock left open
+makes every later configuration change fail silently. **Check
+`isFocusModeSupported` / `isExposurePointOfInterestSupported` before setting**
+— a front camera usually has fixed focus and refuses outright, and an
+unguarded throw takes the exposure change down with it.
+
+**None of it runs on the simulator**, which has no capture device: `canZoom`
+is false and the pill is not drawn. Photograph it by forcing the flags on in a
+throwaway build. The one thing the simulator CAN answer is whether the new
+gesture layer stole the controls' taps —
+`testGridToggleTurnsOffAndBackOn` is that test.
+
+The zoom pill is not drawn at 1x. At the lens's own field there is nothing to
+report and nothing to undo. Its height is reserved anyway: a control that
+appears by pushing the shutter down moves the one thing on this screen that
+must not move.
 
 ## Gestures CAN be tested — use `StrataUITests`
 
@@ -479,6 +522,11 @@ Onboarding is skipped from outside with `simctl spawn <dev> defaults write`.
 
 `-strataAutoWin n` presses the next slot n times, two seconds apart, so the
 drop cascade can be watched without a tap.
+
+`-strataOpenPhoto <i>` opens the photo viewer on the i-th gallery photograph.
+Anything behind a tap needs a flag like this: photographing the viewer by
+racing a UI test with a screenshot loop caught it in one frame out of thirty,
+and missed it entirely on the first attempt.
 
 **To judge an animation, burst-capture and count.** `simctl io screenshot`
 samples at roughly 3Hz, so: run with `-strataAutoWin 8`, take ~70 screenshots
