@@ -83,7 +83,7 @@ struct SettingsView: View {
                     Label {
                         Text("Daily Reminder")
                     } icon: {
-                        SettingsIcon(systemName: "bell.fill")
+                        SettingsIcon(systemName: "bell.fill", tint: HabitCategory.focus.style.baseColor)
                     }
                 }
                 .tint(AppColors.accentWarm)
@@ -137,7 +137,7 @@ struct SettingsView: View {
                     Label {
                         Text("Completion Sounds")
                     } icon: {
-                        SettingsIcon(systemName: "speaker.wave.2.fill")
+                        SettingsIcon(systemName: "speaker.wave.2.fill", tint: HabitCategory.creativity.style.baseColor)
                     }
                 }
                 .tint(AppColors.accentWarm)
@@ -152,7 +152,7 @@ struct SettingsView: View {
                     Label {
                         Text("Save to Photos")
                     } icon: {
-                        SettingsIcon(systemName: "photo.on.rectangle.angled")
+                        SettingsIcon(systemName: "photo.on.rectangle.angled", tint: HabitCategory.mindfulness.style.baseColor)
                     }
                 }
                 .tint(AppColors.accentWarm)
@@ -163,7 +163,7 @@ struct SettingsView: View {
                     Label {
                         Text("3D Parallax")
                     } icon: {
-                        SettingsIcon(systemName: "cube.transparent")
+                        SettingsIcon(systemName: "cube.transparent", tint: HabitCategory.work.style.baseColor)
                     }
                 }
                 .tint(AppColors.accentWarm)
@@ -173,7 +173,7 @@ struct SettingsView: View {
                     Label {
                         Text("Haptic Feedback")
                     } icon: {
-                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right", tint: HabitCategory.health.style.baseColor)
                     }
                 }
                 .tint(AppColors.accentWarm)
@@ -190,7 +190,7 @@ struct SettingsView: View {
                         Text("Export Data")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "square.and.arrow.up")
+                        SettingsIcon(systemName: "square.and.arrow.up", tint: HabitCategory.work.style.baseColor)
                     }
                 }
                 .disabled(habits.isEmpty)
@@ -234,7 +234,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     } icon: {
-                        SettingsIcon(systemName: "envelope.fill")
+                        SettingsIcon(systemName: "envelope.fill", tint: HabitCategory.social.style.baseColor)
                     }
                 }
 
@@ -245,7 +245,7 @@ struct SettingsView: View {
                         Text("Rate on App Store")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "star.fill")
+                        SettingsIcon(systemName: "star.fill", tint: HabitCategory.focus.style.baseColor)
                     }
                 }
             }
@@ -267,7 +267,7 @@ struct SettingsView: View {
                     Label {
                         Text("Privacy")
                     } icon: {
-                        SettingsIcon(systemName: "hand.raised.fill")
+                        SettingsIcon(systemName: "hand.raised.fill", tint: HabitCategory.creativity.style.baseColor)
                     }
                 }
             } footer: {
@@ -452,15 +452,36 @@ struct SettingsView: View {
 ///
 /// `tint` exists for the one case where colour is semantic rather than
 /// decorative: the destructive row.
+/// A settings row's icon: a block with a glyph on it.
+///
+/// It was a bare SF Symbol in grey. That is what every settings screen on the
+/// platform looks like, which is precisely the problem the design audit found
+/// here — Settings scored lowest of any screen because nothing on it belonged
+/// to this app. A block is the one thing Strata can put in that slot that no
+/// other app would, it costs one line per row, and it carries the same rim and
+/// band as everything else.
+///
+/// The colour is the row's own, so the section reads as a little run of
+/// blocks rather than as a colour wheel. Destructive rows keep their red.
 private struct SettingsIcon: View {
     let systemName: String
     var tint: Color? = nil
 
+    private static let side: CGFloat = 30
+
     var body: some View {
-        Image(systemName: systemName)
-            .iconSize(GridConstants.iconAction, relativeTo: .body, weight: .medium)
-            .foregroundStyle(tint ?? .secondary)
-            .frame(width: 28, height: 28)
+        BlockSurface(
+            cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
+            scale: Self.side / GridConstants.blockReferenceCell
+        ) {
+            tint ?? AppColors.warmBlack.opacity(0.55)
+        }
+        .frame(width: Self.side, height: Self.side)
+        .overlay {
+            Image(systemName: systemName)
+                .iconSize(GridConstants.iconCategory, relativeTo: .footnote, weight: .medium)
+                .foregroundStyle(.white)
+        }
     }
 }
 

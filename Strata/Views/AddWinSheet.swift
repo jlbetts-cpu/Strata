@@ -112,6 +112,11 @@ struct AddWinSheet: View {
                 Text("The block leaves the tower.")
             }
         }
+        // Full height, and it stays that way. A medium detent was tried to
+        // close the empty space at the bottom and it clipped the size control
+        // instead — the sheet's content is taller than half a screen once the
+        // photo well is a 2x2. Empty space under a form is ordinary; a control
+        // cut off by the edge of a sheet is a bug.
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         // The page's own background, not the default translucent one. Through
@@ -202,6 +207,7 @@ struct AddWinSheet: View {
         // because the block is.
         let cell: CGFloat = 96
         let gap = GridConstants.spacing
+        let wellRadius = GridConstants.blockCornerRadius(forCell: cell)
         let w = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
         let h = CGFloat(size.rowSpan) * cell + CGFloat(size.rowSpan - 1) * gap
 
@@ -215,8 +221,12 @@ struct AddWinSheet: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
-                        .fill(AppColors.warmBlack.opacity(0.04))
+                    // The tower's empty slot, at this size. A photo well is
+                    // literally "a block goes here, with a picture on it", and
+                    // the app already has a way of saying that — a recess with
+                    // a dashed edge. A flat grey rectangle said nothing.
+                    RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
+                        .fill(AppColors.warmBlack.opacity(0.038))
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 17, weight: .medium))
@@ -230,12 +240,17 @@ struct AddWinSheet: View {
                 }
             }
             .frame(width: w, height: h)
-            .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
+                // Empty, it is a slot: dashed, like the one at the top of the
+                // tower. Filled, it is a block: a white rim, like every other
+                // block with a photograph on it.
+                RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
                     .strokeBorder(
-                        photo == nil ? AppColors.warmBlack.opacity(0.10) : Color.white.opacity(0.55),
-                        lineWidth: photo == nil ? 1 : GridConstants.blockRimWidth
+                        photo == nil ? AppColors.warmBlack.opacity(0.26) : Color.white.opacity(0.55),
+                        style: photo == nil
+                            ? StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
+                            : StrokeStyle(lineWidth: GridConstants.blockRimWidth)
                     )
             }
             .overlay(alignment: .bottomTrailing) {
@@ -266,66 +281,46 @@ struct AddWinSheet: View {
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
     }
 
+    /// Colour, as the blocks it is.
+    ///
+    /// It was a row of circles with an icon in each. Circles are not in this
+    /// app's vocabulary — every coloured thing in Strata is a block, and a
+    /// swatch shaped like something else makes the choice look like it belongs
+    /// to a different product. Unpicked, a chip is the slot its block would
+    /// fill; picked, it is the block.
     private var categoryControl: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             ForEach(HabitCategory.selectable, id: \.self) { cat in
-                let isSelected = category == cat
-                Button {
-                    HapticsEngine.tick()
+                BlockChip(category: cat, isSelected: category == cat) {
                     withAnimation(GridConstants.motionSmooth) { category = cat }
                 } label: {
-                    ZStack {
-                        Circle()
-                            .fill(cat.style.baseColor)
-                            .frame(width: 34, height: 34)
-                        if let icon = cat.iconName {
-                            Image(systemName: icon)
-                                .iconSize(13, relativeTo: .footnote, weight: .medium)
-                                .foregroundStyle(.white)
-                        }
-                        if isSelected {
-                            Circle()
-                                .strokeBorder(.primary.opacity(0.75), lineWidth: 2)
-                                .frame(width: 42, height: 42)
-                        }
+                    if let icon = cat.iconName {
+                        Image(systemName: icon)
+                            .iconSize(13, relativeTo: .footnote, weight: .medium)
                     }
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
                 .accessibilityLabel(cat.rawValue)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }
     }
 
+    /// Size, as the shapes the sizes are.
+    ///
+    /// It was a segmented control reading "Quick / Regular / Deep" — words for
+    /// shapes, on a screen whose entire subject is shapes. The tower already
+    /// teaches this mapping by letting you drag the slot out into the size you
+    /// want; teaching it again in a second language is how an app stops
+    /// feeling like one thing.
     private var sizeControl: some View {
-        HStack(spacing: 6) {
-            ForEach([BlockSize.small, .medium, .hard], id: \.self) { option in
-                let isSelected = size == option
-                Button {
-                    HapticsEngine.tick()
-                    // One transaction for the whole change: the well
-                    // resizes, the sections below it move up or down, and
-                    // this button fills — all on the same spring.
-                    withAnimation(GridConstants.slotSnap) { size = option }
-                } label: {
-                    Text(option.effortLabel)
-                        .font(Typography.bodySmall)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(
-                            isSelected ? AnyShapeStyle(category.style.baseColor)
-                                       : AnyShapeStyle(GridConstants.fillTrack),
-                            in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
-                        )
-                        .foregroundStyle(isSelected ? .white : .primary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
+        BlockSizePicker(size: Binding(
+            get: { size },
+            set: { newValue in
+                // One transaction for the whole change: the well resizes and
+                // everything below it moves on the same spring.
+                withAnimation(GridConstants.slotSnap) { size = newValue }
             }
-        }
+        ), category: category)
     }
 
     private var deleteButton: some View {

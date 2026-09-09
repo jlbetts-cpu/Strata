@@ -16,9 +16,15 @@ import SwiftData
 ///
 /// Where the lowfi and the codebase disagree, the codebase wins — CLAUDE.md
 /// makes the tower the arbiter. Its Bold 48 and Semibold 20 become medium,
-/// because this app has two weights; its SF Pro becomes Rounded; and its
-/// search border (`#aeacac`, about a third ink) is toned down, because at that
-/// weight it would be the heaviest line on a page whose hairlines are 8%.
+/// because this app has two weights, and its SF Pro becomes Rounded.
+///
+/// **The order is not the lowfi's, and that is deliberate.** It opened on a
+/// search field, then a shelf of photo cards, with the month tower — the one
+/// element unmistakably from this app — starting about 60% down and cut off by
+/// the tab bar. The design audit rated the page 5/10 for exactly that. The
+/// month leads now, and the search field is gone: `AllAlbumsView` has one over
+/// the whole record, which is the only place searching is worth doing. A shelf
+/// of two dozen cards is scrolled, not queried.
 struct MemoriesView: View {
     /// 48pt, from the lowfi. Named because the header's top padding is solved
     /// from it — a title's cap sits further down its layout box the bigger it
@@ -42,18 +48,22 @@ struct MemoriesView: View {
                     if vm.carousel.isEmpty && vm.month.isEmpty {
                         emptyState
                     } else {
-                        searchField
-                            .padding(.horizontal, GridConstants.horizontalPadding)
-                            .padding(.top, 14)
-
-                        sectionLabel("ALBUMS")
-                        shelf
-
+                        // The month leads.
+                        //
+                        // It used to open on a search field, then a shelf of
+                        // photo cards, and the month tower — the one element
+                        // on the page that is unmistakably this app — started
+                        // around 60% down and was cut off by the tab bar. The
+                        // page now opens on the thing worth looking at, and
+                        // the photographs sit under it.
                         Section {
                             monthTower
                         } header: {
                             monthHeader
                         }
+
+                        sectionLabel("ALBUMS")
+                        shelf
                     }
                 }
                 .padding(.bottom, 110)
@@ -120,56 +130,19 @@ struct MemoriesView: View {
             .padding(.bottom, 12)
     }
 
-    // MARK: - Search
-
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(.primary.opacity(0.35))
-            TextField("Search your memories", text: $vm.searchText)
-                .font(.system(size: 17, design: .rounded))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !vm.searchText.isEmpty {
-                Button { vm.searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.primary.opacity(0.25))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        // 56 and radius 12 straight off the lowfi; the radius is
-        // `GridConstants.radiusField` exactly.
-        .frame(height: 56)
-        .background(GridConstants.fillWell,
-                    in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
-                .strokeBorder(.primary.opacity(0.16), lineWidth: 1)
-        }
-    }
-
     // MARK: - The shelf
 
     private var shelf: some View {
         AlbumCarousel(
-            albums: filteredCarousel,
+            albums: vm.carousel,
             onSelect: { route in
                 switch route {
                 case .day(let key):     path.append(.day(key))
                 case .curated(let key): path.append(.curated(key))
                 }
             },
-            onSeeAll: vm.searchText.isEmpty ? { path.append(.allAlbums) } : nil
+            onSeeAll: { path.append(.allAlbums) }
         )
-    }
-
-    private var filteredCarousel: [Album] {
-        let q = vm.searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return vm.carousel }
-        return vm.carousel.filter { $0.haystack.contains(q) }
     }
 
     // MARK: - The month

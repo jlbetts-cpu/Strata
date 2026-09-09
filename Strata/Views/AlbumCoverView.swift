@@ -30,14 +30,18 @@ struct AlbumCoverView: View {
     let photoFileNames: [String]
     let side: CGFloat
 
-    /// 156 : 254, from the Memories lowfi (`KZsjpiFjwv3pgAwRCht4gU`, node
-    /// `611:109`). The earlier 155.4 : 205 was the older grid's 3:4 card; the
-    /// carousel's cards are taller and narrower. The fan's own offsets scale
-    /// off the width, so they carry over unchanged.
-    static let aspect: CGFloat = 156.0 / 254.0
+    /// **A block's proportions, not a photo card's.**
+    ///
+    /// The lowfi drew 156 x 254 at radius 20 — which is a Photos card, and the
+    /// design audit found it was the main reason the shelf read as belonging
+    /// to another app. A cover is now a 2x2 block: square, because every block
+    /// in Strata is square or wider, and at the block's own radius ratio so it
+    /// scales like one. The photographs inside it are unchanged; what holds
+    /// them is now the same object the tower is built from.
+    static let aspect: CGFloat = 1.0
 
     private var height: CGFloat { side / Self.aspect }
-    private var radius: CGFloat { 20 * (side / 156.0) }
+    private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: side) }
 
     /// Back to front, so the top photo is the most recent.
     private var layers: [String] { Array(photoFileNames.prefix(3)).reversed() }
@@ -61,8 +65,12 @@ struct AlbumCoverView: View {
             .frame(width: side, height: height)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay {
+                // A block with a photograph on it wears the block's rim —
+                // the same white edge the tower's photo blocks have. The
+                // hairline this replaced was the card admitting it was a card.
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(GridConstants.fillHairline, lineWidth: 1)
+                    .strokeBorder(.white.opacity(0.55),
+                                  lineWidth: GridConstants.blockRimWidth * (side / GridConstants.blockReferenceCell))
             }
             .opacity(spec.opacity)
             .rotationEffect(.degrees(spec.rotation))

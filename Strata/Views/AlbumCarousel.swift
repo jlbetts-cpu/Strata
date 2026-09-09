@@ -14,8 +14,14 @@ struct AlbumCarousel: View {
     /// The tail card into the full record. Nil hides it.
     var onSeeAll: (() -> Void)?
 
-    /// 156 wide from the lowfi, with 15pt gutters.
-    private let cardWidth: CGFloat = 156
+    /// Two tower cells across, so a cover on the shelf is the same size as a
+    /// 2x2 on the tower above it. Derived rather than typed: on any screen the
+    /// shelf and the tower agree.
+    private var cardWidth: CGFloat {
+        let cell = GridConstants.cellSize(
+            forGridWidth: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2)
+        return cell * 2 + GridConstants.spacing
+    }
     private let gap: CGFloat = 15
 
     var body: some View {

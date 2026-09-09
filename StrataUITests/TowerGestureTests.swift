@@ -366,14 +366,19 @@ final class TowerGestureTests: XCTestCase {
     }
 
     /// Search filters the record without touching the store.
+    /// Search lives on the full record, not on the shelf.
+    ///
+    /// Memories used to carry its own field; the design audit found it was the
+    /// heaviest element on the page and duplicated the one already here, so it
+    /// went. This drives the one that remains.
     @MainActor
     func testSearchNarrowsTheShelf() throws {
-        let app = launchMemories()
-        let field = app.textFields["Search your memories"]
+        let app = launchMemories(extra: ["-strataOpenAllAlbums"])
+        let field = app.textFields["Search your wins"]
         XCTAssertTrue(field.waitForExistence(timeout: 40), "no search field")
         Thread.sleep(forTimeInterval: 4)
 
-        let matching = NSPredicate(format: "label CONTAINS 'PHOTOS'")
+        let matching = NSPredicate(format: "label CONTAINS 'wins'")
         let before = app.buttons.matching(matching).count
         XCTAssertGreaterThan(before, 1, "not enough albums to filter")
 
@@ -382,11 +387,8 @@ final class TowerGestureTests: XCTestCase {
                       "the search field never took focus")
         field.typeText("zzzznotathing")
         Thread.sleep(forTimeInterval: 2)
-        // The shelf empties. Asserting on a count rather than on the old
-        // "Nothing matches that." string, which belonged to the paged grid and
-        // is no longer what this screen shows.
-        XCTAssertEqual(app.buttons.matching(matching).count, 0,
-                       "a nonsense search still showed albums")
+        XCTAssertTrue(app.staticTexts["Nothing matches that."].waitForExistence(timeout: 10),
+                      "a nonsense search still showed albums")
     }
 
     /// A photo opens by tapping its BLOCK, and the glass close button shuts it.

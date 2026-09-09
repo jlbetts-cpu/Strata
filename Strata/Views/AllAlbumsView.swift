@@ -54,12 +54,16 @@ struct AllAlbumsView: View {
             }
         }
         .padding(.horizontal, 14)
-        .frame(height: 43)
-        .background(GridConstants.fillWell,
-                    in: RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: GridConstants.radiusField, style: .continuous)
-                .strokeBorder(GridConstants.fillHairline, lineWidth: 1)
+        .frame(height: 48)
+        .modifier(SearchWell())
+    }
+
+    /// The field's ground: the recess a block sits in, which is what a box
+    /// asking to be filled actually is. Extracted so `searchField` stays
+    /// inside the type-checker's budget.
+    private struct SearchWell: ViewModifier {
+        func body(content: Content) -> some View {
+            BlockWell(cell: 48) { content }
         }
     }
 
