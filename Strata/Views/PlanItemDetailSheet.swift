@@ -106,7 +106,7 @@ struct PlanItemDetailSheet: View {
                     .overlay {
                         if item.category == category {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(.white)
                         }
                     }

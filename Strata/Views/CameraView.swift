@@ -144,7 +144,10 @@ struct CameraView: View {
                 // standing in the shot looking at the lens, not at a corner.
                 if let countdown {
                     Text("\(countdown)")
-                        .font(.system(size: 96, weight: .light, design: .rounded))
+                        // Medium, not light. The app has two weights and a
+                        // third one on the largest thing on any screen is
+                        // the most visible place to break that rule.
+                        .font(.system(size: 96, weight: .medium, design: .rounded))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.35), radius: 14)
                         .transition(.opacity.combined(with: .scale(scale: 1.25)))
@@ -405,7 +408,7 @@ struct CameraView: View {
             // because "timer on" is not the same as "timer set to what".
             if camera.timerSeconds > 0 {
                 Text("\(camera.timerSeconds)")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.35), radius: 4)
                     .offset(y: 4)

@@ -219,6 +219,11 @@ method, every bug and what made it invisible, and the before/after numbers.
   `AllAlbumsView`, `DayAlbum`, `WeekSection` and the week paging went with
   it. There is no search anywhere in the app now. The shelf is not drawn at
   all when nothing has earned a card.
+- **Two weights, and they are now actually two.** An audit of every `.font(`
+  in `Strata/Views` found a `.light` on the camera's 96pt countdown — a third
+  weight on the largest thing on any screen — and four stray `.semibold`s.
+  All five are medium now. The ONLY remaining exception is
+  `StrataWordmark`, which is documented on the type itself.
 - **One screen title size, 34pt** (`Typography.screenTitle`), used by every
   page that names itself, including the Wins tally. They were 48, 33 and 64,
   so changing tabs changed the scale of the page. `tallyOpticalInset` is

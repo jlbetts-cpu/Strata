@@ -42,7 +42,7 @@ struct PlanBullet: View {
             }
             .overlay {
                 Image(systemName: "checkmark")
-                    .font(.system(size: side * 0.52, weight: .semibold))
+                    .font(.system(size: side * 0.52, weight: .medium))
                     .foregroundStyle(.white)
                     .scaleEffect(isDone ? 1 : 0.4)
                     .opacity(isDone ? 1 : 0)

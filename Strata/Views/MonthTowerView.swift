@@ -128,7 +128,7 @@ struct MonthPicker: View {
                         .foregroundStyle(.primary.opacity(0.55))
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.35))
                 }
                 .padding(.horizontal, 10)
