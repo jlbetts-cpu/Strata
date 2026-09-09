@@ -59,7 +59,7 @@ struct SettingsView: View {
                     // — the styling the tower left behind. `StrataMark` is
                     // drawn from `BlockSurface`, so it is the same object the
                     // rest of the app is made of and cannot drift again.
-                    StrataMark(side: 72)
+                    StrataMark(height: 72)
 
                     StrataWordmark(size: 30)
 

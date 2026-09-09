@@ -34,33 +34,15 @@ enum Typography {
 
 // MARK: - Jaro
 
-/// The display face, used for the app's own name. Nothing else.
-///
-/// It was briefly on the tally numeral too. Jaro's digits are as geometric as
-/// its letters, which made the one number on each screen read as part of the
-/// logo rather than as a count of your day — SF Pro Rounded says the number
-/// and gets out of the way. Jaro is the wordmark and the mark, and that is
-/// the whole of its job.
-///
-/// It is a variable font with an optical-size axis (6–72, default 14). iOS
-/// picks an instance by point size on its own once the font is registered, so
-/// a 64pt numeral gets the display cut and a 20pt wordmark gets a tighter one
-/// without anything here asking for it.
-///
-/// Licensed under the SIL Open Font License; `Strata/Resources/Jaro-OFL.txt`
-/// ships beside it, which is what that licence requires.
-enum JaroFont {
-    /// PostScript name, read out of the font's own `name` table rather than
-    /// guessed — `Font.custom` silently falls back to the system face when the
-    /// name is wrong, which looks like the font simply not loading.
-    static let name = "Jaro-Regular"
-
-    static func size(_ points: CGFloat) -> Font {
-        .custom(name, size: points)
-    }
-
-    /// Scales with Dynamic Type, which a plain `.custom(_:size:)` does not.
-    static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .custom(name, size: points, relativeTo: style)
-    }
-}
+// Jaro is no longer a runtime font, and `JaroFont` is gone with the wordmark
+// that used it (2026-09-09, owner's call — beside the block-S mark it read as
+// a heavy angular slab next to five pale rounded blocks). It was also briefly
+// on the tally numeral, which made the one number on each screen look like
+// part of the logo rather than a count of your day.
+//
+// `Strata/Resources/Jaro.ttf` still ships and must stay: the app icon and
+// `StrataMark` are its S taken apart at the glyph's own inner corners, and
+// `tools/make_app_icon.py` reads the file to regenerate both. `Jaro-OFL.txt`
+// stays beside it, which is what the SIL Open Font License requires.
+//
+// So Jaro supplies GEOMETRY now, not type. Do not reintroduce it as a face.

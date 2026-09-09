@@ -191,7 +191,23 @@ method, every bug and what made it invisible, and the before/after numbers.
 
 - **SF Pro Rounded, two weights.** The Figma specifies Familjen Grotesk; the
   owner chose the native face on 2026-09-06. Shape, colour and the rim carry the
-  block's identity, not the letterforms.
+  block's identity, not the letterforms. The **wordmark** is the one exception:
+  it is Rounded *Semibold*, because a wordmark is drawn artwork rather than
+  interface type and at 61pt white over a viewfinder Medium reads thin. Do not
+  spread Semibold into the UI.
+- **Jaro is geometry, not a face** (2026-09-09, owner's call). It set the
+  wordmark until it stopped matching the mark — a heavy, black, angular slab
+  next to five pale rounded blocks; the kinship was real and invisible, and
+  rendering the pairing settled it. `JaroFont` and the `UIAppFonts`
+  registration are gone. `Strata/Resources/Jaro.ttf` still ships and must stay:
+  the app icon and `StrataMark` are its S taken apart at the glyph's own inner
+  corners, and `tools/make_app_icon.py` reads the file to regenerate both
+  (`--swift` re-emits the mark's polygons). `Jaro-OFL.txt` stays beside it, as
+  the licence requires. Do not reintroduce Jaro as a font.
+- **`StrataMark` and the app icon are the same object.** Both are the five-block
+  S from the same generator. A pink block with a white letter on it is what the
+  mark used to be; it stopped matching the icon the moment the icon became this,
+  which is what the owner noticed. If one changes, regenerate the other.
 - **Light appearance only** (`UIUserInterfaceStyle = Light`), chosen 2026-09-06.
 - **SF Symbols only.** No second icon pack, no custom assets.
 - **Memories replaced History replaced Insights** (2026-09-08, owner's call,

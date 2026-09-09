@@ -823,3 +823,55 @@ Debug, Release and generic/platform=iOS all build.
 **Not verified.** How it looks on a real device's display, and the tinted
 appearance under an actual user tint — the simulator can show the asset but
 not the system's own tinting pass.
+
+### The wordmark: Jaro out, SF Pro Rounded in — 2026-09-09
+
+You said the font did not match the logo. It does not, and rendering the
+pairing showed why — and showed that the font was the second problem, not the
+first.
+
+**The first problem was the mark, not the type.** `StrataMark` was still a
+pink block with a white letter on it. That was right when the app icon was a
+pink field with a white letter; the moment the icon became five coloured
+blocks, the thing inside the app and the thing on the home screen were two
+different logos. That mismatch is what reads as "the font is wrong".
+
+**The font was wrong too.** Jaro is heavy, black and angular; the mark is pale,
+soft-cornered and light. They share the S — the icon's blocks *are* Jaro's S
+taken apart — but that kinship is invisible, and next to the new mark it looked
+worse than it had next to the old pink one. Four pairings rendered side by
+side: `tasks/screenshots/wordmark-comparison.png`.
+
+So both changed:
+
+- `StrataMark` is now the same five-block S as the icon, generated from the
+  same tool (`tools/make_app_icon.py --swift` emits the band polygons), so the
+  two cannot drift into different logos.
+- `StrataWordmark` is SF Pro Rounded **Semibold**. That is a deliberate
+  exception to the app's two weights, documented in CLAUDE.md: those govern
+  interface type, a wordmark is drawn artwork, and at 61pt white over the
+  viewfinder Medium reads thin.
+
+**Jaro is now geometry, not a face.** `JaroFont` had zero call sites left and
+is deleted, along with the `UIAppFonts` registration. `Jaro.ttf` still ships
+and must stay — the icon and the mark are derived from it — with `Jaro-OFL.txt`
+beside it as the licence requires.
+
+`StrataMark` does not use `BlockSurface`, and the doc comment says why: that
+takes a `RoundedRectangle` and reaches for `strokeBorder`, which needs an
+`InsettableShape`, and these pieces are irregular polygons. The anatomy is
+reproduced for a `Path` — flat colour, 10% wash, a rim brightest along the top
+edge, the frosted band over the bottom 26% — and each band's blur is clipped
+to its own block for the same reason the icon's is: there is no 4pt gutter
+here to catch the spill.
+
+**Verified.** Both call sites photographed on the simulator: the Settings
+header (`tasks/screenshots/wordmark-after.png`) and the camera wordmark at
+61pt white. Debug, Release and generic/platform=iOS all build; 60 unit tests
+pass.
+
+**Not verified.** Nothing new is behind a gesture here, but the mark's chrome
+at 72pt is proportionally tiny — the rim works out at about half a point — so
+the block character reads mostly through the seams at that size. That is
+faithful to what a small block looks like, not a bug, but it is worth a look
+on a real display.
