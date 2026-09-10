@@ -91,6 +91,46 @@ final class MapGestureTests: XCTestCase {
         XCTAssertGreaterThan(images, 0, "the place opened with no photographs in it")
     }
 
+    /// Dragging the filmstrip changes the photograph.
+    ///
+    /// The strip has always scrolled; what it did not do was SELECT, so the
+    /// only way through a month was tap, look, tap, look. This is behind a
+    /// drag, so a screenshot cannot settle it.
+    func testDraggingTheFilmstripChangesThePhotograph() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-strataStartTab", "history",
+            "-strataSeedHistory", "50",
+            "-strataOpenDrawer", "full",
+            "-strataOpenPhoto", "0"
+        ]
+        app.launch()
+
+        // The viewer's caption names the photograph, so it is what changing.
+        let caption = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "·")
+        ).firstMatch
+        XCTAssertTrue(caption.waitForExistence(timeout: 45), "the photo viewer never opened")
+        Thread.sleep(forTimeInterval: 4)
+        let before = caption.label
+
+        // Drag the strip along the bottom, where the thumbnails are.
+        let strips = (0..<app.scrollViews.count).map { app.scrollViews.element(boundBy: $0) }
+        let frames = strips.map { "\($0.frame)" }.joined(separator: " | ")
+        // The strip is the short one along the bottom.
+        guard let strip = strips.filter({ $0.frame.height < 200 })
+            .max(by: { $0.frame.origin.y < $1.frame.origin.y }) else {
+            XCTFail("no filmstrip among \(strips.count) scroll views: \(frames)")
+            return
+        }
+        strip.swipeLeft()
+        Thread.sleep(forTimeInterval: 3)
+
+        XCTAssertNotEqual(before, caption.label,
+                          "dragging the filmstrip \(strip.frame) did not change the "
+                          + "photograph. Scroll views: \(frames)")
+    }
+
     func testPinchingInZoomsTheMapIn() throws {
         let app = launchedOnTheMap()
         let probe = app.descendants(matching: .any)["MapZoomProbe"]

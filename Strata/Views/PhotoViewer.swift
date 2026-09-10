@@ -182,9 +182,22 @@ struct PhotoViewer: View {
     /// It shares `currentID` with the deck, so the two stay in step in both
     /// directions for free: swipe the picture and the strip scrolls, tap the
     /// strip and the picture pages.
+    /// The run this photograph is in, as a scrubber.
+    ///
+    /// **Dragging it changes the photograph.** It used to only scroll: the
+    /// thumbnails moved under your finger and the picture above them sat
+    /// still until you let go and tapped one. So the fastest way through a
+    /// month was to tap, look, tap, look — which is what the owner meant by
+    /// "you should be able to scroll through the photos easy without clicking
+    /// through". Tapping still works; it is just no longer the only way.
+    ///
+    /// `scrollPosition(id:)` bound to the same `currentID` the deck above
+    /// uses, so the two are one value and cannot disagree. That also replaces
+    /// the manual `scrollTo` this had — driving the strip from a `.onChange`
+    /// while the strip is also writing the value is the shape of a feedback
+    /// loop, and the map already paid for that lesson once.
     private var filmstrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
+        ScrollView(.horizontal) {
                 HStack(spacing: 6) {
                     ForEach(photos) { photo in
                         let isCurrent = photo.id == currentID
@@ -206,21 +219,20 @@ struct PhotoViewer: View {
                         .accessibilityLabel(photo.title ?? "Photo")
                     }
                 }
-                .padding(.horizontal, 24)
+                .scrollTargetLayout()
+                // Half the strip's width either side, so the FIRST and LAST
+                // photographs can reach the centre. Without it neither end is
+                // ever selectable by dragging, which reads as the scrubber
+                // being broken at exactly the two moments people check.
+                .padding(.horizontal, UIScreen.main.bounds.width / 2 - 26)
             }
             .scrollIndicators(.hidden)
+            // Each thumbnail settles on the centre, and the one that lands
+            // there IS the photograph. One value, two controls.
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $currentID, anchor: .center)
             .animation(GridConstants.motionSnappy, value: currentID)
-            .onChange(of: currentID) { _, id in
-                guard let id else { return }
-                withAnimation(GridConstants.motionSmooth) {
-                    proxy.scrollTo(id, anchor: .center)
-                }
-            }
-            .onAppear {
-                guard let currentID else { return }
-                proxy.scrollTo(currentID, anchor: .center)
-            }
-        }
+            .sensoryFeedback(.selection, trigger: currentID)
     }
 
     /// Close on the left, what the photograph is OF in the middle, and
