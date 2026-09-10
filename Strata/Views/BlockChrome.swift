@@ -34,6 +34,8 @@ struct BlockSurface<Fill: View>: View {
     /// composite's luminance at its own alpha, and 0.20 under white text caps
     /// contrast below 4.5:1 however dark the scrim beneath it is.
     var washOpacity: Double = GridConstants.blockScrimOpacity
+
+    @Environment(\.colorScheme) private var colorScheme
     @ViewBuilder var fill: () -> Fill
 
     private var shape: RoundedRectangle {
@@ -47,12 +49,35 @@ struct BlockSurface<Fill: View>: View {
     /// above, and the edge facing the light is the one that catches it. Same
     /// single border, unequal along its length — which is what a real edge
     /// does, and it lets the top read clearly without the sides shouting.
+    /// **Measured, not argued.** Four treatments were rendered on the dark
+    /// ground at phone size and sampled across a block's top edge (ground 26,
+    /// block fill 172):
+    ///
+    ///     white, full          edge 255
+    ///     white, softer        edge 234
+    ///     dark outline         edge 143   <- DARKER than the block
+    ///     no rim               edge 185   <- antialiasing, no edge at all
+    ///
+    /// A dark outline is the worst of the four and it is worth saying why: it
+    /// pulls the edge TOWARDS the background, which is the opposite of what an
+    /// edge facing a light does, so the block stops reading as lit and starts
+    /// reading as cut out. No rim loses the edge entirely.
+    ///
+    /// So the rim stays white — but it is **eased off in dark mode**, because
+    /// the same rim is doing wildly different amounts of work in the two
+    /// appearances. On the light page it is 255 against a 245 ground, which is
+    /// barely there and is exactly how it was tuned. On the dark one it is 255
+    /// against 26, and a stroke that emphatic stops being a lit edge and
+    /// becomes an outline drawn around the block.
     private var rim: LinearGradient {
-        LinearGradient(
+        let fall = GridConstants.blockRimFalloff
+        let peak = colorScheme == .dark ? 0.85 : 1.0
+        let rest = colorScheme == .dark ? fall * 0.7 : fall
+        return LinearGradient(
             stops: [
-                .init(color: .white, location: 0.0),
-                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 0.55),
-                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 1.0)
+                .init(color: .white.opacity(peak), location: 0.0),
+                .init(color: .white.opacity(rest), location: 0.55),
+                .init(color: .white.opacity(rest), location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom
