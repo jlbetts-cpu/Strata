@@ -259,8 +259,23 @@ method, every bug and what made it invisible, and the before/after numbers.
   and became half of a two-word title. The drawings survive in
   `brand/wins-owner.svg` and `brand/win-owner.svg`; the imagesets and the
   `WinsWord` view are gone.
-- **The mark is LAYERS, not a letter** (2026-09-09, after research the owner
-  asked for). Three of the app's blocks, each narrower than the one below,
+- **The mark is the owner's `S`, white on warm black** (2026-09-10). The icon
+  and `StrataMark` are the same drawing on the same ground. It replaced a
+  three-block ziggurat, which had replaced a thinner `S`; the ziggurat was
+  argued from research (a single-letter monogram carries no meaning of its own
+  and works only by accumulating recognition), and the redrawn letter meets
+  that on its own terms — it is a bold angled mark, not the light monoline the
+  argument was about, and it holds at 60pt. `render_mark` and
+  `StrataMarkShape` stay in the tree, generated and free.
+- **`tools/flatten_svg.py` has two traps, both of which draw a mark HOLLOW.**
+  An open `<path>` with a `fill` is filled as if closed — that is the SVG spec
+  — but `pathops` leaves it open, so union it with its own stroke and the
+  contours oppose. And skia's stroker emits a ribbon whose contours can be
+  wound against each other: the union came out at 494 square units against 523
+  for the fill alone. **Close every contour, and `simplify()` the stroke before
+  unioning.** Verify by rendering against the original export — the bar is
+  under 0.01% of differing pixels.
+- (Superseded) **The mark was LAYERS for a day.** Three of the app's blocks,
   pink on warm black. `StrataMark` draws the real `BlockSurface` so it cannot
   drift from the blocks it is a mark for; `tools/make_app_icon.py` mirrors
   those constants for the tile and is the copy to keep in step.
@@ -316,6 +331,40 @@ method, every bug and what made it invisible, and the before/after numbers.
   are flat gradients coloured by category, so a block showing its photograph
   looks almost exactly like a block showing its colour. Verify by sampling a
   column for a vertical gradient, not by eye.
+- **A MapKit `Map` cannot live in the Memories `LazyVStack`.** Put one in and
+  the whole body stops re-evaluating: the page keeps rendering its EMPTY state
+  while the view model holds forty pins, and nothing errors, nothing crashes
+  and the app stays alive. Bisected — a plain `Color` in the same slot renders,
+  a plain rectangle as the annotation does not help, and constraining the map
+  in a fixed overlay box does not help. The map is a ROUTE
+  (`MemoriesRoute.map`), full screen.
+- **Hold the map's clusters, never compute them.** As a computed property the
+  content depends on `zoom`, `onMapCameraChange` writes `zoom`, and
+  `.automatic` frames the camera from the content — a loop with no settling
+  point. Recompute only when the integer zoom changes, and never assign
+  `camera = .automatic` from inside the view.
+- **MapKit cannot be recoloured**, so the ground was chosen by measuring, not
+  arguing: standard-muted-no-POIs came out at mean luminance 232 — BRIGHTER
+  than the 207 page it was meant to fix — against imagery at 117, and
+  `pointsOfInterest: .excludingAll` drops the pins but NOT the place names and
+  road shields. Imagery plus a scrim we own lands at 99 and is what ships. The
+  scrim is the only lever left after POIs and emphasis.
+- **One thumbnail width for every block on the map**, whatever size it draws
+  at. `CachedImageView` keys its cache on the requested width, so asking for 88
+  at one zoom and 176 at the next decodes the same photograph twice and
+  re-decodes it on every zoom step.
+- **`WinRecord.place` is `var`, not `let`.** Every other property there is
+  `let`, and a `let` with a default value is omitted from the synthesized
+  memberwise initializer entirely — it would compile and then be unsettable
+  from `records(from:)`.
+- **Location: `NSLocationWhenInUseUsageDescription` in BOTH build
+  configurations.** The keys are duplicated in the project file; one is a
+  Release-only device crash found six weeks later. Read it back out of both
+  built Info.plists rather than assuming. `LocationService` is a singleton and
+  pre-warms with the camera — a service recreated per appearance never gets
+  warm, and warm is the whole point. **No photograph taken before this shipped
+  has a place and none ever will**: every path into `ImageManager` re-encodes a
+  resized `UIImage` with no metadata container.
 - **Do not stack translucent copies of a block.** Album covers fanned three
   prints, rotated and dropped to half opacity, after a photo-album Figma. A
   block is a single flat lit plane; overlapping ghosts of it are clutter
@@ -522,6 +571,13 @@ Onboarding is skipped from outside with `simctl spawn <dev> defaults write`.
 
 `-strataAutoWin n` presses the next slot n times, two seconds apart, so the
 drop cascade can be watched without a tap.
+
+`-strataOpenMap`, `-strataMapStyle [quiet|satellite]`, `-strataSeedPlaces`,
+`-strataOpenReview [small|medium|hard]`, `-strataTestLocation` and
+`-strataReportStore` all exist for the same reason as the flags below them:
+the screen or the fact is otherwise unreachable here. `-strataSeedPlaces` puts
+60% of seeded wins into three tight clusters and spreads the rest, because an
+even scatter never merges and would make a broken clusterer look fine.
 
 `-strataOpenPhoto <i>` opens the photo viewer on the i-th gallery photograph.
 Anything behind a tap needs a flag like this: photographing the viewer by

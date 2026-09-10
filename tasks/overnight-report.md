@@ -1239,3 +1239,71 @@ tower being built, and what the word means.
 - Nothing has been seen on a real device.
 - The month's crossfade was not photographed mid-flight; only that the right
   photographs are on the right blocks.
+
+---
+
+# 2026-09-10 — the camera finished, and the map began
+
+Bad news first.
+
+**A MapKit `Map` in the Memories `LazyVStack` silently stops the whole body
+re-evaluating.** The page kept rendering its EMPTY state while the view model
+held forty pins — no error, no crash, app alive. It cost the longest debugging
+session of the night, and the answer was bisection: a plain `Color` in the same
+slot rendered, a plain rectangle as the annotation did not help, and
+constraining the map inside a fixed overlay box did not help. The map is a
+full-screen route now, which is where the plan was headed anyway.
+
+**The pale map fails the thing it was meant to fix.** Rendered and measured at
+phone size: standard/muted/no-POIs comes out at **mean luminance 232, brighter
+than the 207 page it replaces**, and it is full of place names and road shields
+that `pointsOfInterest: .excludingAll` does not remove. Imagery plus a scrim
+lands at 99. That is a factor of two better on commitment and still nowhere
+near the camera's 9 — a map has to show the world.
+
+**Two clustering bugs the unit tests caught before anything drew.** The density
+loop can run to zoom 20, where a cell is under ten metres, and the accuracy
+filter ran inside it — so every ordinary pin became "too vague" and **the map
+blanked the harder you looked at it**. And one of my own tests asserted that
+179.99 and -179.99 merge into one place; they do not and should not. That was
+testing a wish.
+
+**Two flattener bugs drew the new logo hollow.** An open `<path>` with a `fill`
+is filled as if closed — the SVG spec — but `pathops` leaves it open. And
+skia's stroker emits a ribbon whose contours oppose: the union came out at 494
+square units against 523 for the fill alone. Close every contour, and
+`simplify()` the stroke first.
+
+**One theory I shipped and then disproved.** I thought the shutter's release
+was being swallowed because its ancestor's `allowsHitTesting` flipped mid-drag.
+I wrote a test for it; the test passed against the broken build too. The real
+cause was a condition that required a committed size change, which swallowed
+both a short pull and a pull that came back.
+
+**A fixture bug that had been in every screenshot this project ever took.**
+Seeded photographs were drawn with a linear gradient and no
+`drawsBefore/AfterStartLocation`, so the corners outside its endpoints were
+never painted — a chamfered top-left and bottom-right on every fixture photo.
+I had noticed those white triangles twice and dismissed them.
+
+## What shipped
+
+Camera: draw the block out of the shutter (rim and all, with the settings
+stepping aside), the timer in the owner's digits, and a review screen — which
+exposed that the camera roll was written at capture, before anything was
+confirmed.
+
+Photo viewer rebuilt to the owner's reference: a print on black, title above,
+date below, the run along the bottom.
+
+Logo: the owner's redrawn `S`, white on warm black, icon and in-app mark the
+same drawing.
+
+Map: location capture (pre-warmed with the lens, read at shutter time), the
+schema, `PlaceMap` with nineteen tests, and the map itself as a route.
+
+## Not verified
+
+- That a real capture attaches a real coordinate. Needs a lens.
+- The location permission prompt. Authorization was already granted here.
+- Anything on a real device.
