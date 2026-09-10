@@ -224,6 +224,7 @@ enum DebugHarness {
     /// would be judging an empty rectangle.
     static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
 
+
     /// Raises the photographs page, from `-strataOpenDrawer full`.
     ///
     /// The drawer rests hidden and opens on a button, so without this it
@@ -462,7 +463,7 @@ enum DebugHarness {
                       "Ran 5k", "Wrote it down", "Cooked dinner"]
 
         for i in 0..<wins {
-            try? QuickWinService.logWin(
+            _ = try? QuickWinService.logWin(
                 title: titles[i % titles.count],
                 category: categories[i % categories.count],
                 size: sizes[i % sizes.count],
@@ -475,7 +476,7 @@ enum DebugHarness {
         // which is the only way an `unlabeled` habit ever exists.
         let untitled = Int(argument("-strataSeedUnlabeled") ?? "0") ?? 0
         for _ in 0..<untitled {
-            try? QuickWinService.logWin(context: context, tower: tower)
+            _ = try? QuickWinService.logWin(context: context, tower: tower)
         }
 
         // All one colour, to exercise merging. The least-used picker
@@ -485,7 +486,7 @@ enum DebugHarness {
         // NAMED, since named blocks merge now. Unnamed ones only exercise the
         // old path, where a member had nothing to draw.
         for i in 0..<mono {
-            try? QuickWinService.logWin(
+            _ = try? QuickWinService.logWin(
                 title: titles[i % titles.count],
                 category: .health,
                 size: sizes[i % sizes.count],

@@ -21,7 +21,6 @@ struct SettingsView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 0
 
     // #172/#173: Tower appearance toggles
-    @AppStorage("towerShowParallax") private var towerShowParallax = true
     /// The same defaults key `PhotoLibrarySaver` reads, so the toggle and the
     /// service share one source of truth rather than mirroring each other.
     /// Both default to on.
@@ -183,17 +182,10 @@ struct SettingsView: View {
                      : "Photographs you take remember where you were, and appear on your map. Ones you already have don't — that isn't something we can go back and add.")
             }
 
-            Section("Tower") {
-                Toggle(isOn: $towerShowParallax) {
-                    Label {
-                        Text("3D Parallax")
-                    } icon: {
-                        SettingsIcon(systemName: "cube.transparent", tint: HabitCategory.work.style.baseColor)
-                    }
-                }
-                .tint(AppColors.accentWarm)
-
-                // #173: Haptic toggle
+            // Was "Tower". The 3D Parallax switch went with the feature, and
+            // haptics are not a tower thing — they fire on every control in
+            // the app.
+            Section("Feedback") {
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
                         Text("Haptic Feedback")
@@ -311,35 +303,6 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Animation Previews") {
-                Button { SoundEngine.completionTone(category: .health) } label: {
-                    Label("Completion Tone (Health)", systemImage: "speaker.wave.2")
-                }
-                Button { SoundEngine.blockImpact(mass: 2) } label: {
-                    Label("Block Impact (Medium)", systemImage: "speaker.wave.1")
-                }
-                Button { SoundEngine.allClearChime() } label: {
-                    Label("All-Clear Chime", systemImage: "music.note")
-                }
-                Button { HapticsEngine.reward() } label: {
-                    Label("Reward Haptic", systemImage: "hand.tap")
-                }
-            }
-
-            Section("Reset Triggers") {
-                Button {
-                    UserDefaults.standard.set(false, forKey: "hasSeenFirstDrop")
-                    HapticsEngine.lightTap()
-                } label: {
-                    Label("Reset First Block Magic", systemImage: "1.circle")
-                }
-                Button {
-                    UserDefaults.standard.set(0, forKey: "lastAuroraWeek")
-                    HapticsEngine.lightTap()
-                } label: {
-                    Label("Reset Aurora Cooldown", systemImage: "sparkles")
-                }
-            }
             #endif
         }
         .scrollContentBackground(.hidden)

@@ -80,7 +80,6 @@ struct MainAppView: View {
     @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerProbe = TowerGeometryProbe()
-    @State private var motionCoord = DeviceMotionCoordinator()
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
@@ -101,13 +100,8 @@ struct MainAppView: View {
     // #386: Perfect day anticipation
 
 
-    // First block magic (Phase 5 — Murdock 1962 primacy effect)
-    @AppStorage("hasSeenFirstDrop") private var hasSeenFirstDrop = false
     @AppStorage("lastDayBoundaryCheck") private var lastDayBoundaryCheck: String = ""
 
-    // Tower Aurora (Phase 5 — Skinner 1938 variable reward)
-    @AppStorage("lastAuroraWeek") private var lastAuroraWeek: Int = 0
-    @State private var showAurora = false
     @State private var showTowerConfetti = false
     @AppStorage("lastCelebrationDate") private var lastCelebrationDate: String = ""
 
@@ -258,13 +252,6 @@ struct MainAppView: View {
     // tower measured 0.0pt with a gesture attached and a clean scroll without
     // one. Reordering now goes through the system's drag and drop, which is
     // the mechanism scroll views were built to coexist with. See `BlockMove`.
-    @AppStorage("towerShowParallax") private var towerShowParallax = true
-
-    /// 1 when the tower may tilt with the phone, 0 when it may not.
-    private var towerParallaxAmount: Double {
-        (towerShowParallax && !reduceMotion) ? 1 : 0
-    }
-
     // MARK: - Rearranging the tower
     //
     // Dragging a block does not pick it up. The block leaves its slot, the
@@ -290,10 +277,6 @@ struct MainAppView: View {
     /// Fires the restore when the finger stays off every block. Cancelled by
     /// any new hover, and by a drop.
     @State private var restoreTask: Task<Void, Never>?
-
-    /// Stable id for the empty slot's reflection, so the water does not
-    /// rebuild its facet every time the view re-evaluates.
-    private let emptySlotFacetID = UUID()
 
     /// The tower is being rearranged. Read at the top of the grid's body so
     /// SwiftUI cannot miss it — not inside the memoised block view, for the
@@ -595,29 +578,6 @@ struct MainAppView: View {
             if newTab != .tower {
                 timelineSelectedDate = Date()
             }
-            // Device parallax — start on Tower, stop on leave
-            if newTab == .tower && !reduceMotion {
-                motionCoord.start()
-            } else {
-                motionCoord.stop()
-            }
-            // Tower Aurora check — async to not block tab transition
-            if newTab == .tower && towerVM.totalRows > 0 {
-                Task { @MainActor in
-                    let currentWeek = Calendar.current.component(.weekOfYear, from: Date())
-                    let todayStr = TimelineViewModel.dateString(from: Date())
-                    let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-                    let recentPerfectDays = perfectDayDates.filter { dateStr in
-                        guard let date = Self.dateStringFormatter.date(from: dateStr) else { return false }
-                        return date >= weekStart && dateStr <= todayStr
-                    }.count
-                    if recentPerfectDays >= 3 && lastAuroraWeek != currentWeek {
-                        lastAuroraWeek = currentWeek
-                        try? await Task.sleep(for: .milliseconds(500))
-                        showAurora = true
-                    }
-                }
-            }
         }
         .onChange(of: pendingDrops.count) { _, newCount in
             if newCount > 0 && selectedTab == .tower {
@@ -660,7 +620,7 @@ struct MainAppView: View {
             // the bottom row, which meant it moved every time the tower grew
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
-            // but its own reflection.
+            // at all.
             .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
     }
 
@@ -984,8 +944,8 @@ struct MainAppView: View {
             // between the tower and the tab bar. Notifications on the one
             // screen that is meant to be only the tower, in `.ultraThinMaterial`,
             // which is the frosted band that belongs to blocks and to nothing
-            // else. The tower stands on its reflection with the tab bar
-            // directly beneath it, and that is the whole page.
+            // else. The tower stands on the page's own ground with the tab
+            // bar directly beneath it, and that is the whole page.
             .background { WarmBackground().ignoresSafeArea() }
             // Tapping a block opens the same sheet that made it.
             //
@@ -1259,13 +1219,6 @@ struct MainAppView: View {
         }
     }
 
-    /// A block has landed — disturb the water under it.
-    ///
-    /// Every block sends rings, not just the bottom row: the tower is standing
-    /// in the water, so anything landing on it travels down through it. Rings
-    /// spread from the landing block's own column, which is what makes the
-    /// water feel attached to the tower rather than played at it.
- 
     /// Merge groups over SETTLED blocks only.
     ///
     /// A falling block was joining its group the moment the tower rebuilt,
@@ -1299,11 +1252,6 @@ struct MainAppView: View {
         return Set(liveMergeGroups.flatMap(\.memberIDs))
     }
 
-    /// What of the tower reaches the water: the bottom row, as colour and
-    /// width. A reflection at the base of something shows only what is nearest
-    /// the surface, so nothing above row 0 contributes and nothing but position
-    /// and colour survives.
- 
     // MARK: - Wins
 
     /// Blocks that landed on the tower today — taps of the next slot plus
@@ -1507,8 +1455,9 @@ struct MainAppView: View {
             // block on screen at once — the tower flexing rather than standing.
             // Even at 0.3% that is several points at the top of a tall tower,
             // and it is the last thing still contradicting "one structure".
-            // The landing is carried by the block that landed, the haptic and
-            // the water, all of which are local to where it happened.
+            // The landing is carried by the block that landed, its ripple
+            // through the neighbours, and the haptic — all of which are local
+            // to where it happened.
         }
         // Post-cascade settle — the tower exhales (Gestalt Pragnanz closure)
         animCoord.onAllDropsComplete = { [self] in
@@ -1778,20 +1727,8 @@ struct MainAppView: View {
 
     @MainActor
     private func cascadeDropPendingBlocks() async {
-        let habits = pendingDrops
         pendingDrops = []
         animCoord.isCascading = true
-        let isFirstDrop = !hasSeenFirstDrop && !habits.isEmpty
-
-        // The first block used to zoom the whole tower to 1.08 for drama.
-        // Eight percent moves everything on screen by up to fifty points, and
-        // it fired on the one drop where the user has least idea what to
-        // expect. The block's own fall and landing carry the moment; the page
-        // does not need to lurch to underline it.
-        if isFirstDrop && !reduceMotion {
-            try? await Task.sleep(for: .milliseconds(120))
-        }
-
         scrollToTopTrigger += 1
         try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s scroll settle
 
@@ -1819,16 +1756,6 @@ struct MainAppView: View {
         // into view, because the slot is at the top of the tower.
         // animCoord.isCascading cleared by drain loop when it finishes
 
-        // #50: First Block haptic choreography — lightTap→pause→reward→pause→success
-        if isFirstDrop {
-            hasSeenFirstDrop = true
-            HapticsEngine.lightTap()
-            try? await Task.sleep(for: .milliseconds(200))
-            HapticsEngine.reward()
-            try? await Task.sleep(for: .milliseconds(300))
-            HapticsEngine.success()
-
-        }
     }
 
     // MARK: - Tower Content
@@ -1897,12 +1824,7 @@ struct MainAppView: View {
 
                     Color.clear
                         .frame(width: gridW,
-                               // The empty state reserves the water too — an
-                               // `.offset` does not add height, so without this
-                               // the reflection under the first slot hangs
-                               // outside the measured bounds and is clipped.
-                               height: max(gridH, 1)
-                                   + footerReserve)
+                               height: max(gridH, 1) + footerReserve)
                         // Where the grid really is, so a fall can start above
                         // the screen. Writes to a plain object, not to state —
                         // see `TowerGeometryProbe`.
@@ -1926,8 +1848,6 @@ struct MainAppView: View {
                         // a tower that has not been built yet.
                         emptyTowerSlot(colW: colW, gridH: gridH)
                     } else {
-                        // Ground plane at tower foundation, and the water
-                        // it sits on.
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
                         ForEach(liveMergeGroups) { group in
@@ -1945,26 +1865,11 @@ struct MainAppView: View {
 
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
-                        // the tower can stand on its water with the tab bar
-                        // directly beneath it, rather than on a caption.
+                        // the tower can stand with the tab bar directly
+                        // beneath it, rather than on a caption.
                     }
                 }
-                // Device parallax — tower shifts with phone tilt (Harrison 2011)
-                //
-                // Gated on the Settings toggle, which until now was an
-                // `@AppStorage` key nobody read: the switch moved and the
-                // tower kept tilting. Also gated on Reduce Motion, since a
-                // view that swings with the phone is exactly what that setting
-                // is asking about.
-                .rotation3DEffect(.degrees(towerParallaxAmount * motionCoord.pitch * 2.5),
-                                  axis: (1, 0, 0), perspective: 0.8)
-                .rotation3DEffect(.degrees(towerParallaxAmount * motionCoord.roll * 2.5),
-                                  axis: (0, 1, 0), perspective: 0.8)
-                // Tower Aurora — rare, earned, beautiful (Skinner 1938)
                 .overlay {
-                    if showAurora && !reduceMotion {
-                        TowerAuroraView(isActive: $showAurora)
-                    }
                     if showTowerConfetti {
                         AllClearCelebration(
                             isActive: $showTowerConfetti,
@@ -2769,14 +2674,12 @@ struct MainAppView: View {
         // anywhere at all.
         for key in [
             "activeTowerID",
-            "hasSeenFirstDrop", "lastDayBoundaryCheck",
+            "hasSeenFirstDrop", "lastAuroraWeek", "towerShowParallax",
+            "lastDayBoundaryCheck",
             "sectionExpanded", "smartViewOverrides", "planSortMode"
         ] {
             UserDefaults.standard.removeObject(forKey: key)
         }
-
-        // 4. Reset in-memory @AppStorage properties
-        hasSeenFirstDrop = false
 
         // 5. Reset in-memory view state
         pendingDrops = []
@@ -2853,81 +2756,6 @@ private struct FlyawayBlockView: View {
 }
 
 // MARK: - Tower Aurora (rare, earned, beautiful — Skinner 1938)
-
-private struct TowerAuroraView: View {
-    @Binding var isActive: Bool
-    @State private var startTime: Date?
-
-    private let duration: TimeInterval = 2.5
-
-    var body: some View {
-        GeometryReader { geo in
-            let height = geo.size.height
-            let width = geo.size.width
-
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { timeline in
-                let elapsed = startTime.map { timeline.date.timeIntervalSince($0) } ?? 0
-                let progress = min(elapsed / duration, 1.0)
-                let fade = max(0, 1.0 - max(0, progress - 0.6) / 0.4)
-
-                let sway1 = sin(elapsed * 1.5) * 15
-                let sway2 = sin(elapsed * 2.0 + 1) * 12
-                let sway3 = sin(elapsed * 2.5 + 2) * 8
-
-                ZStack {
-                    // Cool curtain (teal → blue) — lower altitude, faster
-                    Ellipse()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.06, green: 0.72, blue: 0.50).opacity(0.18 * fade),
-                                    Color(red: 0.25, green: 0.66, blue: 1.0).opacity(0.14 * fade)
-                                ],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
-                        .frame(width: width * 0.85, height: 140)
-                        .blur(radius: 30)
-                        .offset(x: -width * 0.08 + sway1, y: height * (1.0 - progress * 1.2))
-
-                    // Warm curtain (purple → magenta) — higher altitude, slower
-                    Ellipse()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.69, green: 0.61, blue: 0.98).opacity(0.15 * fade),
-                                    Color(red: 0.93, green: 0.52, blue: 0.71).opacity(0.12 * fade)
-                                ],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
-                        .frame(width: width * 0.7, height: 110)
-                        .blur(radius: 25)
-                        .offset(x: width * 0.12 + sway2, y: height * (1.0 - progress * 1.05) - 40)
-
-                    // Gold accent shimmer — fastest, thinnest
-                    Ellipse()
-                        .fill(GridConstants.patinaGold.opacity(0.10 * fade))
-                        .frame(width: width * 0.5, height: 70)
-                        .blur(radius: 15)
-                        .offset(x: sway3, y: height * (1.0 - progress * 1.35) + 20)
-                }
-            }
-        }
-        .clipped()
-        .allowsHitTesting(false)
-        .onAppear {
-            startTime = Date()
-            HapticsEngine.reward()
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(Int(duration * 1000)))
-                SoundEngine.allClearChime()
-                try? await Task.sleep(for: .seconds(1))
-                isActive = false
-            }
-        }
-    }
-}
 
 #Preview {
     MainAppView()

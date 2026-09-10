@@ -60,10 +60,9 @@ struct ShareTowerCard: View {
     private var tower: some View {
         let columns = CGFloat(GridConstants.columnCount)
         let spacing = GridConstants.spacing
-        // Room for the tower and the water under it.
         let available = CGSize(
             width: Self.size.width - 44,
-            height: Self.size.height - 96 - reflectionDepth
+            height: Self.size.height - 96
         )
         let byWidth = (available.width - (columns - 1) * spacing) / columns
         let byHeight = rows > 0
@@ -113,11 +112,7 @@ struct ShareTowerCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var reflectionDepth: CGFloat { 0 }
-
-    /// What of the tower reaches the water: the bottom row, as colour and
-    /// width — the same rule the live page uses.
- }
+}
 
 /// Renders the card to an image and hands it to the share sheet.
 enum TowerShare {

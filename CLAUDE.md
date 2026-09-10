@@ -94,11 +94,14 @@ disagree, the tower is right. Its anatomy:
 - **Header**: block count as a large numeral, the period and qualifiers under
   it, the filter on the right. No navigation bar — the filter said "Day" while
   the title said "Today", which is the same fact twice.
-- **Nothing sits under the tower.** It stands on its reflection with the tab
-  bar directly beneath. Counts live in the header, never below the blocks.
-- **The water** is a `Canvas`, not a shader (see below). Paler than feels right
-  in isolation: a reflection you notice reads as content and invites a scroll
-  to something that is not there.
+- **Nothing sits under the tower.** The tab bar is directly beneath it.
+  Counts live in the header, never below the blocks.
+- **There is no water.** The tower used to stand on a reflection drawn in a
+  `Canvas`; it is gone (2026-09-10, owner: "remove all the water references
+  like the splash, we dont have that anymore"). The code went first and the
+  comments outlived it by some months — a dangling doc comment for a deleted
+  function reads exactly like a feature you cannot find. If you meet a
+  reference to water, a splash or a reflection anywhere, it is stale.
 - **Blocks are one flat colour** with a rim that is brightest along the top
   edge. No vertical gradient — the block is lit from above by its rim, not by a
   wash at both ends.
@@ -455,6 +458,28 @@ method, every bug and what made it invisible, and the before/after numbers.
   Earlier attempts — neutral grey, then translucent white — both made the block
   that claims the least the only one that did not belong to the page.
 - **A block with no name shows no text at all.** Not the word "Win".
+
+## Removed on 2026-09-10 — do not bring back
+
+The owner's call, in his words: "there is no block magic or aurora so remove
+those", "lets remove the 3d Paradox i feel like it kinda sucks", "remove the
+animations previews section from the settings", "remove all the water
+references like the splash".
+
+- **The water.** The tower stood on a reflection drawn in a `Canvas`. The code
+  went months ago and the COMMENTS outlived it — a dangling doc comment for a
+  deleted function reads exactly like a feature you cannot find, which is how
+  this survived so long. If you meet water, a splash or a reflection anywhere,
+  it is stale.
+- **Tower Aurora.** A once-a-week overlay gated on three perfect days. It was
+  wired and, in practice, never seen.
+- **First-block magic.** A haptic choreography and a 120ms pause on the very
+  first drop.
+- **3D Parallax.** The tower tilted with the phone via `DeviceMotionCoordinator`
+  and two `rotation3DEffect`s. Both the coordinator and
+  `NSMotionUsageDescription` are gone — **the app no longer touches CoreMotion
+  at all**, so do not re-add the key without re-adding a real use.
+- **Settings' "Animation Previews" and "Reset Triggers"** debug sections.
 
 ## Deliberate pairs — do not "fix" these
 

@@ -93,5 +93,4 @@ struct StaticTowerView: View {
         rows > 0 ? CGFloat(rows) * cell + CGFloat(rows - 1) * GridConstants.spacing : 0
     }
 
-    /// What of the tower reaches the water: the bottom row, as colour and width.
- }
+}

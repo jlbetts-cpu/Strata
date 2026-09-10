@@ -567,9 +567,8 @@ struct CameraView: View {
         //
         // Ruled lines running hard into a floating bar is the one place this
         // screen looked pasted together — two systems meeting at an edge
-        // neither of them drew. Fading them out over the last stretch is the
-        // same move the tower's water makes at the bottom of the blocks: the
-        // page stops rather than being cut off.
+        // neither of them drew. Fading them out over the last stretch means
+        // the page stops rather than being cut off.
         .mask(
             LinearGradient(
                 stops: [
