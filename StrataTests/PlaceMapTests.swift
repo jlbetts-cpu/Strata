@@ -229,6 +229,119 @@ struct PlaceMapTests {
         #expect(PlaceMap.zoomLevel(spanLongitude: 0.000001, viewportWidth: 393) <= 20)
     }
 
+    // MARK: - Merging
+
+    /// Without a parent link, zooming out changes every id at once and the
+    /// only thing left to do is cross-fade the whole set. These are what let a
+    /// block travel into the one that swallows it.
+    @Test("a cell's parent is the cell holding it one level out")
+    func parentContainsChild() {
+        let place = WinPlace(latitude: 51.5074, longitude: -0.1278)
+        for z in 1...16 {
+            let child = PlaceMap.key(for: place, z: z)
+            let parent = PlaceMap.parent(of: child)
+            #expect(parent == PlaceMap.key(for: place, z: z - 1),
+                    "parent of a z=\(z) cell is not the same place at z=\(z - 1)")
+        }
+    }
+
+    @Test("the world has no parent")
+    func rootHasNoParent() {
+        #expect(PlaceMap.parent(of: PlaceMap.PlaceKey(z: 0, x: 0, y: 0)) == nil)
+    }
+
+    /// Two blocks that merge must land on the busy one, not in the gap — a
+    /// join that drifts into empty ground reads as the block sliding somewhere
+    /// arbitrary.
+    @Test("a merge collapses towards the place that holds the most")
+    func centroidIsWeighted() {
+        let heavy = PlaceMap.cluster((1...9).map { pin(lat: 51.50, lon: -0.10, day: $0) },
+                                     zoom: 14)
+        let light = PlaceMap.cluster([pin(lat: 51.60, lon: -0.10)], zoom: 14)
+        let joined = PlaceMap.centroid(of: heavy + light)
+        #expect(joined != nil)
+        // Nine wins against one, so the join sits close to the nine.
+        #expect((joined?.latitude ?? 0) < 51.52)
+    }
+
+    @Test("a merge of nothing has no centre")
+    func centroidOfNothing() {
+        #expect(PlaceMap.centroid(of: []) == nil)
+    }
+
+    // MARK: - Where a block is drawn
+
+    /// The bug this exists to stop: two clusters in neighbouring cells drawn
+    /// a few points apart while each is ninety points wide. Anchoring on the
+    /// cell makes the separation exactly one pitch by construction, so it
+    /// cannot depend on where the members happen to sit.
+    @Test("neighbouring blocks are exactly one cell apart")
+    func anchorsAreOnePitchApart() {
+        let left = PlaceMap.centre(of: PlaceMap.PlaceKey(z: 14, x: 100, y: 200))
+        let right = PlaceMap.centre(of: PlaceMap.PlaceKey(z: 14, x: 101, y: 200))
+        let side = PlaceMap.cellSide(at: 14) * 360
+        #expect(abs((right.longitude - left.longitude) - side) < 1e-9)
+        #expect(abs(right.latitude - left.latitude) < 1e-9)
+    }
+
+    /// A block sits in the cell it belongs to — the anchor is a re-statement
+    /// of the key, so projecting it back has to land on the same key.
+    @Test("a block's anchor is inside its own cell")
+    func anchorRoundTripsToItsOwnCell() {
+        for z in [8, 12, 16] {
+            for (lat, lon) in [(51.5074, -0.1278), (-33.86, 151.21), (64.14, -21.94)] {
+                let key = PlaceMap.key(for: WinPlace(latitude: lat, longitude: lon), z: z)
+                let anchor = PlaceMap.centre(of: key)
+                let back = PlaceMap.key(
+                    for: WinPlace(latitude: anchor.latitude, longitude: anchor.longitude),
+                    z: z
+                )
+                #expect(back == key)
+            }
+        }
+    }
+
+    /// The whole reason the anchor is computed from the key rather than from
+    /// the members: a new photograph must not move the block.
+    @Test("a new pin does not move the block")
+    func anchorIsUnmovedByANewPin() {
+        let one = PlaceMap.cluster([pin(lat: 51.5074, lon: -0.1278)], zoom: 14)
+        let two = PlaceMap.cluster([pin(lat: 51.5074, lon: -0.1278),
+                                    pin(lat: 51.5076, lon: -0.1274, day: 2)], zoom: 14)
+        #expect(one.count == 1 && two.count == 1)
+        #expect(one[0].anchor.latitude == two[0].anchor.latitude)
+        #expect(one[0].anchor.longitude == two[0].anchor.longitude)
+        // The centroid, which the camera still frames on, DID move.
+        #expect(one[0].latitude != two[0].latitude)
+    }
+
+    /// The loop that keeps the map legible used to run the wrong way: it
+    /// stepped to a FINER grid, which splits clusters, so an over-full map got
+    /// fuller until every pin was its own block on top of its neighbours.
+    @Test("too many places merge rather than split")
+    func densityThinsByMerging() {
+        // Forty places spread widely enough to be separate at zoom 14.
+        let many = (0..<40).map { n in
+            pin(lat: 51.0 + Double(n) * 0.05, lon: -0.5 + Double(n % 7) * 0.05, day: n + 1)
+        }
+        let capped = PlaceMap.cluster(many, zoom: 14, limit: 8)
+        #expect(capped.count <= 8)
+        // Nothing may be lost on the way: a merge keeps every win.
+        #expect(capped.reduce(0) { $0 + $1.winCount } == 40)
+        // And it got there by getting coarser.
+        #expect(capped.allSatisfy { $0.key.z < 14 })
+    }
+
+    @Test("unprojecting is the inverse of projecting")
+    func unprojectInvertsProject() {
+        for (lat, lon) in [(51.5074, -0.1278), (-33.86, 151.21), (0.0, 0.0), (64.14, -21.94)] {
+            let (x, y) = PlaceMap.project(WinPlace(latitude: lat, longitude: lon))
+            let back = PlaceMap.unproject(x: x, y: y)
+            #expect(abs(back.latitude - lat) < 1e-9)
+            #expect(abs(back.longitude - lon) < 1e-9)
+        }
+    }
+
     // MARK: - Opening a place
 
     /// Two pins twenty metres apart can straddle a cell boundary. The map
