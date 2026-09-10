@@ -49,18 +49,11 @@ struct MemoriesMapView: View {
     @State private var camera: MapCameraPosition = .automatic
     @State private var zoom: Int = 12
     @State private var viewportWidth: CGFloat = 393
-    /// **Held, not computed.**
-    ///
-    /// This was a computed property, and it wedged the screen. The map's
-    /// content depended on `zoom`, `onMapCameraChange` wrote `zoom`, and
-    /// `.automatic` framed the camera from the content — a loop with no
-    /// settling point. SwiftUI stopped re-evaluating the whole Memories body,
-    /// which showed up as the page keeping its EMPTY state forever while the
-    /// view model had forty pins in it. Nothing errored.
-    ///
-    /// Recomputed only when the integer zoom actually changes, which is a few
-    /// times per pan rather than once per frame.
-    @State private var clusters: [PlaceMap.Cluster] = []
+    /// What is on screen right now, with the coordinate each block is drawn
+    /// at — which is not always where its cluster is. During a merge a block
+    /// sits at the point it is travelling to. See `apply(_:)`.
+    @State private var displayed: [Placed] = []
+    @State private var didFrame = false
     /// Observed, so the empty state follows the answer to its own prompt
     /// rather than waiting for the screen to be opened again.
     ///
@@ -69,11 +62,192 @@ struct MemoriesMapView: View {
     /// which stops every caller constructing this view.
     @State private var location = LocationService.shared
 
-    var body: some View {
-        ZStack {
-            map
-            if pins.isEmpty { emptyState }
+    /// A cluster, and where it is being drawn.
+    ///
+    /// The coordinate is separate from the cluster's own because a merge moves
+    /// blocks: the ones being swallowed travel to the joining point before
+    /// they go, and the one that arrives starts from that same point. Without
+    /// that the set can only cross-fade, which is what "the blocks blink"
+    /// looks like.
+    struct Placed: Identifiable, Equatable {
+        let cluster: PlaceMap.Cluster
+        var latitude: Double
+        var longitude: Double
+        var id: String { cluster.id }
+        var coordinate: CLLocationCoordinate2D {
+            CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         }
+
+        /// At rest, a block sits on its cell — see `Cluster.anchor`.
+        static func atRest(_ cluster: PlaceMap.Cluster) -> Placed {
+            Placed(cluster: cluster,
+                   latitude: cluster.anchor.latitude,
+                   longitude: cluster.anchor.longitude)
+        }
+    }
+
+    /// How long a merge or a split takes.
+    ///
+    /// Slower than a cross-fade on purpose: the whole point is that you can
+    /// SEE where a block went. `docs/apple-design.md` §8 — the intermediate
+    /// frames are what tell you the outcome.
+    private static let travel: Double = 0.42
+
+    var body: some View {
+        map
+            .overlay { if pins.isEmpty { emptyState } }
+    }
+
+    private var map: some View {
+        Map(position: $camera, interactionModes: isInteractive ? .all : []) {
+            ForEach(displayed) { placed in
+                Annotation("", coordinate: placed.coordinate, anchor: .center) {
+                    PlaceBlock(cluster: placed.cluster)
+                        .onTapGesture { onSelect(placed.cluster.key) }
+                }
+                .annotationTitles(.hidden)
+            }
+        }
+        .mapStyle(mapStyle)
+        .mapControls { }
+        // **Apple's attribution, moved rather than removed.**
+        //
+        // It cannot be removed: displaying it is a condition of the Apple
+        // Developer Program License Agreement, and there is no API that hides
+        // it. There is also no API that positions it — but it is laid out
+        // inside the map's safe area, so an inset moves it. This lifts it
+        // clear of the floating tab bar, where it was colliding, to just above
+        // it: still legible, still complete, and reading as a caption on the
+        // map rather than as something stuck to the corner of the screen.
+        .safeAreaPadding(.bottom, DrawerMetrics.tabBarClearance - 22)
+        .safeAreaPadding(.leading, 6)
+        // **A scrim we own.**
+        //
+        // MapKit cannot be recoloured, so this is the only lever left after
+        // stripping points of interest and muting the emphasis. Measured, it
+        // is doing real work: the standard ground came out at mean luminance
+        // 232 — BRIGHTER than the Memories page it was meant to fix, which was
+        // 207 — and imagery at 117 against the camera's 9. The scrim pulls the
+        // tiles down towards the app's own register and lets the blocks be the
+        // only saturated thing on the screen.
+        .overlay {
+            Rectangle()
+                .fill(AppColors.warmBlack.opacity(style == .satellite ? 0.34 : 0.10))
+                .allowsHitTesting(false)
+        }
+        #if DEBUG
+        .task {
+            guard DebugHarness.sweepsMap else { return }
+            await sweep()
+        }
+        #endif
+        // `.onEnd`, not `.continuous`. Re-clustering every camera frame both
+        // costs CPU and looks wrong — blocks twitch between two cells while
+        // you pan, because the cell under a pin changes several times a
+        // second.
+        .onMapCameraChange(frequency: .onEnd) { context in
+            let next = PlaceMap.zoomLevel(
+                spanLongitude: context.region.span.longitudeDelta,
+                viewportWidth: Double(viewportWidth)
+            )
+            guard next != zoom else { return }
+            let previous = zoom
+            zoom = next
+            apply(PlaceMap.cluster(pins, zoom: next), from: previous, to: next)
+        }
+        .task(id: pins.count) {
+            displayed = PlaceMap.cluster(pins, zoom: zoom).map(Placed.atRest)
+            frameOnYourPlaces()
+        }
+    }
+
+    // MARK: - Merging and splitting
+
+    /// Moves from one set of blocks to another so you can see what became what.
+    ///
+    /// **Zooming out is a merge.** Every block that is about to be swallowed
+    /// travels to the point where its parent will sit, then the parent arrives
+    /// there. **Zooming in is a split**: the new blocks are placed on their
+    /// parent's point first and then move out to where they belong. Either
+    /// way something travels, which is the difference between a map and a
+    /// slideshow.
+    ///
+    /// The join is weighted by how much each block holds, so a merge lands on
+    /// the busy place rather than in the gap between two.
+    private func apply(_ next: [PlaceMap.Cluster], from old: Int, to new: Int) {
+        let zoomingOut = new < old
+        let byID = Dictionary(uniqueKeysWithValues: next.map { ($0.id, $0) })
+
+        if zoomingOut {
+            // Walk each current block up to the cell it is joining, and send
+            // it there.
+            var moved: [Placed] = []
+            for placed in displayed {
+                let target = ancestor(of: placed.cluster.key, at: new).flatMap { byID[keyID($0)] }
+                moved.append(Placed(cluster: placed.cluster,
+                                    latitude: target?.anchor.latitude ?? placed.latitude,
+                                    longitude: target?.anchor.longitude ?? placed.longitude))
+            }
+            withAnimation(.easeInOut(duration: Self.travel)) { displayed = moved }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(Self.travel))
+                guard zoom == new else { return }
+                withAnimation(.easeOut(duration: 0.18)) {
+                    displayed = next.map(Placed.atRest)
+                }
+            }
+        } else {
+            // Place the arrivals on the block they came out of, then let them
+            // travel to their own ground.
+            let origins = Dictionary(uniqueKeysWithValues: displayed.map { ($0.id, $0) })
+            displayed = next.map { cluster in
+                let from = ancestor(of: cluster.key, at: old).flatMap { origins[keyID($0)] }
+                return Placed(cluster: cluster,
+                              latitude: from?.latitude ?? cluster.anchor.latitude,
+                              longitude: from?.longitude ?? cluster.anchor.longitude)
+            }
+            withAnimation(.easeInOut(duration: Self.travel)) {
+                displayed = next.map(Placed.atRest)
+            }
+        }
+    }
+
+    /// The cell containing `key` at a coarser zoom, by halving until it gets
+    /// there. Nil if `level` is not coarser.
+    private func ancestor(of key: PlaceMap.PlaceKey, at level: Int) -> PlaceMap.PlaceKey? {
+        guard level < key.z else { return nil }
+        var current = key
+        while current.z > level, let up = PlaceMap.parent(of: current) { current = up }
+        return current.z == level ? current : nil
+    }
+
+    private func keyID(_ key: PlaceMap.PlaceKey) -> String { "\(key.z)/\(key.x)/\(key.y)" }
+
+    // MARK: - Where it opens
+
+    /// **Your town, not the planet.**
+    ///
+    /// `.automatic` frames every annotation, which is right in the middle and
+    /// wrong at both ends: two places a country apart open on a continent, and
+    /// one place opens on a doorway. This clamps the span at both ends, so the
+    /// map always opens somewhere that reads as *around here* — near enough to
+    /// recognise streets, far enough to be a place rather than a pin.
+    private func frameOnYourPlaces() {
+        guard !didFrame, !pins.isEmpty else { return }
+        didFrame = true
+        let lats = pins.map(\.place.latitude)
+        let lons = pins.map(\.place.longitude)
+        guard let minLat = lats.min(), let maxLat = lats.max(),
+              let minLon = lons.min(), let maxLon = lons.max() else { return }
+        let centre = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2,
+                                            longitude: (minLon + maxLon) / 2)
+        // A comfortable town: roughly three kilometres across at the tight end,
+        // a wide city at the loose one.
+        let span = min(max(max(maxLat - minLat, maxLon - minLon) * 1.4, 0.03), 0.35)
+        camera = .region(MKCoordinateRegion(
+            center: centre,
+            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+        ))
     }
 
     // MARK: - Nothing on it yet
@@ -134,65 +308,6 @@ struct MemoriesMapView: View {
         // Dark enough to read white type on, whatever the imagery underneath
         // happens to be.
         .background(AppColors.warmBlack.opacity(0.55))
-    }
-
-    private var map: some View {
-        Map(position: $camera, interactionModes: isInteractive ? .all : []) {
-            ForEach(clusters) { cluster in
-                Annotation("", coordinate: CLLocationCoordinate2D(
-                    latitude: cluster.latitude, longitude: cluster.longitude
-                ), anchor: .center) {
-                    PlaceBlock(cluster: cluster)
-                        .onTapGesture { onSelect(cluster.key) }
-                }
-                .annotationTitles(.hidden)
-            }
-        }
-        .mapStyle(mapStyle)
-        .mapControls { }
-        // **A scrim we own.**
-        //
-        // MapKit cannot be recoloured, so this is the only lever left after
-        // stripping points of interest and muting the emphasis. Measured, it
-        // is doing real work: the standard ground came out at mean luminance
-        // 232 — BRIGHTER than the Memories page it was meant to fix, which was
-        // 207 — and imagery at 117 against the camera's 9. The scrim pulls the
-        // tiles down towards the app's own register and lets the blocks be the
-        // only saturated thing on the screen.
-        .overlay {
-            Rectangle()
-                .fill(AppColors.warmBlack.opacity(style == .satellite ? 0.34 : 0.10))
-                .allowsHitTesting(false)
-        }
-        // `.onEnd`, not `.continuous`. Re-clustering every camera frame both
-        // costs CPU and looks wrong — blocks twitch between two cells while
-        // you pan, because the cell under a pin changes several times a
-        // second.
-        #if DEBUG
-        .task {
-            guard DebugHarness.sweepsMap else { return }
-            await sweep()
-        }
-        #endif
-        .onMapCameraChange(frequency: .onEnd) { context in
-            viewportWidth = context.rect.width > 0 ? viewportWidth : viewportWidth
-            let next = PlaceMap.zoomLevel(
-                spanLongitude: context.region.span.longitudeDelta,
-                viewportWidth: Double(viewportWidth)
-            )
-            // Only when the GRID changes. Assigning the same value back is
-            // what turned this into a loop.
-            guard next != zoom else { return }
-            zoom = next
-            withAnimation(GridConstants.crossFade) {
-                clusters = PlaceMap.cluster(pins, zoom: next)
-            }
-        }
-        // Never `camera = .automatic` here: `.automatic` frames itself from
-        // the content, and the content is what this would be changing.
-        .task(id: pins.count) {
-            clusters = PlaceMap.cluster(pins, zoom: zoom)
-        }
     }
 
     #if DEBUG

@@ -216,6 +216,19 @@ enum DebugHarness {
     /// would be judging an empty rectangle.
     static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
 
+    /// Raises the photographs drawer, from `-strataOpenDrawer [half|full]`.
+    ///
+    /// The drawer rests hidden and opens on a button, so without this it
+    /// cannot be photographed at all — nothing on this machine can tap the
+    /// simulator.
+    static var openDrawer: DrawerDetent? {
+        switch argument("-strataOpenDrawer") {
+        case "half": return .half
+        case "full": return .full
+        default: return nil
+        }
+    }
+
     /// Puts a seeded win somewhere real.
     ///
     /// **60% into three tight clusters, 40% spread**, which is what exercises

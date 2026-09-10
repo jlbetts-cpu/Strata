@@ -35,6 +35,10 @@ struct MemoriesView: View {
     @State private var viewing: ViewedPhoto?
     /// Ties each thumbnail to the viewer that opens out of it.
     @Namespace private var photoTransition
+    /// How far the page is pulled up over the map. **Hidden on arrival** —
+    /// the tab opens on the map, whole, and the photographs are the button in
+    /// the corner.
+    @State private var drawer: DrawerDetent = .hidden
 
     /// Which ground the map draws on. Two are possible and MapKit allows no
     /// third, so the choice is made by looking rather than by arguing —
@@ -51,17 +55,59 @@ struct MemoriesView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ZStack {
+            // **The map is the tab.**
+            //
+            // The page used to be the screen and the map a route off it. The
+            // owner's call is that the map is the feature, so it is the ground
+            // now and everything the tab used to be is a drawer over it —
+            // Apple Maps' own anatomy, and the only arrangement that gives the
+            // map the whole screen without losing anything.
+            MemoriesMapView(pins: vm.pins, style: mapStyle) { key in
+                path.append(.place(key))
+            }
+            .ignoresSafeArea()
+
+            // **The chrome floats on the map, and the drawer slides over it.**
+            //
+            // The title is the screen's name, so it belongs on the screen —
+            // which is now the map. It sits UNDER the drawer in z so raising
+            // the page covers it rather than fighting it, exactly as Apple
+            // Maps' own search field is covered by its card. At `.full` you
+            // are looking at photographs, and a title over photographs is the
+            // same argument the tower's header already lost.
+            VStack(spacing: 0) {
+                titleRow
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.top, GridConstants.headerArtworkTopPadding)
+                Spacer(minLength: 0)
+            }
+            // **A legibility wash, not a bar.**
+            //
+            // The title is ink on the page and has to be white here, because
+            // the ground under it is a photograph of the Earth and cannot be
+            // relied on to be anything. White alone is not enough either —
+            // over a chalk quarry or a cloud it disappears. This is the same
+            // move the camera makes for its wordmark: a short gradient from
+            // the app's own black, heaviest at the very top and gone by the
+            // time it reaches the map. It is not a navigation bar; there is no
+            // edge to it anywhere.
+            .background(alignment: .top) {
+                LinearGradient(
+                    colors: [AppColors.warmBlack.opacity(0.55), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 190)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            }
+
+            MemoriesDrawer(detent: $drawer) {
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    titleRow
-                        .padding(.horizontal, GridConstants.horizontalPadding)
-                        // Artwork, not type: `headerArtworkTopPadding`. The
-                        // other version subtracts the distance a `Text` sets
-                        // its cap below its own layout box, and a drawing has
-                        // no ascender to give back.
-                        .padding(.top, GridConstants.headerArtworkTopPadding)
-
                     if vm.carousel.isEmpty && vm.month.isEmpty {
                         emptyState
                     } else {
@@ -107,9 +153,11 @@ struct MemoriesView: View {
                                    ? "MemoriesShelf" : "MemoriesContent", anchor: .top)
                 }
             }
-            #endif
+                #endif
+                }
             }
-            .background { WarmBackground().ignoresSafeArea() }
+            .ignoresSafeArea(edges: .bottom)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(item: $viewing) { photo in
                 // The whole roll, so the next photograph is a swipe away.
@@ -142,6 +190,7 @@ struct MemoriesView: View {
         .task {
             vm.reload(context: modelContext)
             #if DEBUG
+            if let detent = DebugHarness.openDrawer { drawer = detent }
             if let back = DebugHarness.openDayBack,
                let date = Calendar.current.date(byAdding: .day, value: -back, to: Date()) {
                 path.append(.day(DateUtils.dateString(from: date)))
@@ -196,7 +245,8 @@ struct MemoriesView: View {
             // one number the app states and it takes the brand colour, but a
             // page title in the same pink would put two shouts on a screen
             // whose subject is photographs.
-            MemoriesTitle(color: .primary.opacity(0.85))
+            // White, because it is over the map now rather than on the page.
+            MemoriesTitle(color: .white)
             Spacer(minLength: 0)
             // Shown when there are PHOTOGRAPHS, not when there are pins.
             //
@@ -206,9 +256,14 @@ struct MemoriesView: View {
             // in, so nobody would ever be asked, so the map would stay empty
             // forever. It opens on its own empty state instead, which is where
             // the asking belongs.
+            // **The page, as a button.** It used to be the screen and the map
+            // a route off it; both are inverted. There is nothing to open when
+            // there are no photographs, and the map's own empty state is
+            // already saying so.
             if !vm.gallery.isEmpty {
-                GlassIconButton(systemName: "map", accessibilityLabel: "Map") {
-                    path.append(.map)
+                GlassIconButton(systemName: "photo.on.rectangle.angled",
+                                accessibilityLabel: "Photographs") {
+                    withAnimation(GridConstants.naturalSettle) { drawer = .half }
                 }
                 .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
             }
