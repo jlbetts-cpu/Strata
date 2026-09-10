@@ -525,7 +525,12 @@ struct CameraView: View {
 
                 Spacer(minLength: 0)
 
-                shutter
+                // A placeholder the size the shutter is at rest. The shutter
+                // itself is drawn OVER the row, centred, so growing it moves
+                // nothing else.
+                Color.clear
+                    .frame(width: Self.shutterBounds(.small).width,
+                           height: Self.shutterBounds(.small).height)
 
                 Spacer(minLength: 0)
 
@@ -537,6 +542,16 @@ struct CameraView: View {
 
                 timerButton
             }
+            // The four settings step out of the way while you draw.
+            //
+            // A drawn block runs to 149pt across and the row has about 138 to
+            // give, so something has to move — and the honest something is the
+            // four controls you are not using at that moment. They are already
+            // set; you are taking the picture. Back the instant you let go.
+            .opacity(isDrawing ? 0 : 1)
+            .allowsHitTesting(!isDrawing)
+            .overlay { shutter }
+            .animation(GridConstants.slotSnap, value: isDrawing)
             }
             .padding(.horizontal, 44)
             .padding(.bottom, bottomInset + shutterBottomGap)
@@ -692,23 +707,43 @@ struct CameraView: View {
     ///
     /// A rim and a fill, so pressing it compresses the fill inside a rim that
     /// stays put.
+    /// True while the shutter is showing something bigger than one cell.
+    private var isDrawing: Bool { drawnSize != .small }
+
+    /// The shutter's outer bounds at a given size — rim included.
+    ///
+    /// The rim changes shape with the fill, so a 2x1 draw makes the whole
+    /// control a rectangle and a 2x2 makes it a bigger square. An inner square
+    /// growing inside a fixed circle-analogue said the size in a language you
+    /// had to learn; the button BECOMING the block says it in the app's own.
+    static func shutterBounds(_ size: BlockSize) -> CGSize {
+        let cell: CGFloat = 66
+        let gutter = cell * GridConstants.spacing / GridConstants.blockReferenceCell
+        let rim: CGFloat = 14
+        return CGSize(
+            width: cell * CGFloat(size.columnSpan)
+                + gutter * CGFloat(size.columnSpan - 1) + rim,
+            height: cell * CGFloat(size.rowSpan)
+                + gutter * CGFloat(size.rowSpan - 1) + rim
+        )
+    }
+
     private var shutter: some View {
-        let outerRadius = shutterOuter * 0.147
+        let bounds = Self.shutterBounds(drawnSize)
+        let inner = CGSize(width: bounds.width - 14, height: bounds.height - 14)
+        let outerRadius = min(bounds.width, bounds.height) * 0.147
         return ZStack {
             RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                 .strokeBorder(.white, lineWidth: 1)
-                .frame(width: shutterOuter, height: shutterOuter)
+                .frame(width: bounds.width, height: bounds.height)
 
-            // The fill is the FOOTPRINT of the block you are about to make.
-            //
-            // The tower's slot shows the size by resizing the ghost it sits
-            // in; the camera has no ghost, so the shutter shows it instead —
+            // The fill is the FOOTPRINT of the block you are about to make —
             // one cell, two side by side, or a 2x2, at the tower's own gutter.
-            // It needs no label, and the outer rim never moves, so neither
-            // does the target.
-            ShutterFootprint(size: drawnSize, side: shutterInner)
+            ShutterFootprint(size: drawnSize, cell: 66)
                 .scaleEffect(shutterScale)
+                .frame(width: inner.width, height: inner.height)
         }
+        .animation(GridConstants.slotSnap, value: drawnSize)
         .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
         .gesture(draw)
         .accessibilityLabel("Take photo")
@@ -1079,43 +1114,29 @@ private extension View {
 /// is the one target on this screen that must stay exactly where it was.
 private struct ShutterFootprint: View {
     let size: BlockSize
-    /// The side the 1x1 occupies. Bigger sizes divide this, they do not exceed
-    /// it.
-    let side: CGFloat
+    /// One cell's side. Constant across every size — that is what makes the
+    /// footprint literal: a 2x1 really is two of the same cell, so it is twice
+    /// as wide, and the control grows to hold it.
+    let cell: CGFloat
 
     /// The tower's gutter, scaled to a shutter-sized cell so two cells here
     /// have the same relationship two cells have on the tower.
     private var gutter: CGFloat {
-        side * GridConstants.spacing / GridConstants.blockReferenceCell
-    }
-
-    /// **A cell is SQUARE**, and the footprint's outer shape is what changes.
-    ///
-    /// Dividing each axis by its own span instead gave a 2x1 as two tall
-    /// rectangles side by side, which is not what a 2x1 is — a 2x1 is two
-    /// square cells, so it is wide. Both spans divide by the LARGER one, so
-    /// the cell stays square and the footprint never exceeds the shutter's
-    /// inner square.
-    private var cellSide: CGFloat {
-        let span = CGFloat(max(size.columnSpan, size.rowSpan))
-        return (side - gutter * (span - 1)) / span
+        cell * GridConstants.spacing / GridConstants.blockReferenceCell
     }
 
     var body: some View {
-        let radius = cellSide * 0.147
+        let radius = cell * 0.147
         VStack(spacing: gutter) {
             ForEach(0..<size.rowSpan, id: \.self) { _ in
                 HStack(spacing: gutter) {
                     ForEach(0..<size.columnSpan, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
                             .fill(.white)
-                            .frame(width: cellSide, height: cellSide)
+                            .frame(width: cell, height: cell)
                     }
                 }
             }
         }
-        // Fixed bounds, so the footprint grows INSIDE the rim rather than
-        // moving it.
-        .frame(width: side, height: side)
     }
 }
