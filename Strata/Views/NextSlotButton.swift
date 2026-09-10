@@ -76,8 +76,14 @@ struct NextSlotButton: View {
     /// This was 0.18, which on this background is very close to not being
     /// there — the slot is the only control on the screen and it read as a
     /// faint artefact rather than as the thing you press.
+    @Environment(\.colorScheme) private var scheme
+
     private var outline: Color {
-        AppColors.warmBlack.opacity(isDown ? 0.34 : 0.26)
+        // Heavier in the dark: a light dash on a dark ground reads thinner
+        // than a dark dash on a light one at the same alpha, so matching the
+        // numbers would not match the appearance.
+        let base = scheme == .dark ? 0.42 : 0.26
+        return AppColors.slotInk.opacity(isDown ? base + 0.10 : base)
     }
 
     /// A shallow recess, so the slot reads as somewhere a block goes.
@@ -88,7 +94,8 @@ struct NextSlotButton: View {
     /// down, which is the response apple-design.md §1 asks for on pointer-down
     /// rather than on release.
     private var recess: Color {
-        AppColors.warmBlack.opacity(isDown ? 0.075 : 0.038)
+        let base = scheme == .dark ? 0.075 : 0.038
+        return AppColors.slotInk.opacity(isDown ? base * 2 : base)
     }
 
     var body: some View {
@@ -124,8 +131,8 @@ struct NextSlotButton: View {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
                 .foregroundStyle(
-                    AppColors.warmBlack
-                        .opacity((isDown ? 0.52 : 0.38) * (1 - colourStrength))
+                    AppColors.slotInk
+                        .opacity((isDown ? 0.72 : 0.55) * (1 - colourStrength))
                 )
                 .scaleEffect(1 + charge * 0.18)
         }

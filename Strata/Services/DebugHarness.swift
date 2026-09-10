@@ -224,6 +224,17 @@ enum DebugHarness {
     /// would be judging an empty rectangle.
     static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
 
+    /// Shows onboarding, from `-strataShowOnboarding`.
+    ///
+    /// **Inverted on purpose.** Onboarding is skipped by default under the
+    /// harness, because otherwise it covers every screenshot this project
+    /// takes and every UI test starts by failing to find anything. Asking for
+    /// it is the special case.
+    static var showsOnboarding: Bool { argument("-strataShowOnboarding") != nil }
+
+    /// Which onboarding page to open on, from `-strataOnboardingStep 0...3`.
+    static var onboardingStep: Int? { argument("-strataOnboardingStep").flatMap(Int.init) }
+
 
     /// Raises the photographs page, from `-strataOpenDrawer full`.
     ///

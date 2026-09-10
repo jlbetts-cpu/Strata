@@ -133,6 +133,22 @@ enum AppColors {
     // 2.8:1 against a 246 ground. That is not a dark-mode regression, it was
     // always there — flipping the ground is just what made it obvious.
 
+    /// The empty slot's ink: its outline, its recess and its `+`.
+    ///
+    /// **This was `warmBlack` and the slot disappeared in dark mode.** The
+    /// owner: "the block is still not visible in dark mode, like how am i
+    /// supposed to know where to hold to drag". It is the app's primary
+    /// action — the one place you press to log a win — drawn in near-black on
+    /// a near-black ground.
+    ///
+    /// A warm white rather than pure, so the socket still belongs to a page
+    /// whose black has brown in it.
+    static let slotInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.98, green: 0.97, blue: 0.96, alpha: 1)
+            : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
+    })
+
     /// Headings, labels, and anything that names a run of content.
     static let inkSecondary = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
