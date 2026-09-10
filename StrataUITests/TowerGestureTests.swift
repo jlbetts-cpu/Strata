@@ -551,6 +551,50 @@ final class TowerGestureTests: XCTestCase {
 
     // MARK: - Camera
 
+    /// Drawing a bigger block out of the SHUTTER, and letting go.
+    ///
+    /// Written after "letting go while resizing should take the photo".
+    ///
+    /// It asserts the release through the only door the simulator leaves
+    /// open. There is no capture device here, so `camera.capture` hands back
+    /// nil and the review screen never appears — but the nil path resets the
+    /// drawn size, so the shutter's accessibility value returning to "Quick"
+    /// is proof `onEnded` ran and the shot was attempted.
+    ///
+    /// **Honest limit:** this passed against the broken build too, so it did
+    /// not catch the reported problem and cannot be claimed to. It guards the
+    /// release path from here on, which is worth having; it is not evidence
+    /// about what was wrong.
+    @MainActor
+    func testDrawingOutOfTheShutterAndLettingGo() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "camera"]
+        app.launch()
+
+        let shutter = app.buttons["Take photo"]
+        XCTAssertTrue(shutter.waitForExistence(timeout: 30), "no shutter on the camera")
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertEqual(shutter.value as? String, "Quick",
+                       "the shutter did not start at one cell")
+
+        // Out to the side is "medium" — 70pt clears GridConstants.slotStep.
+        let start = shutter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.15,
+                    thenDragTo: start.withOffset(CGVector(dx: 70, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 1.5)
+
+        // Back to one cell, which only happens on release.
+        var value = shutter.value as? String
+        let deadline = Date().addingTimeInterval(6)
+        while Date() < deadline, value != "Quick" {
+            Thread.sleep(forTimeInterval: 0.2)
+            value = shutter.value as? String
+        }
+        XCTAssertEqual(value, "Quick",
+                       "letting go after drawing the shutter out did nothing — the "
+                       + "gesture was cancelled before it ended")
+    }
+
     /// The grid toggle has to work in BOTH directions. Off is easy; the
     /// reported bug is that it never comes back.
     @MainActor

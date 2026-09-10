@@ -58,10 +58,6 @@ struct CameraView: View {
     /// there would have to navigate backwards to get here.
     @State private var review: UIImage?
     @State private var shutterDown = false
-    @State private var shutterPressStarted = Date()
-    /// Below this, a still press is a tap — the same ceiling the tower's slot
-    /// uses, so the two controls disagree about nothing.
-    private static let tapCeiling: Double = 0.28
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
     @State private var focusPoint: CGPoint?
@@ -633,6 +629,7 @@ struct CameraView: View {
                 .frame(height: 34)
                 .animation(GridConstants.motionSnappy, value: camera.zoom)
 
+            ZStack {
             HStack(spacing: 0) {
                 // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
                 // but `grid` is a 3x3 of separate tiles — an app-grid mark —
@@ -685,8 +682,22 @@ struct CameraView: View {
             // set; you are taking the picture. Back the instant you let go.
             .opacity(isDrawing ? 0 : 1)
             .allowsHitTesting(!isDrawing)
-            .overlay { shutter }
             .animation(GridConstants.slotSnap, value: isDrawing)
+
+            // **A SIBLING of the row, not an overlay on it.**
+            //
+            // It was `.overlay { shutter }` on the row, which put the drag
+            // gesture inside a subtree whose `allowsHitTesting` flipped the
+            // instant the first threshold was crossed. SwiftUI cancels an
+            // in-flight gesture when that happens, so `onEnded` never ran and
+            // letting go after drawing a bigger block took no photograph at
+            // all — the one thing the gesture exists to do.
+            //
+            // As a sibling its ancestors do not change while the finger is
+            // down. It still centres on the row, because the row is full
+            // width and its placeholder is centred.
+            shutter
+            }
             }
             .padding(.horizontal, 44)
             .padding(.bottom, bottomInset + shutterBottomGap)
@@ -898,17 +909,14 @@ struct CameraView: View {
     /// camera's button.
     ///
     /// A tap is a drag of zero distance, so this one gesture sees both and has
-    /// to tell them apart: held under `tapCeiling` and moved under 6pt is a
-    /// tap, which is the ordinary shot and the only thing that respects the
-    /// timer. Anything else was a draw, and a draw fires immediately — waiting
-    /// ten seconds for a shape you are holding in your fingers is not a thing
-    /// anybody wants.
+    /// to tell them apart. Under 6pt of travel is a tap: the ordinary shot,
+    /// and the only thing that respects the timer. Anything further was a
+    /// draw, and a draw shoots the moment you let go.
     private var draw: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !shutterDown {
                     shutterDown = true
-                    shutterPressStarted = Date()
                     HapticsEngine.tick()
                 }
                 guard !reduceMotion else { return }
@@ -926,9 +934,21 @@ struct CameraView: View {
                 // `onChanged` when the view rebuilds under a touch.
                 guard shutterDown else { return }
                 shutterDown = false
-                let held = Date().timeIntervalSince(shutterPressStarted)
+                // **Moved at all means you were drawing, so let go and it
+                // shoots.**
+                //
+                // This used to also require `drawnSize != .small`, which
+                // quietly swallowed the release in two real cases: a pull
+                // shorter than one 46pt step, and a pull that went out to a
+                // bigger size and came back before you lifted. Both are a
+                // hand that drew something, and both fell through to the tap
+                // path — which, with a timer set, starts a countdown instead
+                // of taking the picture.
+                //
+                // A draw never waits out the timer either. Holding a shape in
+                // your fingers for ten seconds is not a thing anybody wants.
                 let moved = hypot(value.translation.width, value.translation.height) > 6
-                if moved || held >= Self.tapCeiling, drawnSize != .small {
+                if moved {
                     cancelCountdown()
                     fire()
                 } else {
@@ -1117,7 +1137,13 @@ struct CameraView: View {
                     // armed, so the light you were composing under stays.
                     withAnimation(.easeOut(duration: 0.22)) { flashOpacity = 0 }
                 }
-                guard let image else { return }
+                guard let image else {
+                    // No photograph, so nothing was drawn for. Leaving the
+                    // shutter wide would make the NEXT shot inherit a size
+                    // nobody asked for.
+                    withAnimation(GridConstants.slotSnap) { drawnSize = .small }
+                    return
+                }
                 HapticsEngine.success()
                 // Nothing is kept yet.
                 //
