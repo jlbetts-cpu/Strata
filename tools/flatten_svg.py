@@ -33,6 +33,51 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.svgLib.path import parse_path
 
 
+class ClosingPen:
+    """A pen that closes every contour, because SVG's fill does.
+
+    An open `<path>` with a `fill` is filled as if its ends were joined —
+    that is what the spec says and what every renderer does. `pathops` leaves
+    an open contour open, and unioning an open fill with its own stroke then
+    produces contours of opposing winding: the result had LESS area than
+    either input, and drew as a hollow outline.
+
+    Found on the second `StrataS.svg`, which is a single open path stroked at
+    3. The first one was closed, which is why this never came up.
+    """
+
+    def __init__(self, pen):
+        self.pen = pen
+
+    def moveTo(self, pt):
+        self.pen.moveTo(pt)
+
+    def lineTo(self, pt):
+        self.pen.lineTo(pt)
+
+    def curveTo(self, *points):
+        self.pen.curveTo(*points)
+
+    def qCurveTo(self, *points):
+        self.pen.qCurveTo(*points)
+
+    def closePath(self):
+        self.pen.closePath()
+
+    def endPath(self):
+        self.pen.closePath()
+
+    def addComponent(self, name, transform):
+        self.pen.addComponent(name, transform)
+
+
+def filled(d):
+    """The path as SVG would FILL it — every contour closed."""
+    path = pathops.Path()
+    parse_path(d, ClosingPen(path.getPen()))
+    return path
+
+
 def flatten(svg: str) -> tuple[str, str]:
     """Return `(viewBox, d)` for the union of every glyph in the export."""
     view = re.search(r'viewBox="([^"]+)"', svg).group(1)
@@ -54,8 +99,7 @@ def flatten(svg: str) -> tuple[str, str]:
 
     out = pathops.Path()
     for d in glyphs:
-        fill = pathops.Path()
-        parse_path(d, fill.getPen())
+        fill = filled(d)
         edge = pathops.Path()
         parse_path(d, edge.getPen())
         edge.stroke(width, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4.0)
@@ -65,6 +109,15 @@ def flatten(svg: str) -> tuple[str, str]:
         # every renderer does anyway, and it must happen before the union or
         # skia throws rather than degrading.
         edge.convertConicsToQuads()
+        # **Simplify the stroke before unioning it.**
+        #
+        # Skia's stroker emits a ribbon whose contours can be wound against
+        # each other. Unioning that with the fill made the result SMALLER than
+        # either input — 494 square units against 523 for the fill alone — and
+        # it drew as a hollow outline, because the inner contour was being read
+        # as a hole. Simplifying first resolves the ribbon into one correctly
+        # wound region, and the union then comes out at 794 as it should.
+        edge.simplify()
         glyph = pathops.op(fill, edge, pathops.PathOp.UNION)
         out = pathops.op(out, glyph, pathops.PathOp.UNION) if len(list(out.segments)) else glyph
     return view, out

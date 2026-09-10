@@ -632,17 +632,27 @@ def main():
     if "--swift" in sys.argv:
         return emit_swift()
     os.makedirs(OUT, exist_ok=True)
-    # Three of the app's blocks, each narrower than the one below — see
-    # `render_mark` for why this is not a letter any more.
-    render_mark(colour=PINK, ground=WARM_BLACK).save(
+    # The owner's `S`, white, on the app's warm black.
+    #
+    # This replaced a three-block ziggurat which replaced an earlier, thinner
+    # `S`. The ziggurat was argued for from research — a single-letter monogram
+    # carries no meaning of its own and works only by accumulating recognition
+    # — and the owner's answer is a redrawn letter that meets the objection on
+    # its own terms: the new `S` is a bold angled mark built from two thick
+    # strokes, not the light monoline the argument was about. It holds at 60pt,
+    # which is the only test that matters.
+    #
+    # `render_mark` and the ziggurat stay in this file. They cost nothing, they
+    # are generated, and the reasoning behind them is on the record.
+    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
         os.path.join(OUT, "AppIcon-light.png"))
     # Dark is the same drawing. The light one is already dark, and an icon
     # that changes identity between appearances is two icons.
-    render_mark(colour=PINK, ground=WARM_BLACK).save(
+    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
         os.path.join(OUT, "AppIcon-dark.png"))
     # Tinted is recoloured by iOS off luminance, so it has to be monochrome
     # going in — colour here would only be thrown away.
-    render_mark(colour=(250, 250, 250), ground=(0, 0, 0)).save(
+    render_letter_block(ground=(0, 0, 0), surface=(250, 250, 250)).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
