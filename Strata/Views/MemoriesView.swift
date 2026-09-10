@@ -116,7 +116,7 @@ struct MemoriesView: View {
             // It is chrome, so it belongs in the drawer's fixed header under
             // the handle, where a control that governs what is below it should
             // be. Apple Photos does the same with its own.
-            if !(vm.carousel.isEmpty && vm.month.isEmpty) { monthHeader }
+            pageHeader
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -277,7 +277,7 @@ struct MemoriesView: View {
             if !vm.gallery.isEmpty {
                 GlassIconButton(systemName: "photo.on.rectangle.angled",
                                 accessibilityLabel: "Photographs") {
-                    withAnimation(GridConstants.naturalSettle) { drawer = .half }
+                    withAnimation(GridConstants.naturalSettle) { drawer = .full }
                 }
                 .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
             }
@@ -312,23 +312,53 @@ struct MemoriesView: View {
 
     // MARK: - The month
 
+    /// The page's own header: what this is, how to leave, and which month.
+    ///
+    /// The title used to live only on the map, so the page you pulled up over
+    /// it was unnamed — the owner's call is that "that section also needs the
+    /// memories title", and it is right: a screen that fills the display and
+    /// says nothing about itself is a screen you have to remember your way
+    /// out of. `Done` is the way out, stated rather than implied by a drag.
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                MemoriesTitle(color: .primary.opacity(0.85))
+                Spacer(minLength: 0)
+                Button("Done") {
+                    withAnimation(GridConstants.naturalSettle) { drawer = .hidden }
+                }
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.accentWarm)
+                .frame(height: GlassIconButton.defaultSide)
+                // Centred on the title's cap by hand. A drawn title is only as
+                // tall as its cap, so a baseline or centre rule against a 44pt
+                // control puts the title 7.6pt below the line every other
+                // header sits on — measured, and recorded in CLAUDE.md.
+                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
+            }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.top, GridConstants.gapItem)
+
+            monthHeader
+        }
+    }
+
     private var monthHeader: some View {
         MonthPicker(
             title: vm.monthTitle,
-            canGoBack: vm.canGoBack,
-            canGoForward: vm.canGoForward,
             months: vm.availableMonths,
             titleFor: { vm.title(for: $0) },
             onSelect: { month in
                 withAnimation(GridConstants.crossFade) {
                     vm.select(month: month, context: modelContext)
                 }
-            },
-            onBack: { withAnimation(GridConstants.crossFade) { vm.step(months: -1, context: modelContext) } },
-            onForward: { withAnimation(GridConstants.crossFade) { vm.step(months: 1, context: modelContext) } }
+            }
         )
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, GridConstants.gapItem)
+        // Aligned to the page margin, less the menu label's own 10pt inset,
+        // so the WORD lines up with the title above it and with every heading
+        // below it rather than the tap target's edge doing.
+        .padding(.horizontal, GridConstants.horizontalPadding - 10)
+        .padding(.top, GridConstants.gapTight)
         .padding(.bottom, GridConstants.gapTight)
         // **Above the tower, or its chevrons do not take their own taps.**
         //

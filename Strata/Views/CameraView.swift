@@ -948,23 +948,36 @@ struct CameraView: View {
                 // `onChanged` when the view rebuilds under a touch.
                 guard shutterDown else { return }
                 shutterDown = false
-                // **Moved at all means you were drawing, so let go and it
-                // shoots.**
+                // **Every release goes through the same door.**
                 //
-                // This used to also require `drawnSize != .small`, which
-                // quietly swallowed the release in two real cases: a pull
-                // shorter than one 46pt step, and a pull that went out to a
-                // bigger size and came back before you lifted. Both are a
-                // hand that drew something, and both fell through to the tap
-                // path — which, with a timer set, starts a countdown instead
-                // of taking the picture.
+                // A draw used to skip the countdown and shoot immediately, on
+                // my reasoning that "holding a shape in your fingers for ten
+                // seconds is not a thing anybody wants". That reasoning was
+                // simply wrong, and the owner caught it: "with the timer on,
+                // even if you resize the win the timer should still go — why
+                // is it only when you do the small win tap. same with flash".
                 //
-                // A draw never waits out the timer either. Holding a shape in
-                // your fingers for ten seconds is not a thing anybody wants.
+                // Nobody holds anything. `drawnSize` is committed by the time
+                // you lift, so the countdown runs against a size that is
+                // already decided and the shutter fires with it. Skipping it
+                // meant the timer worked on a 1x1 and silently did not on a
+                // 2x1 — the same control behaving differently depending on how
+                // hard you pulled, which is the definition of a control you
+                // cannot trust. The flash rode on the same path and was lost
+                // the same way.
+                //
+                // The `moved` test still matters, but only for what it
+                // originally fixed: a press that never travelled is a TAP, and
+                // a tap on a running countdown cancels it. A draw is never a
+                // cancel — you cannot draw a size by accident.
                 let moved = hypot(value.translation.width, value.translation.height) > 6
-                if moved {
-                    cancelCountdown()
-                    fire()
+                if moved, countdownTask == nil {
+                    // A fresh draw: start the timer if there is one, exactly
+                    // as a tap would.
+                    shutterPressed()
+                } else if moved {
+                    // Drawing while a countdown runs re-sizes the shot in
+                    // flight rather than cancelling it. The count keeps going.
                 } else {
                     shutterPressed()
                 }

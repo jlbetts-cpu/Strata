@@ -37,9 +37,14 @@ enum DrawerDetent: CaseIterable {
     /// instead of all of it. The photographs are a button away instead, which
     /// is the same distance as a drag and leaves the ground undivided.
     case hidden
-    /// Half the screen — where the button opens it.
-    case half
-    /// Everything, stopping short of the status bar.
+    /// Everything, stopping short of the status bar. **The only place it
+    /// opens to.**
+    ///
+    /// There was a `half` between these two. The owner's call is that the page
+    /// "should open to full screen pop up with a done button", and a middle
+    /// stop was working against that: it is the state where the map is too
+    /// covered to read and the page is too short to use, and every drag had to
+    /// decide which of two places you meant.
     case full
 }
 
@@ -127,8 +132,7 @@ struct MemoriesDrawer<Content: View>: View {
         .accessibilityLabel("Photographs")
         .accessibilityHint("Drag up for more")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Expand") { detent = .full }
-        .accessibilityAction(named: "Close") { detent = .hidden }
+        .accessibilityAction { detent = detent == .full ? .hidden : .full }
     }
 
     // MARK: - Geometry
@@ -140,7 +144,6 @@ struct MemoriesDrawer<Content: View>: View {
         // the shadow above the panel's top edge goes with it instead of
         // leaving a grey seam along the bottom of the map.
         [.hidden: height + 24,
-         .half: height * 0.5,
          .full: 0]
     }
 
@@ -162,12 +165,8 @@ struct MemoriesDrawer<Content: View>: View {
     private func nearest(to projected: CGFloat) -> DrawerDetent {
         // Projected in the drag's own space: negative is up.
         let current = detent
-        if projected < -60 {
-            return current == .hidden ? .half : .full
-        }
-        if projected > 60 {
-            return current == .full ? .half : .hidden
-        }
+        if projected < -60 { return .full }
+        if projected > 60 { return .hidden }
         return current
     }
 }

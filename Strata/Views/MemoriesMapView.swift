@@ -178,6 +178,20 @@ struct MemoriesMapView: View {
 
     private var map: some View {
         Map(position: $camera, interactionModes: isInteractive ? .all : []) {
+            // **Where you are.** The map had no indicator for the one place
+            // every map has one for, which made "back to where I am" a button
+            // that took you somewhere unmarked. It is Apple's own dot, not a
+            // drawing of ours: a blue pulsing disc is a convention older than
+            // this app and reproducing it in the app's own idiom would be
+            // making a landmark out of something whose whole value is that it
+            // needs no explaining.
+            //
+            // Only once there is something to show. `UserAnnotation` with no
+            // authorization draws nothing anyway, but asking for it here
+            // rather than checking would start the "which screen asks" loop
+            // the empty state already answers.
+            if showsUser { UserAnnotation() }
+
             ForEach(displayed) { placed in
                 Annotation("", coordinate: placed.coordinate, anchor: .center) {
                     PlaceBlock(cluster: placed.cluster)
@@ -188,6 +202,18 @@ struct MemoriesMapView: View {
         }
         .mapStyle(mapStyle)
         .mapControls { }
+        // **The one place the app takes stock blue back.**
+        //
+        // `UserAnnotation` is tinted from the environment, so it inherited
+        // `AppColors.accentWarm` and rendered as a near-black disc — which on
+        // a pale map reads as a hole in it, not as you. CLAUDE.md's rule that
+        // stock sky blue is where every "this looks like default iOS"
+        // complaint came from is about CHROME: tab bars, menu labels, links.
+        // The blue location dot is not chrome, it is a convention older than
+        // this app and shared by every map anybody has ever used, and its
+        // whole value is that it needs no explaining. Scoped to the map, so
+        // nothing else inherits it.
+        .tint(.blue)
         // **Apple's attribution, moved rather than removed.**
         //
         // It cannot be removed: displaying it is a condition of the Apple
@@ -463,6 +489,11 @@ struct MemoriesMapView: View {
     private static let labelZoom = 13
 
     private var isClose: Bool { zoom >= Self.labelZoom }
+
+    /// Whether iOS will actually give us a position to draw.
+    private var showsUser: Bool {
+        !location.isDenied && !location.canAsk
+    }
 
     /// **Landmarks only — the things that tell you where you are.**
     ///

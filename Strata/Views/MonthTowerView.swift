@@ -207,22 +207,30 @@ private struct DayPhotoSlideshow: View {
 /// The chevrons are **disabled and dimmed at the edges, never hidden**: a
 /// control that vanishes reads as a bug, and a disabled button is what
 /// VoiceOver can describe. No wraparound — a year is not a carousel.
+/// Which month the tower is showing, and how to change it.
+///
+/// **A menu, and nothing else.** It carried a `‹` and a `›` on either side of
+/// the title as well, which the owner's call removed: "why does there have to
+/// be arrows on the sides if its a drop down menu, that works better through
+/// that". They are right, and the reason is not only that it is two controls
+/// for one job — it is that they are two DIFFERENT jobs wearing one hat. The
+/// arrows walk one month at a time; the menu jumps anywhere. Anybody wanting
+/// last March had to either press `‹` six times or discover that the title in
+/// the middle was also a button, and the arrows made it look less like one by
+/// flanking it.
+///
+/// It is leading-aligned now rather than centred, because it is a control at
+/// the top of a page rather than a title. Centred, with the arrows gone, it
+/// read as a heading that happened to be tappable.
 struct MonthPicker: View {
     let title: String
-    let canGoBack: Bool
-    let canGoForward: Bool
     /// Every month there is, newest first, with what to call each one.
     var months: [Date] = []
     var titleFor: (Date) -> String = { _ in "" }
     var onSelect: (Date) -> Void = { _ in }
-    let onBack: () -> Void
-    let onForward: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
-            chevron("chevron.left", enabled: canGoBack, label: "Previous month", action: onBack)
-            Spacer(minLength: 0)
-
             Menu {
                 ForEach(months, id: \.self) { month in
                     Button {
@@ -257,32 +265,11 @@ struct MonthPicker: View {
                 .contentShape(Rectangle())
             }
             .accessibilityLabel("Month, \(title). Choose another")
+            .accessibilityIdentifier("MonthPicker")
 
             Spacer(minLength: 0)
-            chevron("chevron.right", enabled: canGoForward, label: "Next month", action: onForward)
         }
-        // The Figma puts the chevrons at x 23.5, which cannot centre a 44pt
-        // target — it would start at 1.5. Shifted to the 8pt grid so the tap
-        // target clears the HIG minimum.
-        .padding(.horizontal, 2)
         .frame(height: 44)
     }
 
-    private func chevron(_ name: String, enabled: Bool,
-                         label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            HapticsEngine.lightTap()
-            action()
-        } label: {
-            Image(systemName: name)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.primary.opacity(enabled ? 0.55 : 0.25))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(label)
-    }
 }

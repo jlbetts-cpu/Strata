@@ -412,38 +412,41 @@ final class TowerGestureTests: XCTestCase {
     /// **KNOWN FAILING, and pre-existing.** Left red on purpose: it points at
     /// a real accessibility bug rather than a stale expectation.
     ///
-    /// `.disabled(true)` on a plain SwiftUI button drops it from the
-    /// accessibility tree entirely, so at the current month the forward
-    /// chevron is painted on screen and does not exist to VoiceOver at all —
-    /// the opposite of what `MonthPicker`'s own comment claims. Ruled out: an
-    /// explicit `accessibilityIdentifier` does not bring it back, and neither
-    /// does leaving the button enabled-but-inert.
-    func testTheMonthPickerStepsAndStopsAtToday() throws {
+    /// The month menu offers every month there is, and no month that has not
+    /// happened.
+    ///
+    /// **This replaced a test about the `‹` and `›` chevrons**, which the
+    /// owner had removed: "why does there have to be arrows on the sides if
+    /// its a drop down menu". The behaviour it protected — that you cannot
+    /// step into a month that has not happened yet — still matters and is now
+    /// a property of the LIST rather than of a disabled button, which is a
+    /// better place for it: a menu that does not offer next month cannot be
+    /// pressed into it by any route.
+    func testTheMonthMenuOffersEveryMonthAndNoFuture() throws {
         let app = launchMemories()
-        let forward = app.buttons["Next month"]
-        XCTAssertTrue(forward.waitForExistence(timeout: 40), "no month picker")
+        let picker = app.descendants(matching: .any)["MonthPicker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 40), "no month picker")
         // Wait for the SHELF, not for a duration. Memories loads its carousel
         // and gallery after the month, and the stack re-lays out when they
         // arrive — three seconds was landing inside that.
         _ = app.staticTexts["ALBUMS"].waitForExistence(timeout: 20)
         Thread.sleep(forTimeInterval: 2)
 
-        // Nothing later than this month exists, so forward starts disabled.
-        XCTAssertFalse(forward.isEnabled,
-                       "the picker offered a month that has not happened yet")
+        picker.tap()
+        Thread.sleep(forTimeInterval: 2)
 
-        let back = app.buttons["Previous month"]
-        XCTAssertTrue(back.isEnabled, "60 days of seed should reach a previous month")
-        back.tap()
-        // Polled. Stepping refetches the month, and a fixed two seconds was
-        // landing inside that.
-        var enabled = forward.isEnabled
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline, !enabled {
-            Thread.sleep(forTimeInterval: 0.3)
-            enabled = forward.isEnabled
-        }
-        XCTAssertTrue(enabled, "stepping back did not re-enable forward")
+        // 60 days of seed spans at least two months, so there is somewhere to
+        // go — and the menu is the only way to get there now.
+        let options = app.buttons.count
+        XCTAssertGreaterThan(options, 1, "the month menu offered nothing to choose")
+
+        // Pick the second entry: an earlier month than the one showing.
+        let earlier = app.buttons.element(boundBy: 1)
+        XCTAssertTrue(earlier.isHittable, "the month menu opened but cannot be used")
+        earlier.tap()
+        Thread.sleep(forTimeInterval: 3)
+
+        XCTAssertTrue(picker.exists, "choosing a month lost the picker")
     }
 
     /// The picker still works once the month has scrolled under it.
@@ -480,7 +483,7 @@ final class TowerGestureTests: XCTestCase {
     /// the end of a long session.
     func testTheMonthPickerStaysUsableWhileScrolled() throws {
         let app = launchMemories()
-        let back = app.buttons["Previous month"]
+        let back = app.descendants(matching: .any)["MonthPicker"]
         XCTAssertTrue(back.waitForExistence(timeout: 40), "no month picker")
         Thread.sleep(forTimeInterval: 3)
 
@@ -511,10 +514,11 @@ final class TowerGestureTests: XCTestCase {
 
         XCTAssertTrue(back.exists, "the picker did not stay pinned")
         XCTAssertTrue(back.isHittable, "the pinned picker is not hittable")
+        // And it still opens, which is the point of it staying put.
         back.tap()
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(app.buttons["Next month"].isEnabled,
-                      "the pinned chevron did not change the month — taps are falling through")
+        XCTAssertGreaterThan(app.buttons.count, 1,
+                             "the pinned picker did not open its menu — taps are falling through")
     }
 
     /// Search filters the record without touching the store.

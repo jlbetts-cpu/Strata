@@ -216,17 +216,13 @@ enum DebugHarness {
     /// would be judging an empty rectangle.
     static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
 
-    /// Raises the photographs drawer, from `-strataOpenDrawer [half|full]`.
+    /// Raises the photographs page, from `-strataOpenDrawer full`.
     ///
     /// The drawer rests hidden and opens on a button, so without this it
     /// cannot be photographed at all — nothing on this machine can tap the
     /// simulator.
     static var openDrawer: DrawerDetent? {
-        switch argument("-strataOpenDrawer") {
-        case "half": return .half
-        case "full": return .full
-        default: return nil
-        }
+        argument("-strataOpenDrawer") == nil ? nil : .full
     }
 
     /// Puts a seeded win somewhere real.
