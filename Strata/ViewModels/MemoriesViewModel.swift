@@ -31,6 +31,9 @@ final class MemoriesViewModel {
 
     /// Every photograph in the window, newest first, grouped by month.
     private(set) var gallery: [GallerySection] = []
+    /// Every photographed win that knows where it was. Clustering happens in
+    /// the view, because it depends on the camera's zoom.
+    private(set) var pins: [PlaceMap.Pin] = []
 
     /// How far back the shelf and the gallery look.
     ///
@@ -141,6 +144,9 @@ final class MemoriesViewModel {
         carousel = Album.carousel(from: records, calendar: calendar, now: now)
         gallery = Album.gallerySections(Album.gallery(from: records),
                                         calendar: calendar, now: now)
+        // Free: the same fetch, the same records. A second query for the map
+        // would double a cost already measured at 53ms on the main actor.
+        pins = PlaceMap.pins(from: records)
     }
 
     // MARK: - The month

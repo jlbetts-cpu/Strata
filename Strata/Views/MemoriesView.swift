@@ -36,6 +36,17 @@ struct MemoriesView: View {
     /// Ties each thumbnail to the viewer that opens out of it.
     @Namespace private var photoTransition
 
+    /// Which ground the map draws on. Two are possible and MapKit allows no
+    /// third, so the choice is made by looking rather than by arguing —
+    /// `-strataMapStyle satellite` renders the other one.
+    private var mapStyle: MemoriesMapView.Style {
+        #if DEBUG
+        return DebugHarness.mapStyle
+        #else
+        return .quiet
+        #endif
+    }
+
     var openSettings: (() -> Void)?
 
     var body: some View {
@@ -97,8 +108,16 @@ struct MemoriesView: View {
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
+                case .map:
+                    MemoriesMapView(pins: vm.pins, style: mapStyle) { key in
+                        path.append(.place(key))
+                    }
+                    .ignoresSafeArea()
+                    .toolbar(.hidden, for: .navigationBar)
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))
+                case .place(let key):
+                    PhotoCollectionView(source: .place(key))
                 case .curated(let key):
                     PhotoCollectionView(source: .interest(key))
                 case .moment(let id):
@@ -123,6 +142,7 @@ struct MemoriesView: View {
                 }
                 if index < curated.count { path.append(.curated(curated[index])) }
             }
+            if DebugHarness.opensMap { path.append(.map) }
             if let index = DebugHarness.openPhotoIndex {
                 let photos = vm.gallery.flatMap(\.photos)
                 if index < photos.count {
@@ -164,6 +184,12 @@ struct MemoriesView: View {
             // whose subject is photographs.
             MemoriesTitle(color: .primary.opacity(0.85))
             Spacer(minLength: 0)
+            if !vm.pins.isEmpty {
+                GlassIconButton(systemName: "map", accessibilityLabel: "Map") {
+                    path.append(.map)
+                }
+                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
+            }
             GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
                 openSettings?()
             }
@@ -267,6 +293,20 @@ struct ViewedPhoto: Identifiable, Equatable {
 
 /// Where the Memories tab can go.
 enum MemoriesRoute: Hashable {
+    /// The map, full screen. **Not embedded in the page.**
+    ///
+    /// A MapKit `Map` placed inside this screen's `LazyVStack` stopped the
+    /// whole body re-evaluating: the page kept rendering its EMPTY state while
+    /// the view model held forty pins, and nothing errored, nothing crashed
+    /// and no annotation was at fault — a plain `Color` in the same slot
+    /// worked, and a plain rectangle as the annotation did not help. A `Map`
+    /// simply cannot live in a lazy stack inside a scroll view here.
+    case map
+    /// One place, and everything you did there. A `PlaceKey` is three `Int`s,
+    /// so this is a route rather than a payload — `PhotoCollectionView`
+    /// re-derives the photographs from the store, which is the contract that
+    /// file already documents.
+    case place(PlaceMap.PlaceKey)
     case day(String)
     case curated(String)
     case moment(String)

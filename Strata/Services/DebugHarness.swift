@@ -173,6 +173,49 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// Opens the map, from `-strataOpenMap`. It is behind a tap, so without
+    /// this it cannot be photographed at all.
+    static var opensMap: Bool { argument("-strataOpenMap") != nil }
+
+    /// Which map ground to draw, from `-strataMapStyle [quiet|satellite]`.
+    ///
+    /// MapKit cannot be recoloured, so these two are the whole space. Which
+    /// one is right is a taste question, and this exists so it can be settled
+    /// by rendering both at phone size rather than by argument.
+    static var mapStyle: MemoriesMapView.Style {
+        argument("-strataMapStyle") == "quiet" ? .quiet : .satellite
+    }
+
+    /// Whether seeded photographs also get coordinates, from
+    /// `-strataSeedPlaces`.
+    ///
+    /// The map is empty on a real device for weeks — no photograph taken
+    /// before location capture shipped has a place, and none ever will — so
+    /// without this it cannot be looked at full, and the person judging it
+    /// would be judging an empty rectangle.
+    static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
+
+    /// Puts a seeded win somewhere real.
+    ///
+    /// **60% into three tight clusters, 40% spread**, which is what exercises
+    /// the thing that can actually be wrong: merging at one zoom and splitting
+    /// at the next. An even scatter never merges and would make a broken
+    /// clusterer look fine.
+    private static func place(_ log: HabitLog, index n: Int) {
+        // Three places a few hundred metres across, and a wider spread around
+        // them. London, because the numbers are memorable when reading a log.
+        let hubs = [(51.5074, -0.1278), (51.5155, -0.1410), (51.4975, -0.1357)]
+        if n % 5 < 3 {
+            let hub = hubs[n % hubs.count]
+            log.latitude = hub.0 + Double((n % 7) - 3) * 0.0004
+            log.longitude = hub.1 + Double((n % 5) - 2) * 0.0006
+        } else {
+            log.latitude = 51.50 + Double((n % 23) - 11) * 0.012
+            log.longitude = -0.13 + Double((n % 19) - 9) * 0.020
+        }
+        log.locationAccuracy = 25
+    }
+
     /// Says whether the store opened, from `-strataReportStore`.
     ///
     /// `SharedModelContainer` falls back to an in-memory store when the
@@ -465,6 +508,7 @@ enum DebugHarness {
                             for: win.logID,
                             category: categories[n % categories.count]
                         )
+                        if seedsPlaces { place(log, index: n) }
                     }
                 }
             }
