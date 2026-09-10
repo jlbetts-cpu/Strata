@@ -183,23 +183,43 @@ struct OnboardingView: View {
 
     // MARK: - The camera
 
-    /// A still of the camera tab, in its own light.
+    /// The camera, as it actually looks.
     ///
-    /// The wordmark at the top and the shutter below are where the real screen
-    /// puts them, and the rounded square inside the ring is the footprint the
-    /// real shutter draws while you pull a size out of it — which is the whole
-    /// point being made here: the camera makes blocks too.
+    /// **A real frame from the real camera**, supplied by the owner — his own
+    /// sunset, with the composition guides and the focus box he had on screen
+    /// at the time. The first version drew an abstract ring on a black
+    /// rectangle, which is a diagram of a camera rather than a camera. This
+    /// screen has to make somebody want to use it, and nothing does that like
+    /// a photograph does.
+    ///
+    /// The app's own chrome goes over it: the wordmark where the wordmark
+    /// belongs, and the shutter drawing the SIZE footprint, which is the point
+    /// being made — the camera makes blocks too.
     private var camera: some View {
-        VStack(spacing: GridConstants.gapSection) {
+        VStack(spacing: 0) {
             StrataWordmark(size: 32, color: .white)
-            ZStack {
-                Circle()
-                    .strokeBorder(.white.opacity(0.92), lineWidth: 3)
-                    .frame(width: 92, height: 92)
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(.white)
-                    .frame(width: 62, height: 62)
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, GridConstants.gapSection)
+
+            Image("DemoViewfinder")
+                .resizable()
+                .scaledToFill()
+                .frame(height: 300)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
+                                            style: .continuous))
+                .overlay(alignment: .bottom) {
+                    ZStack {
+                        Circle()
+                            .strokeBorder(.white.opacity(0.95), lineWidth: 3)
+                            .frame(width: 82, height: 82)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(.white)
+                            .frame(width: 56, height: 56)
+                    }
+                    .offset(y: 41)
+                }
+                .padding(.bottom, 52)
         }
     }
 
@@ -224,10 +244,10 @@ struct OnboardingView: View {
                     completedAt: Date().addingTimeInterval(-Double(i) * 3600),
                     title: "Win",
                     category: category,
-                    // Deliberately empty: these are illustrative places, not
-                    // photographs, and a name that resolves to nothing draws a
-                    // broken-picture glyph. The blocks are their colour here.
-                    photoFileName: "",
+                    // The owner's own photographs, out of the asset
+                    // catalogue — a map of flat colour squares does not make
+                    // the case that your pictures land where you took them.
+                    photoFileName: "bundle:DemoPhoto\((i % 7) + 1)",
                     place: WinPlace(latitude: lat + Double(i) * 0.0006,
                                     longitude: lon + Double(i) * 0.0004,
                                     accuracy: 20)
@@ -415,9 +435,14 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 54)
             .background {
+                // **`accentWarm`, not a category colour.** The first version
+                // used mindfulness pink, and the owner's note is that pink is
+                // not the app's primary any more. `AppColors.accentWarm` is
+                // what `AccentColor.colorset` resolves to and what every
+                // other primary in the app inherits.
                 BlockSurface(cornerRadius: GridConstants.blockCornerRadius(forCell: 54),
                              scale: 54 / GridConstants.blockReferenceCell) {
-                    HabitCategory.mindfulness.style.baseColor
+                    AppColors.accentWarm
                 }
             }
     }

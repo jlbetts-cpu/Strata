@@ -629,6 +629,10 @@ struct MemoriesMapView: View {
 /// colour is what the block IS while the picture decodes, and it is what shows
 /// through the rim.
 private struct PlaceBlock: View {
+    /// Marks a photograph that lives in the asset catalogue rather than in the
+    /// user's image directory. Only onboarding uses it.
+    static let bundledPrefix = "bundle:"
+
     let cluster: PlaceMap.Cluster
 
     /// How long to wait before arriving — see `arrivalDelay(for:)`.
@@ -691,11 +695,27 @@ private struct PlaceBlock: View {
         ) {
             ZStack {
                 cluster.category.style.baseColor
+                // **A bundled photograph, for the onboarding map.**
+                //
+                // Onboarding shows a real map with real clustering, and its
+                // blocks have to carry real pictures — a map of flat colour
+                // squares does not make the case that your photographs land
+                // where you took them. Those pictures ship in the asset
+                // catalogue rather than in the image directory, so a name with
+                // this prefix is drawn straight from the bundle. Nothing the
+                // app writes ever starts with it.
+                if let name = cluster.photoFileNames.first,
+                   name.hasPrefix(Self.bundledPrefix) {
+                    Image(String(name.dropFirst(Self.bundledPrefix.count)))
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
                 // A name that is empty is not a photograph. Without this
                 // guard `CachedImageView` draws its missing-file placeholder —
                 // a broken-picture glyph on the block — which is worse than
                 // the colour alone and was visible on the onboarding map.
-                if let name = cluster.photoFileNames.first, !name.isEmpty {
+                } else if let name = cluster.photoFileNames.first, !name.isEmpty {
                     // **One width for every block on the map**, whatever size
                     // it draws at. `CachedImageView` keys its cache on the
                     // requested width, so asking for 88 at one zoom and 176 at
