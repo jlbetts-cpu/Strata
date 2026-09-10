@@ -194,7 +194,7 @@ struct AddWinSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(Typography.caption)
-                .foregroundStyle(.primary.opacity(0.32))
+                .foregroundStyle(AppColors.inkQuiet)
             content()
         }
     }
@@ -241,11 +241,11 @@ struct AddWinSheet: View {
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.primary.opacity(0.35))
+                            .foregroundStyle(AppColors.inkQuiet)
                         if size != .small {
                             Text("Add a photo")
                                 .font(Typography.bodySmall)
-                                .foregroundStyle(.primary.opacity(0.35))
+                                .foregroundStyle(AppColors.inkQuiet)
                         }
                     }
                 }

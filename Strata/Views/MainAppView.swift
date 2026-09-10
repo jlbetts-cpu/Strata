@@ -392,7 +392,7 @@ struct MainAppView: View {
             .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting — if it keeps happening, use Settings → Export Data to save what you have.")
+                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting. If it keeps happening, use Settings › Export Data to save what you have.")
             }
     }
 
@@ -666,7 +666,7 @@ struct MainAppView: View {
             // two-word title.
             Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(.primary.opacity(0.35))
+                .foregroundStyle(AppColors.inkQuiet)
             Spacer(minLength: 0)
             // The plan, where sharing was, which was where the range picker
             // was before that.
@@ -1563,6 +1563,47 @@ struct MainAppView: View {
         }
     }
 
+    /// The longest run of consecutive days with a completed win.
+    ///
+    /// **Cached, because `refreshData` is a hot path** and this needs a wider
+    /// window than the view's own query has: `MainAppView`'s `@Query` is
+    /// narrowed to the current month deliberately, and a streak can be a year
+    /// long. So it is computed by its own bounded fetch and only when the set
+    /// of completed days could have changed.
+    @State private var longestStreak = 0
+    /// What the streak was last computed from, so an unchanged tower does not
+    /// re-fetch.
+    @State private var streakSignature = ""
+
+    /// Recompute the streak, if anything could have moved it.
+    ///
+    /// **Six milestones depended on this and none of them could ever unlock.**
+    /// `MilestoneDetector` was handed a literal `0` with a `TODO` beside it,
+    /// so "Week Strong", "Fortnight", "Monthly", "Habit Formed", "Triple
+    /// Digits" and "Year One" were defined, listed, and unreachable — you
+    /// could use the app every day for a year and never be given the one
+    /// called "Year One".
+    private func refreshStreak() {
+        // One row per completed day is all `Streaks` needs, and the window is
+        // bounded: 400 days covers "Year One" with room and keeps the fetch
+        // off a table scan via `#Index<HabitLog>([\.dateString])`.
+        let horizon = Calendar.current.date(byAdding: .day, value: -400, to: Date())
+            .map { DateUtils.dateString(from: $0) } ?? ""
+        var descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.completed && $0.dateString >= horizon }
+        )
+        descriptor.propertiesToFetch = [\.dateString]
+        guard let logs = try? modelContext.fetch(descriptor) else { return }
+
+        let days = Set(logs.map(\.dateString))
+        // Cheap change detection: the number of distinct days plus the newest
+        // one. Anything that could lengthen a streak moves one of the two.
+        let signature = "\(days.count)|\(days.max() ?? "")"
+        guard signature != streakSignature else { return }
+        streakSignature = signature
+        longestStreak = Streaks.longest(among: days)
+    }
+
     @discardableResult
     private func refreshData() -> Set<UUID> {
         // Single-pass log index — O(n) once, then O(1) lookups downstream
@@ -1631,12 +1672,17 @@ struct MainAppView: View {
         let todayCompleted = cachedFilteredLogs.filter { $0.dateString == todayStr && $0.completed }.count
         if todayCompleted > 0 { lastCompletionDateString = todayStr }
 
+        // Before the milestones are checked, since one of them reads it.
+        // Guarded internally, so an unchanged tower costs one fetch of day
+        // keys and no work.
+        refreshStreak()
+
         // #85: Milestone detection — check on every refresh
         let newMilestones = MilestoneDetector.detectNewMilestones(
             totalBlocks: towerVM.placedBlocks.count,
             towerHeightMeters: towerVM.altimeterHeight,
             perfectDayCount: perfectDayDates.count,
-            longestStreak: 0, // TODO: compute from streaks
+            longestStreak: longestStreak,
             store: &milestoneStore
         )
         if let first = newMilestones.first {
@@ -2163,7 +2209,7 @@ struct MainAppView: View {
 
             Text("Hold the block to log your first win.")
                 .font(Typography.bodySmall)
-                .foregroundStyle(.primary.opacity(0.35))
+                .foregroundStyle(AppColors.inkQuiet)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

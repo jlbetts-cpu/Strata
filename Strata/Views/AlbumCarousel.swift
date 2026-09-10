@@ -78,7 +78,7 @@ private struct AlbumCard: View {
                 .font(Typography.photoCaption)
                 .kerning(Typography.sectionKerning)
                 .textCase(.uppercase)
-                .foregroundStyle(.primary.opacity(0.40))
+                .foregroundStyle(AppColors.inkTertiary)
                 .lineLimit(1)
                 .padding(.top, 2)
         }

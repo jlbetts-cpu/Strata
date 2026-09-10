@@ -81,7 +81,7 @@ struct DayAlbumDetailView: View {
                         // screen somebody will eventually see.
                         Text("Nothing logged this day.")
                             .font(Typography.bodySmall)
-                            .foregroundStyle(.primary.opacity(0.35))
+                            .foregroundStyle(AppColors.inkQuiet)
                             .padding(.horizontal, GridConstants.horizontalPadding)
                             .padding(.top, 28)
                         Spacer(minLength: 24)
@@ -140,7 +140,7 @@ struct DayAlbumDetailView: View {
                 .minimumScaleFactor(0.7)
             Text("\(logs.count) \(logs.count == 1 ? "win" : "wins")")
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(.primary.opacity(0.35))
+                .foregroundStyle(AppColors.inkQuiet)
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
     }

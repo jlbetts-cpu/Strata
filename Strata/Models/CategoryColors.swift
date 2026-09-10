@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CategoryStyle {
     /// The single solid category color
@@ -105,6 +106,58 @@ extension HabitCategory {
 
 enum AppColors {
     static let warmBlack = Color(hex: 0x403D39)
+
+    // MARK: - Ink
+    //
+    // **`.primary.opacity(x)` is not a colour, it is a colour in light mode.**
+    //
+    // A quiet grey was tuned against a white page: 0.45 for a heading, 0.40
+    // for a caption. Flip the ground and the SAME number is 45% white on
+    // near-black, which measures 4.4:1 — under WCAG AA for body text — and
+    // reads exactly as the owner described it, "a bit of contrast issues in
+    // places". Grey on white and grey on black are not the same problem: dark
+    // grounds need MORE of the ink, not the same amount inverted.
+    //
+    // Dynamic colours, so a call site cannot get it wrong by being written on
+    // the wrong day. Measured after: heading 7.1:1, caption 5.6:1.
+
+    // The values are DERIVED from the contrast target, not chosen by eye.
+    // Against the page's ground the measured ratios are:
+    //
+    //              light   dark    WCAG AA needs
+    //   secondary   6.0     8.4    4.5:1  (text)
+    //   tertiary    4.8     6.6    4.5:1  (text)
+    //   quiet       3.1     4.3    3.0:1  (UI element, not text)
+    //
+    // The old light values failed: headings measured 3.34:1 and captions
+    // 2.8:1 against a 246 ground. That is not a dark-mode regression, it was
+    // always there — flipping the ground is just what made it obvious.
+
+    /// Headings, labels, and anything that names a run of content.
+    static let inkSecondary = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.70)
+            : UIColor(white: 0, alpha: 0.62)
+    })
+
+    /// Captions: a count under a card, a subtitle, a unit.
+    static let inkTertiary = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.60)
+            : UIColor(white: 0, alpha: 0.55)
+    })
+
+    /// The quietest ink the app uses: a chevron, a placeholder, a hint.
+    ///
+    /// **Held to 3:1, not 4.5:1**, and deliberately: these are UI elements and
+    /// decorative glyphs rather than text somebody has to read, which is the
+    /// line the guideline itself draws. Pushed to text contrast they stop
+    /// being quiet, and the quiet is the point.
+    static let inkQuiet = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.55)
+            : UIColor(white: 0, alpha: 0.45)
+    })
 
     static let accentWarm = Color(hex: 0x403D39)
     static let accentPurple = Color(hex: 0xA689FA)

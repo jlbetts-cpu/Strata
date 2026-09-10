@@ -761,6 +761,55 @@ To check the code is device-ready without a profile:
     xcodebuild -scheme Strata -destination 'generic/platform=iOS' \
         CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
+## What the app CLAIMS about itself must be true
+
+Three documents tell users what Strata does with their data, and on
+2026-09-10 all three said things that were false. They are the cheapest bugs
+in the app to write and the most expensive to be caught with.
+
+- **`PrivacyInfo.xcprivacy` declared HealthAndFitness and PhotosOrVideos as
+  COLLECTED.** Apple builds the App Store privacy label from that file, so the
+  product page told people Strata takes their health data and their
+  photographs. It takes neither, and there is no HealthKit code in the app at
+  all. Apple's definition is the test: *"Collect refers to transmitting data
+  off the device... Data that is processed only on device is not 'collected'
+  and does not need to be disclosed."* Strata transmits nothing — no
+  `URLSession`, no third-party packages, no analytics — so
+  `NSPrivacyCollectedDataTypes` is EMPTY and must stay empty until a server
+  exists.
+- **`PrivacyPolicyView` had a section on "Apple Health and Calendar"** — how
+  Strata reads them, that it never writes to them. It imports neither
+  EventKit nor HealthKit. A privacy policy is a legal document and that
+  section described a product that does not exist.
+- **`NSPhotoLibraryUsageDescription` and `NSMotionUsageDescription` were
+  declared and unused.** The picker is `PHPickerViewController` (no permission)
+  and saving is add-only; CoreMotion left with 3D Parallax. Asking for access
+  you never use is asking under false pretences.
+
+**The rule: when you add or remove anything that touches user data, the
+manifest, the policy and the usage strings are part of the change.** Check
+the BUILT `Info.plist` in BOTH configurations, not the source — the keys are
+duplicated in the project file.
+
+## A feature that cannot fire is worse than one you never built
+
+`MilestoneDetector` was handed `longestStreak: 0, // TODO: compute from
+streaks`. Six milestones read that number — "Week Strong", "Fortnight",
+"Monthly", "Habit Formed", "Triple Digits", "Year One" — so all six were
+defined, listed in the app, and unreachable. Somebody could use Strata every
+day for a year and never be given the one called "Year One".
+
+`Streaks` computes it now (pure, over `yyyy-MM-dd` keys, 14 tests). Two
+things it must keep doing: consecutive days go through `Calendar`, never by
+adding one to the string — a day is not always 86,400 seconds long, and a
+streak that silently breaks every spring is the worst kind of bug to be told
+about. And the CURRENT streak counts yesterday, because a run is not broken
+until a day passes with nothing in it.
+
+It is cached behind a signature (`distinct day count | newest day`) because
+`refreshData()` is a hot path and the streak needs a 400-day window, while
+`MainAppView`'s own query is deliberately narrowed to the current month.
+
 ## Safety
 
 - `HabitLog.imageFileName` points at real user photos. Never delete or rewrite

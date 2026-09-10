@@ -45,6 +45,13 @@ struct PhotoCollectionView: View {
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        // **The bar gets a ground.** The grid is edge to edge, so without one
+        // the photographs slide under the title and the back chevron and both
+        // sit on whatever picture happens to be passing — which is what the
+        // owner photographed. A navigation bar is the one place in this app
+        // that is allowed a material: it is the system's own chrome, not a
+        // card of ours pretending to be a block.
+        .toolbarBackground(.visible, for: .navigationBar)
         .task { load() }
         // Asking is a network call and it is allowed to fail. The screen is
         // already correct without it; the name is something it gains.

@@ -12,4 +12,9 @@ enum DateUtils {
     static func dateString(from date: Date) -> String {
         dateStringFormatter.string(from: date)
     }
+
+    /// The inverse. Nil for anything that is not `yyyy-MM-dd`.
+    static func date(from dateString: String) -> Date? {
+        dateStringFormatter.date(from: dateString)
+    }
 }

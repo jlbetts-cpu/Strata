@@ -254,11 +254,11 @@ struct MonthPicker: View {
                         .font(Typography.sectionLabel)
                         .kerning(Typography.sectionKerning)
                         .textCase(.uppercase)
-                        .foregroundStyle(.primary.opacity(0.45))
+                        .foregroundStyle(AppColors.inkSecondary)
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.35))
+                        .foregroundStyle(AppColors.inkQuiet)
                 }
                 .padding(.horizontal, 10)
                 .frame(height: 44)

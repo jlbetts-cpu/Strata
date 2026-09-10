@@ -41,7 +41,21 @@ struct PhotoGalleryGrid: View {
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+        // **Not pinned.**
+        //
+        // These headings used to stick to the top and float over the
+        // photographs as they passed under, which the owner saw on a place
+        // screen and put plainly: "why is it scrolling, doesnt look good and
+        // no point". Both halves are right. It looks bad because a heading
+        // hovering over photographs needs a ground to stay legible, and any
+        // ground you give it is a bar drawn across somebody's pictures. And it
+        // is pointless because a pinned heading answers "which month am I in",
+        // a question this grid does not raise: you are not navigating a
+        // calendar, you are looking through a roll of pictures.
+        //
+        // Unpinned they do what a heading does — they mark where one run ends
+        // and the next begins, then scroll away with it.
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(sections) { section in
                 Section {
                     LazyVGrid(columns: columns, spacing: Self.gutter) {
@@ -61,7 +75,7 @@ struct PhotoGalleryGrid: View {
     /// answers the question only at the moment you have already scrolled past
     /// the answer.
     private func heading(_ title: String) -> some View {
-        SectionHeading(text: title, pinned: true)
+        SectionHeading(text: title)
     }
 
     private func cell(_ photo: GalleryPhoto) -> some View {

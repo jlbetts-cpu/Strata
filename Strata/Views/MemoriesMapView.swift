@@ -141,6 +141,9 @@ struct MemoriesMapView: View {
                         accessibilityLabel: "Back to where I am") {
             goToMe()
         }
+        // Light in both appearances — see `MemoriesView.overMap`. Glass
+        // follows the system, and a dark disc on the night map is invisible.
+        .environment(\.colorScheme, .light)
         .padding(.trailing, GridConstants.horizontalPadding)
         .padding(.bottom, DrawerMetrics.tabBarClearance)
         // It has nothing to say until it can say it.
@@ -384,7 +387,24 @@ struct MemoriesMapView: View {
     /// map always opens somewhere that reads as *around here* — near enough to
     /// recognise streets, far enough to be a place rather than a pin.
     private func frameOnYourPlaces() {
-        guard !didFrame, !pins.isEmpty else { return }
+        guard !didFrame else { return }
+        // **An empty map still opens somewhere.**
+        //
+        // With no placed wins this returned early and left the camera at
+        // `.automatic`, which is the whole planet — so the one person who most
+        // needs the map to look like a place, somebody on their first day,
+        // got a picture of the Earth. If we know where they are, that is where
+        // it opens.
+        guard !pins.isEmpty else {
+            if let fix = location.fix(maxAge: 900, maxAccuracy: 2000) {
+                didFrame = true
+                camera = .region(MKCoordinateRegion(
+                    center: fix.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                ))
+            }
+            return
+        }
         didFrame = true
         let lats = pins.map(\.place.latitude)
         let lons = pins.map(\.place.longitude)
@@ -424,7 +444,7 @@ struct MemoriesMapView: View {
 
             Text(denied
                  ? "Strata can't tell where a photo was taken."
-                 : "Photos you take from now on remember where you were. The ones you already have don't — that isn't something we can go back and add.")
+                 : "Photos you take from now on remember where you were. The ones you already have don't, and that isn't something we can go back and add.")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(.white.opacity(0.75))
                 .multilineTextAlignment(.center)

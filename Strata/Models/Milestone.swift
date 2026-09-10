@@ -51,12 +51,12 @@ struct Milestone: Codable, Identifiable, Equatable {
     /// Block count milestones
     static let blockCountMilestones: [Milestone] = [
         Milestone(type: .blockCount, threshold: 1, tier: .bronze, title: "First Block", description: "Every tower starts with one"),
-        Milestone(type: .blockCount, threshold: 10, tier: .bronze, title: "Foundation", description: "10 blocks — you're building something real"),
+        Milestone(type: .blockCount, threshold: 10, tier: .bronze, title: "Foundation", description: "10 blocks. You're building something real."),
         Milestone(type: .blockCount, threshold: 25, tier: .bronze, title: "Quarter Century", description: "25 blocks of practice"),
-        Milestone(type: .blockCount, threshold: 50, tier: .silver, title: "Half Century", description: "50 blocks — that's dedication"),
+        Milestone(type: .blockCount, threshold: 50, tier: .silver, title: "Half Century", description: "50 blocks. That's dedication."),
         Milestone(type: .blockCount, threshold: 100, tier: .silver, title: "Centurion", description: "100 blocks. You're a builder."),
         Milestone(type: .blockCount, threshold: 250, tier: .gold, title: "Master Builder", description: "250 blocks of consistent effort"),
-        Milestone(type: .blockCount, threshold: 500, tier: .platinum, title: "Architect", description: "500 blocks — your tower tells a story"),
+        Milestone(type: .blockCount, threshold: 500, tier: .platinum, title: "Architect", description: "500 blocks. Your tower tells a story."),
         Milestone(type: .blockCount, threshold: 1000, tier: .legendary, title: "Monument", description: "1000 blocks. This is mastery."),
     ]
 
@@ -66,7 +66,7 @@ struct Milestone: Codable, Identifiable, Equatable {
         Milestone(type: .perfectDay, threshold: 5, tier: .bronze, title: "Five Stars", description: "5 perfect days earned"),
         Milestone(type: .perfectDay, threshold: 10, tier: .silver, title: "Perfect Ten", description: "10 days of total completion"),
         Milestone(type: .perfectDay, threshold: 25, tier: .silver, title: "Perfectionist", description: "25 perfect days"),
-        Milestone(type: .perfectDay, threshold: 50, tier: .gold, title: "Flawless", description: "50 perfect days — remarkable"),
+        Milestone(type: .perfectDay, threshold: 50, tier: .gold, title: "Flawless", description: "50 perfect days. Remarkable."),
         Milestone(type: .perfectDay, threshold: 100, tier: .platinum, title: "Century Perfect", description: "100 perfect days"),
     ]
 
@@ -75,7 +75,7 @@ struct Milestone: Codable, Identifiable, Equatable {
         Milestone(type: .streakLength, threshold: 7, tier: .bronze, title: "Week Strong", description: "7 consecutive days"),
         Milestone(type: .streakLength, threshold: 14, tier: .bronze, title: "Fortnight", description: "Two solid weeks"),
         Milestone(type: .streakLength, threshold: 30, tier: .silver, title: "Monthly", description: "A full month of consistency"),
-        Milestone(type: .streakLength, threshold: 66, tier: .gold, title: "Habit Formed", description: "66 days — the habit is yours (Lally 2010)"),
+        Milestone(type: .streakLength, threshold: 66, tier: .gold, title: "Habit Formed", description: "66 days. The habit is yours."),
         Milestone(type: .streakLength, threshold: 100, tier: .platinum, title: "Triple Digits", description: "100 days without breaking"),
         Milestone(type: .streakLength, threshold: 365, tier: .legendary, title: "Year One", description: "365 days. Extraordinary."),
     ]

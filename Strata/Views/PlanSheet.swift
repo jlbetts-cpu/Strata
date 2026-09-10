@@ -142,7 +142,7 @@ struct PlanSheet: View {
                 if let summary = item.repeatSummary(calendar: calendar) {
                     Text(summary)
                         .font(Typography.caption2)
-                        .foregroundStyle(.primary.opacity(0.35))
+                        .foregroundStyle(AppColors.inkQuiet)
                 }
             }
 
@@ -161,7 +161,7 @@ struct PlanSheet: View {
                 Button { detail = item } label: {
                     Image(systemName: "info.circle")
                         .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(.primary.opacity(0.34))
+                        .foregroundStyle(AppColors.inkQuiet)
                         // 44pt, the HIG minimum. The glyph plus 8pt of padding
                         // came to 33, which is a control you have to aim at.
                         .frame(width: 44, height: 44)

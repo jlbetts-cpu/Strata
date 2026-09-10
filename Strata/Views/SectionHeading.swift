@@ -36,7 +36,7 @@ struct SectionHeading: View {
             // whole bug: "ALBUMS" was uppercase because somebody typed it that
             // way and "September" was not because it is a month's name.
             .textCase(.uppercase)
-            .foregroundStyle(.primary.opacity(0.45))
+            .foregroundStyle(AppColors.inkSecondary)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapSection)
             .padding(.bottom, GridConstants.gapLabel)

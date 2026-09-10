@@ -115,12 +115,24 @@ struct MemoriesView: View {
             // this screen is trying not to have.
             .background(alignment: .top) {
                 if mapStyle != .quiet {
+                    // **Faint.** It was 0.55 over 190pt, which is not a wash,
+                    // it is a bar — the owner called it "overwhelming on the
+                    // top", and on the night map, whose tiles are already
+                    // dark, almost all of that was being spent on a problem
+                    // that no longer existed. A legibility wash only has to
+                    // guarantee the worst case: a white building or a cloud
+                    // directly under the title. 0.28, fading out by 130pt,
+                    // does that and is not visible as an object.
                     LinearGradient(
-                        colors: [AppColors.warmBlack.opacity(0.55), .clear],
+                        stops: [
+                            .init(color: AppColors.warmBlack.opacity(0.28), location: 0.0),
+                            .init(color: AppColors.warmBlack.opacity(0.16), location: 0.55),
+                            .init(color: .clear, location: 1.0)
+                        ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 190)
+                    .frame(height: 130)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
@@ -152,29 +164,41 @@ struct MemoriesView: View {
             pageHeader
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if vm.carousel.isEmpty && vm.month.isEmpty {
-                        emptyState
-                    } else {
-                        // The month leads.
-                        //
-                        // It used to open on a search field, then a shelf of
-                        // photo cards, and the month tower — the one element
-                        // on the page that is unmistakably this app — started
-                        // around 60% down and was cut off by the tab bar. The
-                        // page now opens on the thing worth looking at, and
-                        // the photographs sit under it.
-                        monthTower
-                            // Is any of it still above the fold? Measured in
-                            // the scroll view's own space, so it is the real
-                            // answer rather than one derived from a content
-                            // offset and an assumed height.
-                            .onGeometryChange(for: Bool.self) { proxy in
-                                proxy.frame(in: .scrollView).maxY > 0
-                            } action: { visible in
-                                towerOnScreen = visible
-                            }
+                // **`pinnedViews` here, and the Section at the TOP level.**
+                //
+                // A `Section` nested inside a conditional is never pinned —
+                // that is written down in CLAUDE.md and it is why the month
+                // heading has never stuck. So the conditional moves INSIDE the
+                // section instead of wrapping it.
+                LazyVStack(alignment: .leading, spacing: 0,
+                           pinnedViews: [.sectionHeaders]) {
+                    // **The month picker belongs to the month, not to the
+                    // page.**
+                    //
+                    // The owner, after asking four times: "the header is
+                    // memories and done, not september — thats not part of the
+                    // header for memories", and "this should not scroll".
+                    // Both are satisfied by the same move, and neither was
+                    // satisfied by where I had put it: as a section header it
+                    // is attached to the tower it controls, and it PINS, so it
+                    // stays put for exactly as long as the thing it governs is
+                    // on screen and then leaves with it.
+                    Section {
+                        if vm.carousel.isEmpty && vm.month.isEmpty {
+                            emptyState
+                        } else {
+                            // The month leads. It used to open on a search
+                            // field, then a shelf of photo cards, with the
+                            // month tower — the one element on this page that
+                            // is unmistakably this app — starting around 60%
+                            // down and cut off by the tab bar.
+                            monthTower
+                        }
+                    } header: {
+                        if !(vm.carousel.isEmpty && vm.month.isEmpty) { monthHeader }
+                    }
 
+                    if !(vm.carousel.isEmpty && vm.month.isEmpty) {
                         // No heading over a gap. When nothing has earned a
                         // card the shelf is not drawn at all — only what there
                         // is to show gets shown.
@@ -330,14 +354,18 @@ struct MemoriesView: View {
             // there are no photographs, and the map's own empty state is
             // already saying so.
             if !vm.gallery.isEmpty {
-                GlassIconButton(systemName: "photo.on.rectangle.angled",
-                                accessibilityLabel: "Photographs") {
-                    withAnimation(GridConstants.naturalSettle) { drawer = .full }
+                overMap {
+                    GlassIconButton(systemName: "photo.on.rectangle.angled",
+                                    accessibilityLabel: "Photographs") {
+                        withAnimation(GridConstants.naturalSettle) { drawer = .full }
+                    }
                 }
                 .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
             }
-            GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
-                openSettings?()
+            overMap {
+                GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
+                    openSettings?()
+                }
             }
             // Centred on the title's cap. It overhangs the row upwards, into
             // the safe-area gap, which is empty — the alternative is a row as
@@ -401,12 +429,24 @@ struct MemoriesView: View {
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapItem)
-
-            monthHeader
-                .opacity(towerOnScreen ? 1 : 0)
-                .allowsHitTesting(towerOnScreen)
-                .animation(GridConstants.gentleReveal, value: towerOnScreen)
+            .padding(.bottom, GridConstants.gapTight)
         }
+    }
+
+    /// The chrome that floats on the map.
+    ///
+    /// **Always light, in both appearances.** These are `GlassIconButton`s, and
+    /// glass follows the system — so in dark mode they became near-black discs
+    /// sitting on a near-black map and effectively disappeared. The owner:
+    /// "I cant see the place block thing at all in dark mode."
+    ///
+    /// The rule the camera already follows settles it: chrome over an IMAGE is
+    /// light regardless of what the phone is set to, because the thing behind
+    /// it is not the app's ground and does not flip with it. A map is that
+    /// kind of surface. So the buttons are pinned to the light scheme and stay
+    /// white on both the pale map and the night one.
+    private func overMap<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        content().environment(\.colorScheme, .light)
     }
 
     private var monthHeader: some View {
@@ -448,7 +488,7 @@ struct MemoriesView: View {
         if vm.month.isEmpty {
             Text("No wins in \(vm.monthTitle.capitalized).")
                 .font(Typography.bodySmall)
-                .foregroundStyle(.primary.opacity(0.35))
+                .foregroundStyle(AppColors.inkQuiet)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
         } else {
