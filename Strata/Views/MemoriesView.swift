@@ -82,26 +82,27 @@ struct MemoriesView: View {
                     .padding(.top, GridConstants.headerArtworkTopPadding)
                 Spacer(minLength: 0)
             }
-            // **A legibility wash, not a bar.**
+            // **A legibility wash only where one is needed.**
             //
-            // The title is ink on the page and has to be white here, because
-            // the ground under it is a photograph of the Earth and cannot be
-            // relied on to be anything. White alone is not enough either —
-            // over a chalk quarry or a cloud it disappears. This is the same
-            // move the camera makes for its wordmark: a short gradient from
-            // the app's own black, heaviest at the very top and gone by the
-            // time it reaches the map. It is not a navigation bar; there is no
-            // edge to it anywhere.
+            // Over imagery the ground is a photograph of the Earth and cannot
+            // be relied on to be anything, so the title is white on a short
+            // gradient from the app's own black — the same move the camera
+            // makes for its wordmark. Over the pale ground it is ink, with no
+            // wash at all: a dark smear laid across a pale map to hold up a
+            // title that did not need holding up is exactly the kind of chrome
+            // this screen is trying not to have.
             .background(alignment: .top) {
-                LinearGradient(
-                    colors: [AppColors.warmBlack.opacity(0.55), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 190)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
+                if mapStyle == .satellite {
+                    LinearGradient(
+                        colors: [AppColors.warmBlack.opacity(0.55), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 190)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                }
             }
 
             MemoriesDrawer(detent: $drawer) {
@@ -245,8 +246,10 @@ struct MemoriesView: View {
             // one number the app states and it takes the brand colour, but a
             // page title in the same pink would put two shouts on a screen
             // whose subject is photographs.
-            // White, because it is over the map now rather than on the page.
-            MemoriesTitle(color: .white)
+            // Ink on the pale ground, white on imagery — see the wash below.
+            MemoriesTitle(color: mapStyle == .satellite
+                          ? .white
+                          : .primary.opacity(0.85))
             Spacer(minLength: 0)
             // Shown when there are PHOTOGRAPHS, not when there are pins.
             //

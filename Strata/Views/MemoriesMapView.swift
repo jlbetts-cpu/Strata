@@ -132,12 +132,21 @@ struct MemoriesMapView: View {
         // only saturated thing on the screen.
         .overlay {
             Rectangle()
-                .fill(AppColors.warmBlack.opacity(style == .satellite ? 0.34 : 0.10))
+                .fill(AppColors.warmBlack.opacity(scrimOpacity))
+                // Nothing announces itself. The wash lifting as the names
+                // arrive is a thing you should never catch happening.
+                .animation(GridConstants.gentleReveal, value: scrimOpacity)
                 .allowsHitTesting(false)
         }
         #if DEBUG
-        .task {
-            guard DebugHarness.sweepsMap else { return }
+        // **`id:`, not a bare `.task`.** A bare one runs once at appear and
+        // captures the view value it had then — which is before the fetch
+        // lands, so `pins` was empty and the probe dutifully reported zero
+        // blocks at every zoom while the map on screen was full of them. An
+        // instrument aimed at the wrong thing looks exactly like a null
+        // result. Keyed on the count, it re-runs with a fresh `self`.
+        .task(id: pins.count) {
+            guard DebugHarness.sweepsMap, !pins.isEmpty else { return }
             await sweep()
         }
         #endif
@@ -222,6 +231,32 @@ struct MemoriesMapView: View {
     }
 
     private func keyID(_ key: PlaceMap.PlaceKey) -> String { "\(key.z)/\(key.x)/\(key.y)" }
+
+    #if DEBUG
+    /// The distance between the two closest blocks, in POINTS on screen.
+    ///
+    /// This is the overlap question asked directly rather than inferred from a
+    /// screenshot. A 2x2 is about 90pt across, so anything at or under that is
+    /// two blocks touching. Measured in projected space, which is the space the
+    /// blocks are laid out in, then converted through the camera's own span.
+    private func closestPair(_ clusters: [PlaceMap.Cluster], span: Double) -> Int {
+        guard clusters.count > 1 else { return 9999 }
+        let pointsPerUnitX = Double(viewportWidth) / (span / 360)
+        var best = Double.infinity
+        let points = clusters.map { cluster -> (Double, Double) in
+            PlaceMap.project(WinPlace(latitude: cluster.anchor.latitude,
+                                      longitude: cluster.anchor.longitude))
+        }
+        for i in points.indices {
+            for j in points.indices where j > i {
+                let dx = (points[i].0 - points[j].0) * pointsPerUnitX
+                let dy = (points[i].1 - points[j].1) * pointsPerUnitX
+                best = min(best, (dx * dx + dy * dy).squareRoot())
+            }
+        }
+        return Int(best.rounded())
+    }
+    #endif
 
     // MARK: - Where it opens
 
@@ -320,7 +355,8 @@ struct MemoriesMapView: View {
     /// tests caught, and this is the same claim checked on the live view.
     private func sweep() async {
         let centre = CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278)
-        for span in [4.0, 1.0, 0.25, 0.06, 0.015, 0.004] {
+        // Out and then back in, so a MERGE is exercised and not just a split.
+        for span in [0.004, 0.015, 0.06, 0.25, 1.0, 4.0, 1.0, 0.25, 0.06, 0.015, 0.004] {
             withAnimation(nil) {
                 camera = .region(MKCoordinateRegion(
                     center: centre,
@@ -333,21 +369,74 @@ struct MemoriesMapView: View {
             let found = PlaceMap.cluster(pins, zoom: z)
             NSLog("[strata-probe] mapSweep span=\(span) zoom=\(z) "
                   + "blocks=\(found.count) wins=\(found.reduce(0) { $0 + $1.winCount }) "
-                  + "of \(pins.count)")
+                  + "of \(pins.count) "
+                  + "closestPair=\(closestPair(found, span: span))pt")
         }
     }
     #endif
 
+    /// Where the town appears.
+    ///
+    /// Below this the map is a shape — countries, coastlines, the blocks. At
+    /// and above it you are looking at a neighbourhood, and a neighbourhood
+    /// without its names is a diagram. Zoom 13 is roughly "a few streets
+    /// across a phone", which is exactly the point at which a block stops
+    /// meaning *this city* and starts meaning *this corner*.
+    private static let labelZoom = 13
+
+    private var isClose: Bool { zoom >= Self.labelZoom }
+
+    /// **Landmarks only — the things that tell you where you are.**
+    ///
+    /// This list was twice as long and included cafés, restaurants and
+    /// bakeries. Photographed over Trafalgar Square, that produced about
+    /// twenty-five orange pins against two blocks: the map named every
+    /// sandwich shop in central London and buried the only thing on the screen
+    /// that was actually yours. The blocks are the content; the map is the
+    /// ground under them.
+    ///
+    /// What is left is sparse by nature and is what a person navigates by —
+    /// the gallery, the park, the theatre, the stadium. One of these on screen
+    /// tells you the corner you are looking at. Twenty restaurants tell you
+    /// nothing you did not already know about a city.
+    private static let worthNaming: [MKPointOfInterestCategory] = [
+        .museum, .library, .theater, .musicVenue, .stadium,
+        .park, .nationalPark, .beach, .marina, .campground,
+        .amusementPark, .aquarium, .zoo
+    ]
+
     private var mapStyle: MapStyle {
         switch style {
         case .quiet:
-            // Everything MapKit will let us take away.
+            // **Pale, and it earns its names as you arrive.**
+            //
+            // The owner's call after seeing both grounds side by side. Far
+            // out it is nearly-blank geometry with no labels at all, so the
+            // blocks are the only thing on the screen with anything to say.
+            // Close in the emphasis comes up and a curated set of places
+            // appears, the way Snap Map fills in as you drop into a
+            // neighbourhood — because at that distance the question has
+            // changed from "where in the world" to "which corner".
             return .standard(elevation: .flat,
-                             emphasis: .muted,
-                             pointsOfInterest: .excludingAll,
+                             emphasis: isClose ? .automatic : .muted,
+                             pointsOfInterest: isClose
+                                 ? .including(Self.worthNaming)
+                                 : .excludingAll,
                              showsTraffic: false)
         case .satellite:
             return .imagery(elevation: .flat)
+        }
+    }
+
+    /// How hard the scrim pulls the tiles towards the app's ground.
+    ///
+    /// It lifts as you arrive. Far out there is nothing under it but colour
+    /// fields and it can do its full work; close in there are names under it,
+    /// and a wash over type is the one thing that makes a map feel cheap.
+    private var scrimOpacity: Double {
+        switch style {
+        case .satellite: return isClose ? 0.22 : 0.34
+        case .quiet: return isClose ? 0.03 : 0.10
         }
     }
 }
