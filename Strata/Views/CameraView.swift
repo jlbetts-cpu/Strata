@@ -50,6 +50,13 @@ struct CameraView: View {
     /// photographed win was a form field, while the size of every other win
     /// was a gesture. Same gesture here now, through `BlockSizeDraw`.
     @State private var drawnSize: BlockSize = .small
+    /// The shot waiting to be kept or thrown away. Nil while composing.
+    ///
+    /// A state on the camera rather than a screen of its own, because
+    /// "retake" has to land back on the live viewfinder — and the camera tab
+    /// dismisses itself into the add sheet on the tower, so a retake from
+    /// there would have to navigate backwards to get here.
+    @State private var review: UIImage?
     @State private var shutterDown = false
     @State private var shutterPressStarted = Date()
     /// Below this, a still press is a tap — the same ceiling the tower's slot
@@ -222,9 +229,19 @@ struct CameraView: View {
                 }
 
                 controls(w: w, h: h, topInset: topInset, bottomInset: bottomInset)
+                    // The controls belong to composing. While a shot is
+                    // waiting to be judged there is nothing to compose.
+                    .opacity(review == nil ? 1 : 0)
+                    .allowsHitTesting(review == nil)
 
                 warmFlash
                     .allowsHitTesting(false)
+
+                if let review {
+                    reviewLayer(image: review, topInset: topInset,
+                                bottomInset: bottomInset)
+                        .transition(.opacity)
+                }
             }
             .frame(width: w, height: h)
             .background(Color(red: 0.031, green: 0.031, blue: 0.031))
@@ -253,6 +270,14 @@ struct CameraView: View {
         // at 30% lights nothing.
         .onChange(of: ringIsArmed) { _, armed in setRingBrightness(armed) }
         .onAppear { if ringIsArmed { setRingBrightness(true) } }
+        #if DEBUG
+        .onAppear {
+            if let size = DebugHarness.openReviewSize {
+                drawnSize = size
+                review = DebugHarness.placeholderPhoto()
+            }
+        }
+        #endif
         .onDisappear {
             camera.stop()
             // Every exit path restores it. Leaving somebody's screen pinned at
@@ -277,6 +302,116 @@ struct CameraView: View {
             UIScreen.main.brightness = previous
             brightnessBeforeRing = nil
         }
+    }
+
+    // MARK: - Review
+
+    /// The shot, before it becomes anything.
+    ///
+    /// Asked for so a photograph can be looked at properly and thrown away —
+    /// and the moment it existed it turned the camera-roll write into a bug,
+    /// because that happened at capture. Nothing is kept until `Use Photo`.
+    ///
+    /// **The size you drew is still on screen**, in the middle, where the
+    /// shutter was. The shutter became the block; here the block stays, so the
+    /// two frames are continuous and you can see what you are about to make
+    /// before you commit to it.
+    ///
+    /// One extra tap on every capture, and `docs/product-direction.md` says
+    /// recording a win must be the fastest thing in the app. That cost is real
+    /// and is the thing to watch: if it drags, the fix is a Settings toggle,
+    /// not a redesign.
+    private func reviewLayer(image: UIImage, topInset: CGFloat,
+                             bottomInset: CGFloat) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                // The same print the viewer lays down — inset, with the app's
+                // surface radius — so a photograph looks like the same object
+                // the moment after you take it as it does a month later.
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(image.size.width / max(image.size.height, 1),
+                                 contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
+                                                style: .continuous))
+                    .padding(.horizontal, 20)
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 0) {
+                    Button {
+                        HapticsEngine.tick()
+                        withAnimation(GridConstants.gentleReveal) { review = nil }
+                    } label: {
+                        Text("Retake")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .frame(minWidth: 88, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+
+                    Spacer(minLength: 0)
+
+                    // What you drew, still showing.
+                    RoundedRectangle(cornerRadius: reviewMarkSize.height * 0.147,
+                                     style: .continuous)
+                        .fill(.white.opacity(0.9))
+                        .frame(width: reviewMarkSize.width, height: reviewMarkSize.height)
+                        .accessibilityLabel("Block size, \(drawnSize.effortLabel)")
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        HapticsEngine.success()
+                        keep(image)
+                    } label: {
+                        Text("Use Photo")
+                            .font(Typography.headerSmall)
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 88, minHeight: 44, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 28)
+                .padding(.bottom, bottomInset + shutterBottomGap)
+            }
+            .padding(.top, topInset + Header.topPadding)
+        }
+    }
+
+    /// The drawn size, small enough to sit on a toolbar line. Same proportions
+    /// as the shutter, a third of the size.
+    private var reviewMarkSize: CGSize {
+        let cell: CGFloat = 22
+        let gutter = cell * GridConstants.spacing / GridConstants.blockReferenceCell
+        return CGSize(
+            width: cell * CGFloat(drawnSize.columnSpan)
+                + gutter * CGFloat(drawnSize.columnSpan - 1),
+            height: cell * CGFloat(drawnSize.rowSpan)
+                + gutter * CGFloat(drawnSize.rowSpan - 1)
+        )
+    }
+
+    /// Keep it: the camera roll, then the win.
+    ///
+    /// This is the only place the full-resolution frame exists — `ImageManager`
+    /// downscales to 1024px for the block — so it is the only place the camera
+    /// roll can be given the real photograph. No second haptic: the button
+    /// press already confirmed it, and buzzing again when a background write
+    /// lands is two confirmations for one action.
+    private func keep(_ image: UIImage) {
+        Task { await PhotoLibrarySaver.save(image) }
+        onCaptured(image, drawnSize)
+        review = nil
+        // Back to one cell for the next shot. A size drawn once is not a
+        // preference, and a shutter that stayed wide would make every later
+        // photograph a 2x1 nobody asked for.
+        drawnSize = .small
     }
 
     // MARK: - Viewfinder gestures
@@ -984,9 +1119,14 @@ struct CameraView: View {
                 }
                 guard let image else { return }
                 HapticsEngine.success()
-                Task { await PhotoLibrarySaver.save(image) }
-                onCaptured(image, drawnSize)
-                drawnSize = .small
+                // Nothing is kept yet.
+                //
+                // The camera roll used to be written HERE, before anything was
+                // confirmed — which was fine while there was no way to reject
+                // a shot and became a bug the moment there was: every photo
+                // you retook would already be in your library. It happens on
+                // "Use Photo" now.
+                withAnimation(GridConstants.gentleReveal) { review = image }
             }
         }
     }
