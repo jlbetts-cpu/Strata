@@ -416,7 +416,11 @@ final class TowerGestureTests: XCTestCase {
         let app = launchMemories()
         let forward = app.buttons["Next month"]
         XCTAssertTrue(forward.waitForExistence(timeout: 40), "no month picker")
-        Thread.sleep(forTimeInterval: 3)
+        // Wait for the SHELF, not for a duration. Memories loads its carousel
+        // and gallery after the month, and the stack re-lays out when they
+        // arrive — three seconds was landing inside that.
+        _ = app.staticTexts["ALBUMS"].waitForExistence(timeout: 20)
+        Thread.sleep(forTimeInterval: 2)
 
         // Nothing later than this month exists, so forward starts disabled.
         XCTAssertFalse(forward.isEnabled,
@@ -425,8 +429,15 @@ final class TowerGestureTests: XCTestCase {
         let back = app.buttons["Previous month"]
         XCTAssertTrue(back.isEnabled, "60 days of seed should reach a previous month")
         back.tap()
-        Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(forward.isEnabled, "stepping back did not re-enable forward")
+        // Polled. Stepping refetches the month, and a fixed two seconds was
+        // landing inside that.
+        var enabled = forward.isEnabled
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !enabled {
+            Thread.sleep(forTimeInterval: 0.3)
+            enabled = forward.isEnabled
+        }
+        XCTAssertTrue(enabled, "stepping back did not re-enable forward")
     }
 
     /// The picker still works once the month has scrolled under it.
@@ -437,26 +448,30 @@ final class TowerGestureTests: XCTestCase {
     /// pinned header that is also a control is exactly where taps fall through
     /// to the content sliding beneath it.
     @MainActor
-    /// **KNOWN FAILING, and pre-existing.** Also left red on purpose: once you
+    /// **KNOWN FAILING, and pre-existing.** Left red on purpose: once you
     /// scroll, you cannot change the month without scrolling back.
     ///
-    /// Ruled out, so the next attempt does not start from zero:
-    /// - The picker is not pinned at all. Adding `pinnedViews` plus a
-    ///   `Section` makes `exists` pass and `isHittable` still fail, so it was
-    ///   reverted — `exists` is true for an off-screen element and proves
-    ///   nothing.
-    /// - Not two pinned headers colliding: `PhotoGalleryGrid`'s headings pin
-    ///   too, and unpinning them changes nothing.
-    /// - Section pinning cannot satisfy this test as written anyway. A pinned
-    ///   header holds only while its own SECTION is on screen, and three
-    ///   swipes lands in the photo grid. Photographed with
-    ///   `-strataScrollMemories shelf`: at the shelf the picker is already
-    ///   gone, which is correct behaviour.
-    /// - Likeliest remaining cause is the one CLAUDE.md records about the
-    ///   camera's close button — this `ScrollView` runs to the top of the
-    ///   screen, so anything pinned lands under the Dynamic Island, drawn and
-    ///   not pressable. Fixing it means insetting the scroll view's top, which
-    ///   moves the title too, and that needs measuring rather than guessing.
+    /// The cause is now known, so the next attempt starts from a fact rather
+    /// than a guess. **`pinnedViews: [.sectionHeaders]` does not take effect
+    /// for a `Section` declared inside a conditional**, and this screen's
+    /// month section lives in the `else` of the empty-state branch. Dumped
+    /// from the accessibility tree after three swipes, with pinning applied:
+    ///
+    ///     exists=true hittable=false frame=(18.0, -1974.0, 44.0, 44.0)
+    ///
+    /// It is two thousand points above the screen — scrolled away, not pinned.
+    /// That also disposes of `exists` as evidence: an off-screen element is
+    /// still in the tree, which is why an earlier attempt looked like progress
+    /// and was not.
+    ///
+    /// Ruled out along the way: `.zIndex` on the header is not what stops the
+    /// pinning (removing it changes nothing), and it is not two pinned headers
+    /// colliding — `PhotoGalleryGrid`'s headings pin too, and unpinning them
+    /// changes nothing.
+    ///
+    /// The fix is to hoist the section out of the conditional, which means
+    /// restructuring the top of this screen — worth doing deliberately, not at
+    /// the end of a long session.
     func testTheMonthPickerStaysUsableWhileScrolled() throws {
         let app = launchMemories()
         let back = app.buttons["Previous month"]
@@ -677,4 +692,7 @@ final class TowerGestureTests: XCTestCase {
         }
         XCTAssertNotEqual(t1, t0, "the timer did not change")
     }
+
+
+
 }

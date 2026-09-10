@@ -267,7 +267,17 @@ struct MemoriesView: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapTight)
-
+        // **Above the tower, or its chevrons do not take their own taps.**
+        //
+        // The month blocks are positioned with `.offset`, which moves what is
+        // drawn and not what is laid out, so a block's hit area reaches up
+        // over the picker. Measured off the accessibility tree: the topmost
+        // block's frame is `{17, 120, 182, 242}` and the back chevron's is
+        // `{18, 136.7, 44, 44}` — entirely inside it. The tower comes after
+        // the header in the stack, so it was winning every tap, and pressing
+        // `‹` opened a DAY instead of stepping the month. That is how this was
+        // finally caught: the screen after the tap was Wednesday 9 September.
+        .zIndex(1)
     }
 
     @ViewBuilder

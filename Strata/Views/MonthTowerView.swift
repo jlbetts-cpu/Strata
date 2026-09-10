@@ -261,16 +261,6 @@ struct MonthPicker: View {
 
     private func chevron(_ name: String, enabled: Bool,
                          label: String, action: @escaping () -> Void) -> some View {
-        // **Known gap: a disabled chevron is invisible to VoiceOver.**
-        //
-        // The doc comment above claims "disabled and dimmed, never hidden — a
-        // control that vanishes reads as a bug, and a disabled button is what
-        // VoiceOver can describe". Measured, that is not what happens:
-        // `.disabled(true)` on a plain button drops it from the accessibility
-        // tree entirely, an explicit identifier does not bring it back, and
-        // leaving it enabled-but-inert did not either. At the current month
-        // the forward chevron is painted and does not exist to VoiceOver.
-        // `testTheMonthPickerStepsAndStopsAtToday` is red because of it.
         Button {
             HapticsEngine.lightTap()
             action()
