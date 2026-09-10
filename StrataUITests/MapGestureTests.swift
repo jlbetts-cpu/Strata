@@ -131,6 +131,40 @@ final class MapGestureTests: XCTestCase {
                           + "photograph. Scroll views: \(frames)")
     }
 
+    /// The onboarding slot resizes under the finger, like the tower's.
+    ///
+    /// The owner reported this twice: "the resize hold block is still not
+    /// resizing like it should, it should actually just act like the tower in
+    /// the main app." It was pinned inside a fixed square, so `onSizeChanged`
+    /// had nowhere to go. This drags it out for real and checks the page
+    /// unlocks — which it only does when a block bigger than 1x1 was drawn.
+    func testOnboardingSlotDrawsABiggerBlock() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-strataShowOnboarding", "1", "-strataOnboardingStep", "1"]
+        app.launch()
+
+        let next = app.buttons["What else"]
+        XCTAssertTrue(next.waitForExistence(timeout: 40), "the tutorial page never appeared")
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertFalse(next.isEnabled, "the page let you past before you drew anything")
+
+        // **Find the slot, do not guess where it is.** It used to be centred;
+        // it now stands at the tower's first free position, which is
+        // bottom-left — so a drag from the middle of the screen missed it
+        // entirely and the test reported the feature broken when the aim was.
+        // `NextSlotButton` labels itself "Log a win".
+        let slot = app.descendants(matching: .any)["Log a win"]
+        XCTAssertTrue(slot.waitForExistence(timeout: 15), "no slot on the tutorial page")
+        XCTAssertTrue(slot.isHittable, "the slot is in the tree but not on screen")
+        let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = start.withOffset(CGVector(dx: 160, dy: 0))
+        start.press(forDuration: 0.5, thenDragTo: end)
+        Thread.sleep(forTimeInterval: 3)
+
+        XCTAssertTrue(next.isEnabled,
+                      "drawing a bigger block did not unlock the page — the slot is not resizing")
+    }
+
     func testPinchingInZoomsTheMapIn() throws {
         let app = launchedOnTheMap()
         let probe = app.descendants(matching: .any)["MapZoomProbe"]

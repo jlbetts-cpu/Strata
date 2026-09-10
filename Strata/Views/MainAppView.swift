@@ -429,6 +429,7 @@ struct MainAppView: View {
                 isPlanning = false
             }
         }
+        .task { dropWelcomeWinIfNeeded() }
         .sheet(item: $winDraft, onDismiss: { capturedPhoto = nil }) { draft in
             AddWinSheet(
                 modelContext: modelContext,
@@ -1278,6 +1279,39 @@ struct MainAppView: View {
         }
         #endif
         nextWinCategory = QuickWinService.spontaneousCategory(existing: Array(habits))
+    }
+
+    /// The first block, dropped once, when somebody finishes onboarding.
+    ///
+    /// **Endowed progress.** A tower that starts at zero asks you to begin; a
+    /// tower with one block on it asks you to continue, and those are not the
+    /// same request. Nunes and Drèze showed it directly in 2006: a loyalty
+    /// card with two of ten stamps already filled was completed at nearly
+    /// twice the rate of one with none of eight, for identical remaining
+    /// effort. Most habit apps open on an empty page and fight that finding
+    /// rather than use it.
+    ///
+    /// It is also TRUE, which matters more here than the psychology. Finding
+    /// this app, installing it and sitting through the walkthrough is a thing
+    /// they actually did, and the app's whole claim is that the things you
+    /// actually did count. A fabricated block would be it lying on its first
+    /// screen.
+    ///
+    /// A `.hard` — the biggest — because it is the only block on the grid, and
+    /// a lone 1x1 reads as a rounding error rather than as a start.
+    private func dropWelcomeWinIfNeeded() {
+        let key = "pendingWelcomeWin"
+        guard UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(false, forKey: key)
+        _ = try? QuickWinService.logWin(
+            title: "Downloaded Strata",
+            category: .unlabeled,
+            size: .hard,
+            spontaneous: .mindfulness,
+            context: modelContext,
+            tower: towerManager.activeTower
+        )
+        scheduleRefresh()
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil) {

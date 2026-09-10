@@ -2,24 +2,17 @@ import SwiftUI
 
 /// The first two minutes.
 ///
-/// **Each screen is in the register of the thing it introduces.** The tower
-/// pages stand on `WarmBackground`; the camera page is the near-black room the
-/// camera actually is, with the wordmark where the wordmark actually goes; the
-/// map page is a real `MemoriesMapView` with real blocks on it. Nothing here is
-/// a picture OF the app drawn on a neutral card — the app has three tabs and
-/// this walks through all three in their own light.
+/// **Every page is full-bleed and stands in the register of what it
+/// introduces.** The tower pages on `WarmBackground`, the camera page inside a
+/// real viewfinder, the map page on a real `MemoriesMapView`. Nothing is a
+/// picture of the app drawn on a card — the owner's note after seeing the map
+/// page was "I love how the maps screen takes up the whole screen, more of the
+/// screens should be like that", and he is right: an app that opens by filling
+/// the display reads as confident, and one that opens with a small illustration
+/// in the middle of a lot of nothing does not.
 ///
-/// That is the correction to the first version, and the owner listed every
-/// fault in it: the app icon dropped in at the top for no reason, four
-/// identical SMALL blocks that showed neither what a block is nor what a tower
-/// looks like, a button that belonged to no design system, a tutorial that was
-/// wrong about the app, and no mention of the camera or the map — "which I feel
-/// are big parts of the app". They are; they are two of the three tabs.
-///
-/// **Not a funnel.** The published frameworks are fourteen screens ending in a
-/// paywall. Strata has no account and no subscription. Two ideas from them
-/// survive: the interactive demo is the most important screen and must be built
-/// from real components, and the copy should sound like a person.
+/// **Read it, don't skim it.** Each page gets one line of title and at most two
+/// of body. The earlier version ran to four and nobody would have read them.
 struct OnboardingView: View {
 
     var onFinish: () -> Void
@@ -28,22 +21,36 @@ struct OnboardingView: View {
     @State private var landed = 0
     /// What the tutorial has actually watched the finger do.
     @State private var hasDrawn = false
-    @State private var madeBlocks: [BlockSize] = []
+    /// The tutorial's own tower, and the grid it is packed into — the same
+    /// two things `TowerViewModel` keeps.
+    @State private var built: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = []
+    @State private var grid: [[Bool]] = []
+    /// The size the finger is drawing right now. The slot grows with it,
+    /// exactly as the tower's does.
+    @State private var drawingSize: BlockSize = .small
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
+    @State private var location = LocationService.shared
 
     #if DEBUG
     private static let debugStep = DebugHarness.onboardingStep
     #endif
 
     private static let lastStep = 4
-    private static let cell: CGFloat = 58
+    private static let cell: CGFloat = 74
+    private static let slotCell: CGFloat = 84
 
     var body: some View {
         ZStack {
-            ground
+            stage.ignoresSafeArea()
+            scrim
             VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                stage
+                // Not on the camera page: that screenshot has the real
+                // wordmark in it already, and two would be one too many.
+                StrataWordmark(size: 26, color: onDark ? .white : .primary.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, GridConstants.gapItem)
+                    .opacity(step == 2 ? 0 : 1)
                 Spacer(minLength: 0)
                 words
                 actions
@@ -59,73 +66,94 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Ground
-
-    /// The room each page is standing in.
-    @ViewBuilder
-    private var ground: some View {
-        switch step {
-        case 1:
-            // The camera is a dark room whatever the phone is set to — the
-            // same rule the real tab follows.
-            AppColors.warmBlack.ignoresSafeArea()
-        case 2:
-            MemoriesMapView(pins: Self.demoPins, isInteractive: false, style: .quiet)
-                .ignoresSafeArea()
-                .overlay {
-                    // **Heavier than the map's own title wash, and it has to
-                    // be.** That one holds up two words at the very top of the
-                    // screen; this one holds up a paragraph over the busiest
-                    // part of a city map, where street names and park labels
-                    // run straight under the type. Photographed at 0.62 the
-                    // copy was unreadable.
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0.0),
-                            .init(color: AppColors.warmBlack.opacity(0.55), location: 0.45),
-                            .init(color: AppColors.warmBlack.opacity(0.92), location: 0.72),
-                            .init(color: AppColors.warmBlack.opacity(0.96), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                }
-        default:
-            WarmBackground().ignoresSafeArea()
-        }
-    }
-
     /// Whether this page's words are standing on a dark ground.
-    private var onDark: Bool { step == 1 || step == 2 }
+    private var onDark: Bool { step == 2 || step == 3 }
 
-    // MARK: - Stage
+    // MARK: - The stage
 
+    /// Full-bleed, always. No page has a picture floating in the middle of it.
     @ViewBuilder
     private var stage: some View {
         switch step {
-        case 0: tower
-        case 1: camera
-        case 2: Color.clear.frame(height: 1)
-        case 3: workshop
-        default: thanks
+        case 0:
+            ZStack { WarmBackground(); tower }
+        case 1:
+            ZStack { WarmBackground(); workshop }
+        case 2:
+            // **The whole screen, and nothing added.** The owner sent a frame
+            // of the real camera — his sunset, his composition guides, his
+            // focus box, the wordmark and the tab bar — and his instruction
+            // was to show it: "the photo I sent of the camera is stunning,
+            // just show that, dont need to show everything else." Two earlier
+            // versions drew our own ring on it or cropped its chrome away.
+            // Both were the same mistake: improving a photograph that did not
+            // need improving.
+            GeometryReader { geo in
+                Image("DemoViewfinder")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+        case 3:
+            // **A photograph of the map, not a live one.** A real
+            // `MemoriesMapView` here spins up MapKit and fetches tiles over
+            // the network — the owner saw it: "make sure the map loads faster,
+            // right now I noticed some loading issues; no need to load in an
+            // entire map, just need a photo of the map." He is right, and it
+            // is the same call as the camera page. Onboarding is not the place
+            // to make somebody wait for a network round trip, and nothing here
+            // is interactive anyway. The picture IS the real map with the real
+            // clusterer and his real photographs on it — it was rendered by
+            // the app and then captured.
+            GeometryReader { geo in
+                Image("DemoMap")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+        default:
+            ZStack { WarmBackground(); thanks }
+        }
+    }
+
+    /// Enough darkness under the words to read them, and none above.
+    @ViewBuilder
+    private var scrim: some View {
+        if onDark {
+            LinearGradient(
+                stops: [
+                    .init(color: AppColors.warmBlack.opacity(0.45), location: 0.0),
+                    .init(color: .clear, location: 0.22),
+                    .init(color: AppColors.warmBlack.opacity(0.55), location: 0.55),
+                    .init(color: AppColors.warmBlack.opacity(0.95), location: 0.80)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
         }
     }
 
     // MARK: - The tower
 
-    /// Real sizes, real colours, packed by the real packer.
+    /// Which of the opening blocks carry a photograph.
     ///
-    /// The first version put four identical 1x1s in a row, which showed
-    /// neither the thing that makes a block a block — that it has a SIZE — nor
-    /// what a tower looks like. `GridPacker.firstFit` is the same first-fit
-    /// scan the tower itself uses, so this is not an arrangement that looks
-    /// like the app's: it is the app's.
+    /// **Not all of them.** The owner asked for "some photos in some of the
+    /// blocks on the first page, just to put in that human element" — some,
+    /// and he is right that it is some. A tower of nothing but pictures is a
+    /// photo grid; the point of this screen is that a block is a block whether
+    /// or not it has a picture on it, and the mix says that in one look.
+    private static let openingPhotos: [Int: String] = [
+        0: "DemoPhoto5", 2: "DemoPhoto9", 4: "DemoPhoto2", 7: "DemoPhoto11"
+    ]
+
     private static let demo: [(size: BlockSize, category: HabitCategory)] = [
         (.medium, .health), (.small, .work), (.hard, .mindfulness),
         (.small, .social), (.medium, .creativity), (.small, .focus),
-        (.small, .health)
+        (.small, .health), (.medium, .work)
     ]
 
     private static let packed: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = {
@@ -140,6 +168,9 @@ struct OnboardingView: View {
         return out
     }()
 
+    /// Real sizes, real colours, placed by the real packer — the same
+    /// first-fit scan the tower runs, so this is the app's arrangement rather
+    /// than one that resembles it.
     private var tower: some View {
         let gutter = GridConstants.spacing
         let rows = Self.packed.map { $0.r + $0.h }.max() ?? 1
@@ -149,14 +180,16 @@ struct OnboardingView: View {
 
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(Self.packed.enumerated()), id: \.offset) { index, item in
-                block(item.category, columns: item.w, rows: item.h)
+                block(item.category, columns: item.w, rows: item.h,
+                      photo: Self.openingPhotos[index])
                     .offset(x: CGFloat(item.c) * (Self.cell + gutter),
                             y: -CGFloat(item.r) * (Self.cell + gutter)
-                                + (landed > index ? 0 : -520))
+                                + (landed > index ? 0 : -640))
                     .opacity(landed > index ? 1 : 0)
             }
         }
         .frame(width: width, height: height, alignment: .bottomLeading)
+        .offset(y: -60)
     }
 
     private func runFall() async {
@@ -168,7 +201,7 @@ struct OnboardingView: View {
                 landed = index + 1
             }
             HapticsEngine.tick()
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 90 : 165))
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 90 : 160))
         }
     }
 
@@ -176,80 +209,38 @@ struct OnboardingView: View {
     /// acceleration, no ease out — a falling object does not decelerate into
     /// the ground.
     private var fallSeconds: Double {
-        let t = (2 * 520 / GridConstants.dropGravity).squareRoot()
+        let t = (2 * 640 / GridConstants.dropGravity).squareRoot()
         return min(max(Double(t), GridConstants.dropDurationRange.lowerBound),
                    GridConstants.dropDurationRange.upperBound)
     }
 
     // MARK: - The camera
 
-    /// The camera, as it actually looks.
-    ///
-    /// **A real frame from the real camera**, supplied by the owner — his own
-    /// sunset, with the composition guides and the focus box he had on screen
-    /// at the time. The first version drew an abstract ring on a black
-    /// rectangle, which is a diagram of a camera rather than a camera. This
-    /// screen has to make somebody want to use it, and nothing does that like
-    /// a photograph does.
-    ///
-    /// The app's own chrome goes over it: the wordmark where the wordmark
-    /// belongs, and the shutter drawing the SIZE footprint, which is the point
-    /// being made — the camera makes blocks too.
-    private var camera: some View {
-        VStack(spacing: 0) {
-            StrataWordmark(size: 32, color: .white)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, GridConstants.gapSection)
-
-            Image("DemoViewfinder")
-                .resizable()
-                .scaledToFill()
-                .frame(height: 300)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
-                                            style: .continuous))
-                .overlay(alignment: .bottom) {
-                    ZStack {
-                        Circle()
-                            .strokeBorder(.white.opacity(0.95), lineWidth: 3)
-                            .frame(width: 82, height: 82)
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(.white)
-                            .frame(width: 56, height: 56)
-                    }
-                    .offset(y: 41)
-                }
-                .padding(.bottom, 52)
-        }
-    }
-
     // MARK: - The map
 
-    /// Enough pins to look like somebody's map rather than a demo.
-    ///
-    /// Real `PlaceMap.Pin`s, so the real clusterer sizes and places them: what
-    /// you see here is what your own map will do.
+    /// The owner's own photographs, spread by a GLOBAL index rather than one
+    /// that restarts inside each place — restarting is why the first version
+    /// showed the same three pictures over and over.
     private static let demoPins: [PlaceMap.Pin] = {
         let hubs: [(Double, Double, Int, HabitCategory)] = [
-            (51.5074, -0.1278, 9, .health),
-            (51.5155, -0.1410, 4, .work),
+            (51.5074, -0.1278, 5, .health),
+            (51.5155, -0.1410, 3, .work),
             (51.4975, -0.1357, 2, .mindfulness),
-            (51.5210, -0.1180, 6, .creativity)
+            (51.5210, -0.1180, 4, .creativity)
         ]
         var pins: [PlaceMap.Pin] = []
+        var n = 0
         for (lat, lon, count, category) in hubs {
             for i in 0..<count {
+                n += 1
                 pins.append(PlaceMap.Pin(
-                    dateString: "2026-09-0\((i % 9) + 1)",
-                    completedAt: Date().addingTimeInterval(-Double(i) * 3600),
+                    dateString: "2026-09-0\((n % 9) + 1)",
+                    completedAt: Date().addingTimeInterval(-Double(n) * 3600),
                     title: "Win",
                     category: category,
-                    // The owner's own photographs, out of the asset
-                    // catalogue — a map of flat colour squares does not make
-                    // the case that your pictures land where you took them.
-                    photoFileName: "bundle:DemoPhoto\((i % 7) + 1)",
-                    place: WinPlace(latitude: lat + Double(i) * 0.0006,
-                                    longitude: lon + Double(i) * 0.0004,
+                    photoFileName: "bundle:DemoPhoto\((n % 7) + 1)",
+                    place: WinPlace(latitude: lat + Double(i) * 0.0007,
+                                    longitude: lon + Double(i) * 0.0005,
                                     accuracy: 20)
                 ))
             }
@@ -259,92 +250,135 @@ struct OnboardingView: View {
 
     // MARK: - The tutorial
 
-    /// **The real control, taught accurately.**
+    /// **The slot grows under the finger, exactly as the tower's does.**
     ///
-    /// The first version was wrong about the app: it treated a TAP as the way
-    /// to make a block. In the tower a tap opens the add form (`onOpenMenu` ->
-    /// `winDraft`) and only a DRAW logs a block directly (`action` ->
-    /// `logWin`). So the lesson is the draw, the copy says what a tap does
-    /// instead, and the page will not let you past until a block has actually
-    /// been drawn OUT — which is the difference between a tutorial and a
-    /// slideshow.
+    /// This was the owner's complaint twice over: "the resize hold block is
+    /// still not resizing like it should, it should actually just act like the
+    /// tower in the main app." It was pinned inside a fixed square frame, so
+    /// `onSizeChanged` had nowhere to go and the ghost never grew — you were
+    /// drawing a size you could not see. The tower drives its slot's frame
+    /// from `drawingSize` and so does this, with no animation modifier on it,
+    /// because `onSizeChanged` already arrives inside a `slotSnap`
+    /// transaction and a second one would fight it.
+    ///
+    /// Accurate in the other direction too: in the tower a tap opens the add
+    /// form and only a DRAW logs directly, so the lesson here is the draw.
     private var workshop: some View {
-        VStack(spacing: GridConstants.gapItem) {
-            ZStack(alignment: .bottomLeading) {
-                ForEach(Array(madeBlocks.enumerated()), id: \.offset) { index, size in
-                    block(Self.demo[index % Self.demo.count].category,
-                          columns: size.columnSpan, rows: size.rowSpan)
-                        .transition(.scale(scale: 0.7).combined(with: .opacity))
-                }
-            }
-            .frame(width: Self.cell * 2 + GridConstants.spacing,
-                   height: Self.cell * 2 + GridConstants.spacing,
-                   alignment: .bottomLeading)
+        let gutter = GridConstants.spacing
+        let columns = CGFloat(GridConstants.columnCount)
+        let width = columns * Self.cell + (columns - 1) * gutter
+        let spot = ghostSpot
+        let rows = max((built.map { $0.r + $0.h }.max() ?? 0),
+                       (spot?.r ?? 0) + drawingSize.rowSpan)
+        let height = CGFloat(max(rows, 2)) * Self.cell + CGFloat(max(rows, 2) - 1) * gutter
 
-            NextSlotButton(
-                reduceMotion: reduceMotion,
-                cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
-                previewCategory: .mindfulness,
-                onSizeChanged: { _ in },
-                action: { size in
-                    withAnimation(GridConstants.dropSettleSpring) { madeBlocks = [size] }
-                    if size != .small { hasDrawn = true }
-                    HapticsEngine.success()
-                },
-                // In the app this opens the add form. There is no form to open
-                // here, so it answers with the same tap it would there.
-                onOpenMenu: { HapticsEngine.lightTap() }
-            )
-            .frame(width: Self.cell, height: Self.cell)
+        return ZStack(alignment: .bottomLeading) {
+            ForEach(Array(built.enumerated()), id: \.offset) { _, item in
+                block(item.category, columns: item.w, rows: item.h)
+                    .offset(x: CGFloat(item.c) * (Self.cell + gutter),
+                            y: -CGFloat(item.r) * (Self.cell + gutter))
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+
+            if let spot {
+                NextSlotButton(
+                    reduceMotion: reduceMotion,
+                    cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
+                    previewCategory: Self.tutorialColours[built.count % Self.tutorialColours.count],
+                    onSizeChanged: { drawingSize = $0 },
+                    action: { size in place(size) },
+                    onOpenMenu: { HapticsEngine.lightTap() }
+                )
+                .frame(width: Self.cell * CGFloat(drawingSize.columnSpan)
+                            + gutter * CGFloat(drawingSize.columnSpan - 1),
+                       height: Self.cell * CGFloat(drawingSize.rowSpan)
+                            + gutter * CGFloat(drawingSize.rowSpan - 1))
+                .offset(x: CGFloat(spot.c) * (Self.cell + gutter),
+                        y: -CGFloat(spot.r) * (Self.cell + gutter))
+            }
         }
+        .frame(width: width, height: height, alignment: .bottomLeading)
+        .offset(y: -50)
+    }
+
+    private static let tutorialColours: [HabitCategory] = [
+        .mindfulness, .health, .creativity, .work, .social
+    ]
+
+    /// Where the slot is standing right now.
+    ///
+    /// **The same first-fit scan the tower runs**, against the blocks already
+    /// placed and at the size the finger is currently drawing — so the ghost
+    /// sits exactly where the block will land and MOVES as you change the
+    /// size, which is what `TowerViewModel.computeGhostPosition` does in the
+    /// app. The owner's note: "it doesn't actually show the tower being built,
+    /// it's all centered, it doesn't build the same as it would in the app."
+    /// It was one block centred over one slot; it is a tower now.
+    private var ghostSpot: (c: Int, r: Int)? {
+        var copy = grid
+        guard let spot = GridPacker.firstFit(columnSpan: drawingSize.columnSpan,
+                                             rowSpan: drawingSize.rowSpan,
+                                             grid: &copy) else { return nil }
+        return (spot.column, spot.row)
+    }
+
+    private func place(_ size: BlockSize) {
+        var next = grid
+        guard let spot = GridPacker.firstFit(columnSpan: size.columnSpan,
+                                             rowSpan: size.rowSpan,
+                                             grid: &next) else { return }
+        let category = Self.tutorialColours[built.count % Self.tutorialColours.count]
+        withAnimation(GridConstants.dropSettleSpring) {
+            grid = next
+            built.append((spot.column, spot.row, size.columnSpan, size.rowSpan, category))
+        }
+        drawingSize = .small
+        if size != .small { hasDrawn = true }
+        HapticsEngine.success()
     }
 
     // MARK: - The thank you
 
-    /// **A person, not a brand.** The owner's first app, so it is first
-    /// person, and it makes one offer rather than three. No rating prompt and
-    /// no share sheet: asking for something on the screen where you are
-    /// thanking somebody turns the thank you into a transaction.
+    /// **A person, not a brand.** The owner's first app, so it is first person
+    /// and it makes one offer rather than three. No rating prompt and no share
+    /// sheet: asking for something on the screen where you are thanking
+    /// somebody turns the thank you into a transaction.
     private var thanks: some View {
         VStack(spacing: GridConstants.gapItem) {
             Image("CreatorPortrait")
                 .resizable()
                 .scaledToFill()
-                .frame(width: 128, height: 128)
+                .frame(width: 190, height: 190)
                 .clipShape(Circle())
-                .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.25), lineWidth: 1) }
-                .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 10, y: 4)
+                .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
+                .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 14, y: 6)
                 .accessibilityLabel("Jayden, who made Strata")
-            Text("Jayden")
-                .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.9))
+
+            VStack(spacing: 2) {
+                Text("Jayden")
+                    .font(Typography.headerLarge)
+                    .foregroundStyle(.primary.opacity(0.9))
+                Text("Founder, developer and product designer")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .offset(y: -40)
     }
 
-    /// Where to find him. **Empty until it is filled in**, and the button is
-    /// not drawn while it is: a dead link on the screen that asks somebody to
-    /// get in touch is worse than not asking.
-    private static let linkedIn = ""
+    private static let linkedIn = "https://www.linkedin.com/in/jaydenbetts"
 
-    @ViewBuilder
     private var connectButton: some View {
-        if !Self.linkedIn.isEmpty, let url = URL(string: Self.linkedIn) {
-            Link(destination: url) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.right.square")
-                    Text("Connect on LinkedIn")
-                }
-                .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.85))
+        Button {
+            if let url = URL(string: Self.linkedIn) { openURL(url) }
+        } label: {
+            Text("Connect on LinkedIn")
                 .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background {
-                    RoundedRectangle(cornerRadius: GridConstants.radiusSurface, style: .continuous)
-                        .fill(AppColors.inkQuiet.opacity(0.14))
-                }
-            }
-            .buttonStyle(.plain)
         }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .tint(AppColors.slotInk)
     }
 
     // MARK: - Words
@@ -353,11 +387,11 @@ struct OnboardingView: View {
         VStack(spacing: GridConstants.gapTight) {
             Text(title)
                 .font(Typography.headerLarge)
-                .foregroundStyle(onDark ? Color.white : Color.primary.opacity(0.9))
+                .foregroundStyle(onDark ? Color.white : Color.primary.opacity(0.92))
                 .multilineTextAlignment(.center)
             Text(subtitle)
                 .font(Typography.bodyMedium)
-                .foregroundStyle(onDark ? Color.white.opacity(0.78) : AppColors.inkSecondary)
+                .foregroundStyle(onDark ? Color.white.opacity(0.82) : AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -368,27 +402,22 @@ struct OnboardingView: View {
     private var title: String {
         switch step {
         case 0: return "Everything you did, stacked up"
-        case 1: return "A win can be a photograph"
-        case 2: return "It remembers where you were"
-        case 3: return hasDrawn ? "That's the whole app" : "Draw your first block"
+        case 1: return hasDrawn ? "That's how every win is made" : "Small, medium or big"
+        case 2: return "A win can be a photograph"
+        case 3: return "It remembers where you were"
         default: return "Thank you, genuinely"
         }
     }
 
     private var subtitle: String {
         switch step {
-        case 0:
-            return "Finish something and it becomes a block. Bigger things make bigger blocks, and they stack up into a tower you can actually look at."
-        case 1:
-            return "Take it in Strata and the picture becomes the block. Pull the shutter sideways or up first to say how big the win was."
-        case 2:
-            return "Photographed wins land where you took them, so the map fills in with the places you did things."
-        case 3:
-            return hasDrawn
-                ? "Everything else in Strata is looking back at what you built."
-                : "Press and hold the slot, then pull sideways for a wide block or up for a tall one. Let go and it drops in. A quick tap opens the full form instead, for naming it."
-        default:
-            return "Strata is the first app I've made, and you're one of the first people to open it. That means a lot. If you find a bug, want something added, or just fancy saying hello, I'd really like to hear from you."
+        case 0: return "Finish something and it becomes a block — small, medium or big, depending on the effort."
+        case 1: return hasDrawn
+            ? "A quick thing stays small. A real push earns a big one."
+            : "Hold the empty slot and pull. The further you pull, the bigger the win. Let go to drop it in."
+        case 2: return "Take it here and the picture becomes the block."
+        case 3: return "Your wins land on the map where you took them."
+        default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
 
@@ -398,83 +427,91 @@ struct OnboardingView: View {
         VStack(spacing: GridConstants.gapTight) {
             if step == Self.lastStep { connectButton }
 
+            // **A native button.** It was a `BlockSurface` — the app's own
+            // object, which sounded right and looked like a slab. The owner:
+            // "simplify the button, it shouldnt have the block styling, just
+            // make it simple like an apple native button." A block is a win.
+            // A button is not a win.
             Button {
                 HapticsEngine.lightTap()
                 advance()
             } label: {
-                actionLabel
+                Text(actionTitle)
+                    .fontWeight(.medium)
+                    .foregroundStyle(WarmBackground.top)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            // **`slotInk`, not `accentWarm`.** The app's accent IS a warm
+            // black, which is right on a light page and invisible on a dark
+            // one — and in dark mode every page here has a dark ground, the
+            // two photographs included. A primary action only has to be one
+            // thing: the opposite of what it is standing on.
+            .tint(AppColors.slotInk)
             .disabled(!canAdvance)
-            .opacity(canAdvance ? 1 : 0.4)
-            .animation(GridConstants.gentleReveal, value: canAdvance)
 
-            // A way out that does not pretend to be anything else.
             Button("Skip") {
                 HapticsEngine.lightTap()
                 onFinish()
             }
             .font(Typography.bodySmall)
-            .foregroundStyle(onDark ? Color.white.opacity(0.55) : AppColors.inkQuiet)
+            .foregroundStyle(onDark ? Color.white.opacity(0.6) : AppColors.inkQuiet)
             .opacity(step < Self.lastStep ? 1 : 0)
         }
     }
 
-    /// **A block, because that is what this app's surfaces are.**
-    ///
-    /// The first version used a plain filled rectangle, which is every app's
-    /// button and none of this one's — the owner's words: "I don't think the
-    /// button is our design system." `BlockSurface` is the real thing, rim
-    /// brightest along its top edge and the frosted band across its bottom
-    /// 26%, so the control you press to get into Strata is made of the object
-    /// Strata is made of.
-    private var actionLabel: some View {
-        Text(actionTitle)
-            .font(Typography.headerMedium)
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background {
-                // **`accentWarm`, not a category colour.** The first version
-                // used mindfulness pink, and the owner's note is that pink is
-                // not the app's primary any more. `AppColors.accentWarm` is
-                // what `AccentColor.colorset` resolves to and what every
-                // other primary in the app inherits.
-                BlockSurface(cornerRadius: GridConstants.blockCornerRadius(forCell: 54),
-                             scale: 54 / GridConstants.blockReferenceCell) {
-                    AppColors.accentWarm
-                }
-            }
-    }
-
-    private var canAdvance: Bool { step != 3 || hasDrawn }
+    private var canAdvance: Bool { step != 1 || hasDrawn }
 
     private var actionTitle: String {
         switch step {
-        case 0: return "What else"
-        case 1: return "Go on"
-        case 2: return "Let me try"
-        case 3: return "One more thing"
+        case 0: return "Let me try"
+        case 1: return "What else"
+        case 2: return "Go on"
+        case 3: return location.canAsk ? "Turn on places" : "One more thing"
         default: return "Start"
         }
     }
 
     private func advance() {
+        // **The map page is where the asking belongs.**
+        //
+        // It is the one screen that has just explained what the permission is
+        // for, which is the whole of Apple's guidance on priming: ask where
+        // the answer is obvious, never at launch. Leaving the page is the
+        // moment — the button says what it will do.
+        if step == 3, location.canAsk {
+            location.requestAccess()
+        }
         guard step < Self.lastStep else { onFinish(); return }
         withAnimation(GridConstants.naturalSettle) { step += 1 }
     }
 
     // MARK: - Drawing
 
-    private func block(_ category: HabitCategory, columns: Int, rows: Int) -> some View {
+    private func block(_ category: HabitCategory, columns: Int, rows: Int,
+                       photo: String? = nil) -> some View {
         let gutter = GridConstants.spacing
         let width = Self.cell * CGFloat(columns) + gutter * CGFloat(columns - 1)
         let height = Self.cell * CGFloat(rows) + gutter * CGFloat(rows - 1)
         return BlockSurface(
             cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
-            scale: Self.cell / GridConstants.blockReferenceCell
+            scale: Self.cell / GridConstants.blockReferenceCell,
+            // The photo blocks' own wash. A white veil at the block's usual
+            // strength floors a photograph's luminance; the tower drops to
+            // 0.06 for exactly this and so does the map.
+            washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06
         ) {
-            category.style.baseColor
+            ZStack {
+                category.style.baseColor
+                if let photo {
+                    Image(photo)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: height)
+                        .clipped()
+                }
+            }
         }
         .frame(width: width, height: height)
     }

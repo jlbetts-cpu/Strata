@@ -444,7 +444,7 @@ struct MemoriesMapView: View {
 
             Text(denied
                  ? "Strata can't tell where a photo was taken."
-                 : "Photos you take from now on remember where you were. The ones you already have don't, and that isn't something we can go back and add.")
+                 : "Photos you take in Strata remember where you were, and land here.")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(.white.opacity(0.75))
                 .multilineTextAlignment(.center)

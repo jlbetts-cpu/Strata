@@ -27,6 +27,7 @@ struct SettingsView: View {
     @AppStorage(PhotoLibrarySaver.defaultsKey) private var savesToCameraRoll = true
     @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
     @State private var location = LocationService.shared
+    @State private var replayOnboarding = false
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     @State private var reminderTime = Date()
@@ -179,12 +180,34 @@ struct SettingsView: View {
                 // and it should not be discovered.
                 Text(location.isDenied
                      ? "Location is off for Strata in the Settings app, so photographs can't be placed on your map."
-                     : "Photographs you take remember where you were, and appear on your map. Ones you already have don't — that isn't something we can go back and add.")
+                     : "Photographs you take in Strata remember where you were, and appear on your map.")
             }
 
             // Was "Tower". The 3D Parallax switch went with the feature, and
             // haptics are not a tower thing — they fire on every control in
             // the app.
+            Section {
+                Button {
+                    HapticsEngine.lightTap()
+                    replayOnboarding = true
+                } label: {
+                    Label {
+                        Text("How Strata works")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        SettingsIcon(systemName: "questionmark.circle",
+                                     tint: HabitCategory.creativity.style.baseColor)
+                    }
+                }
+            } footer: {
+                // The owner: "add onboarding to the settings so people that
+                // missed what to do can go there." Onboarding shows once and
+                // has a Skip button on every page, so somebody who skipped it
+                // — or who came back a month later — otherwise has no way to
+                // be told how the app works.
+                Text("The short walkthrough you saw when you first opened the app.")
+            }
+
             Section("Feedback") {
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
@@ -304,6 +327,9 @@ struct SettingsView: View {
             }
 
             #endif
+        }
+        .fullScreenCover(isPresented: $replayOnboarding) {
+            OnboardingView { replayOnboarding = false }
         }
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }

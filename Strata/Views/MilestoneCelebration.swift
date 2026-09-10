@@ -57,7 +57,10 @@ struct MilestoneCelebration: View {
             }
             // #87: Milestone haptics + #88: Milestone sound
             HapticsEngine.reward()
-            SoundEngine.milestoneJingle()
+            // Silent, like the dance. The only thing this app makes a noise
+            // for is a block landing, which is a physical event you are
+            // watching. Everything else is felt through `HapticsEngine`.
+            HapticsEngine.reward()
             // Auto-dismiss after 3s
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))

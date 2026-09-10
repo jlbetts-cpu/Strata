@@ -234,6 +234,9 @@ struct MonthPicker: View {
             Menu {
                 ForEach(months, id: \.self) { month in
                     Button {
+                        // Every control in this app answers the finger — the
+                        // month menu was the one that did not.
+                        HapticsEngine.lightTap()
                         onSelect(month)
                     } label: {
                         Text(titleFor(month).capitalized)

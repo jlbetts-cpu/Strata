@@ -263,7 +263,12 @@ final class TowerAnimationCoordinator {
 
         jubilationTask?.cancel()
         jubilationTask = Task { @MainActor in
-            SoundEngine.completionTone(category: .health, pitchShift: 0)
+            // **The dance is silent.** The owner's call: "remove the dance
+            // noise, the only noise would be the blocks falling, just to make
+            // it more simple." A landing is a physical event and a sound for
+            // it is information; the dance is the tower celebrating, and a
+            // sound there is the app applauding itself. The haptics stay —
+            // they are felt, not heard, and they do not interrupt anybody.
             danceTick += 1
 
             for block in placedBlocks {
@@ -286,7 +291,6 @@ final class TowerAnimationCoordinator {
                 return
             }
             HapticsEngine.success()
-            SoundEngine.completionTone(category: .health, pitchShift: 140)
             danceTick += 1
 
             for block in placedBlocks {

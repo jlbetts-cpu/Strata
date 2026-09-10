@@ -375,7 +375,10 @@ struct PhotoViewer: View {
             }
             .disabled(saving || isSaved)
             Divider()
-            Button(role: .destructive) { confirmingDelete = true } label: {
+            Button(role: .destructive) {
+                HapticsEngine.warning()
+                confirmingDelete = true
+            } label: {
                 Label("Remove Photo", systemImage: "trash")
             }
         } label: {
