@@ -173,6 +173,19 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// Says whether the store opened, from `-strataReportStore`.
+    ///
+    /// `SharedModelContainer` falls back to an in-memory store when the
+    /// container cannot be created, which is the right thing to do and the
+    /// worst thing to debug: a failed migration presents as an app with no
+    /// data, not as a crash. After any schema change, launch with this on a
+    /// build that already has data and read the line.
+    static func runStoreProbe() {
+        NSLog("[strata-probe] store inMemoryFallback=\(SharedModelContainer.isUsingInMemoryFallback)")
+    }
+
+    static var reportsStore: Bool { argument("-strataReportStore") != nil }
+
     /// Reports what the location service can see, from `-strataTestLocation`.
     ///
     /// Nothing else uses `LocationService` yet, so this is the only way to

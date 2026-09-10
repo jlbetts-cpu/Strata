@@ -50,6 +50,33 @@ final class HabitLog {
     /// already had.
     var towerOrder: Int? = nil
 
+    // MARK: - Where
+
+    /// Where the photograph was taken, if the app knew at the time.
+    ///
+    /// **Three flat `Double?`s, not a coordinate type and not a `Codable`
+    /// struct.** SwiftData stores `Double?` natively and can PREDICATE on it,
+    /// which is the whole reason the map can fetch `latitude != nil` the way
+    /// the shelf already fetches `imageFileName != nil`. A composite is an
+    /// opaque blob that cannot appear in a `#Predicate` at all. And
+    /// `CLLocationCoordinate2D` is not `Codable`, so storing one would drag
+    /// CoreLocation into the model layer and make this untestable without the
+    /// framework.
+    ///
+    /// Defaulted rather than optional-with-migration, exactly like
+    /// `towerOrder` above: SwiftData adds the columns in place and every
+    /// existing log keeps nil, which is the truth about them — no photograph
+    /// taken before this shipped has a place, and none ever will. Every path
+    /// into `ImageManager` re-encodes a resized `UIImage` with no metadata
+    /// container, so there is nothing to recover.
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    /// Horizontal accuracy in metres, kept so the map can refuse to draw a pin
+    /// that is vaguer than the ground it would sit on. Without it a
+    /// reduced-accuracy fix puts a confident block in the wrong
+    /// neighbourhood.
+    var locationAccuracy: Double? = nil
+
     var hasDrawerContent: Bool {
         (note != nil && !note!.isEmpty)
         || !caption.isEmpty

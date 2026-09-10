@@ -1448,6 +1448,9 @@ struct MainAppView: View {
         if DebugHarness.testsPhotoSave {
             DebugHarness.runPhotoSaveProbe()
         }
+        if DebugHarness.reportsStore {
+            DebugHarness.runStoreProbe()
+        }
         if DebugHarness.reportsLocation {
             DebugHarness.runLocationProbe(locationService)
         }
