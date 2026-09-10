@@ -220,12 +220,24 @@ struct MainAppView: View {
     /// started opening on the camera, the tab never changed, so the change
     /// never fired and the window stayed light behind a black viewfinder. The
     /// tab bar's icons came up black on black.
-    @State private var windowScheme: ColorScheme = MainAppView.scheme(for: MainAppView.launchTab)
+    @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.launchTab)
 
     /// The one place that decides. Both the initial value and every later
     /// change go through it, so they cannot disagree.
-    private static func scheme(for tab: StrataTab) -> ColorScheme {
-        tab == .camera ? .dark : .light
+    /// What the window's appearance should be on a given tab.
+    ///
+    /// **`nil` means "follow the system"**, which is what every tab but the
+    /// camera now does. It used to force `.light` everywhere — the light-only
+    /// conversion — and the owner's call is that "we should make the design
+    /// work in both dark and light mode while still keeping the etheral vibe".
+    /// An app that refuses the system appearance is not ethereal, it is just
+    /// loud in one direction.
+    ///
+    /// The camera stays pinned to `.dark` and that is not an exception to the
+    /// rule, it is the rule: a viewfinder is a dark room whatever the phone is
+    /// set to, and its chrome is white type over a live image in both.
+    private static func scheme(for tab: StrataTab) -> ColorScheme? {
+        tab == .camera ? .dark : nil
     }
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
@@ -870,11 +882,11 @@ struct MainAppView: View {
     /// the same race.
     private func selectTab(_ tab: StrataTab) {
         selectedTab = tab
-        windowScheme = tab == .camera ? .dark : .light
+        windowScheme = Self.scheme(for: tab)
         Task { @MainActor in
             guard selectedTab != tab else { return }
             selectedTab = tab
-            windowScheme = tab == .camera ? .dark : .light
+            windowScheme = Self.scheme(for: tab)
         }
     }
 

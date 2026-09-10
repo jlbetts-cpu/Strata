@@ -30,6 +30,7 @@ struct MemoriesView: View {
     /// from it — a title's cap sits further down its layout box the bigger it
     /// is, so the two cannot be set independently.
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
@@ -39,16 +40,37 @@ struct MemoriesView: View {
     /// the tab opens on the map, whole, and the photographs are the button in
     /// the corner.
     @State private var drawer: DrawerDetent = .hidden
+    /// Whether the month tower is still on screen.
+    ///
+    /// The picker governs the tower and nothing else — the albums below it and
+    /// the camera roll under those span every month there is. So once the
+    /// tower has scrolled away the picker is a control with nothing to
+    /// control, sitting at the top of a page it has no authority over. The
+    /// owner put it exactly: it "is not associated with anything but the
+    /// tower".
+    ///
+    /// It does not SCROLL away — a control that moves while you scroll the
+    /// thing it controls is the bug this page already had. It goes quiet
+    /// instead, and comes back when the tower does.
+    @State private var towerOnScreen = true
 
-    /// Which ground the map draws on. Two are possible and MapKit allows no
-    /// third, so the choice is made by looking rather than by arguing —
-    /// `-strataMapStyle satellite` renders the other one.
+    /// Which ground the map draws on.
+    ///
+    /// **The dark map IS dark mode.** MapKit cannot be recoloured, but it has
+    /// two palettes, and the night one is not a separate feature to choose —
+    /// it is what this screen must be when the phone is dark. A pale map
+    /// filling the screen inside a dark app is not a design that "works in
+    /// both", it is a light screen that got missed. Measured, the two grounds
+    /// are mean luminance 212 and 63, which is the whole distance between an
+    /// app that flips and one that does not.
+    ///
+    /// `-strataMapStyle` still overrides, because both have to be
+    /// photographable on demand.
     private var mapStyle: MemoriesMapView.Style {
         #if DEBUG
-        return DebugHarness.mapStyle
-        #else
-        return .quiet
+        if DebugHarness.hasMapStyleOverride { return DebugHarness.mapStyle }
         #endif
+        return colorScheme == .dark ? .night : .quiet
     }
 
     var openSettings: (() -> Void)?
@@ -143,6 +165,15 @@ struct MemoriesView: View {
                         // page now opens on the thing worth looking at, and
                         // the photographs sit under it.
                         monthTower
+                            // Is any of it still above the fold? Measured in
+                            // the scroll view's own space, so it is the real
+                            // answer rather than one derived from a content
+                            // offset and an assumed height.
+                            .onGeometryChange(for: Bool.self) { proxy in
+                                proxy.frame(in: .scrollView).maxY > 0
+                            } action: { visible in
+                                towerOnScreen = visible
+                            }
 
                         // No heading over a gap. When nothing has earned a
                         // card the shelf is not drawn at all — only what there
@@ -372,6 +403,9 @@ struct MemoriesView: View {
             .padding(.top, GridConstants.gapItem)
 
             monthHeader
+                .opacity(towerOnScreen ? 1 : 0)
+                .allowsHitTesting(towerOnScreen)
+                .animation(GridConstants.gentleReveal, value: towerOnScreen)
         }
     }
 

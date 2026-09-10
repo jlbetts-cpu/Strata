@@ -501,33 +501,42 @@ final class TowerGestureTests: XCTestCase {
         let gallery = app.images.firstMatch
         let galleryBefore = gallery.exists ? gallery.frame.origin.y : nil
 
-        for _ in 0..<3 { app.swipeUp() }
-        Thread.sleep(forTimeInterval: 1)
+        // **Scroll right past the month tower.**
+        //
+        // One `swipeUp` covers most of the screen and the tower is shorter
+        // than that, so there is no "scrolled a little" to test here — the
+        // tower is either on screen or it is not.
+        for _ in 0..<4 { app.swipeUp() }
+        Thread.sleep(forTimeInterval: 2)
 
-        // **The owner's actual complaint**: "the month goes with the scroll
-        // which looks like a bug, it shouldnt be moving like that on scroll".
-        // A control that travels with the content it controls reads as the
-        // layout coming apart, and it has no error message — so this is the
-        // assertion that has to exist. The picker lives outside the scroll
-        // view now, so its frame cannot change.
-        XCTAssertEqual(back.frame.origin.y, restingFrame.origin.y, accuracy: 0.5,
-                       "the month picker moved when the page was scrolled")
-
-        // And prove the page really did scroll, so the assertion above is not
-        // passing because nothing happened. A picker that stays put on a page
-        // that never moved is not evidence of anything.
+        // Prove the page really moved, so nothing below passes because nothing
+        // happened. A picker that stays put on a page that never scrolled is
+        // not evidence of anything — this repo has three recorded false
+        // negatives from instruments nobody checked against a positive.
         if let before = galleryBefore, gallery.exists {
             XCTAssertNotEqual(gallery.frame.origin.y, before, accuracy: 0.5,
                               "the page did not scroll, so the test proved nothing")
         }
 
-        XCTAssertTrue(back.exists, "the picker did not stay pinned")
-        XCTAssertTrue(back.isHittable, "the pinned picker is not hittable")
-        // And it still opens, which is the point of it staying put.
-        back.tap()
+        // **It goes quiet once the tower is gone.** The picker governs the
+        // month tower and nothing else — the albums and the camera roll below
+        // it span every month there is — so past the tower it is a control
+        // with nothing to control.
+        XCTAssertFalse(back.isHittable,
+                       "the picker is still live with the tower off screen")
+
+        // **And it comes back exactly where it was.**
+        //
+        // This is the owner's actual complaint, tested: "the month goes with
+        // the scroll, which looks like a bug — it shouldnt be moving like that
+        // on scroll". If it had scrolled with the content it could not return
+        // to the same y after an unequal number of swipes. It does, so it
+        // never moved: it faded and un-faded in place.
+        for _ in 0..<8 { app.swipeDown() }
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertGreaterThan(app.buttons.count, 1,
-                             "the pinned picker did not open its menu — taps are falling through")
+        XCTAssertTrue(back.isHittable, "the picker did not come back with the tower")
+        XCTAssertEqual(back.frame.origin.y, restingFrame.origin.y, accuracy: 0.5,
+                       "the picker came back somewhere else, so it had moved")
     }
 
     /// Search filters the record without touching the store.

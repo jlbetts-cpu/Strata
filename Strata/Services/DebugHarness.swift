@@ -203,6 +203,10 @@ enum DebugHarness {
     /// MapKit cannot be recoloured, so these two are the whole space. Which
     /// one is right is a taste question, and this exists so it can be settled
     /// by rendering both at phone size rather than by argument.
+    /// Whether a ground was asked for explicitly, so the app's own rule (dark
+    /// map in dark mode) is not silently replaced by a default.
+    static var hasMapStyleOverride: Bool { argument("-strataMapStyle") != nil }
+
     static var mapStyle: MemoriesMapView.Style {
         switch argument("-strataMapStyle") {
         case "satellite": return .satellite

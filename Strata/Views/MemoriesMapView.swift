@@ -701,6 +701,10 @@ private struct PlaceBlock: View {
 }
 
 extension PlaceBlock {
+    /// The badge's two colours, fixed in both appearances — see `countBadge`.
+    static let badgeDisc = Color(red: 0.975, green: 0.978, blue: 0.984)
+    static let badgeInk = AppColors.warmBlack
+
     /// How many wins are in this area.
     ///
     /// **The owner's own digits, on the app's own black.** `Typography.numeral`
@@ -720,12 +724,23 @@ extension PlaceBlock {
     var countBadge: some View {
         Text("\(cluster.winCount)")
             .font(Typography.numeral(13))
-            .foregroundStyle(.white)
+            // **Light disc, dark numeral** — the owner's call, and it is the
+            // right way round. A dark badge on a saturated block is a second
+            // dark object competing with the photograph; a light one reads as
+            // a label ON the block, the way every other count in the app is
+            // ink on the app's own ground rather than a hole punched in it.
+            // **Fixed, in both appearances.** The badge does not sit on the
+            // page, it sits on a BLOCK — a saturated blue or orange that is
+            // the same colour whatever the phone is set to. So the thing that
+            // decides its contrast never flips, and neither should it. Made
+            // adaptive it went dark-on-dark in dark mode, which is the badge
+            // following a ground it is not actually standing on.
+            .foregroundStyle(Self.badgeInk)
             .monospacedDigit()
             .padding(.horizontal, 7)
             .frame(minWidth: 24, minHeight: 22)
             .background {
-                Capsule().fill(AppColors.warmBlack.opacity(0.82))
+                Capsule().fill(Self.badgeDisc)
             }
             // Just off the corner, so it reads as attached to the block rather
             // than as part of the photograph.

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The ground every page stands on.
 ///
@@ -30,9 +31,32 @@ struct WarmBackground: View {
     /// exactly this and not from a second copy of it typed nearby. A wash that
     /// is one shade off the ground it sits on draws a band you cannot quite
     /// see and cannot stop seeing.
-    static let top = Color(red: 0.965, green: 0.970, blue: 0.978)
-    /// And at the bottom.
-    static let bottom = Color(red: 0.947, green: 0.955, blue: 0.965)
+    /// **Dynamic**, so every consumer adapts without knowing it did.
+    ///
+    /// Making these two adaptive is what gives the whole app dark mode: the
+    /// page, the drawer, the pinned headings, the badge on a map block and
+    /// every scroll-edge wash all fade into one of these, so they follow the
+    /// system together or not at all.
+    ///
+    /// The dark values are a warm charcoal, not black. `AppColors.warmBlack`
+    /// is 0x403D39 — the app's black has always had brown in it — and the
+    /// ground goes a little under it so a block still reads as lit FROM
+    /// somewhere. Pure black would be the ethereal thing this app is going
+    /// for turning into a void: there would be no ground for a block to stand
+    /// on, only an absence behind it.
+    static let top = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.129, green: 0.125, blue: 0.118, alpha: 1)
+            : UIColor(red: 0.965, green: 0.970, blue: 0.978, alpha: 1)
+    })
+    /// And at the bottom. The gradient runs the same direction in both: the
+    /// light ground gets very slightly cooler and darker downwards, the dark
+    /// ground very slightly deeper, so "lit from above" survives the flip.
+    static let bottom = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.094, green: 0.090, blue: 0.086, alpha: 1)
+            : UIColor(red: 0.947, green: 0.955, blue: 0.965, alpha: 1)
+    })
 
     var body: some View {
         LinearGradient(
