@@ -19,6 +19,14 @@ import Foundation
 @MainActor
 final class LocationService: NSObject {
 
+    /// One instance, for the same reason `ImageManager` and `SoundEngine` are
+    /// singletons — and one specific one: a service recreated on every
+    /// appearance never gets warm, and being warm is the entire point of it.
+    /// It also keeps `CameraView`'s call site unchanged, which matters because
+    /// `MainAppView.mainContent` is at the type-checker's ceiling and adding a
+    /// parameter there has failed before.
+    static let shared = LocationService()
+
     /// The most recent fix, whenever it arrived.
     private(set) var latest: CLLocation?
     private(set) var authorization: CLAuthorizationStatus = .notDetermined
@@ -93,6 +101,16 @@ final class LocationService: NSObject {
         guard latest.horizontalAccuracy > 0,
               latest.horizontalAccuracy <= maxAccuracy else { return nil }
         return latest
+    }
+
+    /// The same fix as a `WinPlace`, which is what everything downstream
+    /// speaks. Nil for exactly the reasons `fix` returns nil.
+    func place(maxAge: TimeInterval = 120,
+               maxAccuracy: CLLocationDistance = 200) -> WinPlace? {
+        guard let fix = fix(maxAge: maxAge, maxAccuracy: maxAccuracy) else { return nil }
+        return WinPlace(latitude: fix.coordinate.latitude,
+                        longitude: fix.coordinate.longitude,
+                        accuracy: fix.horizontalAccuracy)
     }
 }
 

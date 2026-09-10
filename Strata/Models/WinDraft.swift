@@ -21,6 +21,8 @@ struct WinDraft: Identifiable {
     /// arrives at the sheet already that shape. `.small` unless somebody drew
     /// something else, which is every other way a draft is made.
     var size: BlockSize = .small
+    /// Where the photograph was taken, when the app knew. Nil is normal.
+    var place: WinPlace? = nil
     /// The plan line this came from, so it can be marked done on save.
     var planItemID: UUID?
 }

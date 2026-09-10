@@ -35,6 +35,8 @@ struct AddWinSheet: View {
     /// The size drawn out of the camera's shutter, if the photograph came from
     /// there. Defaulted, so no other call site changes.
     var initialSize: BlockSize = .small
+    /// Where the photograph was taken, if it came from the camera.
+    var initialPlace: WinPlace? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -44,6 +46,7 @@ struct AddWinSheet: View {
     @State private var title = ""
     @State private var category: HabitCategory = .health
     @State private var size: BlockSize = .small
+    @State private var place: WinPlace?
     @State private var photo: UIImage?
     /// Whether the user touched the photo at all this time round.
     ///
@@ -131,13 +134,14 @@ struct AddWinSheet: View {
             // No count passed: the tally belongs to the tower's camera, and
             // with nothing to put in it the grid line runs unbroken.
             CameraView(
-                onCaptured: { image, drawn in
+                onCaptured: { image, drawn, where_ in
                     photo = image
                     photoChanged = true
                     // A size drawn out of the shutter wins over the sheet's
                     // own picker: it is the more recent thing you said, and
                     // you said it with your hand.
                     size = drawn
+                    place = where_
                     showCamera = false
                 },
                 onClose: { showCamera = false },
@@ -397,6 +401,7 @@ struct AddWinSheet: View {
         // Before the editing branch below, which must still win: a habit being
         // edited already has a size and nobody drew a new one.
         size = initialSize
+        place = initialPlace
         if let initialTitle, !initialTitle.isEmpty {
             title = initialTitle
         }
@@ -491,6 +496,15 @@ struct AddWinSheet: View {
     /// means a resize now re-frames rather than re-crops, and is reversible.
     private func attach(_ image: UIImage, to log: HabitLog) {
         let id = log.id
+        // The place is written HERE, in the same block that writes the file
+        // name, because a coordinate on a log with no photograph is a pin with
+        // nothing to show. The two facts arrive together and are stored
+        // together.
+        if let place {
+            log.latitude = place.latitude
+            log.longitude = place.longitude
+            log.locationAccuracy = place.accuracy
+        }
         Task { @MainActor in
             if let name = try? await ImageManager.shared.save(image: image, for: id) {
                 log.imageFileName = name

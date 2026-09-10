@@ -126,10 +126,6 @@ struct MainAppView: View {
     ///
     /// `.sheet(item:)` makes the payload the identity of the presentation, so
     /// there is nothing left for anything else to null out.
-    /// Where you are, while the camera is open. Owned here so one instance
-    /// outlives the camera tab's own view — a service that is recreated on
-    /// every appearance never gets warm, which is the whole point of it.
-    @State private var locationService = LocationService()
     @State private var winDraft: WinDraft?
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
@@ -445,6 +441,7 @@ struct MainAppView: View {
                 initialTitle: draft.title,
                 initialPhoto: draft.photo,
                 initialSize: draft.size,
+                initialPlace: draft.place,
                 onSaved: { _ in
                     if let id = draft.planItemID { markPlanItemDone(id) }
                     scheduleRefresh()
@@ -911,10 +908,10 @@ struct MainAppView: View {
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
         CameraView(
-            onCaptured: { image, size in
+            onCaptured: { image, size, place in
                 capturedPhoto = image
                 selectedTab = .tower
-                winDraft = WinDraft(photo: image, size: size)
+                winDraft = WinDraft(photo: image, size: size, place: place)
             },
             fillsScreen: true
         )
@@ -1452,7 +1449,7 @@ struct MainAppView: View {
             DebugHarness.runStoreProbe()
         }
         if DebugHarness.reportsLocation {
-            DebugHarness.runLocationProbe(locationService)
+            DebugHarness.runLocationProbe(LocationService.shared)
         }
         if DebugHarness.seedPlan != nil { isPlanning = true }
         if DebugHarness.dumpsShareCard {

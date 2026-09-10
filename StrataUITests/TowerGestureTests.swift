@@ -595,6 +595,36 @@ final class TowerGestureTests: XCTestCase {
                        + "gesture was cancelled before it ended")
     }
 
+    /// The review screen keeps a shot, and the shot reaches the add sheet.
+    ///
+    /// This path had never run on this machine: the simulator has no capture
+    /// device, so `fire()` never produces an image and the review state is
+    /// unreachable the way a person reaches it. `-strataOpenReview` puts a
+    /// stand-in photograph there so the half after the shutter — Use Photo,
+    /// the hand-off, the sheet arriving with the drawn size — can be checked.
+    @MainActor
+    func testReviewKeepsTheShotAndHandsItOn() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "camera",
+                               "-strataOpenReview", "medium"]
+        app.launch()
+
+        let use = app.buttons["Use Photo"]
+        XCTAssertTrue(use.waitForExistence(timeout: 30), "no review screen")
+        XCTAssertTrue(app.buttons["Retake"].exists, "the review offers no way back")
+        use.tap()
+
+        // The add sheet is where a photographed win gets its name. Its size
+        // control should already be on what was drawn — "Regular" is
+        // `BlockSize.medium.effortLabel`.
+        let regular = app.buttons["Regular"].firstMatch
+        XCTAssertTrue(regular.waitForExistence(timeout: 15),
+                      "the shot never reached the add sheet")
+        XCTAssertTrue(regular.isSelected || (regular.value as? String) == "1"
+                      || app.staticTexts["Regular"].exists,
+                      "the drawn size did not travel with the photograph")
+    }
+
     /// The grid toggle has to work in BOTH directions. Off is easy; the
     /// reported bug is that it never comes back.
     @MainActor

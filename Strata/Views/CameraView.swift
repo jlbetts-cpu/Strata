@@ -14,8 +14,13 @@ import UIKit
 struct CameraView: View {
 
     /// Hands back the captured photo. Nil means the viewer backed out.
-    /// The photograph, and the size it was drawn at.
-    var onCaptured: (UIImage, BlockSize) -> Void = { _, _ in }
+    /// The photograph, the size it was drawn at, and where it was taken.
+    ///
+    /// The place is read at SHUTTER time rather than at save time. The add
+    /// sheet can sit open while you walk away, so save time is the wrong
+    /// clock; a two-minute staleness cap is what makes "shutter time" honest
+    /// rather than "the last fix, whenever that was".
+    var onCaptured: (UIImage, BlockSize, WinPlace?) -> Void = { _, _, _ in }
     var onClose: (() -> Void)? = nil
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
@@ -274,7 +279,16 @@ struct CameraView: View {
             }
         }
         #endif
+        .onAppear {
+            // Warm the fix alongside the lens. A cold GPS read takes seconds
+            // and a warm one is immediate, so by the time a shot is framed the
+            // answer has already arrived and the shutter never waits on it.
+            LocationService.shared.start()
+        }
         .onDisappear {
+            // Not a tracker: it runs while the camera is open and not a
+            // moment longer.
+            LocationService.shared.stop()
             camera.stop()
             // Every exit path restores it. Leaving somebody's screen pinned at
             // full brightness because they walked away from the camera tab is
@@ -402,7 +416,7 @@ struct CameraView: View {
     /// lands is two confirmations for one action.
     private func keep(_ image: UIImage) {
         Task { await PhotoLibrarySaver.save(image) }
-        onCaptured(image, drawnSize)
+        onCaptured(image, drawnSize, LocationService.shared.place())
         review = nil
         // Back to one cell for the next shot. A size drawn once is not a
         // preference, and a shutter that stayed wide would make every later
