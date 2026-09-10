@@ -737,11 +737,16 @@ struct CameraView: View {
                 .strokeBorder(.white, lineWidth: 1)
                 .frame(width: bounds.width, height: bounds.height)
 
-            // The fill is the FOOTPRINT of the block you are about to make —
-            // one cell, two side by side, or a 2x2, at the tower's own gutter.
-            ShutterFootprint(size: drawnSize, cell: 66)
-                .scaleEffect(shutterScale)
+            // ONE block, in the shape you are drawing.
+            //
+            // It was a grid of cells — two squares for a 2x1, four for a 2x2 —
+            // which was wrong twice over: it read as a keypad, and a 2x1 in
+            // this app is not two blocks, it is one block two cells wide.
+            RoundedRectangle(cornerRadius: min(inner.width, inner.height) * 0.147,
+                             style: .continuous)
+                .fill(.white)
                 .frame(width: inner.width, height: inner.height)
+                .scaleEffect(shutterScale)
         }
         .animation(GridConstants.slotSnap, value: drawnSize)
         .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
@@ -979,20 +984,8 @@ struct CameraView: View {
                 }
                 guard let image else { return }
                 HapticsEngine.success()
-                // The full-resolution frame, before `ImageManager` downscales
-                // it to 1024px for the block. This is the only place it
-                // exists, so it is the only place the camera roll can be
-                // given the real photograph.
-                //
-                // No second haptic on success: `HapticsEngine.success()` above
-                // has already confirmed the shot, and buzzing again when a
-                // background write lands would be two confirmations for one
-                // action.
                 Task { await PhotoLibrarySaver.save(image) }
                 onCaptured(image, drawnSize)
-                // Back to one cell for the next shot. A size drawn once is not a
-                // preference, and a shutter that stayed wide would make every
-                // later photograph a 2x1 nobody asked for.
                 drawnSize = .small
             }
         }
@@ -1096,47 +1089,6 @@ private extension View {
             self.glassEffect(.regular.interactive(), in: .capsule)
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
-        }
-    }
-}
-
-// MARK: - The shutter's footprint
-
-/// The block you are about to make, drawn inside the shutter.
-///
-/// One cell, two side by side, or a two-by-two — at the tower's own 4pt gutter,
-/// scaled to the shutter. It is the whole feedback for the draw gesture and it
-/// needs no words: the shutter stops being a circle-analogue and becomes the
-/// thing it produces.
-///
-/// **The outer bounds never change**, only what is inside them. A control that
-/// grows under the finger is a control that moves away from it, and the shutter
-/// is the one target on this screen that must stay exactly where it was.
-private struct ShutterFootprint: View {
-    let size: BlockSize
-    /// One cell's side. Constant across every size — that is what makes the
-    /// footprint literal: a 2x1 really is two of the same cell, so it is twice
-    /// as wide, and the control grows to hold it.
-    let cell: CGFloat
-
-    /// The tower's gutter, scaled to a shutter-sized cell so two cells here
-    /// have the same relationship two cells have on the tower.
-    private var gutter: CGFloat {
-        cell * GridConstants.spacing / GridConstants.blockReferenceCell
-    }
-
-    var body: some View {
-        let radius = cell * 0.147
-        VStack(spacing: gutter) {
-            ForEach(0..<size.rowSpan, id: \.self) { _ in
-                HStack(spacing: gutter) {
-                    ForEach(0..<size.columnSpan, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .fill(.white)
-                            .frame(width: cell, height: cell)
-                    }
-                }
-            }
         }
     }
 }
