@@ -17,8 +17,14 @@ struct WinRecord: Equatable {
     let category: HabitCategory
     let size: BlockSize
     let photoFileName: String?
+    /// Where it happened, when the app knew. **`var`, not `let`** — every
+    /// other property here is `let`, and a `let` with a default value is
+    /// omitted from the synthesized memberwise initializer entirely, so `let`
+    /// would compile and then be unsettable from `records(from:)`.
+    var place: WinPlace? = nil
 
     var hasPhoto: Bool { photoFileName != nil }
+    var hasPlace: Bool { place != nil }
 }
 
 /// What an album is about: a day, or a thing you keep doing.
@@ -374,7 +380,10 @@ extension Album {
                 title: habit.title,
                 category: habit.displayCategory,
                 size: habit.blockSize,
-                photoFileName: log.imageFileName
+                photoFileName: log.imageFileName,
+                place: WinPlace(latitude: log.latitude,
+                                longitude: log.longitude,
+                                accuracy: log.locationAccuracy)
             )
         }
     }
