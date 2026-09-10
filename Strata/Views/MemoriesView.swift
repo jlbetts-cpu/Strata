@@ -413,6 +413,12 @@ struct MemoriesView: View {
                 } label: {
                     Text("Done")
                         .font(Typography.headerMedium)
+                        // At AccessibilityXXXL this collapsed to a single "…"
+                        // — the one control on the screen that gets you out of
+                        // it, unreadable. It keeps its own width and the title
+                        // beside it gives way instead.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(.primary.opacity(0.85))
                         // Layout first, glass after.
                         .padding(.horizontal, 18)

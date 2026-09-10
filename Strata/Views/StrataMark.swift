@@ -121,7 +121,17 @@ private struct DrawnLettering: View {
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
-            .frame(width: size * aspect, height: size)
+            // **`maxWidth`, not `width`.** The wordmark is 6.5:1, and `size`
+            // is a `@ScaledMetric` — so at the largest accessibility text
+            // sizes a fixed width of `size * 6.5` is wider than the phone and
+            // the drawing was clipped at both edges. Photographed at
+            // AccessibilityXXXL: "Memories" lost its M and its final s.
+            //
+            // A maximum lets `scaledToFit` shrink it into whatever room the
+            // row actually has, keeping the proportions. It still grows with
+            // Dynamic Type; it just stops growing when it runs out of screen,
+            // which is what every other title on the phone does.
+            .frame(maxWidth: size * aspect, maxHeight: size)
             .foregroundStyle(color)
             .accessibilityLabel(label)
     }

@@ -1,7 +1,13 @@
 import SwiftUI
 
 /// One cell of the tower grid.
-struct GridCell: Hashable {
+/// `nonisolated` because the project sets `SWIFT_DEFAULT_ACTOR_ISOLATION =
+/// MainActor`, which makes even a plain value type main-actor-isolated. This
+/// one is pure arithmetic used inside `Shape.path(in:)` and other nonisolated
+/// contexts, and without this its `Hashable` conformance cannot be used there
+/// — eleven warnings that each say "this is an error in the Swift 6 language
+/// mode".
+nonisolated struct GridCell: Hashable {
     let column: Int
     let row: Int
 }

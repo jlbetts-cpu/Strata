@@ -36,6 +36,11 @@ struct SectionHeading: View {
             // whole bug: "ALBUMS" was uppercase because somebody typed it that
             // way and "September" was not because it is a month's name.
             .textCase(.uppercase)
+            // Uppercase and kerned, so it is wide for its point size: at the
+            // accessibility sizes "SEPTEMBER" ran off the edge. It wraps to a
+            // second line before it shrinks, and shrinks before it clips.
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
             .foregroundStyle(AppColors.inkSecondary)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapSection)

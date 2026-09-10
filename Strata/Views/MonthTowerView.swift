@@ -255,6 +255,8 @@ struct MonthPicker: View {
                         .kerning(Typography.sectionKerning)
                         .textCase(.uppercase)
                         .foregroundStyle(AppColors.inkSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))

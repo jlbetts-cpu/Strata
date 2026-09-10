@@ -48,6 +48,7 @@ struct PhotoViewer: View {
     /// arrived. Held rather than read straight from `PlaceNames` so the view
     /// re-renders when it lands.
     @State private var placeName: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// True while the picture on screen is zoomed in. The deck stops paging
     /// then, or a pan across a magnified photo would flick to the next one.
     @State private var isZoomed = false
@@ -196,11 +197,55 @@ struct PhotoViewer: View {
     /// the manual `scrollTo` this had — driving the strip from a `.onChange`
     /// while the strip is also writing the value is the shape of a feedback
     /// loop, and the map already paid for that lesson once.
+    /// One frame on the wheel.
+    ///
+    /// **A carousel, not a list with one item highlighted.** The strip used to
+    /// say "this is the one" twice — the current frame was both bigger AND
+    /// fully opaque while every other frame sat at half. The owner's call:
+    /// "doesnt need to be one muted the others not", and instead "a cool 2.5
+    /// effect where the one selected looks closer and then its kinda like a
+    /// wheel where the ones farther look farther and get closer as you
+    /// scroll".
+    ///
+    /// So there is no muting and no size change. Every frame is the same card
+    /// and the same brightness, and the only thing that differs is **where it
+    /// is standing**: the one at the centre faces you square on, and its
+    /// neighbours turn away from you around a vertical axis, drop slightly,
+    /// and recede. That is the same claim the tower makes — objects in space
+    /// rather than a UI drawing attention to itself.
+    ///
+    /// `.scrollTransition(.interactive)` is what makes it a wheel rather than
+    /// a switch: `phase.value` runs continuously from -1 to 1 as a frame
+    /// crosses the centre, so everything below is a smooth function of
+    /// distance and the whole strip turns under your finger instead of
+    /// snapping when a selection changes.
+    ///
+    /// **Perspective 0.5, and rotation capped at 42°.** Past about 55° a
+    /// rectangle turns into a sliver and the photograph stops being readable,
+    /// which is the failure every coverflow imitation makes. The cards nearest
+    /// the centre are meant to be legible; only the far ones are scenery.
+    /// Where this card sits on the wheel: -1 hard left, 0 dead centre, 1 hard
+    /// right.
+    ///
+    /// **Measured from the card's own frame, not from a scroll phase.**
+    /// `.scrollTransition` was the obvious API and it rendered nothing here:
+    /// photographed at rest, every card was flat and identical. Its phases are
+    /// about a view entering and leaving the viewport, and every card in a
+    /// short strip is already fully inside it. `visualEffect` hands over the
+    /// real geometry every frame, so the wheel is a plain function of distance
+    /// from the middle and is correct standing still as well as mid-drag.
+    private func offAxis(_ geo: GeometryProxy) -> CGFloat {
+        guard let container = geo.bounds(of: .scrollView)?.width, container > 0 else { return 0 }
+        let middle = container / 2
+        let x = geo.frame(in: .scrollView).midX
+        return max(-1, min(1, (x - middle) / middle))
+    }
+
     private var filmstrip: some View {
+        ScrollViewReader { proxy in
         ScrollView(.horizontal) {
-                HStack(spacing: 6) {
+                HStack(spacing: Self.stripGap) {
                     ForEach(photos) { photo in
-                        let isCurrent = photo.id == currentID
                         Button {
                             HapticsEngine.tick()
                             withAnimation(GridConstants.motionSnappy) { currentID = photo.id }
@@ -208,13 +253,45 @@ struct PhotoViewer: View {
                             CachedImageView(fileName: photo.fileName,
                                             width: Self.stripHeight,
                                             height: Self.stripHeight,
-                                            cornerRadius: 6)
-                                .frame(width: isCurrent ? 52 : 40,
-                                       height: isCurrent ? 66 : 50)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .opacity(isCurrent ? 1 : 0.5)
+                                            cornerRadius: Self.stripRadius)
+                                // One size for every frame. The depth does the
+                                // work; a second, smaller size for the
+                                // neighbours would be saying it twice.
+                                .frame(width: Self.stripCard.width,
+                                       height: Self.stripCard.height)
+                                .clipShape(RoundedRectangle(cornerRadius: Self.stripRadius,
+                                                            style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .visualEffect { view, geo in
+                            let t = offAxis(geo)
+                            let d = abs(t)
+                            return view
+                                // Turned away from you, the far edge genuinely
+                                // further — that is what reads as depth rather
+                                // than as a squash. Capped at 42 degrees:
+                                // past about 55 a rectangle becomes a sliver
+                                // and the photograph stops being readable,
+                                // which is the mistake every coverflow
+                                // imitation makes.
+                                .rotation3DEffect(.degrees(t * -42),
+                                                  axis: (x: 0, y: 1, z: 0),
+                                                  anchor: .center,
+                                                  perspective: 0.5)
+                                // Receding, and lower on the wheel the way a
+                                // real one turns under the horizon. Both
+                                // small: the rotation does most of the work,
+                                // and two large cues read as an effect rather
+                                // than as a place.
+                                .scaleEffect(1 - 0.18 * d, anchor: .bottom)
+                                .offset(y: 7 * d)
+                        }
+                        // The centre card passes in FRONT of its neighbours.
+                        // Without this the arriving card is drawn under the
+                        // one it replaces and the strip flickers as they
+                        // cross. `zIndex` is a view modifier, not a visual
+                        // effect, so it cannot live inside the transition.
+                        .zIndex(photo.id == currentID ? 1 : 0)
                         .id(photo.id)
                         .accessibilityLabel(photo.title ?? "Photo")
                     }
@@ -224,7 +301,7 @@ struct PhotoViewer: View {
                 // photographs can reach the centre. Without it neither end is
                 // ever selectable by dragging, which reads as the scrubber
                 // being broken at exactly the two moments people check.
-                .padding(.horizontal, UIScreen.main.bounds.width / 2 - 26)
+                .padding(.horizontal, UIScreen.main.bounds.width / 2 - Self.stripCard.width / 2)
             }
             .scrollIndicators(.hidden)
             // Each thumbnail settles on the centre, and the one that lands
@@ -233,6 +310,21 @@ struct PhotoViewer: View {
             .scrollPosition(id: $currentID, anchor: .center)
             .animation(GridConstants.motionSnappy, value: currentID)
             .sensoryFeedback(.selection, trigger: currentID)
+            // **One shot, on appear.** `.scrollPosition` drives the strip once
+            // the value CHANGES, but the viewer opens with `currentID` already
+            // set — so there was no change to react to and the strip sat on
+            // the first photograph while the screen showed the fourth.
+            // Photographed: the red card was the subject and the blue one was
+            // under the centre.
+            //
+            // This is not the feedback loop the map warned about: it runs once
+            // and never again, and it writes to the scroll view rather than to
+            // the value the scroll view writes.
+            .onAppear {
+                guard let currentID else { return }
+                proxy.scrollTo(currentID, anchor: .center)
+            }
+        }
     }
 
     /// Close on the left, what the photograph is OF in the middle, and
@@ -314,6 +406,12 @@ struct PhotoViewer: View {
             .animation(GridConstants.gentleReveal, value: placeName)
             .accessibilityHidden(current == nil)
     }
+
+    /// One card on the strip. Portrait, because a photograph is more often
+    /// portrait than not and a square frame crops the subject out of it.
+    private static let stripCard = CGSize(width: 46, height: 60)
+    private static let stripGap: CGFloat = 10
+    private static let stripRadius: CGFloat = 7
 
     private var caption: String {
         guard let current else { return " " }

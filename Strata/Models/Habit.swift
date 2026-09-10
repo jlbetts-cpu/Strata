@@ -106,7 +106,10 @@ enum TimeOfDay: String, Codable, CaseIterable {
     case anytime
 }
 
-enum DayCode: String, Codable, CaseIterable {
+/// `nonisolated`: `HabitEntityQuery` reads `DayCode.today()` from an App
+/// Intent, which runs off the main actor. Default main-actor isolation would
+/// otherwise make that a Swift 6 error.
+nonisolated enum DayCode: String, Codable, CaseIterable {
     case su = "Su"
     case mo = "Mo"
     case tu = "Tu"
