@@ -204,7 +204,11 @@ enum DebugHarness {
     /// one is right is a taste question, and this exists so it can be settled
     /// by rendering both at phone size rather than by argument.
     static var mapStyle: MemoriesMapView.Style {
-        argument("-strataMapStyle") == "satellite" ? .satellite : .quiet
+        switch argument("-strataMapStyle") {
+        case "satellite": return .satellite
+        case "night": return .night
+        default: return .quiet
+        }
     }
 
     /// Whether seeded photographs also get coordinates, from

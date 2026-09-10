@@ -41,7 +41,24 @@ struct SectionHeading: View {
             .padding(.top, GridConstants.gapSection)
             .padding(.bottom, GridConstants.gapLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background { if pinned { WarmBackground() } }
+            // Pinned, it needs a ground of its own or the grid scrolls through
+            // the type — but a flat one draws a box around the word. Same wash
+            // as the page header: opaque under the type, gone below it.
+            .background {
+                if pinned {
+                    LinearGradient(
+                        stops: [
+                            .init(color: WarmBackground.top, location: 0.0),
+                            .init(color: WarmBackground.top.opacity(0.92), location: 0.70),
+                            .init(color: WarmBackground.top.opacity(0), location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .padding(.bottom, -12)
+                    .allowsHitTesting(false)
+                }
+            }
             .accessibilityAddTraits(.isHeader)
     }
 }

@@ -92,7 +92,7 @@ struct MemoriesView: View {
             // title that did not need holding up is exactly the kind of chrome
             // this screen is trying not to have.
             .background(alignment: .top) {
-                if mapStyle == .satellite {
+                if mapStyle != .quiet {
                     LinearGradient(
                         colors: [AppColors.warmBlack.opacity(0.55), .clear],
                         startPoint: .top,
@@ -106,16 +106,27 @@ struct MemoriesView: View {
             }
 
             MemoriesDrawer(detent: $drawer) {
-            VStack(spacing: 0) {
-            // **The month picker does not scroll.**
+            // **The header is above the scroll, and the scroll fades into
+            // it.**
             //
-            // It sat inside the scrolling stack and travelled with the
-            // photographs, which the owner read as a bug — and it is one, of
-            // the kind that has no error message: a CONTROL that moves when you
-            // scroll the thing it controls reads as the layout coming apart.
-            // It is chrome, so it belongs in the drawer's fixed header under
-            // the handle, where a control that governs what is below it should
-            // be. Apple Photos does the same with its own.
+            // Three owner calls, and the third settles the shape. The picker
+            // must not travel with the photographs. The page must not sit on
+            // "a seprete white background" — "it should just have a light
+            // gradient behind it on scroll like how apple does it". And: "the
+            // september drop down should not be on the scroll container".
+            //
+            // The middle one alone pointed at an overlay — header floating,
+            // content passing under it. The third rules that out, and rightly:
+            // photographs sliding beneath a menu make the menu look like it is
+            // riding on them. So the header sits ABOVE the scroll view and
+            // owns its own band, and the SOFTNESS is bought inside the scroll
+            // view instead — a short, light, semi-transparent fade at its top
+            // edge, so content dissolves as it reaches the header rather than
+            // being guillotined by the clip.
+            //
+            // The fade belongs to the scrolling content. The header does not
+            // move, is not translucent, and nothing passes over it.
+            VStack(spacing: 0) {
             pageHeader
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
@@ -166,6 +177,19 @@ struct MemoriesView: View {
             }
                 #endif
                 }
+            // The scroll edge, and nothing else. Light and semi-transparent —
+            // it is there to take the hard cut off the top of the content, not
+            // to draw a band across it.
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [WarmBackground.top.opacity(0.85),
+                             WarmBackground.top.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 18)
+                .allowsHitTesting(false)
+            }
             }
             }
             .ignoresSafeArea(edges: .bottom)
@@ -258,9 +282,9 @@ struct MemoriesView: View {
             // page title in the same pink would put two shouts on a screen
             // whose subject is photographs.
             // Ink on the pale ground, white on imagery — see the wash below.
-            MemoriesTitle(color: mapStyle == .satellite
-                          ? .white
-                          : .primary.opacity(0.85))
+            MemoriesTitle(color: mapStyle == .quiet
+                          ? .primary.opacity(0.85)
+                          : .white)
             Spacer(minLength: 0)
             // Shown when there are PHOTOGRAPHS, not when there are pins.
             //

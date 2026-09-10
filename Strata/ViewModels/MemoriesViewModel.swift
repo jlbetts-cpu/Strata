@@ -58,11 +58,6 @@ final class MemoriesViewModel {
     /// cached for the session.
     private var earliestWinMonth: Date?
 
-    var canGoBack: Bool {
-        guard let earliest = earliestWinMonth else { return false }
-        return selectedMonth > earliest
-    }
-    var canGoForward: Bool { selectedMonth < startOfMonth(Date()) }
 
     /// Every month with something in it, newest first, for the picker's menu.
     ///

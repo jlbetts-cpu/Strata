@@ -22,11 +22,23 @@ import SwiftUI
 /// on top of it look like they are catching light. The blocks are the app;
 /// the ground's only job is to make them look clean and then disappear.
 struct WarmBackground: View {
+
+    /// The ground's colour at the top of the screen.
+    ///
+    /// Named because more than one thing needs it now: anything that fades
+    /// INTO the page — a header's wash, a scroll edge — has to start from
+    /// exactly this and not from a second copy of it typed nearby. A wash that
+    /// is one shade off the ground it sits on draws a band you cannot quite
+    /// see and cannot stop seeing.
+    static let top = Color(red: 0.965, green: 0.970, blue: 0.978)
+    /// And at the bottom.
+    static let bottom = Color(red: 0.947, green: 0.955, blue: 0.965)
+
     var body: some View {
         LinearGradient(
             stops: [
-                .init(color: Color(red: 0.965, green: 0.970, blue: 0.978), location: 0.0),
-                .init(color: Color(red: 0.947, green: 0.955, blue: 0.965), location: 1.0)
+                .init(color: Self.top, location: 0.0),
+                .init(color: Self.bottom, location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom

@@ -44,6 +44,16 @@ struct MemoriesMapView: View {
         case quiet
         /// Real imagery. Dark and textured, the register the camera works in.
         case satellite
+        /// **Apple's dark palette, warmed by our own scrim.**
+        ///
+        /// MapKit cannot be recoloured — there is no palette API and there
+        /// never has been. But it HAS two palettes, and only one of them was
+        /// ever tried: the map renders light or dark from the environment's
+        /// colour scheme, so forcing `.dark` on the map alone is a real second
+        /// ground rather than the same one tinted. On it the app's warm scrim
+        /// actually bites, because it is darkening something already dark
+        /// instead of greying something pale.
+        case night
     }
 
     @State private var camera: MapCameraPosition = .automatic
@@ -204,6 +214,8 @@ struct MemoriesMapView: View {
         }
         .mapStyle(mapStyle)
         .mapControls { }
+        // The one thing that changes MapKit's palette. Scoped to the map.
+        .environment(\.colorScheme, style == .night ? .dark : .light)
         // **The one place the app takes stock blue back.**
         //
         // `UserAnnotation` is tinted from the environment, so it inherited
@@ -271,7 +283,7 @@ struct MemoriesMapView: View {
             apply(PlaceMap.cluster(pins, zoom: next), from: previous, to: next)
         }
         .task(id: pins.count) {
-            displayed = PlaceMap.cluster(pins, zoom: zoom).map(Placed.atRest)
+            displayed = PlaceMap.cluster(pins, zoom: zoom).map { Placed.atRest($0) }
             frameOnYourPlaces()
         }
     }
@@ -308,7 +320,7 @@ struct MemoriesMapView: View {
                 try? await Task.sleep(for: .seconds(Self.travel))
                 guard zoom == new else { return }
                 withAnimation(.easeOut(duration: 0.18)) {
-                    displayed = next.map(Placed.atRest)
+                    displayed = next.map { Placed.atRest($0) }
                 }
             }
         } else {
@@ -322,7 +334,7 @@ struct MemoriesMapView: View {
                               longitude: from?.longitude ?? cluster.anchor.longitude)
             }
             withAnimation(.easeInOut(duration: Self.travel)) {
-                displayed = next.map(Placed.atRest)
+                displayed = next.map { Placed.atRest($0) }
             }
         }
     }
@@ -536,6 +548,13 @@ struct MemoriesMapView: View {
                              showsTraffic: false)
         case .satellite:
             return .imagery(elevation: .flat)
+        case .night:
+            return .standard(elevation: .flat,
+                             emphasis: isClose ? .automatic : .muted,
+                             pointsOfInterest: isClose
+                                 ? .including(Self.worthNaming)
+                                 : .excludingAll,
+                             showsTraffic: false)
         }
     }
 
@@ -548,6 +567,7 @@ struct MemoriesMapView: View {
         switch style {
         case .satellite: return isClose ? 0.22 : 0.34
         case .quiet: return isClose ? 0.03 : 0.10
+        case .night: return isClose ? 0.10 : 0.20
         }
     }
 }

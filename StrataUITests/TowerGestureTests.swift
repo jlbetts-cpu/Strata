@@ -440,9 +440,18 @@ final class TowerGestureTests: XCTestCase {
         let options = app.buttons.count
         XCTAssertGreaterThan(options, 1, "the month menu offered nothing to choose")
 
-        // Pick the second entry: an earlier month than the one showing.
-        let earlier = app.buttons.element(boundBy: 1)
-        XCTAssertTrue(earlier.isHittable, "the month menu opened but cannot be used")
+        // **Not `boundBy: 1`.** The button at index one is whatever the tree
+        // happens to order there — it moved when the header became its own
+        // band, and the test failed while the menu worked perfectly. Take the
+        // first entry that is actually on screen and is not the picker itself.
+        let candidates = (0..<app.buttons.count).map { app.buttons.element(boundBy: $0) }
+        guard let earlier = candidates.first(where: {
+            $0.isHittable && $0.label != "Done" && !$0.label.hasPrefix("Month,")
+        }) else {
+            let labels = candidates.map { "\($0.label)[\($0.isHittable)]" }.joined(separator: ", ")
+            XCTFail("the month menu opened with nothing usable in it: \(labels)")
+            return
+        }
         earlier.tap()
         Thread.sleep(forTimeInterval: 3)
 
