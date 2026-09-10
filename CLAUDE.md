@@ -354,8 +354,22 @@ method, every bug and what made it invisible, and the before/after numbers.
   while the view model holds forty pins, and nothing errors, nothing crashes
   and the app stays alive. Bisected — a plain `Color` in the same slot renders,
   a plain rectangle as the annotation does not help, and constraining the map
-  in a fixed overlay box does not help. The map is a ROUTE
-  (`MemoriesRoute.map`), full screen.
+  in a fixed overlay box does not help. It is now moot: **the map IS the
+  Memories tab** (2026-09-10, owner's call — "the map feature I want to be the
+  most important add and the biggest focus"), full-bleed and resting
+  undivided. Everything the tab used to be is `MemoriesDrawer`, which rests
+  HIDDEN and is raised by the button in the title row.
+- **The drawer is not a `.sheet`.** A sheet presented from inside a `Tab` sits
+  on the window's presenting controller, and at a small detent it occupies
+  exactly the band the floating tab bar lives in — the bar is neither resized
+  nor raised, and `presentationBackgroundInteraction` restores interaction with
+  content BEHIND the sheet, not with chrome it is sitting on. iOS 26's
+  `tabViewBottomAccessory` is the native answer and the target is 18.0.
+- **`DrawerDetent` is a top-level enum, not nested in the drawer.** Nested it
+  would be `MemoriesDrawer<Content>.Detent`, so the `@State` holding it must
+  name a `Content` — which pins the drawer to that guess and rejects the real
+  content type. Related: **static stored properties are not allowed in a
+  generic type at all** (`DrawerMetrics` exists for that reason).
 - **Hold the map's clusters, never compute them.** As a computed property the
   content depends on `zoom`, `onMapCameraChange` writes `zoom`, and
   `.automatic` frames the camera from the content — a loop with no settling
@@ -365,8 +379,38 @@ method, every bug and what made it invisible, and the before/after numbers.
   arguing: standard-muted-no-POIs came out at mean luminance 232 — BRIGHTER
   than the 207 page it was meant to fix — against imagery at 117, and
   `pointsOfInterest: .excludingAll` drops the pins but NOT the place names and
-  road shields. Imagery plus a scrim we own lands at 99 and is what ships. The
-  scrim is the only lever left after POIs and emphasis.
+  road shields. The scrim is the only lever left after POIs and emphasis.
+  **The owner's call on 2026-09-10 is the PALE ground**, imagery behind
+  `-strataMapStyle satellite`, and the earlier measurement is not contradicted
+  — it was scored on an EMPTY map, where a dark textured ground was the only
+  thing carrying the screen. With blocks on it the argument inverts: the blocks
+  are the saturated objects and the ground's job is to be quiet under them.
+- **The map earns its labels as you arrive.** Below zoom 13, no points of
+  interest and a muted emphasis. At and above it the emphasis comes up and a
+  curated set appears, and the scrim lifts (0.10 -> 0.03) because a wash over
+  type is the one thing that makes a map feel cheap. **Landmarks only.** The
+  first list included cafés and restaurants: photographed over Trafalgar Square
+  that was about twenty-five orange pins against two blocks — the map named
+  every sandwich shop in central London and buried the only thing on screen
+  that was the user's.
+- **Blocks are drawn on the CELL CENTRE, not on their members' centroid**
+  (`PlaceMap.Cluster.anchor`). A centroid can sit anywhere in its cell, so two
+  clusters in neighbouring cells could be drawn a few points apart while each
+  is 90pt wide — measured, that is two blocks overlapping. Anchoring to the
+  cell makes the separation exactly one pitch by construction.
+  `targetBlockPitch` is therefore the distance between neighbours and must stay
+  larger than a 2x2 (116 against ~90).
+- **Thinning a crowded map means going COARSER.** `PlaceMap.cluster`'s density
+  loop stepped zoom UP for one build, which splits clusters — so an over-full
+  map got fuller, the loop ran to zoom 20 where a cell is under ten metres, and
+  every pin became its own block piled on its neighbours.
+- **Apple's map attribution cannot be removed** — displaying it is a condition
+  of the Apple Developer Program License Agreement, and no API hides it. No API
+  positions it either, but it is laid out inside the map's safe area, so
+  `.safeAreaPadding` moves it clear of the tab bar.
+- **The recentre control is the app's own `GlassIconButton`, not
+  `MapUserLocationButton`.** The native one is styled and placed by MapKit and
+  draws a blue system chevron in a system capsule.
 - **One thumbnail width for every block on the map**, whatever size it draws
   at. `CachedImageView` keys its cache on the requested width, so asking for 88
   at one zoom and 176 at the next decodes the same photograph twice and
@@ -591,6 +635,7 @@ Onboarding is skipped from outside with `simctl spawn <dev> defaults write`.
 drop cascade can be watched without a tap.
 
 `-strataOpenMap`, `-strataMapStyle [quiet|satellite]`, `-strataSeedPlaces`,
+`-strataOpenDrawer [half|full]`, `-strataMapSweep`,
 `-strataOpenReview [small|medium|hard]`, `-strataTestLocation` and
 `-strataReportStore` all exist for the same reason as the flags below them:
 the screen or the fact is otherwise unreachable here. `-strataSeedPlaces` puts
@@ -612,6 +657,19 @@ as anyone watching is concerned. It is a coarse instrument: use it to tell
 
 **Allow ~16 seconds after launch before screenshotting.** A shorter delay
 catches the loading skeleton and has repeatedly been mistaken for a bug.
+
+**Start the capture BEFORE the thing you are capturing.** A burst aimed at the
+map's merge returned 46 byte-identical frames, because the sweep had finished
+during the fixed `sleep` that preceded the loop. It looks exactly like "nothing
+moved". Launch, then capture straight through — do not sleep first when the
+subject is a one-shot animation that starts on its own.
+
+**A bare `.task` captures the view value it had at appear.** The map sweep
+probe reported `blocks=0 wins=0 of 0` at every zoom while the map on screen was
+full of them: the task ran before the fetch landed and held that empty `pins`
+for ever. `.task(id: pins.count)` re-runs with a fresh value. This is the
+fourth confident false negative in this project from an instrument aimed at the
+wrong thing.
 
 Because nothing can tap, anything behind a gesture is unverified by definition.
 Say so rather than implying otherwise.

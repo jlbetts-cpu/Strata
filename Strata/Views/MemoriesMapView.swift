@@ -96,6 +96,67 @@ struct MemoriesMapView: View {
     var body: some View {
         map
             .overlay { if pins.isEmpty { emptyState } }
+            .overlay(alignment: .bottomTrailing) { if isInteractive { recentre } }
+    }
+
+    /// Take me back to where I am.
+    ///
+    /// **Not `MapUserLocationButton`.** That is the native control and it is
+    /// the right idea, but it is styled by MapKit, placed by MapKit, and it
+    /// shows a blue system chevron in a system capsule — three things this
+    /// screen has spent its whole life not doing. This is the app's own glass
+    /// button, the same one the title row uses, in the place Apple Maps puts
+    /// it: bottom trailing, above the tab bar, where a thumb already is.
+    ///
+    /// It is the FOURTH piece of chrome on a screen aiming for three, and it
+    /// earns the slot because it is the only one that answers a question the
+    /// map itself raises. Once you have panned away from yourself there is
+    /// otherwise no way back except pinching until the world fits.
+    private var recentre: some View {
+        GlassIconButton(systemName: locationGlyph,
+                        accessibilityLabel: "Back to where I am") {
+            goToMe()
+        }
+        .padding(.trailing, GridConstants.horizontalPadding)
+        .padding(.bottom, DrawerMetrics.tabBarClearance)
+        // It has nothing to say until it can say it.
+        .opacity(location.isDenied ? 0 : 1)
+        .allowsHitTesting(!location.isDenied)
+        .animation(GridConstants.gentleReveal, value: location.isDenied)
+    }
+
+    /// Filled once we know where you are, hollow while we do not — the same
+    /// grammar the system uses, so it needs no explaining.
+    private var locationGlyph: String {
+        location.fix(maxAge: 600, maxAccuracy: 1000) == nil
+            ? "location" : "location.fill"
+    }
+
+    /// Frame on the user, or ask if we have never asked.
+    ///
+    /// Falls back to their own places rather than doing nothing: "I pressed it
+    /// and the map sat there" is the worst outcome, and the second-best answer
+    /// to "where am I" is "here is everywhere you have been".
+    private func goToMe() {
+        guard !location.canAsk else {
+            location.requestAccess()
+            location.start()
+            return
+        }
+        location.start()
+        guard let fix = location.fix(maxAge: 600, maxAccuracy: 1000) else {
+            didFrame = false
+            frameOnYourPlaces()
+            return
+        }
+        withAnimation(GridConstants.naturalSettle) {
+            camera = .region(MKCoordinateRegion(
+                center: fix.coordinate,
+                // A few streets: close enough that the labels are up and a
+                // block means "this corner" rather than "this city".
+                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+            ))
+        }
     }
 
     private var map: some View {
