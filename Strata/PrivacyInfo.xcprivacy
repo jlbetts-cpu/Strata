@@ -1,5 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Strata's privacy manifest.
+
+    NSPrivacyCollectedDataTypes IS DELIBERATELY EMPTY, and that is not an
+    oversight. Apple's definition, verbatim from the App Privacy Details page:
+
+        "Collect" refers to transmitting data off the device in a way that
+        allows you and/or your third-party partners to access it for a period
+        longer than what is necessary to service the transmitted request in
+        real time. ... Data that is processed only on device is not "collected"
+        and does not need to be disclosed.
+
+    Strata transmits nothing. Wins live in SwiftData on the device, photographs
+    live in the app's own container, and there is no server, no account, no
+    analytics and no third-party SDK in the project. The one network call in
+    the app is CLGeocoder asking Apple what a coordinate is called, which is a
+    real-time request Apple services and we never retain.
+
+    This file used to declare HealthAndFitness and PhotosOrVideos. Both were
+    wrong, and wrong in the direction that hurts: Apple builds the App Store
+    product page's privacy label from what is declared here, so it was telling
+    people Strata collects their health data and their photographs when it
+    collects neither and there is no HealthKit code left in the app at all.
+    A privacy label is a statement to users, and an untrue one is worse than a
+    missing one.
+
+    If a server, an account, a backup or an analytics SDK is ever added, this
+    is the first file to change and the App Store Connect answers are the
+    second — they have to agree.
+-->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
@@ -7,34 +37,20 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array>
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypeHealthAndFitness</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypePhotosOrVideos</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
-	</array>
+	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
+		<!--
+		    UserDefaults, for the app's own settings: the timer length, whether
+		    photographs go to the camera roll, whether wins remember where they
+		    were. CA92.1 is "accessing information from the app itself", which
+		    is the whole of it — there is no app group and no managed
+		    configuration.
+
+		    Nothing else in the app touches a required-reason API. Audited:
+		    no file-timestamp calls, no disk-space calls, no system-boot-time
+		    calls, no active-keyboard calls.
+		-->
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>

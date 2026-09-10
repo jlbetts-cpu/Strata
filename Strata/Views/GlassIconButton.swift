@@ -49,6 +49,26 @@ struct GlassIconButton: View {
     }
 }
 
+extension View {
+    /// Liquid Glass in a capsule — the same material as `GlassIconButton`, for
+    /// a control whose label is a word rather than a glyph.
+    ///
+    /// It lives here rather than beside its one caller because there is now
+    /// more than one: a glass treatment that is redefined per screen drifts
+    /// per screen, which is the same lesson `SectionHeading` records about
+    /// type. Layout first, glass after — the effect takes its shape from the
+    /// final frame.
+    @ViewBuilder
+    func glassCapsule() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self.background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+        }
+    }
+}
+
 private extension View {
     /// Liquid Glass where it exists, a material where it does not.
     ///

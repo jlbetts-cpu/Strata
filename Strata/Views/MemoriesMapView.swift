@@ -194,7 +194,9 @@ struct MemoriesMapView: View {
 
             ForEach(displayed) { placed in
                 Annotation("", coordinate: placed.coordinate, anchor: .center) {
-                    PlaceBlock(cluster: placed.cluster)
+                    // The count only when the block is standing for a whole
+                    // area rather than for one place — see `PlaceBlock`.
+                    PlaceBlock(cluster: placed.cluster, showsCount: !isClose)
                         .onTapGesture { onSelect(placed.cluster.key) }
                 }
                 .annotationTitles(.hidden)
@@ -559,6 +561,22 @@ struct MemoriesMapView: View {
 private struct PlaceBlock: View {
     let cluster: PlaceMap.Cluster
 
+    /// Whether to say how many wins are in here.
+    ///
+    /// **Only when zoomed out**, and the two owner calls that look opposite
+    /// are not. "Why is there numbers on it, it should just be the pictures"
+    /// was about a block that stands for ONE place: there the photograph is
+    /// the answer and a number on it is noise. "There should be a number
+    /// indicator of how many wins are in that area when you are zoomed out"
+    /// is about a block that stands for a whole neighbourhood, where the
+    /// photograph is one of forty and the only honest thing it can say is how
+    /// many it is speaking for.
+    ///
+    /// The line between them is the same one the labels use: at
+    /// `labelZoom` the map is a neighbourhood and a block is a corner;
+    /// below it the map is a region and a block is an area.
+    var showsCount = false
+
     /// One cell, on the map. Smaller than the tower's, because a map is denser
     /// than a tower and a 2x2 has to fit on a phone beside its neighbours.
     private static let cell: CGFloat = 44
@@ -598,18 +616,44 @@ private struct PlaceBlock: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        // **No count on the block.** It carried one, in the numeral face, where
-        // the month tower puts its day number — and the owner's call is that a
-        // number on a photograph is noise: "why is there numbers on it, it
-        // should just be the pictures".
-        //
-        // Nothing is lost, because the count was already being said twice. A
-        // block's SIZE is its rank (`MonthTower.size(forWinCount:)`), so one
-        // win is a 1x1 and a busy place is a 2x2 — the map reads as bigger
-        // where you did more without a single digit on it. The day numeral on
-        // the month tower is a different thing and stays: that is a block's
-        // coordinate, not a tally.
+        .overlay(alignment: .topTrailing) {
+            if showsCount && cluster.winCount > 1 { countBadge }
+        }
         .accessibilityLabel("\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins") here")
+    }
+}
+
+extension PlaceBlock {
+    /// How many wins are in this area.
+    ///
+    /// **The owner's own digits, on the app's own black.** `Typography.numeral`
+    /// is `StrataNumerals` — the same face the tower's tally and the month
+    /// blocks' day numbers are set in — so a count on the map is the same kind
+    /// of object as every other number the app states about you.
+    ///
+    /// It is a badge rather than a numeral laid on the photograph, and that is
+    /// the difference from the version that was removed. On the month tower a
+    /// numeral sits directly on the block because it is that block's
+    /// coordinate and belongs to it. This is a count OF blocks — it is about
+    /// the pile, not about the picture under it — so it sits on its own
+    /// ground, clear of the image, the way a badge does.
+    ///
+    /// Not a rim, not a frosted band, no blur: CLAUDE.md is explicit that
+    /// those are a block's claim, and a badge is not a block.
+    var countBadge: some View {
+        Text("\(cluster.winCount)")
+            .font(Typography.numeral(13))
+            .foregroundStyle(.white)
+            .monospacedDigit()
+            .padding(.horizontal, 7)
+            .frame(minWidth: 24, minHeight: 22)
+            .background {
+                Capsule().fill(AppColors.warmBlack.opacity(0.82))
+            }
+            // Just off the corner, so it reads as attached to the block rather
+            // than as part of the photograph.
+            .offset(x: 8, y: -8)
+            .accessibilityHidden(true)
     }
 }
 

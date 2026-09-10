@@ -324,12 +324,20 @@ struct MemoriesView: View {
             HStack(alignment: .top, spacing: 8) {
                 MemoriesTitle(color: .primary.opacity(0.85))
                 Spacer(minLength: 0)
-                Button("Done") {
+                Button {
+                    HapticsEngine.lightTap()
                     withAnimation(GridConstants.naturalSettle) { drawer = .hidden }
+                } label: {
+                    Text("Done")
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(.primary.opacity(0.85))
+                        // Layout first, glass after.
+                        .padding(.horizontal, 18)
+                        .frame(height: GlassIconButton.defaultSide)
+                        .glassCapsule()
+                        .contentShape(Capsule())
                 }
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.accentWarm)
-                .frame(height: GlassIconButton.defaultSide)
+                .buttonStyle(.plain)
                 // Centred on the title's cap by hand. A drawn title is only as
                 // tall as its cap, so a baseline or centre rule against a 44pt
                 // control puts the title 7.6pt below the line every other
