@@ -318,8 +318,14 @@ final class TowerGestureTests: XCTestCase {
 
     private func launchMemories(days: Int = 60, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
+        // **The page is a drawer now.** The Memories tab is the map, and
+        // everything this file calls "Memories" lives in a card that rests
+        // hidden behind a button. Without this the picker, the tower and the
+        // gallery are all simply not on screen, and every assertion here fails
+        // for a reason that has nothing to do with what it is testing.
         app.launchArguments = ["-strataStartTab", "memories",
-                               "-strataSeedHistory", "\(days)"] + extra
+                               "-strataSeedHistory", "\(days)",
+                               "-strataOpenDrawer", "full"] + extra
         app.launch()
         dismissSystemAlerts()
         return app
@@ -478,9 +484,30 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 40), "no month picker")
         Thread.sleep(forTimeInterval: 3)
 
-        // Scroll the month up under the header.
+        // Where the picker is, and something below it that will move.
+        let restingFrame = back.frame
+        let gallery = app.images.firstMatch
+        let galleryBefore = gallery.exists ? gallery.frame.origin.y : nil
+
         for _ in 0..<3 { app.swipeUp() }
         Thread.sleep(forTimeInterval: 1)
+
+        // **The owner's actual complaint**: "the month goes with the scroll
+        // which looks like a bug, it shouldnt be moving like that on scroll".
+        // A control that travels with the content it controls reads as the
+        // layout coming apart, and it has no error message — so this is the
+        // assertion that has to exist. The picker lives outside the scroll
+        // view now, so its frame cannot change.
+        XCTAssertEqual(back.frame.origin.y, restingFrame.origin.y, accuracy: 0.5,
+                       "the month picker moved when the page was scrolled")
+
+        // And prove the page really did scroll, so the assertion above is not
+        // passing because nothing happened. A picker that stays put on a page
+        // that never moved is not evidence of anything.
+        if let before = galleryBefore, gallery.exists {
+            XCTAssertNotEqual(gallery.frame.origin.y, before, accuracy: 0.5,
+                              "the page did not scroll, so the test proved nothing")
+        }
 
         XCTAssertTrue(back.exists, "the picker did not stay pinned")
         XCTAssertTrue(back.isHittable, "the pinned picker is not hittable")

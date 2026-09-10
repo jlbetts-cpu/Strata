@@ -106,6 +106,17 @@ struct MemoriesView: View {
             }
 
             MemoriesDrawer(detent: $drawer) {
+            VStack(spacing: 0) {
+            // **The month picker does not scroll.**
+            //
+            // It sat inside the scrolling stack and travelled with the
+            // photographs, which the owner read as a bug — and it is one, of
+            // the kind that has no error message: a CONTROL that moves when you
+            // scroll the thing it controls reads as the layout coming apart.
+            // It is chrome, so it belongs in the drawer's fixed header under
+            // the handle, where a control that governs what is below it should
+            // be. Apple Photos does the same with its own.
+            if !(vm.carousel.isEmpty && vm.month.isEmpty) { monthHeader }
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -120,7 +131,6 @@ struct MemoriesView: View {
                         // around 60% down and was cut off by the tab bar. The
                         // page now opens on the thing worth looking at, and
                         // the photographs sit under it.
-                        monthHeader
                         monthTower
 
                         // No heading over a gap. When nothing has earned a
@@ -156,6 +166,7 @@ struct MemoriesView: View {
             }
                 #endif
                 }
+            }
             }
             .ignoresSafeArea(edges: .bottom)
             }
@@ -330,11 +341,15 @@ struct MemoriesView: View {
         // The month blocks are positioned with `.offset`, which moves what is
         // drawn and not what is laid out, so a block's hit area reaches up
         // over the picker. Measured off the accessibility tree: the topmost
-        // block's frame is `{17, 120, 182, 242}` and the back chevron's is
-        // `{18, 136.7, 44, 44}` — entirely inside it. The tower comes after
-        // the header in the stack, so it was winning every tap, and pressing
-        // `‹` opened a DAY instead of stepping the month. That is how this was
-        // finally caught: the screen after the tap was Wednesday 9 September.
+        // block's frame was `{17, 120, 182, 242}` and the back chevron's
+        // `{18, 136.7, 44, 44}` — entirely inside it. Pressing `‹` opened a
+        // DAY instead of stepping the month.
+        //
+        // The picker now sits OUTSIDE the scroll view, which clips its own
+        // content, so the tower can no longer reach it at all. This is kept
+        // because it costs nothing and the hazard it guards against is a
+        // silent one — the symptom is a different screen opening, not an
+        // error. `testTheMonthPickerStepsAndStopsAtToday` is the proof.
         .zIndex(1)
     }
 
