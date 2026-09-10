@@ -14,7 +14,8 @@ import UIKit
 struct CameraView: View {
 
     /// Hands back the captured photo. Nil means the viewer backed out.
-    var onCaptured: (UIImage) -> Void = { _ in }
+    /// The photograph, and the size it was drawn at.
+    var onCaptured: (UIImage, BlockSize) -> Void = { _, _ in }
     var onClose: (() -> Void)? = nil
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
@@ -42,6 +43,18 @@ struct CameraView: View {
     /// reports a magnification RELATIVE to the start of the gesture, so
     /// multiplying it by a live value would compound on every frame.
     @State private var zoomAtPinchStart: CGFloat?
+    /// The size being drawn out of the shutter, and the state the drag needs.
+    ///
+    /// The camera could only ever make a 1x1 unless you went into the add
+    /// sheet afterwards and tapped "Regular" or "Deep" — so the size of a
+    /// photographed win was a form field, while the size of every other win
+    /// was a gesture. Same gesture here now, through `BlockSizeDraw`.
+    @State private var drawnSize: BlockSize = .small
+    @State private var shutterDown = false
+    @State private var shutterPressStarted = Date()
+    /// Below this, a still press is a tap — the same ceiling the tower's slot
+    /// uses, so the two controls disagree about nothing.
+    private static let tapCeiling: Double = 0.28
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
     @State private var focusPoint: CGPoint?
@@ -677,21 +690,72 @@ struct CameraView: View {
     /// stays put.
     private var shutter: some View {
         let outerRadius = shutterOuter * 0.147
-        let innerRadius = shutterInner * 0.147
         return ZStack {
             RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                 .strokeBorder(.white, lineWidth: 1)
                 .frame(width: shutterOuter, height: shutterOuter)
 
-            RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                .fill(.white)
-                .frame(width: shutterInner, height: shutterInner)
+            // The fill is the FOOTPRINT of the block you are about to make.
+            //
+            // The tower's slot shows the size by resizing the ghost it sits
+            // in; the camera has no ghost, so the shutter shows it instead —
+            // one cell, two side by side, or a 2x2, at the tower's own gutter.
+            // It needs no label, and the outer rim never moves, so neither
+            // does the target.
+            ShutterFootprint(size: drawnSize, side: shutterInner)
                 .scaleEffect(shutterScale)
         }
         .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
-        .onTapGesture { shutterPressed() }
+        .gesture(draw)
         .accessibilityLabel("Take photo")
+        .accessibilityValue(drawnSize.effortLabel)
         .accessibilityAddTraits(.isButton)
+        // VoiceOver cannot draw a block out, so the plain action takes the
+        // one-cell shot rather than leaving the control unusable.
+        .accessibilityAction { shutterPressed() }
+    }
+
+    /// Press, and pull to draw the block out — the tower's gesture, on the
+    /// camera's button.
+    ///
+    /// A tap is a drag of zero distance, so this one gesture sees both and has
+    /// to tell them apart: held under `tapCeiling` and moved under 6pt is a
+    /// tap, which is the ordinary shot and the only thing that respects the
+    /// timer. Anything else was a draw, and a draw fires immediately — waiting
+    /// ten seconds for a shape you are holding in your fingers is not a thing
+    /// anybody wants.
+    private var draw: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if !shutterDown {
+                    shutterDown = true
+                    shutterPressStarted = Date()
+                    HapticsEngine.tick()
+                }
+                guard !reduceMotion else { return }
+                let (lateral, up) = BlockSizeDraw.axes(translation: value.translation)
+                let next = BlockSizeDraw.size(lateral: lateral, up: up, from: drawnSize)
+                guard next != drawnSize else { return }
+                // A haptic on every crossing, in both directions — the only
+                // unambiguous signal that a size actually committed.
+                HapticsEngine.snap()
+                withAnimation(GridConstants.slotSnap) { drawnSize = next }
+            }
+            .onEnded { value in
+                // A gesture that never began cannot take a photograph.
+                // `minimumDistance: 0` can deliver `onEnded` with no matching
+                // `onChanged` when the view rebuilds under a touch.
+                guard shutterDown else { return }
+                shutterDown = false
+                let held = Date().timeIntervalSince(shutterPressStarted)
+                let moved = hypot(value.translation.width, value.translation.height) > 6
+                if moved || held >= Self.tapCeiling, drawnSize != .small {
+                    cancelCountdown()
+                    fire()
+                } else {
+                    shutterPressed()
+                }
+            }
     }
 
     // MARK: - The warm flash
@@ -886,7 +950,11 @@ struct CameraView: View {
                 // background write lands would be two confirmations for one
                 // action.
                 Task { await PhotoLibrarySaver.save(image) }
-                onCaptured(image)
+                onCaptured(image, drawnSize)
+                // Back to one cell for the next shot. A size drawn once is not a
+                // preference, and a shutter that stayed wide would make every
+                // later photograph a 2x1 nobody asked for.
+                drawnSize = .small
             }
         }
     }
@@ -990,5 +1058,60 @@ private extension View {
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
         }
+    }
+}
+
+// MARK: - The shutter's footprint
+
+/// The block you are about to make, drawn inside the shutter.
+///
+/// One cell, two side by side, or a two-by-two — at the tower's own 4pt gutter,
+/// scaled to the shutter. It is the whole feedback for the draw gesture and it
+/// needs no words: the shutter stops being a circle-analogue and becomes the
+/// thing it produces.
+///
+/// **The outer bounds never change**, only what is inside them. A control that
+/// grows under the finger is a control that moves away from it, and the shutter
+/// is the one target on this screen that must stay exactly where it was.
+private struct ShutterFootprint: View {
+    let size: BlockSize
+    /// The side the 1x1 occupies. Bigger sizes divide this, they do not exceed
+    /// it.
+    let side: CGFloat
+
+    /// The tower's gutter, scaled to a shutter-sized cell so two cells here
+    /// have the same relationship two cells have on the tower.
+    private var gutter: CGFloat {
+        side * GridConstants.spacing / GridConstants.blockReferenceCell
+    }
+
+    /// **A cell is SQUARE**, and the footprint's outer shape is what changes.
+    ///
+    /// Dividing each axis by its own span instead gave a 2x1 as two tall
+    /// rectangles side by side, which is not what a 2x1 is — a 2x1 is two
+    /// square cells, so it is wide. Both spans divide by the LARGER one, so
+    /// the cell stays square and the footprint never exceeds the shutter's
+    /// inner square.
+    private var cellSide: CGFloat {
+        let span = CGFloat(max(size.columnSpan, size.rowSpan))
+        return (side - gutter * (span - 1)) / span
+    }
+
+    var body: some View {
+        let radius = cellSide * 0.147
+        VStack(spacing: gutter) {
+            ForEach(0..<size.rowSpan, id: \.self) { _ in
+                HStack(spacing: gutter) {
+                    ForEach(0..<size.columnSpan, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                            .fill(.white)
+                            .frame(width: cellSide, height: cellSide)
+                    }
+                }
+            }
+        }
+        // Fixed bounds, so the footprint grows INSIDE the rim rather than
+        // moving it.
+        .frame(width: side, height: side)
     }
 }

@@ -565,8 +565,19 @@ final class TowerGestureTests: XCTestCase {
                        + "dimmed control stops taking taps")
 
         // The timer cycles Off / 3 / 10, as iOS Camera does.
+        //
+        // Polled, not slept on. A flat one-second wait failed once here and
+        // passed on a re-run with identical code — the same flake this file
+        // has hit before, and the same fix: wait for the condition, not for a
+        // duration.
         let t0 = timer.value as? String ?? "?"
-        timer.tap(); Thread.sleep(forTimeInterval: 1)
-        XCTAssertNotEqual(timer.value as? String ?? "?", t0, "the timer did not change")
+        timer.tap()
+        var t1 = t0
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, t1 == t0 {
+            Thread.sleep(forTimeInterval: 0.2)
+            t1 = timer.value as? String ?? "?"
+        }
+        XCTAssertNotEqual(t1, t0, "the timer did not change")
     }
 }

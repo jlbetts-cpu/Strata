@@ -440,6 +440,7 @@ struct MainAppView: View {
                 tower: towerManager.activeTower,
                 initialTitle: draft.title,
                 initialPhoto: draft.photo,
+                initialSize: draft.size,
                 onSaved: { _ in
                     if let id = draft.planItemID { markPlanItemDone(id) }
                     scheduleRefresh()
@@ -906,10 +907,10 @@ struct MainAppView: View {
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
         CameraView(
-            onCaptured: { image in
+            onCaptured: { image, size in
                 capturedPhoto = image
                 selectedTab = .tower
-                winDraft = WinDraft(photo: image)
+                winDraft = WinDraft(photo: image, size: size)
             },
             fillsScreen: true
         )

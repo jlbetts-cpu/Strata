@@ -32,6 +32,9 @@ struct AddWinSheet: View {
     /// Pre-filled title, when the win is being written from a plan line.
     var initialTitle: String? = nil
     var initialPhoto: UIImage? = nil
+    /// The size drawn out of the camera's shutter, if the photograph came from
+    /// there. Defaulted, so no other call site changes.
+    var initialSize: BlockSize = .small
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -128,9 +131,13 @@ struct AddWinSheet: View {
             // No count passed: the tally belongs to the tower's camera, and
             // with nothing to put in it the grid line runs unbroken.
             CameraView(
-                onCaptured: { image in
+                onCaptured: { image, drawn in
                     photo = image
                     photoChanged = true
+                    // A size drawn out of the shutter wins over the sheet's
+                    // own picker: it is the more recent thing you said, and
+                    // you said it with your hand.
+                    size = drawn
                     showCamera = false
                 },
                 onClose: { showCamera = false },
@@ -387,6 +394,9 @@ struct AddWinSheet: View {
             photo = initialPhoto
             photoChanged = true
         }
+        // Before the editing branch below, which must still win: a habit being
+        // edited already has a size and nobody drew a new one.
+        size = initialSize
         if let initialTitle, !initialTitle.isEmpty {
             title = initialTitle
         }
