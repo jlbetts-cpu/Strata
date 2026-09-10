@@ -331,6 +331,24 @@ method, every bug and what made it invisible, and the before/after numbers.
   are flat gradients coloured by category, so a block showing its photograph
   looks almost exactly like a block showing its colour. Verify by sampling a
   column for a vertical gradient, not by eye.
+- **Dump the accessibility tree before theorising about a UI test failure.**
+  `XCTFail(app.debugDescription)` puts the whole tree, with frames, into the
+  xcodebuild output — and it is the only thing that reaches you, since test
+  `print` does not. It settled two long-running failures in minutes after
+  hours of guessing, and it disproved a claim I had already written down
+  (`.disabled(true)` does NOT drop a button from the tree; the element is there
+  and marked `Disabled`).
+- **`exists` is not evidence a control is on screen.** An off-screen element
+  stays in the accessibility tree — the month picker measured
+  `exists=true hittable=false frame=(18, -1974, 44, 44)`. Assert `isHittable`.
+- **A block's HIT area is bigger than what it draws.** The month tower places
+  blocks with `.offset`, which moves the drawing and not the layout, so the top
+  block's frame reaches up over the month picker and swallowed its taps —
+  pressing `‹` opened a day instead of changing the month. Anything drawn above
+  a tower needs `.zIndex`.
+- **`pinnedViews: [.sectionHeaders]` does nothing for a `Section` inside a
+  conditional.** Memories' month section sits in the `else` of the empty-state
+  branch, so it never pins however it is decorated.
 - **A MapKit `Map` cannot live in the Memories `LazyVStack`.** Put one in and
   the whole body stops re-evaluating: the page keeps rendering its EMPTY state
   while the view model holds forty pins, and nothing errors, nothing crashes

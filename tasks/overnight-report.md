@@ -1307,3 +1307,32 @@ schema, `PlaceMap` with nineteen tests, and the map itself as a route.
 - That a real capture attaches a real coordinate. Needs a lens.
 - The location permission prompt. Authorization was already granted here.
 - Anything on a real device.
+
+## Later — the UI suite, and two long-red tests
+
+The suite had not been run end to end in a long time: 5 failures, 3 of them
+pre-existing (confirmed by running them against the commit before this
+session).
+
+**A real bug, found by dumping the accessibility tree instead of guessing.**
+Pressing `‹` on Memories pushed a DAY screen instead of stepping back a month.
+The month blocks are positioned with `.offset`, which moves the drawing and not
+the layout, so the top block's hit area — `{17, 120, 182, 242}` — swallows the
+back chevron at `{18, 136.7, 44, 44}`. `.zIndex(1)` on the header fixes it.
+
+**I had written down something false and corrected it.** I claimed in a commit
+and a comment that `.disabled(true)` removes a SwiftUI button from the
+accessibility tree. It does not: the tree shows
+`identifier: 'Next month', label: 'Next month', Disabled`. The chevron was
+never missing, it was covered.
+
+**I also deleted six tests by accident** — a slice from one test's doc comment
+to a `// MARK:` several tests away. The suite went quietly green at 9 tests
+instead of 15, which is exactly what a false pass looks like. Caught it on the
+count, restored from git, re-applied each edit as its own bounded write.
+
+One test is still red, with a cause rather than a guess:
+`pinnedViews: [.sectionHeaders]` does not take effect for a `Section` inside a
+conditional, so the month picker never pins — measured at y=−1974 after three
+swipes. Fixing it restructures the top of the screen and is worth doing
+deliberately.
