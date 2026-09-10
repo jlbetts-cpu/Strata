@@ -292,13 +292,7 @@ struct MemoriesView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(Typography.sectionLabel)
-            .kerning(Typography.sectionKerning)
-            .foregroundStyle(.primary.opacity(0.35))
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapSection)
-            .padding(.bottom, GridConstants.gapLabel)
+        SectionHeading(text: text)
     }
 
     // MARK: - The shelf

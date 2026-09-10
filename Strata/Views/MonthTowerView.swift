@@ -234,10 +234,19 @@ struct MonthPicker: View {
                 }
             } label: {
                 HStack(spacing: 5) {
+                    // The same ink as `SectionHeading`, deliberately. The
+                    // page can show SEPTEMBER twice — once here as the control
+                    // over the tower, once below as the gallery's own month —
+                    // and at two different weights of ink that reads as two
+                    // different kinds of thing. It is the same fact twice,
+                    // which is the mistake the tower's header already made
+                    // once ("the filter said Day while the title said Today").
+                    // One label style on the page, whatever the label is for.
                     Text(title)
                         .font(Typography.sectionLabel)
                         .kerning(Typography.sectionKerning)
-                        .foregroundStyle(.primary.opacity(0.55))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.primary.opacity(0.45))
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))

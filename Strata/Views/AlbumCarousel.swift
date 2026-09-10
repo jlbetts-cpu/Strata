@@ -57,15 +57,28 @@ private struct AlbumCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             AlbumCoverView(photoFileNames: album.photoFileNames, side: width)
+            // **A card's name is a caption, not a header.**
+            //
+            // This was `headerLarge` — the `.title3` a SCREEN uses to name
+            // itself — which made "August" the largest type on the whole
+            // Memories page, above the month tower it is meant to sit under.
+            // Measured on the simulator, its cap matched the page title's.
+            // `blockTitle` is what the app already uses for the name of one
+            // object, which is exactly what this is.
             Text(album.title)
-                .font(Typography.headerLarge)
+                .font(Typography.blockTitle)
                 .foregroundStyle(.primary.opacity(0.85))
                 .lineLimit(1)
-                .padding(.top, GridConstants.gapItem)
+                .padding(.top, GridConstants.gapTight)
+            // `photoCaption`, not `sectionLabel`. "32 PHOTOS" is a fact about
+            // this card, not a heading over a run of them, and using the
+            // heading token for it is how the heading token stopped meaning
+            // anything.
             Text(album.subtitle)
-                .font(Typography.sectionLabel)
+                .font(Typography.photoCaption)
                 .kerning(Typography.sectionKerning)
-                .foregroundStyle(.primary.opacity(0.35))
+                .textCase(.uppercase)
+                .foregroundStyle(.primary.opacity(0.40))
                 .lineLimit(1)
                 .padding(.top, 2)
         }

@@ -61,17 +61,7 @@ struct PhotoGalleryGrid: View {
     /// answers the question only at the moment you have already scrolled past
     /// the answer.
     private func heading(_ title: String) -> some View {
-        Text(title)
-            .font(Typography.sectionLabel)
-            .kerning(Typography.sectionKerning)
-            .foregroundStyle(.primary.opacity(0.55))
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapSection)
-            .padding(.bottom, GridConstants.gapTight)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // A pinned header that is not opaque has the grid scrolling
-            // through the type behind it.
-            .background { WarmBackground() }
+        SectionHeading(text: title, pinned: true)
     }
 
     private func cell(_ photo: GalleryPhoto) -> some View {
