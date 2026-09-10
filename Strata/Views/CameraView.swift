@@ -208,7 +208,11 @@ struct CameraView: View {
                         // Medium, not light. The app has two weights and a
                         // third one on the largest thing on any screen is
                         // the most visible place to break that rule.
-                        .font(.system(size: 96, weight: .medium, design: .rounded))
+                        // The owner's own digits — the same face the tally
+                        // and the month blocks are set in. A countdown is a
+                        // number the app is stating, so it takes the app's
+                        // numerals.
+                        .font(Typography.numeral(96))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.35), radius: 14)
                         .transition(.opacity.combined(with: .scale(scale: 1.25)))
@@ -626,7 +630,7 @@ struct CameraView: View {
             // because "timer on" is not the same as "timer set to what".
             if camera.timerSeconds > 0 {
                 Text("\(camera.timerSeconds)")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(Typography.numeral(10))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.35), radius: 4)
                     .offset(y: 4)
