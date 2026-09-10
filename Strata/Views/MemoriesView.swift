@@ -51,6 +51,7 @@ struct MemoriesView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     titleRow
@@ -80,6 +81,7 @@ struct MemoriesView: View {
                         // is to show gets shown.
                         if !vm.carousel.isEmpty {
                             sectionLabel("ALBUMS")
+                                .id("MemoriesShelf")
                             shelf
                         }
 
@@ -94,6 +96,18 @@ struct MemoriesView: View {
                     }
                 }
                 .padding(.bottom, 110)
+                .id("MemoriesContent")
+            }
+            #if DEBUG
+            .task {
+                guard DebugHarness.scrollsMemories else { return }
+                try? await Task.sleep(for: .seconds(3))
+                withAnimation(nil) {
+                    proxy.scrollTo(DebugHarness.scrollsMemories && DebugHarness.scrollTarget == "shelf"
+                                   ? "MemoriesShelf" : "MemoriesContent", anchor: .top)
+                }
+            }
+            #endif
             }
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
@@ -253,6 +267,7 @@ struct MemoriesView: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapTight)
+
     }
 
     @ViewBuilder

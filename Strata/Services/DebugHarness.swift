@@ -173,6 +173,17 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// Scrolls Memories to the bottom on appear, from `-strataScrollMemories`.
+    ///
+    /// A pinned header is only interesting once something has scrolled under
+    /// it, and nothing on this machine can swipe. Without this the pinned
+    /// state cannot be photographed at all, which is how an unreachable
+    /// control stayed unexplained.
+    static var scrollsMemories: Bool { argument("-strataScrollMemories") != nil }
+    /// Where to scroll to: `shelf` stops just past the month, anything else
+    /// goes to the bottom.
+    static var scrollTarget: String { argument("-strataScrollMemories") ?? "" }
+
     /// Walks the map's camera through a zoom ladder, from `-strataMapSweep`.
     ///
     /// **Nothing on this machine can pinch a simulator**, so the one claim the
