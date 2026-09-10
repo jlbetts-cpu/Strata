@@ -518,24 +518,35 @@ final class TowerGestureTests: XCTestCase {
         }
         XCTAssertTrue(opened, "tapping the blocks never opened a photo")
 
-        // The toolbar Photos has, minus the parts this app has nothing to put
-        // behind. All three are visible buttons rather than gestures —
-        // anything hidden is a thing nobody finds.
-        XCTAssertTrue(app.buttons["Share photo"].waitForExistence(timeout: 5),
-                      "the viewer offers no way to share the photo")
-        XCTAssertTrue(app.buttons["Remove photo"].exists,
-                      "the viewer offers no way to delete the photo")
+        // Share, save and delete moved into one `⋯` menu at the top right —
+        // three things you do rarely, against a photograph that is the only
+        // reason the screen exists. Open it and check all three are there.
+        let actions = app.buttons["Photo actions"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 5),
+                      "the viewer offers no actions at all")
+        actions.tap()
 
         let save = app.buttons["Save to Photos"]
         XCTAssertTrue(save.waitForExistence(timeout: 5),
-                      "the viewer offers no way to save the photo")
+                      "the menu offers no way to save the photo")
+        XCTAssertTrue(app.buttons["Share"].exists,
+                      "the menu offers no way to share the photo")
+        XCTAssertTrue(app.buttons["Remove Photo"].exists,
+                      "the menu offers no way to delete the photo")
         save.tap()
+
+        // The menu closes on choosing, so the confirmation is the label the
+        // menu shows NEXT time it is opened.
+        Thread.sleep(forTimeInterval: 3)
+        actions.tap()
         XCTAssertTrue(app.buttons["Saved to Photos"].waitForExistence(timeout: 20),
                       "saving to Photos did not report success")
+        // Dismiss the menu without choosing anything.
+        app.tap()
 
         close.tap()
         XCTAssertFalse(close.waitForExistence(timeout: 3),
-                       "the glass close button did not dismiss the photo")
+                       "the close button did not dismiss the photo")
     }
 
     // MARK: - Camera

@@ -1,21 +1,23 @@
 import SwiftUI
 import SwiftData
 
-/// The photographs, full screen, the way Photos does it.
+/// The photographs, full screen.
 ///
-/// It used to show ONE picture, cropped to fill the screen. Two things were
-/// wrong with that and both were reported from a phone: a portrait photo on a
-/// 19.5:9 screen lost about half its width, and the title sat in the black
-/// below the picture rather than on it. A viewer that crops is not a viewer.
+/// Built to a reference the owner supplied, and the reference is right about
+/// the thing this screen kept getting wrong: **the picture is an object on a
+/// black field, not a fill for the screen.** Inset, with its own corner
+/// radius, so it reads as a print laid down rather than as the window itself.
+/// Everything else is arranged around it — title above, date below, the run it
+/// belongs to along the bottom.
 ///
-/// So: the photograph is fitted, not filled; it is one of a SET you can swipe
-/// through; the caption sits inside the picture's own bounds; and the three
-/// things anybody actually does to a photo — send it, keep it, bin it — are
-/// on a toolbar where Photos puts them rather than behind a gesture.
+/// The history is worth keeping because it was two wrong answers in a row: it
+/// filled the screen and cropped (a portrait photo lost half its width), then
+/// it fitted edge-to-edge with the caption in the letterbox. Fitted was right;
+/// edge-to-edge was not.
 ///
-/// **It takes the whole run and an index into it**, not one file name. The
-/// point of the change is that the next photograph is a swipe away, and a
-/// viewer holding a single file cannot know what the next one is.
+/// **It takes the whole run and an index into it**, not one file name — the
+/// next photograph is a swipe away, and a viewer holding a single file cannot
+/// know what the next one is.
 struct PhotoViewer: View {
     let photos: [GalleryPhoto]
     /// Which one to open on. Identity, not position, so a caller can hand over
@@ -55,43 +57,46 @@ struct PhotoViewer: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            // A paging `ScrollView`, not a `TabView`.
-            //
-            // `TabView`'s page style owns its own horizontal gesture and there
-            // is no way to switch it off, so panning around a zoomed-in
-            // photograph flicked to the next one. A scroll view can be told to
-            // stop, which is the whole reason for the swap — and it also lets
-            // the deck be keyed by identity rather than by index, so deleting
-            // a photograph does not renumber everything behind it.
-            GeometryReader { geo in
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 0) {
-                        ForEach(photos) { photo in
-                            PhotoPage(photo: photo,
-                                      image: images[photo.fileName],
-                                      isCurrent: photo.id == currentID,
-                                      onZoomChanged: { isZoomed = $0 })
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .id(photo.id)
-                        }
-                    }
-                    .scrollTargetLayout()
+                VStack(spacing: 0) {
+                    header
+                        .frame(height: Self.headerHeight)
+
+                    // The picture, and only the picture, gets the room that is
+                    // left. Solved rather than guessed: every other band is
+                    // fixed, so whatever remains is the stage.
+                    //
+                    // The insets count. Leaving them out of this subtraction
+                    // made the deck 88pt taller than its container and pushed
+                    // the strip clean off the bottom of the screen.
+                    deck(size: CGSize(
+                        width: geo.size.width,
+                        height: geo.size.height
+                            - Self.topInset - Self.bottomInset
+                            - Self.headerHeight - Self.dateHeight - Self.stripHeight
+                    ))
+
+                    dateLine
+                        .frame(height: Self.dateHeight)
+
+                    filmstrip
+                        .frame(height: Self.stripHeight)
                 }
-                .scrollTargetBehavior(.paging)
-                .scrollPosition(id: $currentID)
-                .scrollIndicators(.hidden)
-                .scrollDisabled(isZoomed)
+                .padding(.top, Self.topInset)
+                .padding(.bottom, Self.bottomInset)
             }
-            .ignoresSafeArea()
         }
-        .task(id: currentID) { await loadWindow() }
-        .overlay(alignment: .top) { header }
-        .overlay(alignment: .bottom) { toolbar }
+        .ignoresSafeArea()
         .statusBarHidden()
         .onAppear { currentID = startAt }
+        // The window of decoded pictures follows whatever is on screen. This
+        // was lost for one build when the layout was rewritten around it, and
+        // the symptom was a viewer that showed a filmstrip and a black stage —
+        // nothing errored, because an absent image is a legal state.
+        .task(id: currentID) { await loadWindow() }
         .confirmationDialog("Remove this photo?",
                             isPresented: $confirmingDelete,
                             titleVisibility: .visible) {
@@ -106,101 +111,176 @@ struct PhotoViewer: View {
 
     // MARK: - Chrome
 
-    /// Back on the left, the date in the middle. The same two facts Photos
-    /// puts up there, and nothing else — a third control at the top right
-    /// would be a menu holding what the toolbar already shows.
-    private var header: some View {
-        ZStack {
-            if let current {
-                VStack(spacing: 1) {
-                    Text(Self.dayLabel(current.date))
-                        .font(Typography.headerSmall)
-                    Text(current.date, style: .time)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-                .foregroundStyle(.white)
-                .accessibilityElement(children: .combine)
-            }
+    // MARK: - Metrics
 
-            HStack {
-                GlassIconButton(systemName: "chevron.left", tint: .white, glyphSize: 16,
-                                accessibilityLabel: "Close photo", action: onClose)
-                Spacer(minLength: 0)
+    /// Fixed bands, so the picture's stage is the remainder rather than a
+    /// guess. Clear of the status bar and the Dynamic Island — a control at
+    /// y=34 in screen coordinates is not pressable, which this app has already
+    /// learned once.
+    private static let topInset: CGFloat = 58
+    private static let bottomInset: CGFloat = 28
+    private static let headerHeight: CGFloat = 44
+    private static let dateHeight: CGFloat = 34
+    private static let stripHeight: CGFloat = 74
+    /// How far the print sits in from the edge of the screen.
+    private static let printInset: CGFloat = 20
+
+    // MARK: - The deck
+
+    /// The run, paged, with each photograph inset as a print.
+    ///
+    /// A paging `ScrollView`, not a `TabView`: `TabView`'s page style owns its
+    /// horizontal gesture and cannot be told to stop, so panning a zoomed-in
+    /// photograph flicked to the next one.
+    private func deck(size: CGSize) -> some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 0) {
+                ForEach(photos) { photo in
+                    PhotoPage(photo: photo,
+                              image: images[photo.fileName],
+                              isCurrent: photo.id == currentID,
+                              inset: Self.printInset,
+                              onZoomChanged: { isZoomed = $0 })
+                        .frame(width: size.width, height: max(size.height, 1))
+                        .id(photo.id)
+                }
             }
+            .scrollTargetLayout()
         }
-        // Clear of the status bar and the Dynamic Island — a control at y=34
-        // in screen coordinates is not pressable, which this app has already
-        // learned once.
-        .padding(.top, 58)
-        .padding(.horizontal, GridConstants.horizontalPadding)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $currentID)
+        .scrollIndicators(.hidden)
+        .scrollDisabled(isZoomed)
+        .frame(height: max(size.height, 1))
     }
 
-    /// Send it, keep it, bin it.
+    // MARK: - The strip
+
+    /// The run you are inside, along the bottom.
     ///
-    /// Three buttons rather than Photos' five: this app has no favourites, no
-    /// edit and no metadata worth an info panel, and a toolbar of controls
-    /// that do nothing is the opposite of feeling native.
-    private var toolbar: some View {
-        VStack(spacing: 18) {
-            // The title, in the black.
-            //
-            // It was on the photograph, over a veil, which is what every photo
-            // app does and what this one was asked not to do. In the letterbox
-            // it needs no veil at all, the picture is never dimmed to make
-            // room for it, and there is nothing between you and the thing you
-            // opened.
-            //
-            // Reserved whether or not there is one, so the toolbar does not
-            // step up and down as you swipe past an unnamed win.
+    /// This is the part of the reference that makes the screen feel like a
+    /// place rather than a slide: you can always see that there is more, and
+    /// which of it you are in. The current frame stands taller than its
+    /// neighbours, so the strip needs no highlight, no border and no dot row —
+    /// the size IS the indicator.
+    ///
+    /// It shares `currentID` with the deck, so the two stay in step in both
+    /// directions for free: swipe the picture and the strip scrolls, tap the
+    /// strip and the picture pages.
+    private var filmstrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    ForEach(photos) { photo in
+                        let isCurrent = photo.id == currentID
+                        Button {
+                            HapticsEngine.tick()
+                            withAnimation(GridConstants.motionSnappy) { currentID = photo.id }
+                        } label: {
+                            CachedImageView(fileName: photo.fileName,
+                                            width: Self.stripHeight,
+                                            height: Self.stripHeight,
+                                            cornerRadius: 6)
+                                .frame(width: isCurrent ? 52 : 40,
+                                       height: isCurrent ? 66 : 50)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .opacity(isCurrent ? 1 : 0.5)
+                        }
+                        .buttonStyle(.plain)
+                        .id(photo.id)
+                        .accessibilityLabel(photo.title ?? "Photo")
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .scrollIndicators(.hidden)
+            .animation(GridConstants.motionSnappy, value: currentID)
+            .onChange(of: currentID) { _, id in
+                guard let id else { return }
+                withAnimation(GridConstants.motionSmooth) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+            .onAppear {
+                guard let currentID else { return }
+                proxy.scrollTo(currentID, anchor: .center)
+            }
+        }
+    }
+
+    /// Close on the left, what the photograph is OF in the middle, and
+    /// everything you can do to it on the right.
+    ///
+    /// The title moved up here from the black under the picture. Below, it
+    /// read as a caption for the screen; above, between the two controls, it
+    /// is the screen's subject — which is what it is, because every photograph
+    /// in this app is a photograph of a win and the win already has a name.
+    ///
+    /// One `Menu` rather than a row of three glyphs. Share, save and delete
+    /// are three things you do rarely to a picture you are looking at, and a
+    /// permanent toolbar for them competes with the photograph for the one
+    /// thing this screen is for. `⋯` at the top right is also where both
+    /// references put it, and where iOS puts it.
+    private var header: some View {
+        ZStack {
             Text(current?.title ?? " ")
                 .font(Typography.headerMedium)
                 .foregroundStyle(.white.opacity(current?.title == nil ? 0 : 0.95))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 64)
                 .animation(GridConstants.crossFade, value: currentID)
 
-            controlRow
+            HStack {
+                Button(action: onClose) { chromeGlyph("xmark") }
+                    .accessibilityLabel("Close photo")
+                Spacer(minLength: 0)
+                actionMenu
+            }
         }
-        .padding(.bottom, 34)
+        .buttonStyle(.plain)
+        .padding(.horizontal, GridConstants.horizontalPadding)
     }
 
-    private var controlRow: some View {
-        HStack(spacing: 0) {
+    private var actionMenu: some View {
+        Menu {
             if let current, let image = shareImage {
                 ShareLink(item: image,
                           preview: SharePreview(current.title ?? "Photo", image: image)) {
-                    toolbarGlyph("square.and.arrow.up")
+                    Label("Share", systemImage: "square.and.arrow.up")
                 }
-                .accessibilityLabel("Share photo")
-            } else {
-                toolbarGlyph("square.and.arrow.up").opacity(0.35)
             }
-
-            Spacer(minLength: 0)
-
-            Button { save() } label: { toolbarGlyph(saveIcon) }
-                .disabled(saving || isSaved)
-                .accessibilityLabel(isSaved ? "Saved to Photos" : "Save to Photos")
-
-            Spacer(minLength: 0)
-
-            Button { confirmingDelete = true } label: { toolbarGlyph("trash") }
-                .accessibilityLabel("Remove photo")
+            Button { save() } label: {
+                Label(isSaved ? "Saved to Photos" : "Save to Photos",
+                      systemImage: isSaved ? "checkmark" : "square.and.arrow.down")
+            }
+            .disabled(saving || isSaved)
+            Divider()
+            Button(role: .destructive) { confirmingDelete = true } label: {
+                Label("Remove Photo", systemImage: "trash")
+            }
+        } label: {
+            chromeGlyph("ellipsis")
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 44)
-        .animation(GridConstants.motionSnappy, value: saved)
+        .accessibilityLabel("Photo actions")
     }
 
-    private func toolbarGlyph(_ name: String) -> some View {
+    /// When it was, under the picture. Quiet, because it is the one fact here
+    /// nobody opened this screen to read.
+    private var dateLine: some View {
+        Text(current.map { Self.dayLabel($0.date) + " · " + Self.timeLabel($0.date) } ?? " ")
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(.white.opacity(0.45))
+            .animation(GridConstants.crossFade, value: currentID)
+            .accessibilityHidden(current == nil)
+    }
+
+    private func chromeGlyph(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 20, weight: .regular))
+            .font(.system(size: 17, weight: .medium))
             .foregroundStyle(.white)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
-            .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
     }
 
     // MARK: - Actions
@@ -259,6 +339,11 @@ struct PhotoViewer: View {
         onClose()
     }
 
+    /// The time of day, in the locale's own shape.
+    static func timeLabel(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
+    }
+
     /// "Today", "Yesterday", or the date.
     static func dayLabel(_ date: Date, now: Date = Date(),
                          calendar: Calendar = .current) -> String {
@@ -295,6 +380,8 @@ private struct PhotoPage: View {
     /// Handed in, not loaded here — see `PhotoViewer.images`.
     let image: UIImage?
     let isCurrent: Bool
+    /// How far the print sits in from the edge of its page.
+    let inset: CGFloat
     var onZoomChanged: (Bool) -> Void = { _ in }
 
     @State private var scale: CGFloat = 1
@@ -317,6 +404,12 @@ private struct PhotoPage: View {
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
+                    // A print, not a window. The radius is the app's surface
+                    // radius, so a photograph laid on the black agrees with
+                    // every other surface the app puts down.
+                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
+                                                style: .continuous))
+                    .padding(inset)
                     .scaleEffect(scale)
                     .offset(offset)
                     .transition(.opacity)
