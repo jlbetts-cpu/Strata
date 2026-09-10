@@ -16,6 +16,15 @@ struct StrataApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        // **In `init`, not in the body.** Forgetting onboarding from inside
+        // `body` is too late: `showsOnboarding` is read in the same evaluation
+        // and has already decided, so the reset only took effect on the NEXT
+        // render — which for a UI test is after it has given up looking.
+        if DebugHarness.resetsOnboarding {
+            UserDefaults.standard.set(false, forKey: "hasOnboarded")
+        }
+        #endif
         // Register ModelContainer for App Intents access (WWDC 2024 pattern)
         AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
     }

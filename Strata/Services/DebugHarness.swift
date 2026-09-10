@@ -232,6 +232,13 @@ enum DebugHarness {
     /// it is the special case.
     static var showsOnboarding: Bool { argument("-strataShowOnboarding") != nil }
 
+    /// Forgets that onboarding has been seen, from `-strataResetOnboarding`.
+    ///
+    /// So a test can exercise the REAL first-launch path — decided by
+    /// `hasOnboarded` — rather than a harness shortcut that skips the very
+    /// thing being tested.
+    static var resetsOnboarding: Bool { argument("-strataResetOnboarding") != nil }
+
     /// Which onboarding page to open on, from `-strataOnboardingStep 0...3`.
     static var onboardingStep: Int? { argument("-strataOnboardingStep").flatMap(Int.init) }
 
@@ -411,6 +418,8 @@ enum DebugHarness {
     /// dismiss and which covers whatever was being photographed.
     static var isActive: Bool {
         startTab != nil || wantsSeed || openSheet != nil
+            // `-strataResetOnboarding` deliberately does NOT count: it wants
+            // the real path, not the harness's answer.
             // The onboarding flags count too. Without them, asking for
             // onboarding alone left `isActive` false, so the app fell back to
             // the real `hasOnboarded` default and showed no onboarding at all

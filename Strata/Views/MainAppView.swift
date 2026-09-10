@@ -429,7 +429,6 @@ struct MainAppView: View {
                 isPlanning = false
             }
         }
-        .task { dropWelcomeWinIfNeeded() }
         .sheet(item: $winDraft, onDismiss: { capturedPhoto = nil }) { draft in
             AddWinSheet(
                 modelContext: modelContext,
@@ -1427,6 +1426,14 @@ struct MainAppView: View {
         // Yesterday off the plan: finished one-offs go, finished repeats come
         // back unchecked. Anything unfinished is left exactly where it is.
         PlanItem.sweep(context: modelContext)
+
+        // **After the tower exists, not before.** This was a `.task` on the
+        // view, which fires independently of `setup()` — so it ran while
+        // `towerManager.activeTower` was still nil, the win was logged against
+        // no tower, and a first-time user landed on an empty grid. Caught by
+        // `testAFirstRunEndsOnATowerWithABlockOnIt`, which is the only test
+        // that walks the real first launch.
+        dropWelcomeWinIfNeeded()
 
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()

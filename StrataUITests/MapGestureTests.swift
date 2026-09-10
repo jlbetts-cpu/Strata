@@ -165,6 +165,80 @@ final class MapGestureTests: XCTestCase {
                       "drawing a bigger block did not unlock the page — the slot is not resizing")
     }
 
+    /// A clean first run, all the way through, ending on a tower with a block
+    /// on it.
+    ///
+    /// **This is what a reviewer does first**, and until now nothing checked
+    /// it: every other test in this project launches with harness flags that
+    /// skip onboarding entirely, so the one path every single user takes was
+    /// the one path never exercised. It walks the five pages, draws a real
+    /// block on the tutorial, and then asserts the welcome win actually landed
+    /// on the tower — which is the join between onboarding and the app, and
+    /// the thing most likely to be quietly broken.
+    func testAFirstRunEndsOnATowerWithABlockOnIt() throws {
+        let app = XCUIApplication()
+        // Deliberately no `-strataShowOnboarding`: this has to be the real
+        // first-launch path, decided by `hasOnboarded`.
+        app.launchArguments += ["-strataResetOnboarding", "1"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Let me try"].waitForExistence(timeout: 45),
+                      "a clean launch did not open onboarding")
+        app.buttons["Let me try"].tap()
+        Thread.sleep(forTimeInterval: 2)
+
+        // The tutorial will not let you past until a block is drawn OUT.
+        let slot = app.descendants(matching: .any)["Log a win"]
+        XCTAssertTrue(slot.waitForExistence(timeout: 15), "no slot on the tutorial page")
+        let start = slot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.5, thenDragTo: start.withOffset(CGVector(dx: 160, dy: 0)))
+        Thread.sleep(forTimeInterval: 2)
+
+        for label in ["What else", "Go on"] {
+            XCTAssertTrue(app.buttons[label].waitForExistence(timeout: 15), "no \(label) button")
+            app.buttons[label].tap()
+            Thread.sleep(forTimeInterval: 2)
+        }
+        // The map page's button asks for location when it can.
+        let onward = app.buttons.matching(NSPredicate(
+            format: "label == %@ OR label == %@", "Turn on places", "One more thing")).firstMatch
+        XCTAssertTrue(onward.waitForExistence(timeout: 15), "no button on the map page")
+        onward.tap()
+        Thread.sleep(forTimeInterval: 3)
+        dismissSystemAlerts(app)
+
+        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 15), "no Start button")
+        app.buttons["Start"].tap()
+        // CLAUDE.md: allow ~16s after the app comes up before expecting the
+        // tower. A shorter wait catches the loading skeleton, and here it
+        // caught a screen with no static text on it at all.
+        Thread.sleep(forTimeInterval: 22)
+
+        // **The join.** Onboarding queues the welcome win; `MainAppView` logs
+        // it against the active tower. If that hand-off breaks, a new user
+        // lands on an empty tower and the whole endowed-progress idea is
+        // silently gone.
+        let welcome = app.staticTexts["Downloaded Strata"]
+        if !welcome.waitForExistence(timeout: 30) {
+            // Dump the tree rather than guess. `XCTFail(app.debugDescription)`
+            // is the only channel that reaches the xcodebuild log — test
+            // `print` does not — and CLAUDE.md records that it has settled
+            // two long-running failures in minutes after hours of theorising.
+            let labels = app.staticTexts.allElementsBoundByIndex
+                .prefix(30).map(\.label).joined(separator: " | ")
+            XCTFail("the first run ended on a tower with no block on it. On screen: \(labels)")
+        }
+    }
+
+    /// Location and camera prompts can land on top of the flow.
+    private func dismissSystemAlerts(_ app: XCUIApplication) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow While Using App", "Allow Once", "OK", "Allow"] {
+            let button = springboard.buttons[label]
+            if button.exists { button.tap(); Thread.sleep(forTimeInterval: 1) }
+        }
+    }
+
     func testPinchingInZoomsTheMapIn() throws {
         let app = launchedOnTheMap()
         let probe = app.descendants(matching: .any)["MapZoomProbe"]

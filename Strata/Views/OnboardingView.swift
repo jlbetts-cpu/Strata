@@ -268,9 +268,11 @@ struct OnboardingView: View {
         let columns = CGFloat(GridConstants.columnCount)
         let width = columns * Self.cell + (columns - 1) * gutter
         let spot = ghostSpot
-        let rows = max((built.map { $0.r + $0.h }.max() ?? 0),
-                       (spot?.r ?? 0) + drawingSize.rowSpan)
-        let height = CGFloat(max(rows, 2)) * Self.cell + CGFloat(max(rows, 2) - 1) * gutter
+        // A FIXED height, not one that grows with the tower: a box that
+        // changes size shoves the title and the button around every time a
+        // block lands.
+        let rows = Self.maxRows
+        let height = CGFloat(rows) * Self.cell + CGFloat(rows - 1) * gutter
 
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(built.enumerated()), id: \.offset) { _, item in
@@ -305,6 +307,16 @@ struct OnboardingView: View {
         .mindfulness, .health, .creativity, .work, .social
     ]
 
+    /// How tall the tutorial's tower is allowed to get.
+    ///
+    /// **Three rows and it stops.** The owner: "it goes on forever, it should
+    /// break down after a while so it doesnt overlap with things." He is
+    /// right — nothing capped it, so a determined finger grew a tower up
+    /// through the title and out of the screen. Three rows is enough to hold
+    /// one of each size with room to see them, and once there is no room the
+    /// slot goes rather than drawing a ghost that cannot land.
+    private static let maxRows = 3
+
     /// Where the slot is standing right now.
     ///
     /// **The same first-fit scan the tower runs**, against the blocks already
@@ -319,6 +331,7 @@ struct OnboardingView: View {
         guard let spot = GridPacker.firstFit(columnSpan: drawingSize.columnSpan,
                                              rowSpan: drawingSize.rowSpan,
                                              grid: &copy) else { return nil }
+        guard spot.row + drawingSize.rowSpan <= Self.maxRows else { return nil }
         return (spot.column, spot.row)
     }
 
@@ -326,7 +339,8 @@ struct OnboardingView: View {
         var next = grid
         guard let spot = GridPacker.firstFit(columnSpan: size.columnSpan,
                                              rowSpan: size.rowSpan,
-                                             grid: &next) else { return }
+                                             grid: &next),
+              spot.row + size.rowSpan <= Self.maxRows else { return }
         let category = Self.tutorialColours[built.count % Self.tutorialColours.count]
         withAnimation(GridConstants.dropSettleSpring) {
             grid = next
@@ -374,11 +388,14 @@ struct OnboardingView: View {
             if let url = URL(string: Self.linkedIn) { openURL(url) }
         } label: {
             Text("Connect on LinkedIn")
+                .font(.system(.body, design: .rounded, weight: .medium))
+                .foregroundStyle(AppColors.slotInk)
                 .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Capsule().strokeBorder(AppColors.slotInk.opacity(0.35), lineWidth: 1))
+                .contentShape(Capsule())
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .tint(AppColors.slotInk)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Words
@@ -402,7 +419,7 @@ struct OnboardingView: View {
     private var title: String {
         switch step {
         case 0: return "Everything you did, stacked up"
-        case 1: return hasDrawn ? "That's how every win is made" : "Small, medium or big"
+        case 1: return hasDrawn ? "That's how every win is made" : "Small, medium or large"
         case 2: return "A win can be a photograph"
         case 3: return "It remembers where you were"
         default: return "Thank you, genuinely"
@@ -411,10 +428,10 @@ struct OnboardingView: View {
 
     private var subtitle: String {
         switch step {
-        case 0: return "Finish something and it becomes a block — small, medium or big, depending on the effort."
+        case 0: return "Finish something and it becomes a block — small, medium or large, depending on what it took."
         case 1: return hasDrawn
-            ? "A quick thing stays small. A real push earns a big one."
-            : "Hold the empty slot and pull. The further you pull, the bigger the win. Let go to drop it in."
+            ? "Pull nothing and it stays small. The size is how much it took."
+            : "Hold the slot and pull. Sideways for a medium win, up for a large one. Let go to drop it in."
         case 2: return "Take it here and the picture becomes the block."
         case 3: return "Your wins land on the map where you took them."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
@@ -432,24 +449,46 @@ struct OnboardingView: View {
             // "simplify the button, it shouldnt have the block styling, just
             // make it simple like an apple native button." A block is a win.
             // A button is not a win.
+            // **A filled capsule we control, not `.borderedProminent`.**
+            //
+            // The native prominent style greys itself out when disabled, and
+            // grey on this page's ground is grey on grey — the owner: "the
+            // button is lowkey invisible during the onboarding flow, same
+            // colour as the background, when its grey." A primary action that
+            // vanishes when it is waiting for you is the worst moment to
+            // vanish, because that is exactly when somebody is looking for it.
+            //
+            // Same shape and weight as the system's, so it still reads as an
+            // ordinary iOS button; the only difference is that WE decide what
+            // disabled looks like, and it is the same pill at 55% rather than
+            // a different, paler control.
             Button {
                 HapticsEngine.lightTap()
                 advance()
             } label: {
                 Text(actionTitle)
-                    .fontWeight(.medium)
-                    .foregroundStyle(WarmBackground.top)
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    // **Disabled is a different pill, not a faded one.**
+                    //
+                    // Fading the whole control took the LABEL down with it:
+                    // the ground-coloured type on a half-strength ink pill
+                    // came out near-white on light grey. So waiting looks like
+                    // an outline-weight pill with ink type — legible, and
+                    // unmistakably not yet the thing you press.
+                    .foregroundStyle(canAdvance ? WarmBackground.top
+                                                : AppColors.slotInk.opacity(0.55))
                     .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background {
+                        Capsule().fill(canAdvance
+                                       ? AppColors.slotInk
+                                       : AppColors.slotInk.opacity(0.12))
+                    }
+                    .contentShape(Capsule())
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            // **`slotInk`, not `accentWarm`.** The app's accent IS a warm
-            // black, which is right on a light page and invisible on a dark
-            // one — and in dark mode every page here has a dark ground, the
-            // two photographs included. A primary action only has to be one
-            // thing: the opposite of what it is standing on.
-            .tint(AppColors.slotInk)
+            .buttonStyle(.plain)
             .disabled(!canAdvance)
+            .animation(GridConstants.gentleReveal, value: canAdvance)
 
             Button("Skip") {
                 HapticsEngine.lightTap()
