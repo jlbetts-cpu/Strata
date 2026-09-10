@@ -453,8 +453,16 @@ private struct PhotoPage: View {
         DragGesture()
             .onChanged { value in
                 guard zoomed else { return }
-                offset = CGSize(width: committedOffset.width + value.translation.width,
-                                height: committedOffset.height + value.translation.height)
+                // Resisted at the edges WHILE dragging, not clamped only on
+                // release. The doc comment above has claimed this since the
+                // day it was written and the code did not do it: a hard
+                // `min/max` stopped the picture dead under the finger, which
+                // `docs/apple-design.md` §9 is explicit about — progressive
+                // resistance, never a hard stop.
+                offset = resisted(CGSize(
+                    width: committedOffset.width + value.translation.width,
+                    height: committedOffset.height + value.translation.height
+                ))
             }
             .onEnded { _ in
                 guard zoomed else { return }
@@ -478,17 +486,37 @@ private struct PhotoPage: View {
         }
     }
 
-    /// Keeps the picture from being dragged off the screen.
-    ///
-    /// Proportional to how far in you are rather than a fixed number: at 2x
-    /// there is half a frame of slack in each direction, at 6x there is five
-    /// times as much, and one constant cannot be right for both.
+    /// Settles the picture back inside its limits when the finger lifts.
     private func clampOffset() {
-        let slack = (committedScale - 1) / 2
-        let limitX = UIScreen.main.bounds.width * slack
-        let limitY = UIScreen.main.bounds.height * slack
+        let (limitX, limitY) = limits()
         offset = CGSize(width: min(max(offset.width, -limitX), limitX),
                         height: min(max(offset.height, -limitY), limitY))
+    }
+
+    /// The same limits, but giving back progressively less past them rather
+    /// than refusing to move.
+    private func resisted(_ proposed: CGSize) -> CGSize {
+        let (limitX, limitY) = limits()
+        return CGSize(width: resisted(proposed.width, limit: limitX),
+                      height: resisted(proposed.height, limit: limitY))
+    }
+
+    private func resisted(_ value: CGFloat, limit: CGFloat) -> CGFloat {
+        guard abs(value) > limit else { return value }
+        let over = abs(value) - limit
+        let give = GridConstants.rubberband(overshoot: over, dimension: max(limit, 1))
+        return (limit + give) * (value < 0 ? -1 : 1)
+    }
+
+    /// How far the picture may travel before it is being dragged off screen.
+    ///
+    /// Proportional to how far in you are rather than a fixed number: at 2x
+    /// there is half a frame of slack in each direction, at 6x five times as
+    /// much, and one constant cannot be right for both.
+    private func limits() -> (CGFloat, CGFloat) {
+        let slack = (committedScale - 1) / 2
+        return (UIScreen.main.bounds.width * slack,
+                UIScreen.main.bounds.height * slack)
     }
 
     private func reset(animated: Bool) {
