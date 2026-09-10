@@ -254,6 +254,20 @@ enum GridConstants {
     static let layoutReflow = Animation.spring(response: 0.55, dampingFraction: 0.90)
     /// Non-spatial transitions (cross-fades)
     static let crossFade = Animation.easeInOut(duration: 0.2)
+
+    /// How long a block takes to travel to the place it is merging into, and
+    /// the spring it travels on.
+    ///
+    /// **A duration, not only a spring**, because the merge is a SEQUENCE: the
+    /// children travel, and only when they have arrived does the block that
+    /// swallowed them appear. Something has to know when that is, and a spring
+    /// has no finish line. `apple-design.md` §8 — the intermediate frames are
+    /// what tell you the outcome, so this is slower than a cross-fade on
+    /// purpose.
+    static let mapTravelDuration: TimeInterval = 0.42
+    static let mapTravel = Animation.easeInOut(duration: mapTravelDuration)
+    /// The arrival, once the travelling is done.
+    static let mapArrive = Animation.easeOut(duration: 0.18)
     /// Cascade reveal — new blocks dropping into tower
     static let cascadeReveal = Animation.spring(response: 0.50, dampingFraction: 0.65)
 

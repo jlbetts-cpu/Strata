@@ -64,6 +64,9 @@ struct MemoriesMapView: View {
     /// sits at the point it is travelling to. See `apply(_:)`.
     @State private var displayed: [Placed] = []
     @State private var didFrame = false
+    /// Whether the first fill has happened. After it, blocks arriving are
+    /// arriving because you moved the map, and they travel instead.
+    @State private var hasSettled = false
     /// Observed, so the empty state follows the answer to its own prompt
     /// rather than waiting for the screen to be opened again.
     ///
@@ -96,12 +99,6 @@ struct MemoriesMapView: View {
         }
     }
 
-    /// How long a merge or a split takes.
-    ///
-    /// Slower than a cross-fade on purpose: the whole point is that you can
-    /// SEE where a block went. `docs/apple-design.md` §8 — the intermediate
-    /// frames are what tell you the outcome.
-    private static let travel: Double = 0.42
 
     var body: some View {
         map
@@ -204,10 +201,7 @@ struct MemoriesMapView: View {
 
             ForEach(displayed) { placed in
                 Annotation("", coordinate: placed.coordinate, anchor: .center) {
-                    // The count only when the block is standing for a whole
-                    // area rather than for one place — see `PlaceBlock`.
-                    PlaceBlock(cluster: placed.cluster, showsCount: !isClose)
-                        .onTapGesture { onSelect(placed.cluster.key) }
+                    block(for: placed)
                 }
                 .annotationTitles(.hidden)
             }
@@ -285,6 +279,10 @@ struct MemoriesMapView: View {
         .task(id: pins.count) {
             displayed = PlaceMap.cluster(pins, zoom: zoom).map { Placed.atRest($0) }
             frameOnYourPlaces()
+            // Long enough for the stagger above to finish, so the NEXT change
+            // is treated as a move rather than as a first fill.
+            try? await Task.sleep(for: .milliseconds(600))
+            hasSettled = true
         }
     }
 
@@ -315,11 +313,11 @@ struct MemoriesMapView: View {
                                     latitude: target?.anchor.latitude ?? placed.latitude,
                                     longitude: target?.anchor.longitude ?? placed.longitude))
             }
-            withAnimation(.easeInOut(duration: Self.travel)) { displayed = moved }
+            withAnimation(GridConstants.mapTravel) { displayed = moved }
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(Self.travel))
+                try? await Task.sleep(for: .seconds(GridConstants.mapTravelDuration))
                 guard zoom == new else { return }
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(GridConstants.mapArrive) {
                     displayed = next.map { Placed.atRest($0) }
                 }
             }
@@ -333,7 +331,7 @@ struct MemoriesMapView: View {
                               latitude: from?.latitude ?? cluster.anchor.latitude,
                               longitude: from?.longitude ?? cluster.anchor.longitude)
             }
-            withAnimation(.easeInOut(duration: Self.travel)) {
+            withAnimation(GridConstants.mapTravel) {
                 displayed = next.map { Placed.atRest($0) }
             }
         }
@@ -504,6 +502,38 @@ struct MemoriesMapView: View {
 
     private var isClose: Bool { zoom >= Self.labelZoom }
 
+    /// One block on the map.
+    ///
+    /// Extracted from the `Annotation` closure, not for tidiness: with it
+    /// inline, `map` hit "unable to type-check this expression in reasonable
+    /// time". `MainAppView` records the same ceiling and the same fix.
+    private func block(for placed: Placed) -> some View {
+        // The count only when the block is standing for a whole area rather
+        // than for one place — see `PlaceBlock`.
+        PlaceBlock(cluster: placed.cluster,
+                   delay: arrivalDelay(for: placed),
+                   showsCount: !isClose)
+            .onTapGesture { onSelect(placed.cluster.key) }
+    }
+
+    /// How long a block waits before arriving.
+    ///
+    /// **A stagger, not a cascade.** The map fills in from the middle outwards
+    /// over about a quarter of a second — enough that twenty blocks read as
+    /// arriving rather than as being switched on, and short enough that the
+    /// last one is not still moving by the time your eye reaches it. Ordered
+    /// by distance from the centre of the screen, because that is the order
+    /// somebody actually looks at a map in.
+    ///
+    /// Zero once the map has settled: a block appearing because you zoomed has
+    /// already travelled from its parent, and a delay on top of that is two
+    /// animations arguing about the same object.
+    private func arrivalDelay(for placed: Placed) -> Double {
+        guard !hasSettled else { return 0 }
+        guard let index = displayed.firstIndex(where: { $0.id == placed.id }) else { return 0 }
+        return min(Double(index) * 0.018, 0.26)
+    }
+
     /// Whether iOS will actually give us a position to draw.
     private var showsUser: Bool {
         !location.isDenied && !location.canAsk
@@ -581,6 +611,9 @@ struct MemoriesMapView: View {
 private struct PlaceBlock: View {
     let cluster: PlaceMap.Cluster
 
+    /// How long to wait before arriving — see `arrivalDelay(for:)`.
+    var delay: Double = 0
+
     /// Whether to say how many wins are in here.
     ///
     /// **Only when zoomed out**, and the two owner calls that look opposite
@@ -611,7 +644,24 @@ private struct PlaceBlock: View {
         )
     }
 
+    @State private var arrived = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        block
+            // **It arrives.** Twenty blocks switching on at once is a map
+            // being drawn; twenty blocks landing is a map filling in. Scale
+            // from 0.82 rather than from nothing, so it reads as coming
+            // towards you rather than growing out of the ground.
+            .scaleEffect(arrived || reduceMotion ? 1 : 0.82)
+            .opacity(arrived || reduceMotion ? 1 : 0)
+            .onAppear {
+                guard !reduceMotion else { arrived = true; return }
+                withAnimation(GridConstants.cascadeReveal.delay(delay)) { arrived = true }
+            }
+    }
+
+    private var block: some View {
         BlockSurface(
             cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
             scale: Self.cell / GridConstants.blockReferenceCell,
@@ -637,8 +687,15 @@ private struct PlaceBlock: View {
         }
         .frame(width: size.width, height: size.height)
         .overlay(alignment: .topTrailing) {
-            if showsCount && cluster.winCount > 1 { countBadge }
+            if showsCount && cluster.winCount > 1 {
+                countBadge
+                    // It belongs to the block, so it arrives out of the
+                    // block's own corner rather than fading in over it.
+                    .transition(.scale(scale: 0.4, anchor: .topTrailing)
+                        .combined(with: .opacity))
+            }
         }
+        .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: showsCount)
         .accessibilityLabel("\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins") here")
     }
 }
