@@ -184,7 +184,15 @@ struct MemoriesView: View {
             // whose subject is photographs.
             MemoriesTitle(color: .primary.opacity(0.85))
             Spacer(minLength: 0)
-            if !vm.pins.isEmpty {
+            // Shown when there are PHOTOGRAPHS, not when there are pins.
+            //
+            // Gating it on pins was a closed loop: the map only appeared once
+            // wins had places, places only arrive once location is granted,
+            // and the only screen that asks is the map. Nobody could ever get
+            // in, so nobody would ever be asked, so the map would stay empty
+            // forever. It opens on its own empty state instead, which is where
+            // the asking belongs.
+            if !vm.gallery.isEmpty {
                 GlassIconButton(systemName: "map", accessibilityLabel: "Map") {
                     path.append(.map)
                 }

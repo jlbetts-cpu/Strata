@@ -61,9 +61,79 @@ struct MemoriesMapView: View {
     /// Recomputed only when the integer zoom actually changes, which is a few
     /// times per pan rather than once per frame.
     @State private var clusters: [PlaceMap.Cluster] = []
+    /// Observed, so the empty state follows the answer to its own prompt
+    /// rather than waiting for the screen to be opened again.
+    ///
+    /// `@State`, not a plain stored property: a stored `private` property
+    /// joins the memberwise initializer and makes the whole init private,
+    /// which stops every caller constructing this view.
+    @State private var location = LocationService.shared
 
     var body: some View {
-        map
+        ZStack {
+            map
+            if pins.isEmpty { emptyState }
+        }
+    }
+
+    // MARK: - Nothing on it yet
+
+    /// **The map is empty on day one and cannot be otherwise.**
+    ///
+    /// No photograph taken before location capture shipped has a place, and
+    /// none ever will: every path into `ImageManager` re-encodes a resized
+    /// `UIImage` with no metadata container. That is said out loud here rather
+    /// than left for somebody to discover, because "why is my map empty, I
+    /// have three hundred photos" is this screen's real failure mode.
+    ///
+    /// This is also the only place the app asks for location. The camera would
+    /// be the wrong place — a permission prompt in the middle of taking a
+    /// photograph is a prompt with no visible payoff.
+    @ViewBuilder
+    private var emptyState: some View {
+        let denied = location.isDenied
+        VStack(spacing: GridConstants.gapTight) {
+            Text(denied ? "Places are off" : "Your map starts here")
+                .font(Typography.headerMedium)
+                .foregroundStyle(.white)
+
+            Text(denied
+                 ? "Strata can't tell where a photo was taken."
+                 : "Photos you take from now on remember where you were. The ones you already have don't — that isn't something we can go back and add.")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Button {
+                HapticsEngine.lightTap()
+                if denied {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } else {
+                    location.requestAccess()
+                }
+            } label: {
+                Text(denied ? "Open Settings" : "Turn on places")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 22)
+                    .frame(height: 44)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .mapPrimeGlass()
+            .padding(.top, GridConstants.gapTight)
+            // Once it is granted there is nothing left to ask, and a button
+            // that does nothing is worse than no button.
+            .opacity(location.canAsk || denied ? 1 : 0)
+        }
+        .padding(GridConstants.gapSection)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Dark enough to read white type on, whatever the imagery underneath
+        // happens to be.
+        .background(AppColors.warmBlack.opacity(0.55))
     }
 
     private var map: some View {
@@ -192,5 +262,19 @@ private struct PlaceBlock: View {
                 .accessibilityHidden(true)
         }
         .accessibilityLabel("\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins") here")
+    }
+}
+
+private extension View {
+    /// The prime's own capsule. Not a block: CLAUDE.md is explicit that a rim,
+    /// a frosted band or a blurred edge is a block's claim, and a button is
+    /// not a block.
+    @ViewBuilder
+    func mapPrimeGlass() -> some View {
+        if #available(iOS 26, *) {
+            self.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self.background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }

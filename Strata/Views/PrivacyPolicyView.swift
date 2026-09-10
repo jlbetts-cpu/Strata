@@ -40,8 +40,8 @@ struct PrivacyPolicyView: View {
 
     private static let sections: [(title: String, body: String)] = [
         ("What Strata stores",
-         "Your wins — their names, sizes, colours, dates, and any photo you attach. "
-         + "That is the whole of it."),
+         "Your wins — their names, sizes, colours, dates, any photo you attach, and "
+         + "where a photo was taken if you turn that on. That is the whole of it."),
         ("Where it is stored",
          "On your device. Strata has no account, no server, and no analytics. "
          + "Nothing you log is sent anywhere, and nobody but you can read it."),
@@ -49,6 +49,13 @@ struct PrivacyPolicyView: View {
          "A photo you attach is copied into Strata's own storage on your device so "
          + "the block still has it if you later remove the original. Deleting a win "
          + "deletes its photo with it."),
+        ("Places",
+         "Off unless you turn it on. When it is on, Strata notes where you were at "
+         + "the moment you take a photo, so your wins can appear on your map. It "
+         + "looks only while the camera is open, never in the background, and the "
+         + "coordinates are stored on your device beside the photo and nowhere "
+         + "else. Photos you took before you turned it on have no place and cannot "
+         + "be given one."),
         ("Apple Health and Calendar",
          "Only if you connect them, and only while you leave them connected. Strata "
          + "reads from them to add context to your day; it never writes to them and "
