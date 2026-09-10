@@ -402,6 +402,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only looks while the camera is open.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Strata uses motion data to add subtle parallax effects to your tower, making it feel more physical.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves photos you take in the app to your camera roll.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata lets you attach photos to your wins to create a visual journey of your progress.";
@@ -441,6 +442,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only looks while the camera is open.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Strata uses motion data to add subtle parallax effects to your tower, making it feel more physical.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves photos you take in the app to your camera roll.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata lets you attach photos to your wins to create a visual journey of your progress.";

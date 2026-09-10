@@ -126,6 +126,10 @@ struct MainAppView: View {
     ///
     /// `.sheet(item:)` makes the payload the identity of the presentation, so
     /// there is nothing left for anything else to null out.
+    /// Where you are, while the camera is open. Owned here so one instance
+    /// outlives the camera tab's own view — a service that is recreated on
+    /// every appearance never gets warm, which is the whole point of it.
+    @State private var locationService = LocationService()
     @State private var winDraft: WinDraft?
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
@@ -1443,6 +1447,9 @@ struct MainAppView: View {
         }
         if DebugHarness.testsPhotoSave {
             DebugHarness.runPhotoSaveProbe()
+        }
+        if DebugHarness.reportsLocation {
+            DebugHarness.runLocationProbe(locationService)
         }
         if DebugHarness.seedPlan != nil { isPlanning = true }
         if DebugHarness.dumpsShareCard {

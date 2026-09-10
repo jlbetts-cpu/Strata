@@ -1,4 +1,5 @@
 #if DEBUG
+import CoreLocation
 import Foundation
 import SwiftData
 import SwiftUI
@@ -69,6 +70,33 @@ enum DebugHarness {
 
     /// Writes a generated image to the camera roll and prints the result to
     /// the device log, where `simctl spawn log stream` can read it.
+    /// Asks for location, waits, and says what came back.
+    ///
+    /// Nothing in the app uses `LocationService` yet, so this is the only
+    /// evidence that the usage-description key reached BOTH build
+    /// configurations — a key added to one is a Release-only device crash
+    /// found six weeks later — and that a fix actually arrives. Drive it with
+    /// `xcrun simctl location <device> set <lat>,<lon>`.
+    static func runLocationProbe(_ service: LocationService) {
+        Task { @MainActor in
+            NSLog("[strata-probe] location auth=\(service.authorization.rawValue) "
+                  + "canAsk=\(service.canAsk) precise=\(service.isPrecise)")
+            service.requestAccess()
+            service.start()
+            for attempt in 1...10 {
+                try? await Task.sleep(for: .seconds(1))
+                if let fix = service.fix() {
+                    NSLog("[strata-probe] location fixed after \(attempt)s "
+                          + "lat=\(fix.coordinate.latitude) lon=\(fix.coordinate.longitude) "
+                          + "accuracy=\(fix.horizontalAccuracy)")
+                    return
+                }
+            }
+            NSLog("[strata-probe] location no usable fix in 10s "
+                  + "auth=\(service.authorization.rawValue) latest=\(service.latest?.description ?? "nil")")
+        }
+    }
+
     static func runPhotoSaveProbe() {
         Task { @MainActor in
             let size = CGSize(width: 1200, height: 1600)
@@ -145,6 +173,14 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// Reports what the location service can see, from `-strataTestLocation`.
+    ///
+    /// Nothing else uses `LocationService` yet, so this is the only way to
+    /// tell whether the permission key is wired into BOTH build
+    /// configurations and whether a fix ever arrives. Drive it with
+    /// `xcrun simctl location <device> set <lat>,<lon>`.
+    static var reportsLocation: Bool { argument("-strataTestLocation") != nil }
+
     /// Puts the camera straight into its review state, from
     /// `-strataOpenReview [size]`, where size is `small`, `medium` or `hard`.
     ///
