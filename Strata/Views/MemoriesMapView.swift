@@ -97,6 +97,23 @@ struct MemoriesMapView: View {
         map
             .overlay { if pins.isEmpty { emptyState } }
             .overlay(alignment: .bottomTrailing) { if isInteractive { recentre } }
+            #if DEBUG
+            // **The map's zoom, readable from outside.**
+            //
+            // Pinch is the one gesture on this screen that cannot be checked by
+            // screenshot — the tiles change but so do they on a pan, and the
+            // block count changes only when the integer zoom does. XCUITest can
+            // pinch for real; it just needs something to read. This publishes
+            // the zoom as an accessibility value on a zero-size element, so it
+            // costs nothing and shows nothing.
+            .overlay(alignment: .topLeading) {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("MapZoomProbe")
+                    .accessibilityLabel("zoom \(zoom)")
+            }
+            #endif
     }
 
     /// Take me back to where I am.
@@ -550,16 +567,17 @@ private struct PlaceBlock: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .overlay(alignment: .bottomLeading) {
-            // How much you did there. Where the month tower puts its day
-            // number, in the same face.
-            Text("\(cluster.winCount)")
-                .font(Typography.numeral(Self.cell * 0.20))
-                .foregroundStyle(.white.opacity(0.9))
-                .shadow(color: .black.opacity(0.45), radius: 3, y: 1)
-                .padding(Self.cell * 0.12)
-                .accessibilityHidden(true)
-        }
+        // **No count on the block.** It carried one, in the numeral face, where
+        // the month tower puts its day number — and the owner's call is that a
+        // number on a photograph is noise: "why is there numbers on it, it
+        // should just be the pictures".
+        //
+        // Nothing is lost, because the count was already being said twice. A
+        // block's SIZE is its rank (`MonthTower.size(forWinCount:)`), so one
+        // win is a 1x1 and a busy place is a 2x2 — the map reads as bigger
+        // where you did more without a single digit on it. The day numeral on
+        // the month tower is a different thing and stays: that is a block's
+        // coordinate, not a tally.
         .accessibilityLabel("\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins") here")
     }
 }

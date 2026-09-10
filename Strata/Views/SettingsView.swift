@@ -26,6 +26,8 @@ struct SettingsView: View {
     /// service share one source of truth rather than mirroring each other.
     /// Both default to on.
     @AppStorage(PhotoLibrarySaver.defaultsKey) private var savesToCameraRoll = true
+    @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
+    @State private var location = LocationService.shared
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     @State private var reminderTime = Date()
@@ -147,7 +149,7 @@ struct SettingsView: View {
 
             // MARK: - Camera
 
-            Section("Camera") {
+            Section {
                 Toggle(isOn: $savesToCameraRoll) {
                     Label {
                         Text("Save to Photos")
@@ -156,6 +158,29 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.accentWarm)
+
+                // **The switch that fills the map lives beside the one that
+                // fills the camera roll**, because they are the same decision
+                // about the same photograph and looking for one in a different
+                // section from the other is the app being inconsistent.
+                Toggle(isOn: $remembersPlaces) {
+                    Label {
+                        Text("Remember Places")
+                    } icon: {
+                        SettingsIcon(systemName: "mappin.and.ellipse",
+                                     tint: HabitCategory.health.style.baseColor)
+                    }
+                }
+                .tint(AppColors.accentWarm)
+                .disabled(location.isDenied)
+            } header: {
+                Text("Camera")
+            } footer: {
+                // Stated here because it is the map's one real disappointment
+                // and it should not be discovered.
+                Text(location.isDenied
+                     ? "Location is off for Strata in the Settings app, so photographs can't be placed on your map."
+                     : "Photographs you take remember where you were, and appear on your map. Ones you already have don't — that isn't something we can go back and add.")
             }
 
             Section("Tower") {

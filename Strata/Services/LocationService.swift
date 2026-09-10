@@ -27,6 +27,20 @@ final class LocationService: NSObject {
     /// parameter there has failed before.
     static let shared = LocationService()
 
+    /// Whether the person wants their photographs placed at all.
+    ///
+    /// Separate from the system permission on purpose: iOS answers "may this
+    /// app know where you are", and this answers "do you want that written
+    /// onto your wins". Somebody can reasonably say yes to the first and no to
+    /// the second, and making them revoke a system permission to express it
+    /// would be the app refusing to take an answer.
+    static let defaultsKey = "remembersPlaces"
+
+    /// The switch above, read wherever a place is about to be attached.
+    var remembersPlaces: Bool {
+        UserDefaults.standard.object(forKey: Self.defaultsKey) as? Bool ?? true
+    }
+
     /// The most recent fix, whenever it arrived.
     private(set) var latest: CLLocation?
     private(set) var authorization: CLAuthorizationStatus = .notDetermined
@@ -107,6 +121,10 @@ final class LocationService: NSObject {
     /// speaks. Nil for exactly the reasons `fix` returns nil.
     func place(maxAge: TimeInterval = 120,
                maxAccuracy: CLLocationDistance = 200) -> WinPlace? {
+        // The single gate. Every path that writes a coordinate onto a win goes
+        // through here, so the preference is honoured once rather than at each
+        // call site, where one of them would eventually be missed.
+        guard remembersPlaces else { return nil }
         guard let fix = fix(maxAge: maxAge, maxAccuracy: maxAccuracy) else { return nil }
         return WinPlace(latitude: fix.coordinate.latitude,
                         longitude: fix.coordinate.longitude,

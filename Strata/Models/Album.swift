@@ -335,7 +335,8 @@ extension Album {
                     // captioning it "Win".
                     title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
                     date: record.completedAt,
-                    dateString: record.dateString
+                    dateString: record.dateString,
+                    place: record.place
                 )
             }
     }
@@ -399,6 +400,12 @@ struct GalleryPhoto: Identifiable, Equatable {
     let title: String?
     let date: Date
     let dateString: String
+    /// Where it was taken, when the win knows. **`var` with a default**, so
+    /// every existing literal keeps compiling and the memberwise initializer
+    /// still carries it — a `let` with a default is dropped from the
+    /// synthesized init entirely, which is the trap `WinRecord.place`
+    /// documents.
+    var place: WinPlace?
 }
 
 /// A run of photographs under one heading — a month of the gallery.

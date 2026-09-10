@@ -26,6 +26,9 @@ struct PhotoCollectionView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var sections: [GallerySection] = []
     @State private var title = ""
+    /// A place whose name has not arrived yet. Set by `load()`, cleared by the
+    /// task that asks for it.
+    @State private var pending: WinPlace?
     @State private var viewing: ViewedPhoto?
     @Namespace private var photoTransition
 
@@ -43,6 +46,14 @@ struct PhotoCollectionView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
+        // Asking is a network call and it is allowed to fail. The screen is
+        // already correct without it; the name is something it gains.
+        .task(id: pending.map(PlaceNames.key(for:))) {
+            guard let place = pending else { return }
+            await PlaceNames.shared.resolve(place)
+            if let name = PlaceNames.shared.name(for: place) { title = name }
+            pending = nil
+        }
         .fullScreenCover(item: $viewing) { photo in
             PhotoViewer(photos: sections.flatMap(\.photos),
                         startAt: photo.id,
@@ -73,7 +84,16 @@ struct PhotoCollectionView: View {
             let names = Set(PlaceMap.members(of: key, in: PlaceMap.pins(from: records))
                 .map(\.photoFileName))
             matching = records.filter { $0.photoFileName.map(names.contains) ?? false }
-            title = "\(matching.count) here"
+            // **The place's own name, once it arrives.** "12 here" is a count;
+            // "Trafalgar Square" is an answer. It is a network call and it can
+            // fail, so the count is what the screen opens on and the name
+            // replaces it if it comes — see `PlaceNames`.
+            if let place = matching.compactMap(\.place).first {
+                title = PlaceNames.shared.name(for: place) ?? "\(matching.count) here"
+                pending = place
+            } else {
+                title = "\(matching.count) here"
+            }
         case .moment(let id):
             guard let moment = AlbumMoment(id: id) else { sections = []; return }
             matching = records.filter {

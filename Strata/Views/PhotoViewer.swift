@@ -44,6 +44,10 @@ struct PhotoViewer: View {
     /// Which photograph is on screen, by identity. `scrollPosition` wants an
     /// id, and identity survives a deletion changing every index.
     @State private var currentID: String?
+    /// The name of the place the current photograph was taken, once it has
+    /// arrived. Held rather than read straight from `PlaceNames` so the view
+    /// re-renders when it lands.
+    @State private var placeName: String?
     /// True while the picture on screen is zoomed in. The deck stops paging
     /// then, or a pan across a magnified photo would flick to the next one.
     @State private var isZoomed = false
@@ -97,6 +101,17 @@ struct PhotoViewer: View {
         // the symptom was a viewer that showed a filmstrip and a black stage —
         // nothing errored, because an absent image is a legal state.
         .task(id: currentID) { await loadWindow() }
+        // The place's name, asked for as you arrive at each photograph. It is
+        // a network call that is allowed to fail, and the caption is already
+        // correct without it.
+        .task(id: currentID) {
+            placeName = nil
+            guard let place = current?.place else { return }
+            placeName = PlaceNames.shared.name(for: place)
+            guard placeName == nil else { return }
+            await PlaceNames.shared.resolve(place)
+            placeName = PlaceNames.shared.name(for: place)
+        }
         .confirmationDialog("Remove this photo?",
                             isPresented: $confirmingDelete,
                             titleVisibility: .visible) {
@@ -268,11 +283,32 @@ struct PhotoViewer: View {
     /// When it was, under the picture. Quiet, because it is the one fact here
     /// nobody opened this screen to read.
     private var dateLine: some View {
-        Text(current.map { Self.dayLabel($0.date) + " · " + Self.timeLabel($0.date) } ?? " ")
+        // **When, and — if the win knows — where**, on one line in that order.
+        //
+        // The place joins the date rather than taking a line of its own: the
+        // whole discipline of this screen is that the photograph is the
+        // content and everything else is a caption, and a second caption line
+        // would be the chrome growing to hold a fact nobody opened the screen
+        // to read. Photos does the same. It appears only when there is one,
+        // and it appears LATE — the name is a network call — so it fades in
+        // rather than pushing the line about.
+        Text(caption)
             .font(Typography.screenSubtitle)
             .foregroundStyle(.white.opacity(0.45))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, GridConstants.horizontalPadding)
             .animation(GridConstants.crossFade, value: currentID)
+            .animation(GridConstants.gentleReveal, value: placeName)
             .accessibilityHidden(current == nil)
+    }
+
+    private var caption: String {
+        guard let current else { return " " }
+        let when = Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)
+        guard let place = current.place,
+              let name = placeName ?? PlaceNames.shared.name(for: place) else { return when }
+        return when + " · " + name
     }
 
     private func chromeGlyph(_ name: String) -> some View {
