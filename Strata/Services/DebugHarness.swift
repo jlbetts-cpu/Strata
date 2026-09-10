@@ -411,6 +411,11 @@ enum DebugHarness {
     /// dismiss and which covers whatever was being photographed.
     static var isActive: Bool {
         startTab != nil || wantsSeed || openSheet != nil
+            // The onboarding flags count too. Without them, asking for
+            // onboarding alone left `isActive` false, so the app fell back to
+            // the real `hasOnboarded` default and showed no onboarding at all
+            // — the flag looked broken when it was simply never consulted.
+            || showsOnboarding || onboardingStep != nil
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.

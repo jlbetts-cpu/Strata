@@ -691,7 +691,11 @@ private struct PlaceBlock: View {
         ) {
             ZStack {
                 cluster.category.style.baseColor
-                if let name = cluster.photoFileNames.first {
+                // A name that is empty is not a photograph. Without this
+                // guard `CachedImageView` draws its missing-file placeholder —
+                // a broken-picture glyph on the block — which is worse than
+                // the colour alone and was visible on the onboarding map.
+                if let name = cluster.photoFileNames.first, !name.isEmpty {
                     // **One width for every block on the map**, whatever size
                     // it draws at. `CachedImageView` keys its cache on the
                     // requested width, so asking for 88 at one zoom and 176 at
