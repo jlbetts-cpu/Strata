@@ -1336,3 +1336,53 @@ One test is still red, with a cause rather than a guess:
 conditional, so the month picker never pins — measured at y=−1974 after three
 swipes. Fixing it restructures the top of the screen and is worth doing
 deliberately.
+
+## The map becomes the tab (2026-09-10)
+
+Bad news first.
+
+1. **Blocks were overlapping, from two separate causes.** A block was
+   drawn on its members' centroid, which can sit anywhere inside its
+   cell — so two clusters in neighbouring cells could be drawn a few
+   points apart while each is 90pt wide. And the density loop that keeps
+   the map legible **ran backwards**: it stepped to a finer grid, which
+   SPLITS clusters, so an over-full map got fuller until it hit zoom 20
+   where a cell is under ten metres. Fixed both: blocks sit on the cell
+   centre, and thinning now merges. Measured, the two closest blocks are
+   138pt apart at the worst zoom.
+2. **The sweep probe was aimed at nothing.** A bare `.task` captured the
+   view value from before the fetch landed, so it reported `blocks=0
+   wins=0 of 0` at every zoom while the map on screen was full of them.
+   Fourth confident false negative from an unverified instrument in this
+   project.
+3. **A burst capture of the merge animation returned 46 byte-identical
+   frames** — the sweep had finished before the capture started. The
+   merge/split *travel* is therefore still built-but-unseen. The counts
+   are verified; the motion between them is not.
+4. **Points of interest buried the blocks.** The first curated list
+   included cafés and restaurants: over Trafalgar Square that was ~25
+   orange pins against 2 blocks. Narrowed to landmarks — 6 pins now.
+
+What shipped:
+
+- `PlaceMap.Cluster.anchor` — blocks are drawn on the cell centre, so
+  separation is exactly one pitch by construction. The centroid stays as
+  what the camera frames on. `targetBlockPitch` 100 -> 116.
+- The density loop merges instead of splitting. 5 new tests; 118 pass.
+- `MemoriesDrawer` — the page as a card over the map, resting HIDDEN and
+  raised by a button. Not a `.sheet` (a sheet from inside a `Tab` sits
+  on the window's presenting controller and lands in the tab bar's
+  band). `DrawerDetent` is top-level, because nested in a generic the
+  `@State` would have to name a `Content`.
+- The map is the tab root, full-bleed. The title floats on it; the
+  photographs are the button top-right.
+- Pale ground by default, labels arriving at zoom 13, scrim lifting as
+  they do. Apple's attribution moved clear of the tab bar — it cannot be
+  removed, that is a licence condition, and no API positions it either,
+  but it lays out inside the map's safe area so an inset moves it.
+
+Still open: the merge travel is unverified; `-strataMapSweep` needs the
+capture to start before the sweep does. `MapUserLocationButton` is the
+one idea worth taking from the published MapKit agent skills — a
+recentre-on-me control — not yet added, because it is a fourth piece of
+chrome on a screen trying to have three.
