@@ -173,6 +173,16 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// Walks the map's camera through a zoom ladder, from `-strataMapSweep`.
+    ///
+    /// **Nothing on this machine can pinch a simulator**, so the one claim the
+    /// map actually makes — that places merge as you pull back and split as
+    /// you go in — cannot be seen the way a person sees it. This drives the
+    /// camera itself and logs a classified count at every step, which is the
+    /// same instrument the drop cascade was judged with: report the count per
+    /// event, never an aggregate.
+    static var sweepsMap: Bool { argument("-strataMapSweep") != nil }
+
     /// Opens the map, from `-strataOpenMap`. It is behind a tap, so without
     /// this it cannot be photographed at all.
     static var opensMap: Bool { argument("-strataOpenMap") != nil }

@@ -168,6 +168,12 @@ struct MemoriesMapView: View {
         // costs CPU and looks wrong — blocks twitch between two cells while
         // you pan, because the cell under a pin changes several times a
         // second.
+        #if DEBUG
+        .task {
+            guard DebugHarness.sweepsMap else { return }
+            await sweep()
+        }
+        #endif
         .onMapCameraChange(frequency: .onEnd) { context in
             viewportWidth = context.rect.width > 0 ? viewportWidth : viewportWidth
             let next = PlaceMap.zoomLevel(
@@ -188,6 +194,34 @@ struct MemoriesMapView: View {
             clusters = PlaceMap.cluster(pins, zoom: zoom)
         }
     }
+
+    #if DEBUG
+    /// Pulls the camera in through a ladder of spans and reports what
+    /// clustered at each one.
+    ///
+    /// The numbers to look for: the count should fall as the span widens and
+    /// rise as it narrows, never exceed `PlaceMap.maxOnScreen`, and never
+    /// reach zero — a map that blanks as you zoom was a real bug the unit
+    /// tests caught, and this is the same claim checked on the live view.
+    private func sweep() async {
+        let centre = CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278)
+        for span in [4.0, 1.0, 0.25, 0.06, 0.015, 0.004] {
+            withAnimation(nil) {
+                camera = .region(MKCoordinateRegion(
+                    center: centre,
+                    span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+                ))
+            }
+            try? await Task.sleep(for: .milliseconds(900))
+            let z = PlaceMap.zoomLevel(spanLongitude: span,
+                                       viewportWidth: Double(viewportWidth))
+            let found = PlaceMap.cluster(pins, zoom: z)
+            NSLog("[strata-probe] mapSweep span=\(span) zoom=\(z) "
+                  + "blocks=\(found.count) wins=\(found.reduce(0) { $0 + $1.winCount }) "
+                  + "of \(pins.count)")
+        }
+    }
+    #endif
 
     private var mapStyle: MapStyle {
         switch style {
