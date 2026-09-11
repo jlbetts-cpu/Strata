@@ -204,7 +204,57 @@ the numbers above to need one adjustment by eye.
 
 ---
 
-## 8. Parked: 17 of 29 milestones cannot fire
+## 8. Zoomed out, the map should answer "where", not "what"
+
+**Owner, 2026-09-11:** "the location of where you are needs to be more
+prominent than the photos, the photos shouldnt be so huge when you scroll out.
+like you should know where you are before you know what pictures you took in
+areas right?"
+
+**This reverses a decision already in the code, deliberately.** `mapStyle` for
+`.quiet` carries: "Far out it is nearly-blank geometry with no labels at all,
+so the blocks are the only thing on the screen with anything to say." That was
+the owner's earlier call after seeing both grounds side by side. It is being
+changed on purpose — do not "fix" it back to the comment.
+
+**Why it reads wrong now, and it is arithmetic rather than taste.** A cluster's
+size comes from `MonthTower.size(forWinCount:)`: 1-2 small, 3-6 medium, 7+ a
+2x2. Zooming OUT merges clusters, which raises each one's count, which makes
+the block BIGGER. So the further you pull back — exactly when you most need to
+read the map — the more of it the photographs cover.
+
+**The shape to build.** Size should depend on zoom as well as count, and the
+map's own information should arrive in the opposite order to now:
+
+- **Far out** — geography legible. Every cluster is a small marker carrying its
+  count, not a photograph at full size. The question here is "which town", and
+  a photograph cannot answer it.
+- **Mid** — blocks appear, still modest.
+- **Close** — the current behaviour: full size by win count, labels up, scrim
+  down. Here the question has become "which corner", and the photograph IS the
+  answer.
+
+**Things to get right.**
+
+- Cap the drawn size by zoom, rather than changing `MonthTower.size`. That
+  function is shared with the month tower, where the rank by count is correct
+  and must not move.
+- `targetBlockPitch` (116) is the distance between neighbouring cells and must
+  stay larger than the biggest block drawn, or blocks overlap — see
+  `Cluster.anchor`. Smaller blocks far out means more headroom, not less.
+- The scrim currently sits at 0.10 far out and 0.03 close, on the reasoning
+  that far out there is no type to wash. If names now matter far out, that
+  inverts too: a wash over type is what makes a map look cheap.
+- A small marker on a busy map needs its own contrast rather than a scrim's
+  help — a ring and a shadow, the way a pin carries itself.
+
+**Verification.** `-strataMapSweep` walks a zoom ladder; film it and check at
+each step that the place names are readable and the blocks are not the largest
+thing on screen until you are close.
+
+---
+
+## 9. Parked: 17 of 29 milestones cannot fire
 
 Not for now — badges are a later system, and pacing the app around rewards that
 do not exist yet is backwards. Recorded because it is a real defect and will
@@ -233,7 +283,7 @@ their tower is; a sighted one does not.
 
 ---
 
-## 9. Small and true
+## 10. Small and true
 
 - **Stale comment.** `ImageManager.loadThumbnail` still describes decoding on
   "Swift's cooperative pool". It was measured (545ms vs 116ms at n=80) and
