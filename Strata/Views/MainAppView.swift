@@ -157,6 +157,8 @@ struct MainAppView: View {
     /// finished line with no block behind it, and the plan claimed something
     /// that had not happened.
     @State private var tickAwaitingWin: UUID?
+    /// The orphan sweep runs once a launch, not once a refresh.
+    @State private var hasPrunedImages = false
     @State private var isPlanning = false
 
     // Skeleton build-up animation
@@ -1508,6 +1510,9 @@ struct MainAppView: View {
         // that walks the real first launch.
         dropWelcomeWinIfNeeded()
 
+        // After the store is settled and before anything draws from disk.
+        pruneOrphanedImages()
+
         #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()
@@ -1829,6 +1834,34 @@ struct MainAppView: View {
 
         publishWidgetSnapshot()
         return droppedIDs
+    }
+
+    /// Collect photographs no win points at any more.
+    ///
+    /// **Once per launch, and only on a fetch that is known to have
+    /// succeeded.** This is the one path in the app that deletes real user
+    /// photographs, so the guard matters more than the feature: `try?` would
+    /// turn a failed fetch into an empty set, and an empty set means "nothing
+    /// is referenced", which would erase every picture the person owns. A
+    /// `do/catch` keeps a throw distinguishable from a store that legitimately
+    /// holds no photographs.
+    private func pruneOrphanedImages() {
+        guard !hasPrunedImages else { return }
+        hasPrunedImages = true
+        let referenced: Set<String>
+        do {
+            let logs = try modelContext.fetch(FetchDescriptor<HabitLog>())
+            referenced = Set(logs.compactMap(\.imageFileName))
+        } catch {
+            // A fetch that threw tells us nothing about what is referenced,
+            // and acting on nothing here deletes everything.
+            NSLog("[strata] orphan sweep skipped: \(error)")
+            return
+        }
+        let removed = ImageManager.shared.pruneOrphans(referenced: referenced)
+        if removed > 0 {
+            NSLog("[strata] orphan sweep removed \(removed) unreferenced photographs")
+        }
     }
 
     /// Hand the home screen a few hundred bytes of already-decided facts.

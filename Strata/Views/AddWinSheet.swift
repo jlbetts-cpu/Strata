@@ -477,23 +477,27 @@ struct AddWinSheet: View {
         .labelsHidden()
     }
 
+    /// **The platform's destructive button, not a copy of one.**
+    ///
+    /// It was a hand-built pill: a plain button whose label carried its own
+    /// red-tinted rounded rectangle. That is `.bordered` with a destructive
+    /// role, re-implemented and slightly wrong — "look at delete button in
+    /// edit it looks off stuff like that should be native looking."
+    ///
+    /// The whole app had 20 `.buttonStyle(.plain)` and not one native style,
+    /// which is how every button ended up being a small act of invention. The
+    /// departure from the platform is meant to be the camera, the blocks and
+    /// the numbers; a delete button is none of those.
     private var deleteButton: some View {
-        Button(role: .destructive) {
+        Button("Delete", role: .destructive) {
             HapticsEngine.tick()
             confirmingDelete = true
-        } label: {
-            Text("Delete")
-                .font(Typography.bodyMedium)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
-                        .fill(Color.red.opacity(0.10))
-                )
-                .foregroundStyle(.red)
         }
-        .buttonStyle(.plain)
-        .padding(.top, 4)
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .tint(.red)
+        .frame(maxWidth: .infinity)
+        .padding(.top, GridConstants.gapTight)
     }
 
     // MARK: - Load, save, delete
@@ -612,16 +616,32 @@ struct AddWinSheet: View {
             log.longitude = place.longitude
             log.locationAccuracy = place.accuracy
         }
+        // The file this is replacing, if any. Deleted only AFTER the new one
+        // is safely written — the other order loses the photograph outright if
+        // the save fails.
+        let previous = log.imageFileName
         Task { @MainActor in
             if let name = try? await ImageManager.shared.save(image: image, for: id) {
                 log.imageFileName = name
                 try? modelContext.save()
+                if let previous, previous != name {
+                    ImageManager.shared.deleteImage(fileName: previous)
+                }
             }
         }
     }
 
     private func deleteIt() {
         guard let habit = editing else { return }
+        // **The photographs go with it.** Deleting the rows and leaving the
+        // files was one of three leaks that put 3127 images and 522MB on a
+        // phone. Read the names BEFORE the entities go, or there is nothing
+        // left to read them from.
+        for log in habit.logs {
+            if let name = log.imageFileName {
+                ImageManager.shared.deleteImage(fileName: name)
+            }
+        }
         for log in habit.logs { modelContext.delete(log) }
         PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
         modelContext.delete(habit)

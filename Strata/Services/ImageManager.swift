@@ -39,6 +39,41 @@ final class ImageManager: @unchecked Sendable {
         return (items.count, bytes)
     }
 
+    /// Delete image files that no win refers to any more.
+    ///
+    /// **Nothing in this app had ever cleaned up, and it showed: 3127
+    /// photographs, 522MB, on a phone whose owner had taken a fraction of
+    /// that.** Three paths leaked. Deleting a win removed the rows and left
+    /// its pictures on disk; replacing a photograph overwrote `imageFileName`
+    /// and abandoned the file it had pointed at; and no sweep existed to
+    /// collect either. All three are fixed, but the files already stranded can
+    /// only be found this way.
+    ///
+    /// **This is the most dangerous function in the app.** CLAUDE.md: "Never
+    /// delete or rewrite image files on a code path that only meant to read
+    /// them." This one means to delete, which is exactly why the caller must
+    /// hand over a set it KNOWS is complete — a failed fetch presented as an
+    /// empty set would erase every photograph the user has. The caller
+    /// distinguishes a throw from an empty result; this refuses to help it
+    /// cheat, and takes the set rather than fetching one itself.
+    ///
+    /// - Parameter referenced: every file name any log points at, complete.
+    /// - Returns: how many files were removed, for the log.
+    @discardableResult
+    func pruneOrphans(referenced: Set<String>) -> Int {
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: imageDirectory, includingPropertiesForKeys: nil) else { return 0 }
+        var removed = 0
+        for url in items {
+            let name = url.lastPathComponent
+            guard !name.hasPrefix("."), !referenced.contains(name) else { continue }
+            try? FileManager.default.removeItem(at: url)
+            removed += 1
+        }
+        if removed > 0 { thumbnailCache.removeAllObjects() }
+        return removed
+    }
+
     private init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         imageDirectory = docs.appendingPathComponent("strata-images", isDirectory: true)
@@ -224,6 +259,10 @@ final class ImageManager: @unchecked Sendable {
         // and hardcoded widths miss actual display sizes. Regeneration is cheap.
         thumbnailCache.removeAllObjects()
     }
+
+    /// The directory, for the prune tests. They need real files on disk —
+    /// there is no way to test a function about the file system otherwise.
+    var imageDirectoryForTesting: URL { imageDirectory }
 
     /// Drops every cached thumbnail. Only a benchmark needs this — it exists
     /// so a measurement can start cold rather than reporting cache hits.
