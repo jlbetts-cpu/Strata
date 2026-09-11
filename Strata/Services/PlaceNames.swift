@@ -59,8 +59,18 @@ final class PlaceNames {
     /// that is merely the number plus the street is stepped over in favour of
     /// the street, then the neighbourhood, then the town.
     static func label(from mark: CLPlacemark) -> String? {
+        // **Anything starting with a house number is an address.**
+        //
+        // The equality test below was not enough: CoreLocation returned
+        // "1 Fennel House, Sycamore Avenue" as a `name`, which matched nothing
+        // it was compared against and sailed through. Photographed in the
+        // viewer, the caption read "1 Fennel House, Syca…" — somebody's front
+        // door, truncated. A memory is "Trafalgar Square" or "The Green Park",
+        // never a postal address, and the cheapest reliable test for the
+        // difference is whether it opens with a digit.
         if let name = mark.name,
            !name.isEmpty,
+           name.first?.isNumber != true,
            name != [mark.subThoroughfare, mark.thoroughfare]
                .compactMap({ $0 }).joined(separator: " ") {
             return name

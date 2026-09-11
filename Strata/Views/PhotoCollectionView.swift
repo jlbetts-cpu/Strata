@@ -71,7 +71,18 @@ struct PhotoCollectionView: View {
     }
 
     private func load() {
-        var descriptor = FetchDescriptor<HabitLog>()
+        // **Only rows that could possibly appear here.**
+        //
+        // This fetched EVERY log the store has ever held and then filtered in
+        // Swift — and every screen it opens is a screen of photographs, so
+        // every row without one was materialised, prefetched through its
+        // relationship, and thrown away. On a year of daily wins that is
+        // hundreds of objects built to show none of them. `imageFileName !=
+        // nil` is the same test `MemoriesViewModel.loadCarousel` already uses
+        // for the same reason.
+        var descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.imageFileName != nil && $0.completed }
+        )
         descriptor.relationshipKeyPathsForPrefetching = [\.habit]
         let logs = (try? modelContext.fetch(descriptor)) ?? []
         let records = Album.records(from: logs)

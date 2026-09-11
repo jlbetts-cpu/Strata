@@ -31,17 +31,23 @@ struct SettingsView: View {
 
     /// What the photographs are costing, in the units a phone uses.
     ///
-    /// Measured off the folder rather than counted as they are written: a
-    /// counter drifts the first time anything writes a file without telling
-    /// it, and this is a number somebody is checking precisely because they
-    /// want the truth.
-    private var storageLine: String {
-        let used = ImageManager.shared.storageUsed()
-        guard used.count > 0 else { return "No photographs stored yet." }
+    /// **Measured once, off the main thread, not per body evaluation.** It was
+    /// a computed property that walked the image directory — so every time
+    /// SwiftUI re-evaluated this screen, which is every toggle and every
+    /// scroll, it did file I/O on the main thread to produce a string almost
+    /// nobody was reading yet. That is exactly the kind of thing that makes an
+    /// app feel heavy for no reason anybody can point at.
+    @State private var storageLine = " "
+
+    private func measureStorage() async {
+        let used = await Task.detached(priority: .utility) {
+            ImageManager.shared.storageUsed()
+        }.value
+        guard used.count > 0 else { storageLine = "No photographs stored yet."; return }
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         let size = formatter.string(fromByteCount: used.bytes)
-        return "\(used.count) photograph\(used.count == 1 ? "" : "s"), \(size)."
+        storageLine = "\(used.count) photograph\(used.count == 1 ? "" : "s"), \(size)."
     }
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
@@ -347,6 +353,7 @@ struct SettingsView: View {
 
             #endif
         }
+        .task { await measureStorage() }
         .fullScreenCover(isPresented: $replayOnboarding) {
             OnboardingView { replayOnboarding = false }
         }

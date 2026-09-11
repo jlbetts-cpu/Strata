@@ -83,11 +83,11 @@ struct PhotoViewer: View {
                             width: geo.size.width,
                             height: geo.size.height
                                 - Self.topInset - Self.bottomInset
-                                - Self.dateHeight - Self.stripHeight
+                                - dateHeight - Self.stripHeight
                         ), topPadding: Self.headerHeight)
 
                         dateLine
-                            .frame(height: Self.dateHeight)
+                            .frame(height: dateHeight)
 
                         filmstrip
                             .frame(height: Self.stripHeight)
@@ -142,7 +142,9 @@ struct PhotoViewer: View {
     private static let topInset: CGFloat = 58
     private static let bottomInset: CGFloat = 28
     private static let headerHeight: CGFloat = 44
-    private static let dateHeight: CGFloat = 34
+    /// The band under the picture. Taller when there is a place to name, so
+    /// the second line has somewhere to go rather than squeezing the deck.
+    private var dateHeight: CGFloat { placeLine == nil ? 34 : 56 }
     private static let stripHeight: CGFloat = 74
     /// How far the print sits in from the edge of the screen.
     private static let printInset: CGFloat = 20
@@ -274,27 +276,28 @@ struct PhotoViewer: View {
                         }
                         .buttonStyle(.plain)
                         .visualEffect { view, geo in
-                            let t = offAxis(geo)
-                            let d = abs(t)
+                            let d = abs(offAxis(geo))
+                            // **No rotation.** This was a coverflow wheel —
+                            // asked for, built, and then seen: "why are the
+                            // photos rotated weirly on the bottom, that has to
+                            // be cleaned up."
+                            //
+                            // The reason it does not work is not taste. A
+                            // filmstrip has one job: you are scanning for a
+                            // picture you remember, and a photograph turned
+                            // forty degrees away is a sliver of itself. The
+                            // effect was making the content harder to read in
+                            // order to look impressive, which is the wrong
+                            // trade on every screen and especially this one.
+                            //
+                            // Depth without distortion: the middle frame is
+                            // nearer, its neighbours recede, sit slightly
+                            // lower and go slightly quiet. Every frame stays
+                            // square on.
                             return view
-                                // Turned away from you, the far edge genuinely
-                                // further — that is what reads as depth rather
-                                // than as a squash. Capped at 42 degrees:
-                                // past about 55 a rectangle becomes a sliver
-                                // and the photograph stops being readable,
-                                // which is the mistake every coverflow
-                                // imitation makes.
-                                .rotation3DEffect(.degrees(t * -42),
-                                                  axis: (x: 0, y: 1, z: 0),
-                                                  anchor: .center,
-                                                  perspective: 0.5)
-                                // Receding, and lower on the wheel the way a
-                                // real one turns under the horizon. Both
-                                // small: the rotation does most of the work,
-                                // and two large cues read as an effect rather
-                                // than as a place.
-                                .scaleEffect(1 - 0.18 * d, anchor: .bottom)
-                                .offset(y: 7 * d)
+                                .scaleEffect(1 - 0.22 * d, anchor: .bottom)
+                                .offset(y: 5 * d)
+                                .opacity(1 - 0.3 * d)
                         }
                         // The centre card passes in FRONT of its neighbours.
                         // Without this the arriving card is drawn under the
@@ -409,9 +412,27 @@ struct PhotoViewer: View {
         // to read. Photos does the same. It appears only when there is one,
         // and it appears LATE — the name is a network call — so it fades in
         // rather than pushing the line about.
-        Text(caption)
-            .font(Typography.screenSubtitle)
-            .foregroundStyle(.white.opacity(0.45))
+        // **Two lines, so neither of them truncates.**
+        //
+        // It was one: size, date, time and place joined by middots, and on a
+        // real photograph that ran off the edge — "Regular · 8 September ·
+        // 6:26 PM · 1 Fennel House, Syca…". The owner read that as the
+        // location not being shown at all, which is fair: a fact you cannot
+        // finish reading has not been shown to you.
+        //
+        // The second line only exists when there is a place, so the screen
+        // does not grow chrome for photographs that have none.
+        VStack(spacing: 2) {
+            Text(caption)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(.white.opacity(0.45))
+            if let place = placeLine {
+                Label(place, systemImage: "mappin.and.ellipse")
+                    .font(Typography.photoCaption)
+                    .foregroundStyle(.white.opacity(0.38))
+                    .labelStyle(.titleAndIcon)
+            }
+        }
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, GridConstants.horizontalPadding)
@@ -430,19 +451,39 @@ struct PhotoViewer: View {
         guard let current else { return " " }
         // Size first: it is the one fact about the win that the picture cannot
         // show you, and it is why the block on the tower is the shape it is.
-        var parts = [current.size.effortLabel,
-                     Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)]
-        if let place = current.place,
-           let name = placeName ?? PlaceNames.shared.name(for: place) {
-            parts.append(name)
-        }
-        return parts.joined(separator: " · ")
+        return current.size.effortLabel + " · "
+            + Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)
     }
 
+    /// The place, on its own line, once its name has arrived.
+    private var placeLine: String? {
+        guard let place = current?.place else { return nil }
+        return placeName ?? PlaceNames.shared.name(for: place)
+    }
+
+    /// The viewer's own chrome: close, share, delete.
+    ///
+    /// **On glass, not bare.** These were white glyphs with nothing behind
+    /// them, which is fine while the header sits on black and fails the moment
+    /// it does not — and since today the deck reaches up behind the header, a
+    /// tall photograph can arrive directly under them. A white glyph on a
+    /// white sky is not a control.
+    ///
+    /// `glassCircle` is the same material `GlassIconButton` uses on the map
+    /// and the camera, so the app has one answer for "a control standing on
+    /// somebody's photograph" rather than three.
     private func chromeGlyph(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 17, weight: .medium))
+            .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(.white)
+            .frame(width: 36, height: 36)
+            .background {
+                if #available(iOS 26.0, *) {
+                    Circle().fill(.clear).glassEffect(.regular, in: .circle)
+                } else {
+                    Circle().fill(.ultraThinMaterial)
+                }
+            }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
     }
