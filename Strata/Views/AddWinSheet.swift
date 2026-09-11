@@ -496,7 +496,13 @@ struct AddWinSheet: View {
         .buttonStyle(.bordered)
         .controlSize(.large)
         .tint(.red)
-        .frame(maxWidth: .infinity)
+        // **Its own width, pinned left.** Stretched edge to edge it was the
+        // only centred thing on a form where every label, field and control
+        // starts at the same left margin: "the delete button looks weird in
+        // the add menu because everything else is left aligned." A native
+        // button sizes to its content; making it full width was the last
+        // piece of the hand-built version still hanging on.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, GridConstants.gapTight)
     }
 

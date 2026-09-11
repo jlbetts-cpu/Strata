@@ -417,6 +417,19 @@ struct MainAppView: View {
                 if newPhase == .active {
                     focusFilterService.refresh()
                     SpotlightIndexer.reindex(container: SharedModelContainer.shared)
+                } else {
+                    // **Leaving the app is the moment before the home screen
+                    // is looked at.** The snapshot was only ever published
+                    // from `refreshData`, which runs while you are still in
+                    // here — so a win logged and then swiped away from could
+                    // reach the widget late: "widget doesnt update fast when
+                    // you add a win for the home widget."
+                    //
+                    // Free when nothing changed, because `writeIfChanged`
+                    // compares before writing and only then asks WidgetKit to
+                    // reload. A reload request is the thing the system
+                    // throttles; a no-op is not one.
+                    publishWidgetSnapshot()
                 }
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
