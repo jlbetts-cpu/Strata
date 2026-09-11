@@ -726,6 +726,9 @@ private struct PlaceBlock: View {
                                     height: Self.cell * 2,
                                     cornerRadius: 0)
                         .frame(width: size.width, height: size.height)
+                        // See `FlippableBlockView`: a hair of overscan, so the
+                        // colour behind cannot show at a rounded corner.
+                        .scaleEffect(1.03)
                 }
             }
         }

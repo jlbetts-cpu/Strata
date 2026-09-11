@@ -228,9 +228,25 @@ struct AddWinSheet: View {
         } label: {
             ZStack {
                 if let photo {
+                    // **Bounded here, not only by the frame below.**
+                    //
+                    // `scaledToFill` with nothing to fill wants the image's
+                    // natural size — three thousand points across for a real
+                    // photograph — and `clipShape` clips DRAWING, not hit
+                    // testing. So the well's touch area covered the whole
+                    // sheet and swallowed taps on the title field above it:
+                    // the owner's report was "once a photo is added you can
+                    // edit the title no more". Nothing errored, nothing looked
+                    // wrong, the field simply stopped answering.
+                    //
+                    // Same family as the `.offset` trap CLAUDE.md records on
+                    // the month tower, and as the onboarding wordmark that an
+                    // unbounded `scaledToFill` dragged off the left edge.
                     Image(uiImage: photo)
                         .resizable()
                         .scaledToFill()
+                        .frame(width: w, height: h)
+                        .clipped()
                 } else {
                     // The tower's empty slot, at this size. A photo well is
                     // literally "a block goes here, with a picture on it", and
@@ -252,6 +268,8 @@ struct AddWinSheet: View {
             }
             .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
+            // And the hit area is the shape, not whatever the content grew to.
+            .contentShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
             .overlay {
                 // Empty, it is a slot: dashed, like the one at the top of the
                 // tower. Filled, it is a block: a white rim, like every other

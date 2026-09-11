@@ -62,23 +62,28 @@ enum PlaceMap {
         /// The same rank encoding the month tower uses. Restated nowhere.
         var size: BlockSize { MonthTower.size(forWinCount: winCount) }
 
-        /// **Where the block is DRAWN** — the centre of its cell, not the
-        /// centroid of its members.
+        /// **Where the block is DRAWN**: its true centroid, nudged only as far
+        /// as it must be to keep blocks from overlapping.
         ///
-        /// The centroid is where the place is; the cell centre is where the
-        /// block goes, and they have to be different because a block has a
-        /// size. A centroid can sit anywhere in its cell, so two blocks in
-        /// neighbouring cells can be drawn a few points apart while each is
-        /// ninety points wide — measured on the simulator, that is two blocks
-        /// overlapping, which reads as a rendering fault rather than as a map.
-        /// Anchoring to the cell puts every block exactly one pitch from its
-        /// neighbour, so the map is a lattice of blocks the way the tower is,
-        /// and the offset is bounded by half a cell — which by construction is
-        /// half a block on screen.
+        /// This was the cell's CENTRE, which guaranteed no two blocks could
+        /// touch and was badly wrong about where things happened. The owner,
+        /// testing on real wins: "the location blocks are a bit innacurate, it
+        /// wont even be in the same area." Measured, he was understating it —
+        /// pinning to a cell centre displaces a block by up to half a cell,
+        /// and half a cell is 1.2km at the zoom where you see a city and 4.9km
+        /// one step out. A map that puts your morning in the wrong
+        /// neighbourhood is not a map.
         ///
-        /// Computed, not stored, so it cannot drift from `key` and so the
-        /// memberwise initializer is unchanged.
-        var anchor: (latitude: Double, longitude: Double) { PlaceMap.centre(of: key) }
+        /// So the block stands on its members and is clamped into the middle
+        /// of its cell only by the width of the block itself. Two neighbours
+        /// still cannot overlap — each is confined to a box a block narrower
+        /// than the cell, so the gap between boxes is exactly one block — and
+        /// whenever the real centroid is inside that box, which is most of the
+        /// time, the block is drawn exactly where the photograph was taken.
+        /// The worst-case error drops from half a cell to half a block.
+        var anchor: (latitude: Double, longitude: Double) {
+            PlaceMap.anchor(forCentroidAt: (latitude, longitude), in: key, size: size)
+        }
     }
 
     // MARK: - Tuning
@@ -161,6 +166,41 @@ enum PlaceMap {
         let longitude = x * 360 - 180
         let latitude = atan(sinh(.pi * (1 - 2 * y))) * 180 / .pi
         return (latitude, longitude)
+    }
+
+    /// A block's own width on screen, in points.
+    ///
+    /// Mirrors `PlaceBlock` in `MemoriesMapView`, and has to: the clamp below
+    /// is the reason two blocks cannot overlap, and it can only promise that
+    /// if it knows how wide they actually are. `targetBlockPitch` is the other
+    /// half of the same arithmetic and lives here for the same reason.
+    static func blockPoints(for size: BlockSize) -> Double {
+        let cell = 44.0, gutter = 2.0
+        return cell * Double(size.columnSpan) + gutter * Double(size.columnSpan - 1)
+    }
+
+    /// The centroid, clamped into the part of its cell where a block of that
+    /// size cannot reach a neighbour.
+    ///
+    /// The window is the cell less one block, centred: a block whose centre
+    /// stays inside it keeps at least half its width from every edge, so two
+    /// blocks in touching cells are always at least a block apart. Everything
+    /// inside the window is drawn exactly where it happened.
+    static func anchor(forCentroidAt centroid: (latitude: Double, longitude: Double),
+                       in key: PlaceKey,
+                       size: BlockSize) -> (latitude: Double, longitude: Double) {
+        let side = cellSide(at: key.z)
+        // How much of a cell the block covers. Cells are `targetBlockPitch`
+        // points across by construction, so this is a plain ratio.
+        let covered = min(blockPoints(for: size) / targetBlockPitch, 1)
+        let room = side * (1 - covered) / 2
+
+        let (cx, cy) = ((Double(key.x) + 0.5) * side, (Double(key.y) + 0.5) * side)
+        let (px, py) = project(WinPlace(latitude: centroid.latitude,
+                                        longitude: centroid.longitude))
+        let x = min(max(px, cx - room), cx + room)
+        let y = min(max(py, cy - room), cy + room)
+        return unproject(x: x, y: y)
     }
 
     /// The middle of a cell, in degrees.

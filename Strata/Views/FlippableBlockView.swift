@@ -177,6 +177,17 @@ struct FlippableBlockView: View {
                     height: height,
                     cornerRadius: 0
                 )
+                    // **Overscanned by 3%.** The category colour sits behind
+                    // the photograph as the decode placeholder, and at a
+                    // rounded corner the antialiased edge of a pixel-exact
+                    // image lets a sliver of it through — the owner: "there is
+                    // a glitch where the color shows a little sometimes on the
+                    // blocks; if there is a photo added all you need to see is
+                    // the photo." A hair of overscan covers the seam without
+                    // touching `CachedImageView`'s cache key, which is the
+                    // requested WIDTH: changing that would re-decode the same
+                    // photograph at a second size.
+                    .scaleEffect(1.03)
 
                 RadialGradient(
                     colors: [
