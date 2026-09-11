@@ -355,6 +355,14 @@ enum DebugHarness {
         argument("-strataBenchImages").flatMap(Int.init)
     }
 
+    /// Photographs TODAY's seeded wins too, from `-strataSeedTodayPhotos`.
+    ///
+    /// The history fixture deliberately only photographs past days — the
+    /// shelf's curation gate is tuned against that. But the widget draws
+    /// TODAY, so with the normal fixture it can only ever show its empty
+    /// state, and the photograph path could not be looked at at all.
+    static var seedsTodayPhotos: Bool { argument("-strataSeedTodayPhotos") != nil }
+
     static var reportsStore: Bool { argument("-strataReportStore") != nil }
 
     /// Reports what the location service can see, from `-strataTestLocation`.
@@ -637,7 +645,7 @@ enum DebugHarness {
                     let title = titles[n % titles.count]
                     let isInterest = Self.seededInterests.contains(title)
                     let photographed = isInterest || (i == 0 && back % 2 == 0)
-                    if back > 0, photographed,
+                    if back > 0 || seedsTodayPhotos, photographed,
                        let log = win.habit.logs.first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
                             for: win.logID,

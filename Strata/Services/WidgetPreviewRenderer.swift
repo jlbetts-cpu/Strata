@@ -33,10 +33,21 @@ enum WidgetPreviewRenderer {
                     if family == .accessoryRectangular {
                         Color.black
                     } else {
-                        WidgetGround()
+                        // The same layer WidgetKit puts behind the content, so
+                        // the photograph reaches the corners here exactly as
+                        // it does on a home screen.
+                        TowerPhotoBackground(snapshot: snapshot)
                     }
                     TowerWidgetView(snapshot: snapshot, forcedFamily: family)
                         .padding(family == .accessoryRectangular ? 0 : 14)
+                        // **Frame the CONTENT, not just the stack.** The view
+                        // asks for infinite height so it can bottom-align
+                        // inside a widget; with the size only on the enclosing
+                        // ZStack it took that literally, laid out taller than
+                        // the frame, and the count fell off the bottom edge —
+                        // clipped on the small render and absent entirely on
+                        // the medium one.
+                        .frame(width: size.width, height: size.height)
                 }
                 .frame(width: size.width, height: size.height)
                 .environment(\.colorScheme, scheme)

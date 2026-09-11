@@ -17,7 +17,10 @@ struct StrataWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "StrataTower", provider: TowerProvider()) { entry in
             TowerWidgetView(snapshot: entry.snapshot, photoIndex: entry.photoIndex)
-                .containerBackground(for: .widget) { WidgetGround() }
+                .containerBackground(for: .widget) {
+                    TowerPhotoBackground(snapshot: entry.snapshot,
+                                         photoIndex: entry.photoIndex)
+                }
         }
         .configurationDisplayName("Today")
         .description("Todays wins, and what they looked like.")

@@ -42,12 +42,17 @@ struct WidgetSnapshot: Codable, Equatable {
             .appendingPathComponent("widget-photos", isDirectory: true)
     }
 
-    /// How wide a widget thumbnail is drawn, in pixels.
+    /// How wide a widget thumbnail is exported, in pixels.
     ///
-    /// A block on the small widget is around 38pt, so 128px covers it at 3x
-    /// with room to spare. Bigger would be spending the widget's memory on
-    /// detail nobody can see at that size.
-    static let photoPixels: CGFloat = 128
+    /// **Sized to the widget, not to a block.** This was 128, which covered a
+    /// 38pt block at 3x back when the widget drew a little tower of them. The
+    /// widget is now one photograph filling the frame — a small widget is
+    /// about 170pt, so 510px at 3x — and a 128px file stretched across it is a
+    /// 4x upscale: "the quality looks so low." It was.
+    ///
+    /// 600 covers that with headroom for the largest phones, and a JPEG at
+    /// this size is still tens of kilobytes. Today's photographs only.
+    static let photoPixels: CGFloat = 600
 
     /// Every win ever logged. The number on the tower's header.
     let total: Int

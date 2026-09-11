@@ -24,6 +24,42 @@ struct WidgetGround: View {
     }
 }
 
+/// The photograph, edge to edge, with a floor under the count.
+///
+/// **This has to be the container BACKGROUND, not content.** A widget's
+/// content sits inside system margins, so a photograph drawn there is a
+/// picture with a border round it: "the widget photo doesnt take up the whole
+/// small widget box." `containerBackground` is the layer that reaches the
+/// corners, and it is what WidgetKit expects a full-bleed widget to use.
+struct TowerPhotoBackground: View {
+    let snapshot: WidgetSnapshot
+    var photoIndex: Int = 0
+
+    private var photo: UIImage? {
+        let photos = snapshot.photos
+        guard !photos.isEmpty else { return nil }
+        return TowerWidgetView.image(named: photos[photoIndex % photos.count])
+    }
+
+    var body: some View {
+        ZStack {
+            WidgetGround()
+            if let photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                // The count sits ON the picture, so it needs a floor under it
+                // or a bright sky eats it. Bottom only, and gone by a third of
+                // the way up — a veil over the whole photograph would be the
+                // thing the tower's caption veil was dialled back for.
+                LinearGradient(
+                    colors: [.black.opacity(0.55), .black.opacity(0)],
+                    startPoint: .bottom, endPoint: .center)
+            }
+        }
+    }
+}
+
 struct TowerWidgetView: View {
     let snapshot: WidgetSnapshot
     /// Which of today's photographs to show — see `TowerProvider.getTimeline`.
@@ -69,24 +105,22 @@ struct TowerWidgetView: View {
     /// where a grid of small coloured rectangles does not — and the
     /// photographs are the part of this app nobody else has.
     private var homeScreen: some View {
-        ZStack(alignment: .bottomLeading) {
-            if let photo {
-                Image(uiImage: photo)
-                    .resizable()
-                    .scaledToFill()
-                // The count sits ON the picture, so it needs a floor under it
-                // or a bright sky eats it. Bottom only, and gone by a third of
-                // the way up: a veil over the whole photograph would be the
-                // thing the tower's own caption veil was dialled back for.
-                LinearGradient(
-                    colors: [.black.opacity(0.55), .black.opacity(0)],
-                    startPoint: .bottom, endPoint: .center)
-            } else {
+        // The photograph is the container's background — see
+        // `TowerPhotoBackground`. Content that tried to be full-bleed only
+        // ever got the inside of the system's margins.
+        //
+        // **The frame does the aligning, not a `Color.clear` spacer.** With a
+        // clear child the stack sized itself to the count and the bottom
+        // alignment had nothing to push against, so the number sat on the
+        // frame's edge and the numerals' descent was cut off.
+        Group {
+            if snapshot.photos.isEmpty {
                 empty
+            } else {
+                count
             }
-            if photo != nil { count.padding(12) }
         }
-        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
 
     /// Today's number, in the owner's own digits.
