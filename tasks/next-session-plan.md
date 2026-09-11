@@ -254,7 +254,50 @@ thing on screen until you are close.
 
 ---
 
-## 9. Parked: 17 of 29 milestones cannot fire
+## 9. The photo sticker should take more than a head
+
+**Owner, 2026-09-11:** "the part where they can add the head to the photos i
+think they should be able to add like emojis and other stuff too."
+
+**What exists.** `HeadSticker` places the living head on a photograph at a
+normalised `centre`, `width` (0.1...0.8 of the picture) and `angle`, snapping
+rotation every 4 degrees, and burns it in with `ImageRenderer` over the
+original. The placement model is already general — it says WHERE something
+goes, not WHAT it is.
+
+**The shape.** Make the thing being placed a case rather than always the head:
+
+```
+enum Stuck { case head, emoji(String), … }
+```
+
+`HeadStickerPlacement` becomes `StickerPlacement` and gains which one. The
+head's rendering path stays exactly as it is; an emoji is a `Text` at a size
+derived from the same `width`, rendered through the same `ImageRenderer`.
+
+**Why emoji first, and possibly only.** They need no assets, no picker UI
+beyond the system keyboard, no licensing, and they already carry meaning
+people have agreed on. The native emoji keyboard is the picker — a grid of our
+own would be a worse version of something every phone already has.
+
+**Get right.**
+
+- **One sticker or many?** The current model is one placement. Many means an
+  array, a selected index, and a z-order — a real step up in complexity. Start
+  with one and see whether anybody wants two.
+- **Burn-in is destructive.** The sticker is composited into the saved
+  photograph. CLAUDE.md: `imageFileName` points at real user photographs.
+  Either keep the original beside it or make the placement data and re-render,
+  but do not overwrite the only copy of somebody's picture.
+- **Emoji render at the system font**, so size comes from `width` times the
+  picture's width, not a point size — the same normalisation the head uses, or
+  a sticker will be a different size on every phone.
+- Accessibility: an emoji burnt into a photograph is invisible to VoiceOver.
+  The label should say it is there.
+
+---
+
+## 10. Parked: 17 of 29 milestones cannot fire
 
 Not for now — badges are a later system, and pacing the app around rewards that
 do not exist yet is backwards. Recorded because it is a real defect and will
@@ -283,7 +326,7 @@ their tower is; a sighted one does not.
 
 ---
 
-## 10. Small and true
+## 11. Small and true
 
 - **Stale comment.** `ImageManager.loadThumbnail` still describes decoding on
   "Swift's cooperative pool". It was measured (545ms vs 116ms at n=80) and
