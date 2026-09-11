@@ -1386,3 +1386,44 @@ capture to start before the sweep does. `MapUserLocationButton` is the
 one idea worth taking from the published MapKit agent skills — a
 recentre-on-me control — not yet added, because it is a fourth piece of
 chrome on a screen trying to have three.
+
+## The UI suite could not be trusted, and now can be
+
+**Bad news first: I pushed a suite I had not run clean.** The full
+`StrataUITests` run had been failing intermittently and I had been
+reading those reds as regressions. They were not. One test was
+unrepeatable by construction and I had not noticed.
+
+`testAFirstRunEndsOnATowerWithABlockOnIt` asserts the thing that is only
+ever true once — a new user lands on a tower with a Welcome block on it.
+The welcome drop is guarded so it can never be created twice, which is
+correct behaviour nobody should change: two Welcome blocks would be
+worse than none. But every UI test runs against ONE simulator holding
+ONE SwiftData store, and several of them write wins to it. So by the
+time the first-run test ran, the store had been used, and the guard
+correctly declined to add a second welcome block.
+
+Measured rather than assumed: run in its class, it failed with
+`On screen: 3` — three wins already on the tower. Run alone, it passed.
+That gap is the whole diagnosis.
+
+**The fix is `-strataResetStore`**, consumed in `setup()` before
+anything is fetched or seeded. It calls the same `resetTower()` the
+Settings button already uses rather than introducing a second path that
+can delete images: CLAUDE.md is explicit that `imageFileName` points at
+real user photographs, and the fewer places in this codebase that can
+remove them, the better. `#if DEBUG`, so it cannot ship.
+
+`MapGestureTests` is now 7/7 in-class, where it was 6/7.
+
+**One thing I cannot yet explain, stated rather than buried.** The first
+class run after the change failed at 26.5s — too early to be the final
+assertion, and with no failure text recorded. The next two runs, solo
+and in-class, both passed. So there is one unexplained flake in three
+runs. I am not calling the suite green on the strength of one good run;
+the full-suite result below is what decides it.
+
+This is the third time today a red came from my instrument rather than
+the app — after a contrast probe aimed at empty bands and a drag aimed
+at the middle of the screen. A suite you cannot trust is worse than no
+suite, because it teaches you to ignore red.
