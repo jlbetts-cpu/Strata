@@ -87,6 +87,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <key>provisioningProfiles</key>
     <dict>
         <key>JaydenBetts.Strata</key><string>Strata App Store (cli)</string>
+        <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
     </dict>
     <key>uploadSymbols</key><true/>
     <key>destination</key><string>export</string>
