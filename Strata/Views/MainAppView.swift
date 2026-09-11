@@ -1807,7 +1807,35 @@ struct MainAppView: View {
             }
         }
 
+        publishWidgetSnapshot()
         return droppedIDs
+    }
+
+    /// Hand the home screen a few hundred bytes of already-decided facts.
+    ///
+    /// See `WidgetSnapshot`: the widget deliberately cannot see the store, so
+    /// this is the only channel. It writes only on a real change, because
+    /// `refreshData()` runs on every save and asking WidgetKit to reload a
+    /// timeline it has already drawn spends the widget's budget and eventually
+    /// gets the updates throttled — which looks like a stale tower.
+    private func publishWidgetSnapshot() {
+        // Newest last, so the widget can take the tail and be showing the top
+        // of the tower.
+        let recent = towerVM.placedBlocks.suffix(WidgetSnapshot.blockCap).map { block in
+            WidgetSnapshot.Block(
+                columns: block.columnSpan,
+                rows: block.rowSpan,
+                hex: block.habit.displayCategory.style.baseHexString)
+        }
+        let snapshot = WidgetSnapshot(
+            total: towerVM.placedBlocks.count,
+            today: blocksToday,
+            streak: Streaks.current(among: logs.filter(\.completed).map(\.dateString)),
+            blocks: Array(recent),
+            updated: Date())
+        if snapshot.writeIfChanged() {
+            WidgetReloader.reload()
+        }
     }
 
     /// Hands every block that just arrived to the drop animator, exactly once.

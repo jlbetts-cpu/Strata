@@ -3,7 +3,16 @@ import UIKit
 
 struct CategoryStyle {
     /// The single solid category color
-    let baseColor: Color
+    /// The block's colour, as the number it is written as.
+    ///
+    /// Stored as the raw hex rather than a `Color` so there is ONE source for
+    /// it: the widget extension needs the same value as a string and cannot
+    /// see `HabitCategory`, and a second copy of the palette would drift the
+    /// first time anyone retuned a colour.
+    let baseHex: UInt
+    var baseColor: Color { Color(hex: baseHex) }
+    /// `RRGGBB`, for anything outside this target.
+    var baseHexString: String { String(format: "%06X", baseHex) }
     let border: Color
     let glow: Color
     let text: Color
@@ -35,7 +44,7 @@ extension HabitCategory {
         switch self {
         case .health:
             return CategoryStyle(
-                baseColor: Color(hex: 0x0EAD74),   // Deeper for WCAG contrast
+                baseHex: 0x0EAD74,   // Deeper for WCAG contrast
                 border: Color(hex: 0x0B9362),
                 glow: Color(hex: 0x0EAD74).opacity(0.20),
                 text: .white,
@@ -44,7 +53,7 @@ extension HabitCategory {
             )
         case .work:
             return CategoryStyle(
-                baseColor: Color(hex: 0x40A9FF),
+                baseHex: 0x40A9FF,
                 border: Color(hex: 0x2E8BE6),
                 glow: Color(hex: 0x40A9FF).opacity(0.30),
                 text: .white,
@@ -53,7 +62,7 @@ extension HabitCategory {
             )
         case .creativity:
             return CategoryStyle(
-                baseColor: Color(hex: 0xAF9CFA),
+                baseHex: 0xAF9CFA,
                 border: Color(hex: 0x826DD0),
                 glow: Color(hex: 0xAF9CFA).opacity(0.30),
                 text: .white,
@@ -62,7 +71,7 @@ extension HabitCategory {
             )
         case .focus:
             return CategoryStyle(
-                baseColor: Color(hex: 0xFDB54F),
+                baseHex: 0xFDB54F,
                 border: Color(hex: 0xD99A3A),
                 glow: Color(hex: 0xFDB54F).opacity(0.30),
                 text: .white,
@@ -71,7 +80,7 @@ extension HabitCategory {
             )
         case .social:
             return CategoryStyle(
-                baseColor: Color(hex: 0xF97066),   // Coral — 153° from Health, ADHD-safe
+                baseHex: 0xF97066,   // Coral — 153° from Health, ADHD-safe
                 border: Color(hex: 0xD45E55),
                 glow: Color(hex: 0xF97066).opacity(0.20),
                 text: .white,
@@ -82,7 +91,7 @@ extension HabitCategory {
             // Warm grey, sitting in the same family as the ground rather than
             // competing with the six category colours.
             return CategoryStyle(
-                baseColor: Color(hex: 0x9C9791),
+                baseHex: 0x9C9791,
                 border: Color(hex: 0x857F79),
                 glow: Color(hex: 0x9C9791).opacity(0.30),
                 text: .white,
@@ -91,7 +100,7 @@ extension HabitCategory {
             )
         case .mindfulness:
             return CategoryStyle(
-                baseColor: Color(hex: 0xEC85B4),
+                baseHex: 0xEC85B4,
                 border: Color(hex: 0xC86B98),
                 glow: Color(hex: 0xEC85B4).opacity(0.30),
                 text: .white,
