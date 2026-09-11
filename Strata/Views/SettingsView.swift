@@ -106,7 +106,7 @@ struct SettingsView: View {
                     Label {
                         Text("Daily Reminder")
                     } icon: {
-                        SettingsIcon(systemName: "bell.fill", tint: HabitCategory.focus.style.baseColor)
+                        SettingsIcon(systemName: "bell.fill")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -160,7 +160,7 @@ struct SettingsView: View {
                     Label {
                         Text("Completion Sounds")
                     } icon: {
-                        SettingsIcon(systemName: "speaker.wave.2.fill", tint: HabitCategory.creativity.style.baseColor)
+                        SettingsIcon(systemName: "speaker.wave.2.fill")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -175,7 +175,7 @@ struct SettingsView: View {
                     Label {
                         Text("Save to Photos")
                     } icon: {
-                        SettingsIcon(systemName: "photo.on.rectangle.angled", tint: HabitCategory.mindfulness.style.baseColor)
+                        SettingsIcon(systemName: "photo.on.rectangle.angled")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -188,8 +188,7 @@ struct SettingsView: View {
                     Label {
                         Text("Remember Places")
                     } icon: {
-                        SettingsIcon(systemName: "mappin.and.ellipse",
-                                     tint: HabitCategory.health.style.baseColor)
+                        SettingsIcon(systemName: "mappin.and.ellipse")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -220,8 +219,7 @@ struct SettingsView: View {
                         Text("How Strata works")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "questionmark.circle",
-                                     tint: HabitCategory.creativity.style.baseColor)
+                        SettingsIcon(systemName: "questionmark.circle")
                     }
                 }
             } footer: {
@@ -238,7 +236,7 @@ struct SettingsView: View {
                     Label {
                         Text("Haptic Feedback")
                     } icon: {
-                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right", tint: HabitCategory.health.style.baseColor)
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -255,7 +253,7 @@ struct SettingsView: View {
                         Text("Back Up Everything")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "square.and.arrow.up", tint: HabitCategory.work.style.baseColor)
+                        SettingsIcon(systemName: "square.and.arrow.up")
                     }
                 }
                 .disabled(habits.isEmpty)
@@ -267,6 +265,11 @@ struct SettingsView: View {
                     Label {
                         Text("Reset All Data")
                     } icon: {
+                        // **The one that keeps its colour.** Red here is not
+                        // decoration, it is the meaning: this row erases
+                        // everything, and every platform marks that in red.
+                        // The rule is that colour must MEAN something, not
+                        // that chrome is grey.
                         SettingsIcon(systemName: "trash.fill", tint: AppColors.warmRed)
                     }
                 }
@@ -299,7 +302,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     } icon: {
-                        SettingsIcon(systemName: "envelope.fill", tint: HabitCategory.social.style.baseColor)
+                        SettingsIcon(systemName: "envelope.fill")
                     }
                 }
 
@@ -310,7 +313,7 @@ struct SettingsView: View {
                         Text("Rate on App Store")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "star.fill", tint: HabitCategory.focus.style.baseColor)
+                        SettingsIcon(systemName: "star.fill")
                     }
                 }
             }
@@ -332,7 +335,7 @@ struct SettingsView: View {
                     Label {
                         Text("Privacy")
                     } icon: {
-                        SettingsIcon(systemName: "hand.raised.fill", tint: HabitCategory.creativity.style.baseColor)
+                        SettingsIcon(systemName: "hand.raised.fill")
                     }
                 }
             } footer: {
@@ -574,7 +577,7 @@ private struct SettingsIcon: View {
             cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
             scale: Self.side / GridConstants.blockReferenceCell
         ) {
-            tint ?? AppColors.warmBlack.opacity(0.55)
+            tint ?? AppColors.chromeFill
         }
         .frame(width: Self.side, height: Self.side)
         .overlay {

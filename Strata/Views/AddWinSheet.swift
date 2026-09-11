@@ -89,7 +89,22 @@ struct AddWinSheet: View {
 
                     photoWell
 
-                    field("Colour") { categoryControl }
+                    // **No colour picker once there is a photograph.**
+                    //
+                    // A block with a picture on it shows the picture; the
+                    // colour underneath is never seen, so offering it is
+                    // asking for a decision that changes nothing. The same
+                    // reasoning took the category colour off map blocks that
+                    // carry a photograph.
+                    //
+                    // The category is KEPT, not cleared — remove the
+                    // photograph and the block needs its colour back, and
+                    // silently discarding a choice somebody made would be
+                    // worse than hiding the control.
+                    if photo == nil {
+                        field("Colour") { categoryControl }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                     field("Size") { sizeControl }
 
                     if isEditing {
@@ -433,32 +448,33 @@ struct AddWinSheet: View {
     /// the shapes tell you the geometry, the words tell you what the geometry
     /// is FOR, and "Deep" is the thing you are actually choosing.
     private var sizeControl: some View {
-        HStack(spacing: 6) {
+        // **The platform's control for three exclusive options.**
+        //
+        // This was three hand-built buttons with their own fill, corner and
+        // selected state — a segmented control re-implemented, and it looked
+        // like one that had been re-implemented: "the buttons like quick,
+        // regular, deep i wish they were more apple buttons." `Picker` IS the
+        // control, it comes with the selection indicator, the sliding
+        // animation, the keyboard and VoiceOver behaviour, and on iOS 26 the
+        // system's own glass treatment — none of which the hand-built version
+        // had.
+        //
+        // The haptic and the shared transaction stay: changing this resizes
+        // the photo well and moves everything under it, and that has to be ONE
+        // animation or the parts look like they are moving separately.
+        Picker("Size", selection: Binding(
+            get: { size },
+            set: { chosen in
+                guard chosen != size else { return }
+                HapticsEngine.tick()
+                withAnimation(GridConstants.slotSnap) { size = chosen }
+            })) {
             ForEach([BlockSize.small, .medium, .hard], id: \.self) { option in
-                let isSelected = size == option
-                Button {
-                    HapticsEngine.tick()
-                    // One transaction for the whole change: the well resizes,
-                    // the sections below it move, and this button fills — all
-                    // on the same spring.
-                    withAnimation(GridConstants.slotSnap) { size = option }
-                } label: {
-                    Text(option.effortLabel)
-                        .font(Typography.bodySmall)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(
-                            isSelected ? AnyShapeStyle(category.style.baseColor)
-                                       : AnyShapeStyle(GridConstants.fillTrack),
-                            in: RoundedRectangle(cornerRadius: GridConstants.radiusControl, style: .continuous)
-                        )
-                        .foregroundStyle(isSelected ? .white : .primary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(option.effortLabel)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                Text(option.effortLabel).tag(option)
             }
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     private var deleteButton: some View {

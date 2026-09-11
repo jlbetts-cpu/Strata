@@ -154,7 +154,17 @@ struct PlanSheet: View {
     private var hint: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             HStack(spacing: 3) {
-                Circle()
+                // **A block, not a circle.** This is a ghost of the bullet
+                // beside a real line, and that bullet is a BLOCK — the whole
+                // point of the plan is that a line becomes one. A dotted
+                // circle is a ghost of something the app does not have: "why
+                // is there a circle dotted when it should be a square."
+                //
+                // Same corner rule as the real one, off the same cell size, so
+                // the outline is the exact silhouette of what will land in it.
+                RoundedRectangle(
+                    cornerRadius: GridConstants.blockCornerRadius(forCell: 22),
+                    style: .continuous)
                     .strokeBorder(AppColors.slotInk.opacity(0.40),
                                   style: StrokeStyle(lineWidth: 1.5,
                                                      dash: [GridConstants.ghostBlockDashLength]))
