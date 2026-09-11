@@ -565,6 +565,7 @@ struct AddWinSheet: View {
     private func deleteIt() {
         guard let habit = editing else { return }
         for log in habit.logs { modelContext.delete(log) }
+        PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
         modelContext.delete(habit)
         try? modelContext.save()
         HapticsEngine.tick()

@@ -156,6 +156,15 @@ final class Habit {
     var graceDays: Int
     var timeOfDay: TimeOfDay?
     var anchorHabitID: UUID?
+
+    /// The plan line this win was created from, if it came from one.
+    ///
+    /// **So a tick can be taken back.** Completing a plan line drops a block
+    /// and checks the line, but nothing pointed the other way — delete the
+    /// block and the line stayed checked, claiming something that no longer
+    /// existed. Optional with a nil default, which is the shape SwiftData
+    /// migrates without a plan (the same as `towerOrder`).
+    var planItemID: UUID?
     var parentHabitID: UUID?
     var sortOrder: Int = 0
     var isStepCompleted: Bool = false

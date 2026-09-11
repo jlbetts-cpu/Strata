@@ -148,6 +148,15 @@ struct MainAppView: View {
     /// Held while the plan sheet is still on screen, and promoted to
     /// `winDraft` once it has finished dismissing.
     @State private var pendingDraft: WinDraft?
+    /// A plan line ticked optimistically, still waiting to become a block.
+    ///
+    /// **The tick has to be able to go back.** Pressing a line checks it
+    /// immediately, which is right — the alternative leaves the commonest
+    /// gesture in the sheet with no visible result until two screens later.
+    /// But nothing ever un-checked it, so cancelling the add sheet left a
+    /// finished line with no block behind it, and the plan claimed something
+    /// that had not happened.
+    @State private var tickAwaitingWin: UUID?
     @State private var isPlanning = false
 
     // Skeleton build-up animation
@@ -450,10 +459,18 @@ struct MainAppView: View {
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
                 pendingDraft = WinDraft(title: item.text, planItemID: item.id)
+                tickAwaitingWin = item.id
                 isPlanning = false
             }
         }
-        .sheet(item: $winDraft, onDismiss: { capturedPhoto = nil }) { draft in
+        .sheet(item: $winDraft, onDismiss: {
+            capturedPhoto = nil
+            // Closed without saving: put the line back the way it was.
+            if let id = tickAwaitingWin {
+                setPlanItemDone(id, false)
+                tickAwaitingWin = nil
+            }
+        }) { draft in
             AddWinSheet(
                 modelContext: modelContext,
                 tower: towerManager.activeTower,
@@ -461,8 +478,16 @@ struct MainAppView: View {
                 initialPhoto: draft.photo,
                 initialSize: draft.size,
                 initialPlace: draft.place,
-                onSaved: { _ in
-                    if let id = draft.planItemID { markPlanItemDone(id) }
+                onSaved: { habit in
+                    if let id = draft.planItemID {
+                        // The win remembers the line, so deleting it later can
+                        // put the line back.
+                        habit.planItemID = id
+                        setPlanItemDone(id, true)
+                        // Saved, so the tick is earned and must not be undone
+                        // by the dismissal that follows.
+                        tickAwaitingWin = nil
+                    }
                     scheduleRefresh()
                 }
             )
@@ -486,10 +511,10 @@ struct MainAppView: View {
     /// Done, not deleted: a completed line stays on the plan for the rest of
     /// the day so you can see what you got through. `PlanItem.sweep` clears
     /// one-offs when the day turns.
-    private func markPlanItemDone(_ id: UUID) {
+    private func setPlanItemDone(_ id: UUID, _ done: Bool) {
         let descriptor = FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })
         guard let item = (try? modelContext.fetch(descriptor))?.first else { return }
-        item.completedAt = Date()
+        item.completedAt = done ? Date() : nil
         try? modelContext.save()
     }
 
@@ -2730,6 +2755,7 @@ struct MainAppView: View {
             ImageManager.shared.deleteImage(fileName: fileName)
         }
         if let habit = lastLog.habit {
+            PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
             modelContext.delete(habit)
         }
         modelContext.delete(lastLog)

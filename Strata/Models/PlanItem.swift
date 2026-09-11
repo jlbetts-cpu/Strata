@@ -95,6 +95,18 @@ final class PlanItem {
     /// repeating means. Anything still unfinished is left exactly where it is:
     /// deciding for somebody that an unfinished plan expires overnight is the
     /// kind of tidying that loses work.
+    /// Put a line back to unfinished, because the block it became is gone.
+    ///
+    /// A tick on the plan means "this turned into a block". Deleting the block
+    /// has to be able to undo it, or the plan quietly keeps a claim the tower
+    /// no longer supports. Called from every path that deletes a win.
+    static func untick(planItemID id: UUID?, context: ModelContext) {
+        guard let id else { return }
+        let descriptor = FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })
+        guard let item = (try? context.fetch(descriptor))?.first else { return }
+        item.completedAt = nil
+    }
+
     static func sweep(context: ModelContext, now: Date = Date(),
                       calendar: Calendar = .current) {
         guard let items = try? context.fetch(FetchDescriptor<PlanItem>()) else { return }
