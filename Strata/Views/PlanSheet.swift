@@ -97,17 +97,42 @@ struct PlanSheet: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
+    /// What the page looks like before anything is written on it.
+    ///
+    /// **Show the line, not a notice.** It was two pieces of grey type in the
+    /// corner, which tells you the page is empty — something you can already
+    /// see — and gives your hand nothing to aim at. A page of bullets that is
+    /// waiting can show one waiting bullet: the same row the real lines use,
+    /// ghosted, with the invitation beside it. Tapping anywhere here starts
+    /// writing, which is what the empty space below already did and what
+    /// nobody could tell.
     private var hint: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Nothing planned")
-                .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.6))
-            Text("Write what you mean to do. Press its block when you have.")
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 3) {
+                Circle()
+                    .strokeBorder(AppColors.slotInk.opacity(0.22),
+                                  style: StrokeStyle(lineWidth: 1.5,
+                                                     dash: [GridConstants.ghostBlockDashLength]))
+                    .frame(width: 22, height: 22)
+                    .frame(width: 44, height: 44)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(AppColors.slotInk.opacity(0.10))
+                    .frame(width: 150, height: 11)
+            }
+
+            Text("Write what you mean to do, then press its block when you have.")
                 .font(Typography.bodySmall)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.inkSecondary)
+                .padding(.leading, 11)
         }
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, 28)
+        .padding(.leading, GridConstants.horizontalPadding - 11)
+        .padding(.trailing, GridConstants.horizontalPadding)
+        .padding(.top, 24)
+        .contentShape(Rectangle())
+        .onTapGesture { addLine() }
+        .accessibilityElement()
+        .accessibilityLabel("Write what you mean to do")
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - A line

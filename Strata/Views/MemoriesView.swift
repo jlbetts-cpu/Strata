@@ -492,11 +492,16 @@ struct MemoriesView: View {
     @ViewBuilder
     private var monthTower: some View {
         if vm.month.isEmpty {
-            Text("No wins in \(vm.monthTitle.capitalized).")
-                .font(Typography.bodySmall)
-                .foregroundStyle(AppColors.inkQuiet)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 60)
+            // A quiet row of slots, not a sentence. Same reasoning as the
+            // page's own empty state: show the shape of what is missing.
+            VStack(spacing: GridConstants.gapItem) {
+                ghostRow(cell: 46)
+                Text("Nothing in \(vm.monthTitle.capitalized) yet.")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 36)
         } else {
             MonthTowerView(
                 packed: vm.month,
@@ -524,6 +529,29 @@ struct MemoriesView: View {
     ///
     /// Ghosts, not blocks. A filled block here would be a win that does not
     /// exist, and this app does not draw those.
+    /// One row of empty slots, at whatever size the caller needs.
+    ///
+    /// Shared by the page's empty state and the month's, so "nothing here
+    /// yet" looks like one idea in two places rather than two designs.
+    private func ghostRow(cell: CGFloat) -> some View {
+        let gutter = GridConstants.spacing
+        let radius = GridConstants.blockCornerRadius(forCell: cell)
+        return HStack(spacing: gutter) {
+            ForEach([2, 1, 1], id: \.self) { span in
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(AppColors.slotInk.opacity(0.16),
+                                  style: StrokeStyle(lineWidth: 1.5,
+                                                     dash: [GridConstants.ghostBlockDashLength]))
+                    .background {
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                            .fill(AppColors.slotInk.opacity(0.035))
+                    }
+                    .frame(width: CGFloat(span) * cell + CGFloat(span - 1) * gutter,
+                           height: cell)
+            }
+        }
+    }
+
     private var emptyState: some View {
         let cell: CGFloat = 62
         let gutter = GridConstants.spacing
