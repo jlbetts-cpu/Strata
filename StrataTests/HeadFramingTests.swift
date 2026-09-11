@@ -37,6 +37,39 @@ struct HeadFramingTests {
         #expect(HeadFraming.hint(for: reading(height: 0.5)) == .moveBack)
     }
 
+    /// **The camera must not be zoomed while this is measuring.**
+    ///
+    /// `hint(for:)` reads distance from the face's height as a FRACTION of the
+    /// frame, so any crop multiplies it. The front camera starts at
+    /// `CameraService.frontPortraitCrop` — 1.3x, which is kinder to a face in
+    /// a photograph — and with that on, a face framed exactly on target reads
+    /// 0.442 against a ceiling of 0.42 and the maker says "move back" however
+    /// far back you go. Reported from a phone: "saying to move back a little
+    /// even though im far away."
+    ///
+    /// `CameraService.attachFrames` now lifts the crop for the duration. This
+    /// test is what says why, and fails if anybody puts it back.
+    @Test("a crop would make a correctly framed face read as too close")
+    func aCropBreaksTheDistanceHint() {
+        let target = HeadFraming.Target.standard
+        #expect(HeadFraming.hint(for: reading(height: target.height)) == nil,
+                "a face on target should be lined up")
+
+        let crop: CGFloat = 1.3
+        let asCropped = target.height * crop
+        #expect(asCropped > target.height + HeadFraming.heightTolerance,
+                "the arithmetic this test exists for no longer holds")
+        #expect(HeadFraming.hint(for: reading(height: asCropped)) == .moveBack)
+
+        // **The contradiction the person actually experiences.** With the crop
+        // on, even the LARGEST face that passes the check is smaller than the
+        // outline it is being asked to fill — so you line your head up inside
+        // the outline, it looks right, and the app still says move back.
+        let largestThatPasses = (target.height + HeadFraming.heightTolerance) / crop
+        #expect(largestThatPasses < target.height,
+                "with a crop there is no distance where the face both fills the outline and satisfies the check")
+    }
+
     @Test("off to one side asks to move into the outline")
     func position() {
         #expect(HeadFraming.hint(for: reading(x: 0.2)) == .moveIntoOutline)

@@ -179,14 +179,35 @@ final class CameraService: NSObject {
     /// photo preset when it is removed.
     private var frameOutput: AVCaptureVideoDataOutput?
     private var presetBeforeFrames: AVCaptureSession.Preset?
+    /// The zoom to put back when the head maker is finished with the camera.
+    private var zoomBeforeFrames: CGFloat?
 
     /// Turns to the front lens if it is not already there.
     func useFrontCamera() {
         if facing == .back { flip() }
     }
 
+    /// Hand frames to something that is MEASURING the face rather than
+    /// photographing it — the head maker.
+    ///
+    /// **The portrait crop comes off for the duration.** `frontPortraitCrop`
+    /// exists so a selfie is framed at roughly 30mm instead of 23mm, which is
+    /// kinder to a face; but it multiplies everything in the frame, and
+    /// `HeadFraming` decides distance from the face's height as a FRACTION of
+    /// that frame. Measured: the target is 0.34 with a tolerance of 0.08, so a
+    /// correctly framed face reads 0.442 at 1.3x — past the ceiling — and the
+    /// maker says "Move back a little" however far back you go. To satisfy it
+    /// you would have to stand 30% further away than the outline intends.
+    /// Reported exactly that way: "its having trouble detecting my head and
+    /// saying to move back a little even though im far away."
+    ///
+    /// A wider field is the right thing here for a second reason: the maker
+    /// wants headroom around the head it is cutting out, and a crop is the
+    /// opposite of headroom.
     func attachFrames(_ output: AVCaptureVideoDataOutput) {
         guard isConfigured, frameOutput == nil else { return }
+        zoomBeforeFrames = zoom
+        setZoom(1)
         session.beginConfiguration()
         presetBeforeFrames = session.sessionPreset
         if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
@@ -219,6 +240,11 @@ final class CameraService: NSObject {
         session.commitConfiguration()
         frameOutput = nil
         presetBeforeFrames = nil
+        // Back to the framing the shutter wants.
+        if let previous = zoomBeforeFrames {
+            setZoom(previous)
+            zoomBeforeFrames = nil
+        }
     }
 
     // MARK: - Zoom
