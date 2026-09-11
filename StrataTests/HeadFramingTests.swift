@@ -118,8 +118,70 @@ struct HeadFramingTests {
     @Test("a real blink clears both the gap and the proportion")
     func blink() {
         #expect(HeadFraming.isRealBlink(open: 0.35, shut: 0.08))
-        #expect(!HeadFraming.isRealBlink(open: 0.12, shut: 0.06))
         #expect(!HeadFraming.isRealBlink(open: 0.40, shut: 0.30))
+        // Below the floor, where an "open" eye is not distinguishable from a
+        // shut one and refusing is the right answer.
+        #expect(!HeadFraming.isRealBlink(open: 0.10, shut: 0.06))
+    }
+
+    /// **The blink has to work on an eye that is narrow to begin with.**
+    ///
+    /// Asked for from a phone: "make sure it works in all lighting with all
+    /// face shapes." The two conditions are ANDed, so the stricter one
+    /// decides, and the absolute gap is stricter than the proportion for
+    /// anybody whose open eye measures below 0.20:
+    ///
+    ///     open - floor < open * 0.6   whenever   open < floor / 0.4
+    ///
+    /// At the old floor of 0.08 that boundary sat at 0.20 — inside the range
+    /// Vision's contour reports for a narrow or hooded eye, for an eye behind
+    /// thick frames, and for any eye far enough away that the contour is
+    /// coarse. The function's own comment said the proportion was there "so
+    /// narrow eyes still count" while the conjunction was overruling it.
+    ///
+    /// **Stated plainly: this threshold cannot be measured without faces**,
+    /// and 0.05 is a judgement, not a measurement. What makes it the safer
+    /// side to be wrong on is the cost either way. Too loose keeps a deep
+    /// squint as a blink — and the proportion still demands the eye collapse
+    /// to under 60% of itself, so it is a deep one. Too tight means a person
+    /// whose eyes are narrow is told they did not blink when they shut their
+    /// eyes completely, and their head can never blink at all. The live "Got
+    /// it" added alongside this makes the loose side cheaper still: a blink
+    /// that is missed is now visibly missed, while the stage is still running
+    /// and there is time to blink again.
+    @Test("a narrow eye that fully closes is a blink")
+    func narrowEyesBlink() {
+        let floor = 0.05, proportion = 0.6
+        // Where the floor stops being the thing that decides.
+        #expect(abs(floor / (1 - proportion) - 0.125) < 1e-9,
+                "the boundary this test is about has moved")
+
+        // An eye that reads 0.18 open and collapses to the lash line. The old
+        // 0.08 floor refused this; the proportion always accepted it.
+        #expect(HeadFraming.isRealBlink(open: 0.18, shut: 0.105))
+        #expect(0.105 <= 0.18 * proportion, "the proportion accepted it all along")
+        #expect(0.18 - 0.105 < 0.08, "and the old floor is what refused it")
+
+        // A wide eye squinting the same proportion of the way is still not a
+        // blink, which is the thing the floor was protecting and the
+        // proportion protects on its own.
+        #expect(!HeadFraming.isRealBlink(open: 0.40, shut: 0.25))
+    }
+
+    /// Lining up has to work at either end of the same range. Nothing here is
+    /// a new threshold — it pins that one set of numbers covers a small face
+    /// and a large one, since the hint is a fraction of the frame and not a
+    /// size in pixels.
+    @Test("the same thresholds line up a narrow face and a broad one")
+    func allFaceShapes() {
+        let target = HeadFraming.Target.standard
+        for width in [0.60, 0.80, 1.00] as [CGFloat] {
+            let face = CGRect(x: 0.5 - target.height * width / 2,
+                              y: target.centreY - target.height / 2,
+                              width: target.height * width, height: target.height)
+            #expect(HeadFraming.hint(for: HeadFraming.Reading(face: face, yaw: 0, roll: 0, quality: 0.8)) == nil,
+                    "a face \(width) as wide as it is tall should line up")
+        }
     }
 
     @Test("an eye's shape: centre, radii and a level angle")

@@ -105,12 +105,31 @@ nonisolated enum HeadFraming {
         return (l + r) / 2
     }
 
-    /// Whether a most-open and a most-shut frame are an actual blink: an
-    /// absolute gap, so a squint is not taken for one, and a proportion, so
-    /// narrow eyes still count. Thick-framed glasses tend to fail both, and
-    /// the head is then saved without blinking rather than blinking wrong.
+    /// Whether a most-open and a most-shut frame are an actual blink.
+    ///
+    /// **The proportion is the test; the gap is only a noise floor.** These
+    /// are ANDed, so whichever is stricter decides — and the gap was 0.08,
+    /// which is stricter than the proportion for anybody whose open eye
+    /// measures below 0.20:
+    ///
+    ///     open - 0.08 < open * 0.6   for open < 0.20
+    ///
+    /// Vision's eye contour reads a narrow or hooded eye — and any eye behind
+    /// thick frames, or far enough from the camera that the contour is coarse
+    /// — well under that. So the old comment on this function said the
+    /// proportion was here "so narrow eyes still count" while the conjunction
+    /// was quietly overruling it: shut your eyes completely and be told you
+    /// had not blinked. "make sure it works in all lighting with all face
+    /// shapes."
+    ///
+    /// At 0.05 the floor binds only below open = 0.125, where an "open" eye
+    /// is not distinguishable from a shut one and refusing is right. Everyone
+    /// above it is judged against their own eyes.
+    ///
+    /// Thick-framed glasses can still fail both, and the head is then saved
+    /// without blinking rather than blinking wrong.
     static func isRealBlink(open: Double, shut: Double) -> Bool {
-        open - shut >= 0.08 && shut <= open * 0.6
+        open - shut >= 0.05 && shut <= open * 0.6
     }
 
     /// The opening's centre, half-width, half-height and tilt, from its
