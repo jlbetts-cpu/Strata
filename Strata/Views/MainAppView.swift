@@ -1559,6 +1559,9 @@ struct MainAppView: View {
         if DebugHarness.reportsStore {
             DebugHarness.runStoreProbe()
         }
+        if DebugHarness.probesPhotos {
+            DebugHarness.runPhotoPipelineProbe()
+        }
         if let n = DebugHarness.benchImages {
             DebugHarness.runImageBench(count: n)
         }

@@ -403,6 +403,54 @@ enum DebugHarness {
     /// state, and the photograph path could not be looked at at all.
     static var seedsTodayPhotos: Bool { argument("-strataSeedTodayPhotos") != nil }
 
+    /// Runs the REAL photograph path end to end, from `-strataProbePhotos`.
+    ///
+    /// **Because the fixture does not use it.** Seeded photographs are written
+    /// straight to the image directory by `seedPhoto`, so every check built on
+    /// them passes whatever the save path does. A photograph a person adds
+    /// goes somewhere else entirely: resize, HEIC encode, write, then read
+    /// back through `loadThumbnail`. This exercises that, and reports each
+    /// step separately so a failure names itself.
+    ///
+    /// Two shapes of image, because they fail differently: one backed by a
+    /// CGImage, and one backed by a CIImage — `encodeHEIC` asks for
+    /// `image.cgImage` and gets nil from the second, which is what a picker or
+    /// a camera can hand you.
+    static func runPhotoPipelineProbe() {
+        Task { @MainActor in
+            let size = CGSize(width: 3000, height: 4000)
+            let drawn = UIGraphicsImageRenderer(size: size).image { ctx in
+                UIColor.systemTeal.setFill()
+                ctx.fill(CGRect(origin: .zero, size: size))
+                UIColor.white.setFill()
+                ctx.fill(CGRect(x: 200, y: 300, width: 900, height: 900))
+            }
+            let ciBacked = CIImage(image: drawn).map { UIImage(ciImage: $0) }
+
+            for (label, image) in [("cgImage-backed", drawn),
+                                   ("ciImage-backed", ciBacked)] {
+                guard let image else {
+                    NSLog("[strata-photos] \(label): could not build the image")
+                    continue
+                }
+                NSLog("[strata-photos] \(label): cgImage=\(image.cgImage != nil) "
+                      + "ciImage=\(image.ciImage != nil) size=\(Int(image.size.width))x\(Int(image.size.height))")
+                do {
+                    let name = try await ImageManager.shared.save(image: image, for: UUID())
+                    let onDisk = ImageManager.shared.fileExists(fileName: name)
+                    let back = await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: 360)
+                    NSLog("[strata-photos] \(label): SAVED \(name) onDisk=\(onDisk) "
+                          + "readBack=\(back != nil) \(back.map { "\(Int($0.size.width))x\(Int($0.size.height))" } ?? "nil")")
+                } catch {
+                    NSLog("[strata-photos] \(label): SAVE FAILED \(error)")
+                }
+            }
+            NSLog("[strata-photos] done")
+        }
+    }
+
+    static var probesPhotos: Bool { argument("-strataProbePhotos") != nil }
+
     static var reportsStore: Bool { argument("-strataReportStore") != nil }
 
     /// Reports what the location service can see, from `-strataTestLocation`.

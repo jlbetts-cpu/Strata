@@ -85,7 +85,7 @@ struct AddWinSheet: View {
                         .font(Typography.headerMedium)
                         .focused($titleFocused)
                         .submitLabel(.done)
-                        .onSubmit { save() }
+                        .onSubmit { Task { await save() } }
 
                     photoWell
 
@@ -275,7 +275,7 @@ struct AddWinSheet: View {
     }
 
     private var confirmButton: some View {
-        Button(isEditing ? "Save" : "Add") { save() }
+        Button(isEditing ? "Save" : "Add") { Task { await save() } }
             .disabled(!canSave)
             .fontWeight(.medium)
             .foregroundStyle(canSave ? AppColors.accentWarm : AppColors.inkQuiet)
@@ -534,7 +534,7 @@ struct AddWinSheet: View {
         }
     }
 
-    private func save() {
+    private func save() async {
         let typed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         // `untitled` is the sentinel a nameless block already uses: the block
         // views check for it and draw no text at all, and the title field
@@ -552,7 +552,7 @@ struct AddWinSheet: View {
             try? modelContext.save()
             if photoChanged, let log = editingLog {
                 if let photo {
-                    attach(photo, to: log)
+                    await attach(photo, to: log)
                 } else {
                     // Removing a photo used to do nothing at all: the dialog
                     // set `photo` to nil, and the save path only ever ran when
@@ -584,7 +584,7 @@ struct AddWinSheet: View {
             // exactly the lookup that intermittently came back empty.
             if let photo,
                let log = win.habit.logs.first(where: { $0.id == win.logID }) {
-                attach(photo, to: log)
+                await attach(photo, to: log)
             }
             HapticsEngine.success()
             onSaved(win.habit)
@@ -611,7 +611,7 @@ struct AddWinSheet: View {
     /// `CachedImageView` draws with `.scaledToFill()`, so the block crops to
     /// its own shape at display time, from the whole image, every time. Which
     /// means a resize now re-frames rather than re-crops, and is reversible.
-    private func attach(_ image: UIImage, to log: HabitLog) {
+    private func attach(_ image: UIImage, to log: HabitLog) async {
         let id = log.id
         // The place is written HERE, in the same block that writes the file
         // name, because a coordinate on a log with no photograph is a pin with
@@ -626,13 +626,21 @@ struct AddWinSheet: View {
         // is safely written — the other order loses the photograph outright if
         // the save fails.
         let previous = log.imageFileName
-        Task { @MainActor in
-            if let name = try? await ImageManager.shared.save(image: image, for: id) {
-                log.imageFileName = name
-                try? modelContext.save()
-                if let previous, previous != name {
-                    ImageManager.shared.deleteImage(fileName: previous)
-                }
+        // **Awaited, not launched.** This used to be an unstructured `Task`,
+        // so the write finished AFTER `dismiss()` — and the filename never
+        // reached the log. Proved by driving the real picker and then reading
+        // the store: the photograph was on disk, referenced by no win at all,
+        // an orphan the moment it was written. Every photograph anyone added
+        // was lost this way, which is why blocks kept their colour and the
+        // gallery stayed empty.
+        //
+        // The comment above once claimed this was "saved before the sheet
+        // closes". It is now true.
+        if let name = try? await ImageManager.shared.save(image: image, for: id) {
+            log.imageFileName = name
+            try? modelContext.save()
+            if let previous, previous != name {
+                ImageManager.shared.deleteImage(fileName: previous)
             }
         }
     }
