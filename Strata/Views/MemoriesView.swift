@@ -218,7 +218,7 @@ struct MemoriesView: View {
                         }
                     }
                 }
-                .padding(.bottom, 110)
+                .padding(.bottom, GridConstants.tabBarClearance)
                 .id("MemoriesContent")
             }
             #if DEBUG

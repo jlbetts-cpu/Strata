@@ -40,7 +40,7 @@ struct PhotoCollectionView: View {
                              transitionNamespace: photoTransition) {
                 viewing = ViewedPhoto(id: $0.fileName, title: $0.title)
             }
-                .padding(.bottom, 110)
+                .padding(.bottom, GridConstants.tabBarClearance)
         }
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle(title)

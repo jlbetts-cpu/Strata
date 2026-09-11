@@ -28,6 +28,15 @@ enum GridConstants {
     static let gapLabel: CGFloat = 16
     /// Between one section and the next.
     static let gapSection: CGFloat = 32
+
+    /// How much room the floating tab bar needs under a scrolling page.
+    ///
+    /// **One number, because three places need it.** It was the literal 110
+    /// in the Memories page, in `PhotoCollectionView` and in the drawer — so
+    /// the bar's height was recorded in three files, and moving it would have
+    /// left two of them wrong in a way that only shows as a last row you
+    /// cannot quite reach.
+    static let tabBarClearance: CGFloat = 110
     static let cornerRadius: CGFloat = 8
     /// Habit blocks on tower + timeline.
     ///

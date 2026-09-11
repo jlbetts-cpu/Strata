@@ -175,5 +175,9 @@ struct MemoriesDrawer<Content: View>: View {
 /// static stored properties.
 enum DrawerMetrics {
     /// The tab bar's allowance, so the page's last row is not under it.
-    static let tabBarClearance: CGFloat = 110
+    ///
+    /// Kept as a name here for the drawer's own call sites; the value lives in
+    /// `GridConstants`, because three files need it and two of them were
+    /// carrying the number 110 as a literal.
+    static let tabBarClearance = GridConstants.tabBarClearance
 }
