@@ -64,6 +64,22 @@ struct MemoriesMapView: View {
     /// sits at the point it is travelling to. See `apply(_:)`.
     @State private var displayed: [Placed] = []
     @State private var didFrame = false
+
+    /// **One clock for every block on the map.**
+    ///
+    /// A place with several photographs shows them in turn — the owner's
+    /// call: "multiple photos in the same spot should just become a bundle you
+    /// can click on... keep it in one bundle cycling through." But CLAUDE.md
+    /// is explicit that the month tower's approach must NOT be reused here: a
+    /// long-lived task per block, thirty of them crossfading while MapKit
+    /// relays annotations every frame, is both a wall that blinks and the
+    /// frame budget gone.
+    ///
+    /// So there is one task and one integer. Each block offsets it by a stable
+    /// hash of its own id, so nothing changes in unison — a wall that blinks
+    /// together reads as an alert — and the map pays for one timer rather
+    /// than one per place.
+    @State private var tick = 0
     /// Whether the first fill has happened. After it, blocks arriving are
     /// arriving because you moved the map, and they travel instead.
     @State private var hasSettled = false
@@ -74,6 +90,7 @@ struct MemoriesMapView: View {
     /// joins the memberwise initializer and makes the whole init private,
     /// which stops every caller constructing this view.
     @State private var location = LocationService.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A cluster, and where it is being drawn.
     ///
@@ -278,6 +295,16 @@ struct MemoriesMapView: View {
             let previous = zoom
             zoom = next
             apply(PlaceMap.cluster(pins, zoom: next), from: previous, to: next)
+        }
+        // The map's one clock. Stops itself when there is nothing to cycle and
+        // never runs under Reduce Motion.
+        .task(id: pins.count) {
+            guard !reduceMotion, pins.count > 1 else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                tick &+= 1
+            }
         }
         .task(id: pins.count) {
             displayed = PlaceMap.cluster(pins, zoom: zoom).map { Placed.atRest($0) }
@@ -537,7 +564,11 @@ struct MemoriesMapView: View {
         // than for one place — see `PlaceBlock`.
         PlaceBlock(cluster: placed.cluster,
                    delay: arrivalDelay(for: placed),
-                   showsCount: !isClose)
+                   // A count wherever a block stands for more than one
+                   // photograph, not only when zoomed out: "just have the
+                   // number of photos if its in the relitive same area".
+                   tick: tick,
+                   showsCount: placed.cluster.winCount > 1)
             .onTapGesture { onSelect(placed.cluster.key) }
     }
 
@@ -643,6 +674,23 @@ private struct PlaceBlock: View {
     /// How long to wait before arriving — see `arrivalDelay(for:)`.
     var delay: Double = 0
 
+    /// The map's shared clock — see `MemoriesMapView.tick`.
+    var tick: Int = 0
+
+    /// Which of this place's photographs is showing.
+    ///
+    /// Offset by a stable hash of the cluster's id, so two blocks side by side
+    /// are never on the same frame of the same beat. `id` is `z/x/y`, which
+    /// does not change as photographs join, so a block does not jump to a
+    /// different picture just because a new one arrived.
+    private var showing: String? {
+        let names = cluster.photoFileNames
+        guard !names.isEmpty else { return nil }
+        guard names.count > 1 else { return names[0] }
+        let offset = abs(cluster.id.hashValue % names.count)
+        return names[(tick &+ offset) % names.count]
+    }
+
     /// Whether to say how many wins are in here.
     ///
     /// **Only when zoomed out**, and the two owner calls that look opposite
@@ -678,6 +726,7 @@ private struct PlaceBlock: View {
 
     var body: some View {
         block
+            .animation(reduceMotion ? nil : GridConstants.crossFade, value: showing)
             // **It arrives.** Twenty blocks switching on at once is a map
             // being drawn; twenty blocks landing is a map filling in. Scale
             // from 0.82 rather than from nothing, so it reads as coming
@@ -709,7 +758,7 @@ private struct PlaceBlock: View {
                 // catalogue rather than in the image directory, so a name with
                 // this prefix is drawn straight from the bundle. Nothing the
                 // app writes ever starts with it.
-                if let name = cluster.photoFileNames.first,
+                if let name = showing,
                    name.hasPrefix(Self.bundledPrefix) {
                     Image(String(name.dropFirst(Self.bundledPrefix.count)))
                         .resizable()
@@ -720,7 +769,7 @@ private struct PlaceBlock: View {
                 // guard `CachedImageView` draws its missing-file placeholder —
                 // a broken-picture glyph on the block — which is worse than
                 // the colour alone and was visible on the onboarding map.
-                } else if let name = cluster.photoFileNames.first, !name.isEmpty {
+                } else if let name = showing, !name.isEmpty {
                     // **One width for every block on the map**, whatever size
                     // it draws at. `CachedImageView` keys its cache on the
                     // requested width, so asking for 88 at one zoom and 176 at
@@ -734,6 +783,16 @@ private struct PlaceBlock: View {
                         // See `FlippableBlockView`: a hair of overscan, so the
                         // colour behind cannot show at a rounded corner.
                         .scaleEffect(1.03)
+                        // **Keyed, so one photograph replaces another rather
+                        // than the same view swapping its contents.** A
+                        // cross-dissolve is safe here because both layers are
+                        // opaque photographs filling the same box — the
+                        // failure CLAUDE.md warns about, where a crossfade
+                        // shows the substrate through the middle of the
+                        // handover, needs a transparent moment, and there
+                        // isn't one.
+                        .id(name)
+                        .transition(.opacity)
                 }
             }
         }

@@ -336,6 +336,7 @@ extension Album {
                     title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
                     date: record.completedAt,
                     dateString: record.dateString,
+                    size: record.size,
                     place: record.place
                 )
             }
@@ -400,6 +401,10 @@ struct GalleryPhoto: Identifiable, Equatable {
     let title: String?
     let date: Date
     let dateString: String
+    /// How big the win was. The owner: "on the photos it should say the size,
+    /// dont see the point of not" — and there is no point: the size is a fact
+    /// about the win that the photograph is of, and it is already stored.
+    var size: BlockSize = .small
     /// Where it was taken, when the win knows. **`var` with a default**, so
     /// every existing literal keeps compiling and the memberwise initializer
     /// still carries it — a `let` with a default is dropped from the

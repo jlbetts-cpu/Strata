@@ -428,10 +428,15 @@ struct PhotoViewer: View {
 
     private var caption: String {
         guard let current else { return " " }
-        let when = Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)
-        guard let place = current.place,
-              let name = placeName ?? PlaceNames.shared.name(for: place) else { return when }
-        return when + " · " + name
+        // Size first: it is the one fact about the win that the picture cannot
+        // show you, and it is why the block on the tower is the shape it is.
+        var parts = [current.size.effortLabel,
+                     Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)]
+        if let place = current.place,
+           let name = placeName ?? PlaceNames.shared.name(for: place) {
+            parts.append(name)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func chromeGlyph(_ name: String) -> some View {
