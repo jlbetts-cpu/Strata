@@ -65,7 +65,7 @@ struct StrataApp: App {
         // tower, and `towerManager` is the thing that knows which that is.
         // Setting a flag and letting the real path do the work is how it ends
         // up identical to a win you logged yourself.
-        UserDefaults.standard.set(true, forKey: "pendingWelcomeWin")
+        UserDefaults.standard.set(true, forKey: MainAppView.welcomeWinKey)
     }
 
     var body: some Scene {

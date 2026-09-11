@@ -45,7 +45,31 @@ struct MainAppView: View {
     /// The tab the app opens on. A constant so the window's colour scheme can
     /// be seeded from the same value rather than a second copy of it.
     private static let launchTab: StrataTab = .camera
-    @State private var selectedTab: StrataTab = MainAppView.launchTab
+
+    /// Which tab the app opens on.
+    ///
+    /// **`.camera` normally, `.tower` on the launch right after onboarding.**
+    /// The camera is right every other time — recording a win is meant to be
+    /// the fastest thing in the app. It is wrong exactly once: we have just
+    /// given somebody their first block and told them the tower is the point,
+    /// and then we would show them an empty viewfinder instead of it.
+    /// Photographed: the first thing a new user saw was a black screen with a
+    /// shutter on it.
+    ///
+    /// It is the INITIAL value rather than a `selectTab` call during `setup()`
+    /// because that does not stick — CLAUDE.md records it: the `TabView`
+    /// writes its own selection back through the binding on appear and
+    /// overwrites anything set during setup. Measured here too: the tab was
+    /// set and the app still opened on the camera. Nothing can overwrite a
+    /// value that was never anything else.
+    static func initialTab() -> StrataTab {
+        UserDefaults.standard.bool(forKey: welcomeWinKey) ? .tower : launchTab
+    }
+
+    /// Set when onboarding finishes; consumed by `dropWelcomeWinIfNeeded`.
+    static let welcomeWinKey = "pendingWelcomeWin"
+
+    @State private var selectedTab: StrataTab = MainAppView.initialTab()
     /// A shot waiting to become a win, held while the add sheet opens.
     @State private var capturedPhoto: UIImage?
     // #270: Tower filter persistence across launches
@@ -214,7 +238,7 @@ struct MainAppView: View {
     /// started opening on the camera, the tab never changed, so the change
     /// never fired and the window stayed light behind a black viewfinder. The
     /// tab bar's icons came up black on black.
-    @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.launchTab)
+    @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.initialTab())
 
     /// The one place that decides. Both the initial value and every later
     /// change go through it, so they cannot disagree.
@@ -1299,11 +1323,17 @@ struct MainAppView: View {
     /// A `.hard` — the biggest — because it is the only block on the grid, and
     /// a lone 1x1 reads as a rounding error rather than as a start.
     private func dropWelcomeWinIfNeeded() {
-        let key = "pendingWelcomeWin"
+        let key = Self.welcomeWinKey
         guard UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(false, forKey: key)
+        // Belt and braces: never two of them. The flag alone is enough in
+        // practice, but a welcome block is the one thing that must not be
+        // able to arrive twice — it would be the app's first act, doubled.
+        let title = "Welcome"
+        let existing = FetchDescriptor<Habit>(predicate: #Predicate { $0.title == title })
+        guard ((try? modelContext.fetch(existing)) ?? []).isEmpty else { return }
         _ = try? QuickWinService.logWin(
-            title: "Downloaded Strata",
+            title: title,
             category: .unlabeled,
             size: .hard,
             spontaneous: .mindfulness,

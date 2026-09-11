@@ -218,7 +218,7 @@ final class MapGestureTests: XCTestCase {
         // it against the active tower. If that hand-off breaks, a new user
         // lands on an empty tower and the whole endowed-progress idea is
         // silently gone.
-        let welcome = app.staticTexts["Downloaded Strata"]
+        let welcome = app.staticTexts["Welcome"]
         if !welcome.waitForExistence(timeout: 30) {
             // Dump the tree rather than guess. `XCTFail(app.debugDescription)`
             // is the only channel that reaches the xcodebuild log — test
