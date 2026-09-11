@@ -66,29 +66,35 @@ struct PhotoViewer: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                VStack(spacing: 0) {
+                // **The deck reaches up behind the header.**
+                //
+                // The header used to be a band ABOVE the deck, so the top of
+                // the screen was dead to the finger: the owner could not
+                // "swipe through on the top in the photo viewer". It is an
+                // overlay now, and the deck owns the whole height — but the
+                // PICTURE inside each page is still padded down past the
+                // header, so the title keeps its black and never sits on the
+                // photograph. That rule is settled (CLAUDE.md, 2026-09-09,
+                // owner's call) and this does not touch it; only the swipe
+                // area moved.
+                ZStack(alignment: .top) {
+                    VStack(spacing: 0) {
+                        deck(size: CGSize(
+                            width: geo.size.width,
+                            height: geo.size.height
+                                - Self.topInset - Self.bottomInset
+                                - Self.dateHeight - Self.stripHeight
+                        ), topPadding: Self.headerHeight)
+
+                        dateLine
+                            .frame(height: Self.dateHeight)
+
+                        filmstrip
+                            .frame(height: Self.stripHeight)
+                    }
+
                     header
                         .frame(height: Self.headerHeight)
-
-                    // The picture, and only the picture, gets the room that is
-                    // left. Solved rather than guessed: every other band is
-                    // fixed, so whatever remains is the stage.
-                    //
-                    // The insets count. Leaving them out of this subtraction
-                    // made the deck 88pt taller than its container and pushed
-                    // the strip clean off the bottom of the screen.
-                    deck(size: CGSize(
-                        width: geo.size.width,
-                        height: geo.size.height
-                            - Self.topInset - Self.bottomInset
-                            - Self.headerHeight - Self.dateHeight - Self.stripHeight
-                    ))
-
-                    dateLine
-                        .frame(height: Self.dateHeight)
-
-                    filmstrip
-                        .frame(height: Self.stripHeight)
                 }
                 .padding(.top, Self.topInset)
                 .padding(.bottom, Self.bottomInset)
@@ -148,7 +154,7 @@ struct PhotoViewer: View {
     /// A paging `ScrollView`, not a `TabView`: `TabView`'s page style owns its
     /// horizontal gesture and cannot be told to stop, so panning a zoomed-in
     /// photograph flicked to the next one.
-    private func deck(size: CGSize) -> some View {
+    private func deck(size: CGSize, topPadding: CGFloat = 0) -> some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
                 ForEach(photos) { photo in
@@ -157,6 +163,10 @@ struct PhotoViewer: View {
                               isCurrent: photo.id == currentID,
                               inset: Self.printInset,
                               onZoomChanged: { isZoomed = $0 })
+                        // The page is the full height so the whole of it
+                        // swipes; the picture inside it starts below the
+                        // header, which is what keeps the title in the black.
+                        .padding(.top, topPadding)
                         .frame(width: size.width, height: max(size.height, 1))
                         .id(photo.id)
                 }
