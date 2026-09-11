@@ -182,7 +182,7 @@ enum PlaceMap {
         let cellsAcross = viewportWidth / targetBlockPitch
         let degreesPerCell = spanLongitude / cellsAcross
         let raw = log2(360.0 / (degreesPerCell * cellsPerTile))
-        return min(max(Int(raw.rounded(.down)), 0), 20)
+        return min(max(Int(raw.rounded(.down)), 0), maxClusterZoom)
     }
 
     // MARK: - Projection
@@ -353,6 +353,27 @@ enum PlaceMap {
         return result
     }
 
+    /// The finest grid worth clustering on.
+    ///
+    /// **Two photographs of one place must stay one block, however far you
+    /// zoom.** The app already decides that 60 metres is the same place —
+    /// `samePlaceMetres`, which is what `members(of:in:)` uses when you open a
+    /// block — but the drawing clustered all the way to zoom 20, where a cell
+    /// is under ten metres. So five photographs taken standing still, with the
+    /// ordinary jitter of a phone's fix, landed in different cells and broke
+    /// apart as you zoomed in. Reported exactly that way: "even though ive
+    /// taken 5 photos in the same place it still seperated the photos instead
+    /// of keeping them in the 5 clump which is better."
+    ///
+    /// The app was contradicting itself: one distance for opening a place and
+    /// another for drawing it. Derived from the constant rather than written
+    /// as a number, so the two cannot drift.
+    static var maxClusterZoom: Int {
+        var z = 20
+        while z > 0 && cellMetres(at: z) < samePlaceMetres { z -= 1 }
+        return z
+    }
+
     /// A cell's rough width in metres. One degree of longitude is about 111km
     /// at the equator; nothing here needs better than an order of magnitude.
     static func cellMetres(at z: Int) -> Double {
@@ -365,8 +386,15 @@ enum PlaceMap {
             groups[key(for: pin.place, z: z), default: []].append(pin)
         }
 
-        let occupied = Set(groups.keys)
-        return groups.map { key, members in
+        // **A grid boundary must not split one place.** Capping the zoom was
+        // not enough and the test said so: two photographs 25 metres apart can
+        // straddle a cell edge at ANY zoom, so five taken standing still came
+        // apart into two, then four, as you zoomed in. The grid decides
+        // roughly where blocks go; this decides what counts as one place, and
+        // distance is the only thing that can.
+        let blobs = mergingNearby(groups)
+        let occupied = Set(blobs.keys)
+        return blobs.map { key, members in
             let newestFirst = members.sorted { $0.completedAt > $1.completedAt }
             var seen = Set<String>()
             let names = newestFirst.compactMap { seen.insert($0.photoFileName).inserted
@@ -388,6 +416,65 @@ enum PlaceMap {
         // hands its keys back in — otherwise a snapshot test flakes and,
         // worse, `ForEach` reorders the map for no reason.
         .sorted { $0.id < $1.id }
+    }
+
+    /// Fuse cell groups whose centroids are within `samePlaceMetres`.
+    ///
+    /// Repeated until nothing moves, so a line of pins strung across several
+    /// cells ends up as one place rather than as pairs. The surviving key is
+    /// the lowest of those merged, which keeps the id deterministic — a
+    /// centroid-based id would change every time a pin joined, and blocks
+    /// would teleport on every camera nudge.
+    ///
+    /// O(n squared) per pass over at most a few dozen groups, and it only runs
+    /// when the integer zoom changes.
+    private static func mergingNearby(
+        _ groups: [PlaceKey: [Pin]]
+    ) -> [PlaceKey: [Pin]] {
+        var blobs = groups
+            .map { (key: $0.key, pins: $0.value) }
+            .sorted { lower($0.key, than: $1.key) }
+
+        var changed = true
+        while changed {
+            changed = false
+            search: for i in blobs.indices {
+                for j in blobs.indices where j > i {
+                    guard metres(between: centroid(of: blobs[i].pins),
+                                 and: centroid(of: blobs[j].pins)) <= samePlaceMetres
+                    else { continue }
+                    blobs[i].pins.append(contentsOf: blobs[j].pins)
+                    if lower(blobs[j].key, than: blobs[i].key) {
+                        blobs[i].key = blobs[j].key
+                    }
+                    blobs.remove(at: j)
+                    changed = true
+                    break search
+                }
+            }
+        }
+        return Dictionary(uniqueKeysWithValues: blobs.map { ($0.key, $0.pins) })
+    }
+
+    private static func lower(_ a: PlaceKey, than b: PlaceKey) -> Bool {
+        (a.z, a.x, a.y) < (b.z, b.x, b.y)
+    }
+
+    private static func centroid(of pins: [Pin]) -> (latitude: Double, longitude: Double) {
+        let n = Double(max(pins.count, 1))
+        return (pins.reduce(0) { $0 + $1.place.latitude } / n,
+                pins.reduce(0) { $0 + $1.place.longitude } / n)
+    }
+
+    /// Equirectangular, which is exact enough for tens of metres and needs no
+    /// trigonometry beyond one cosine.
+    static func metres(between a: (latitude: Double, longitude: Double),
+                       and b: (latitude: Double, longitude: Double)) -> Double {
+        let metresPerDegree = 111_000.0
+        let dLat = (a.latitude - b.latitude) * metresPerDegree
+        let dLon = (a.longitude - b.longitude) * metresPerDegree
+            * cos((a.latitude + b.latitude) / 2 * .pi / 180)
+        return (dLat * dLat + dLon * dLon).squareRoot()
     }
 
     /// The cell one level coarser that contains this one.
@@ -432,11 +519,11 @@ enum PlaceMap {
     /// opening that one." The thing the margin is for — two photographs of
     /// the same cafe landing either side of an invisible line — is a
     /// fixed-distance problem and always was.
-    static let sameePlaceMetres: Double = 60
+    static let samePlaceMetres: Double = 60
 
     static func members(of key: PlaceKey, in pins: [Pin]) -> [Pin] {
         let side = cellSide(at: key.z)
-        let margin = min(side / 2, sameePlaceMetres / (360 * 111_000))
+        let margin = min(side / 2, samePlaceMetres / (360 * 111_000))
         let minX = Double(key.x) * side - margin
         let maxX = Double(key.x + 1) * side + margin
         let minY = Double(key.y) * side - margin

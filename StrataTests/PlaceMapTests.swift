@@ -359,13 +359,49 @@ struct PlaceMapTests {
     /// clamp there is pure error — measured at zoom 14 it was up to 189
     /// metres, and the owner saw it on a phone: the photographs were "in the
     /// right area" but not in the right place.
+    /// **Zooming in must not break one place into several.**
+    @Test("photographs of one spot stay one block however far you zoom")
+    func onePlaceStaysOneBlock() {
+        // Five photographs within about 25 metres — a person standing still,
+        // with the jitter an ordinary fix has.
+        let base = (lat: 51.5074, lon: -0.1278)
+        let jitter = [(0.0, 0.0), (0.0002, 0.0001), (-0.0001, 0.0002),
+                      (0.0001, -0.0002), (-0.0002, -0.0001)]
+        let pins = jitter.map { pin(lat: base.lat + $0.0, lon: base.lon + $0.1,
+                                    accuracy: 10) }
+
+        // Up to the finest grid the app can actually ask for. Past that the
+        // accuracy filter rejects an ordinary fix as too vague to draw, which
+        // is a different rule and its own test.
+        for z in 14...PlaceMap.maxClusterZoom {
+            let clusters = PlaceMap.cluster(pins, zoom: z)
+            #expect(clusters.count == 1,
+                    "zoom \(z) split one place into \(clusters.count) blocks")
+            #expect(clusters.first?.winCount == 5)
+        }
+    }
+
+    /// The cap is derived from the distance, not written twice.
+    @Test("the clustering grid is never finer than the same-place distance")
+    func theGridIsNeverFinerThanOnePlace() {
+        #expect(PlaceMap.cellMetres(at: PlaceMap.maxClusterZoom)
+                >= PlaceMap.samePlaceMetres)
+        #expect(PlaceMap.cellMetres(at: PlaceMap.maxClusterZoom + 1)
+                < PlaceMap.samePlaceMetres)
+    }
+
     @Test("a lone block sits on its exact coordinate, at every zoom")
     func aLoneBlockIsNotMoved() {
         // Deliberately near a cell corner, which is where the old clamp bit
         // hardest.
+        // **The key has to be derived per zoom.** A fixed x/y is a different
+        // cell at every level and is not a cell at all below z=13, which
+        // unprojects to a latitude in the eighties and made this fail for a
+        // reason that had nothing to do with anchoring.
+        let london = WinPlace(latitude: 51.5074, longitude: -0.1278, accuracy: 5)
         for z in 12...18 {
             let side = PlaceMap.cellSide(at: z)
-            let key = PlaceMap.PlaceKey(z: z, x: 8000, y: 6000)
+            let key = PlaceMap.key(for: london, z: z)
             let corner = PlaceMap.unproject(x: (Double(key.x) + 0.97) * side,
                                             y: (Double(key.y) + 0.97) * side)
             let place = (latitude: corner.latitude, longitude: corner.longitude)
@@ -386,7 +422,7 @@ struct PlaceMapTests {
     func acrowdedBlockIsStillClamped() {
         let z = 14
         let side = PlaceMap.cellSide(at: z)
-        let key = PlaceMap.PlaceKey(z: z, x: 8000, y: 6000)
+        let key = PlaceMap.PlaceKey(z: z, x: 32700, y: 21793)
         // One pin at the eastern edge of its cell, one in the cell next door.
         let edge = PlaceMap.unproject(x: (Double(key.x) + 0.99) * side,
                                       y: (Double(key.y) + 0.5) * side)
