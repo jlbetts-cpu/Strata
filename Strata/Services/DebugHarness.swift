@@ -316,6 +316,17 @@ enum DebugHarness {
                 return
             }
 
+            // **A small run cannot see the failure that matters.** This
+            // benchmark measured 30 images and reported an 8x speedup for a
+            // pipeline that STALLED in real use: starvation needs more work in
+            // flight than the thread pool can hold, and thirty from a standing
+            // start never got there. Say so rather than let the next person
+            // read a green number the way I did.
+            if names.count < 50 {
+                NSLog("[strata-bench] only \(names.count) photographs — too few to"
+                      + " show a pool stalling. Seed more and pass 80+.")
+            }
+
             manager.emptyThumbnailCacheForBenchmark()
             var start = Date()
             for name in names {
