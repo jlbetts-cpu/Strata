@@ -460,11 +460,16 @@ struct MemoriesMapView: View {
                     location.requestAccess()
                 }
             } label: {
+                // It was white type with a `contentShape` and no fill — a
+                // button-shaped hit area with nothing to press. On a map, of
+                // all grounds, invisible chrome is the one thing that cannot
+                // work.
                 Text(denied ? "Open Settings" : "Turn on places")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(.white)
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(AppColors.warmBlack)
                     .padding(.horizontal, 22)
-                    .frame(height: 44)
+                    .frame(height: 46)
+                    .background(Capsule().fill(.white.opacity(0.95)))
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)

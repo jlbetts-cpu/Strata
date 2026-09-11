@@ -25,6 +25,10 @@ enum PlaceMap {
         let category: HabitCategory
         let photoFileName: String
         let place: WinPlace
+        /// How big the win itself was. **`var` with a default**, so every
+        /// existing literal keeps compiling — a `let` with a default is
+        /// dropped from the synthesized memberwise initializer entirely.
+        var size: BlockSize = .small
     }
 
     /// Which cell of the world grid, at which zoom. Also the route.
@@ -59,8 +63,21 @@ enum PlaceMap {
         /// however many pins are in it and whatever order they arrived in.
         var id: String { "\(key.z)/\(key.x)/\(key.y)" }
 
-        /// The same rank encoding the month tower uses. Restated nowhere.
-        var size: BlockSize { MonthTower.size(forWinCount: winCount) }
+        /// The size of the win itself when there is one win, and the rank by
+        /// count when there are several.
+        ///
+        /// **One win should be its own size.** Every block on the map was
+        /// drawing at `MonthTower.size(forWinCount:)`, which is `.small` for
+        /// anything under three — so on a real map, where most places have one
+        /// or two photographs, every block came out identical. The owner:
+        /// "the blocks arent showing there size on the map." A lone win
+        /// already has a size, chosen with a finger when it was logged, and
+        /// that is the honest thing to draw. Only once a place holds several
+        /// does the count become the more useful fact.
+        var size: BlockSize { winCount == 1 ? loneSize : MonthTower.size(forWinCount: winCount) }
+
+        /// The single member's own size, when there is a single member.
+        var loneSize: BlockSize = .small
 
         /// **Where the block is DRAWN**: its true centroid, nudged only as far
         /// as it must be to keep blocks from overlapping.
@@ -127,7 +144,10 @@ enum PlaceMap {
                        title: record.title,
                        category: record.category,
                        photoFileName: name,
-                       place: place)
+                       place: place,
+                       // The size the win was logged at, so a lone block on
+                       // the map is drawn at the size a finger chose for it.
+                       size: record.size)
         }
     }
 
@@ -304,7 +324,8 @@ enum PlaceMap {
                 category: MonthTower.dominantCategory(
                     members.map { (category: $0.category, at: $0.completedAt) }
                 ),
-                photoFileNames: names
+                photoFileNames: names,
+                loneSize: members.count == 1 ? members[0].size : .small
             )
         }
         // Sorted so the output is deterministic whatever order a dictionary
@@ -345,9 +366,21 @@ enum PlaceMap {
     /// same café are in different piles" is a bad bug. The map draws crisp
     /// cells; opening one is generous. That asymmetry is deliberate: the map
     /// is a layout, the detail screen is an answer.
+    /// How far past a cell's edge counts as the same place, in metres.
+    ///
+    /// **A distance, not a fraction of the cell.** The margin used to be half
+    /// a cell, which is 20m at the tightest zoom and FIVE KILOMETRES at the
+    /// one where you see a city — so tapping a single block opened every
+    /// photograph for miles around. The owner: "if you just click one thats
+    /// alone it still opens all the photos in that area instead of just
+    /// opening that one." The thing the margin is for — two photographs of
+    /// the same cafe landing either side of an invisible line — is a
+    /// fixed-distance problem and always was.
+    static let sameePlaceMetres: Double = 60
+
     static func members(of key: PlaceKey, in pins: [Pin]) -> [Pin] {
         let side = cellSide(at: key.z)
-        let margin = side / 2
+        let margin = min(side / 2, sameePlaceMetres / (360 * 111_000))
         let minX = Double(key.x) * side - margin
         let maxX = Double(key.x + 1) * side + margin
         let minY = Double(key.y) * side - margin

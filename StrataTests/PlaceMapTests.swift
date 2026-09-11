@@ -406,20 +406,30 @@ struct PlaceMapTests {
 
     // MARK: - Opening a place
 
-    /// Two pins twenty metres apart can straddle a cell boundary. The map
-    /// draws crisp cells; opening one is generous.
-    @Test("opening a place is generous at the edges")
-    func membersIncludeAHalfCellMargin() {
+    /// Two photographs of the same cafe can straddle a cell boundary, and
+    /// must open together. Two photographs a few streets apart must not.
+    ///
+    /// **This used to assert a HALF-CELL margin**, and its own comment said
+    /// "twenty metres apart" while the pin it placed was 366m away — the
+    /// margin was a fraction of the cell, so at the zoom where you see a city
+    /// it reached five kilometres and tapping one block opened everything for
+    /// miles. The margin is a fixed distance now, and this tests it as one.
+    @Test("opening a place reaches next door and no further")
+    func membersReachNextDoorOnly() {
         let z = 14
         let inside = pin(lat: 51.5074, lon: -0.1278)
         let key = PlaceMap.key(for: inside.place, z: z)
-        // A pin just outside the cell, within the half-cell margin.
-        let side = PlaceMap.cellSide(at: z)
-        let justOutside = pin(lat: 51.5074,
-                              lon: -0.1278 + side * 360 * 0.6,
-                              day: 2)
-        let members = PlaceMap.members(of: key, in: [inside, justOutside])
-        #expect(members.count == 2)
+        let degreesPerMetre = 1.0 / 111_000
+
+        // Twenty metres out: the same place, whatever the grid says.
+        let nextDoor = pin(lat: 51.5074, lon: -0.1278 + 20 * degreesPerMetre, day: 2)
+        #expect(PlaceMap.members(of: key, in: [inside, nextDoor]).count == 2)
+
+        // Three hundred metres out: a different place, even at this zoom
+        // where the cell is 610m across.
+        let aFewStreets = pin(lat: 51.5074, lon: -0.1278 + 300 * degreesPerMetre, day: 3)
+        let reached = PlaceMap.members(of: key, in: [inside, aFewStreets])
+        #expect(reached.count == 1)
     }
 
     @Test("opening a place does not sweep in the next town")

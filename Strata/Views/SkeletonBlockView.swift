@@ -6,7 +6,9 @@ struct SkeletonBlockView: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous)
-            .fill(Color(hex: 0x403D39).opacity(0.12))
+            // Adaptive, like everything else that stands on the page: a
+            // fixed warm black was a dark smudge on the dark ground.
+            .fill(AppColors.slotInk.opacity(0.10))
             .frame(width: width, height: height)
             .shimmer()
             .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius, style: .continuous))

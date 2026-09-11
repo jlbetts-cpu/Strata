@@ -512,17 +512,64 @@ struct MemoriesView: View {
         }
     }
 
+    /// What this page looks like before there is anything on it.
+    ///
+    /// **Show the shape of the thing that is missing.** It was two lines of
+    /// grey type in the middle of a blank page, which the owner called dull
+    /// and which is — it tells you nothing is here and then gives your eye
+    /// nothing to do. A page waiting for a month of wins can show the outline
+    /// of one: the same empty slot the tower uses, in the arrangement the
+    /// month tower packs into, so what you are looking at is a promise of the
+    /// real thing rather than an apology for its absence.
+    ///
+    /// Ghosts, not blocks. A filled block here would be a win that does not
+    /// exist, and this app does not draw those.
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Text("Nothing here yet")
-                .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.6))
-            Text("Photos you take show up here.")
-                .font(Typography.bodySmall)
-                .foregroundStyle(.secondary)
+        let cell: CGFloat = 62
+        let gutter = GridConstants.spacing
+        let radius = GridConstants.blockCornerRadius(forCell: cell)
+        // One of each size, packed the way the month tower would pack them.
+        let ghosts: [(c: CGFloat, r: CGFloat, w: CGFloat, h: CGFloat)] = [
+            (0, 0, 2, 1), (2, 0, 1, 1), (0, 1, 1, 1), (1, 1, 2, 2)
+        ]
+
+        return VStack(spacing: GridConstants.gapSection) {
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(ghosts.enumerated()), id: \.offset) { index, g in
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(AppColors.slotInk.opacity(0.16),
+                                      style: StrokeStyle(lineWidth: 1.5,
+                                                         dash: [GridConstants.ghostBlockDashLength]))
+                        .background {
+                            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                                .fill(AppColors.slotInk.opacity(0.035))
+                        }
+                        .frame(width: g.w * cell + (g.w - 1) * gutter,
+                               height: g.h * cell + (g.h - 1) * gutter)
+                        .offset(x: g.c * (cell + gutter), y: g.r * (cell + gutter))
+                        // They fade up in order, so the page arrives rather
+                        // than appearing.
+                        .opacity(0.9)
+                        .animation(GridConstants.gentleReveal.delay(Double(index) * 0.06),
+                                   value: vm.month.isEmpty)
+                }
+            }
+            .frame(width: 3 * cell + 2 * gutter, height: 3 * cell + 2 * gutter)
+
+            VStack(spacing: GridConstants.gapTight) {
+                Text("Your first month starts here")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(.primary.opacity(0.85))
+                Text("Every win you log becomes a block, and they collect here by month.")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 36)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 120)
+        .padding(.top, 72)
     }
 }
 

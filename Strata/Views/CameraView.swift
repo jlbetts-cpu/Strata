@@ -339,16 +339,18 @@ struct CameraView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                // The same print the viewer lays down — inset, with the app's
-                // surface radius — so a photograph looks like the same object
-                // the moment after you take it as it does a month later.
+                // **Edge to edge, the way the system camera shows a shot.**
+                //
+                // It was an inset print with the app's surface radius, which
+                // is right in the VIEWER — a photograph you are revisiting is
+                // an object on a page — and wrong here. This is the frame you
+                // just took, still warm, and every camera on the phone shows
+                // it filling the screen. Insetting it made the review feel
+                // like a preview of a card rather than the picture itself.
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
-                                                style: .continuous))
-                    .padding(.horizontal, 20)
 
                 Spacer(minLength: 0)
 
@@ -363,15 +365,6 @@ struct CameraView: View {
                             .frame(minWidth: 88, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                     }
-
-                    Spacer(minLength: 0)
-
-                    // What you drew, still showing.
-                    RoundedRectangle(cornerRadius: reviewMarkSize.height * 0.147,
-                                     style: .continuous)
-                        .fill(.white.opacity(0.9))
-                        .frame(width: reviewMarkSize.width, height: reviewMarkSize.height)
-                        .accessibilityLabel("Block size, \(drawnSize.effortLabel)")
 
                     Spacer(minLength: 0)
 
@@ -391,20 +384,29 @@ struct CameraView: View {
                 .padding(.bottom, bottomInset + shutterBottomGap)
             }
             .padding(.top, topInset + Header.topPadding)
-        }
-    }
 
-    /// The drawn size, small enough to sit on a toolbar line. Same proportions
-    /// as the shutter, a third of the size.
-    private var reviewMarkSize: CGSize {
-        let cell: CGFloat = 22
-        let gutter = cell * GridConstants.spacing / GridConstants.blockReferenceCell
-        return CGSize(
-            width: cell * CGFloat(drawnSize.columnSpan)
-                + gutter * CGFloat(drawnSize.columnSpan - 1),
-            height: cell * CGFloat(drawnSize.rowSpan)
-                + gutter * CGFloat(drawnSize.rowSpan - 1)
-        )
+            // **The size in a word, at the top, not a square in the middle.**
+            //
+            // A white rounded rectangle sat between Retake and Use Photo,
+            // drawing the footprint of the block you had pulled out of the
+            // shutter. The owner: "there is a random square in the middle."
+            // It was — nothing on that screen explained it, and the bottom row
+            // of a camera review is somewhere everybody already knows the
+            // shape of: one word left, one word right, nothing between them.
+            // The size still matters, so it is said rather than drawn.
+            VStack {
+                Text(drawnSize.effortLabel.uppercased())
+                    .font(Typography.sectionLabel)
+                    .kerning(Typography.sectionKerning)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(.black.opacity(0.35)))
+                    .padding(.top, topInset + Header.topPadding)
+                Spacer(minLength: 0)
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     /// Keep it: the camera roll, then the win.

@@ -1,30 +1,33 @@
 import SwiftUI
 
+/// What a thing that is still loading looks like.
+///
+/// **A breath, not a sweep.** This was a white highlight travelling diagonally
+/// across every placeholder at 30fps, which is the effect every website used
+/// in 2019 and the owner's note on it was exact: "too much going on, not
+/// premium." A sweep is a moving object, and a moving object asks to be
+/// watched — so a screen of them is a screen of things demanding attention
+/// while claiming to be nothing yet.
+///
+/// A slow change in weight says the same thing and asks for nothing. It is
+/// also most of a frame cheaper: one animated value instead of a gradient
+/// re-solved every tick.
 struct ShimmerModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var deep = false
 
     func body(content: Content) -> some View {
         content
             .overlay {
-                if reduceMotion {
-                    Color.white.opacity(0.08)
-                } else {
-                    // #156: Shimmer capped at 30 FPS for GPU budget
-                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
-                        let phase = timeline.date.timeIntervalSinceReferenceDate
-                            .truncatingRemainder(dividingBy: 1.5) / 1.5
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: max(0, phase - 0.15)),
-                                .init(color: .white.opacity(0.20), location: phase),
-                                .init(color: .clear, location: min(1, phase + 0.15))
-                            ],
-                            startPoint: UnitPoint(x: -0.2, y: 0),
-                            endPoint: UnitPoint(x: 1.2, y: 0.35)
-                        )
-                    }
-                }
+                // The app's own ink, so it belongs to whichever ground it is
+                // standing on rather than being white on both.
+                AppColors.slotInk
+                    .opacity(reduceMotion ? 0.05 : (deep ? 0.09 : 0.03))
             }
+            .animation(reduceMotion ? nil
+                       : .easeInOut(duration: 1.1).repeatForever(autoreverses: true),
+                       value: deep)
+            .onAppear { deep = true }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
