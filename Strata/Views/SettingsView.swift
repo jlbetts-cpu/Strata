@@ -362,11 +362,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    dismiss()
-                }
-            }
+            settingsToolbar
         }
         .task {
             await checkNotificationStatus()
@@ -379,6 +375,32 @@ struct SettingsView: View {
     }
 
     // MARK: - Notification Helpers
+
+    /// **Bare glyphs, like every other screen.** See
+    /// `MainAppView.todayToolbar`: iOS 26 puts a glass capsule behind every
+    /// toolbar item, the app strips it deliberately, and a screen that misses
+    /// the treatment both looks unlike its neighbours and can render that
+    /// capsule black against the warm ground. This was one of three that had
+    /// been missed.
+    @ToolbarContentBuilder
+    private var settingsToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
+        }
+    }
+
+    private var settingsDoneButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            dismiss()
+        } label: {
+            Text("Done").font(Typography.headerSmall)
+        }
+        .foregroundStyle(AppColors.accentWarm)
+    }
 
     private func requestNotificationPermission() async {
         let center = UNUserNotificationCenter.current()

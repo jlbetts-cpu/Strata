@@ -63,22 +63,7 @@ struct PlanItemDetailSheet: View {
             .background { WarmBackground().ignoresSafeArea() }
             .navigationTitle("Line")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { try? modelContext.save(); dismiss() }
-                        .font(Typography.headerSmall)
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(role: .destructive) {
-                        modelContext.delete(item)
-                        try? modelContext.save()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .accessibilityLabel("Delete this line")
-                }
-            }
+            .toolbar { detailToolbar }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -171,5 +156,45 @@ struct PlanItemDetailSheet: View {
     private func letter(for day: Int) -> String {
         let symbols = calendar.veryShortWeekdaySymbols
         return symbols.indices.contains(day - 1) ? symbols[day - 1] : "?"
+    }
+
+    /// See `MainAppView.todayToolbar` — iOS 26's glass capsule behind every
+    /// toolbar item, stripped so these read as bare glyphs like the rest of
+    /// the app. One of three screens that had been missed.
+    @ToolbarContentBuilder
+    private var detailToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) { detailDoneButton }
+                .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarLeading) { detailDeleteButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { detailDoneButton }
+            ToolbarItem(placement: .topBarLeading) { detailDeleteButton }
+        }
+    }
+
+    private var detailDoneButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            try? modelContext.save()
+            dismiss()
+        } label: {
+            Text("Done").font(Typography.headerSmall)
+        }
+        .foregroundStyle(AppColors.accentWarm)
+    }
+
+    private var detailDeleteButton: some View {
+        Button(role: .destructive) {
+            HapticsEngine.warning()
+            modelContext.delete(item)
+            try? modelContext.save()
+            dismiss()
+        } label: {
+            Image(systemName: "trash")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+        }
+        .accessibilityLabel("Delete this line")
     }
 }

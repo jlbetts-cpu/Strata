@@ -1261,7 +1261,7 @@ private struct FocusReticle: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                 .strokeBorder(Color(red: 1, green: 0.82, blue: 0.24), lineWidth: 1.4)
                 .frame(width: Self.side, height: Self.side)
 

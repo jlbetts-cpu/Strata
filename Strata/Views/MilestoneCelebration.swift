@@ -45,7 +45,9 @@ struct MilestoneCelebration: View {
             }
             .padding(32)
             .frame(maxWidth: 300)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(.regularMaterial,
+                        in: RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
+                                            style: .continuous))
             .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
             .scaleEffect(showContent ? 1.0 : 0.8)
             .opacity(showContent ? 1.0 : 0)

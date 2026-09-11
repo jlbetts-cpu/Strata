@@ -108,14 +108,7 @@ struct AddWinSheet: View {
             .navigationTitle(isEditing ? "Edit" : "Add a win")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isEditing ? "Save" : "Add") { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.medium)
-                }
+                addWinToolbar
             }
             .onAppear(perform: load)
             .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
@@ -241,6 +234,38 @@ struct AddWinSheet: View {
     /// what you frame here is what ends up on the tower — a square well for a
     /// square block, wide for a wide one. Tapping it opens the camera; tapping
     /// a photo you already took replaces it.
+    /// See `MainAppView.todayToolbar`. iOS 26 puts a glass capsule behind
+    /// every toolbar item; this app strips it, and a screen that misses the
+    /// treatment looks unlike its neighbours and can render that capsule black
+    /// against the warm ground — which is what happened on the plan sheet.
+    @ToolbarContentBuilder
+    private var addWinToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .cancellationAction) { cancelButton }
+                .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .confirmationAction) { confirmButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .cancellationAction) { cancelButton }
+            ToolbarItem(placement: .confirmationAction) { confirmButton }
+        }
+    }
+
+    private var cancelButton: some View {
+        Button("Cancel") {
+            HapticsEngine.lightTap()
+            dismiss()
+        }
+        .foregroundStyle(AppColors.inkSecondary)
+    }
+
+    private var confirmButton: some View {
+        Button(isEditing ? "Save" : "Add") { save() }
+            .disabled(!canSave)
+            .fontWeight(.medium)
+            .foregroundStyle(canSave ? AppColors.accentWarm : AppColors.inkQuiet)
+    }
+
     private var photoWell: some View {
         // The well is the block, at the block's real proportions.
         //
