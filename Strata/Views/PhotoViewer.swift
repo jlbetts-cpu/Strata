@@ -451,14 +451,32 @@ struct PhotoViewer: View {
     /// to see whichever way you go. Everything outside the window is dropped
     /// on the same pass, so paging through a year does not accumulate.
     private func loadWindow() async {
-        let window = ((index - 1)...(index + 1))
+        // **The one you are looking at, first.**
+        //
+        // The window used to be built in index order — previous, current,
+        // next — and loaded serially, so arriving at a photograph meant
+        // waiting for its NEIGHBOUR to decode off disk before the picture in
+        // front of you appeared. The owner: "the photo loading is slow." It
+        // was not slow; it was queued behind something nobody could see.
+        //
+        // It also caused the second half of that report, "the photos and
+        // titles arent accurate at times": the caption follows `currentID`
+        // immediately while the image waits its turn, so for as long as the
+        // decode took you were reading one photograph's title over another
+        // photograph. Loading the visible one first shrinks that window to
+        // almost nothing.
+        let order = [index, index + 1, index - 1]
             .filter { photos.indices.contains($0) }
-            .map { photos[$0].fileName }
+        let window = order.map { photos[$0].fileName }
         images = images.filter { window.contains($0.key) }
         for name in window where images[name] == nil {
             if let ui = await ImageManager.shared.loadFullImage(fileName: name) {
                 images[name] = ui
             }
+            // Yield between decodes so the first one can be drawn before the
+            // neighbours are fetched. Without this the three awaits run back
+            // to back on the same turn and the picture still arrives late.
+            await Task.yield()
         }
     }
 
