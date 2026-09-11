@@ -4,9 +4,32 @@ import ImageIO
 final class ImageManager: @unchecked Sendable {
     static let shared = ImageManager()
 
-    private let imageDirectory: URL
+    /// Where the photographs live.
+    ///
+    /// Readable so a backup can copy them and Settings can total them up. It
+    /// is a folder in Documents, so it is included in the device backup iOS
+    /// makes on its own — this is about the file the owner can hand to
+    /// somebody, or keep when they change phone.
+    let imageDirectory: URL
     private let thumbnailCache = NSCache<NSString, UIImage>()
     private let ioQueue = DispatchQueue(label: "com.strata.imagemanager.io")
+
+    /// How much room the photographs take, in bytes, and how many there are.
+    ///
+    /// Walked rather than summed from a counter: a counter drifts the first
+    /// time anything writes a file without telling it, and the number people
+    /// check is the one that has to be true.
+    func storageUsed() -> (count: Int, bytes: Int64) {
+        let keys: [URLResourceKey] = [.fileSizeKey]
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: imageDirectory, includingPropertiesForKeys: keys) else { return (0, 0) }
+        var bytes: Int64 = 0
+        for url in items {
+            let size = (try? url.resourceValues(forKeys: Set(keys)).fileSize) ?? 0
+            bytes += Int64(size)
+        }
+        return (items.count, bytes)
+    }
 
     private init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

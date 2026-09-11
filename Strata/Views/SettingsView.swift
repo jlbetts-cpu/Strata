@@ -28,6 +28,21 @@ struct SettingsView: View {
     @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
+
+    /// What the photographs are costing, in the units a phone uses.
+    ///
+    /// Measured off the folder rather than counted as they are written: a
+    /// counter drifts the first time anything writes a file without telling
+    /// it, and this is a number somebody is checking precisely because they
+    /// want the truth.
+    private var storageLine: String {
+        let used = ImageManager.shared.storageUsed()
+        guard used.count > 0 else { return "No photographs stored yet." }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        let size = formatter.string(fromByteCount: used.bytes)
+        return "\(used.count) photograph\(used.count == 1 ? "" : "s"), \(size)."
+    }
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
 
     @State private var reminderTime = Date()
@@ -176,6 +191,10 @@ struct SettingsView: View {
             } header: {
                 Text("Camera")
             } footer: {
+                Text(storageLine)
+                    .padding(.bottom, 6)
+                    .accessibilityLabel("Photographs use \(storageLine)")
+
                 // Stated here because it is the map's one real disappointment
                 // and it should not be discovered.
                 Text(location.isDenied
@@ -227,7 +246,7 @@ struct SettingsView: View {
                     exportData()
                 } label: {
                     Label {
-                        Text("Export Data")
+                        Text("Back Up Everything")
                             .foregroundStyle(.primary)
                     } icon: {
                         SettingsIcon(systemName: "square.and.arrow.up", tint: HabitCategory.work.style.baseColor)
@@ -442,14 +461,52 @@ struct SettingsView: View {
 
         guard let data = try? encoder.encode(export) else { return }
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let fileName = "strata-export-\(dateFormatter.string(from: Date())).json"
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyy-MM-dd"
+        let name = "Strata Backup \(stamp.string(from: Date()))"
 
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        try? data.write(to: tempURL)
+        // **A backup, which means the photographs too.**
+        //
+        // This wrote a lone JSON file and called it an export. Every win's
+        // name, date and size was in it and not one picture — so restoring
+        // from it would have given somebody back a tower of empty blocks, and
+        // the photographs are the part nobody can retype. The owner asked for
+        // "a backup file if possible for saved data"; a backup that drops the
+        // irreplaceable half is not one.
+        let fm = FileManager.default
+        let folder = fm.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        try? fm.removeItem(at: folder)
+        guard (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
+              (try? data.write(to: folder.appendingPathComponent("wins.json"))) != nil
+        else { return }
 
-        exportURL = tempURL
+        // Copied, never moved. These are the user's only copy.
+        let photos = folder.appendingPathComponent("photos", isDirectory: true)
+        try? fm.createDirectory(at: photos, withIntermediateDirectories: true)
+        let source = ImageManager.shared.imageDirectory
+        for file in (try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)) ?? [] {
+            try? fm.copyItem(at: file, to: photos.appendingPathComponent(file.lastPathComponent))
+        }
+
+        // **Zipped by the system, with no dependency.** `NSFileCoordinator`'s
+        // `.forUploading` option hands back a zip of a directory — it is what
+        // AirDrop uses for a folder — so a backup is one file somebody can
+        // mail themselves without the app shipping an archiver.
+        var error: NSError?
+        var zipped: URL?
+        NSFileCoordinator().coordinate(readingItemAt: folder,
+                                       options: [.forUploading],
+                                       error: &error) { url in
+            let destination = fm.temporaryDirectory
+                .appendingPathComponent("\(name).zip")
+            try? fm.removeItem(at: destination)
+            try? fm.copyItem(at: url, to: destination)
+            zipped = destination
+        }
+        try? fm.removeItem(at: folder)
+
+        guard let zipped else { return }
+        exportURL = zipped
         showExportShare = true
     }
 
