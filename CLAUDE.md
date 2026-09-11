@@ -810,6 +810,43 @@ It is cached behind a signature (`distinct day count | newest day`) because
 `refreshData()` is a hot path and the streak needs a 400-day window, while
 `MainAppView`'s own query is deliberately narrowed to the current month.
 
+## An ink is not a surface
+
+**This exact mistake was made four times in one session**, in four files, by
+reaching for the nearest-looking colour token instead of asking what the colour
+is FOR. Every time it passed review and failed on a device.
+
+- `warmBlack` at 0.22 under the plan's checkboxes. A fixed dark ink, so on the
+  dark ground it was dark on dark: **1.08:1**, which is not low contrast, it is
+  none.
+- `warmBlack` at 0.55 behind the settings glyphs. Same fault, **1.24:1**
+  against the dark ground.
+- `accentWarm` on the switches. Correctly adaptive — and adaptive to a warm
+  near-WHITE in dark mode, which is also the colour of a switch's thumb.
+  **1.07:1** between the track and the knob.
+- `inkQuiet` under a map block waiting for its photograph. An ink meant for
+  text, so it inverts: 45% black in light and **55% white** in dark, and every
+  block flashed pale on a dark map before its picture arrived.
+
+The rule that would have caught all four:
+
+- **An INK is for text and glyphs.** It inverts with the scheme, because type
+  must stay legible on whatever is behind it. `inkSecondary`, `inkTertiary`,
+  `inkQuiet`, `slotInk`.
+- **A SURFACE is a thing you put ink ON.** It does not automatically invert,
+  because what must stay constant is its contrast with the CONTENT on top —
+  a white glyph needs a mid-tone behind it in both schemes, not a fill that
+  goes pale when the page does. `switchOn`, the map's `waitingFill`.
+- **Ask what the contrast is against**, and measure it. A switch track is
+  measured against its white thumb, not against the page. A checkbox outline
+  is measured against the page, because an empty checkbox IS its outline.
+  3:1 for anything that is a control, 4.5:1 for text.
+
+Contrast is arithmetic, so compute it rather than looking: the four above were
+all found by computing WCAG ratios from the token's real RGB over the real
+ground, and all four were invisible to the eye on the simulator in the scheme
+they were authored in.
+
 ## Safety
 
 - `HabitLog.imageFileName` points at real user photos. Never delete or rewrite
