@@ -1514,6 +1514,14 @@ struct MainAppView: View {
         if let n = DebugHarness.benchImages {
             DebugHarness.runImageBench(count: n)
         }
+        #if DEBUG
+        if WidgetPreviewRenderer.isRequested {
+            // After the snapshot is published, so it draws the real tower.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                WidgetPreviewRenderer.run(snapshot: WidgetSnapshot.read())
+            }
+        }
+        #endif
         if DebugHarness.reportsLocation {
             DebugHarness.runLocationProbe(LocationService.shared)
         }
@@ -1827,8 +1835,22 @@ struct MainAppView: View {
                 rows: block.rowSpan,
                 hex: block.habit.displayCategory.style.baseHexString)
         }
+        // **Lifetime, not today.** The tower is pinned to today, so
+        // `placedBlocks.count` and `blocksToday` are the same number — the
+        // first render of this widget showed "2 wins" beside "+2", which is
+        // the same fact twice, the exact thing the tower's own header was
+        // redesigned to stop doing. The headline is the number that only ever
+        // grows; the blocks under it are today's.
+        //
+        // `fetchCount` rather than a fetch: MainAppView's own query is
+        // deliberately narrowed to the current month and must stay that way,
+        // and counting rows does not materialise them.
+        let everything = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.completed })
+        let lifetime = (try? modelContext.fetchCount(everything))
+            ?? towerVM.placedBlocks.count
         let snapshot = WidgetSnapshot(
-            total: towerVM.placedBlocks.count,
+            total: lifetime,
             today: blocksToday,
             streak: Streaks.current(among: logs.filter(\.completed).map(\.dateString)),
             blocks: Array(recent),

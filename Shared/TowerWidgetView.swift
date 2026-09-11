@@ -25,7 +25,17 @@ struct WidgetGround: View {
 
 struct TowerWidgetView: View {
     let snapshot: WidgetSnapshot
-    @Environment(\.widgetFamily) private var family
+    /// Forced size, for the renderer that photographs this view.
+    ///
+    /// `widgetFamily` is read-only in the environment, so there is no way to
+    /// ask SwiftUI to lay this out as a medium widget from outside WidgetKit —
+    /// and nothing on the build machine can place a widget on a home screen to
+    /// see it for real. One optional override is the cheapest honest way to
+    /// look at all three sizes.
+    var forcedFamily: WidgetFamily?
+    @Environment(\.widgetFamily) private var environmentFamily
+
+    private var family: WidgetFamily { forcedFamily ?? environmentFamily }
 
     var body: some View {
         switch family {
@@ -44,6 +54,13 @@ struct TowerWidgetView: View {
             if snapshot.blocks.isEmpty {
                 empty
             } else {
+                // **"today" said once, on the thing it describes.** The
+                // headline counts everything ever; these are the blocks that
+                // landed since midnight, and without a word saying so the two
+                // numbers look like they disagree.
+                Text("today")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.tertiary)
                 TowerMark(blocks: snapshot.blocks, columns: family == .systemSmall ? 4 : 7)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
@@ -65,12 +82,6 @@ struct TowerWidgetView: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
-            if snapshot.today > 0 {
-                Text("+\(snapshot.today)")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("\(snapshot.today) today")
-            }
         }
     }
 
@@ -98,18 +109,25 @@ struct TowerWidgetView: View {
         VStack(alignment: .leading, spacing: 1) {
             Text("\(snapshot.total) wins")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
-            if snapshot.streak > 1 {
-                Text("\(snapshot.streak) day streak")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-            } else if snapshot.today > 0 {
-                Text("\(snapshot.today) today")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-            } else {
-                Text("Add one")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-            }
+            Text(secondLine)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension TowerWidgetView {
+    /// The one extra fact worth a second line, and never a repeat of the
+    /// first.
+    ///
+    /// On day one every win IS today's, so "11 wins / 11 today" says the same
+    /// thing twice — the failure the tower's own header was redesigned to
+    /// avoid. Day one gets to be day one instead.
+    fileprivate var secondLine: String {
+        if snapshot.streak > 1 { return "\(snapshot.streak) day streak" }
+        if snapshot.today == 0 { return "Add one" }
+        if snapshot.today == snapshot.total { return "Day one" }
+        return "\(snapshot.today) today"
     }
 }
 
@@ -128,17 +146,29 @@ struct TowerMark: View {
 
     var body: some View {
         GeometryReader { geo in
-            let cell = max(geo.size.width / CGFloat(columns), 1)
             let placed = Self.pack(blocks, columns: columns)
             let rows = max((placed.map { $0.row + $0.block.rows }.max() ?? 0), 1)
+            // **Fill the box, don't sit in the corner of it.** Sizing the cell
+            // off the width alone left a two-block tower as two small squares
+            // in the bottom-left of a mostly empty medium widget. Take
+            // whichever of width and height is the binding constraint, and cap
+            // it so a single block does not become a slab.
+            let byWidth = geo.size.width / CGFloat(columns)
+            let byHeight = geo.size.height / CGFloat(rows)
+            let cell = max(min(byWidth, byHeight, geo.size.height / 2), 1)
             let height = CGFloat(rows) * cell
 
             ZStack(alignment: .topLeading) {
                 ForEach(placed.indices, id: \.self) { i in
                     let item = placed[i]
                     brick(item.block, cell: cell)
+                        // **Row 0 at the BOTTOM.** First-fit packs downward,
+                        // so drawing rows in packing order stands the tower on
+                        // its head: the partial row — the newest blocks —
+                        // ended up along the floor, with the full rows above
+                        // it. A tower stands on its complete rows.
                         .offset(x: CGFloat(item.column) * cell,
-                                y: CGFloat(item.row) * cell)
+                                y: CGFloat(rows - item.row - item.block.rows) * cell)
                 }
             }
             .frame(width: geo.size.width, height: height, alignment: .topLeading)

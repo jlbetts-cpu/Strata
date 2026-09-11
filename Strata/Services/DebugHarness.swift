@@ -20,7 +20,7 @@ import UIKit
 /// state is a state the app could actually have got itself into.
 enum DebugHarness {
 
-    private static func argument(_ key: String) -> String? {
+    static func argument(_ key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: key), i + 1 < args.count else { return nil }
         return args[i + 1]
