@@ -56,6 +56,8 @@ struct AddWinSheet: View {
     @State private var photoChanged = false
     @State private var showCamera = false
     @State private var choosingSource = false
+    /// Looking at the photograph this win already has.
+    @State private var peeking = false
     @State private var pickerItem: PhotosPickerItem?
     @State private var showLibrary = false
     @State private var loaded = false
@@ -94,9 +96,14 @@ struct AddWinSheet: View {
                         deleteButton
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                // **The app's page margin, not a private one.** This was
+                // 20 while every other screen is `horizontalPadding` (16), so
+                // the add sheet's content sat four points further in than the
+                // tower behind it — the kind of difference nobody can name and
+                // everybody feels when they move between two screens.
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.top, GridConstants.gapTight)
+                .padding(.bottom, GridConstants.gapLabel)
             }
             .navigationTitle(isEditing ? "Edit" : "Add a win")
             .navigationBarTitleDisplayMode(.inline)
@@ -162,6 +169,15 @@ struct AddWinSheet: View {
         // they happen and named later, so by the time you are filling this in
         // the picture is usually already in your library. Taking one now is
         // the other half, not the whole of it.
+        .contextMenu {
+            if photo != nil {
+                Button("Replace photo") { choosingSource = true }
+                Button("Remove photo", role: .destructive) {
+                    photo = nil
+                    photoChanged = true
+                }
+            }
+        }
         .confirmationDialog("Add a photo", isPresented: $choosingSource, titleVisibility: .hidden) {
             Button("Take a photo") { showCamera = true }
             Button("Choose from library") { showLibrary = true }
@@ -172,6 +188,9 @@ struct AddWinSheet: View {
                 }
             }
             Button("Cancel", role: .cancel) { }
+        }
+        .fullScreenCover(isPresented: $peeking) {
+            if let photo { PhotoPeek(image: photo) { peeking = false } }
         }
         .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
@@ -224,7 +243,19 @@ struct AddWinSheet: View {
 
         return Button {
             HapticsEngine.lightTap()
-            choosingSource = true
+            // **A photograph you can see is a photograph you can open.**
+            //
+            // Tapping the well always opened the "add a photo" dialog, even
+            // when it already had one on it — so the one thing the well
+            // obviously invites you to do, look at the picture, was the one
+            // thing it would not do. The owner: "why when you click on a photo
+            // in the edit menu you arent able to view the photo."
+            //
+            // Empty, it still asks where to get one. Full, it shows it, and
+            // replacing or removing moves to a long press — which is where
+            // iOS puts a secondary action on something you are mainly looking
+            // at.
+            if photo == nil { choosingSource = true } else { peeking = true }
         } label: {
             ZStack {
                 if let photo {
@@ -539,5 +570,59 @@ struct AddWinSheet: View {
         HapticsEngine.tick()
         onDeleted()
         dismiss()
+    }
+}
+
+/// A photograph, full screen, and a way out.
+///
+/// **Not `PhotoViewer`.** That one is a deck: it needs a whole run of saved
+/// `GalleryPhoto`s to page through and a file name to load from disk. The
+/// photograph on the add sheet may be neither — it can be a `UIImage` that has
+/// not been written anywhere yet, taken thirty seconds ago. So this is the
+/// smaller thing: one picture, fitted, on the app's black, with the same glass
+/// close button the viewer uses.
+private struct PhotoPeek: View {
+    let image: UIImage
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(image.size.width / max(image.size.height, 1), contentMode: .fit)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+
+            VStack {
+                HStack {
+                    Button {
+                        HapticsEngine.lightTap()
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background {
+                                if #available(iOS 26.0, *) {
+                                    Circle().fill(.clear).glassEffect(.regular, in: .circle)
+                                } else {
+                                    Circle().fill(.ultraThinMaterial)
+                                }
+                            }
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.top, GridConstants.gapItem)
+                Spacer(minLength: 0)
+            }
+        }
+        .statusBarHidden()
     }
 }

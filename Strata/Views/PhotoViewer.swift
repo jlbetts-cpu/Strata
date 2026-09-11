@@ -360,7 +360,11 @@ struct PhotoViewer: View {
                 .foregroundStyle(.white.opacity(current?.title == nil ? 0 : 0.95))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .padding(.horizontal, 64)
+                // Clear of the two chrome buttons, derived rather than
+                // typed: their 44pt target plus the page margin. Typed as 64
+                // it was a number that happened to work and would not have
+                // survived either of them changing size.
+                .padding(.horizontal, 44 + GridConstants.horizontalPadding)
                 .animation(GridConstants.crossFade, value: currentID)
 
             HStack {
