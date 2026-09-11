@@ -597,7 +597,22 @@ private struct PhotoPage: View {
         .animation(GridConstants.gentleReveal, value: image != nil)
         .contentShape(Rectangle())
         .gesture(magnify)
-        .simultaneousGesture(pan)
+        // **The pan is only attached while zoomed in.**
+        //
+        // It used to be a `simultaneousGesture` at all times, guarded by
+        // `guard zoomed else { return }` inside the handler — but the guard is
+        // in the WRONG PLACE. A `DragGesture` that is installed recognises,
+        // whatever its handler decides to do afterwards, and a recogniser on
+        // the page starves the deck's paging scroll view of the horizontal
+        // drag. So swiping the picture did nothing: the owner reported it as
+        // "swiping to the right or left should move through the photos, right
+        // now it doesnt", and it never did.
+        //
+        // CLAUDE.md already records this rule twice over, from the tower:
+        // any recogniser on a block measured 0.0pt of scroll, and
+        // `.gesture(cond ? g : nil)` still installs one — the MODIFIER has to
+        // be conditional, not the gesture. That is what `panWhenZoomed` does.
+        .panWhenZoomed(zoomed ? pan : nil)
         .gesture(doubleTap)
         .onChange(of: zoomed) { _, now in onZoomChanged(now) }
         .onChange(of: isCurrent) { _, now in
@@ -731,5 +746,22 @@ enum PhotoRemoval {
         for log in logs { log.imageFileName = nil }
         try? context.save()
         ImageManager.shared.deleteImage(fileName: fileName)
+    }
+}
+
+private extension View {
+    /// Attaches a drag gesture only when there is one to attach.
+    ///
+    /// The conditional is on the MODIFIER: with `.simultaneousGesture(nil)`
+    /// SwiftUI still installs a recogniser, and an installed recogniser is
+    /// enough to starve an enclosing scroll view whether or not it ever
+    /// handles anything.
+    @ViewBuilder
+    func panWhenZoomed(_ gesture: (some Gesture)?) -> some View {
+        if let gesture {
+            self.simultaneousGesture(gesture)
+        } else {
+            self
+        }
     }
 }

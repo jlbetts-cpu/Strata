@@ -175,7 +175,22 @@ enum AppColors {
             : UIColor(white: 0, alpha: 0.45)
     })
 
-    static let accentWarm = Color(hex: 0x403D39)
+    /// The app's accent: what a switch, a link and a selected control wear.
+    ///
+    /// **It has to flip.** It was a fixed warm black, which is the right
+    /// accent on a light page and invisible on a dark one — the owner: "in
+    /// dark mode the main accent... the switches are like not noticably on in
+    /// the settings." A switch whose on-state is near-black on a near-black
+    /// ground is a switch with no on-state.
+    ///
+    /// The dark value is the same warm white the empty slot and the primary
+    /// buttons use, so every piece of ink in the app inverts together rather
+    /// than one control at a time.
+    static let accentWarm = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.98, green: 0.97, blue: 0.96, alpha: 1)
+            : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
+    })
     static let accentPurple = Color(hex: 0xA689FA)
 
     static let healthGreen = Color(hex: 0x34C48B)

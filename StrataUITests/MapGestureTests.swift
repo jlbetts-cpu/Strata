@@ -239,6 +239,43 @@ final class MapGestureTests: XCTestCase {
         }
     }
 
+    /// Swiping the picture moves to the next one.
+    ///
+    /// The owner: "the photos screen swiping to the right or left should move
+    /// through the photos, right now it doesnt." The deck is a paging
+    /// `ScrollView`, and its layout was rewritten today so the header overlays
+    /// it — which is exactly the kind of change that can take a gesture with
+    /// it without anything erroring. This is the assertion that would have
+    /// caught that.
+    func testSwipingThePictureMovesThroughTheDeck() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-strataStartTab", "history",
+            "-strataSeedHistory", "40",
+            "-strataOpenDrawer", "full",
+            "-strataOpenPhoto", "3"
+        ]
+        app.launch()
+
+        let caption = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "·")
+        ).firstMatch
+        XCTAssertTrue(caption.waitForExistence(timeout: 45), "the photo viewer never opened")
+        Thread.sleep(forTimeInterval: 4)
+        let before = caption.label
+
+        // Swipe across the PICTURE, not the strip: the middle of the screen.
+        let middle = app.windows.firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.42))
+        middle.press(forDuration: 0.02,
+                     thenDragTo: app.windows.firstMatch
+                        .coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.42)))
+        Thread.sleep(forTimeInterval: 3)
+
+        XCTAssertNotEqual(before, caption.label,
+                          "swiping the picture did not move to the next photograph")
+    }
+
     func testPinchingInZoomsTheMapIn() throws {
         let app = launchedOnTheMap()
         let probe = app.descendants(matching: .any)["MapZoomProbe"]

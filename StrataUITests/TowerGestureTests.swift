@@ -533,8 +533,20 @@ final class TowerGestureTests: XCTestCase {
         // to the same y after an unequal number of swipes. It does, so it
         // never moved: it faded and un-faded in place.
         for _ in 0..<8 { app.swipeDown() }
-        Thread.sleep(forTimeInterval: 2)
-        XCTAssertTrue(back.isHittable, "the picker did not come back with the tower")
+
+        // **Polled, not slept.** The picker fades back on `gentleReveal` once
+        // a geometry callback reports the tower on screen again, and a fixed
+        // two seconds was landing inside that — this failed in a full-suite
+        // run and passed alone, which is the signature of a timing assertion
+        // rather than a broken feature. The same file already polls for the
+        // month refetch for the same reason.
+        var back_isBack = back.isHittable
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !back_isBack {
+            Thread.sleep(forTimeInterval: 0.3)
+            back_isBack = back.isHittable
+        }
+        XCTAssertTrue(back_isBack, "the picker did not come back with the tower")
         XCTAssertEqual(back.frame.origin.y, restingFrame.origin.y, accuracy: 0.5,
                        "the picker came back somewhere else, so it had moved")
     }

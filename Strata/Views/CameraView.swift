@@ -357,7 +357,17 @@ struct CameraView: View {
                 HStack(spacing: 0) {
                     Button {
                         HapticsEngine.tick()
-                        withAnimation(GridConstants.gentleReveal) { review = nil }
+                        withAnimation(GridConstants.gentleReveal) {
+                            review = nil
+                            // **Retake means retake.** The size you drew was
+                            // for the shot you just rejected, and keeping it
+                            // meant coming back to a shutter already stretched
+                            // into a shape you did not ask for this time. The
+                            // owner: "when retaking a photo it shouldnt stay
+                            // on the size, it should go back to the normal
+                            // camera with all the options."
+                            drawnSize = .small
+                        }
                     } label: {
                         Text("Retake")
                             .font(Typography.headerSmall)
