@@ -667,6 +667,20 @@ struct MemoriesMapView: View {
 private struct PlaceBlock: View {
     /// Marks a photograph that lives in the asset catalogue rather than in the
     /// user's image directory. Only onboarding uses it.
+    /// What a block shows for the moment before its photograph decodes.
+    ///
+    /// **A fixed neutral, not an ink.** This was `AppColors.inkQuiet`, which
+    /// is a token for TEXT and inverts with the scheme — 45% black in light,
+    /// 55% WHITE in dark. On a dark map that made a block flash pale before
+    /// its picture arrived, which is a worse thing to look at than the
+    /// category colour it replaced. An ink is not a surface, and using one as
+    /// a fill is how that inversion sneaks in.
+    ///
+    /// One warm grey in both schemes: quiet against the pale tiles and
+    /// against the satellite ones, and close enough to the average photograph
+    /// that the handover is not a step.
+    static let waitingFill = Color(hex: 0x7A736D)
+
     static let bundledPrefix = "bundle:"
 
     let cluster: PlaceMap.Cluster
@@ -842,7 +856,7 @@ private struct PlaceBlock: View {
                 if cluster.photoFileNames.isEmpty {
                     cluster.category.style.baseColor
                 } else {
-                    AppColors.inkQuiet
+                    Self.waitingFill
                 }
                 // **A bundled photograph, for the onboarding map.**
                 //
