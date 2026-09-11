@@ -299,6 +299,62 @@ enum DebugHarness {
         NSLog("[strata-probe] store inMemoryFallback=\(SharedModelContainer.isUsingInMemoryFallback)")
     }
 
+    /// Times the image pipeline, from `-strataBenchImages <n>`.
+    ///
+    /// **Because "photos load a bit slow" is a feeling until it is a number.**
+    /// Reports three things for the same N cold thumbnails: how long they take
+    /// awaited one at a time, how long the identical work takes issued
+    /// concurrently, and one full-resolution decode. If the concurrent figure
+    /// is not meaningfully better than the serial one, the queue underneath is
+    /// the bottleneck rather than the decoding.
+    static func runImageBench(count: Int) {
+        Task { @MainActor in
+            let manager = ImageManager.shared
+            let names = Array(manager.allStoredFileNamesForBenchmark().prefix(count))
+            guard !names.isEmpty else {
+                NSLog("[strata-bench] no photographs on disk; seed first")
+                return
+            }
+
+            manager.emptyThumbnailCacheForBenchmark()
+            var start = Date()
+            for name in names {
+                _ = await manager.loadThumbnail(fileName: name, maxWidth: 180)
+            }
+            let serial = Date().timeIntervalSince(start)
+
+            manager.emptyThumbnailCacheForBenchmark()
+            start = Date()
+            await withTaskGroup(of: Void.self) { group in
+                for name in names {
+                    group.addTask { _ = await manager.loadThumbnail(fileName: name, maxWidth: 180) }
+                }
+            }
+            let concurrent = Date().timeIntervalSince(start)
+
+            manager.emptyThumbnailCacheForBenchmark()
+            start = Date()
+            _ = await manager.loadThumbnail(fileName: names[0], maxWidth: 180)
+            let single = Date().timeIntervalSince(start)
+
+            start = Date()
+            _ = await manager.loadFullImage(fileName: names[0])
+            let full = Date().timeIntervalSince(start)
+
+            NSLog("[strata-bench] n=\(names.count) "
+                  + "serial=\(Int(serial * 1000))ms "
+                  + "concurrent=\(Int(concurrent * 1000))ms "
+                  + "speedup=\(String(format: "%.2f", serial / max(concurrent, 0.0001)))x "
+                  + "oneThumbnail=\(Int(single * 1000))ms "
+                  + "oneFullDecode=\(Int(full * 1000))ms")
+        }
+    }
+
+    /// How many photographs to time, from `-strataBenchImages <n>`.
+    static var benchImages: Int? {
+        argument("-strataBenchImages").flatMap(Int.init)
+    }
+
     static var reportsStore: Bool { argument("-strataReportStore") != nil }
 
     /// Reports what the location service can see, from `-strataTestLocation`.

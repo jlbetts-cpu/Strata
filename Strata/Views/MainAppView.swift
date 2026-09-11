@@ -1511,6 +1511,9 @@ struct MainAppView: View {
         if DebugHarness.reportsStore {
             DebugHarness.runStoreProbe()
         }
+        if let n = DebugHarness.benchImages {
+            DebugHarness.runImageBench(count: n)
+        }
         if DebugHarness.reportsLocation {
             DebugHarness.runLocationProbe(LocationService.shared)
         }

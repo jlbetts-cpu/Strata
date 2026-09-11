@@ -12,7 +12,15 @@ final class ImageManager: @unchecked Sendable {
     /// somebody, or keep when they change phone.
     let imageDirectory: URL
     private let thumbnailCache = NSCache<NSString, UIImage>()
-    private let ioQueue = DispatchQueue(label: "com.strata.imagemanager.io")
+    private let ioQueue = DispatchQueue(label: "com.strata.imagemanager.io",
+                                        qos: .userInitiated, attributes: .concurrent)
+    /// How many decodes may run at once.
+    ///
+    /// Concurrent, but not unbounded: a gallery can ask for a hundred
+    /// thumbnails in one frame, and handing all of them to GCD at once is the
+    /// classic thread explosion — every blocked worker spawns another. One
+    /// decode per core keeps the cores busy and the thread count sane.
+    private let ioSlots = DispatchSemaphore(value: max(ProcessInfo.processInfo.activeProcessorCount, 2))
 
     /// How much room the photographs take, in bytes, and how many there are.
     ///
@@ -139,6 +147,8 @@ final class ImageManager: @unchecked Sendable {
         let key = String(cacheKey)
         return await withCheckedContinuation { continuation in
             ioQueue.async { [weak self] in
+                self?.ioSlots.wait()
+                defer { self?.ioSlots.signal() }
                 guard let thumbnail = Self.downsample(url: fileURL, maxPixelWidth: maxWidth) else {
                     continuation.resume(returning: nil)
                     return
@@ -159,7 +169,12 @@ final class ImageManager: @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
 
         return await withCheckedContinuation { continuation in
-            ioQueue.async {
+            ioQueue.async { [weak self] in
+                // A full decode is several times the cost of a thumbnail, so
+                // it takes a slot too — otherwise the viewer's three-image
+                // window can swamp the gallery's thumbnails behind it.
+                self?.ioSlots.wait()
+                defer { self?.ioSlots.signal() }
                 let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
                 guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions as CFDictionary) else {
                     continuation.resume(returning: nil)
@@ -187,6 +202,19 @@ final class ImageManager: @unchecked Sendable {
         // Nuke all cached thumbnails — NSCache can't enumerate by prefix,
         // and hardcoded widths miss actual display sizes. Regeneration is cheap.
         thumbnailCache.removeAllObjects()
+    }
+
+    /// Drops every cached thumbnail. Only a benchmark needs this — it exists
+    /// so a measurement can start cold rather than reporting cache hits.
+    func emptyThumbnailCacheForBenchmark() {
+        thumbnailCache.removeAllObjects()
+    }
+
+    /// Every photograph on disk, for the same reason.
+    func allStoredFileNamesForBenchmark() -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: imageDirectory.path)) ?? [])
+            .filter { !$0.hasPrefix(".") }
+            .sorted()
     }
 
     // MARK: - Exists
