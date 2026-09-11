@@ -115,6 +115,22 @@ if skipped:
 
 build = eligible[0]
 print(f"build {build['attributes']['version']} (APP_STORE_ELIGIBLE)")
+
+# **Assign the build to the group, or approval changes nothing.**
+# Submitting for review and giving the group access are two separate
+# operations, and only the first is obvious. Measured: after adding two
+# testers and a successful submission the group reported "builds visible: 0",
+# so a passed review would have left both testers with nothing to install and
+# no error anywhere to explain it.
+code, body = call("POST", f"/v1/betaGroups/{group_id}/relationships/builds",
+                  {"data": [{"type": "builds", "id": build["id"]}]})
+if code in (200, 201, 204):
+    print("  assigned to the group")
+elif "already" in errors(body).lower():
+    print("  already assigned to the group")
+else:
+    print(f"  assign FAILED ({code}) {errors(body)}")
+
 code, body = call("GET", f"/v1/builds/{build['id']}/betaAppReviewSubmission")
 if code == 200 and body.get("data"):
     print("  already submitted; state:", body["data"]["attributes"].get("betaReviewState"))
