@@ -73,7 +73,7 @@ struct MemoriesView: View {
         return colorScheme == .dark ? .night : .quiet
     }
 
-    var openSettings: (() -> Void)?
+    var openProfile: (() -> Void)?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -362,10 +362,10 @@ struct MemoriesView: View {
                 }
                 .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
             }
+            // You, where the gear was. Settings lives inside Profile now, so
+            // the header keeps the same number of buttons.
             overMap {
-                GlassIconButton(systemName: "gearshape", accessibilityLabel: "Settings") {
-                    openSettings?()
-                }
+                ProfileButton { openProfile?() }
             }
             // Centred on the title's cap. It overhangs the row upwards, into
             // the safe-area gap, which is empty — the alternative is a row as

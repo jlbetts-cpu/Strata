@@ -31,12 +31,15 @@ struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @State private var location = LocationService.shared
+    @State private var heads = HeadStore.shared
+    @State private var showsHeadMaker = false
 
     #if DEBUG
     private static let debugStep = DebugHarness.onboardingStep
     #endif
 
-    private static let lastStep = 4
+    private static let headStep = 4
+    private static let lastStep = 5
     private static let cell: CGFloat = 74
     private static let slotCell: CGFloat = 84
 
@@ -63,6 +66,14 @@ struct OnboardingView: View {
             if let start = Self.debugStep { step = start }
             #endif
             await runFall()
+        }
+        // A made head moves you on. Closing the maker without one leaves you
+        // here, where "Not now" is one press away.
+        .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
+            guard heads.head != nil, step == Self.headStep else { return }
+            withAnimation(GridConstants.naturalSettle) { step += 1 }
+        }) {
+            HeadMakerView()
         }
     }
 
@@ -113,6 +124,8 @@ struct OnboardingView: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
             }
+        case Self.headStep:
+            ZStack { WarmBackground(); headPage }
         default:
             ZStack { WarmBackground(); thanks }
         }
@@ -354,6 +367,30 @@ struct OnboardingView: View {
         HapticsEngine.success()
     }
 
+    // MARK: - Your head
+
+    /// **Offered, never required** (owner: make it "visible to the user instead
+    /// of just hidden in the settings", and the head is 100% optional). One
+    /// page, one head, shown the way it would be your picture: in a circle
+    /// on a colour, blinking and glancing. Yours once you have made one; until
+    /// then the creator's, the same head the next page leans over his photo.
+    private var headPage: some View {
+        ZStack {
+            Circle()
+                .fill(HabitCategory.creativity.style.baseColor)
+            if let rig = heads.head ?? HeadRig.creator() {
+                LivingHeadView(rig: rig, side: Self.headCircle * ProfileAvatar.headShare,
+                               liveliness: .expressive, greets: true)
+            }
+        }
+        .frame(width: Self.headCircle, height: Self.headCircle)
+        .clipShape(Circle())
+        .offset(y: -60)
+        .accessibilityHidden(true)
+    }
+
+    private static let headCircle: CGFloat = 200
+
     // MARK: - The thank you
 
     /// **A person, not a brand.** The owner's first app, so it is first person
@@ -439,18 +476,22 @@ struct OnboardingView: View {
         case 1: return hasDrawn ? "That's how every win is made" : "Small, medium or large"
         case 2: return "A win can be a photograph"
         case 3: return "It remembers where you were"
+        case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         default: return "Thank you, genuinely"
         }
     }
 
     private var subtitle: String {
         switch step {
-        case 0: return "Finish something and it becomes a block — small, medium or large, depending on what it took."
+        case 0: return "Finish something and it becomes a block: small, medium or large, depending on what it took."
         case 1: return hasDrawn
             ? "Pull nothing and it stays small. The size is how much it took."
             : "Hold the slot and pull. Sideways for a medium win, up for a large one. Let go to drop it in."
         case 2: return "Take it here and the picture becomes the block."
         case 3: return "Your wins land on the map where you took them."
+        case Self.headStep: return heads.head == nil
+            ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."
+            : "Find it in Profile, and on your photos. It stays on this phone."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
@@ -507,9 +548,15 @@ struct OnboardingView: View {
             .disabled(!canAdvance)
             .animation(GridConstants.gentleReveal, value: canAdvance)
 
-            Button("Skip") {
+            // On the head page it declines the head, not the tour: the thank
+            // you is still to come.
+            Button(offersHead ? "Not now" : "Skip") {
                 HapticsEngine.lightTap()
-                onFinish()
+                if offersHead {
+                    withAnimation(GridConstants.naturalSettle) { step += 1 }
+                } else {
+                    onFinish()
+                }
             }
             .font(Typography.bodySmall)
             .foregroundStyle(onDark ? Color.white.opacity(0.6) : AppColors.inkQuiet)
@@ -519,12 +566,16 @@ struct OnboardingView: View {
 
     private var canAdvance: Bool { step != 1 || hasDrawn }
 
+    /// The head page, with no head made yet.
+    private var offersHead: Bool { step == Self.headStep && heads.head == nil }
+
     private var actionTitle: String {
         switch step {
         case 0: return "Let me try"
         case 1: return "What else"
         case 2: return "Go on"
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
+        case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
         default: return "Start"
         }
     }
@@ -538,6 +589,10 @@ struct OnboardingView: View {
         // moment — the button says what it will do.
         if step == 3, location.canAsk {
             location.requestAccess()
+        }
+        if offersHead {
+            showsHeadMaker = true
+            return
         }
         guard step < Self.lastStep else { onFinish(); return }
         withAnimation(GridConstants.naturalSettle) { step += 1 }

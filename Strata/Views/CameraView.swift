@@ -62,6 +62,9 @@ struct CameraView: View {
     /// dismisses itself into the add sheet on the tower, so a retake from
     /// there would have to navigate backwards to get here.
     @State private var review: UIImage?
+    /// Your head on the photo being reviewed, if you added it. See
+    /// `HeadSticker`.
+    @State private var sticker: StickerPlacement?
     @State private var shutterDown = false
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
@@ -276,6 +279,10 @@ struct CameraView: View {
             if let size = DebugHarness.openReviewSize {
                 drawnSize = size
                 review = DebugHarness.placeholderPhoto()
+                if DebugHarness.placesReviewSticker, let photo = review {
+                    sticker = StickerPlacement(crop: BlockCropOutline.crop(photo: photo.size, block: size),
+                                               photoAspect: photo.size.width / max(photo.size.height, 1))
+                }
             }
         }
         #endif
@@ -351,6 +358,18 @@ struct CameraView: View {
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
+                    // What the block will show of it: a hairline, nothing
+                    // dimmed. It changes with the size you drew.
+                    .overlay {
+                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize))
+                    }
+                    // Over the photograph's own frame, so the head's place is
+                    // a place in the picture.
+                    .overlay {
+                        if let rig = HeadStore.shared.headForSticker, sticker != nil {
+                            HeadStickerOverlay(rig: rig, placement: $sticker)
+                        }
+                    }
 
                 Spacer(minLength: 0)
 
@@ -367,6 +386,7 @@ struct CameraView: View {
                             // on the size, it should go back to the normal
                             // camera with all the options."
                             drawnSize = .small
+                            sticker = nil
                         }
                     } label: {
                         Text("Retake")
@@ -377,6 +397,20 @@ struct CameraView: View {
                     }
 
                     Spacer(minLength: 0)
+
+                    // Your head, between the two words, only if you made one
+                    // and switched the sticker on.
+                    if let rig = HeadStore.shared.headForSticker {
+                        HeadStickerButton(rig: rig, isOn: sticker != nil) {
+                            withAnimation(GridConstants.motionSnappy) {
+                                sticker = sticker == nil
+                                    ? StickerPlacement(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize),
+                                                       photoAspect: image.size.width / max(image.size.height, 1))
+                                    : nil
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
 
                     Button {
                         HapticsEngine.success()
@@ -427,8 +461,15 @@ struct CameraView: View {
     /// press already confirmed it, and buzzing again when a background write
     /// lands is two confirmations for one action.
     private func keep(_ image: UIImage) {
-        Task { await PhotoLibrarySaver.save(image) }
-        onCaptured(image, drawnSize, LocationService.shared.place())
+        // The head, drawn into the picture, if you added it. The camera roll
+        // and the win both get the same photograph you approved.
+        var kept = image
+        if let placement = sticker, let rig = HeadStore.shared.headForSticker {
+            kept = HeadSticker.composite(image, rig: rig, placement: placement)
+        }
+        sticker = nil
+        Task { await PhotoLibrarySaver.save(kept) }
+        onCaptured(kept, drawnSize, LocationService.shared.place())
         review = nil
         // Back to one cell for the next shot. A size drawn once is not a
         // preference, and a shutter that stayed wide would make every later
@@ -1021,54 +1062,8 @@ struct CameraView: View {
     /// before you shoot — and there the fill has to stay low, or the overlay
     /// whites out the very preview it exists to light.
     private func warmLight(fillOpacity: Double) -> some View {
-        GeometryReader { geo in
-            ZStack {
-                // 1. Fill. A base wash so the whole face is lifted out of the
-                //    dark rather than only its edges — without this a pure
-                //    ring carves the face into a bright outline and a dim
-                //    middle, which is a horror-film key, not a beauty light.
-                // 0.72, not 0.42. On a phone every photon comes from the same
-                // plane a foot from the face, so a dark middle does not
-                // "shape" anything the way a physical ring does — it just
-                // throws away light. Measured at 0.42 the centre sat at
-                // luminance 96 against edges of 164-243, which is a dim flash
-                // with a bright border. The ring still does its real job on
-                // top of this: the catchlight in the eye.
-                Self.warmFill
-                    .opacity(fillOpacity)
-
-                // 2. The ring. Brightest in a band near the screen's edge and
-                //    genuinely absent through the middle third, because that
-                //    is what a ring light IS: light arriving from around the
-                //    lens rather than through it. Flat light from dead centre
-                //    removes the shadow that gives a face shape; light from
-                //    the rim keeps the modelling and puts the catchlight in
-                //    the eye.
-                // ELLIPTICAL, not radial.
-                //
-                // A circular gradient on a 402x874 screen never reaches the
-                // left and right edges: measured, a point 10% in from the side
-                // was pixel-identical to the centre, so the "ring" was lighting
-                // the top and bottom only. An elliptical gradient takes its
-                // radii from the view's own proportions, so the bright band
-                // lands on all four edges of whatever shape the screen is.
-                EllipticalGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.00),
-                        .init(color: .clear, location: 0.30),
-                        .init(color: Self.warmRing.opacity(0.30), location: 0.55),
-                        .init(color: Self.warmRing.opacity(0.90), location: 0.82),
-                        .init(color: Self.warmRing, location: 1.00)
-                    ],
-                    center: .center,
-                    startRadiusFraction: 0,
-                    endRadiusFraction: 0.62
-                )
-                .blur(radius: 28)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-        .ignoresSafeArea()
+        // Shared with the head maker, so both light a face with one light.
+        WarmRingLight(fillOpacity: fillOpacity)
     }
 
     /// The front flash's modelling ring, and the capture flash over it.
@@ -1094,18 +1089,10 @@ struct CameraView: View {
 
     /// Held on, the fill has to stay low or the overlay hides your face
     /// instead of lighting it. The ring itself does the work.
-    private static let ringFill: Double = 0.10
-    private static let ringLevel: Double = 0.92
+    private static let ringFill = WarmRingLight.modellingFill
+    private static let ringLevel = WarmRingLight.modellingLevel
     /// At the moment of capture nothing matters but light on the face.
-    private static let captureFill: Double = 0.72
-
-    /// ~3400K. A phone screen at full white is about 6500K, which on skin
-    /// reads clinical and blue and is why front-flash selfies look washed out.
-    /// This is the warm end of a ring light.
-    private static let warmFill = Color(red: 1.00, green: 0.90, blue: 0.78)
-    /// A touch brighter and a touch less saturated than the fill, so the rim
-    /// reads as the source and the middle as what it lights.
-    private static let warmRing = Color(red: 1.00, green: 0.95, blue: 0.88)
+    private static let captureFill = WarmRingLight.captureFill
 
     // MARK: - Firing
 
@@ -1210,7 +1197,9 @@ final class PreviewLayerBox {
     var layer: AVCaptureVideoPreviewLayer?
 }
 
-private struct CameraPreview: UIViewRepresentable {
+/// Internal, not private: the head maker shows the same viewfinder, so it is
+/// the app's camera rather than a second one that looks almost the same.
+struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let box: PreviewLayerBox
 

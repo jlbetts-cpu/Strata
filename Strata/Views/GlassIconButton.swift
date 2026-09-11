@@ -69,8 +69,11 @@ extension View {
     }
 }
 
-private extension View {
+extension View {
     /// Liquid Glass where it exists, a material where it does not.
+    ///
+    /// Internal rather than private since `ProfileButton` needs the same
+    /// circle: a second copy of this is how the two buttons would drift.
     ///
     /// `.interactive()` is included because this is genuinely a button — the
     /// effect reacts to the press, which is the affordance being bought here.

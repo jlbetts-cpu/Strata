@@ -146,10 +146,39 @@ enum DebugHarness {
         argument("-strataSeedPlan").flatMap(Int.init)
     }
 
-    /// Sheet to present on launch, from `-strataOpenSheet settings|add`.
-    /// Settings and the add sheet are modals with no other scriptable route in.
+    /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block`.
+    /// These are modals with no other scriptable route in. `settings` opens
+    /// Profile and pushes Settings, since Settings lives only inside Profile.
     static var openSheet: String? {
         argument("-strataOpenSheet")?.lowercased()
+    }
+
+    /// The creator's bundled faces as a made head, from `-strataSeedHead`.
+    /// The simulator has no camera to make a real one with, so without this
+    /// no head placement could ever be photographed here.
+    static var seedsHead: Bool { argument("-strataSeedHead") != nil }
+
+    /// Which chart Profile opens on, from `-strataProfileChart day|week|month`.
+    static var profileChartUnit: String? { argument("-strataProfileChart")?.lowercased() }
+
+    /// Puts your head on the photo review, from `-strataReviewSticker`, with
+    /// `-strataOpenReview` and `-strataHeadOn camera`.
+    /// A bare flag: `argument` reads the word after a key, and a flag given
+    /// last has none.
+    static var placesReviewSticker: Bool { ProcessInfo.processInfo.arguments.contains("-strataReviewSticker") }
+
+    /// Opens the head maker in one state, from
+    /// `-strataOpenHeadMaker outline|blink|smile|preview|failed`, on top of
+    /// `-strataOpenSheet profile`. The simulator has no camera, so the maker's
+    /// chrome can only be photographed by putting it into a state directly.
+    static var headMakerState: String? { argument("-strataOpenHeadMaker")?.lowercased() }
+
+    /// Turns head placements on for one launch, from
+    /// `-strataHeadOn picture,map,camera,tower` (any subset).
+    static var headSwitches: Set<String>? {
+        argument("-strataHeadOn").map { raw in
+            Set(raw.lowercased().split(separator: ",").map(String.init))
+        }
     }
 
     /// Presses the next slot this many times a moment after launch, so the

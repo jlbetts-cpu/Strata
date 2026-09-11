@@ -5,6 +5,10 @@ import StoreKit
 
 struct SettingsView: View {
     var onResetAllData: (() -> Void)?
+    /// Pushed from Profile, which is the only way in now. A pushed screen has
+    /// a back button, and a Done that called `dismiss()` would only pop back
+    /// to Profile — two controls that both mean "back".
+    var isPushed = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -387,11 +391,13 @@ struct SettingsView: View {
     /// been missed.
     @ToolbarContentBuilder
     private var settingsToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
+        if !isPushed {
+            if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
+            }
         }
     }
 
@@ -561,7 +567,8 @@ struct SettingsView: View {
 /// already has a label saying what it is.
 ///
 /// The frame stays, so the labels still line up in a column.
-private struct SettingsIcon: View {
+/// Internal so Profile's Settings row wears the same glyph at the same size.
+struct SettingsIcon: View {
     let systemName: String
     /// Only a row whose colour MEANS something passes one — Reset All Data is
     /// red because it erases everything, not for decoration.

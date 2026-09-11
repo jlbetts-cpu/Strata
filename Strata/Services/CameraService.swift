@@ -168,6 +168,59 @@ final class CameraService: NSObject {
     /// that; this says which kind is in play.
     var usesScreenFlash: Bool { facing == .front }
 
+    // MARK: - Frames, for making a head
+
+    /// The video output `HeadCaptureEngine` reads, while a head is being made.
+    ///
+    /// Attached only then, so the ordinary camera does no extra work. The
+    /// session drops to 1080p while it is attached — Vision reads every frame
+    /// of a blink, and a 12MP photo-preset frame thirty times a second is
+    /// heat for no benefit to a head drawn at 88pt — and goes back to the
+    /// photo preset when it is removed.
+    private var frameOutput: AVCaptureVideoDataOutput?
+    private var presetBeforeFrames: AVCaptureSession.Preset?
+
+    /// Turns to the front lens if it is not already there.
+    func useFrontCamera() {
+        if facing == .back { flip() }
+    }
+
+    func attachFrames(_ output: AVCaptureVideoDataOutput) {
+        guard isConfigured, frameOutput == nil else { return }
+        session.beginConfiguration()
+        presetBeforeFrames = session.sessionPreset
+        if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
+        guard session.canAddOutput(output) else {
+            if let previous = presetBeforeFrames { session.sessionPreset = previous }
+            session.commitConfiguration()
+            return
+        }
+        session.addOutput(output)
+        if let connection = output.connection(with: .video) {
+            // Upright and mirrored, so a frame is the picture in the preview:
+            // the face Vision measures is the face you are looking at.
+            if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = facing == .front
+            }
+        }
+        session.commitConfiguration()
+        frameOutput = output
+    }
+
+    func detachFrames() {
+        guard let output = frameOutput else { return }
+        session.beginConfiguration()
+        session.removeOutput(output)
+        if let previous = presetBeforeFrames, session.canSetSessionPreset(previous) {
+            session.sessionPreset = previous
+        }
+        session.commitConfiguration()
+        frameOutput = nil
+        presetBeforeFrames = nil
+    }
+
     // MARK: - Zoom
 
     /// How far in the lens is, as a multiple. 1 is the lens's own field.

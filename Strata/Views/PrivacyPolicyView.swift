@@ -25,7 +25,7 @@ struct PrivacyPolicyView: View {
                     }
                 }
 
-                Text("Last updated 10 September 2026")
+                Text("Last updated 11 September 2026")
                     .font(Typography.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.top, 8)
@@ -41,7 +41,8 @@ struct PrivacyPolicyView: View {
     private static let sections: [(title: String, body: String)] = [
         ("What Strata stores",
          "Your wins: their names, sizes, colours, dates, any photo you attach, and "
-         + "where a photo was taken if you turn that on. That is the whole of it."),
+         + "where a photo was taken if you turn that on. And, if you add them, "
+         + "your name and a profile photo. That is the whole of it."),
         ("Where it is stored",
          "On your device. Strata has no account, no server, and no analytics. "
          + "Nothing you log is sent anywhere, and nobody but you can read it."),
@@ -49,6 +50,15 @@ struct PrivacyPolicyView: View {
          "A photo you attach is copied into Strata's own storage on your device so "
          + "the block still has it if you later remove the original. Deleting a win "
          + "deletes its photo with it."),
+        ("Your profile",
+         "The name and profile photo you add in Profile stay on your device, like "
+         + "everything else, and are never sent anywhere. The photo is a small copy "
+         + "made from the one you choose; removing it deletes that copy."),
+        ("Your head",
+         "If you make a head, Strata takes a few photos with the front camera and turns "
+         + "them into your head, right on your device. It keeps only those small "
+         + "pictures, never video, and never sends them anywhere. Your head only shows "
+         + "up where you turn it on, and Delete Head removes it."),
         ("Places",
          "Strata asks first, and iOS will not give it a position until you say yes. "
          + "After that, Strata notes where you were at "
@@ -62,8 +72,9 @@ struct PrivacyPolicyView: View {
          + "share sheet. Where it goes from there is between you and whatever app "
          + "you send it to."),
         ("Deleting everything",
-         "Settings › Data › Reset All Data removes every win, every photo, and your "
-         + "tower from the device permanently. Deleting the app does the same."),
+         "Profile › Settings › Data › Reset All Data removes every win, every photo, "
+         + "your name, profile photo and head, and your tower from the device "
+         + "permanently. Deleting the app does the same."),
         ("Contact",
          "Questions about any of this: jbett5@hotmail.com")
     ]

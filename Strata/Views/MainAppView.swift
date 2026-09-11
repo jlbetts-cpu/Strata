@@ -336,7 +336,10 @@ struct MainAppView: View {
     @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var winSaveFailed = false
-    @State private var showSettings = false
+    /// Which tab's header opened Profile, if any. See `profileBinding(for:)`.
+    @State private var profileOrigin: StrataTab?
+    /// `-strataOpenSheet settings`: open Profile and push on to Settings.
+    @State private var profileOpensSettings = false
     @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
 
     var body: some View {
@@ -746,6 +749,10 @@ struct MainAppView: View {
             ) {
                 isPlanning = true
             }
+            // No profile button here. Profile lives on Memories only — the
+            // owner's call: the tower is today's record and its corner belongs
+            // to the plan; who you are and how your weeks have gone is the
+            // Memories tab's subject.
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
@@ -922,13 +929,10 @@ struct MainAppView: View {
         // No `NavigationStack` here — `MemoriesView` owns its own, because it
         // pushes from four places: an album on the shelf, a curated album, a
         // day in the month tower, and the full grid behind the tail card.
-        MemoriesView(openSettings: { showSettings = true })
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                SettingsView(
-                    onResetAllData: { resetTower() }
-                )
-            }
+        MemoriesView(openProfile: { profileOrigin = .memories })
+        .sheet(isPresented: profileBinding(for: .memories),
+               onDismiss: { profileOpensSettings = false }) {
+            profileSheet
         }
     }
 
@@ -1454,24 +1458,38 @@ struct MainAppView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var insightsToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarTrailing) { settingsButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarTrailing) { settingsButton }
-        }
+    // MARK: - Profile
+
+    /// Profile opens as a sheet from the Memories header, its only door.
+    ///
+    /// Keyed by the tab that asked rather than a plain flag, so a second door
+    /// can be added without two `.sheet`s bound to one flag — every tab stays
+    /// in the hierarchy, and two sheets asked to present at once is one UIKit
+    /// silently drops.
+    ///
+    /// (This replaces the Insights-era toolbar and its gear, which nothing had
+    /// shown since Insights went. Settings lives only inside Profile now.)
+    private func profileBinding(for tab: StrataTab) -> Binding<Bool> {
+        Binding(
+            get: { profileOrigin == tab },
+            set: { presented in
+                if !presented, profileOrigin == tab { profileOrigin = nil }
+            }
+        )
     }
 
-    private var settingsButton: some View {
-        Button {
-            HapticsEngine.lightTap()
-            showSettings = true
-        } label: {
-            Image(systemName: "gearshape")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body)
-                .foregroundStyle(.secondary)
+    private var profileSheet: some View {
+        NavigationStack {
+            ProfileView(
+                onResetAllData: {
+                    resetTower()
+                    // The policy says Reset All Data removes every photo; a
+                    // profile photo is one, and a head is made of them.
+                    ProfileStore.shared.reset()
+                    HeadStore.shared.delete()
+                },
+                opensSettings: profileOpensSettings
+            )
         }
     }
 
@@ -1572,7 +1590,8 @@ struct MainAppView: View {
             }
         }
         switch DebugHarness.openSheet {
-        case "settings": selectedTab = .memories; showSettings = true
+        case "settings": selectedTab = .memories; profileOpensSettings = true; profileOrigin = .memories
+        case "profile":  selectedTab = .memories; profileOrigin = .memories
         case "add":      selectedTab = .tower; winDraft = WinDraft()
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         default:         break
@@ -2964,13 +2983,39 @@ struct MainAppView: View {
             }
         }
 
-        // 2. Batch-delete all SwiftData entities
-        try? modelContext.delete(model: HabitLog.self)
-        try? modelContext.delete(model: Habit.self)
-        try? modelContext.delete(model: PlanFolder.self)
-        try? modelContext.delete(model: MoodLog.self)
-        try? modelContext.delete(model: Tower.self)
-        try? modelContext.save()
+        // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME.
+        //
+        // **This was a batch delete and it deleted nothing.** Measured on the
+        // simulator, 2026-09-11: `delete(model: HabitLog.self)` fails with
+        // "Constraint trigger violation: Batch delete failed due to mandatory
+        // OTO nullify inverse on HabitLog/habit", and `Habit` the same on
+        // `Habit/tower`. A batch delete bypasses the relationship rules the
+        // object graph would apply, so the store refuses it. Every one of the
+        // calls was `try?`, so Reset All Data deleted the photograph files and
+        // left every win in place — while the privacy policy told people it
+        // removes everything. Deleting through the context applies the
+        // nullify rules, which is exactly what the batch path cannot do; it is
+        // also what `DebugHarness.seed` already did, which is why seeding
+        // always worked and reset never did.
+        func deleteEvery<Model: PersistentModel>(_ type: Model.Type) {
+            do {
+                for item in try modelContext.fetch(FetchDescriptor<Model>()) {
+                    modelContext.delete(item)
+                }
+            } catch {
+                NSLog("[strata-reset] could not fetch \(Model.self) to delete: \(error)")
+            }
+        }
+        for log in allLogs { modelContext.delete(log) }
+        deleteEvery(Habit.self)
+        deleteEvery(PlanFolder.self)
+        deleteEvery(MoodLog.self)
+        deleteEvery(Tower.self)
+        do { try modelContext.save() } catch { NSLog("[strata-reset] save failed: \(error)") }
+        #if DEBUG
+        let remaining = (try? modelContext.fetchCount(FetchDescriptor<HabitLog>())) ?? -1
+        NSLog("[strata-reset] logs remaining after reset: \(remaining)")
+        #endif
 
         // 3. Reset UserDefaults (tower selection, first-drop, day boundary)
         //

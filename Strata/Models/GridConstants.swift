@@ -309,6 +309,14 @@ enum GridConstants {
     /// An eye moving. Saccades are the fastest movement a body makes (tens of
     /// milliseconds), so the eyes land before the head has started.
     static let eyeSaccade = Animation.spring(response: 0.09, dampingFraction: 1.0)
+    /// One face becoming another. Short, because an expression arrives in a
+    /// moment — longer and it reads as a slideshow dissolve, not a face.
+    static let headMorph = Animation.easeOut(duration: 0.14)
+    /// The slow float of a head that is the subject of its page. Two periods
+    /// that never line up, so the drift never reads as a metronome. Only on
+    /// the expressive head; a head in chrome holds still.
+    static let headFloatX = Animation.easeInOut(duration: 3.7).repeatForever(autoreverses: true)
+    static let headFloatY = Animation.easeInOut(duration: 2.9).repeatForever(autoreverses: true)
     /// Fill sweep duration
     static let fillSweepDuration: TimeInterval = 0.4
 

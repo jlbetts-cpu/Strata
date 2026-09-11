@@ -847,6 +847,55 @@ all found by computing WCAG ratios from the token's real RGB over the real
 ground, and all four were invisible to the eye on the simulator in the scheme
 they were authored in.
 
+## A batch delete that deletes nothing
+
+`modelContext.delete(model:)` is a batch delete, and a batch delete bypasses
+the relationship rules. On `HabitLog` (whose `habit` inverse is nullify) and
+`Habit` (`tower`) the store refuses it: "Constraint trigger violation: Batch
+delete failed due to mandatory OTO nullify inverse". Every call was `try?`, so
+**Reset All Data deleted the photo files and left every win in place for
+months**, while the privacy policy said it removes everything. Found on
+2026-09-11 by launching `-strataResetStore` with `--console-pty` and reading
+the CoreData errors. `resetTower` now deletes object by object, which is what
+`DebugHarness.seed` always did and why seeding always worked.
+
+**The rule: never `try?` a delete.** Log the error, and in DEBUG count what is
+left afterwards (`[strata-reset] logs remaining after reset: 0`).
+
+## Profile and your head
+
+Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
+
+- **Profile** (`ProfileView`) opens from the head/photo button on the Memories
+  header only. Settings lives only inside it.
+- **The head is 100% optional.** `HeadStore` holds it and every switch; all
+  start off. Ask `headForPicture` / `headForMap`, never the raw switch.
+- **One head, one view.** `HeadRig` is the faces and where the eyes are on
+  each; `LivingHeadView` draws it everywhere, `.calm` in chrome and
+  `.expressive` where the head is the subject. `CreatorHead` (thank-you page)
+  is separate and untouched.
+- **The maker** (`HeadMakerView`, `HeadMakerModel`, `HeadCaptureEngine`,
+  `HeadFraming`) uses Strata's camera, never the system one. Capture and
+  subject lifting **do not run in the simulator**; every state can be
+  photographed with `-strataOpenHeadMaker outline|blink|smile|brows|failed|preview`.
+- `-strataSeedHead` puts the creator's faces in as a made head;
+  `-strataHeadOn picture,map` turns placements on for one launch;
+  `-strataOpenSheet profile|settings`; `-strataProfileChart day|week|month`.
+- **A full-screen layer must not be a sibling of the controls.** Given a frame
+  the size of the screen inside the safe-area layout, it made the whole stack
+  taller than the safe area and pushed the maker's shutter off the bottom.
+  Put it in `.background { … .ignoresSafeArea() }` so it reaches the edges
+  without taking part in layout.
+
+## Words the app says
+
+The owner's rules, 2026-09-11: **no long dash (—) in anything a person
+reads** (it reads as machine-written; use a comma, a colon, or "to" for a
+range), and **nothing that sounds like surveillance**, which matters most on
+anything to do with faces, cameras or location. Not "watches", "tracks",
+"looks around", "cut you out", "find your face", "where I am". Grep
+user-facing strings for — and – before shipping copy.
+
 ## Safety
 
 - `HabitLog.imageFileName` points at real user photos. Never delete or rewrite

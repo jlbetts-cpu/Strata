@@ -155,7 +155,7 @@ struct MemoriesMapView: View {
     /// otherwise no way back except pinching until the world fits.
     private var recentre: some View {
         GlassIconButton(systemName: locationGlyph,
-                        accessibilityLabel: "Back to where I am") {
+                        accessibilityLabel: "Show my location") {
             goToMe()
         }
         // Light in both appearances — see `MemoriesView.overMap`. Glass
@@ -217,7 +217,19 @@ struct MemoriesMapView: View {
             // authorization draws nothing anyway, but asking for it here
             // rather than checking would start the "which screen asks" loop
             // the empty state already answers.
-            if showsUser { UserAnnotation() }
+            //
+            // **Or your head**, when you have made one and switched it on in
+            // Profile — never by default. Anchored at the bottom, so the
+            // coordinate is where the head is standing rather than its nose.
+            // Custom `UserAnnotation` content is not tappable; nothing needs
+            // it to be, the recentre button already does that job.
+            if showsUser {
+                if let head = HeadStore.shared.headForMap {
+                    UserAnnotation(anchor: .bottom) { HeadMarker(head: head) }
+                } else {
+                    UserAnnotation()
+                }
+            }
 
             ForEach(displayed) { placed in
                 Annotation("", coordinate: placed.coordinate, anchor: .center) {
