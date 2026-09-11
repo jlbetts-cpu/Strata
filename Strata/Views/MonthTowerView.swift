@@ -156,7 +156,8 @@ private struct DayPhotoSlideshow: View {
 
     private func picture(_ name: String) -> some View {
         CachedImageView(fileName: name, width: size.width,
-                        height: size.height, cornerRadius: 0)
+                        height: size.height, cornerRadius: 0,
+                        showsPlaceholder: false)
             .scaleEffect(1.03)
             .frame(width: size.width, height: size.height)
     }

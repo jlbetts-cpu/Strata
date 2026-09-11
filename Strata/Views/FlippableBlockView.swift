@@ -175,7 +175,9 @@ struct FlippableBlockView: View {
                     fileName: block.log.imageFileName,
                     width: width,
                     height: height,
-                    cornerRadius: 0
+                    cornerRadius: 0,
+                    // The block's own colour is what shows while this decodes.
+                    showsPlaceholder: false
                 )
                     // **Overscanned by 3%.** The category colour sits behind
                     // the photograph as the decode placeholder, and at a

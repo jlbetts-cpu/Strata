@@ -10,6 +10,20 @@ struct CachedImageView: View {
     @State private var image: UIImage?
     @State private var loadFailed = false
     @Environment(\.displayScale) private var displayScale
+    /// Whether to draw a grey box while the photograph decodes.
+    ///
+    /// **Off inside a block.** A block already has something to show while it
+    /// waits — its colour, which is what a block IS. Filling it with grey
+    /// first put the rim, the blurred band, the caption veil and the title on
+    /// top of a placeholder instead of on top of the block, and the whole
+    /// stack read as broken: "it shows the blur and all the elements before
+    /// the picture so it looks like they are all layering over a grey box."
+    ///
+    /// On in the gallery and the album covers, where the cell has nothing of
+    /// its own and an empty square reads as a missing photograph rather than
+    /// an arriving one.
+    var showsPlaceholder = true
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -35,7 +49,7 @@ struct CachedImageView: View {
                         Task { await loadImage() }
                     }
                     .accessibilityLabel("Photo failed to load, tap to retry")
-            } else if fileName != nil {
+            } else if fileName != nil, showsPlaceholder {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
                     .frame(width: width, height: height)

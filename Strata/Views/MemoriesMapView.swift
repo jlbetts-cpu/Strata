@@ -716,7 +716,8 @@ private struct PlaceBlock: View {
             CachedImageView(fileName: name,
                             width: Self.cell * 2,
                             height: Self.cell * 2,
-                            cornerRadius: 0)
+                            cornerRadius: 0,
+                            showsPlaceholder: false)
                 .frame(width: size.width, height: size.height)
                 // See `FlippableBlockView`: a hair of overscan, so the colour
                 // behind cannot show at a rounded corner.
