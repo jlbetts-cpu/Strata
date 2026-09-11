@@ -26,6 +26,9 @@ import SwiftUI
 ///   reads as a machine.
 /// - **It says hello with its eyebrows first.** The eyebrow flash is a
 ///   greeting across cultures (Eibl-Eibesfeldt, 1972), then the wink.
+/// - **It smiles on its own.** Not because anything happened — this page has
+///   nothing to react to — but as one of the idle beats, about as often as it
+///   turns.
 /// - **Nothing repeats back to back**, and a turn is the rarer beat.
 ///
 /// ## Why it costs nothing
@@ -45,9 +48,6 @@ struct CreatorHead: View {
     /// photograph has transparent margin round it — and overflows this frame
     /// unclipped, so the head lines up by its face rather than its file.
     var side: CGFloat = 44
-    /// A count to react to: smiles when it goes up, winks on every tenth,
-    /// looks up, surprised, when it goes down. Left at its default, idle.
-    var wins: Int = 0
     /// Eyebrow flash and a wink when it arrives.
     var greets: Bool = false
     /// Where the thing it is curious about lies, as a direction from the head
@@ -72,9 +72,6 @@ struct CreatorHead: View {
     @State private var reacting = false
     @State private var reaction: Task<Void, Never>?
     @State private var lastBeat: Beat?
-    /// A count arrives from a fetch after the view appears, and a day rolling
-    /// over drops it to zero. Neither is somebody logging a win.
-    @State private var armedAt = Date.distantFuture
 
     /// The portfolio's clock. Its blink steps on an 8fps grid, and the
     /// posterised snap is what makes it read as a blink rather than a fade.
@@ -118,18 +115,6 @@ struct CreatorHead: View {
             show(.wink, for: 1.4)
         }
         .accessibilityHidden(true)
-        .onAppear { armedAt = Date().addingTimeInterval(1.5) }
-        .onChange(of: wins) { old, new in
-            // One at a time, or it is a load, a seed or a new day.
-            guard Date() >= armedAt, abs(new - old) == 1 else { return }
-            if new < old {
-                show(.rest, for: 1.4)
-            } else if new % GridConstants.danceEvery == 0 {
-                show(.wink, for: 2.2)
-            } else {
-                show(.smile, for: 1.6)
-            }
-        }
         .task { await greet() }
         .task(id: reduceMotion) { await blinkWhileCalm() }
         .task(id: reduceMotion) { await beatWhileIdle() }
@@ -235,7 +220,7 @@ struct CreatorHead: View {
     // MARK: - Idle beats
 
     private enum Beat: String {
-        case turn, glance, tilt, brow, down
+        case turn, glance, tilt, brow, down, smile
     }
 
     private func beatWhileIdle() async {
@@ -253,7 +238,17 @@ struct CreatorHead: View {
     /// so it is the rarer one; a head that keeps turning looks agitated.
     private func nextBeat() -> Beat {
         if let forced = Self.forcedBeat { return forced }
-        let weights: [(Beat, Double)] = [(.glance, 0.30), (.turn, 0.22), (.tilt, 0.20), (.down, 0.15), (.brow, 0.13)]
+        // **A smile it arrives at on its own.** This used to be a reaction to
+        // the win count going up — which cannot happen where this head
+        // actually lives. It is on the onboarding thank-you page, and nobody
+        // logs a win there: "the smile when you win doesnt make sense anymore
+        // since its only in the onboarding it should just smile naturally."
+        //
+        // Rarer than a glance and about as often as a turn. A face that keeps
+        // smiling at nothing is doing a bit; one that smiles now and then is
+        // pleased you are here, which is what this page is for.
+        let weights: [(Beat, Double)] = [(.glance, 0.26), (.turn, 0.19), (.tilt, 0.18),
+                                         (.smile, 0.16), (.down, 0.12), (.brow, 0.09)]
         let pool = weights.filter { $0.0 != lastBeat }
         var r = Double.random(in: 0..<pool.reduce(0) { $0 + $1.1 })
         for (beat, weight) in pool {
@@ -314,6 +309,13 @@ struct CreatorHead: View {
             browUp = false
             look(.zero)
             await pause(460)
+        case .smile:
+            // Eyes up a touch as it goes, the way a real one does, and back to
+            // calm through the usual return in `show`.
+            look(CGPoint(x: 0, y: -0.05))
+            show(.smile, for: Double.random(in: 1.3...2.0))
+            await pause(Int.random(in: 1500...2300))
+            look(.zero)
         case .down:
             // A look at the words underneath, then back.
             look(CGPoint(x: -0.2, y: 1))
