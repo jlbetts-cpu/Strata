@@ -166,7 +166,45 @@ body — CLAUDE.md records that an `Equatable` view silently stops updating from
 
 ---
 
-## 7. Parked: 17 of 29 milestones cannot fire
+## 7. The camera's reticle overstays
+
+**Owner:** "after a while of clicking the exposure should go away it kinda just
+sits there."
+
+**It already self-dismisses — the window is just too generous.** `reticle`
+carries `.task(id: focusShownAt)` which sleeps 4 seconds and clears
+`focusPoint`. Two things keep it up longer than that:
+
+- `focusShownAt = Date()` is set inside the exposure drag's `.onChanged`, so
+  every drag event cancels and restarts the task. That is correct while you
+  are adjusting — nobody wants the sun vanishing mid-drag — but it means the
+  clock only starts on the LAST event.
+- After a plain tap with no adjustment, the full 4 seconds still runs. Tap a
+  few times in a row and it never settles.
+
+**Why 4s was chosen** (comment at the reticle): long enough to drag the
+exposure after tapping. That is the real constraint — shorten it naively and
+there is no time left to start adjusting.
+
+**Proposed shape**, which satisfies both:
+
+- A tap that is never followed by a drag: about 2s. Enough to see where focus
+  landed and to begin adjusting, not enough to sit.
+- Once a drag begins: keep restarting as now, then a SHORTER tail after
+  `.onEnded` — around 1.5s — because by then the person has finished and is
+  looking at the picture, not the control.
+
+That needs the tail to be driven by the drag ending rather than by the last
+`.onChanged`, so `.onEnded` should set `focusShownAt` one final time and the
+sleep should read a duration that depends on whether a drag happened.
+
+**Unverifiable on the simulator.** There is no capture device, so the reticle
+cannot be exercised the way a person exercises it. Judge on a phone, and expect
+the numbers above to need one adjustment by eye.
+
+---
+
+## 8. Parked: 17 of 29 milestones cannot fire
 
 Not for now — badges are a later system, and pacing the app around rewards that
 do not exist yet is backwards. Recorded because it is a real defect and will
@@ -195,7 +233,7 @@ their tower is; a sighted one does not.
 
 ---
 
-## 8. Small and true
+## 9. Small and true
 
 - **Stale comment.** `ImageManager.loadThumbnail` still describes decoding on
   "Swift's cooperative pool". It was measured (545ms vs 116ms at n=80) and
