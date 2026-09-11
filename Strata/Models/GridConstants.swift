@@ -27,6 +27,13 @@ enum GridConstants {
     /// Between a heading and what it heads.
     static let gapLabel: CGFloat = 16
     /// Between one section and the next.
+    /// Between a header and the block of content under it.
+    ///
+    /// **Named because the app was already using it, three times, unnamed.**
+    /// A rung that exists in practice and not in the ladder is how a ladder
+    /// rots: the next person picks 22 or 26 because nothing says otherwise.
+    static let gapWide: CGFloat = 24
+
     static let gapSection: CGFloat = 32
 
     /// How much room the floating tab bar needs under a scrolling page.

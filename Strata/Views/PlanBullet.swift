@@ -31,7 +31,18 @@ struct PlanBullet: View {
             // The empty slot. Neutral: the outline says "a block goes here",
             // and says nothing about which one.
             shape
-                .strokeBorder(AppColors.warmBlack.opacity(0.22),
+                // **An empty checkbox IS its boundary**, so the boundary has to be
+                // visible. This was `warmBlack` at 0.22, which is a fixed dark
+                // ink: on the light ground it measured 1.47:1 and on the dark
+                // one 1.08:1 — dark ink on a dark page, which is no contrast at
+                // all rather than low contrast. "the squares in plan are clearly
+                // not visible in the plan screen the contrast is an issue."
+                //
+                // `slotInk` is the token that already solved this for the
+                // tower's empty slot: it inverts with the scheme. At 0.60 it
+                // measures 3.35:1 on light and 6.34:1 on dark, both clearing
+                // the 3:1 WCAG asks of a UI element. 0.55 was 2.96 and missed.
+                .strokeBorder(AppColors.slotInk.opacity(0.60),
                               lineWidth: 1.4 * (side / GridConstants.blockReferenceCell) * 3.4)
                 .opacity(isDone ? 0 : 1)
 

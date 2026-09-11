@@ -89,7 +89,15 @@ struct PlanSheet: View {
             tidy()
             dismiss()
         } label: {
-            Text("Done").font(Typography.headerSmall)
+            // **44pt of target, whatever the glyph measures.** Audited from
+            // the accessibility tree: Done came out 68x36 and the plus 35x36,
+            // both under Apple's minimum — and this is the screen the owner
+            // had already called "really easy to miss click". A toolbar button
+            // is sized by its label unless it is told otherwise.
+            Text("Done")
+                .font(Typography.headerSmall)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .foregroundStyle(AppColors.accentWarm)
     }
@@ -99,6 +107,8 @@ struct PlanSheet: View {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                 .foregroundStyle(AppColors.accentWarm)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("Add a line")
     }
@@ -127,7 +137,7 @@ struct PlanSheet: View {
                     .accessibilityLabel("Add a line")
                     .accessibilityAddTraits(.isButton)
             }
-            .padding(.top, 8)
+            .padding(.top, GridConstants.gapTight)
         }
         .scrollDismissesKeyboard(.interactively)
     }
@@ -142,10 +152,10 @@ struct PlanSheet: View {
     /// writing, which is what the empty space below already did and what
     /// nobody could tell.
     private var hint: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             HStack(spacing: 3) {
                 Circle()
-                    .strokeBorder(AppColors.slotInk.opacity(0.22),
+                    .strokeBorder(AppColors.slotInk.opacity(0.40),
                                   style: StrokeStyle(lineWidth: 1.5,
                                                      dash: [GridConstants.ghostBlockDashLength]))
                     .frame(width: 22, height: 22)
@@ -162,7 +172,7 @@ struct PlanSheet: View {
         }
         .padding(.leading, GridConstants.horizontalPadding - 11)
         .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.top, 24)
+        .padding(.top, GridConstants.gapWide)
         .contentShape(Rectangle())
         .onTapGesture { addLine() }
         .accessibilityElement()
