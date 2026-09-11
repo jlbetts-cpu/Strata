@@ -113,18 +113,32 @@ struct PlanSheet: View {
     // MARK: - A line
 
     private func row(_ item: PlanItem) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
             Button {
                 complete(item)
             } label: {
                 PlanBullet(category: item.category, isDone: item.isDone)
-                    // A tap target the size of the glyph is not a tap target.
-                    .padding(11)
+                    // **A real 44pt frame, not padding cancelled by negative
+                    // padding.**
+                    //
+                    // It used to be `.padding(11)` for the target and
+                    // `.padding(-11)` to take the space back — which shrinks
+                    // the LAYOUT and leaves the hit area where it was, eleven
+                    // points out on every side. So the left edge of the text
+                    // was standing on the bullet's target, and tapping there
+                    // to edit a line COMPLETED it instead. The owner: "the
+                    // plan screen is really easy to miss click or something
+                    // not work."
+                    //
+                    // Same family as the month tower's `.offset` and the photo
+                    // well's unbounded image: in SwiftUI what a view occupies
+                    // and what it can be touched through are two different
+                    // rectangles, and only the second one catches fingers.
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(-11)
-            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 5 }
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 27 }
             .accessibilityLabel(item.isDone
                                 ? "\(item.text), done"
                                 : "Log \(item.text.isEmpty ? "this line" : item.text) as a win")
@@ -172,8 +186,12 @@ struct PlanSheet: View {
                 .transition(.opacity)
             }
         }
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.vertical, 13)
+        // The bullet's 44pt box already carries its own air, so the row's
+        // leading margin gives back what the box added — the glyph stays
+        // exactly where it was on the page.
+        .padding(.leading, GridConstants.horizontalPadding - 11)
+        .padding(.trailing, GridConstants.horizontalPadding)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
         .animation(GridConstants.motionSnappy, value: focused)
         // A context menu, not `.swipeActions`.
