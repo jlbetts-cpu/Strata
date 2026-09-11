@@ -25,6 +25,23 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         /// The frame's size in pixels, so the view can map the outline onto
         /// an aspect-filled preview.
         let frameSize: CGSize
+        /// During an expression phase: whether what has been kept so far is
+        /// really the expression that was asked for. Always false while
+        /// lining up.
+        ///
+        /// Which phase this was measured in. The maker checks it before
+        /// acting: a stage now ENDS when its expression lands, so an update
+        /// from the phase just finished, delivered a moment late, would end
+        /// the next stage the instant it began and silently drop an
+        /// expression. Cheap to prevent, and close to undiagnosable from a
+        /// phone.
+        var phase: Phase = .idle
+        /// **Before this existed the engine said nothing for seven seconds.**
+        /// Both callbacks below were gated on `.lining`, so from the moment
+        /// the shutter was pressed until the head came out, the maker ran a
+        /// blind timer and reported to nobody. From a phone: "idk if it is
+        /// working."
+        var caught: Bool = false
     }
 
     /// One kept frame and what was measured on it.
@@ -63,6 +80,9 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
     private var target = HeadFraming.Target.standard
     private var kept: [Slot: Take] = [:]
     private var lastLining: CFTimeInterval = 0
+    /// What was last published, so a boolean that has not changed does not
+    /// hop to the main actor thirty times a second.
+    private var lastCaught = false
     private let context = CIContext(options: [.cacheIntermediates: false])
 
     override init() {
@@ -76,6 +96,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         lock.lock()
         defer { lock.unlock() }
         phase = next
+        lastCaught = false
         switch next {
         case .blink: kept[.open] = nil; kept[.shut] = nil
         case .smile: kept[.smile] = nil
@@ -95,6 +116,57 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         lock.lock()
         defer { lock.unlock() }
         return kept
+    }
+
+    /// Whether a slot holds a REAL expression rather than a neutral face that
+    /// happened to measure a little further one way.
+    ///
+    /// **This is the only copy of that judgement, and it has to be.** Two
+    /// callers need the same answer: the maker asks it live, to tell somebody
+    /// their smile landed and to move on the moment it did; and `make()` asks
+    /// it at the end, to decide whether the expression is worth keeping. Two
+    /// copies would mean a tick on screen followed by a head that cannot
+    /// smile — feedback that lies is worse than none.
+    ///
+    /// When a measure is missing the take is kept, which is what `make()` did
+    /// inline before this existed: an unmeasurable face is not evidence the
+    /// expression was not made.
+    func caught(_ slot: Slot) -> Bool {
+        lock.lock()
+        let kept = self.kept
+        lock.unlock()
+        guard let neutral = kept[.open] else { return false }
+        switch slot {
+        case .open:
+            return true
+        case .shut:
+            guard let shut = kept[.shut] else { return false }
+            return HeadFraming.isRealBlink(open: neutral.score, shut: shut.score)
+        case .smile:
+            guard let take = kept[.smile] else { return false }
+            guard let base = neutral.smileWidth, let wide = take.smileWidth else { return true }
+            return HeadFraming.isRealSmile(neutral: base, smile: wide)
+        case .brows:
+            guard let take = kept[.brows] else { return false }
+            guard let base = neutral.browRaise, let raised = take.browRaise else { return true }
+            return HeadFraming.isRealBrowRaise(neutral: base, raised: raised)
+        case .surprised:
+            guard let take = kept[.surprised] else { return false }
+            guard let base = neutral.mouthOpen, let wide = take.mouthOpen else { return true }
+            return HeadFraming.isRealSurprise(neutral: base, surprised: wide)
+        }
+    }
+
+    /// The slot an expression phase is filling. Nil for the phases that fill
+    /// none.
+    static func slot(for phase: Phase) -> Slot? {
+        switch phase {
+        case .blink:     return .shut
+        case .smile:     return .smile
+        case .brows:     return .brows
+        case .surprised: return .surprised
+        case .idle, .lining: return nil
+        }
     }
 
     // MARK: - Frames
@@ -129,7 +201,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
 
         // The biggest face is the person holding the phone.
         guard let face = (landmarks.results ?? []).max(by: { $0.boundingBox.height < $1.boundingBox.height }) else {
-            if phase == .lining { onUpdate?(Update(hint: .noFace, frameSize: size)) }
+            if phase == .lining { onUpdate?(Update(hint: .noFace, frameSize: size, phase: .lining)) }
             return
         }
         let box = CGRect(x: face.boundingBox.minX, y: 1 - face.boundingBox.maxY,
@@ -141,7 +213,8 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
                 .faceCaptureQuality
             let reading = HeadFraming.Reading(face: box, yaw: face.yaw?.doubleValue,
                                               roll: face.roll?.doubleValue, quality: score.map(Double.init))
-            onUpdate?(Update(hint: HeadFraming.hint(for: reading, target: target), frameSize: size))
+            onUpdate?(Update(hint: HeadFraming.hint(for: reading, target: target),
+                             frameSize: size, phase: .lining))
             return
         }
 
@@ -175,6 +248,17 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
             guard let mouth else { return }
             offer(mouth, to: .surprised, higherIsBetter: true, buffer: buffer, measured: measured)
         }
+
+        // Say so the moment it lands, and only then. Published on the CHANGE
+        // rather than per frame: the answer is one boolean and this runs at
+        // the camera's full rate.
+        guard let slot = Self.slot(for: phase) else { return }
+        let landed = caught(slot)
+        lock.lock()
+        let changed = landed != lastCaught
+        lastCaught = landed
+        lock.unlock()
+        if changed { onUpdate?(Update(hint: nil, frameSize: size, phase: phase, caught: landed)) }
     }
 
     private func offer(_ score: Double, to slot: Slot, higherIsBetter: Bool, buffer: CVPixelBuffer,

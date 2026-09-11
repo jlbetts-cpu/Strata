@@ -23,9 +23,6 @@ struct HeadMakerView: View {
     @State private var previewBox = PreviewLayerBox()
     /// 0 before the outline has drawn itself, 1 after.
     @State private var outlineDrawn: CGFloat = 0
-    /// How much of the shutter's block has filled while the expressions are
-    /// watched.
-    @State private var fill: CGFloat = 0
     /// What the screen was set to before the ring light raised it.
     @State private var brightnessBeforeFlash: CGFloat?
 
@@ -45,6 +42,11 @@ struct HeadMakerView: View {
     private static let promptHeight: CGFloat = 24
     /// A head is about three quarters as wide as it is tall.
     private static let headAspect: CGFloat = 0.76
+    /// One of the four marks that say how many expressions there are and how
+    /// many have landed. A small block, at the block's own 14.7% corner —
+    /// four of the thing this whole app is made of.
+    private static let pipSide: CGFloat = 7
+    private static let pipGap: CGFloat = 6
 
     var body: some View {
         GeometryReader { outer in
@@ -198,6 +200,7 @@ struct HeadMakerView: View {
                     .contentTransition(.opacity)
                     .animation(GridConstants.crossFade, value: prompt)
                     .accessibilityAddTraits(.updatesFrequently)
+                pips
                 controls
             }
             .padding(.bottom, GridConstants.gapSection)
@@ -209,13 +212,61 @@ struct HeadMakerView: View {
         case .starting:    return " "
         case .unavailable: return "The camera isn't available here."
         case .lining:      return model.hint?.caption ?? "Press when you're ready"
-        case .blink:       return "Blink slowly"
-        case .smile:       return "Now a big smile"
-        case .brows:       return "Raise your eyebrows"
-        case .surprised:   return "Now look surprised"
+        // **"Got it" is the whole point of this pass.** From a phone: "idk if
+        // it is working." The maker used to ask for four expressions in seven
+        // seconds and acknowledge none of them, and whether a smile had been
+        // caught was only ever said afterwards, on the preview caption, as an
+        // apology. It is the same judgement that decides whether the smile is
+        // kept, so it cannot say this and then not have it.
+        case .blink:       return model.caught ? "Got it" : "Blink slowly"
+        case .smile:       return model.caught ? "Got it" : "Now a big smile"
+        case .brows:       return model.caught ? "Got it" : "Raise your eyebrows"
+        case .surprised:   return model.caught ? "Got it" : "Now look surprised"
         case .making:      return "Making your head…"
         case .preview:     return " "
         case .failed:      return model.failure
+        }
+    }
+
+    /// Four marks: how many expressions there are, and how many have landed.
+    ///
+    /// The other half of "idk if it is working" is not knowing how much is
+    /// left. They are shown from the moment the outline does, dim and empty,
+    /// so pressing the shutter is not a step into the dark — you can see
+    /// there are four things before you agree to any of them.
+    ///
+    /// **Its height is reserved whether or not it is drawn**, the camera's
+    /// own rule for the zoom pill: a mark that appears by pushing the shutter
+    /// down moves the one control on this screen that must not move.
+    private var pips: some View {
+        HStack(spacing: Self.pipGap) {
+            ForEach(HeadMakerModel.sequence.map(\.step), id: \.self) { step in
+                let done = model.landed.contains(step)
+                RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
+                    .fill(.white.opacity(done ? 1 : 0.28))
+                    .frame(width: Self.pipSide, height: Self.pipSide)
+                    // The one being asked for now, so the row says WHERE you
+                    // are and not only how far along.
+                    .overlay {
+                        if model.step == step, !done {
+                            RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
+                                .strokeBorder(.white, lineWidth: 1)
+                        }
+                    }
+            }
+        }
+        .frame(height: Self.pipSide)
+        .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 1)
+        .opacity(showsPips ? 1 : 0)
+        .animation(GridConstants.crossFade, value: model.landed)
+        .animation(GridConstants.crossFade, value: showsPips)
+        .accessibilityLabel("\(model.landed.count) of \(HeadMakerModel.sequence.count) done")
+    }
+
+    private var showsPips: Bool {
+        switch model.step {
+        case .lining, .blink, .smile, .brows, .surprised, .making: return true
+        default: return false
         }
     }
 
@@ -275,16 +326,25 @@ struct HeadMakerView: View {
     }
 
     /// `CameraView`'s shutter: one block at the block's own 14.7% corner, in a
-    /// rim. Dim until your head is in the outline, solid when it will take,
-    /// and while it watches the block fills from the bottom — a timer with no
-    /// numbers, in the control that means "taking".
+    /// rim. Dim until your head is in the outline, and solid from the moment
+    /// it will take until the head is made.
+    ///
+    /// **It used to fill from the bottom as a timer, and that had to go.** A
+    /// stage now ends when the expression lands rather than when a clock runs
+    /// out, so a bar driven by the clock would be telling you something that
+    /// is no longer true. The pips above carry progress, and they carry it
+    /// next to the prompt you are reading rather than at the bottom edge of a
+    /// screen you are not looking at. Two readings of one fact is the mistake
+    /// the tower header already made once — "the filter said Day while the
+    /// title said Today" — so there is one.
     private var shutter: some View {
         let outer = CameraView.shutterBounds(.small)
         let inner = CGSize(width: outer.width - Self.shutterRim, height: outer.height - Self.shutterRim)
         let outerRadius = outer.width * 0.147
         let innerRadius = inner.width * 0.147
         let ready = model.isLinedUp
-        let watching = [.blink, .smile, .brows, .surprised, .making].contains(model.step)
+        let watching: Bool = [.blink, .smile, .brows, .surprised, .making].contains(model.step)
+        let lit = ready || watching
 
         return Button {
             model.beginCapture()
@@ -294,24 +354,24 @@ struct HeadMakerView: View {
                     .strokeBorder(.white, lineWidth: 1)
                     .frame(width: outer.width, height: outer.height)
                 RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                    .fill(.white.opacity(ready ? 1 : 0.3))
+                    .fill(.white.opacity(lit ? 1 : 0.3))
                     .frame(width: inner.width, height: inner.height)
-                if watching {
-                    RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                        .fill(.white)
-                        .frame(width: inner.width, height: inner.height)
-                        .mask(alignment: .bottom) {
-                            Rectangle().frame(height: inner.height * fill)
-                        }
-                }
             }
             .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(!ready)
-        .animation(GridConstants.motionSnappy, value: ready)
-        .accessibilityLabel("Start")
-        .accessibilityHint(ready
+        // **Disabled on `lit`, not on `ready`** — measured, because a disabled
+        // plain button is dimmed by the environment and the block came out at
+        // 128 of 255 during capture instead of white. A shutter that goes
+        // half grey the moment it starts taking says the opposite of what is
+        // happening. `beginCapture()` guards on `isLinedUp` itself, so a
+        // press while it is watching does nothing either way.
+        .disabled(!lit)
+        .animation(GridConstants.motionSnappy, value: lit)
+        .accessibilityLabel(watching ? "Taking" : "Start")
+        .accessibilityHint(watching
+                           ? "\(model.landed.count) of \(HeadMakerModel.sequence.count) done"
+                           : ready
                            ? "Takes a slow blink, a smile, raised eyebrows and a surprised face"
                            : "Line your head up in the outline first")
     }
@@ -402,23 +462,9 @@ struct HeadMakerView: View {
     private func respond(to step: HeadMakerModel.Step) {
         switch step {
         case .lining:
-            fill = 0
             withAnimation(reduceMotion ? nil : GridConstants.layoutReflow) { outlineDrawn = 1 }
-        case .blink:
+        case .blink, .smile, .brows, .surprised:
             outlineDrawn = 1
-            fill = 0
-            // Linear, and not a spring token: this is a clock, not a
-            // movement, and a clock that eases lies about how long is left.
-            withAnimation(.linear(duration: 2.2)) { fill = 0.32 }
-        case .smile:
-            outlineDrawn = 1
-            withAnimation(.linear(duration: 1.6)) { fill = 0.55 }
-        case .brows:
-            outlineDrawn = 1
-            withAnimation(.linear(duration: 1.6)) { fill = 0.78 }
-        case .surprised:
-            outlineDrawn = 1
-            withAnimation(.linear(duration: 1.6)) { fill = 1 }
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.
             setFlashBrightness(false)

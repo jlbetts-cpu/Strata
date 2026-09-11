@@ -168,7 +168,8 @@ enum DebugHarness {
     static var placesReviewSticker: Bool { ProcessInfo.processInfo.arguments.contains("-strataReviewSticker") }
 
     /// Opens the head maker in one state, from
-    /// `-strataOpenHeadMaker outline|blink|smile|preview|failed`, on top of
+    /// `-strataOpenHeadMaker outline|blink|smile|brows|surprised|caught|preview|failed`,
+    /// on top of
     /// `-strataOpenSheet profile`. The simulator has no camera, so the maker's
     /// chrome can only be photographed by putting it into a state directly.
     static var headMakerState: String? { argument("-strataOpenHeadMaker")?.lowercased() }
