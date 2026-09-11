@@ -98,9 +98,27 @@ enum PlaceMap {
         /// whenever the real centroid is inside that box, which is most of the
         /// time, the block is drawn exactly where the photograph was taken.
         /// The worst-case error drops from half a cell to half a block.
+        /// Which sides have a block next door, so the clamp is only paid where
+        /// a collision is actually possible. Empty means an isolated block,
+        /// which is then drawn exactly where the photograph was taken.
+        let crowdedSides: Sides
+
         var anchor: (latitude: Double, longitude: Double) {
-            PlaceMap.anchor(forCentroidAt: (latitude, longitude), in: key, size: size)
+            PlaceMap.anchor(forCentroidAt: (latitude, longitude), in: key,
+                            size: size, crowdedSides: crowdedSides)
         }
+    }
+
+    /// The sides of a cell that have an occupied neighbour.
+    struct Sides: OptionSet, Equatable, Sendable {
+        let rawValue: Int
+        static let west = Sides(rawValue: 1 << 0)
+        static let east = Sides(rawValue: 1 << 1)
+        static let north = Sides(rawValue: 1 << 2)
+        static let south = Sides(rawValue: 1 << 3)
+        /// What to assume when the neighbours are not known: clamp everywhere,
+        /// which is the conservative choice and the old behaviour.
+        static let all: Sides = [.west, .east, .north, .south]
     }
 
     // MARK: - Tuning
@@ -206,9 +224,24 @@ enum PlaceMap {
     /// stays inside it keeps at least half its width from every edge, so two
     /// blocks in touching cells are always at least a block apart. Everything
     /// inside the window is drawn exactly where it happened.
+    /// - Parameter crowdedSides: which neighbouring cells actually hold a
+    ///   block. **A side with nobody on it is not clamped**, because the clamp
+    ///   exists only to stop two blocks touching and there is nothing there to
+    ///   touch. Measured before this: at zoom 14 an isolated 1x1 could be
+    ///   drawn 189 metres from where its photograph was taken, and at zoom 15
+    ///   still 95 metres — the owner, holding a phone: "the photos are
+    ///   accurate in the right area ... it should be in the right place." An
+    ///   isolated block now lands on its exact coordinate at every zoom.
+    ///   Defaults to `.all`, which is the old always-clamp behaviour, so a
+    ///   caller that does not know its neighbours stays safe.
     static func anchor(forCentroidAt centroid: (latitude: Double, longitude: Double),
                        in key: PlaceKey,
-                       size: BlockSize) -> (latitude: Double, longitude: Double) {
+                       size: BlockSize,
+                       crowdedSides: Sides = .all) -> (latitude: Double, longitude: Double) {
+        let (px, py) = project(WinPlace(latitude: centroid.latitude,
+                                        longitude: centroid.longitude))
+        guard !crowdedSides.isEmpty else { return unproject(x: px, y: py) }
+
         let side = cellSide(at: key.z)
         // How much of a cell the block covers. Cells are `targetBlockPitch`
         // points across by construction, so this is a plain ratio.
@@ -216,11 +249,32 @@ enum PlaceMap {
         let room = side * (1 - covered) / 2
 
         let (cx, cy) = ((Double(key.x) + 0.5) * side, (Double(key.y) + 0.5) * side)
-        let (px, py) = project(WinPlace(latitude: centroid.latitude,
-                                        longitude: centroid.longitude))
-        let x = min(max(px, cx - room), cx + room)
-        let y = min(max(py, cy - room), cy + room)
+        var x = px, y = py
+        if crowdedSides.contains(.west) { x = max(x, cx - room) }
+        if crowdedSides.contains(.east) { x = min(x, cx + room) }
+        // y grows southward in this projection, so north is the smaller y.
+        if crowdedSides.contains(.north) { y = max(y, cy - room) }
+        if crowdedSides.contains(.south) { y = min(y, cy + room) }
         return unproject(x: x, y: y)
+    }
+
+    /// Which of a cell's neighbours are occupied, diagonals included.
+    ///
+    /// A diagonal neighbour constrains BOTH axes toward that corner: two
+    /// blocks meeting at a corner overlap just as surely as two side by side.
+    static func crowdedSides(of key: PlaceKey, occupied: Set<PlaceKey>) -> Sides {
+        var sides: Sides = []
+        for dx in -1...1 {
+            for dy in -1...1 where !(dx == 0 && dy == 0) {
+                guard occupied.contains(PlaceKey(z: key.z, x: key.x + dx, y: key.y + dy))
+                else { continue }
+                if dx < 0 { sides.insert(.west) }
+                if dx > 0 { sides.insert(.east) }
+                if dy < 0 { sides.insert(.north) }
+                if dy > 0 { sides.insert(.south) }
+            }
+        }
+        return sides
     }
 
     /// The middle of a cell, in degrees.
@@ -311,6 +365,7 @@ enum PlaceMap {
             groups[key(for: pin.place, z: z), default: []].append(pin)
         }
 
+        let occupied = Set(groups.keys)
         return groups.map { key, members in
             let newestFirst = members.sorted { $0.completedAt > $1.completedAt }
             var seen = Set<String>()
@@ -325,7 +380,8 @@ enum PlaceMap {
                     members.map { (category: $0.category, at: $0.completedAt) }
                 ),
                 photoFileNames: names,
-                loneSize: members.count == 1 ? members[0].size : .small
+                loneSize: members.count == 1 ? members[0].size : .small,
+                crowdedSides: crowdedSides(of: key, occupied: occupied)
             )
         }
         // Sorted so the output is deterministic whatever order a dictionary

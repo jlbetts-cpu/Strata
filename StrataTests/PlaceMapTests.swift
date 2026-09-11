@@ -352,6 +352,70 @@ struct PlaceMapTests {
 
     /// The clamp is what stops two blocks touching, so it has to hold at the
     /// worst case: a centroid in the very corner of its cell.
+    /// **An isolated block is drawn exactly where the photograph was taken.**
+    ///
+    /// The clamp exists only so two blocks in touching cells cannot overlap.
+    /// A block with nobody beside it has nothing to overlap, so paying the
+    /// clamp there is pure error — measured at zoom 14 it was up to 189
+    /// metres, and the owner saw it on a phone: the photographs were "in the
+    /// right area" but not in the right place.
+    @Test("a lone block sits on its exact coordinate, at every zoom")
+    func aLoneBlockIsNotMoved() {
+        // Deliberately near a cell corner, which is where the old clamp bit
+        // hardest.
+        for z in 12...18 {
+            let side = PlaceMap.cellSide(at: z)
+            let key = PlaceMap.PlaceKey(z: z, x: 8000, y: 6000)
+            let corner = PlaceMap.unproject(x: (Double(key.x) + 0.97) * side,
+                                            y: (Double(key.y) + 0.97) * side)
+            let place = (latitude: corner.latitude, longitude: corner.longitude)
+            let clusters = PlaceMap.cluster(
+                [pin(lat: place.latitude, lon: place.longitude, accuracy: 5)], zoom: z)
+
+            #expect(clusters.count == 1)
+            let drawn = clusters[0].anchor
+            #expect(abs(drawn.latitude - place.latitude) < 1e-9,
+                    "zoom \(z): latitude moved")
+            #expect(abs(drawn.longitude - place.longitude) < 1e-9,
+                    "zoom \(z): longitude moved")
+        }
+    }
+
+    /// The clamp must still apply where it is earning its keep.
+    @Test("a block WITH a neighbour is still pulled in")
+    func acrowdedBlockIsStillClamped() {
+        let z = 14
+        let side = PlaceMap.cellSide(at: z)
+        let key = PlaceMap.PlaceKey(z: z, x: 8000, y: 6000)
+        // One pin at the eastern edge of its cell, one in the cell next door.
+        let edge = PlaceMap.unproject(x: (Double(key.x) + 0.99) * side,
+                                      y: (Double(key.y) + 0.5) * side)
+        let door = PlaceMap.unproject(x: (Double(key.x) + 1.5) * side,
+                                      y: (Double(key.y) + 0.5) * side)
+        let clusters = PlaceMap.cluster(
+            [pin(lat: edge.latitude, lon: edge.longitude, accuracy: 5),
+             pin(lat: door.latitude, lon: door.longitude, accuracy: 5)],
+            zoom: z)
+
+        #expect(clusters.count == 2)
+        let left = clusters.first { $0.key.x == key.x }
+        let drawn = try! #require(left).anchor
+        #expect(abs(drawn.longitude - edge.longitude) > 1e-9,
+                "a block with an occupant next door should have been pulled in")
+    }
+
+    /// Neighbours meeting at a corner overlap just as surely as side by side.
+    @Test("a diagonal neighbour constrains both axes")
+    func diagonalNeighboursCount() {
+        let key = PlaceMap.PlaceKey(z: 14, x: 10, y: 10)
+        let sides = PlaceMap.crowdedSides(
+            of: key, occupied: [key, PlaceMap.PlaceKey(z: 14, x: 11, y: 11)])
+        #expect(sides.contains(.east))
+        #expect(sides.contains(.south))
+        #expect(!sides.contains(.west))
+        #expect(!sides.contains(.north))
+    }
+
     @Test("a corner pin is pulled in far enough that blocks cannot overlap")
     func theClampKeepsBlocksApart() {
         let z = 14
