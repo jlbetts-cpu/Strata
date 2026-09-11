@@ -1427,3 +1427,87 @@ This is the third time today a red came from my instrument rather than
 the app — after a contrast probe aimed at empty bands and a drag aimed
 at the middle of the screen. A suite you cannot trust is worse than no
 suite, because it teaches you to ignore red.
+
+---
+
+## The head maker: the distance bug was mine
+
+**Bad news first: I caused the thing the owner reported.** "its having
+trouble detecting my head and saying to move back a little even though
+im far away."
+
+`HeadMakerModel.start()` calls `useFrontCamera()`, which goes through
+`flip()` → `applyPortraitCropIfFront` and sets `videoZoomFactor = 1.3` —
+a crop I added because it flatters a face in a photograph. But
+`HeadFraming.hint()` judges distance from the face's height as a
+FRACTION of the frame, so the crop multiplies it:
+
+    target 0.34, tolerance 0.08  →  band 0.26 … 0.42
+    a face framed exactly on target reads 0.34 × 1.3 = 0.442
+
+Past the ceiling. And the largest face that CAN pass reads 0.323, which
+is smaller than the outline it is being asked to fill — so you line your
+head up inside the outline, it looks right, and the app still says move
+back. The only way out was standing about 30% further away than the
+outline implied.
+
+`attachFrames` lifts the crop for the duration and `detachFrames` puts
+it back, so photographs are unaffected. The regression test carries the
+arithmetic, including the "largest face that passes is smaller than the
+outline" line, because that is the sentence that explains the symptom.
+
+**One correction along the way.** I first wrote the test asserting the
+band was unreachable at 1.3x. It is not — it is SHIFTED, and reachable
+only from further back. Fixing my own arithmetic is what produced the
+sharper finding above.
+
+## "idk if it is working" was literal
+
+`HeadCaptureEngine` gated both of its callbacks on the `.lining` phase.
+From the moment the shutter was pressed until the head came out — seven
+seconds, four expressions — it reported nothing at all, and
+`HeadMakerModel.receive` dropped anything that arrived anyway. The maker
+asked for four expressions, acknowledged none, and listed the ones it
+had missed afterwards on the preview caption, as an apology.
+
+Now: the engine reports `caught` during the expression phases; a stage
+ends when the expression lands rather than when a clock runs out (the
+windows are ceilings, raised, with a 350ms settle so the kept frame is
+the biggest smile made rather than the smallest that counted); the
+prompt says "Got it"; and four pips say how many there are and how many
+are done, shown from the moment the outline is.
+
+The judgement behind "Got it" is `HeadCaptureEngine.caught(_:)` — the
+SAME function that decides whether the expression is kept. `make()` had
+four inline copies of it. Feedback that can disagree with the outcome is
+worse than no feedback, so there is one copy.
+
+**Two things the screenshots caught that reasoning did not.**
+
+1. The first burst photographed the CAMERA TAB, not the maker.
+   `-strataOpenHeadMaker` only fires inside `ProfileView`, and its own
+   doc comment says it needs `-strataOpenSheet profile` on top. I had
+   four confident screenshots of the wrong screen. That is the seventh
+   time on this project an instrument was aimed at the wrong thing.
+2. The shutter measured 128 of 255 during capture. `.disabled(!ready)`
+   on a plain button is dimmed by the environment, so the shutter went
+   half grey at exactly the moment it means "taking". Disabled on `lit`
+   instead. Measured after: 38 dim, 255 taking; pips 71 empty, 255 done.
+
+## The blink, on a narrow eye
+
+`isRealBlink` ANDs an absolute gap with a proportion, so the stricter
+one decides — and the 0.08 gap was stricter for anybody whose open eye
+measures below 0.20. The function's own comment said the proportion was
+there "so narrow eyes still count" while the conjunction overruled it.
+Floor lowered to 0.05, where it binds only below open = 0.125.
+
+**This is a judgement, not a measurement**, and the test says so. It
+cannot be measured without faces. Too loose keeps a deep squint (the
+proportion still demands a collapse to under 60%); too tight means a
+person whose eyes are narrow can never have a head that blinks.
+
+182 unit tests pass. Simulator, device-generic and Debug builds all
+succeed. **Nothing here has been seen running on a real camera** — the
+simulator has none — so every threshold above is reasoned, and the
+screenshots prove the states draw, not that the capture works.

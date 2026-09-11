@@ -256,6 +256,12 @@ thing on screen until you are close.
 
 ## 9. The head maker has to actually work, on every face
 
+> **DONE 2026-09-11** — three commits: `0ae292c` (distance), `f7e8b98`
+> (feedback and progression), `120aeb5` (narrow eyes). What is left of this
+> section is below, under "Still open". The prediction in the first bullet
+> was right: it was the 1.3x front crop, and it was mine.
+
+
 **Owner, on a phone, first contact with it:** "its having trouble detecting my
 head and saying to move back a little even though im far away and the
 instuctions arent clear and idk if it is working make sure it works in all
@@ -289,6 +295,25 @@ contact.
 CAN run: `HeadFraming`'s pure logic against fixture landmark sets — wide faces,
 narrow faces, off-centre, tilted, partly lit. That is where "works on all
 faces" gets decided, not in the viewfinder.
+
+**Still open — needs a real face, not this machine.**
+
+- **The lighting half is untested.** `minQuality = 0.25` against Vision's
+  capture quality is the only thing standing between a dark room and a bad
+  head, and there is no way to exercise it here — a fixture can pass any
+  number into `hint(for:)`, which proves the ordering and not the threshold.
+  Worth watching on a phone in a dim room before anything else is tuned.
+- **The blink floor is a judgement, not a measurement** (`120aeb5`). If a
+  blink still goes missed on a real face, that constant is the first place
+  to look, and the live "Got it" now makes it observable while it happens.
+- **Losing your face mid-capture says nothing.** The engine reports `caught`
+  during the expression phases but still drops the `.noFace` branch outside
+  `.lining`, so stepping out of frame for two seconds looks the same as
+  getting it wrong. Small, and deliberately left out of that commit.
+- **The hint captions were not touched.** With the crop lifted they are at
+  least true, which they were not before. Whether "Move back a little" is
+  clearer than "Hold the phone at arm's length" is a question for somebody
+  holding a phone.
 
 ---
 
