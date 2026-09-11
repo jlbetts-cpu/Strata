@@ -41,6 +41,15 @@ struct PhotoViewer: View {
     /// have no shared idea of how many full-size images are in memory at
     /// once; a window of three, pruned on every move, does.
     @State private var images: [String: UIImage] = [:]
+    /// The deck's position as a FRACTIONAL index, republished every frame it
+    /// moves. This is what lets the strip below track a finger that is still
+    /// on the photograph above, rather than jumping once the page settles.
+    @State private var deckProgress: Double = 0
+    /// Set while a finger is on the strip itself, which then leads and the
+    /// deck follows on release.
+    @State private var scrub: Double?
+    @State private var scrubOrigin: Double?
+
     /// Which photograph is on screen, by identity. `scrollPosition` wants an
     /// id, and identity survives a deletion changing every index.
     @State private var currentID: String?
@@ -177,6 +186,16 @@ struct PhotoViewer: View {
         }
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $currentID)
+        // **The join.** A paging scroll view writes `currentID` only when it
+        // settles; this reports where it is on every frame, which is what the
+        // strip below is drawn from.
+        .onScrollGeometryChange(for: Double.self) { geo in
+            let page = geo.containerSize.width
+            guard page > 0 else { return 0 }
+            return Double(geo.contentOffset.x / page)
+        } action: { _, position in
+            deckProgress = position
+        }
         .scrollIndicators(.hidden)
         .scrollDisabled(isZoomed)
         .frame(height: max(size.height, 1))
@@ -253,91 +272,102 @@ struct PhotoViewer: View {
         return max(-1, min(1, (x - middle) / middle))
     }
 
+    /// The scrubber, driven by the deck's LIVE scroll position.
+    ///
+    /// **The two used to be joined only at the ends.** Both bound
+    /// `scrollPosition(id: $currentID)`, but a paging scroll view writes that
+    /// binding when it SETTLES — so while your finger was on the photograph
+    /// the strip sat perfectly still, then jumped once you let go. From a
+    /// phone: "why is the bottom seprete from the top scroll doesnt make sense
+    /// at all." It is the right complaint: the strip is a position indicator,
+    /// and an indicator that only updates after the fact is not indicating
+    /// anything.
+    ///
+    /// So the strip is no longer a scroll view of its own. It is an `HStack`
+    /// offset by a FRACTIONAL index that the deck publishes continuously, and
+    /// dragging it writes that same fraction back. One number, read every
+    /// frame, and the two cannot disagree.
     private var filmstrip: some View {
-        ScrollViewReader { proxy in
-        ScrollView(.horizontal) {
-                HStack(spacing: Self.stripGap) {
-                    ForEach(photos) { photo in
-                        Button {
-                            HapticsEngine.tick()
-                            withAnimation(GridConstants.motionSnappy) { currentID = photo.id }
-                        } label: {
-                            CachedImageView(fileName: photo.fileName,
-                                            width: Self.stripHeight,
-                                            height: Self.stripHeight,
-                                            cornerRadius: Self.stripRadius)
-                                // One size for every frame. The depth does the
-                                // work; a second, smaller size for the
-                                // neighbours would be saying it twice.
-                                .frame(width: Self.stripCard.width,
-                                       height: Self.stripCard.height)
-                                .clipShape(RoundedRectangle(cornerRadius: Self.stripRadius,
-                                                            style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .visualEffect { view, geo in
-                            let d = abs(offAxis(geo))
-                            // **No rotation.** This was a coverflow wheel —
-                            // asked for, built, and then seen: "why are the
-                            // photos rotated weirly on the bottom, that has to
-                            // be cleaned up."
-                            //
-                            // The reason it does not work is not taste. A
-                            // filmstrip has one job: you are scanning for a
-                            // picture you remember, and a photograph turned
-                            // forty degrees away is a sliver of itself. The
-                            // effect was making the content harder to read in
-                            // order to look impressive, which is the wrong
-                            // trade on every screen and especially this one.
-                            //
-                            // Depth without distortion: the middle frame is
-                            // nearer, its neighbours recede, sit slightly
-                            // lower and go slightly quiet. Every frame stays
-                            // square on.
-                            return view
-                                .scaleEffect(1 - 0.22 * d, anchor: .bottom)
-                                .offset(y: 5 * d)
-                                .opacity(1 - 0.3 * d)
-                        }
-                        // The centre card passes in FRONT of its neighbours.
-                        // Without this the arriving card is drawn under the
-                        // one it replaces and the strip flickers as they
-                        // cross. `zIndex` is a view modifier, not a visual
-                        // effect, so it cannot live inside the transition.
-                        .zIndex(photo.id == currentID ? 1 : 0)
-                        .id(photo.id)
+        let pitch = Self.stripCard.width + Self.stripGap
+        let progress = scrub ?? deckProgress
+        return GeometryReader { geo in
+            HStack(spacing: Self.stripGap) {
+                ForEach(Array(photos.enumerated()), id: \.element.id) { i, photo in
+                    let distance = min(abs(Double(i) - progress), 1)
+                    CachedImageView(fileName: photo.fileName,
+                                    width: Self.stripHeight,
+                                    height: Self.stripHeight,
+                                    cornerRadius: Self.stripRadius)
+                        // One size for every frame. The depth does the work; a
+                        // second, smaller size for the neighbours would be
+                        // saying it twice.
+                        .frame(width: Self.stripCard.width, height: Self.stripCard.height)
+                        .clipShape(RoundedRectangle(cornerRadius: Self.stripRadius,
+                                                    style: .continuous))
+                        // Depth without distortion: the middle frame is nearer,
+                        // its neighbours recede, sit slightly lower and go
+                        // slightly quiet. Every frame stays square on.
+                        //
+                        // **No rotation.** This was a coverflow wheel — asked
+                        // for, built, then seen: "why are the photos rotated
+                        // weirly on the bottom." A filmstrip has one job. You
+                        // are scanning for a picture you remember, and a
+                        // photograph turned forty degrees away is a sliver of
+                        // itself.
+                        .scaleEffect(1 - 0.22 * distance, anchor: .bottom)
+                        .offset(y: 5 * distance)
+                        .opacity(1 - 0.3 * distance)
+                        // The centre card passes in FRONT of its neighbours,
+                        // or the arriving card is drawn under the one it
+                        // replaces and the strip flickers as they cross.
+                        .zIndex(distance < 0.5 ? 1 : 0)
+                        .onTapGesture { select(photo) }
                         .accessibilityLabel(photo.title ?? "Photo")
                     }
-                }
-                .scrollTargetLayout()
-                // Half the strip's width either side, so the FIRST and LAST
-                // photographs can reach the centre. Without it neither end is
-                // ever selectable by dragging, which reads as the scrubber
-                // being broken at exactly the two moments people check.
-                .padding(.horizontal, UIScreen.main.bounds.width / 2 - Self.stripCard.width / 2)
             }
-            .scrollIndicators(.hidden)
-            // Each thumbnail settles on the centre, and the one that lands
-            // there IS the photograph. One value, two controls.
-            .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $currentID, anchor: .center)
-            .animation(GridConstants.motionSnappy, value: currentID)
-            .sensoryFeedback(.selection, trigger: currentID)
-            // **One shot, on appear.** `.scrollPosition` drives the strip once
-            // the value CHANGES, but the viewer opens with `currentID` already
-            // set — so there was no change to react to and the strip sat on
-            // the first photograph while the screen showed the fourth.
-            // Photographed: the red card was the subject and the blue one was
-            // under the centre.
-            //
-            // This is not the feedback loop the map warned about: it runs once
-            // and never again, and it writes to the scroll view rather than to
-            // the value the scroll view writes.
-            .onAppear {
-                guard let currentID else { return }
-                proxy.scrollTo(currentID, anchor: .center)
-            }
+            // Centre the frame at `progress`. Half the card either side is why
+            // the FIRST and LAST photographs can reach the middle at all.
+            .offset(x: geo.size.width / 2 - Self.stripCard.width / 2
+                       - CGFloat(progress) * pitch)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
         }
+        .frame(height: Self.stripCard.height)
+        // The whole strip is draggable, not just the cards — a scrubber you
+        // can only catch by landing on a 46pt thumbnail is a scrubber that
+        // feels broken.
+        .contentShape(Rectangle())
+        .gesture(scrubGesture(pitch: pitch))
+        .sensoryFeedback(.selection, trigger: currentID)
+        // **A container, or the name lands on every thumbnail.** SwiftUI hands
+        // an identifier down to descendants, so without this the strip and all
+        // of its 46pt cards answer to "filmstrip" and a UI test swipes a
+        // thumbnail instead of the scrubber.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("filmstrip")
+    }
+
+    /// Dragging the strip scrubs the deck, and releasing settles on a frame.
+    private func scrubGesture(pitch: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                let from = scrubOrigin ?? deckProgress
+                if scrubOrigin == nil { scrubOrigin = from }
+                let raw = from - Double(value.translation.width / pitch)
+                scrub = min(max(raw, 0), Double(max(photos.count - 1, 0)))
+            }
+            .onEnded { _ in
+                let landing = Int((scrub ?? deckProgress).rounded())
+                scrub = nil
+                scrubOrigin = nil
+                guard photos.indices.contains(landing) else { return }
+                select(photos[landing])
+            }
+    }
+
+    private func select(_ photo: GalleryPhoto) {
+        guard photo.id != currentID else { return }
+        HapticsEngine.tick()
+        withAnimation(GridConstants.motionSnappy) { currentID = photo.id }
     }
 
     /// Close on the left, what the photograph is OF in the middle, and

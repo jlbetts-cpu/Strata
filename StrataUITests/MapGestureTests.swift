@@ -114,13 +114,22 @@ final class MapGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 4)
         let before = caption.label
 
-        // Drag the strip along the bottom, where the thumbnails are.
-        let strips = (0..<app.scrollViews.count).map { app.scrollViews.element(boundBy: $0) }
-        let frames = strips.map { "\($0.frame)" }.joined(separator: " | ")
-        // The strip is the short one along the bottom.
-        guard let strip = strips.filter({ $0.frame.height < 200 })
-            .max(by: { $0.frame.origin.y < $1.frame.origin.y }) else {
-            XCTFail("no filmstrip among \(strips.count) scroll views: \(frames)")
+        // **By identifier, not by shape.** This used to hunt for "the short
+        // scroll view nearest the bottom", which stopped finding anything the
+        // moment the strip stopped being a scroll view — and it stopped being
+        // one so it could track the deck continuously rather than jumping
+        // after each page settled.
+        // SwiftUI hands the identifier to the descendants too, so `firstMatch`
+        // lands on a 46pt thumbnail and swiping it does nothing. The strip is
+        // the WIDEST thing carrying the name.
+        let named = app.descendants(matching: .any).matching(identifier: "filmstrip")
+        guard named.firstMatch.waitForExistence(timeout: 15) else {
+            XCTFail("no element identified as filmstrip. On screen: \(app.debugDescription)")
+            return
+        }
+        let candidates = (0..<named.count).map { named.element(boundBy: $0) }
+        guard let strip = candidates.max(by: { $0.frame.width < $1.frame.width }) else {
+            XCTFail("filmstrip matched nothing measurable")
             return
         }
         strip.swipeLeft()
@@ -128,7 +137,7 @@ final class MapGestureTests: XCTestCase {
 
         XCTAssertNotEqual(before, caption.label,
                           "dragging the filmstrip \(strip.frame) did not change the "
-                          + "photograph. Scroll views: \(frames)")
+                          + "photograph")
     }
 
     /// The onboarding slot resizes under the finger, like the tower's.
