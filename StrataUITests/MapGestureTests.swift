@@ -179,7 +179,11 @@ final class MapGestureTests: XCTestCase {
         let app = XCUIApplication()
         // Deliberately no `-strataShowOnboarding`: this has to be the real
         // first-launch path, decided by `hasOnboarded`.
-        app.launchArguments += ["-strataResetOnboarding", "1"]
+        // A first run means a store that has never been used. Without this
+        // the test passes alone and fails in a suite, because an earlier test
+        // has already left wins on the tower and the welcome block — which may
+        // only ever be created once — is correctly skipped.
+        app.launchArguments += ["-strataResetOnboarding", "1", "-strataResetStore", "1"]
         app.launch()
 
         XCTAssertTrue(app.buttons["Let me try"].waitForExistence(timeout: 45),

@@ -1442,6 +1442,13 @@ struct MainAppView: View {
         hasSetUp = true
         HapticsEngine.prepare()
         cachedTowerTitle = computeTowerTitle()
+        #if DEBUG
+        // Before anything is fetched or seeded: a test that asserts a first
+        // run needs a store that has never been used. See
+        // `DebugHarness.resetsStore`.
+        if DebugHarness.resetsStore { resetTower() }
+        #endif
+
         // Before anything reads `isWin`.
         QuickWinService.migrateLegacyWins(context: modelContext)
         towerManager.ensureDefaultTower(context: modelContext)

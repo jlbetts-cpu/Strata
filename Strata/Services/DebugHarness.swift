@@ -239,6 +239,21 @@ enum DebugHarness {
     /// thing being tested.
     static var resetsOnboarding: Bool { argument("-strataResetOnboarding") != nil }
 
+    /// Empties the store before anything else runs, from `-strataResetStore`.
+    ///
+    /// **This exists because the UI suite could not be trusted.** Every test
+    /// runs against one simulator holding one SwiftData store, and several of
+    /// them write to it — so a test that asserts a FIRST run is not repeatable
+    /// once a previous test has left wins behind. Measured: the first-run test
+    /// failed with "On screen: 3", three wins already on the tower, and the
+    /// welcome block correctly skipped because it may only ever be created
+    /// once. The feature was right and the harness was wrong.
+    ///
+    /// Wired to the same `resetTower()` the Settings button uses, rather than
+    /// a second deletion path: CLAUDE.md is explicit that image files are real
+    /// user photographs, and the fewer places that can delete them the better.
+    static var resetsStore: Bool { argument("-strataResetStore") != nil }
+
     /// Which onboarding page to open on, from `-strataOnboardingStep 0...3`.
     static var onboardingStep: Int? { argument("-strataOnboardingStep").flatMap(Int.init) }
 
