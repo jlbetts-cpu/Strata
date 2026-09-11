@@ -1511,3 +1511,30 @@ person whose eyes are narrow can never have a head that blinks.
 succeed. **Nothing here has been seen running on a real camera** — the
 simulator has none — so every threshold above is reasoned, and the
 screenshots prove the states draw, not that the capture works.
+
+## Build 28 shipped, and a decision not to expire build 10
+
+Build 28 is VALID in TestFlight and assigned to both groups. The
+internal group ('bugs') can install it now; the external group
+('Friends') cannot yet.
+
+`add_testers.py` could not submit it: **"Another build in the same train
+is already in beta review."** Build 10 has been `WAITING_FOR_REVIEW`
+since 2026-09-10 20:51 UTC.
+
+The API refuses to cancel a submission — `betaAppReviewSubmissions`
+allows only CREATE and GET (403 on DELETE) — so the only lever is
+expiring build 10, which cannot be undone.
+
+**I did not expire it, and waiting is the better option rather than
+merely the safer one.** Build 10 has been in review nineteen hours,
+which is inside Apple's normal turnaround, so it is queued rather than
+stuck. More to the point: when it passes, the 1.0 train is approved, and
+build 28 is already assigned to Friends, so it reaches external testers
+without a review of its own. Expiring build 10 would throw that pending
+approval away and put build 28 at the back of a fresh queue — strictly
+worse for the same outcome.
+
+**If build 10 is still waiting tomorrow it is stuck**, and expiring it is
+then the right call. Re-run `tools/add_testers.py` after it clears; it is
+idempotent and will submit whatever is newest and eligible.
