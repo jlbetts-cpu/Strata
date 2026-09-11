@@ -7,7 +7,8 @@ import Testing
 struct GridPackerTests {
 
     private func fit(_ size: BlockSize, _ grid: inout [[Bool]]) -> (column: Int, row: Int)? {
-        GridPacker.firstFit(columnSpan: size.columnSpan, rowSpan: size.rowSpan, grid: &grid)
+        GridPacker.firstFit(columnSpan: size.columnSpan, rowSpan: size.rowSpan,
+                            columns: GridConstants.columnCount, grid: &grid)
     }
 
     @Test func theFirstBlockLandsAtTheOrigin() {
@@ -60,6 +61,7 @@ struct GridPackerTests {
         let pos = GridPacker.firstFit(
             columnSpan: GridConstants.columnCount + 1,
             rowSpan: 1,
+            columns: GridConstants.columnCount,
             grid: &grid
         )
         #expect(pos == nil)

@@ -127,6 +127,7 @@ enum MonthTower {
             guard let pos = GridPacker.firstFit(
                 columnSpan: size.columnSpan,
                 rowSpan: size.rowSpan,
+                columns: GridConstants.columnCount,
                 grid: &grid
             ) else { continue }
             out.append(Block(

@@ -162,7 +162,8 @@ struct OnboardingView: View {
         for item in demo {
             let w = item.size.columnSpan
             let h = item.size.rowSpan
-            guard let spot = GridPacker.firstFit(columnSpan: w, rowSpan: h, grid: &grid) else { continue }
+            guard let spot = GridPacker.firstFit(columnSpan: w, rowSpan: h,
+                                            columns: GridConstants.columnCount, grid: &grid) else { continue }
             out.append((spot.column, spot.row, w, h, item.category))
         }
         return out
@@ -330,6 +331,7 @@ struct OnboardingView: View {
         var copy = grid
         guard let spot = GridPacker.firstFit(columnSpan: drawingSize.columnSpan,
                                              rowSpan: drawingSize.rowSpan,
+                                             columns: GridConstants.columnCount,
                                              grid: &copy) else { return nil }
         guard spot.row + drawingSize.rowSpan <= Self.maxRows else { return nil }
         return (spot.column, spot.row)
@@ -339,6 +341,7 @@ struct OnboardingView: View {
         var next = grid
         guard let spot = GridPacker.firstFit(columnSpan: size.columnSpan,
                                              rowSpan: size.rowSpan,
+                                             columns: GridConstants.columnCount,
                                              grid: &next),
               spot.row + size.rowSpan <= Self.maxRows else { return }
         let category = Self.tutorialColours[built.count % Self.tutorialColours.count]
@@ -367,6 +370,20 @@ struct OnboardingView: View {
                 .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
                 .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 14, y: 6)
                 .accessibilityLabel("Jayden, who made Strata")
+                // The same person twice: the photograph, and the head from his
+                // portfolio leaning in over its edge. Mostly outside the circle
+                // on purpose — a cut-out laid over a busy photograph loses its
+                // silhouette, laid over the page it keeps it. Winks on arrival.
+                .overlay(alignment: .bottomTrailing) {
+                    // Chin kept above the circle's bottom: at +10 it ran down
+                    // into the name, 13pt past the photograph. It can overlap
+                    // this far because the face in the photograph sits high —
+                    // the head covers shirt and trees, never the face.
+                    // `lookTarget` points up and left, at that face.
+                    CreatorHead(side: 92, greets: true,
+                                lookTarget: CGPoint(x: -0.8, y: -0.8))
+                        .offset(x: 22, y: -14)
+                }
 
             VStack(spacing: 2) {
                 Text("Jayden")

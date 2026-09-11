@@ -49,7 +49,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		AA10000000000000000004 /* StrataWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StrataWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA10000000000000000004 /* StrataWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = StrataWidgetExtension.appex; path = StrataWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB26D14A2F5A49FE00B165F7 /* Strata.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Strata.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB26D1592F5A4A0000B165F7 /* StrataTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB26D1632F5A4A0000B165F7 /* StrataUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrataUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -122,6 +122,7 @@
 				EB26D15C2F5A4A0000B165F7 /* StrataTests */,
 				EB26D1662F5A4A0000B165F7 /* StrataUITests */,
 				EB26D14B2F5A49FE00B165F7 /* Products */,
+				EB5492443053D978007BE8BF /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -134,6 +135,15 @@
 				AA10000000000000000004 /* StrataWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		EB5492443053D978007BE8BF /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				AA10000000000000000001 /* Shared */,
+				AA10000000000000000002 /* StrataWidget */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -152,8 +162,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				AA10000000000000000002 /* StrataWidget */,
 				AA10000000000000000001 /* Shared */,
+				AA10000000000000000002 /* StrataWidget */,
 			);
 			name = StrataWidget;
 			packageProductDependencies = (
@@ -177,8 +187,8 @@
 				AA10000000000000000009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EB26D14C2F5A49FE00B165F7 /* Strata */,
 				AA10000000000000000001 /* Shared */,
+				EB26D14C2F5A49FE00B165F7 /* Strata */,
 			);
 			name = Strata;
 			packageProductDependencies = (
@@ -365,7 +375,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StrataWidget/StrataWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = W34J6358L7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetSupport/Info.plist;
@@ -395,7 +405,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StrataWidget/StrataWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = W34J6358L7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetSupport/Info.plist;
@@ -547,7 +557,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Strata/StrataDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = W34J6358L7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -586,7 +596,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Strata/Strata.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = W34J6358L7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -623,7 +633,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -644,7 +654,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -664,7 +674,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.StrataUITests;
@@ -683,7 +693,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 23;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.StrataUITests;

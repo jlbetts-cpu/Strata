@@ -299,6 +299,16 @@ enum GridConstants {
     static let motionSettle = Animation.spring(response: 0.28, dampingFraction: 0.90)
     /// Reduced motion fallback
     static let motionReduced = Animation.easeOut(duration: 0.05)
+
+    // MARK: - The owner's head (onboarding thank-you page)
+
+    /// A head turning. Critically damped: a head arrives at what it is looking
+    /// at, it does not overshoot and correct. About half a second, a relaxed
+    /// turn rather than a startled one.
+    static let headTurn = Animation.spring(response: 0.55, dampingFraction: 1.0)
+    /// An eye moving. Saccades are the fastest movement a body makes (tens of
+    /// milliseconds), so the eyes land before the head has started.
+    static let eyeSaccade = Animation.spring(response: 0.09, dampingFraction: 1.0)
     /// Fill sweep duration
     static let fillSweepDuration: TimeInterval = 0.4
 

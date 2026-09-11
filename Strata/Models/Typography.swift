@@ -167,27 +167,3 @@ enum JaroFont {
 /// face: the advance is 0.947 em against SF Pro's ~0.57, so three digits set
 /// about two and a half times a cap height.
 ///
-/// Registered by `UIAppFonts` in Info.plist. Without that entry `Font.custom`
-/// falls back to the system face **silently**, which looks exactly like the
-/// font not loading.
-enum StrataNumerals {
-    /// PostScript name, as written by the generator.
-    static let name = "StrataNumerals-Regular"
-
-    /// The mean left sidebearing, as a fraction of point size — measured out
-    /// of the font's own `hmtx` table, not guessed. Tabular centring puts
-    /// real space to the left of every digit (0.078 em for the widest, 0.118
-    /// for the narrowest), so a numeral aligned to a grid line still LOOKS
-    /// indented beside a block, whose colour goes right to its edge.
-    static let opticalInset: CGFloat = 0.0892
-
-    /// Fixed size. For anything that has to do arithmetic with the result.
-    static func size(_ points: CGFloat) -> Font {
-        .custom(name, size: points)
-    }
-
-    /// Scales with Dynamic Type, which a plain `.custom(_:size:)` does not.
-    static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .custom(name, size: points, relativeTo: style)
-    }
-}
