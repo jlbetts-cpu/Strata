@@ -200,6 +200,34 @@ enum AppColors {
             ? UIColor(red: 0.98, green: 0.97, blue: 0.96, alpha: 1)
             : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
     })
+    /// The ON track of a switch, which is NOT the app's accent.
+    ///
+    /// **A switch has a white thumb, so its track cannot be white.**
+    /// `accentWarm` is a warm near-white in dark mode — deliberately, so every
+    /// piece of ink in the app inverts together — and a `Toggle` tints its ON
+    /// track with the accent. The result in dark mode was white on white:
+    /// "the switch in the setthing in dark mode it doesnt even look like a
+    /// switch its like white on white just looks like a pill."
+    ///
+    /// So this is one colour in both schemes, chosen to contrast with the
+    /// white thumb AND with either ground. Green because that is what every
+    /// person on this platform reads as "on" without being taught, and the
+    /// app's own rather than the system's — this is the health category's
+    /// border, already in the palette.
+    ///
+    /// Measured, not picked by eye. Contrast ratios:
+    ///
+    ///     accentWarm, dark mode   1.07:1 against the thumb   <- the bug
+    ///     system green 34C759     2.22:1
+    ///     healthGreen 34C48B      2.23:1
+    ///     this, 0B9362            3.91:1
+    ///
+    /// and 4.16:1 against the dark ground, 3.65:1 against the light one, so
+    /// all three relationships clear the 3:1 WCAG asks of a UI element. Apple's
+    /// own switch green does not, which is worth knowing before anyone
+    /// "corrects" this back to it.
+    static let switchOn = Color(hex: 0x0B9362)
+
     static let accentPurple = Color(hex: 0xA689FA)
 
     static let healthGreen = Color(hex: 0x34C48B)

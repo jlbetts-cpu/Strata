@@ -50,7 +50,7 @@ struct PlanItemDetailSheet: View {
                                 .foregroundStyle(AppColors.accentWarm)
                         }
                     }
-                    .tint(AppColors.accentWarm)
+                    .tint(AppColors.switchOn)
 
                     if item.repeats { days }
                 } footer: {

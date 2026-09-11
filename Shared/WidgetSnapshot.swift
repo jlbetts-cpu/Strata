@@ -24,7 +24,30 @@ struct WidgetSnapshot: Codable, Equatable {
         /// The category's colour as `RRGGBB`, so the widget needs no access to
         /// `HabitCategory` and the two targets share no code.
         let hex: String
+        /// A thumbnail inside the group container, if this win has a
+        /// photograph.
+        ///
+        /// **Copied, not referenced.** The app's photographs live in its own
+        /// documents directory, which the widget cannot read at all — a
+        /// different process with a different container. So the few that the
+        /// widget will actually draw are re-encoded small and written beside
+        /// this file. The originals are never moved or touched.
+        var photo: String?
     }
+
+    /// Where those thumbnails live, inside the group container.
+    static var photoDirectory: URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
+            .appendingPathComponent("widget-photos", isDirectory: true)
+    }
+
+    /// How wide a widget thumbnail is drawn, in pixels.
+    ///
+    /// A block on the small widget is around 38pt, so 128px covers it at 3x
+    /// with room to spare. Bigger would be spending the widget's memory on
+    /// detail nobody can see at that size.
+    static let photoPixels: CGFloat = 128
 
     /// Every win ever logged. The number on the tower's header.
     let total: Int
@@ -36,6 +59,12 @@ struct WidgetSnapshot: Codable, Equatable {
     /// it, and the cap is what keeps this file small enough to be free to
     /// write on every save.
     let blocks: [Block]
+    /// Today's photographs, newest first, as file names in `photoDirectory`.
+    ///
+    /// The widget cycles these. Derived rather than stored twice: it is just
+    /// `blocks` reversed and filtered, but naming it here keeps the widget
+    /// from having to know that the block order is oldest-first.
+    var photos: [String] { blocks.reversed().compactMap(\.photo) }
     let updated: Date
 
     static let empty = WidgetSnapshot(total: 0, today: 0, streak: 0,

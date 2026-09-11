@@ -1478,7 +1478,6 @@ struct MainAppView: View {
         QuickWinService.migrateLegacyWins(context: modelContext)
         towerManager.ensureDefaultTower(context: modelContext)
         towerManager.loadActiveTower(context: modelContext)
-        #if DEBUG
         // The tower is pinned to today now. Anyone whose stored value was Week
         // or Month was stuck there — the picker that set it was replaced by
         // the share button — so the key goes, rather than sitting in defaults
@@ -1487,6 +1486,18 @@ struct MainAppView: View {
 
         // Yesterday off the plan: finished one-offs go, finished repeats come
         // back unchecked. Anything unfinished is left exactly where it is.
+        //
+        // **This and the welcome drop below were inside `#if DEBUG` for
+        // months**, along with the whole harness — one guard opened here and
+        // did not close until after the debug flags, which reads as if it only
+        // wraps the line beneath it. So on every build anyone has ever
+        // installed: finished plan lines never swept, and a new user never got
+        // their welcome block, which is the entire endowed-progress idea
+        // silently absent from the shipped app. Found from a phone: "planned
+        // items that were checked off should disappear the next day."
+        //
+        // Product behaviour does not belong behind a build flag. The harness
+        // below still does.
         PlanItem.sweep(context: modelContext)
 
         // **After the tower exists, not before.** This was a `.task` on the
@@ -1497,6 +1508,7 @@ struct MainAppView: View {
         // that walks the real first launch.
         dropWelcomeWinIfNeeded()
 
+        #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
@@ -1829,11 +1841,15 @@ struct MainAppView: View {
     private func publishWidgetSnapshot() {
         // Newest last, so the widget can take the tail and be showing the top
         // of the tower.
-        let recent = towerVM.placedBlocks.suffix(WidgetSnapshot.blockCap).map { block in
+        let tail = Array(towerVM.placedBlocks.suffix(WidgetSnapshot.blockCap))
+        let recent = tail.map { block in
             WidgetSnapshot.Block(
                 columns: block.columnSpan,
                 rows: block.rowSpan,
-                hex: block.habit.displayCategory.style.baseHexString)
+                hex: block.habit.displayCategory.style.baseHexString,
+                // Named for the source file, so an unchanged photograph keeps
+                // an unchanged snapshot and nothing is rewritten.
+                photo: block.log.imageFileName.map { "\($0).jpg" })
         }
         // **Lifetime, not today.** The tower is pinned to today, so
         // `placedBlocks.count` and `blocksToday` are the same number — the
@@ -1856,7 +1872,49 @@ struct MainAppView: View {
             blocks: Array(recent),
             updated: Date())
         if snapshot.writeIfChanged() {
+            exportWidgetPhotos(for: tail)
             WidgetReloader.reload()
+        }
+    }
+
+    /// Copy the handful of photographs the widget will draw into the group.
+    ///
+    /// **The widget cannot read the app's documents directory** — a different
+    /// process with a different container — so a reference would draw nothing.
+    /// These are re-encoded at 128px, which covers a 38pt block at 3x, and
+    /// written beside the snapshot.
+    ///
+    /// CLAUDE.md: `imageFileName` points at real user photographs. Nothing
+    /// here opens them for writing, moves them, or deletes them; it asks
+    /// `ImageManager` for a thumbnail and writes a NEW file elsewhere.
+    private func exportWidgetPhotos(for blocks: [PlacedBlock]) {
+        guard let directory = WidgetSnapshot.photoDirectory else { return }
+        let wanted = blocks.compactMap(\.log.imageFileName)
+        Task.detached(priority: .utility) {
+            try? FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+
+            var keep = Set<String>()
+            for name in wanted {
+                let destination = directory.appendingPathComponent("\(name).jpg")
+                keep.insert(destination.lastPathComponent)
+                // Already exported and the source has not changed.
+                if FileManager.default.fileExists(atPath: destination.path) { continue }
+                guard let image = await ImageManager.shared.loadThumbnail(
+                    fileName: name, maxWidth: WidgetSnapshot.photoPixels),
+                      let data = image.jpegData(compressionQuality: 0.8) else { continue }
+                try? data.write(to: destination, options: .atomic)
+            }
+
+            // Anything the widget can no longer show is dead weight in a
+            // container the user cannot see or clear.
+            let existing = (try? FileManager.default.contentsOfDirectory(
+                atPath: directory.path)) ?? []
+            for file in existing where !keep.contains(file) {
+                try? FileManager.default.removeItem(
+                    at: directory.appendingPathComponent(file))
+            }
+            await MainActor.run { WidgetReloader.reload() }
         }
     }
 

@@ -109,7 +109,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "bell.fill", tint: HabitCategory.focus.style.baseColor)
                     }
                 }
-                .tint(AppColors.accentWarm)
+                .tint(AppColors.switchOn)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     if enabled {
                         Task { await requestNotificationPermission() }
@@ -163,7 +163,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "speaker.wave.2.fill", tint: HabitCategory.creativity.style.baseColor)
                     }
                 }
-                .tint(AppColors.accentWarm)
+                .tint(AppColors.switchOn)
             }
 
             // MARK: - Tower Appearance (#172)
@@ -178,7 +178,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "photo.on.rectangle.angled", tint: HabitCategory.mindfulness.style.baseColor)
                     }
                 }
-                .tint(AppColors.accentWarm)
+                .tint(AppColors.switchOn)
 
                 // **The switch that fills the map lives beside the one that
                 // fills the camera roll**, because they are the same decision
@@ -192,7 +192,7 @@ struct SettingsView: View {
                                      tint: HabitCategory.health.style.baseColor)
                     }
                 }
-                .tint(AppColors.accentWarm)
+                .tint(AppColors.switchOn)
                 .disabled(location.isDenied)
             } header: {
                 Text("Camera")
@@ -241,7 +241,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right", tint: HabitCategory.health.style.baseColor)
                     }
                 }
-                .tint(AppColors.accentWarm)
+                .tint(AppColors.switchOn)
             }
 
             // MARK: - Section 3: Data

@@ -16,18 +16,25 @@ import WidgetKit
 struct StrataWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "StrataTower", provider: TowerProvider()) { entry in
-            TowerWidgetView(snapshot: entry.snapshot)
+            TowerWidgetView(snapshot: entry.snapshot, photoIndex: entry.photoIndex)
                 .containerBackground(for: .widget) { WidgetGround() }
         }
-        .configurationDisplayName("Your Tower")
-        .description("How much you have stacked up, without opening the app.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+        .configurationDisplayName("Today")
+        .description("Todays wins, and what they looked like.")
+        // **Small and the lock screen only.** The medium size was built and then
+        // looked at: "i think the medium one is unnessasary the small one is
+        // perfect enough." It is right — a tower is a tall object, and a wide
+        // box either leaves half of itself empty or spreads the blocks out
+        // until they stop reading as a stack.
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
     }
 }
 
 struct TowerEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot
+    /// Which of today's photographs this entry shows.
+    var photoIndex: Int = 0
 }
 
 /// **One entry, and no schedule of its own.**
@@ -48,12 +55,39 @@ struct TowerProvider: TimelineProvider {
         completion(TowerEntry(date: Date(), snapshot: snapshot))
     }
 
+    /// **Cycling is a timeline, not an animation.** A widget cannot animate on
+    /// its own — it renders at moments the system chooses. So one entry per
+    /// photograph is handed over at once, already decided, and iOS draws them
+    /// in turn without waking the app at all. Entries are free; a refresh
+    /// REQUEST is what gets throttled, and this asks for none.
     func getTimeline(in context: Context, completion: @escaping (Timeline<TowerEntry>) -> Void) {
-        let entry = TowerEntry(date: Date(), snapshot: WidgetSnapshot.read())
-        let tomorrow = Calendar.current.nextDate(
-            after: Date(), matching: DateComponents(hour: 0, minute: 1),
-            matchingPolicy: .nextTime) ?? Date().addingTimeInterval(3600)
-        completion(Timeline(entries: [entry], policy: .after(tomorrow)))
+        let snapshot = WidgetSnapshot.read()
+        let now = Date()
+        let midnight = Calendar.current.nextDate(
+            after: now, matching: DateComponents(hour: 0, minute: 1),
+            matchingPolicy: .nextTime) ?? now.addingTimeInterval(3600)
+
+        let count = snapshot.photos.count
+        guard count > 1 else {
+            completion(Timeline(entries: [TowerEntry(date: now, snapshot: snapshot)],
+                                policy: .after(midnight)))
+            return
+        }
+
+        // Long enough that it is a slideshow rather than a flicker, short
+        // enough that a glance an hour later shows something different.
+        let dwell: TimeInterval = 15 * 60
+        var entries: [TowerEntry] = []
+        for step in 0..<min(count * 2, 16) {
+            let date = now.addingTimeInterval(Double(step) * dwell)
+            guard date < midnight else { break }
+            entries.append(TowerEntry(date: date, snapshot: snapshot,
+                                      photoIndex: step % count))
+        }
+        if entries.isEmpty {
+            entries = [TowerEntry(date: now, snapshot: snapshot)]
+        }
+        completion(Timeline(entries: entries, policy: .after(midnight)))
     }
 }
 

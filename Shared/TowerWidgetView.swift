@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 
 /// The warm ground the app stands on, repeated here.
@@ -25,17 +26,24 @@ struct WidgetGround: View {
 
 struct TowerWidgetView: View {
     let snapshot: WidgetSnapshot
+    /// Which of today's photographs to show — see `TowerProvider.getTimeline`.
+    var photoIndex: Int = 0
     /// Forced size, for the renderer that photographs this view.
     ///
     /// `widgetFamily` is read-only in the environment, so there is no way to
-    /// ask SwiftUI to lay this out as a medium widget from outside WidgetKit —
-    /// and nothing on the build machine can place a widget on a home screen to
-    /// see it for real. One optional override is the cheapest honest way to
-    /// look at all three sizes.
+    /// ask SwiftUI to lay this out as a lock screen accessory from outside
+    /// WidgetKit — and nothing on the build machine can place a widget on a
+    /// home screen to see it for real.
     var forcedFamily: WidgetFamily?
     @Environment(\.widgetFamily) private var environmentFamily
 
     private var family: WidgetFamily { forcedFamily ?? environmentFamily }
+
+    private var photo: UIImage? {
+        let photos = snapshot.photos
+        guard !photos.isEmpty else { return nil }
+        return Self.image(named: photos[photoIndex % photos.count])
+    }
 
     var body: some View {
         switch family {
@@ -48,71 +56,95 @@ struct TowerWidgetView: View {
 
     // MARK: - Home screen
 
-    private var homeScreen: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            header
-            if snapshot.blocks.isEmpty {
-                empty
-            } else {
-                // **"today" said once, on the thing it describes.** The
-                // headline counts everything ever; these are the blocks that
-                // landed since midnight, and without a word saying so the two
-                // numbers look like they disagree.
-                Text("today")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
-                TowerMark(blocks: snapshot.blocks, columns: family == .systemSmall ? 4 : 7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            }
-        }
-    }
-
-    /// The count as the fact, the word as its caption.
+    /// **The photograph IS the widget.**
     ///
-    /// The same rank the tower's own header uses: the number is what you came
-    /// to read and the word only says what it counts, so the word is quieter
-    /// and smaller rather than half of a two-word title.
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("\(snapshot.total)")
-                .font(.system(size: family == .systemSmall ? 28 : 32,
-                              weight: .semibold, design: .rounded))
-                .contentTransition(.numericText())
-            Text(snapshot.total == 1 ? "win" : "wins")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
+    /// It was a small tower with a header over it, which is the app's own
+    /// screen shrunk until the blocks were 20pt squares — legible only if you
+    /// already knew what they were. The owner, after living with it: "i feel
+    /// like the widget should just show the picture and it cycle through and
+    /// the number of wins for that day just so its clean."
+    ///
+    /// That is the better idea and it is not only simpler. A home screen is
+    /// read at a glance from arm's length, and a photograph survives that
+    /// where a grid of small coloured rectangles does not — and the
+    /// photographs are the part of this app nobody else has.
+    private var homeScreen: some View {
+        ZStack(alignment: .bottomLeading) {
+            if let photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                // The count sits ON the picture, so it needs a floor under it
+                // or a bright sky eats it. Bottom only, and gone by a third of
+                // the way up: a veil over the whole photograph would be the
+                // thing the tower's own caption veil was dialled back for.
+                LinearGradient(
+                    colors: [.black.opacity(0.55), .black.opacity(0)],
+                    startPoint: .bottom, endPoint: .center)
+            } else {
+                empty
+            }
+            if photo != nil { count.padding(12) }
         }
+        .clipped()
     }
 
-    /// **Not "no wins yet".** An empty tower is the state every single person
-    /// is in on their first day, and the widget's job then is to be an
-    /// invitation rather than a score of zero.
+    /// Today's number, in the owner's own digits.
+    private var count: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(StrataNumerals.digits(snapshot.today))
+                .font(StrataNumerals.size(30))
+                .foregroundStyle(.white)
+            Text(snapshot.today == 1 ? "win" : "wins")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+        .accessibilityLabel("\(snapshot.today) wins today")
+    }
+
+    /// **Not "no wins yet".** An empty day is the state everybody is in every
+    /// morning, and the widget's job then is to be an invitation rather than a
+    /// score of zero.
     private var empty: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 6) {
             Spacer(minLength: 0)
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(style: StrokeStyle(lineWidth: 1.4, dash: [3, 3]))
                 .foregroundStyle(.tertiary)
-                .frame(width: 26, height: 26)
-            Text("Your first block goes here")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .frame(width: 30, height: 30)
+            Text(snapshot.total == 0 ? "Your first win goes here" : "Nothing yet today")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .padding(14)
     }
 
     // MARK: - Lock screen
 
+    /// No photograph here: the lock screen renders accessories as a flat
+    /// tinted stencil, so a picture arrives as a grey smear.
     private var lockScreen: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text("\(snapshot.total) wins")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(StrataNumerals.digits(snapshot.today))
+                    .font(StrataNumerals.size(16))
+                Text("today")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+            }
             Text(secondLine)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Thumbnails out of the group container. A widget draws once and is torn
+    /// down, so there is nothing to cache.
+    static func image(named file: String) -> UIImage? {
+        guard let directory = WidgetSnapshot.photoDirectory else { return nil }
+        return UIImage(contentsOfFile: directory.appendingPathComponent(file).path)
     }
 }
 
@@ -127,7 +159,7 @@ extension TowerWidgetView {
         if snapshot.streak > 1 { return "\(snapshot.streak) day streak" }
         if snapshot.today == 0 { return "Add one" }
         if snapshot.today == snapshot.total { return "Day one" }
-        return "\(snapshot.today) today"
+        return "\(snapshot.total) altogether"
     }
 }
 
@@ -182,8 +214,23 @@ struct TowerMark: View {
         let gutter: CGFloat = 1.5
         let w = CGFloat(block.columns) * cell - gutter
         let h = CGFloat(block.rows) * cell - gutter
-        return RoundedRectangle(cornerRadius: max(w * 0.147, 1.5), style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: max(w * 0.147, 1.5), style: .continuous)
+        return shape
             .fill(Color(hex6: block.hex))
+            // **The photograph, over its colour.** A tower of flat squares is
+            // not what the app shows, and the owner said so: "it doesnt show
+            // the pictures on the blocks." The colour stays underneath rather
+            // than being replaced, which is what the tower does too — it is
+            // what the block IS while the picture loads, and what shows
+            // through a photograph that does not fill the frame.
+            .overlay {
+                if let photo = block.photo, let image = Self.image(named: photo) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .clipShape(shape)
+                }
+            }
             .overlay {
                 // Lit from above by the rim, exactly as in the app: full white
                 // along the top edge, falling away elsewhere. No vertical
@@ -197,6 +244,15 @@ struct TowerMark: View {
             .frame(width: max(w, 1), height: max(h, 1))
     }
 
+    /// Thumbnails out of the group container, cached for the life of the
+    /// render. A widget draws once and is torn down, so a process-wide cache
+    /// would be memory the system never gets back.
+    private static func image(named file: String) -> UIImage? {
+        guard let directory = WidgetSnapshot.photoDirectory else { return nil }
+        return UIImage(contentsOfFile:
+            directory.appendingPathComponent(file).path)
+    }
+
     // MARK: - Packing
 
     struct Placed {
@@ -205,36 +261,32 @@ struct TowerMark: View {
         let row: Int
     }
 
-    /// First fit, the same rule the tower uses.
+    /// **The app's own packer, not a copy of it.**
     ///
-    /// **Not monotonic, and that is the app's behaviour rather than a bug
-    /// here**: a 2x2 leaves a hole beside it that a later block drops into. It
-    /// has to match, or the widget would show a different arrangement from the
-    /// one you are looking at in the app.
+    /// This used to be a re-implementation of first fit living here, which is
+    /// the arrangement drifting from the tower's the moment either is
+    /// touched — and the tower is what the widget is a picture of: "make sure
+    /// the tower works the same way it does in the app." `GridPacker` moved to
+    /// Shared/ so both compile the same function.
+    ///
+    /// It is deliberately not monotonic, and that is inherited rather than
+    /// introduced: a 2x2 leaves a 1x1 hole beside it that a later, smaller
+    /// block drops into. The widget wants exactly that, because the app does
+    /// it.
     static func pack(_ blocks: [WidgetSnapshot.Block], columns: Int) -> [Placed] {
-        var occupied = Set<[Int]>()
+        var grid: [[Bool]] = []
         var out: [Placed] = []
         for block in blocks {
-            let span = min(block.columns, columns)
-            var row = 0
-            var placed = false
-            while !placed && row < 64 {
-                for column in 0...(max(columns - span, 0)) {
-                    let cells = (0..<span).flatMap { dx in
-                        (0..<block.rows).map { dy in [column + dx, row + dy] }
-                    }
-                    if cells.allSatisfy({ !occupied.contains($0) }) {
-                        cells.forEach { occupied.insert($0) }
-                        out.append(Placed(block: block, column: column, row: row))
-                        placed = true
-                        break
-                    }
-                }
-                row += 1
-            }
+            guard let spot = GridPacker.firstFit(
+                columnSpan: min(block.columns, columns),
+                rowSpan: block.rows,
+                columns: columns,
+                grid: &grid) else { continue }
+            out.append(Placed(block: block, column: spot.column, row: spot.row))
         }
         return out
     }
+
 }
 
 extension Color {
