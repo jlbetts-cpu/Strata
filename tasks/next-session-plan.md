@@ -254,7 +254,66 @@ thing on screen until you are close.
 
 ---
 
-## 9. The photo sticker should take more than a head
+## 9. The head maker has to actually work, on every face
+
+**Owner, on a phone, first contact with it:** "its having trouble detecting my
+head and saying to move back a little even though im far away and the
+instuctions arent clear and idk if it is working make sure it works in all
+lighting with all face shapes."
+
+**Nobody has ever seen this run.** The simulator has no front camera, so the
+other agent could not test it and neither could I. Everything below is first
+contact.
+
+**What the report says, taken apart.**
+
+- **"Move back a little" while already far away** means the distance check is
+  reading the wrong thing, or reading it in the wrong units. It is almost
+  certainly derived from the face's bounding box as a fraction of the frame —
+  which changes with LENS as well as distance, and the front camera now starts
+  at a 1.3x crop (see `CameraService.frontPortraitCrop`), so a box that used to
+  read "far enough" now reads "too close" by exactly that factor. Check that
+  first: it would explain the symptom precisely and it is a change I made.
+- **"The instructions aren't clear"** — one instruction at a time, in the
+  imperative, naming the thing to do rather than the state that is wrong.
+  "Move back" is a state; "hold the phone at arm's length" is an instruction.
+- **"I don't know if it is working"** — nothing is confirming progress. A
+  capture that takes several seconds with no visible accumulation reads as
+  broken. Show what has been captured as it arrives.
+- **"All lighting, all face shapes"** — the part that cannot be judged by one
+  person in one room. `HeadFraming` decides this; it has tests, and those tests
+  are where face shape and light have to be represented, because there is no
+  other way to cover them.
+
+**Verification is the hard part.** A live camera cannot run here at all. What
+CAN run: `HeadFraming`'s pure logic against fixture landmark sets — wide faces,
+narrow faces, off-centre, tilted, partly lit. That is where "works on all
+faces" gets decided, not in the viewfinder.
+
+---
+
+## 9b. The head should copy your face while you take a photograph
+
+**Owner:** "it would be funny if you are taking a photo and add the head it
+trys to imitate the photo of you and your facial expressions."
+
+Good idea, and the pieces are already there: `HeadCaptureEngine` reads face
+landmarks per frame, and `LivingHeadView` already changes expression and gaze.
+Pointing the live landmarks at the head's expression while the camera is open
+is a wiring job rather than a new system.
+
+**Scope it small.** The head has a handful of faces — neutral, rest, smile,
+wink — so the mapping is a classifier into those, not a rig that deforms.
+Smile when you smile, blink when you blink, follow your gaze. That is enough to
+read as imitation and it cannot land in an uncanny middle.
+
+**Only with the head turned on**, like everywhere else it appears, and only
+while the camera is actually open — a face tracker running on a screen nobody
+is looking at is battery spent on nothing.
+
+---
+
+## 10. The photo sticker should take more than a head
 
 **Owner, 2026-09-11:** "the part where they can add the head to the photos i
 think they should be able to add like emojis and other stuff too."
@@ -297,7 +356,7 @@ own would be a worse version of something every phone already has.
 
 ---
 
-## 10. Parked: 17 of 29 milestones cannot fire
+## 11. Parked: 17 of 29 milestones cannot fire
 
 Not for now — badges are a later system, and pacing the app around rewards that
 do not exist yet is backwards. Recorded because it is a real defect and will
@@ -326,7 +385,7 @@ their tower is; a sighted one does not.
 
 ---
 
-## 11. Small and true
+## 12. Small and true
 
 - **Stale comment.** `ImageManager.loadThumbnail` still describes decoding on
   "Swift's cooperative pool". It was measured (545ms vs 116ms at n=80) and
