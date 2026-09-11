@@ -301,18 +301,80 @@ struct PlaceMapTests {
         }
     }
 
-    /// The whole reason the anchor is computed from the key rather than from
-    /// the members: a new photograph must not move the block.
-    @Test("a new pin does not move the block")
-    func anchorIsUnmovedByANewPin() {
+    /// **The block's IDENTITY is fixed; its position is not, and must not be.**
+    ///
+    /// This test used to assert the opposite — that a new photograph could not
+    /// move the block — because the anchor was pinned to the cell's centre.
+    /// That is what made the map inaccurate by kilometres, so the assertion
+    /// went with it. What has to stay true is the thing the pinning was really
+    /// protecting: the `id` never changes, so SwiftUI moves the block rather
+    /// than tearing it down and building a new one somewhere else.
+    ///
+    /// The position moving is correct. A new photograph at a place genuinely
+    /// changes where the middle of that place is, and it should slide there.
+    @Test("a new pin moves the block a little, and never re-identifies it")
+    func aNewPinMovesTheBlockButKeepsItsIdentity() {
         let one = PlaceMap.cluster([pin(lat: 51.5074, lon: -0.1278)], zoom: 14)
         let two = PlaceMap.cluster([pin(lat: 51.5074, lon: -0.1278),
                                     pin(lat: 51.5076, lon: -0.1274, day: 2)], zoom: 14)
         #expect(one.count == 1 && two.count == 1)
-        #expect(one[0].anchor.latitude == two[0].anchor.latitude)
-        #expect(one[0].anchor.longitude == two[0].anchor.longitude)
-        // The centroid, which the camera still frames on, DID move.
-        #expect(one[0].latitude != two[0].latitude)
+        #expect(one[0].id == two[0].id)
+
+        // It moved, and it moved a SMALL way — tens of metres, not the
+        // hundreds a cell-centre snap could produce.
+        let moved = abs(one[0].anchor.latitude - two[0].anchor.latitude)
+        #expect(moved > 0)
+        #expect(moved < 0.001)
+    }
+
+    /// A lone pin is drawn where it actually is, not snapped to a grid.
+    ///
+    /// This is the bug the owner reported — "it wont even be in the same
+    /// area" — stated as an assertion. At zoom 14 a cell is about 610m, so a
+    /// centre-snapped block could be 300m out; inside the clamp window it is
+    /// exact.
+    @Test("a lone pin is drawn where it happened")
+    func aLonePinIsNotSnappedToTheGrid() {
+        let place = WinPlace(latitude: 51.5074, longitude: -0.1278, accuracy: 10)
+        let key = PlaceMap.key(for: place, z: 14)
+        let centre = PlaceMap.centre(of: key)
+        let anchor = PlaceMap.anchor(forCentroidAt: (place.latitude, place.longitude),
+                                     in: key, size: .small)
+
+        // Either it is exactly right, or it is much closer to the truth than
+        // the cell's centre is.
+        let toTruth = abs(anchor.latitude - place.latitude)
+            + abs(anchor.longitude - place.longitude)
+        let centreToTruth = abs(centre.latitude - place.latitude)
+            + abs(centre.longitude - place.longitude)
+        #expect(toTruth <= centreToTruth)
+    }
+
+    /// The clamp is what stops two blocks touching, so it has to hold at the
+    /// worst case: a centroid in the very corner of its cell.
+    @Test("a corner pin is pulled in far enough that blocks cannot overlap")
+    func theClampKeepsBlocksApart() {
+        let z = 14
+        let side = PlaceMap.cellSide(at: z)
+        for size in [BlockSize.small, .medium, .hard] {
+            let key = PlaceMap.PlaceKey(z: z, x: 100, y: 200)
+            let centre = PlaceMap.centre(of: key)
+            // A centroid way outside the cell, to force the clamp.
+            let far = PlaceMap.unproject(x: (Double(key.x) + 4) * side,
+                                         y: (Double(key.y) + 4) * side)
+            let anchor = PlaceMap.anchor(forCentroidAt: far, in: key, size: size)
+
+            // How far it was allowed to travel from the centre, in projected
+            // units, must leave a whole block between neighbouring cells.
+            let (ax, _) = PlaceMap.project(WinPlace(latitude: anchor.latitude,
+                                                    longitude: anchor.longitude))
+            let (cx, _) = PlaceMap.project(WinPlace(latitude: centre.latitude,
+                                                    longitude: centre.longitude))
+            let travelled = abs(ax - cx)
+            let blockShare = PlaceMap.blockPoints(for: size) / PlaceMap.targetBlockPitch
+            let allowed = side * (1 - blockShare) / 2
+            #expect(travelled <= allowed + 1e-12)
+        }
     }
 
     /// The loop that keeps the map legible used to run the wrong way: it
