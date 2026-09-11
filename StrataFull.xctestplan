@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "8A170232-1571-422A-9D67-F46A2BB9AA0C",
+      "name" : "Configuration 1",
+      "options" : {}
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Strata.xcodeproj",
+        "identifier" : "EB26D1582F5A4A0000B165F7",
+        "name" : "StrataTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Strata.xcodeproj",
+        "identifier" : "EB26D1622F5A4A0000B165F7",
+        "name" : "StrataUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

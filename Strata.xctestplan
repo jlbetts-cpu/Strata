@@ -1,0 +1,23 @@
+{
+  "configurations" : [
+    {
+      "id" : "3996FD62-CAD2-4247-BBCC-3C6AB9D44883",
+      "name" : "Configuration 1",
+      "options" : {}
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Strata.xcodeproj",
+        "identifier" : "EB26D1582F5A4A0000B165F7",
+        "name" : "StrataTests"
+      }
+    }
+  ],
+  "version" : 1
+}
