@@ -220,6 +220,17 @@ final class MapGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         dismissSystemAlerts(app)
 
+        // **The head page, which did not exist when this test was written.**
+        // Onboarding gained a step: `lastStep` went 4 to 5. Its primary button
+        // opens the head maker, which needs a front camera and therefore
+        // cannot run here at all — "Not now" is the secondary that moves on
+        // without one, and is the only path a simulator has.
+        let notNow = app.buttons["Not now"]
+        if notNow.waitForExistence(timeout: 10) {
+            notNow.tap()
+            Thread.sleep(forTimeInterval: 2)
+        }
+
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 15), "no Start button")
         app.buttons["Start"].tap()
         // CLAUDE.md: allow ~16s after the app comes up before expecting the

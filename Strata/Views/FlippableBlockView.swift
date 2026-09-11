@@ -170,6 +170,23 @@ struct FlippableBlockView: View {
             washOpacity: hasImage ? 0.06 : GridConstants.blockScrimOpacity
         ) {
             ZStack {
+            // **The colour is under everything, always.**
+            //
+            // It used to live only in the `else` below, so a block WITH a
+            // photograph had exactly one fill: the photograph. The moment the
+            // grey placeholder was turned off — on the reasoning that "the
+            // block's own colour is what shows while this decodes" — there was
+            // nothing left to show, and every photo block rendered as an empty
+            // `BlockSurface`: a white-to-grey gradient with a title on it.
+            // Photographed on a device across the tower, the day view and the
+            // month tower.
+            //
+            // That comment is now true. A block is a coloured block that
+            // becomes a photograph, so it never looks like it is loading — and
+            // a win that has no photograph at all still has a colour, which is
+            // what makes a tower of them read as a tower.
+            style.baseColor
+
             if hasImage {
                 CachedImageView(
                     fileName: block.log.imageFileName,
@@ -261,7 +278,11 @@ struct FlippableBlockView: View {
                 //
                 // The rim is what says "lit from above" now, and it says it
                 // with one crisp edge rather than a quarter-block of haze.
-                style.baseColor
+                //
+                // The colour itself is drawn above, under every block; this
+                // branch is only what a block WITHOUT a photograph adds, which
+                // is nothing.
+                EmptyView()
             }
 
             }
