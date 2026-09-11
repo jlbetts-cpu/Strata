@@ -226,24 +226,6 @@ enum AppColors {
     /// all three relationships clear the 3:1 WCAG asks of a UI element. Apple's
     /// own switch green does not, which is worth knowing before anyone
     /// "corrects" this back to it.
-    /// The fill behind a chrome glyph — a settings row's icon, and anything
-    /// else shaped like a block that is not one.
-    ///
-    /// **Colour belongs to blocks and photographs.** Settings had eleven rows
-    /// carrying eleven category colours, which made a list of preferences the
-    /// most colourful page in an app whose colour is supposed to MEAN
-    /// something: "if something isnt a block or and image it shouldnt be
-    /// colorful it should be restricted just to make everything else look
-    /// nice." A settings icon is block-shaped chrome, not a win.
-    ///
-    /// One warm grey in both schemes rather than an adaptive ink, because the
-    /// glyph on top is always white and an adaptive fill would go pale in dark
-    /// mode and lose it. Measured: 4.67:1 against the white glyph, 4.36:1 on
-    /// the light ground, 3.52:1 on the dark one — all three clear 3:1. The
-    /// default it replaces was `warmBlack` at 0.55, a FIXED dark ink, which
-    /// measured 1.24:1 against the dark ground: invisible, the same fault as
-    /// the plan's checkboxes.
-    static let chromeFill = Color(hex: 0x7A736D)
 
     static let switchOn = Color(hex: 0x0B9362)
 

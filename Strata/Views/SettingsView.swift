@@ -548,43 +548,32 @@ struct SettingsView: View {
 
 /// A settings row's glyph.
 ///
-/// Was a white icon on a saturated rounded square — orange, magenta, blue,
-/// yellow — which is stock iOS Settings iconography and belongs to no palette
-/// in this app. Thirteen of them made the quietest screen the most colourful.
-/// Now a plain monochrome glyph, so colour in the app means a category.
+/// **No box.** This drew a `BlockSurface` behind every icon — an actual block,
+/// the app's own — for rows that are not wins. CLAUDE.md is explicit that a
+/// block's claim is "you built this and it is standing on something", and a
+/// preference is not something you built. Eleven of them down the page made
+/// Settings look like a tower laid on its side.
 ///
-/// `tint` exists for the one case where colour is semantic rather than
-/// decorative: the destructive row.
-/// A settings row's icon: a block with a glyph on it.
+/// The owner, after the colours came out: "why does there need to be boxes
+/// around the icons in the settings?" There does not. A bare glyph is what
+/// every list on this platform uses, it removes a whole layer of chrome from
+/// the quietest screen in the app, and it costs the section nothing — the row
+/// already has a label saying what it is.
 ///
-/// It was a bare SF Symbol in grey. That is what every settings screen on the
-/// platform looks like, which is precisely the problem the design audit found
-/// here — Settings scored lowest of any screen because nothing on it belonged
-/// to this app. A block is the one thing Strata can put in that slot that no
-/// other app would, it costs one line per row, and it carries the same rim and
-/// band as everything else.
-///
-/// The colour is the row's own, so the section reads as a little run of
-/// blocks rather than as a colour wheel. Destructive rows keep their red.
+/// The frame stays, so the labels still line up in a column.
 private struct SettingsIcon: View {
     let systemName: String
+    /// Only a row whose colour MEANS something passes one — Reset All Data is
+    /// red because it erases everything, not for decoration.
     var tint: Color? = nil
 
     private static let side: CGFloat = 30
 
     var body: some View {
-        BlockSurface(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
-            scale: Self.side / GridConstants.blockReferenceCell
-        ) {
-            tint ?? AppColors.chromeFill
-        }
-        .frame(width: Self.side, height: Self.side)
-        .overlay {
-            Image(systemName: systemName)
-                .iconSize(GridConstants.iconCategory, relativeTo: .footnote, weight: .medium)
-                .foregroundStyle(.white)
-        }
+        Image(systemName: systemName)
+            .iconSize(GridConstants.iconCategory, relativeTo: .footnote, weight: .medium)
+            .foregroundStyle(tint ?? AppColors.inkSecondary)
+            .frame(width: Self.side, height: Self.side)
     }
 }
 
