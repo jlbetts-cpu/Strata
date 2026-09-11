@@ -125,14 +125,23 @@ struct MemoriesDrawer<Content: View>: View {
                         + GridConstants.project(velocity: value.predictedEndTranslation.height
                                                 - value.translation.height)
                     drag = 0
-                    detent = nearest(to: projected)
+                    let landing = nearest(to: projected)
+                    // **Only when it actually changes.** A drag that returns
+                    // to the stop it started from did not move anything, and a
+                    // tap that feels like a change when nothing changed is
+                    // worse than no feedback at all.
+                    if landing != detent { HapticsEngine.lightTap() }
+                    detent = landing
                 }
         )
         .accessibilityElement()
         .accessibilityLabel("Photographs")
         .accessibilityHint("Drag up for more")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { detent = detent == .full ? .hidden : .full }
+        .accessibilityAction {
+            HapticsEngine.lightTap()
+            detent = detent == .full ? .hidden : .full
+        }
     }
 
     // MARK: - Geometry

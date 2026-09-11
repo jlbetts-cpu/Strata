@@ -197,7 +197,7 @@ struct PlanSheet: View {
             // from VoiceOver because it is visually quiet would make the
             // repeat settings unreachable without sighted aim.
             if focused == item.id {
-                Button { detail = item } label: {
+                Button { HapticsEngine.lightTap(); detail = item } label: {
                     Image(systemName: "info.circle")
                         .font(.system(size: 17, weight: .regular))
                         .foregroundStyle(AppColors.inkQuiet)
@@ -267,6 +267,10 @@ struct PlanSheet: View {
     /// how a win with no category picks one — so a plan reads like the tower
     /// it will become rather than like a list of one colour.
     private func addLine(after item: PlanItem? = nil) {
+        // In the function, not at the three call sites that reach it — the
+        // plus button, the empty state and the tap below the last line all
+        // make the same thing happen and should all feel the same.
+        HapticsEngine.tick()
         let colour = QuickWinService.spontaneousCategory(existing: habits)
         let position = (item?.order ?? allItems.last?.order ?? -1) + 1
         for existing in allItems where existing.order >= position {
@@ -284,12 +288,16 @@ struct PlanSheet: View {
     private func backspace(_ item: PlanItem) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         let previous = index > 0 ? items[index - 1] : nil
+        // Lighter than a deliberate delete: this fires while you are typing,
+        // and a full tick on every backspace would be noise.
+        HapticsEngine.lightTap()
         modelContext.delete(item)
         try? modelContext.save()
         focused = previous?.id
     }
 
     private func delete(_ item: PlanItem) {
+        HapticsEngine.tick()
         if focused == item.id { focused = nil }
         modelContext.delete(item)
         try? modelContext.save()
