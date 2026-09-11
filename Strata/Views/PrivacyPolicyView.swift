@@ -25,7 +25,7 @@ struct PrivacyPolicyView: View {
                     }
                 }
 
-                Text("Last updated 7 September 2026")
+                Text("Last updated 10 September 2026")
                     .font(Typography.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.top, 8)
@@ -65,6 +65,6 @@ struct PrivacyPolicyView: View {
          "Settings › Data › Reset All Data removes every win, every photo, and your "
          + "tower from the device permanently. Deleting the app does the same."),
         ("Contact",
-         "Questions about any of this: support@strataapp.co")
+         "Questions about any of this: jbett5@hotmail.com")
     ]
 }
