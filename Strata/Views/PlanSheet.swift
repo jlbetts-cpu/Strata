@@ -48,24 +48,59 @@ struct PlanSheet: View {
             }
             .navigationTitle("Plan")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { tidy(); dismiss() }
-                        .font(Typography.headerSmall)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { addLine() } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .medium))
-                    }
-                    .accessibilityLabel("Add a line")
-                }
-            }
+            .toolbar { planToolbar }
             .sheet(item: $detail) { item in
                 PlanItemDetailSheet(item: item)
             }
         }
         .presentationDragIndicator(.visible)
+    }
+
+    /// **The same bare glyphs every other screen has.**
+    ///
+    /// These two were plain `ToolbarItem`s, so on iOS 26 they kept the glass
+    /// capsule the system puts behind every toolbar item — which the rest of
+    /// the app strips deliberately (see `MainAppView.todayToolbar`). Two
+    /// consequences, and the owner hit both: the plan did not look like the
+    /// screens either side of it, and the capsule rendered BLACK against this
+    /// sheet's warm ground when it was jostled mid-gesture — "i bumped into
+    /// the screen tweaking and the apple glass plan button turned black."
+    ///
+    /// Typed `ToolbarContent` rather than an inline `.toolbar`, because that
+    /// is where the availability gate can live:
+    /// `ToolbarContentBuilder` supports `if #available` through
+    /// `buildLimitedAvailability`, and an inline one does not.
+    @ToolbarContentBuilder
+    private var planToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { doneButton }
+                .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) { addButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { doneButton }
+            ToolbarItem(placement: .topBarTrailing) { addButton }
+        }
+    }
+
+    private var doneButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            tidy()
+            dismiss()
+        } label: {
+            Text("Done").font(Typography.headerSmall)
+        }
+        .foregroundStyle(AppColors.accentWarm)
+    }
+
+    private var addButton: some View {
+        Button { addLine() } label: {
+            Image(systemName: "plus")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                .foregroundStyle(AppColors.accentWarm)
+        }
+        .accessibilityLabel("Add a line")
     }
 
     @ViewBuilder

@@ -190,7 +190,24 @@ struct AddWinSheet: View {
             Button("Cancel", role: .cancel) { }
         }
         .fullScreenCover(isPresented: $peeking) {
-            if let photo { PhotoPeek(image: photo) { peeking = false } }
+            if let shown = photo {
+                PhotoPeek(
+                    image: shown,
+                    onClose: { peeking = false },
+                    onReplace: {
+                        // Close first: asking UIKit to present a sheet while
+                        // another is still dismissing drops the second one
+                        // silently, which is the same trap the plan sheet
+                        // documents.
+                        peeking = false
+                        choosingSource = true
+                    },
+                    onRemove: {
+                        peeking = false
+                        photo = nil
+                        photoChanged = true
+                    })
+            }
         }
         .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
@@ -582,9 +599,22 @@ struct AddWinSheet: View {
 /// not been written anywhere yet, taken thirty seconds ago. So this is the
 /// smaller thing: one picture, fitted, on the app's black, with the same glass
 /// close button the viewer uses.
+/// The photograph, full screen, with the two things you can do to it.
+///
+/// **Replacing used to be reachable only by long-pressing the well.** It was
+/// there the whole time, in a `.contextMenu`, which is to say it was invisible:
+/// from a device, "there is no way to replace a photo now when viewing it
+/// clicking on it." A gesture nobody performs is the same as a feature that
+/// does not exist.
+///
+/// So the actions live where you already are once you have tapped the picture,
+/// behind the same `⋯` the main photo viewer uses. The long press still works
+/// for anyone who found it.
 private struct PhotoPeek: View {
     let image: UIImage
     var onClose: () -> Void
+    var onReplace: (() -> Void)?
+    var onRemove: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -618,6 +648,41 @@ private struct PhotoPeek: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
                     Spacer(minLength: 0)
+                    if onReplace != nil || onRemove != nil {
+                        Menu {
+                            if let onReplace {
+                                Button {
+                                    HapticsEngine.lightTap()
+                                    onReplace()
+                                } label: {
+                                    Label("Replace Photo", systemImage: "photo.on.rectangle")
+                                }
+                            }
+                            if let onRemove {
+                                Button(role: .destructive) {
+                                    HapticsEngine.warning()
+                                    onRemove()
+                                } label: {
+                                    Label("Remove Photo", systemImage: "trash")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                                .background {
+                                    if #available(iOS 26.0, *) {
+                                        Circle().fill(.clear).glassEffect(.regular, in: .circle)
+                                    } else {
+                                        Circle().fill(.ultraThinMaterial)
+                                    }
+                                }
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Photo actions")
+                    }
                 }
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.top, GridConstants.gapItem)
