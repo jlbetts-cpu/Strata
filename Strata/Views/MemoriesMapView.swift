@@ -691,6 +691,64 @@ private struct PlaceBlock: View {
         return names[(tick &+ offset) % names.count]
     }
 
+    /// One frame of the slideshow, bundled or on disk.
+    ///
+    /// **A bundled photograph, for the onboarding map.** Onboarding shows a
+    /// real map with real clustering, and its blocks have to carry real
+    /// pictures — a map of flat colour squares does not make the case that
+    /// your photographs land where you took them. Those ship in the asset
+    /// catalogue rather than the image directory, so a name with this prefix
+    /// is drawn straight from the bundle. Nothing the app writes starts with
+    /// it.
+    @ViewBuilder
+    private func picture(_ name: String, in size: CGSize) -> some View {
+        if name.hasPrefix(Self.bundledPrefix) {
+            Image(String(name.dropFirst(Self.bundledPrefix.count)))
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else if !name.isEmpty {
+            // **One width for every block on the map**, whatever size it draws
+            // at. `CachedImageView` keys its cache on the requested width, so
+            // asking for 88 at one zoom and 176 at the next decodes the same
+            // photograph twice and re-decodes it on every zoom step.
+            CachedImageView(fileName: name,
+                            width: Self.cell * 2,
+                            height: Self.cell * 2,
+                            cornerRadius: 0)
+                .frame(width: size.width, height: size.height)
+                // See `FlippableBlockView`: a hair of overscan, so the colour
+                // behind cannot show at a rounded corner.
+                .scaleEffect(1.03)
+        }
+        // A name that is empty is not a photograph. Without that guard
+        // `CachedImageView` draws its missing-file placeholder — a
+        // broken-picture glyph on the block — which is worse than the colour
+        // alone, and was visible on the onboarding map.
+    }
+
+    /// Bring the next photograph up over the one showing, then swap.
+    ///
+    /// No per-block `Task`: CLAUDE.md is explicit that thirty long-lived
+    /// cycling tasks while MapKit relays annotations every frame is a wall
+    /// that blinks and a frame budget gone. The shared `tick` decides WHEN,
+    /// and this only decides HOW — with a completion rather than a sleep, so
+    /// nothing is left running between beats.
+    private func handover(to arriving: String?) {
+        guard let arriving, arriving != base else { return }
+        guard !reduceMotion else { base = arriving; return }
+        top = arriving
+        topOpacity = 0
+        withAnimation(GridConstants.crossFade) {
+            topOpacity = 1
+        } completion: {
+            base = arriving
+            top = nil
+            topOpacity = 0
+        }
+    }
+
     /// Whether to say how many wins are in here.
     ///
     /// **Only when zoomed out**, and the two owner calls that look opposite
@@ -722,11 +780,28 @@ private struct PlaceBlock: View {
     }
 
     @State private var arrived = false
+    /// **Two slots, not one.** The picture underneath is always fully opaque
+    /// and the incoming one fades in on top of it. A single slot with
+    /// `.transition(.opacity)` crossfades symmetrically: both copies pass
+    /// through partial alpha at the same moment, the pair composites to 0.75
+    /// alpha, and the block's flat colour shows through the middle of every
+    /// handover. The owner, on a device: "the photos cycling through I dont
+    /// like how its not clean it shows the colored block behind it."
+    ///
+    /// The comment that used to sit on the transition argued this was safe
+    /// "because both layers are opaque photographs". Two opaque layers at 50%
+    /// do not composite to an opaque result, which is the whole of the bug,
+    /// and it is the same mistake `BlockSurface` records about its own two
+    /// masked copies.
+    @State private var base: String?
+    @State private var top: String?
+    @State private var topOpacity: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         block
-            .animation(reduceMotion ? nil : GridConstants.crossFade, value: showing)
+            .onAppear { base = showing }
+            .onChange(of: showing) { _, arriving in handover(to: arriving) }
             // **It arrives.** Twenty blocks switching on at once is a map
             // being drawn; twenty blocks landing is a map filling in. Scale
             // from 0.82 rather than from nothing, so it reads as coming
@@ -758,42 +833,8 @@ private struct PlaceBlock: View {
                 // catalogue rather than in the image directory, so a name with
                 // this prefix is drawn straight from the bundle. Nothing the
                 // app writes ever starts with it.
-                if let name = showing,
-                   name.hasPrefix(Self.bundledPrefix) {
-                    Image(String(name.dropFirst(Self.bundledPrefix.count)))
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                // A name that is empty is not a photograph. Without this
-                // guard `CachedImageView` draws its missing-file placeholder —
-                // a broken-picture glyph on the block — which is worse than
-                // the colour alone and was visible on the onboarding map.
-                } else if let name = showing, !name.isEmpty {
-                    // **One width for every block on the map**, whatever size
-                    // it draws at. `CachedImageView` keys its cache on the
-                    // requested width, so asking for 88 at one zoom and 176 at
-                    // the next decodes the same photograph twice and re-decodes
-                    // it on every zoom step.
-                    CachedImageView(fileName: name,
-                                    width: Self.cell * 2,
-                                    height: Self.cell * 2,
-                                    cornerRadius: 0)
-                        .frame(width: size.width, height: size.height)
-                        // See `FlippableBlockView`: a hair of overscan, so the
-                        // colour behind cannot show at a rounded corner.
-                        .scaleEffect(1.03)
-                        // **Keyed, so one photograph replaces another rather
-                        // than the same view swapping its contents.** A
-                        // cross-dissolve is safe here because both layers are
-                        // opaque photographs filling the same box — the
-                        // failure CLAUDE.md warns about, where a crossfade
-                        // shows the substrate through the middle of the
-                        // handover, needs a transparent moment, and there
-                        // isn't one.
-                        .id(name)
-                        .transition(.opacity)
-                }
+                if let base { picture(base, in: size) }
+                if let top { picture(top, in: size).opacity(topOpacity) }
             }
         }
         .frame(width: size.width, height: size.height)
