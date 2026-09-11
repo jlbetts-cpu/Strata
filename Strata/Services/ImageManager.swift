@@ -69,7 +69,28 @@ final class ImageManager: @unchecked Sendable {
     /// frame is where people put the subject, so a centre trim keeps it and a
     /// crop screen mostly confirms what a centre trim would have done anyway.
  
-    func save(image: UIImage, for logID: UUID, maxDimension: CGFloat = 1024, quality: CGFloat = 0.80) async throws -> String {
+    /// How large a photograph is kept.
+    ///
+    /// **1024 was throwing away three quarters of the screen.** A 6.3" phone
+    /// is 1206x2622 pixels, so a portrait photograph stored 1024 tall was
+    /// being stretched 2.56x to fill the viewer — every picture in the app
+    /// arrived soft, and no amount of camera work fixes a photograph that is
+    /// upscaled after capture. Measured on a real full-screen photograph, the
+    /// whole saving was 117KB:
+    ///
+    ///     cap 1024   471x1024     45 KB   <- was
+    ///     cap 2048   942x2048    115 KB
+    ///     cap 2560  1177x2560    ~160 KB  <- is
+    ///
+    /// 2560 covers today's screens at 3x with a little spare for the viewer's
+    /// pinch-zoom, and is still an order of magnitude under the 12MP original.
+    /// A real camera photograph carries more detail than that fixture, so
+    /// expect a few hundred KB each rather than 160.
+    static let storedMaxDimension: CGFloat = 2560
+
+    func save(image: UIImage, for logID: UUID,
+              maxDimension: CGFloat = ImageManager.storedMaxDimension,
+              quality: CGFloat = 0.85) async throws -> String {
         let heicSupported = Self.isHEICSupported()
         let ext = heicSupported ? "heic" : "jpg"
         let suffix = Int(Date().timeIntervalSince1970) % 100000

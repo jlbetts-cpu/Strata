@@ -823,7 +823,26 @@ private struct PlaceBlock: View {
             washOpacity: 0.06
         ) {
             ZStack {
-                cluster.category.style.baseColor
+                // **No category colour under a photograph.**
+                //
+                // A block on the tower is its colour — that is what a win with
+                // no category picks one for. A block on the MAP stands for a
+                // place, usually holding several wins of several categories,
+                // so the colour is not a fact about it: whichever category
+                // happened to dominate. And it was visible, at the edges and
+                // for an instant before a picture decoded, which is what it
+                // looked like going wrong: "the color of the block still is
+                // there when it glitches out it shouldnt even be on the maps
+                // blocks whats the point of the color."
+                //
+                // A place with no photograph still needs a body, and there the
+                // colour is the only thing there is. Everywhere else it is a
+                // neutral that nobody can mistake for meaning.
+                if cluster.photoFileNames.isEmpty {
+                    cluster.category.style.baseColor
+                } else {
+                    AppColors.inkQuiet
+                }
                 // **A bundled photograph, for the onboarding map.**
                 //
                 // Onboarding shows a real map with real clustering, and its

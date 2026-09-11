@@ -78,6 +78,10 @@ final class CameraService: NSObject {
     private func configure() {
         session.beginConfiguration()
         session.sessionPreset = .photo
+        // Raise the ceiling once, here, or every capture is silently capped at
+        // `.balanced` — the setting on `AVCapturePhotoSettings` cannot exceed
+        // this and throws if it tries.
+        output.maxPhotoQualityPrioritization = .quality
         guard let device = camera(for: facing),
               let deviceInput = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(deviceInput),
@@ -118,10 +122,46 @@ final class CameraService: NSObject {
             // the first pinch jumps.
             zoom = 1
             exposureBias = 0
+            applyPortraitCropIfFront(device)
         } else {
             session.addInput(current)
         }
         session.commitConfiguration()
+    }
+
+    /// How much of the front camera's field to crop away by default.
+    ///
+    /// **The front lens is very wide, and wide is unkind to faces.** At about
+    /// 23mm equivalent, anything nearest the lens — which, holding a phone at
+    /// arm's length, is your nose — is enlarged relative to everything behind
+    /// it, and features drift outwards toward the edges. It is the reason
+    /// selfies taken at arm's length rarely look like the person.
+    ///
+    /// Cropping to roughly 30mm removes most of it. This is not a filter and
+    /// nothing is retouched: it is the framing a portrait lens would give, and
+    /// it is what Apple's own camera does — on recent phones the front
+    /// camera's "1x" IS a crop, with 0.5x offered as the wider view. Here it
+    /// is simply where the front camera starts; a pinch still reaches the full
+    /// field.
+    ///
+    /// **Unverifiable on this machine**, like everything else about capture:
+    /// the simulator has no camera, so this is reasoned from the optics and
+    /// has to be judged on a real phone.
+    static let frontPortraitCrop: CGFloat = 1.3
+
+    private func applyPortraitCropIfFront(_ device: AVCaptureDevice) {
+        guard device.position == .front else { return }
+        let wanted = min(Self.frontPortraitCrop, device.activeFormat.videoMaxZoomFactor)
+        guard wanted > 1 else { return }
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = wanted
+            device.unlockForConfiguration()
+            zoom = wanted
+        } catch {
+            // A device that will not lock is being reconfigured; the wide
+            // framing is a worse default, not a broken one.
+        }
     }
 
     /// The front camera has no lamp, so its flash is the screen. The view owns
@@ -286,6 +326,23 @@ final class CameraService: NSObject {
         }
 
         let settings = AVCapturePhotoSettings()
+        // **Ask for the good pipeline, not the quick one.**
+        //
+        // `AVCapturePhotoSettings` defaults to `.balanced`, which trades away
+        // the multi-frame work — Deep Fusion and the noise reduction that
+        // matter most in the indoor light most photographs in this app are
+        // taken in, and most of all on the front camera, whose sensor is the
+        // smaller one. `.quality` costs a fraction of a second of processing
+        // AFTER the shutter, which nobody sees, and it is the difference
+        // between a clean face and a noisy one.
+        //
+        // The output's ceiling has to be raised first: a settings value above
+        // `maxPhotoQualityPrioritization` throws.
+        // `QualityPrioritization` is not Comparable, but its raw values are
+        // ordered speed < balanced < quality, so compare those.
+        settings.photoQualityPrioritization =
+            output.maxPhotoQualityPrioritization.rawValue >= AVCapturePhotoOutput.QualityPrioritization.quality.rawValue
+            ? .quality : output.maxPhotoQualityPrioritization
         // Only the rear camera has a lamp to fire.
         if !usesScreenFlash, output.supportedFlashModes.contains(.on) {
             settings.flashMode = isFlashOn ? .on : .off
