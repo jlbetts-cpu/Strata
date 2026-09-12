@@ -715,7 +715,7 @@ struct MainAppView: View {
                 // — pink is a BLOCK colour here, so a pink numeral reads as
                 // a label belonging to whichever blocks happen to be pink
                 // that day rather than as the count of all of them.
-                .foregroundStyle(.primary.opacity(0.85))
+                .foregroundStyle(AppColors.inkPrimary)
                 .contentTransition(.numericText())
                 // Optical, not geometric. A digit's ink starts inside its
                 // layout box — measured at 4pt for SF Pro Rounded at 64pt — so
@@ -2454,10 +2454,10 @@ struct MainAppView: View {
                 cellSize: colW
             )
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
+                .fill(AppColors.quietFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        .stroke(AppColors.quietFill, lineWidth: 1)
                 )
                 .frame(width: f.width, height: f.height)
                 .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
@@ -2484,10 +2484,10 @@ struct MainAppView: View {
     /// What is left points at the slot — the only thing on the screen — and
     /// says what pressing it is for, once, quietly.
     private var towerEmptyStateMessage: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: GridConstants.gapTight) {
             Text("Nothing yet today")
                 .font(Typography.headerMedium)
-                .foregroundStyle(.primary.opacity(0.55))
+                .foregroundStyle(AppColors.inkTertiary)
 
             Text("Hold the block to log your first win.")
                 .font(Typography.bodySmall)

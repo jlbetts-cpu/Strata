@@ -153,7 +153,7 @@ struct PlanSheet: View {
     /// nobody could tell.
     private var hint: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-            HStack(spacing: 3) {
+            HStack(spacing: GridConstants.spacing) {
                 // **A block, not a circle.** This is a ghost of the bullet
                 // beside a real line, and that bullet is a BLOCK — the whole
                 // point of the plan is that a line becomes one. A dotted
@@ -178,7 +178,7 @@ struct PlanSheet: View {
             Text("Write what you mean to do, then press its block when you have.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(AppColors.inkSecondary)
-                .padding(.leading, 11)
+                .padding(.leading, GridConstants.gapItem)
         }
         .padding(.leading, GridConstants.horizontalPadding - 11)
         .padding(.trailing, GridConstants.horizontalPadding)
@@ -193,7 +193,7 @@ struct PlanSheet: View {
     // MARK: - A line
 
     private func row(_ item: PlanItem) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
             Button {
                 complete(item)
             } label: {
@@ -254,7 +254,7 @@ struct PlanSheet: View {
             if focused == item.id {
                 Button { HapticsEngine.lightTap(); detail = item } label: {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 17, weight: .regular))
+                        .font(Typography.bodyLarge)
                         .foregroundStyle(AppColors.inkQuiet)
                         // 44pt, the HIG minimum. The glyph plus 8pt of padding
                         // came to 33, which is a control you have to aim at.

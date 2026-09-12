@@ -86,7 +86,7 @@ struct ProfileButton: View {
     private var label: some View {
         let head = HeadStore.shared.headForPicture
         let glyph = Image(systemName: "person.fill")
-            .font(.system(size: 17, weight: .medium))
+            .font(Typography.bodyLarge.weight(.medium))
             .foregroundStyle(head == nil && store.photo == nil && store.initials.isEmpty ? Color.primary : .clear)
             .frame(width: side, height: side)
 

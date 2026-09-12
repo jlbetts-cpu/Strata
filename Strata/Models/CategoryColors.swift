@@ -158,6 +158,29 @@ enum AppColors {
             : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
     })
 
+    /// A title: the strongest ink the app writes with, short of the slot's.
+    ///
+    /// **Written as `.primary.opacity(0.85)` in eight places before this.**
+    /// CLAUDE.md's rule is that `.primary.opacity(x)` is not a colour, it is a
+    /// colour in light mode: the same number is 85% BLACK on a near-white page
+    /// and 85% WHITE on a near-black one, and the two are not equally strong.
+    /// Made adaptive and measured: 14.3:1 on the light page, 13.9:1 on the
+    /// dark one, which is the same weight of voice in both.
+    static let inkPrimary = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.92)
+            : UIColor(white: 0, alpha: 0.85)
+    })
+
+    /// A quiet surface: a well, an empty cell, a hairline's fill. Not text,
+    /// and not held to a text ratio (1.14:1 light, 1.19:1 dark) — it is there
+    /// to be a shape rather than to be read.
+    static let quietFill = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.06)
+            : UIColor(white: 0, alpha: 0.06)
+    })
+
     /// Headings, labels, and anything that names a run of content.
     static let inkSecondary = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
@@ -200,6 +223,28 @@ enum AppColors {
             ? UIColor(red: 0.98, green: 0.97, blue: 0.96, alpha: 1)
             : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
     })
+    // MARK: - Ink on the camera's own dark
+
+    /// **Three levels, on a ground that never changes.**
+    ///
+    /// The camera, the head maker and the photo review are dark whatever the
+    /// phone is set to, so the adaptive inks above are wrong there and every
+    /// screen reached for a white opacity of its own: an audit counted more
+    /// than twenty distinct ones across the app. These are the whole set.
+    /// Anything that needs a fourth is asking the wrong question.
+    ///
+    /// **The values are the ones the app already used most**, not new ones:
+    /// converting to a scale should leave the screens looking exactly as they
+    /// did and only stop the next one inventing a twenty-first grey.
+    ///
+    /// Measured against the viewfinder's ground: strong 18.8:1, secondary
+    /// 12.0:1, quiet 6.7:1. Faint is a hairline rather than text and is not
+    /// held to a text ratio.
+    static let onDarkStrong = Color.white.opacity(0.95)
+    static let onDarkSecondary = Color.white.opacity(0.75)
+    static let onDarkQuiet = Color.white.opacity(0.55)
+    static let onDarkFaint = Color.white.opacity(0.14)
+
     /// The ON track of a switch, which is NOT the app's accent.
     ///
     /// **A switch has a white thumb, so its track cannot be white.**

@@ -344,7 +344,7 @@ struct AddWinSheet: View {
                         .fill(AppColors.warmBlack.opacity(0.038))
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 17, weight: .medium))
+                            .font(Typography.bodyLarge.weight(.medium))
                             .foregroundStyle(AppColors.inkQuiet)
                         if size != .small {
                             Text("Add a photo")
@@ -364,7 +364,7 @@ struct AddWinSheet: View {
                 // block with a photograph on it.
                 RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
                     .strokeBorder(
-                        photo == nil ? AppColors.warmBlack.opacity(0.26) : Color.white.opacity(0.55),
+                        photo == nil ? AppColors.warmBlack.opacity(0.26) : AppColors.onDarkQuiet,
                         style: photo == nil
                             ? StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
                             : StrokeStyle(lineWidth: GridConstants.blockRimWidth)
@@ -373,9 +373,9 @@ struct AddWinSheet: View {
             .overlay(alignment: .bottomTrailing) {
                 if photo != nil {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(Typography.caption2)
                         .foregroundStyle(.white)
-                        .padding(7)
+                        .padding(GridConstants.gapTight)
                         .background(Circle().fill(.black.opacity(0.35)))
                         .padding(8)
                 }
@@ -638,7 +638,10 @@ struct AddWinSheet: View {
         // closes". It is now true.
         if let name = try? await ImageManager.shared.save(image: image, for: id) {
             log.imageFileName = name
-            try? modelContext.save()
+            // Not `try?`: a save that fails here is a photograph written to
+            // disk that no win points at, and silence is how that stays
+            // invisible.
+            do { try modelContext.save() } catch { NSLog("[strata] photo save failed: \(error)") }
             if let previous, previous != name {
                 ImageManager.shared.deleteImage(fileName: previous)
             }

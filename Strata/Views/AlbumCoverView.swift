@@ -56,7 +56,7 @@ struct AlbumCoverView: View {
         .overlay {
             // A block with a photograph on it wears the block's rim.
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(.white.opacity(0.55),
+                .strokeBorder(AppColors.onDarkQuiet,
                               lineWidth: GridConstants.blockRimWidth
                                   * (side / GridConstants.blockReferenceCell))
         }

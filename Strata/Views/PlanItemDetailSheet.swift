@@ -91,7 +91,7 @@ struct PlanItemDetailSheet: View {
                     .overlay {
                         if item.category == category {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(Typography.headerSmall)
                                 .foregroundStyle(.white)
                         }
                     }
@@ -123,8 +123,8 @@ struct PlanItemDetailSheet: View {
                     HapticsEngine.lightTap()
                 } label: {
                     Text(letter(for: day))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(on ? .white : .primary.opacity(0.55))
+                        .font(Typography.bodySmall.weight(.medium))
+                        .foregroundStyle(on ? .white : AppColors.inkTertiary)
                         // 44, not 38: seven of them still fit across the
                         // page, and a day you have to aim at is a day you set
                         // by accident.

@@ -132,7 +132,7 @@ struct DayAlbumDetailView: View {
                 // The shared screen title, not a fraction of the tally
                 // numeral. Every page that names itself now uses one size.
                 .font(Typography.screenTitle)
-                .foregroundStyle(.primary.opacity(0.85))
+                .foregroundStyle(AppColors.inkPrimary)
                 // One line. "Saturday 5 September" wrapping to two puts the
                 // win count halfway down the screen and pushes the tower with
                 // it; the date is a label, not a headline.

@@ -485,7 +485,7 @@ struct MemoriesMapView: View {
                  ? "Strata can't tell where a photo was taken."
                  : "Photos you take in Strata remember where you were, and land here.")
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(AppColors.onDarkSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
@@ -508,7 +508,7 @@ struct MemoriesMapView: View {
                     .foregroundStyle(AppColors.warmBlack)
                     .padding(.horizontal, 22)
                     .frame(height: 46)
-                    .background(Capsule().fill(.white.opacity(0.95)))
+                    .background(Capsule().fill(AppColors.onDarkStrong))
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -935,7 +935,7 @@ extension PlaceBlock {
             // following a ground it is not actually standing on.
             .foregroundStyle(Self.badgeInk)
             .monospacedDigit()
-            .padding(.horizontal, 7)
+            .padding(.horizontal, GridConstants.gapTight)
             .frame(minWidth: 24, minHeight: 22)
             .background {
                 Capsule().fill(Self.badgeDisc)

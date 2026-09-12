@@ -338,7 +338,7 @@ struct MemoriesView: View {
             // whose subject is photographs.
             // Ink on the pale ground, white on imagery — see the wash below.
             MemoriesTitle(color: mapStyle == .quiet
-                          ? .primary.opacity(0.85)
+                          ? AppColors.inkPrimary
                           : .white)
             Spacer(minLength: 0)
             // Shown when there are PHOTOGRAPHS, not when there are pins.
@@ -405,7 +405,7 @@ struct MemoriesView: View {
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
-                MemoriesTitle(color: .primary.opacity(0.85))
+                MemoriesTitle(color: AppColors.inkPrimary)
                 Spacer(minLength: 0)
                 Button {
                     HapticsEngine.lightTap()
@@ -419,9 +419,9 @@ struct MemoriesView: View {
                         // beside it gives way instead.
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(.primary.opacity(0.85))
+                        .foregroundStyle(AppColors.inkPrimary)
                         // Layout first, glass after.
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, GridConstants.gapLabel)
                         .frame(height: GlassIconButton.defaultSide)
                         .glassCapsule()
                         .contentShape(Capsule())
@@ -587,7 +587,7 @@ struct MemoriesView: View {
             VStack(spacing: GridConstants.gapTight) {
                 Text("Your first month starts here")
                     .font(Typography.headerMedium)
-                    .foregroundStyle(.primary.opacity(0.85))
+                    .foregroundStyle(AppColors.inkPrimary)
                 Text("Every win you log becomes a block, and they collect here by month.")
                     .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)

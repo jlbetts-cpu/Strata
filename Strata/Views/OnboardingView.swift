@@ -50,7 +50,7 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 // Not on the camera page: that screenshot has the real
                 // wordmark in it already, and two would be one too many.
-                StrataWordmark(size: 26, color: onDark ? .white : .primary.opacity(0.85))
+                StrataWordmark(size: 26, color: onDark ? .white : AppColors.inkPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, GridConstants.gapItem)
                     .opacity(step == 2 ? 0 : 1)
@@ -425,7 +425,7 @@ struct OnboardingView: View {
             VStack(spacing: 2) {
                 Text("Jayden")
                     .font(Typography.headerLarge)
-                    .foregroundStyle(.primary.opacity(0.9))
+                    .foregroundStyle(AppColors.inkPrimary)
                 Text("Founder, developer and product designer")
                     .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)
@@ -458,7 +458,7 @@ struct OnboardingView: View {
         VStack(spacing: GridConstants.gapTight) {
             Text(title)
                 .font(Typography.headerLarge)
-                .foregroundStyle(onDark ? Color.white : Color.primary.opacity(0.92))
+                .foregroundStyle(onDark ? Color.white : AppColors.inkPrimary)
                 .multilineTextAlignment(.center)
             Text(subtitle)
                 .font(Typography.bodyMedium)

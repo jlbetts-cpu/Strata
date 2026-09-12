@@ -508,7 +508,7 @@ struct PhotoViewer: View {
     /// somebody's photograph" rather than three.
     private func chromeGlyph(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 16, weight: .semibold))
+            .font(Typography.bodyMedium.weight(.semibold))
             .foregroundStyle(.white)
             .frame(width: 36, height: 36)
             .background {

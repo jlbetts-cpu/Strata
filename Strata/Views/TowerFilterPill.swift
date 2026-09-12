@@ -15,7 +15,7 @@ struct TowerFilterMenuButton: View {
                 // Empty — Picker provides the checkmark UI
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: GridConstants.spacing) {
                 // Bare glyph, not the .circle / .circle.fill pair: those draw a
                 // filled grey disc that reads as a second button next to the
                 // label. Weight carries the active state instead.

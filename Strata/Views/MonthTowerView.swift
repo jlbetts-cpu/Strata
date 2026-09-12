@@ -246,7 +246,7 @@ struct MonthPicker: View {
                     }
                 }
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: GridConstants.spacing) {
                     // The same ink as `SectionHeading`, deliberately. The
                     // page can show SEPTEMBER twice — once here as the control
                     // over the tower, once below as the gallery's own month —
@@ -264,7 +264,7 @@ struct MonthPicker: View {
                         .minimumScaleFactor(0.7)
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Typography.miniBlockTitle)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
                 .padding(.horizontal, 10)

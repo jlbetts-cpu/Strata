@@ -67,7 +67,7 @@ private struct AlbumCard: View {
             // object, which is exactly what this is.
             Text(album.title)
                 .font(Typography.blockTitle)
-                .foregroundStyle(.primary.opacity(0.85))
+                .foregroundStyle(AppColors.inkPrimary)
                 .lineLimit(1)
                 .padding(.top, GridConstants.gapTight)
             // `photoCaption`, not `sectionLabel`. "32 PHOTOS" is a fact about

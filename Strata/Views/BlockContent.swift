@@ -128,7 +128,7 @@ struct BlockContentOverlay: View {
                 Spacer()
                 if !isUnnamed {
                     Text(title)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(Typography.bodySmall.weight(.medium))
                         .foregroundStyle(.white)
                         // One size on every block, and an ellipsis when it
                         // does not fit.
