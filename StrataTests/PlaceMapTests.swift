@@ -213,6 +213,40 @@ struct PlaceMapTests {
         }
     }
 
+    /// **A block must never stand for two places across town from each other.**
+    ///
+    /// Reported from a phone: "they shouldnt be merging all the way across
+    /// town." The density cap used to coarsen the grid without any floor, so
+    /// a busy corner plus one photograph a few kilometres away could collapse
+    /// into a single block sitting between them — a block drawn where nobody
+    /// has ever been.
+    @Test("density never merges places that are kilometres apart")
+    func densityNeverMergesAcrossTown() {
+        // A busy corner: thirty photographs within about fifty metres.
+        var pins = (0..<30).map { i in
+            pin(lat: 51.5074 + Double(i) * 0.00005, lon: -0.1278 + Double(i) * 0.00005,
+                day: (i % 28) + 1)
+        }
+        // And one, three kilometres away.
+        pins.append(pin(lat: 51.5344, lon: -0.1278, day: 29))
+
+        // A camera on the busy corner, and a cap tight enough to force the
+        // old loop to coarsen all the way out.
+        let zoom = PlaceMap.zoomLevel(spanLongitude: 0.02, viewportWidth: 393)
+        let clusters = PlaceMap.cluster(pins, zoom: zoom, limit: 2)
+
+        #expect(clusters.count >= 2, "the far photograph was swallowed by the busy corner")
+        let far = clusters.min { abs($0.latitude - 51.5344) < abs($1.latitude - 51.5344) }
+        #expect(far?.winCount == 1, "the far block is standing for more than its own photograph")
+        // And no block may be drawn somewhere between the two.
+        for cluster in clusters {
+            let nearCorner = abs(cluster.latitude - 51.5074) < 0.01
+            let nearFar = abs(cluster.latitude - 51.5344) < 0.01
+            #expect(nearCorner || nearFar,
+                    "a block is drawn at \(cluster.latitude), which is neither place")
+        }
+    }
+
     @Test("a wider camera means a coarser grid")
     func zoomLevelFollowsSpan() {
         let wide = PlaceMap.zoomLevel(spanLongitude: 40, viewportWidth: 393)
@@ -486,8 +520,17 @@ struct PlaceMapTests {
         let many = (0..<40).map { n in
             pin(lat: 51.0 + Double(n) * 0.05, lon: -0.5 + Double(n % 7) * 0.05, day: n + 1)
         }
+        // **The cap is a target, not a promise, and that is a change.**
+        //
+        // This used to assert the count came under the limit whatever it
+        // took. It took merging places kilometres apart into one block, which
+        // the owner saw on a phone and rejected: "they shouldnt be merging all
+        // the way across town." Density now yields to honesty, so what is
+        // pinned here is the behaviour the test was written for — thinning
+        // merges rather than splits — and not the number it used to reach.
+        let unthinned = PlaceMap.cluster(many, zoom: 14, limit: .max)
         let capped = PlaceMap.cluster(many, zoom: 14, limit: 8)
-        #expect(capped.count <= 8)
+        #expect(capped.count <= unthinned.count, "thinning made the map busier, not calmer")
         // Nothing may be lost on the way: a merge keeps every win.
         #expect(capped.reduce(0) { $0 + $1.winCount } == 40)
         // And it got there by getting coarser.

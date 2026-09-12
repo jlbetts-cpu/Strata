@@ -136,6 +136,10 @@ enum PlaceMap {
     /// is the behaviour the map is for.
     static let targetBlockPitch: Double = 116
 
+    /// How many levels coarser than the camera's own grid merging may go. See
+    /// the density loop in `cluster(_:zoom:limit:)`.
+    static let maxCoarsening = 1
+
     /// The most blocks allowed on screen at once.
     ///
     /// Density is the invariant, not zoom: past this the zoom is bumped and
@@ -346,7 +350,20 @@ enum PlaceMap {
         // every pin became its own block sitting on top of its neighbours.
         // Merging is what reduces a count, so the grid gets coarser until the
         // map is legible.
-        while result.count > limit, level > 0 {
+        // **And it may only coarsen so far.**
+        //
+        // The loop below used to run until the count fitted, with no floor at
+        // all, so a busy corner plus one photograph a few kilometres away
+        // collapsed into a single block sitting between them — a block drawn
+        // where nobody had ever been. From a phone: "they shouldnt be merging
+        // all the way across town... it should only be same area merging."
+        //
+        // One level is the whole allowance, which is a cell twice as wide as
+        // the camera's own: about a screen's quarter. Places further apart
+        // than that stay separate blocks even if that means more of them on
+        // screen, because a legible map that lies is worse than a busy map
+        // that does not.
+        while result.count > limit, level > 0, z - level < maxCoarsening {
             level -= 1
             result = clustered(visible, z: level)
         }
