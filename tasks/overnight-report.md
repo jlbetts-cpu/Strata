@@ -1538,3 +1538,46 @@ worse for the same outcome.
 **If build 10 is still waiting tomorrow it is stuck**, and expiring it is
 then the right call. Re-run `tools/add_testers.py` after it clears; it is
 idempotent and will submit whatever is newest and eligible.
+
+## Build 29 could not be uploaded: Apple's daily limit
+
+Reviewed and pushed the other agent's six commits (`999da2c..f4fab07`):
+photographs back on blocks, film looks, map merging by area, the head
+maker's frame-size fix, one chrome scale, build 29.
+
+**Verified before pushing**, since CLAUDE.md's rule zero exists because
+unverified agent work has been pushed before: Debug and Release builds
+for a device both succeed, 200 unit tests pass (18 new), and the film
+look strip was photographed rather than assumed —
+`tasks/screenshots/filmlooks-after.png`, via `-strataOpenReview medium
+-strataReviewPhoto DemoPhoto3`. None / Air / Bright / Silver all render
+and Silver really is black and white.
+
+**Their head-maker fix is a second, independent cause of "move back".**
+`target(for:screen:)` maps the outline through the camera's frame size,
+which is a GUESSED 1080x1920 until the first picture arrives — and it was
+recomputed only when the outline moved, never when the real size landed.
+My crop fix and their frame-size fix were both needed; either alone still
+says move back. They also stopped the shutter being a hard gate.
+
+**The upload failed, and not for anything in the build.** altool, at the
+validate step, before anything was sent:
+
+    Upload limit reached. The upload limit for your application has been
+    reached. Please wait 1 day and try again. (90382)
+
+Builds 14 to 28 all went up today. The archive and export both
+succeeded, so this is Apple's per-app daily cap and nothing else. Re-run
+`tools/ship.sh` tomorrow; `next_build_number.py` will pick 29 again
+because 28 is still the highest on App Store Connect.
+
+**Two things worth a later pass, neither blocking.**
+
+- `FilmLookRenderer` and `FilmLookStrip` call main-actor-isolated methods
+  from synchronous nonisolated contexts. Warnings under Swift 5, errors
+  under Swift 6, and a real data race in between.
+- `HeadMakerModel.canPressAnyway`'s doc says the caption keeps showing
+  the correction; the view replaces it with "Press when you're ready".
+  The code is right and the comment is behind it.
+
+Build 10 is still `WAITING_FOR_REVIEW` at 21 hours.
