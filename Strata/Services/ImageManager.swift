@@ -202,6 +202,13 @@ final class ImageManager: @unchecked Sendable {
 
     // MARK: - Load Thumbnail
 
+    /// A thumbnail already in memory, or nil. Synchronous, so a view can draw
+    /// it during its own body rather than waiting for a lifecycle callback
+    /// that may never come. See `ThumbnailStore`.
+    func cachedThumbnail(fileName: String, maxWidth: CGFloat) -> UIImage? {
+        thumbnailCache.object(forKey: "\(fileName)_\(Int(maxWidth))" as NSString)
+    }
+
     /// Returns a downsampled thumbnail from cache or disk. Thread-safe.
     func loadThumbnail(fileName: String, maxWidth: CGFloat) async -> UIImage? {
         let cacheKey = "\(fileName)_\(Int(maxWidth))" as NSString

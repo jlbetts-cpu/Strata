@@ -7,8 +7,10 @@ struct CachedImageView: View {
     let cornerRadius: CGFloat
     var fullResolution: Bool = false
 
-    @State private var image: UIImage?
-    @State private var loadFailed = false
+    /// The full-resolution picture, for the viewer. Thumbnails come from
+    /// `ThumbnailStore` instead — see `body`.
+    @State private var fullImage: UIImage?
+    @State private var fullFailed = false
     @Environment(\.displayScale) private var displayScale
     /// Whether to draw a grey box while the photograph decodes.
     ///
@@ -26,8 +28,24 @@ struct CachedImageView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// **Asked for while drawing, not when appearing.**
+    ///
+    /// `.task` never ran for a photograph inside a tower block, so the load
+    /// was never even requested and every block kept its colour. Reading the
+    /// store here both returns what is in memory and schedules what is not,
+    /// and the store's `version` brings the view back when it lands. See
+    /// `ThumbnailStore`.
+    private var shown: (image: UIImage?, missing: Bool) {
+        guard let fileName else { return (nil, false) }
+        if fullResolution { return (fullImage, fullFailed) }
+        return ThumbnailStore.shared.state(for: fileName, width: width * displayScale)
+    }
+
     var body: some View {
-        Group {
+        let state = shown
+        let image = state.image
+        let loadFailed = state.missing
+        return Group {
             if let image {
                 Image(uiImage: image)
                     .resizable()
@@ -37,21 +55,17 @@ struct CachedImageView: View {
                     .transition(reduceMotion ? .identity : .opacity.animation(.easeIn(duration: 0.25)))
             } else if loadFailed {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(AppColors.quietFill)
                     .frame(width: width, height: height)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.system(size: min(width, height) * 0.25, weight: .regular))
-                            .foregroundStyle(.secondary.opacity(0.5))
+                            .foregroundStyle(AppColors.inkQuiet)
                     )
-                    .onTapGesture {
-                        loadFailed = false
-                        Task { await loadImage() }
-                    }
-                    .accessibilityLabel("Photo failed to load, tap to retry")
+                    .accessibilityLabel("Photo missing")
             } else if fileName != nil, showsPlaceholder {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(AppColors.quietFill)
                     .frame(width: width, height: height)
                     .modifier(ShimmerModifier())
                     .transition(reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.15)))
@@ -59,30 +73,17 @@ struct CachedImageView: View {
         }
         .animation(reduceMotion ? nil : .easeIn(duration: 0.25), value: image != nil)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .task(id: fileName) {
-            await loadImage()
-        }
-        .onDisappear {
-            image = nil
+        // Only the viewer's full-resolution read needs a lifecycle: it is one
+        // picture, on a screen that has certainly appeared.
+        .task(id: fullResolution ? fileName : nil) {
+            await loadFullImage()
         }
     }
 
-    private func loadImage() async {
-        guard let fileName else { return }
-        loadFailed = false
-
-        if fullResolution {
-            image = await ImageManager.shared.loadFullImage(fileName: fileName)
-        } else {
-            let targetWidth = width * displayScale
-            image = await ImageManager.shared.loadThumbnail(
-                fileName: fileName,
-                maxWidth: targetWidth
-            )
-        }
-
-        if image == nil {
-            loadFailed = true
-        }
+    private func loadFullImage() async {
+        guard fullResolution, let fileName else { return }
+        fullFailed = false
+        fullImage = await ImageManager.shared.loadFullImage(fileName: fileName)
+        fullFailed = fullImage == nil
     }
 }
