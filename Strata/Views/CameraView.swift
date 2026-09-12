@@ -65,6 +65,14 @@ struct CameraView: View {
     /// Your head on the photo being reviewed, if you added it. See
     /// `HeadSticker`.
     @State private var sticker: StickerPlacement?
+    /// **The look is a preference, not a per-shot decision.** Apple's own
+    /// Photographic Styles are remembered between shots for the same reason:
+    /// somebody who shoots everything in Air is saying something about their
+    /// pictures, not about this one.
+    @AppStorage("filmLook") private var lookRaw = FilmLook.Kind.none.rawValue
+    /// The review photograph with the chosen look on it, at screen size. The
+    /// real one is rendered full size only when the photograph is kept.
+    @State private var looked: UIImage?
     @State private var shutterDown = false
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
@@ -101,7 +109,7 @@ struct CameraView: View {
         /// and visibly different weights. A full point is exact at every
         /// scale, and white matches the icons and the count rather than being
         /// a fourth grey nobody chose.
-        static let colour = Color.white.opacity(0.55)
+        static let colour = AppColors.onDarkQuiet
         static let width: CGFloat = 1
         /// How much of the frame the bottom fade occupies.
         static let fadeHeight: CGFloat = 0.20
@@ -278,7 +286,7 @@ struct CameraView: View {
         .onAppear {
             if let size = DebugHarness.openReviewSize {
                 drawnSize = size
-                review = DebugHarness.placeholderPhoto()
+                review = DebugHarness.reviewPhoto ?? DebugHarness.placeholderPhoto()
                 if DebugHarness.placesReviewSticker, let photo = review {
                     sticker = StickerPlacement(crop: BlockCropOutline.crop(photo: photo.size, block: size),
                                                photoAspect: photo.size.width / max(photo.size.height, 1))
@@ -354,7 +362,7 @@ struct CameraView: View {
                 // just took, still warm, and every camera on the phone shows
                 // it filling the screen. Insetting it made the review feel
                 // like a preview of a card rather than the picture itself.
-                Image(uiImage: image)
+                Image(uiImage: looked ?? image)
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
@@ -373,6 +381,11 @@ struct CameraView: View {
 
                 Spacer(minLength: 0)
 
+                FilmLookStrip(photo: image, selection: Binding(
+                    get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                    set: { lookRaw = $0.rawValue }))
+                    .padding(.bottom, GridConstants.gapWide)
+
                 HStack(spacing: 0) {
                     Button {
                         HapticsEngine.tick()
@@ -387,11 +400,12 @@ struct CameraView: View {
                             // camera with all the options."
                             drawnSize = .small
                             sticker = nil
+                            looked = nil
                         }
                     } label: {
                         Text("Retake")
                             .font(Typography.headerSmall)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(AppColors.onDarkSecondary)
                             .frame(minWidth: 88, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                     }
@@ -428,6 +442,9 @@ struct CameraView: View {
                 .padding(.bottom, bottomInset + shutterBottomGap)
             }
             .padding(.top, topInset + Header.topPadding)
+            // The look on the shown photograph, rendered again whenever
+            // either of them changes.
+            .task(id: LookRequest(photo: image, look: lookRaw)) { await showLook(on: image) }
 
             // **The size in a word, at the top, not a square in the middle.**
             //
@@ -442,7 +459,7 @@ struct CameraView: View {
                 Text(drawnSize.effortLabel.uppercased())
                     .font(Typography.sectionLabel)
                     .kerning(Typography.sectionKerning)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(AppColors.onDarkSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Capsule().fill(.black.opacity(0.35)))
@@ -451,6 +468,30 @@ struct CameraView: View {
             }
             .allowsHitTesting(false)
         }
+    }
+
+    /// What the shown preview is of: a photograph and a look together, so
+    /// changing either renders it again.
+    private struct LookRequest: Equatable {
+        let photo: UIImage
+        let look: String
+    }
+
+    /// The review photograph with the look on it, at about screen size, which
+    /// is all anybody can see here and a fraction of what the full photograph
+    /// costs.
+    private func showLook(on image: UIImage) async {
+        let kind = FilmLook.Kind(rawValue: lookRaw) ?? .none
+        guard kind != .none else {
+            looked = nil
+            return
+        }
+        let look = FilmLook.look(kind)
+        let rendered = await Task.detached(priority: .userInitiated) { () -> UIImage in
+            FilmLookRenderer.shared.render(image.scaledDown(to: 1400), look: look)
+        }.value
+        guard !Task.isCancelled else { return }
+        looked = rendered
     }
 
     /// Keep it: the camera roll, then the win.
@@ -463,13 +504,40 @@ struct CameraView: View {
     private func keep(_ image: UIImage) {
         // The head, drawn into the picture, if you added it. The camera roll
         // and the win both get the same photograph you approved.
-        var kept = image
+        var composed = image
         if let placement = sticker, let rig = HeadStore.shared.headForSticker {
-            kept = HeadSticker.composite(image, rig: rig, placement: placement)
+            composed = HeadSticker.composite(image, rig: rig, placement: placement)
         }
         sticker = nil
-        Task { await PhotoLibrarySaver.save(kept) }
-        onCaptured(kept, drawnSize, LocationService.shared.place())
+        let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        let size = drawnSize
+        let place = LocationService.shared.place()
+        let final = composed
+        // **The look goes on last, over the head as well.** A cut-out face in
+        // its own colours sitting on a graded photograph reads as stuck on;
+        // grade the whole thing and it belongs to the picture.
+        //
+        // Off the main actor: a full-size photograph through the whole
+        // pipeline is tens of milliseconds, and the shutter must never be the
+        // thing that stutters.
+        // **A look is something you choose while taking the picture.** The
+        // owner's call: "that should be a camera only feature." So it is put
+        // on here, once, and everything downstream — the camera roll, the
+        // block, the map, the gallery — sees one finished photograph. Nothing
+        // later in the app offers to change it, because by then the picture
+        // is a win rather than a shot you are still composing.
+        //
+        // Off the main actor: a full-size photograph through the whole
+        // pipeline is tens of milliseconds, and the shutter must never be the
+        // thing that stutters.
+        Task { @MainActor in
+            let graded = look.kind == .none ? final : await Task.detached(priority: .userInitiated) {
+                FilmLookRenderer.shared.render(final, look: look)
+            }.value
+            Task { await PhotoLibrarySaver.save(graded) }
+            onCaptured(graded, size, place)
+        }
+        looked = nil
         review = nil
         // Back to one cell for the next shot. A size drawn once is not a
         // preference, and a shutter that stayed wide would make every later
@@ -812,7 +880,7 @@ struct CameraView: View {
                 withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
             } label: {
                 Text(Self.zoomLabel(camera.zoom))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(Typography.bodySmall.weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .frame(width: 56, height: 34)
@@ -1255,7 +1323,7 @@ private struct FocusReticle: View {
                 .frame(width: Self.side, height: Self.side)
 
             Image(systemName: "sun.max.fill")
-                .font(.system(size: 15, weight: .medium))
+                .font(Typography.headerSmall)
                 .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.24))
                 .offset(y: sunOffset)
                 .animation(GridConstants.motionSnappy, value: sunOffset)

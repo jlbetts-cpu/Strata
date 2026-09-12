@@ -202,7 +202,7 @@ struct HeadStickerButton: View {
                 .clipShape(Circle())
                 .glassCircle()
                 .overlay {
-                    Circle().strokeBorder(Color.white.opacity(isOn ? 0.9 : 0), lineWidth: 2)
+                    Circle().strokeBorder(isOn ? AppColors.onDarkStrong : .clear, lineWidth: 2)
                 }
                 .contentShape(Circle())
         }

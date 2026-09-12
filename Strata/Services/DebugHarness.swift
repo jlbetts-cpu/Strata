@@ -478,6 +478,16 @@ enum DebugHarness {
         }
     }
 
+    /// A real photograph for the review, from `-strataReviewPhoto <name>`.
+    ///
+    /// The gradient fixture below is right for judging a LAYOUT and useless
+    /// for judging a film look: a look is skin, sky and highlights, and a
+    /// smooth wash has none of them. The bundled demo photographs do.
+    static var reviewPhoto: UIImage? {
+        guard let name = argument("-strataReviewPhoto") else { return nil }
+        return UIImage(named: name)
+    }
+
     /// A stand-in photograph, for a screen that would otherwise need a lens.
     static func placeholderPhoto(_ category: HabitCategory = .creativity) -> UIImage {
         gradientImage(category)
