@@ -72,7 +72,19 @@ struct HeadMakerView: View {
                         .transition(.opacity)
                 }
             }
+            // **Both, not just the outline.** The target maps the outline on
+            // screen through the camera's frame, so it depends on the frame's
+            // size as much as on where the outline is drawn — and the frame's
+            // real size only arrives with the first picture, after this has
+            // already run once. Without the second trigger the whole session
+            // measured against a guessed 1080x1920, which is how somebody
+            // standing in the right place is told to move back however far
+            // back they go. Reported from a phone: "it tells me to move back
+            // when im in frame."
             .onChange(of: hole, initial: true) { _, hole in
+                model.setTarget(target(for: hole, screen: screen))
+            }
+            .onChange(of: model.frameSize) { _, _ in
                 model.setTarget(target(for: hole, screen: screen))
             }
         }
@@ -211,7 +223,12 @@ struct HeadMakerView: View {
         switch model.step {
         case .starting:    return " "
         case .unavailable: return "The camera isn't available here."
-        case .lining:      return model.hint?.caption ?? "Press when you're ready"
+        case .lining:
+            // Once the shutter will take, say so. Holding the correction up
+            // while the shutter is already lit is the screen contradicting
+            // itself, and the outline is still there to guide by.
+            guard !model.canCapture else { return "Press when you're ready" }
+            return model.hint?.caption ?? "Press when you're ready"
         // **"Got it" is the whole point of this pass.** From a phone: "idk if
         // it is working." The maker used to ask for four expressions in seven
         // seconds and acknowledge none of them, and whether a smile had been
@@ -342,7 +359,7 @@ struct HeadMakerView: View {
         let inner = CGSize(width: outer.width - Self.shutterRim, height: outer.height - Self.shutterRim)
         let outerRadius = outer.width * 0.147
         let innerRadius = inner.width * 0.147
-        let ready = model.isLinedUp
+        let ready = model.canCapture
         let watching: Bool = [.blink, .smile, .brows, .surprised, .making].contains(model.step)
         let lit = ready || watching
 
@@ -402,7 +419,7 @@ struct HeadMakerView: View {
                 VStack(spacing: GridConstants.gapTight) {
                     Text("Looking good")
                         .font(Typography.headerLarge)
-                        .foregroundStyle(.primary.opacity(0.9))
+                        .foregroundStyle(AppColors.inkPrimary)
                     Text(previewCaption(rig))
                         .font(Typography.bodySmall)
                         .foregroundStyle(AppColors.inkSecondary)

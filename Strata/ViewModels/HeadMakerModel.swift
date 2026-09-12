@@ -35,6 +35,8 @@ final class HeadMakerModel {
     let engine = HeadCaptureEngine()
 
     private var linedUpSince: Date?
+    /// When a face first appeared, whether or not it was in the outline.
+    private var faceSeenSince: Date?
     private var flow: Task<Void, Never>?
 
     /// **Ceilings, not durations.** A stage ends as soon as the engine says
@@ -80,6 +82,8 @@ final class HeadMakerModel {
     }
 
     func stop() {
+        canPressAnyway = false
+        faceSeenSince = nil
         flow?.cancel()
         engine.begin(.idle)
         engine.onUpdate = nil
@@ -98,6 +102,19 @@ final class HeadMakerModel {
         switch step {
         case .lining:
             hint = update.hint
+            // A face that is visible but not yet framed still counts: it is
+            // the thing the patience above is measured on.
+            if update.hint == .noFace {
+                faceSeenSince = nil
+                canPressAnyway = false
+            } else {
+                let seen = faceSeenSince ?? Date()
+                faceSeenSince = seen
+                if !canPressAnyway, Date().timeIntervalSince(seen) >= Self.patience {
+                    canPressAnyway = true
+                    HapticsEngine.tick()
+                }
+            }
             guard update.hint == nil else {
                 linedUpSince = nil
                 return
@@ -125,13 +142,27 @@ final class HeadMakerModel {
         sequence.first { $0.step == step }?.phase ?? .idle
     }
 
-    /// Whether the shutter can be pressed.
+    /// Whether the face is where the outline asks for it.
     var isLinedUp: Bool { step == .lining && hint == nil }
+
+    /// **Nobody may be stuck outside their own head.**
+    ///
+    /// The shutter used to take only a perfectly lined-up face, so anybody the
+    /// framing disagreed with could never start at all: "it doesnt ever get
+    /// started in making the head." The outline is guidance, not a gate. Once
+    /// a face has been visible for a few seconds the shutter takes, and the
+    /// caption keeps saying what would make it better.
+    private(set) var canPressAnyway = false
+
+    var canCapture: Bool { step == .lining && (hint == nil || canPressAnyway) }
+
+    /// How long a face has to be visible before the shutter stops insisting.
+    static let patience: TimeInterval = 5
 
     /// The shutter. The person decides when — after a last touch of the hair —
     /// rather than a timer deciding for them.
     func beginCapture() {
-        guard isLinedUp else { return }
+        guard canCapture else { return }
         HapticsEngine.snap()
         run(from: .blink)
     }
