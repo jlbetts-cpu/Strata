@@ -40,6 +40,10 @@ struct AddWinSheet: View {
     /// Which part of the photograph the block shows, if it was moved on the
     /// review.
     var initialCrop: CGPoint = .zero
+    /// The colour to open on instead of the tower's least-used one. Worn as a
+    /// colour, not claimed as a category: a plan line's colour may have been
+    /// assigned rather than picked, and nothing records which.
+    var initialColour: HabitCategory? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -557,8 +561,12 @@ struct AddWinSheet: View {
             // It starts on whatever the tower has least of, which is the rule
             // the tower's own empty slot already picks by, so a wall of wins
             // comes out varied without anybody choosing.
-            let existing = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
-            category = QuickWinService.spontaneousCategory(existing: existing)
+            if let initialColour, initialColour != .unlabeled {
+                category = initialColour
+            } else {
+                let existing = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
+                category = QuickWinService.spontaneousCategory(existing: existing)
+            }
         }
     }
 

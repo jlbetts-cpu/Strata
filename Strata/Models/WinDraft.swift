@@ -26,6 +26,9 @@ struct WinDraft: Identifiable {
     /// Which part of the photograph the block shows, as a fraction away from
     /// the middle, chosen by dragging it on the review.
     var crop: CGPoint = .zero
+    /// The colour to open on. A plan line's, when the win comes from the
+    /// plan: `PlanItem` promises its colour is the one the win takes.
+    var colour: HabitCategory? = nil
     /// The plan line this came from, so it can be marked done on save.
     var planItemID: UUID?
 }

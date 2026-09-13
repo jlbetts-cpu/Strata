@@ -441,7 +441,7 @@ struct MainAppView: View {
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
-                pendingDraft = WinDraft(title: item.text, planItemID: item.id)
+                pendingDraft = WinDraft(title: item.text, colour: item.category, planItemID: item.id)
                 tickAwaitingWin = item.id
                 isPlanning = false
             }
@@ -461,6 +461,7 @@ struct MainAppView: View {
                 initialSize: draft.size,
                 initialPlace: draft.place,
                 initialCrop: draft.crop,
+                initialColour: draft.colour,
                 onSaved: { habit in
                     if let id = draft.planItemID {
                         // The win remembers the line, so deleting it later can
