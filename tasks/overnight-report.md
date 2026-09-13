@@ -1581,3 +1581,43 @@ because 28 is still the highest on App Store Connect.
   The code is right and the comment is behind it.
 
 Build 10 is still `WAITING_FOR_REVIEW` at 21 hours.
+
+## 2026-09-13: build 29 shipped, and build 10 was REJECTED, not queued
+
+**The correction first.** I twice reported build 10 as queued and inside
+Apple's normal turnaround. It is `REJECTED`, and had been for some time
+while I was reading a stale `WAITING_FOR_REVIEW`. Twenty-one hours of
+"still waiting" was me not re-reading the field carefully enough.
+
+**The reason is not available from here.** The ASC API exposes
+`betaReviewState` and nothing else; Apple puts the reason in Resolution
+Center and emails it to the contact on the review detail
+(jbett5@hotmail.com). Ruled out from this end: the privacy policy URL is
+live (HTTP 200), and all three usage strings are present and describe
+real uses.
+
+**Most likely, and it is a guess:** build 10 predates the head-maker
+fixes, so the maker told a reviewer to move back for ever and the
+feature could not be completed at all. If that is what was written, 29
+fixes it.
+
+**Review notes were empty and are not any more.** For an app whose
+marquee features need a camera and a face, that left a reviewer to
+guess. `betaAppReviewDetails` now carries: no login needed, what to try
+on each tab, why the map is empty at first, that the head is optional
+and on-device, and what each permission is for. Metadata, easily edited,
+and it costs nothing to have got right.
+
+**Not resubmitted for beta review, deliberately.** A blind resubmit
+against an unknown rejection reason risks burning days on the same
+verdict. Read the rejection first, then run `tools/add_testers.py`,
+which submits whatever is newest and eligible.
+
+Verified before any of it, over 15 commits nobody had checked: 213 unit
+tests pass, Debug and Release-for-device both build, no entitlement
+changes (CLAUDE.md requires those stay empty).
+
+Build 29 is VALID and assigned to Friends. The internal group cannot be
+assigned explicitly — 422, "Cannot add internal group to a build" — and
+does not need to be: internal testers see every build, and 29 is already
+the newest visible to them.
