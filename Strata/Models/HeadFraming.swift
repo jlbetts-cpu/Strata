@@ -256,21 +256,96 @@ nonisolated enum HeadFraming {
         return CGPoint(x: pivot.x + dx * c - dy * s, y: pivot.y + dx * s + dy * c)
     }
 
-    /// The chin: the point on the face's outline furthest DOWN THE FACE from
-    /// the eyes, rather than furthest down the picture, so a tilted head still
-    /// reports its chin and not the corner of its jaw.
+    /// The chin: the point on the face's outline FURTHEST FROM THE EYES.
+    ///
+    /// **Distance, not direction.** This used to take "down the face" as a
+    /// quarter turn from the eye line, which is only down if the face is
+    /// already upright to within a quarter turn: hand it a frame that arrives
+    /// upside down and it picks a jaw corner on the wrong side. The outline
+    /// runs from temple to temple round the jaw, so its temple ends sit about
+    /// half a face-width from the eyes, the jaw corners a little further, and
+    /// the chin furthest of all — whichever way up the picture is.
     static func chin(contour: [CGPoint], eyes: (CGPoint, CGPoint)) -> CGPoint? {
         guard !contour.isEmpty else { return nil }
-        let (left, right) = eyes.0.x <= eyes.1.x ? eyes : (eyes.1, eyes.0)
-        let span = hypot(right.x - left.x, right.y - left.y)
-        guard span > 0 else { return nil }
-        // Down the face is a quarter turn clockwise from the eye line.
-        let down = CGPoint(x: -(right.y - left.y) / span, y: (right.x - left.x) / span)
-        let mid = CGPoint(x: (left.x + right.x) / 2, y: (left.y + right.y) / 2)
+        let mid = midpointOf(eyes)
         return contour.max {
-            ($0.x - mid.x) * down.x + ($0.y - mid.y) * down.y
-                < ($1.x - mid.x) * down.x + ($1.y - mid.y) * down.y
+            hypot($0.x - mid.x, $0.y - mid.y) < hypot($1.x - mid.x, $1.y - mid.y)
         }
+    }
+
+    /// How far the face is turned from upright, in radians, the whole way
+    /// round: the angle between straight down and the line from the eyes to
+    /// the chin. Screen coordinates, so a positive angle turns clockwise.
+    ///
+    /// The eye line alone (`tilt(eyes:)`) cannot tell upright from upside
+    /// down — both are level — and that is the exact case a turned camera
+    /// frame produces. The chin can.
+    static func tilt(eyes: (CGPoint, CGPoint), chin: CGPoint) -> Double {
+        let mid = midpointOf(eyes)
+        var angle = atan2(Double(chin.y - mid.y), Double(chin.x - mid.x)) - .pi / 2
+        while angle <= -.pi { angle += 2 * .pi }
+        while angle > .pi { angle -= 2 * .pi }
+        return angle
+    }
+
+    /// How far the head reaches past the eyes on the side away from the chin
+    /// — the crown, hair and all — measured on the lifted-out person.
+    ///
+    /// `filled` is the cut-out's opaque pixels. Only those within
+    /// `halfWidth` of the face's own vertical axis count, so a raised hand
+    /// or a shoulder beside the head cannot pass for hair.
+    static func crownReach(filled: [CGPoint], eyes: (CGPoint, CGPoint), chin: CGPoint,
+                           halfWidth: CGFloat) -> CGFloat? {
+        let mid = midpointOf(eyes)
+        let drop = hypot(chin.x - mid.x, chin.y - mid.y)
+        guard drop > 0 else { return nil }
+        let up = CGPoint(x: (mid.x - chin.x) / drop, y: (mid.y - chin.y) / drop)
+        var reach: CGFloat?
+        for point in filled {
+            let dx = point.x - mid.x, dy = point.y - mid.y
+            let along = dx * up.x + dy * up.y
+            let across = dx * -up.y + dy * up.x
+            guard along > 0, abs(across) <= halfWidth else { continue }
+            reach = max(reach ?? 0, along)
+        }
+        return reach
+    }
+
+    /// **The shape of a head, in an upright canvas**: everything above the
+    /// ends of the face's outline, and below them only the face, widened by
+    /// `margin` each side.
+    ///
+    /// The neck was ended by a straight line at the chin, and a straight line
+    /// cannot tell a neck from a shoulder: anything BESIDE the jaw at chin
+    /// height — a collar, a shoulder, a strap — sat above the line and stayed.
+    /// From a phone: "it doesnt cut off the neck and torso, it should just be
+    /// the head and hair." Below the temples a head is as wide as its face and
+    /// a little more (ears, the hair beside them), and nothing else is head.
+    ///
+    /// `contour` is the jaw outline already turned upright, in canvas points,
+    /// in either direction. Widened sideways only, so the chin stays exactly
+    /// where it is and no neck comes back under it.
+    static func headOutline(contour: [CGPoint], canvas: CGFloat, margin: CGFloat) -> [CGPoint] {
+        guard contour.count >= 3, let first = contour.first, let last = contour.last else {
+            return [CGPoint(x: 0, y: 0), CGPoint(x: canvas, y: 0),
+                    CGPoint(x: canvas, y: canvas), CGPoint(x: 0, y: canvas)]
+        }
+        // Left to right across the jaw.
+        let jaw = first.x <= last.x ? contour : contour.reversed()
+        let centre = jaw.map(\.x).reduce(0, +) / CGFloat(jaw.count)
+        // **Tapered: the whole margin at the temples, none at the chin.** The
+        // margin is there for the ears, which sit high. Carried all the way
+        // down it let a sliver of collar back in beside the jaw.
+        let top = min(first.y, last.y)
+        let chin = jaw.map(\.y).max() ?? top
+        let widened = jaw.map { point -> CGPoint in
+            let weight = chin > top ? min(max((chin - point.y) / (chin - top), 0), 1) : 1
+            return CGPoint(x: point.x + (point.x < centre ? -1 : 1) * margin * weight, y: point.y)
+        }
+        guard let left = widened.first, let right = widened.last else { return [] }
+        return [CGPoint(x: 0, y: 0), CGPoint(x: canvas, y: 0), CGPoint(x: canvas, y: right.y)]
+            + widened.reversed()
+            + [CGPoint(x: 0, y: left.y)]
     }
 
     /// The square to crop from a frame, in PIXELS, so the head fills
@@ -287,17 +362,29 @@ nonisolated enum HeadFraming {
     /// straight below them. The box is still what sets the SIZE: it is the
     /// only measure of the whole face, and it is what every existing head was
     /// sized by.
+    ///
+    /// **Sized to the hair when the hair was measured.** `headOverFace`
+    /// guesses the hair adds half a face again above the box, and for a lot
+    /// of hair that is not enough: the crown was cut off by the top of the
+    /// square. Given `crownReach` the head is sized crown to chin from what
+    /// was actually lifted out, and never smaller than the guess, so a
+    /// measurement that missed some hair cannot crop tighter than before.
     static func crop(face: CGRect, in size: CGSize, contentHeight: CGFloat, chin: CGFloat,
-                     eyes: (CGPoint, CGPoint)? = nil, chinPoint: CGPoint? = nil) -> CGRect {
+                     eyes: (CGPoint, CGPoint)? = nil, chinPoint: CGPoint? = nil,
+                     crownReach: CGFloat? = nil) -> CGRect {
         let facePixels = CGRect(x: face.minX * size.width, y: face.minY * size.height,
                                 width: face.width * size.width, height: face.height * size.height)
-        let side = facePixels.height * headOverFace / contentHeight
+        var side = max(facePixels.width, facePixels.height) * headOverFace / contentHeight
         guard let eyes, let chinPoint else {
+            side = facePixels.height * headOverFace / contentHeight
             return CGRect(x: facePixels.midX - side / 2, y: facePixels.maxY - chin * side,
                           width: side, height: side)
         }
         let mid = midpoint(eyes)
         let drop = hypot(chinPoint.x - mid.x, chinPoint.y - mid.y)
+        if let crownReach {
+            side = max(side, (crownReach + drop) / contentHeight)
+        }
         return CGRect(x: mid.x - side / 2, y: mid.y + drop - chin * side,
                       width: side, height: side)
     }

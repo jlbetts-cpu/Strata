@@ -61,6 +61,10 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         var chin: CGPoint? = nil
         /// Both eyes on this frame, for the wink.
         var wink: HeadFraming.Wink? = nil
+        /// The jawline, temple to temple, in the frame's PIXELS, top-left
+        /// origin: what the head is cut to below the eyes. Empty when the
+        /// outline was not read.
+        var contour: [CGPoint] = []
 
         var eyeCentres: (CGPoint, CGPoint)? {
             guard eyes.count == 2,
@@ -252,7 +256,8 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
             return HeadFraming.chin(contour: contour, eyes: (a, b))
         }()
         let measured = (box: box, face: face, size: size, smile: smile, raise: raise,
-                        mouth: mouth, chin: chin, wink: HeadFraming.wink(left: left, right: right))
+                        mouth: mouth, chin: chin, wink: HeadFraming.wink(left: left, right: right),
+                        contour: contour)
 
         switch phase {
         case .idle, .lining:
@@ -290,7 +295,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
     private func offer(_ score: Double, to slot: Slot, higherIsBetter: Bool, buffer: CVPixelBuffer,
                        measured: (box: CGRect, face: VNFaceObservation, size: CGSize,
                                   smile: Double?, raise: Double?, mouth: Double?, chin: CGPoint?,
-                                  wink: HeadFraming.Wink?)) {
+                                  wink: HeadFraming.Wink?, contour: [CGPoint])) {
         lock.lock()
         let current = kept[slot]?.score
         lock.unlock()
@@ -300,7 +305,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         let take = Take(image: image, face: measured.box, score: score,
                         eyes: Self.eyeOutlines(measured.face, size: measured.size),
                         smileWidth: measured.smile, browRaise: measured.raise, mouthOpen: measured.mouth,
-                        chin: measured.chin, wink: measured.wink)
+                        chin: measured.chin, wink: measured.wink, contour: measured.contour)
         lock.lock()
         kept[slot] = take
         lock.unlock()
@@ -323,16 +328,9 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
     /// it ends at the neck rather than at a pair of shoulders cut by the square.
     ///
     /// **Does not run in the simulator** (no inference context there).
-    static func cutOut(_ take: Take, crop: CGRect, side: CGFloat, chin: CGFloat, paintsEyes: Bool) -> Made? {
-        let request = VNGenerateForegroundInstanceMaskRequest()
-        let handler = VNImageRequestHandler(cgImage: take.image, orientation: .up)
-        guard (try? handler.perform([request])) != nil,
-              let observation = request.results?.first else { return nil }
-        let instances = instance(at: CGPoint(x: take.face.midX, y: take.face.midY), in: observation)
-        guard let masked = try? observation.generateMaskedImage(ofInstances: instances, from: handler,
-                                                                croppedToInstancesExtent: false) else { return nil }
-        let lifted = CIImage(cvPixelBuffer: masked)
-        guard let cutout = CIContext().createCGImage(lifted, from: lifted.extent) else { return nil }
+    static func cutOut(_ take: Take, lifted: CGImage? = nil, crop: CGRect, side: CGFloat,
+                       chin: CGFloat, paintsEyes: Bool) -> Made? {
+        guard let cutout = lifted ?? lift(take) else { return nil }
 
         let size = CGSize(width: take.image.width, height: take.image.height)
         let scale = side / crop.width
@@ -342,12 +340,20 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
 
         // **Turned upright about the eyes.** A head held at a tilt was cut out
         // at that tilt and then stood on a photograph and a map pin as though
-        // it were level: "the orientation is wrong." The eye line says which
-        // way up the face is, so everything below turns by minus that and the
-        // head comes out standing straight, whichever way the phone was held.
+        // it were level: "the orientation is wrong." Everything below turns by
+        // minus the face's own tilt, so the head comes out standing straight.
         // The pivot is the eye midpoint, which is the one point the crop is
         // hung from, so turning about it moves nothing else.
-        let tilt = take.eyeCentres.map { HeadFraming.tilt(eyes: $0) } ?? 0
+        //
+        // **Measured eyes to chin, the whole way round.** The eye line alone
+        // was used first, and it cannot tell upright from upside down: both
+        // are level. A frame that arrives turned — which every frame on an
+        // iPhone 17 did, see `CameraService.attachFrames` — came out the wrong
+        // way up. The chin says which way down is. The eye line is kept only
+        // for a face whose outline was not read.
+        let tilt: Double = take.eyeCentres.map { eyes in
+            take.chin.map { HeadFraming.tilt(eyes: eyes, chin: $0) } ?? HeadFraming.tilt(eyes: eyes)
+        } ?? 0
         let pivot = take.eyeCentres.map { placed(HeadFraming.midpointOf($0)) }
             ?? CGPoint(x: side / 2, y: side / 2)
         func toCanvas(_ point: CGPoint) -> CGPoint {
@@ -400,7 +406,22 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
                 paint(opening.outline, sclera: opening.sclera, in: cg)
             }
         }
-        guard let png = head.pngData() else { return nil }
+        // **Cut to the shape of a head.** The fade above ends the neck with a
+        // straight line, and a straight line cannot tell a neck from a
+        // shoulder: a collar beside the jaw stayed. Everything outside the
+        // head's outline goes, with a soft edge so it meets the lifted-out
+        // hair rather than being clipped against it. See
+        // `HeadFraming.headOutline`. Checked off-device against Vision on a
+        // real portrait turned all eight ways: head, hair and ears, nothing
+        // below the chin, nothing beside the jaw.
+        var finished = head
+        if !take.contour.isEmpty, let eyes = take.eyeCentres {
+            let span = hypot(eyes.1.x - eyes.0.x, eyes.1.y - eyes.0.y) * scale
+            let outline = HeadFraming.headOutline(contour: take.contour.map(toCanvas),
+                                                  canvas: side, margin: span * 0.5)
+            finished = Self.masked(head, to: outline, side: side) ?? head
+        }
+        guard let png = finished.pngData() else { return nil }
 
         let eyes: [HeadRig.Eye] = openings.compactMap { opening in
             let fractions = opening.outline.map { CGPoint(x: $0.x / side, y: $0.y / side) }
@@ -409,6 +430,80 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
                                angle: shape.angle, outline: fractions, iris: opening.iris)
         }
         return Made(png: png, eyes: eyes.count == 2 ? eyes.sorted { $0.x < $1.x } : [])
+    }
+
+    /// `image` with everything outside `outline` taken away, softly.
+    private static func masked(_ image: UIImage, to outline: [CGPoint], side: CGFloat) -> UIImage? {
+        guard outline.count >= 3, let source = image.cgImage,
+              let context = CGContext(data: nil, width: Int(side), height: Int(side), bitsPerComponent: 8,
+                                      bytesPerRow: Int(side), space: CGColorSpaceCreateDeviceGray(),
+                                      bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        // Top-left, like the canvas the outline was measured in.
+        context.translateBy(x: 0, y: side)
+        context.scaleBy(x: 1, y: -1)
+        context.setFillColor(gray: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        context.setFillColor(gray: 1, alpha: 1)
+        context.addLines(between: outline)
+        context.closePath()
+        context.fillPath()
+        guard let shape = context.makeImage() else { return nil }
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let mask = CIImage(cgImage: shape).clampedToExtent()
+            .applyingGaussianBlur(sigma: Double(side) * 0.012)
+            .cropped(to: bounds)
+        let blended = CIImage(cgImage: source).applyingFilter("CIBlendWithMask", parameters: [
+            kCIInputBackgroundImageKey: CIImage(color: .clear).cropped(to: bounds),
+            kCIInputMaskImageKey: mask
+        ])
+        guard let result = CIContext().createCGImage(blended, from: bounds) else { return nil }
+        return UIImage(cgImage: result, scale: 1, orientation: .up)
+    }
+
+    /// The person lifted out of a kept frame, the rest transparent.
+    ///
+    /// `VNGenerateForegroundInstanceMaskRequest` finds every foreground
+    /// object, so only the instance under the face is kept.
+    static func lift(_ take: Take) -> CGImage? {
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: take.image, orientation: .up)
+        guard (try? handler.perform([request])) != nil,
+              let observation = request.results?.first else { return nil }
+        let instances = instance(at: CGPoint(x: take.face.midX, y: take.face.midY), in: observation)
+        guard let masked = try? observation.generateMaskedImage(ofInstances: instances, from: handler,
+                                                                croppedToInstancesExtent: false) else { return nil }
+        let lifted = CIImage(cvPixelBuffer: masked)
+        return CIContext().createCGImage(lifted, from: lifted.extent)
+    }
+
+    /// How far the lifted-out head reaches past the eyes, away from the chin,
+    /// in the frame's pixels. See `HeadFraming.crownReach`.
+    ///
+    /// Sampled every few pixels: the crown only has to be found to within a
+    /// fraction of a percent of the square, and a full-resolution frame is two
+    /// million pixels.
+    static func crownReach(of lifted: CGImage, take: Take) -> CGFloat? {
+        guard let eyes = take.eyeCentres, let chin = take.chin else { return nil }
+        let width = lifted.width, height = lifted.height
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = context.data else { return nil }
+        context.draw(lifted, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let bytes = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
+        let stride = 3
+        var filled: [CGPoint] = []
+        filled.reserveCapacity(width * height / (stride * stride * 4))
+        // A bitmap context's memory starts at the TOP row, which is the frame's
+        // top-left convention already.
+        for y in Swift.stride(from: 0, to: height, by: stride) {
+            let row = y * width * 4
+            for x in Swift.stride(from: 0, to: width, by: stride) where bytes[row + x * 4 + 3] > 127 {
+                filled.append(CGPoint(x: x, y: y))
+            }
+        }
+        let span = hypot(eyes.1.x - eyes.0.x, eyes.1.y - eyes.0.y)
+        return HeadFraming.crownReach(filled: filled, eyes: eyes, chin: chin, halfWidth: span * 1.8)
     }
 
     /// Paints one eye's opening with the person's own eye-white, ready for a

@@ -220,7 +220,24 @@ final class CameraService: NSObject {
         if let connection = output.connection(with: .video) {
             // Upright and mirrored, so a frame is the picture in the preview:
             // the face Vision measures is the face you are looking at.
-            if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
+            //
+            // **The angle is asked of the device, not assumed.** This was a
+            // hard-coded 90, which is portrait for the front camera up to the
+            // iPhone 16 — and wrong on the iPhone 17 line, whose front sensor
+            // is mounted a quarter turn differently: Apple's own coordinator
+            // answers 0 for portrait there (developer.apple.com/forums/
+            // thread/813548). Every frame the maker analysed arrived turned,
+            // so the chin was looked for on the wrong side of the eyes, the
+            // crop kept the torso instead of the hair, the neck fade landed on
+            // the wrong end, and the head came out the wrong way up. From a
+            // phone: "the orientation is still upside down", "it doesnt cut off
+            // the neck and torso". The preview never showed it, because the
+            // preview layer rotates itself.
+            let angle = input.map {
+                AVCaptureDevice.RotationCoordinator(device: $0.device, previewLayer: nil)
+                    .videoRotationAngleForHorizonLevelCapture
+            } ?? 90
+            if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
             if connection.isVideoMirroringSupported {
                 connection.automaticallyAdjustsVideoMirroring = false
                 connection.isVideoMirrored = facing == .front

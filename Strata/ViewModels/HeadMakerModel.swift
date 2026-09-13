@@ -243,14 +243,7 @@ final class HeadMakerModel {
         }
 
         let size = CGSize(width: open.image.width, height: open.image.height)
-        let side = HeadStore.side, chin = HeadStore.chin
-        let base = HeadFraming.crop(face: open.face, in: size, contentHeight: HeadStore.contentHeight,
-                                    chin: chin, eyes: openEyes, chinPoint: open.chin)
-        // Every other expression lined up with this one by the eyes, so
-        // changing face never moves the head.
-        func aligned(_ take: HeadCaptureEngine.Take) -> CGRect {
-            take.eyeCentres.map { HeadFraming.alignedCrop(reference: base, referenceEyes: openEyes, eyes: $0) } ?? base
-        }
+        let side = HeadStore.side, chin = HeadStore.chin, contentHeight = HeadStore.contentHeight
 
         // Only what was really done is kept. Thick frames can make shut look
         // half open, and a "smile" measured on a neutral mouth is a second
@@ -265,12 +258,27 @@ final class HeadMakerModel {
         let brows = engine.caught(.brows) ? takes[.brows] : nil
         let surprised = engine.caught(.surprised) ? takes[.surprised] : nil
         let wink = engine.caught(.wink) ? takes[.wink] : nil
-        let shutCrop = shut.map(aligned), smileCrop = smile.map(aligned), browsCrop = brows.map(aligned)
-        let surprisedCrop = surprised.map(aligned)
-        let winkCrop = wink.map(aligned)
 
         let payload = await Task.detached(priority: .userInitiated) { () -> HeadStore.Payload? in
-            guard let neutral = HeadCaptureEngine.cutOut(open, crop: base, side: side, chin: chin, paintsEyes: true) else {
+            // **The crop is decided after the person is lifted out**, because
+            // that is the only moment the hair can be measured: a lot of hair
+            // reaches past what the face box guesses, and the crown was cut by
+            // the top of the square. See `HeadFraming.crop(crownReach:)`.
+            guard let lifted = HeadCaptureEngine.lift(open) else { return nil }
+            let base = HeadFraming.crop(face: open.face, in: size, contentHeight: contentHeight,
+                                        chin: chin, eyes: openEyes, chinPoint: open.chin,
+                                        crownReach: HeadCaptureEngine.crownReach(of: lifted, take: open))
+            // Every other expression lined up with this one by the eyes, so
+            // changing face never moves the head.
+            func aligned(_ take: HeadCaptureEngine.Take) -> CGRect {
+                take.eyeCentres.map { HeadFraming.alignedCrop(reference: base, referenceEyes: openEyes, eyes: $0) } ?? base
+            }
+            let shutCrop = shut.map(aligned), smileCrop = smile.map(aligned), browsCrop = brows.map(aligned)
+            let surprisedCrop = surprised.map(aligned)
+            let winkCrop = wink.map(aligned)
+
+            guard let neutral = HeadCaptureEngine.cutOut(open, lifted: lifted, crop: base, side: side,
+                                                         chin: chin, paintsEyes: true) else {
                 return nil
             }
             var faces: [HeadRig.Expression: HeadStore.Face] = [.neutral: HeadStore.Face(png: neutral.png, eyes: neutral.eyes)]

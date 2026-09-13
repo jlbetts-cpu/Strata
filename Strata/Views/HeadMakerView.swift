@@ -150,17 +150,24 @@ struct HeadMakerView: View {
         ZStack {
             Self.ground
             CameraPreview(session: model.camera.session, box: previewBox)
+            // **Where your head goes, unmistakably.** From a phone: "the frame
+            // [should be] more clear, like where you should put your face."
+            // The outline was a one-point dash at 55% white, which on a live
+            // camera image disappears into whatever is behind you, and the
+            // dim around it was light enough that the hole did not read as a
+            // hole. Darker outside, and a line that holds its own against the
+            // picture before you are lined up as well as after.
             GeometryReader { geometry in
                 HeadOutline.around(hole, in: geometry.size)
-                    .fill(Color.black.opacity(0.45), style: FillStyle(eoFill: true))
+                    .fill(Color.black.opacity(0.6), style: FillStyle(eoFill: true))
                     .opacity(outlineDrawn)
             }
             HeadOutline()
                 .trim(from: 0, to: outlineDrawn)
-                .stroke(Color.white.opacity(isLinedUp ? 1 : 0.55),
-                        style: StrokeStyle(lineWidth: isLinedUp ? 2 : 1,
+                .stroke(Color.white.opacity(isLinedUp ? 1 : 0.85),
+                        style: StrokeStyle(lineWidth: isLinedUp ? 3 : 2,
                                            lineCap: .round,
-                                           dash: isLinedUp ? [] : [5, 6]))
+                                           dash: isLinedUp ? [] : [8, 7]))
                 .frame(width: hole.width, height: hole.height)
                 .position(x: hole.midX, y: hole.midY)
                 .animation(GridConstants.motionSnappy, value: isLinedUp)

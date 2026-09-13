@@ -278,6 +278,91 @@ struct HeadFramingTests {
         #expect(jawCorners.max { $0.y < $1.y } != chin)
     }
 
+    @Test("an upside-down face is measured as upside down, not as level")
+    func upsideDownIsNotLevel() {
+        // The frame an iPhone 17 front camera delivered at a hard-coded 90°:
+        // eyes level, chin ABOVE them.
+        let eyes = (CGPoint(x: 460, y: 700), CGPoint(x: 620, y: 700))
+        let chin = CGPoint(x: 540, y: 420)
+        // The eye line cannot see it.
+        #expect(close(CGFloat(HeadFraming.tilt(eyes: eyes)), 0, 1e-9))
+        // Eyes to chin can: half a turn.
+        #expect(close(CGFloat(abs(HeadFraming.tilt(eyes: eyes, chin: chin))), .pi, 1e-9))
+        // And turning by minus that puts the chin below the eyes.
+        let mid = HeadFraming.midpointOf(eyes)
+        let upright = HeadFraming.turned(chin, about: mid, by: -HeadFraming.tilt(eyes: eyes, chin: chin))
+        #expect(upright.y > mid.y)
+        #expect(close(upright.x, mid.x, 1e-6))
+    }
+
+    @Test("the chin is found on an upside-down outline too")
+    func chinUpsideDown() {
+        let eyes = (CGPoint(x: 460, y: 700), CGPoint(x: 620, y: 700))
+        // Temples level with the eyes, jaw corners and chin above them.
+        let contour = [CGPoint(x: 400, y: 700), CGPoint(x: 420, y: 560),
+                       CGPoint(x: 540, y: 430), CGPoint(x: 660, y: 560), CGPoint(x: 680, y: 700)]
+        #expect(HeadFraming.chin(contour: contour, eyes: eyes) == CGPoint(x: 540, y: 430))
+    }
+
+    @Test("the crown is the hair's reach above the eyes, and a hand beside the head is not hair")
+    func crownReachIgnoresTheSides() {
+        let eyes = (CGPoint(x: 460, y: 700), CGPoint(x: 620, y: 700))
+        let chin = CGPoint(x: 540, y: 980)
+        let hair = (0..<20).map { CGPoint(x: 540 + CGFloat($0 - 10) * 10, y: 360 + CGFloat(abs($0 - 10))) }
+        let hand = [CGPoint(x: 1000, y: 100)]         // far to one side, and higher
+        let shoulder = [CGPoint(x: 300, y: 1100)]     // below the chin
+        let reach = HeadFraming.crownReach(filled: hair + hand + shoulder, eyes: eyes, chin: chin,
+                                           halfWidth: 160 * 1.8)
+        #expect(reach.map { close($0, 340, 1e-6) } == true)
+    }
+
+    @Test("a crop sized to measured hair keeps the whole crown, and never shrinks below the guess")
+    func cropMakesRoomForHair() {
+        let face = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.25)
+        let size = CGSize(width: 1080, height: 1920)
+        let eyes = (CGPoint(x: 490, y: 800), CGPoint(x: 590, y: 800))
+        let chin = CGPoint(x: 540, y: 1050)
+        let guess = HeadFraming.crop(face: face, in: size, contentHeight: 0.86, chin: 0.93,
+                                     eyes: eyes, chinPoint: chin)
+        let bigHair = HeadFraming.crop(face: face, in: size, contentHeight: 0.86, chin: 0.93,
+                                       eyes: eyes, chinPoint: chin, crownReach: 700)
+        #expect(bigHair.width > guess.width)
+        // Crown lands where the canvas promises: chin - contentHeight from the top.
+        let crownY = 800 - 700.0
+        #expect(close((crownY - bigHair.minY) / bigHair.height, 0.93 - 0.86, 1e-6))
+        // A measurement that missed hair cannot crop tighter than the guess.
+        let missed = HeadFraming.crop(face: face, in: size, contentHeight: 0.86, chin: 0.93,
+                                      eyes: eyes, chinPoint: chin, crownReach: 10)
+        #expect(close(missed.width, guess.width, 1e-9))
+    }
+
+    @Test("a head's outline keeps the hair and the face, not the shoulder beside the jaw")
+    func headOutlineDropsTheShoulders() {
+        let canvas: CGFloat = 600
+        // Upright jaw, temple to temple, eyes at y 320, chin at 558.
+        let contour = [CGPoint(x: 170, y: 320), CGPoint(x: 180, y: 420), CGPoint(x: 220, y: 500),
+                       CGPoint(x: 300, y: 558), CGPoint(x: 380, y: 500), CGPoint(x: 420, y: 420),
+                       CGPoint(x: 430, y: 320)]
+        let outline = HeadFraming.headOutline(contour: contour.reversed(), canvas: canvas, margin: 40)
+        func inside(_ p: CGPoint) -> Bool {
+            var hit = false
+            var j = outline.count - 1
+            for i in outline.indices {
+                let a = outline[i], b = outline[j]
+                if (a.y > p.y) != (b.y > p.y),
+                   p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x { hit.toggle() }
+                j = i
+            }
+            return hit
+        }
+        #expect(inside(CGPoint(x: 300, y: 60)))      // hair
+        #expect(inside(CGPoint(x: 580, y: 200)))     // hair out to the side, above the eyes
+        #expect(inside(CGPoint(x: 150, y: 330)))     // an ear, just outside the temple
+        #expect(inside(CGPoint(x: 300, y: 540)))     // the chin
+        #expect(!inside(CGPoint(x: 120, y: 540)))    // a shoulder beside the jaw
+        #expect(!inside(CGPoint(x: 300, y: 590)))    // the neck under the chin
+    }
+
     @Test("a crop hung off the landmarks puts the chin exactly where it promises")
     func cropUsesTheMeasuredChin() {
         let face = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.25)
