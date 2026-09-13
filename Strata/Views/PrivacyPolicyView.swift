@@ -25,7 +25,7 @@ struct PrivacyPolicyView: View {
                     }
                 }
 
-                Text("Last updated 11 September 2026")
+                Text("Last updated 13 September 2026")
                     .font(Typography.caption)
                     .foregroundStyle(AppColors.inkQuiet)
                     .padding(.top, 8)
@@ -61,16 +61,17 @@ struct PrivacyPolicyView: View {
          + "up where you turn it on, and Delete Head removes it."),
         ("Places",
          "Strata asks first, and iOS will not give it a position until you say yes. "
-         + "After that, Strata notes where you were at "
-         + "the moment you take a photo, so your wins can appear on your map. It "
-         + "looks only while the camera is open, never in the background, and the "
+         + "After that, Strata notes where a photo was taken, at "
+         + "the moment you take it, so your wins can appear on your map. It "
+         + "checks only while the camera is open, never in the background, and the "
          + "coordinates are stored on your device beside the photo and nowhere "
          + "else. Photos you took before you turned it on have no place and cannot "
          + "be given one."),
         ("Sharing",
-         "Sharing a tower renders an image on your device and hands it to the iOS "
-         + "share sheet. Where it goes from there is between you and whatever app "
-         + "you send it to."),
+         "Sharing a photo hands it to the iOS share sheet. Where it goes from "
+         + "there is between you and whatever app you send it to. Save to Photos, "
+         + "if you leave it on, puts a copy of each photo you take in your photo "
+         + "library, where it is yours like any other."),
         ("Deleting everything",
          "Profile › Settings › Data › Reset All Data removes every win, every photo, "
          + "your name, profile photo and head, and your tower from the device "

@@ -289,14 +289,22 @@ struct SettingsView: View {
                         dismiss()
                     }
                 } message: {
-                    Text("This will permanently delete every win, its photo, and your tower. This cannot be undone.")
+                    Text("This permanently deletes every win and photo, your name and profile photo, and your head. It cannot be undone.")
                 }
             }
 
             // MARK: - Section 4: Support
 
             Section("Support") {
-                Link(destination: URL(string: "mailto:support@strataapp.co")!) {
+                // **An address that receives mail.** This was
+                // support@strataapp.co, and strataapp.co has no MX record and
+                // no A record — checked with dig on 2026-09-13 — so every
+                // message sent from here went nowhere, from the button the
+                // onboarding thank-you page points people toward. It is the
+                // address the privacy policy already publishes, so the app has
+                // one contact rather than two. Swap both when the domain is
+                // real.
+                Link(destination: URL(string: "mailto:jbett5@hotmail.com")!) {
                     Label {
                         HStack {
                             Text("Send Feedback")

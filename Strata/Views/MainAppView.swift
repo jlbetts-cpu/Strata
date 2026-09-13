@@ -34,7 +34,6 @@ struct MainAppView: View {
     @Environment(FocusFilterService.self) private var focusFilterService
     @State private var towerVM = TowerViewModel()
     @State private var timelineVM = TimelineViewModel()
-    @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
     /// The camera, not the tower.
     ///
@@ -408,7 +407,7 @@ struct MainAppView: View {
             .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting. If it keeps happening, use Settings › Export Data to save what you have.")
+                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting. If it keeps happening, use Profile › Settings › Back Up Everything to save what you have.")
             }
     }
 
@@ -978,8 +977,6 @@ struct MainAppView: View {
     @State private var lastDanceMilestone: Int? = nil
 
  
-    private var todayCompletedCount: Int { timelineVM.completedToday.count }
-    private var todayTotalCount: Int { timelineVM.todaysHabits.count }
 
     private func towerTabContent() -> some View {
         let colW = currentColW
@@ -1466,7 +1463,6 @@ struct MainAppView: View {
         }
         #endif
         timelineVM.modelContext = modelContext
-        habitManagerVM.modelContext = modelContext
 
         animCoord.reduceMotion = reduceMotion
         animCoord.lookupMass = { [towerVM] id in
@@ -2187,8 +2183,11 @@ struct MainAppView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        // #128: Tower summary rotor — block count + height + today count
-        .accessibilityLabel("Tower grid, \(towerVM.placedBlocks.count) blocks, \(Int(towerVM.altimeterHeight)) meters, \(todayCompletedCount) of \(todayTotalCount) today")
+        // What the header says, said to VoiceOver. It read "Tower grid, 6
+        // blocks, 18 meters, 6 of 6 today": a height the screen stopped
+        // showing long ago, and a count of scheduled habits that one-off wins
+        // always complete, so the two numbers were always equal.
+        .accessibilityLabel(towerVM.placedBlocks.count == 1 ? "Today's tower, 1 win" : "Today's tower, \(towerVM.placedBlocks.count) wins")
     }
 
 

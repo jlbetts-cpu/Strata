@@ -99,10 +99,14 @@ final class RealPhotoTests: XCTestCase {
         //
         // A fresh launch also proves the filename was persisted rather than
         // merely held in memory by the sheet that wrote it.
+        // The tower's VoiceOver summary says what its header says. It was
+        // "Tower grid, N blocks, N meters, X of Y today", a height the screen
+        // no longer shows and a count that one-off wins always complete; this
+        // test matched on that wording, not on anything it was checking.
         let grid = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH %@", "Tower grid")).firstMatch
+            format: "label BEGINSWITH %@", "Today's tower")).firstMatch
         _ = grid.waitForExistence(timeout: 12)
-        XCTAssertTrue(grid.label.contains("1 blocks"),
+        XCTAssertTrue(grid.label.hasSuffix(", 1 win"),
                       "the win was never added — grid says \(grid.label)")
 
         app.terminate()

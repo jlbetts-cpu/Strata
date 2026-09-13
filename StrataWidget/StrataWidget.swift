@@ -23,7 +23,7 @@ struct StrataWidget: Widget {
                 }
         }
         .configurationDisplayName("Today")
-        .description("Todays wins, and what they looked like.")
+        .description("Today's wins, and what they looked like.")
         // **Small and the lock screen only.** The medium size was built and then
         // looked at: "i think the medium one is unnessasary the small one is
         // perfect enough." It is right — a tower is a tall object, and a wide

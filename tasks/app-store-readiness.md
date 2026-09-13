@@ -19,9 +19,12 @@ decision rather than a task, so it is yours to make.
     000  https://strataapp.co
 
 App Store Connect requires a privacy policy **URL**, and App Review opens it.
-An in-app policy does not substitute. `support@strataapp.co`, used by Send
-Feedback, is on the same dead domain, so support mail currently bounces.
-Either register and host it, or point all three at somewhere that exists.
+An in-app policy does not substitute. Either register and host it, or point
+the policy URL at somewhere that exists (`docs/privacy.html` is the copy).
+
+Send Feedback used `support@strataapp.co` on the same dead domain (no MX, no
+A record), so support mail went nowhere. Since 2026-09-13 it uses the address
+the privacy policy already publishes; swap both when the domain is real.
 
 Until the domain is up, the in-app `PrivacyPolicyView` is the honest text and
 can be copied to whatever gets hosted.
