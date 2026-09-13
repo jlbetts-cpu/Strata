@@ -72,14 +72,18 @@ struct PlanSheet: View {
     /// `buildLimitedAvailability`, and an inline one does not.
     @ToolbarContentBuilder
     private var planToolbar: some ToolbarContent {
+        // **Done on the right, like every other sheet.** It was on the left,
+        // with the plus on the right; Profile, Settings and the win sheet all
+        // confirm top-right, so the plan was the one screen where a thumb
+        // reaching for Done found a plus. The owner's call (2026-09-13).
         if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) { doneButton }
+            ToolbarItem(placement: .topBarLeading) { addButton }
                 .sharedBackgroundVisibility(.hidden)
-            ToolbarItem(placement: .topBarTrailing) { addButton }
+            ToolbarItem(placement: .topBarTrailing) { doneButton }
                 .sharedBackgroundVisibility(.hidden)
         } else {
-            ToolbarItem(placement: .topBarLeading) { doneButton }
-            ToolbarItem(placement: .topBarTrailing) { addButton }
+            ToolbarItem(placement: .topBarLeading) { addButton }
+            ToolbarItem(placement: .topBarTrailing) { doneButton }
         }
     }
 

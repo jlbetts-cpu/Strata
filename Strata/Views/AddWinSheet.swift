@@ -102,19 +102,26 @@ struct AddWinSheet: View {
 
                     photoWell
 
-                    // **No colour picker once there is a photograph.**
+                    // **No colour question while you are taking the photo.**
                     //
                     // A block with a picture on it shows the picture; the
-                    // colour underneath is never seen, so offering it is
-                    // asking for a decision that changes nothing. The same
+                    // colour underneath is never seen, so asking for it at
+                    // capture is a decision that changes nothing you can see,
+                    // on the one screen that has to be fast. The same
                     // reasoning took the category colour off map blocks that
                     // carry a photograph.
+                    //
+                    // **But it is there when you come back to the win.** The
+                    // owner's call (2026-09-13): optional, in Edit. What kind
+                    // of win it was still means something to a Focus filter,
+                    // and somebody who cares can say so without everybody
+                    // being asked every time.
                     //
                     // The category is KEPT, not cleared — remove the
                     // photograph and the block needs its colour back, and
                     // silently discarding a choice somebody made would be
                     // worse than hiding the control.
-                    if photo == nil {
+                    if photo == nil || isEditing {
                         field("Colour") { categoryControl }
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
@@ -423,10 +430,20 @@ struct AddWinSheet: View {
     /// of the block you are describing, and a round chip reads as a property
     /// in a way a small square does not. The blocks are still what the SIZE
     /// control and the photo well are made of.
+    /// Whether to ring the swatch the win is on.
+    ///
+    /// Always, where the colour can be seen: no photograph, so the ring marks
+    /// the colour of the block. With a photograph the colour cannot be seen,
+    /// so a ring would only be claiming a kind of win — and for a win nobody
+    /// gave one, that claim is untrue. So there it rings only a real choice.
+    private var showsSelection: Bool {
+        photo == nil || categoryChosen || (editing.map { $0.category != .unlabeled } ?? false)
+    }
+
     private var categoryControl: some View {
         HStack(spacing: 6) {
             ForEach(HabitCategory.selectable, id: \.self) { cat in
-                let isSelected = category == cat
+                let isSelected = showsSelection && category == cat
                 Button {
                     HapticsEngine.tick()
                     categoryChosen = true
