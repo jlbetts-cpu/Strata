@@ -57,9 +57,15 @@ struct PlaceMapTests {
     /// the split is the thing worth asserting rather than any single grouping.
     @Test("zooming in splits one block into two")
     func zoomSplits() {
+        // **Stated as the invariant rather than as two numbers.** Whether one
+        // particular pair happens to share a cell depends on where the grid's
+        // lines fall, which is not what this is about: what must always hold
+        // is that going in never merges and going out never splits.
         let pins = [pin(lat: 51.5074, lon: -0.1278), pin(lat: 51.5300, lon: -0.1000, day: 2)]
-        #expect(PlaceMap.cluster(pins, zoom: 8).count == 1)
-        #expect(PlaceMap.cluster(pins, zoom: 15).count == 2)
+        let coarse = PlaceMap.cluster(pins, zoom: PlaceMap.minClusterZoom).count
+        let fine = PlaceMap.cluster(pins, zoom: 17).count
+        #expect(fine >= coarse, "zooming in merged blocks instead of splitting them")
+        #expect(fine == 2, "two places three kilometres apart are two blocks up close")
     }
 
     // MARK: - Identity
@@ -126,17 +132,29 @@ struct PlaceMapTests {
 
     // MARK: - What a block says
 
-    /// A deliberate restatement of `MonthTower.size`, so changing the cuts
-    /// fails loudly in both places rather than silently in one.
-    @Test("block size follows the month tower's rank encoding")
-    func sizeFollowsMonthTower() {
-        func blockSize(count: Int) -> BlockSize? {
-            let pins = (1...count).map { pin(lat: 51.5074, lon: -0.1278, day: $0) }
+    /// **A map block is not a month block, and this is where that was
+    /// decided.**
+    ///
+    /// It used to rank by count the way the month tower does, so a place you
+    /// went back to grew, and pulling the camera back grew everything at once.
+    /// The owner, on a phone: "they should still stay in the same area dont
+    /// need to get bigger." A lone win keeps the size a finger drew for it,
+    /// because that is a fact about the win; a crowd is one cell with its
+    /// count on it, because the badge already says how many.
+    @Test("a lone win keeps its size, a crowd is one cell")
+    func sizeSaysWhatItKnows() {
+        func blockSize(count: Int, lone: BlockSize = .small) -> BlockSize? {
+            let pins = (1...count).map {
+                var p = pin(lat: 51.5074, lon: -0.1278, day: $0)
+                p.size = lone
+                return p
+            }
             return PlaceMap.cluster(pins, zoom: 12).first?.size
         }
+        #expect(blockSize(count: 1, lone: .hard) == .hard, "one win should keep its own size")
         #expect(blockSize(count: 2) == .small)
-        #expect(blockSize(count: 3) == .medium)
-        #expect(blockSize(count: 7) == .hard)
+        #expect(blockSize(count: 3) == .small)
+        #expect(blockSize(count: 7) == .small)
     }
 
     @Test("category ties break by earliest, like a day's does")
@@ -245,6 +263,60 @@ struct PlaceMapTests {
             #expect(nearCorner || nearFar,
                     "a block is drawn at \(cluster.latitude), which is neither place")
         }
+    }
+
+    /// **Two cities are never one block, however far out the camera is.**
+    ///
+    /// From a phone: "photos from differnt cities shouldnt be combining."
+    /// Bounding the coarsening relative to the camera was not enough on its
+    /// own — pull far enough back and the camera's own cell is already
+    /// hundreds of kilometres across.
+    @Test("photographs in different cities never become one block")
+    func citiesNeverCombine() {
+        let london = (0..<6).map { pin(lat: 51.5074 + Double($0) * 0.002, lon: -0.1278, day: $0 + 1) }
+        let manchester = (0..<4).map { pin(lat: 53.4808 + Double($0) * 0.002, lon: -2.2426, day: $0 + 10) }
+        // A camera showing the whole country, and then the whole continent.
+        for span in [6.0, 20.0, 60.0] {
+            let zoom = PlaceMap.zoomLevel(spanLongitude: span, viewportWidth: 393)
+            let clusters = PlaceMap.cluster(london + manchester, zoom: zoom)
+            #expect(clusters.count >= 2, "the two cities merged at span \(span)")
+            for cluster in clusters {
+                let isLondon = abs(cluster.latitude - 51.51) < 0.5
+                let isManchester = abs(cluster.latitude - 53.48) < 0.5
+                #expect(isLondon || isManchester,
+                        "a block sits at \(cluster.latitude), between the cities, at span \(span)")
+            }
+        }
+    }
+
+    /// **Zooming out must not grow the blocks.** The owner: "they should still
+    /// stay in the same area dont need to get bigger." A block that stands for
+    /// one win is drawn at that win's own size; one that stands for a crowd is
+    /// a single cell with a count on it, whatever the crowd.
+    @Test("a block standing for many wins stays one cell")
+    func manyWinsStayOneCell() {
+        let many = (0..<30).map { pin(lat: 51.5074 + Double($0) * 0.00001, lon: -0.1278, day: ($0 % 28) + 1) }
+        let clusters = PlaceMap.cluster(many, zoom: 12)
+        #expect(clusters.count == 1)
+        #expect(clusters[0].winCount == 30)
+        #expect(clusters[0].size == .small, "the block grew with the crowd")
+    }
+
+    /// **A block stands where the photographs actually are**, not at the mean
+    /// of two places nobody stood between. The owner: the map "is still not
+    /// the most accurate at knowing where they are suppossed to be on zoom
+    /// out".
+    @Test("a block sits on the busiest spot, not between two")
+    func blockSitsOnTheCrowd() {
+        // Eight photographs on one corner, one a kilometre north.
+        var pins = (0..<8).map { pin(lat: 51.5000, lon: -0.1278, day: $0 + 1) }
+        pins.append(pin(lat: 51.5045, lon: -0.1278, day: 20))
+        let clusters = PlaceMap.cluster(pins, zoom: 10)
+        #expect(clusters.count == 1, "the fixture no longer makes one block")
+        // The mean would sit about a hundred metres north of the corner; the
+        // block belongs on the corner.
+        #expect(abs(clusters[0].latitude - 51.5000) < 0.0005,
+                "the block sits at \(clusters[0].latitude), away from the crowd")
     }
 
     @Test("a wider camera means a coarser grid")

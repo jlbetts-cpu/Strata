@@ -63,7 +63,20 @@ struct PhotoViewer: View {
     @State private var isZoomed = false
 
     private var current: GalleryPhoto? {
-        photos.first { $0.id == currentID } ?? photos.first
+        photos.first { $0.id == currentID } ?? photos.first { $0.id == startAt } ?? photos.first
+    }
+
+    /// **The photograph the title is of: the one actually on screen.**
+    ///
+    /// A paging scroll view writes `currentID` when it settles, so the title
+    /// belonged to the photograph you had just left for as long as a swipe
+    /// takes — reported twice as "the photos and titles arent accurate at
+    /// times". `deckProgress` already reports where the deck is on every
+    /// frame for the strip below; the title reads the same number, so it is
+    /// right at every moment of a swipe rather than only at the end of one.
+    private var shown: GalleryPhoto? {
+        let i = Int(deckProgress.rounded())
+        return photos.indices.contains(i) ? photos[i] : current
     }
 
     private var index: Int {
@@ -385,9 +398,10 @@ struct PhotoViewer: View {
     /// references put it, and where iOS puts it.
     private var header: some View {
         ZStack {
-            Text(current?.title ?? " ")
+            Text(shown?.title ?? " ")
                 .font(Typography.headerMedium)
-                .foregroundStyle(.white.opacity(current?.title == nil ? 0 : 0.95))
+                .foregroundStyle(AppColors.onDarkStrong.opacity(shown?.title == nil ? 0 : 1))
+                .animation(.easeOut(duration: 0.12), value: shown?.id)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 // Clear of the two chrome buttons, derived rather than

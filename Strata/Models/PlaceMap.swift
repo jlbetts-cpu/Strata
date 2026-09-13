@@ -74,7 +74,14 @@ enum PlaceMap {
         /// already has a size, chosen with a finger when it was logged, and
         /// that is the honest thing to draw. Only once a place holds several
         /// does the count become the more useful fact.
-        var size: BlockSize { winCount == 1 ? loneSize : MonthTower.size(forWinCount: winCount) }
+        /// **One win is its own size; a crowd is one cell.**
+        ///
+        /// It used to rank by count the way the month tower does, so pulling
+        /// the camera back grew the blocks as they merged — the owner: "they
+        /// should still stay in the same area dont need to get bigger". A map
+        /// block already says how many it holds, on its badge; saying it twice
+        /// costs the map its calm.
+        var size: BlockSize { winCount == 1 ? loneSize : .small }
 
         /// The single member's own size, when there is a single member.
         var loneSize: BlockSize = .small
@@ -139,6 +146,28 @@ enum PlaceMap {
     /// How many levels coarser than the camera's own grid merging may go. See
     /// the density loop in `cluster(_:zoom:limit:)`.
     static let maxCoarsening = 1
+
+    /// **The furthest apart two photographs may be and still be one block.**
+    ///
+    /// Bounding the coarsening against the camera was not enough on its own:
+    /// pull back to a country and the camera's own cell is already hundreds of
+    /// kilometres across, so two cities became one block sitting in a field
+    /// between them. From a phone: "photos from differnt cities shouldnt be
+    /// combining."
+    ///
+    /// Twenty kilometres is a city and its edges. Everything further apart
+    /// than that stays its own block however far out the camera goes, which
+    /// means a country view shows where you have been rather than one dot in
+    /// the middle of it.
+    static let maxMergeMetres: Double = 20_000
+
+    /// The coarsest grid merging may use, derived from `maxMergeMetres` so the
+    /// two cannot drift apart.
+    static var minClusterZoom: Int {
+        var z = 0
+        while z < maxClusterZoom && cellMetres(at: z) > maxMergeMetres { z += 1 }
+        return z
+    }
 
     /// The most blocks allowed on screen at once.
     ///
@@ -339,7 +368,9 @@ enum PlaceMap {
             return accuracy <= cellMetres(at: z)
         }
 
-        var level = z
+        // Never coarser than the distance rule allows, however far out the
+        // camera is.
+        var level = max(z, Self.minClusterZoom)
         var result = clustered(visible, z: level)
         // **Density is the invariant, not zoom — and thinning means COARSER.**
         //
@@ -363,7 +394,7 @@ enum PlaceMap {
         // than that stay separate blocks even if that means more of them on
         // screen, because a legible map that lies is worse than a busy map
         // that does not.
-        while result.count > limit, level > 0, z - level < maxCoarsening {
+        while result.count > limit, level > minClusterZoom, z - level < maxCoarsening {
             level -= 1
             result = clustered(visible, z: level)
         }
@@ -413,13 +444,14 @@ enum PlaceMap {
         let occupied = Set(blobs.keys)
         return blobs.map { key, members in
             let newestFirst = members.sorted { $0.completedAt > $1.completedAt }
+            let centre = busiestPoint(of: members, z: z)
             var seen = Set<String>()
             let names = newestFirst.compactMap { seen.insert($0.photoFileName).inserted
                 ? $0.photoFileName : nil }
             return Cluster(
                 key: key,
-                latitude: members.reduce(0) { $0 + $1.place.latitude } / Double(members.count),
-                longitude: members.reduce(0) { $0 + $1.place.longitude } / Double(members.count),
+                latitude: centre.latitude,
+                longitude: centre.longitude,
                 winCount: members.count,
                 category: MonthTower.dominantCategory(
                     members.map { (category: $0.category, at: $0.completedAt) }
@@ -433,6 +465,32 @@ enum PlaceMap {
         // hands its keys back in — otherwise a snapshot test flakes and,
         // worse, `ForEach` reorders the map for no reason.
         .sorted { $0.id < $1.id }
+    }
+
+    /// **Where a block stands: on its crowd, not at its mean.**
+    ///
+    /// A plain centroid puts a block between the places it holds, so eight
+    /// photographs on a corner and one up the road drew the block in the
+    /// middle of the road. From a phone: the map "is still not the most
+    /// accurate at knowing where they are suppossed to be on zoom out".
+    ///
+    /// The members are re-grouped on a grid eight times finer than the one
+    /// they were clustered on, and the block stands on the mean of the
+    /// busiest of those — which is the spot somebody actually stood in. Ties
+    /// go to the group holding the newest photograph, so the answer is
+    /// deterministic.
+    private static func busiestPoint(of members: [Pin], z: Int) -> (latitude: Double, longitude: Double) {
+        let fine = min(z + 3, maxClusterZoom)
+        var groups: [PlaceKey: [Pin]] = [:]
+        for pin in members { groups[key(for: pin.place, z: fine), default: []].append(pin) }
+        let busiest = groups.values.max { a, b in
+            if a.count != b.count { return a.count < b.count }
+            let newestA = a.map(\.completedAt).max() ?? .distantPast
+            let newestB = b.map(\.completedAt).max() ?? .distantPast
+            return newestA < newestB
+        } ?? members
+        return (busiest.reduce(0) { $0 + $1.place.latitude } / Double(busiest.count),
+                busiest.reduce(0) { $0 + $1.place.longitude } / Double(busiest.count))
     }
 
     /// Fuse cell groups whose centroids are within `samePlaceMetres`.

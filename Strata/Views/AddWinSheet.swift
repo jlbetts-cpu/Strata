@@ -531,6 +531,19 @@ struct AddWinSheet: View {
             }
         } else {
             titleFocused = true
+            // **A new win does not start green.**
+            //
+            // The default was `.health`, and the colour picker is hidden once
+            // there is a photograph — so every photographed win in the app
+            // was green, forever, with no way to say otherwise. From a phone:
+            // "the blocks with images are only green no other color which
+            // makes it look bad."
+            //
+            // It starts on whatever the tower has least of, which is the rule
+            // the tower's own empty slot already picks by, so a wall of wins
+            // comes out varied without anybody choosing.
+            let existing = (try? modelContext.fetch(FetchDescriptor<Habit>())) ?? []
+            category = QuickWinService.spontaneousCategory(existing: existing)
         }
     }
 

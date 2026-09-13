@@ -80,6 +80,15 @@ struct MemoriesMapView: View {
     /// together reads as an alert — and the map pays for one timer rather
     /// than one per place.
     @State private var tick = 0
+    /// When the camera last came to rest, so the pictures hold still around a
+    /// move rather than changing in the middle of one.
+    @State private var lastCameraMove = Date.distantPast
+    /// How long a photograph stays up before the next one in its place. Was
+    /// four seconds, which on a map of a dozen places is something changing
+    /// every third of a second somewhere on screen.
+    private static let cycleSeconds: Double = 7
+    /// And how long after a camera move before any of them change.
+    private static let cycleSettle: Double = 2.5
     /// Whether the first fill has happened. After it, blocks arriving are
     /// arriving because you moved the map, and they travel instead.
     @State private var hasSettled = false
@@ -299,6 +308,7 @@ struct MemoriesMapView: View {
         // you pan, because the cell under a pin changes several times a
         // second.
         .onMapCameraChange(frequency: .onEnd) { context in
+            lastCameraMove = Date()
             let next = PlaceMap.zoomLevel(
                 spanLongitude: context.region.span.longitudeDelta,
                 viewportWidth: Double(viewportWidth)
@@ -313,8 +323,13 @@ struct MemoriesMapView: View {
         .task(id: pins.count) {
             guard !reduceMotion, pins.count > 1 else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(for: .seconds(Self.cycleSeconds))
                 guard !Task.isCancelled else { return }
+                // **Not while the map is moving, and not straight after.**
+                // Blocks travelling, merging and changing picture at the same
+                // moment is three things asking for attention at once: "the
+                // cycle like every zoom and everything feels too much."
+                guard Date().timeIntervalSince(lastCameraMove) > Self.cycleSettle else { continue }
                 tick &+= 1
             }
         }
@@ -735,13 +750,18 @@ private struct PlaceBlock: View {
                 .frame(width: size.width, height: size.height)
                 .clipped()
         } else if !name.isEmpty {
-            // **One width for every block on the map**, whatever size it draws
-            // at. `CachedImageView` keys its cache on the requested width, so
-            // asking for 88 at one zoom and 176 at the next decodes the same
-            // photograph twice and re-decodes it on every zoom step.
+            // **The size it is actually drawn at**, which is one of two
+            // numbers and no more: a lone win keeps the size a finger drew,
+            // and every crowd is one cell. Asking for 88 for everything meant
+            // a 2x2 block drew an 88pt picture across 90pt at 3x — soft, and
+            // the owner saw it: "the photos dont even zoom in."
+            //
+            // Two widths is also why this is safe. `CachedImageView` keys its
+            // cache on the requested width, and a block's size no longer
+            // changes with the camera, so nothing re-decodes as you zoom.
             CachedImageView(fileName: name,
-                            width: Self.cell * 2,
-                            height: Self.cell * 2,
+                            width: size.width,
+                            height: size.height,
                             cornerRadius: 0,
                             showsPlaceholder: false)
                 .frame(width: size.width, height: size.height)
