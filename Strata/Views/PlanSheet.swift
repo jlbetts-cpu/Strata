@@ -60,7 +60,7 @@ struct PlanSheet: View {
     ///
     /// These two were plain `ToolbarItem`s, so on iOS 26 they kept the glass
     /// capsule the system puts behind every toolbar item — which the rest of
-    /// the app strips deliberately (see `MainAppView.todayToolbar`). Two
+    /// the app strips deliberately (see the Toolbars note in `MainAppView`). Two
     /// consequences, and the owner hit both: the plan did not look like the
     /// screens either side of it, and the capsule rendered BLACK against this
     /// sheet's warm ground when it was jostled mid-gesture — "i bumped into

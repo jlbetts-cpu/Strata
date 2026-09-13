@@ -383,7 +383,7 @@ struct SettingsView: View {
     // MARK: - Notification Helpers
 
     /// **Bare glyphs, like every other screen.** See
-    /// `MainAppView.todayToolbar`: iOS 26 puts a glass capsule behind every
+    /// the Toolbars note in `MainAppView`: iOS 26 puts a glass capsule behind every
     /// toolbar item, the app strips it deliberately, and a screen that misses
     /// the treatment both looks unlike its neighbours and can render that
     /// capsule black against the warm ground. This was one of three that had

@@ -36,7 +36,6 @@ struct MainAppView: View {
     @State private var timelineVM = TimelineViewModel()
     @State private var habitManagerVM = HabitManagerViewModel()
     @State private var towerManager = TowerManager()
-    @State private var hasLoadedDemo = false
     /// The camera, not the tower.
     ///
     /// Logging a win is the thing the app is for, and a photograph is the
@@ -70,8 +69,6 @@ struct MainAppView: View {
     static let welcomeWinKey = "pendingWelcomeWin"
 
     @State private var selectedTab: StrataTab = MainAppView.initialTab()
-    /// A shot waiting to become a win, held while the add sheet opens.
-    @State private var capturedPhoto: UIImage?
     // #270: Tower filter persistence across launches
     /// The tower shows today, and only today.
     ///
@@ -170,30 +167,20 @@ struct MainAppView: View {
 
     // Timer guard (Phase 1D)
     @State private var lastLogCount: Int = 0
-    @State private var lastCompletionDate: Date? = nil
     @State private var refreshTask: Task<Void, Never>?
 
     // Cached timeline computed properties (Phase 2A/2B)
     @State private var cachedAllHabitsForSelectedDate: [Habit] = []
     @State private var cachedCompletedHabitIDsForSelectedDate: Set<UUID> = []
-    @State private var cachedSkippedHabitIDsForSelectedDate: Set<UUID> = []
-    @State private var cachedDailyPhotoBlocks: [PlacedBlock] = []
-    @State private var cachedHabitPhotoBlocks: [PlacedBlock] = []
 
     // Timeline selected date (defaults to today)
     @State private var timelineSelectedDate: Date = Date()
 
-    // Cached week completed dates
-    @State private var weekCompletedDates: Set<String> = []
-
     // Cached incomplete timeline habits
-    @State private var cachedIncompleteForTimeline: [Habit] = []
 
     // Cached computed properties
     @State private var cachedFilteredLogs: [HabitLog] = []
-    @State private var cachedWeekData: [DayProgressData] = []
     @State private var perfectDayDates: Set<String> = []
-    @State private var cachedStreaks: [UUID: Int] = [:]
 
     // Deep link from Spotlight
     @State private var deepLinkHabitID: UUID? = nil
@@ -201,9 +188,6 @@ struct MainAppView: View {
     // Spotlight indexing debounce
     @State private var spotlightIndexTask: Task<Void, Never>?
     @State private var lastIndexedHabitCount: Int = 0
-
-    // Tower scroll
-    @State private var isScrolled: Bool = false
     @State private var scrollToTopTrigger = 0
     @State private var towerScrollOffset: CGFloat = 0
     @State private var screenHeight: CGFloat = 0
@@ -384,26 +368,8 @@ struct MainAppView: View {
                 scheduleRefresh()
             }
             .onChange(of: towerFilterMode) {
-                cachedTowerTitle = computeTowerTitle()
                 animCoord.clearAnimationStates() // #430: Clear stale animation on filter change
                 reloadTowerForFilterChange()
-            }
-            .onChange(of: expandedBlockID) {
-                if let expandedID = expandedBlockID,
-                   let block = towerVM.placedBlocks.first(where: { $0.id == expandedID }) {
-                    cachedDailyPhotoBlocks = towerVM.placedBlocks.filter {
-                        $0.log.dateString == block.log.dateString && $0.log.imageFileName != nil
-                    }
-                    // Journey filmstrip: same habit, any date, has photo, sorted recent-first
-                    cachedHabitPhotoBlocks = towerVM.placedBlocks
-                        .filter { $0.habit.id == block.habit.id && $0.log.imageFileName != nil }
-                        .sorted { ($0.log.completedAt ?? .distantPast) > ($1.log.completedAt ?? .distantPast) }
-                        .prefix(30)
-                        .map { $0 }
-                } else {
-                    cachedDailyPhotoBlocks = []
-                    cachedHabitPhotoBlocks = []
-                }
             }
             .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
                 guard scenePhase == .active else { return }
@@ -481,7 +447,6 @@ struct MainAppView: View {
             }
         }
         .sheet(item: $winDraft, onDismiss: {
-            capturedPhoto = nil
             // Closed without saving: put the line back the way it was.
             if let id = tickAwaitingWin {
                 setPlanItemDone(id, false)
@@ -675,6 +640,29 @@ struct MainAppView: View {
                   let habitID = UUID(uuidString: identifier) else { return }
             selectedTab = .tower
             deepLinkHabitID = habitID
+            openDeepLinkedWin()
+        }
+    }
+
+    /// **A Spotlight result opens the win it names.** The handler above used
+    /// to switch to the Wins tab and store the id, and nothing ever read it:
+    /// searching for a win landed you on today's tower with no sign of the
+    /// thing you searched for.
+    ///
+    /// On today's tower it opens exactly as a tap would. Anywhere else there
+    /// is no block to open, so it opens the win's own sheet. It waits for the
+    /// tower's first build before choosing, or a cold launch from Spotlight
+    /// would see an empty tower and send today's win to the sheet instead;
+    /// `refreshData` asks again once the blocks are placed.
+    private func openDeepLinkedWin() {
+        guard let id = deepLinkHabitID, towerVM.hasBuiltOnce else { return }
+        deepLinkHabitID = nil
+        if let block = towerVM.placedBlocks.last(where: { $0.habit.id == id }) {
+            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
+                expandedBlockID = block.id
+            }
+        } else if let habit = habits.first(where: { $0.id == id }) {
+            editingHabit = habit
         }
     }
 
@@ -949,7 +937,6 @@ struct MainAppView: View {
         // above the tab bar and the count below the notch.
         CameraView(
             onCaptured: { image, size, place, crop in
-                capturedPhoto = image
                 selectedTab = .tower
                 winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
             },
@@ -988,10 +975,6 @@ struct MainAppView: View {
     /// Seeded from the current count on first build, so opening the app on a
     /// tower that is already at thirty does not set it off.
     @State private var lastDanceMilestone: Int? = nil
-
-    @State private var cachedTowerTitle: String = ""
-
-    private func computeTowerTitle() -> String { "Today" }
 
  
     private var todayCompletedCount: Int { timelineVM.completedToday.count }
@@ -1063,7 +1046,6 @@ struct MainAppView: View {
         // Completed + skipped IDs — O(1) lookup then small-array filter
         let dateLogs = logsByDate[dateStr] ?? []
         cachedCompletedHabitIDsForSelectedDate = Set(dateLogs.filter { $0.completed }.compactMap { $0.habit?.id })
-        cachedSkippedHabitIDsForSelectedDate = Set(dateLogs.filter { $0.skipped }.compactMap { $0.habit?.id })
 
         if isToday {
             cachedAllHabitsForSelectedDate = timelineVM.todaysHabits
@@ -1074,12 +1056,6 @@ struct MainAppView: View {
                 cachedAllHabitsForSelectedDate = cachedAllHabitsForSelectedDate
                     .filter { $0.category == focusCategory }
             }
-            // Compute streaks for today's habits (reuses existing @Query logs)
-            let streakVM = StreakViewModel()
-            let logsArray = Array(logs)
-            cachedStreaks = Dictionary(uniqueKeysWithValues:
-                cachedAllHabitsForSelectedDate.map { ($0.id, streakVM.calculateStreak(for: $0, logs: logsArray)) }
-            )
             return
         }
 
@@ -1119,100 +1095,6 @@ struct MainAppView: View {
         return f
     }()
 
-    // #103: Time-of-day greeting (Fogg 2003 — contextual motivation)
-    private static var timeOfDayGreeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        case 17..<22: return "Good evening"
-        default: return "Your tower starts here"
-        }
-    }
-
-
-    // MARK: - Week Progress Data
-
-    private var weekData: [DayProgressData] { cachedWeekData }
-
-    private func recomputeWeekData() {
-        let calendar = Calendar.current
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        let weekDates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-        let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
-
-        // Single pass: group logs by dateString for counts + per-habit status
-        var completedByDate: [String: Int] = [:]
-        var skippedByDate: [String: Int] = [:]
-        var completedIDsByDate: [String: Set<UUID>] = [:]
-        var skippedIDsByDate: [String: Set<UUID>] = [:]
-        for log in logs {
-            if log.completed {
-                completedByDate[log.dateString, default: 0] += 1
-                if let hid = log.habit?.id { completedIDsByDate[log.dateString, default: []].insert(hid) }
-            }
-            if log.skipped {
-                skippedByDate[log.dateString, default: 0] += 1
-                if let hid = log.habit?.id { skippedIDsByDate[log.dateString, default: []].insert(hid) }
-            }
-        }
-
-        // Single pass: group habits by DayCode + date for todos
-        let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
-        var habitsByDayCode: [DayCode: [Habit]] = [:]
-        var todosByDate: [String: [Habit]] = [:]
-        for habit in towerHabits {
-            if habit.isTodo {
-                if let d = habit.scheduledDate { todosByDate[d, default: []].append(habit) }
-            } else {
-                for code in habit.frequency { habitsByDayCode[code, default: []].append(habit) }
-            }
-        }
-
-        cachedWeekData = weekDates.enumerated().map { index, date in
-            let dayNum = calendar.component(.day, from: date)
-            let isToday = calendar.isDateInToday(date)
-            let isFuture = date > Date() && !isToday
-            let dateStr = TimelineViewModel.dateString(from: date)
-            let weekday = calendar.component(.weekday, from: date)
-            let dayCode = DayCode.from(weekday: weekday)
-
-            // Per-day habit list for Week Matrix
-            let dayHabits = (habitsByDayCode[dayCode] ?? []) + (todosByDate[dateStr] ?? [])
-            let completedIDs = completedIDsByDate[dateStr] ?? []
-            let skippedIDs = skippedIDsByDate[dateStr] ?? []
-
-            let habitSummaries = dayHabits.map { habit in
-                HabitSummary(
-                    id: habit.id,
-                    category: habit.category,
-                    isCompleted: completedIDs.contains(habit.id),
-                    isSkipped: skippedIDs.contains(habit.id),
-                    effectiveHour: TimelineViewModel.effectiveHour(for: habit)
-                )
-            }.sorted { ($0.effectiveHour ?? 24) < ($1.effectiveHour ?? 24) }
-
-            let total = dayHabits.count
-            // Filter to only scheduled habits (prevents inflated ring from other towers)
-            let scheduledIDs = Set(dayHabits.map(\.id))
-            let completed = (completedIDsByDate[dateStr] ?? []).intersection(scheduledIDs).count
-            let skipped = (skippedIDsByDate[dateStr] ?? []).intersection(scheduledIDs).count
-            let rate = total > 0 ? Double(completed) / Double(total) : 0
-
-            return DayProgressData(
-                date: date,
-                dayLabel: dayLabels[index],
-                dayNumber: dayNum,
-                completionRate: rate,
-                completedCount: completed,
-                skippedCount: skipped,
-                totalCount: total,
-                isToday: isToday,
-                isFuture: isFuture,
-                habits: habitSummaries
-            )
-        }
-    }
 
     // MARK: - Skeleton Build-Up
 
@@ -1436,27 +1318,10 @@ struct MainAppView: View {
     // behind every toolbar item, leaving a bare glyph on the warm ground. It is
     // iOS 26+ and the deployment target is 18, so it is gated;
     // ToolbarContentBuilder supports `if #available` via buildLimitedAvailability.
-
-    @ToolbarContentBuilder
-    private var todayToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarTrailing) { addHabitButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarTrailing) { addHabitButton }
-        }
-    }
-
-    private var addHabitButton: some View {
-        Button {
-            HapticsEngine.lightTap()
-            winDraft = WinDraft()
-        } label: {
-            Image(systemName: "plus")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                .foregroundStyle(AppColors.accentWarm)
-        }
-    }
+    //
+    // This note is what the sheets' toolbars point back to. The Wins toolbar
+    // it was written beside is gone — the tower draws its own header now —
+    // and its `+` had not been attached to anything since.
 
     // MARK: - Profile
 
@@ -1499,7 +1364,6 @@ struct MainAppView: View {
         guard !hasSetUp else { return }
         hasSetUp = true
         HapticsEngine.prepare()
-        cachedTowerTitle = computeTowerTitle()
         #if DEBUG
         // Before anything is fetched or seeded: a test that asserts a first
         // run needs a store that has never been used. See
@@ -1774,20 +1638,11 @@ struct MainAppView: View {
     private func refreshData() -> Set<UUID> {
         // Single-pass log index — O(n) once, then O(1) lookups downstream
         var logsByDate: [String: [HabitLog]] = [:]
-        var allCompletedDateStrings: Set<String> = []
-        var maxCompletedAt: Date? = nil
         for log in logs {
             logsByDate[log.dateString, default: []].append(log)
-            if log.completed {
-                allCompletedDateStrings.insert(log.dateString)
-                if let at = log.completedAt, (maxCompletedAt == nil || at > maxCompletedAt!) {
-                    maxCompletedAt = at
-                }
-            }
         }
 
         recomputeFilteredLogs(logsByDate: logsByDate)
-        recomputeWeekData()
         recomputePerfectDayDates()
         let towerHabits = habits.filter { $0.tower?.id == towerManager.activeTower?.id }
         timelineVM.loadToday(habits: towerHabits, logs: logs)
@@ -1820,12 +1675,9 @@ struct MainAppView: View {
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         }
-        weekCompletedDates = allCompletedDateStrings
-        recomputeIncompleteTimeline()
-
-        // Update timer guard values from index (avoid redundant O(n) scan)
+        // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
-        lastCompletionDate = maxCompletedAt
+        openDeepLinkedWin()
 
         // Purge stale animation state
         let validIDs = Set(towerVM.placedBlocks.map(\.id))
@@ -2037,20 +1889,6 @@ struct MainAppView: View {
         animCoord.enqueueDrop(blockIDs: blockIDs)
     }
 
-    // MARK: - Timeline Data (shared with TimelineView via props)
-
-    private var incompleteForTimeline: [Habit] { cachedIncompleteForTimeline }
-
-    private func recomputeIncompleteTimeline() {
-        let completedIDs = Set(timelineVM.completedToday.compactMap { $0.habit?.id })
-        let pendingIDs = Set(pendingDrops.map(\.id))
-        let skippedIDs = timelineVM.skippedHabitIDs
-        cachedIncompleteForTimeline = timelineVM.todaysHabits.filter { habit in
-            !completedIDs.contains(habit.id) && !pendingIDs.contains(habit.id) && !skippedIDs.contains(habit.id)
-        }
-        .sorted { (TimelineViewModel.effectiveHour(for: $0) ?? 0) < (TimelineViewModel.effectiveHour(for: $1) ?? 0) }
-    }
-
     // MARK: - Cascade Release (Async Sequential)
 
     @MainActor
@@ -2237,14 +2075,9 @@ struct MainAppView: View {
             // the drag is that the tower scrolls normally the rest of the time.
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
-            } action: { oldOffset, newOffset in
+            } action: { _, newOffset in
                 if abs(newOffset - towerScrollOffset) > 8 {
                     towerScrollOffset = newOffset
-                }
-                let wasScrolled = oldOffset > 0
-                let nowScrolled = newOffset > 0
-                if wasScrolled != nowScrolled {
-                    isScrolled = nowScrolled
                 }
             }
             .onChange(of: scrollToTopTrigger) {
@@ -2445,24 +2278,6 @@ struct MainAppView: View {
     /// The faint footing an empty tower sits on. Blocks only — the invitation
     /// is `towerEmptyStateMessage`, drawn as a centred overlay, because the two
     /// were in one ZStack and the copy landed on top of the ghosts.
-    @ViewBuilder
-    private func ghostTowerEmptyState(ghosts: [TowerViewModel.SkeletonBlock], colW: CGFloat, gridH: CGFloat) -> some View {
-        ForEach(ghosts) { skel in
-            let f = GridConstants.blockFrame(
-                column: skel.column, row: skel.row,
-                columnSpan: skel.columnSpan, rowSpan: skel.rowSpan,
-                cellSize: colW
-            )
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(AppColors.quietFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(AppColors.quietFill, lineWidth: 1)
-                )
-                .frame(width: f.width, height: f.height)
-                .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
-        }
-    }
 
     /// The invitation on an empty tower.
     ///
@@ -2917,63 +2732,10 @@ struct MainAppView: View {
 
     // MARK: - Actions
 
-    private func handleComplete(_ habit: Habit) {
-        timelineVM.completeHabit(habit)
-        let droppedIDs = refreshData()
-        enqueueDrop(blockIDs: droppedIDs)
-    }
-
     // MARK: - Debug Block Injection (temporary)
 
     #if DEBUG
-    private func removeLastDebugBlock() {
-        guard let lastLog = logs.filter({ $0.completed })
-            .sorted(by: { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) })
-            .last else { return }
-        if let fileName = lastLog.imageFileName {
-            ImageManager.shared.deleteImage(fileName: fileName)
-        }
-        if let habit = lastLog.habit {
-            PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
-            modelContext.delete(habit)
-        }
-        modelContext.delete(lastLog)
-        try? modelContext.save()
-        refreshData()
-    }
 
-    private func injectDebugBlock() {
-        let sizes: [BlockSize] = [.small, .medium, .hard]
-        let categories: [HabitCategory] = HabitCategory.selectable
-        let namesByCategory: [HabitCategory: [String]] = [
-            .health:      ["Morning Run", "Drink Water", "Stretch", "Gym", "Walk 10k Steps", "Sleep by 11"],
-            .work:        ["Deep Work", "Clear Inbox", "Stand-Up", "Code Review", "Ship Feature", "Write Docs"],
-            .creativity:  ["Sketch", "Write 500 Words", "Play Guitar", "Photography", "Design Sprint", "Journaling"],
-            .focus:       ["Read 30 Min", "No Phone Hour", "Pomodoro x4", "Study Session", "Meditate", "Plan Tomorrow"],
-            .social:      ["Call a Friend", "Family Dinner", "Coffee Chat", "Send Thank You", "Team Lunch", "Game Night"],
-            .mindfulness: ["Meditate", "Breathwork", "Gratitude Log", "Body Scan", "Yoga", "Nature Walk"]
-        ]
-        let category = categories.randomElement()!
-        let title = namesByCategory[category]!.randomElement()!
-        let habit = Habit(
-            title: title,
-            category: category,
-            blockSize: sizes.randomElement()!,
-            frequency: [],
-            scheduledTime: nil
-        )
-        habit.tower = towerManager.activeTower
-        modelContext.insert(habit)
-
-        let log = HabitLog(habit: habit, dateString: TimelineViewModel.dateString(from: Date()))
-        log.completed = true
-        log.completedAt = Date()
-        modelContext.insert(log)
-
-        try? modelContext.save()
-        let droppedIDs = refreshData()
-        enqueueDrop(blockIDs: droppedIDs)
-    }
     #endif
 
 

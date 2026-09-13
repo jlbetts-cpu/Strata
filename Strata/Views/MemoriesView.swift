@@ -40,19 +40,6 @@ struct MemoriesView: View {
     /// the tab opens on the map, whole, and the photographs are the button in
     /// the corner.
     @State private var drawer: DrawerDetent = .hidden
-    /// Whether the month tower is still on screen.
-    ///
-    /// The picker governs the tower and nothing else — the albums below it and
-    /// the camera roll under those span every month there is. So once the
-    /// tower has scrolled away the picker is a control with nothing to
-    /// control, sitting at the top of a page it has no authority over. The
-    /// owner put it exactly: it "is not associated with anything but the
-    /// tower".
-    ///
-    /// It does not SCROLL away — a control that moves while you scroll the
-    /// thing it controls is the bug this page already had. It goes quiet
-    /// instead, and comes back when the tower does.
-    @State private var towerOnScreen = true
 
     /// Which ground the map draws on.
     ///

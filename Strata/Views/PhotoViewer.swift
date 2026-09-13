@@ -57,7 +57,6 @@ struct PhotoViewer: View {
     /// arrived. Held rather than read straight from `PlaceNames` so the view
     /// re-renders when it lands.
     @State private var placeName: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// True while the picture on screen is zoomed in. The deck stops paging
     /// then, or a pan across a magnified photo would flick to the next one.
     @State private var isZoomed = false
@@ -215,75 +214,6 @@ struct PhotoViewer: View {
     }
 
     // MARK: - The strip
-
-    /// The run you are inside, along the bottom.
-    ///
-    /// This is the part of the reference that makes the screen feel like a
-    /// place rather than a slide: you can always see that there is more, and
-    /// which of it you are in. The current frame stands taller than its
-    /// neighbours, so the strip needs no highlight, no border and no dot row —
-    /// the size IS the indicator.
-    ///
-    /// It shares `currentID` with the deck, so the two stay in step in both
-    /// directions for free: swipe the picture and the strip scrolls, tap the
-    /// strip and the picture pages.
-    /// The run this photograph is in, as a scrubber.
-    ///
-    /// **Dragging it changes the photograph.** It used to only scroll: the
-    /// thumbnails moved under your finger and the picture above them sat
-    /// still until you let go and tapped one. So the fastest way through a
-    /// month was to tap, look, tap, look — which is what the owner meant by
-    /// "you should be able to scroll through the photos easy without clicking
-    /// through". Tapping still works; it is just no longer the only way.
-    ///
-    /// `scrollPosition(id:)` bound to the same `currentID` the deck above
-    /// uses, so the two are one value and cannot disagree. That also replaces
-    /// the manual `scrollTo` this had — driving the strip from a `.onChange`
-    /// while the strip is also writing the value is the shape of a feedback
-    /// loop, and the map already paid for that lesson once.
-    /// One frame on the wheel.
-    ///
-    /// **A carousel, not a list with one item highlighted.** The strip used to
-    /// say "this is the one" twice — the current frame was both bigger AND
-    /// fully opaque while every other frame sat at half. The owner's call:
-    /// "doesnt need to be one muted the others not", and instead "a cool 2.5
-    /// effect where the one selected looks closer and then its kinda like a
-    /// wheel where the ones farther look farther and get closer as you
-    /// scroll".
-    ///
-    /// So there is no muting and no size change. Every frame is the same card
-    /// and the same brightness, and the only thing that differs is **where it
-    /// is standing**: the one at the centre faces you square on, and its
-    /// neighbours turn away from you around a vertical axis, drop slightly,
-    /// and recede. That is the same claim the tower makes — objects in space
-    /// rather than a UI drawing attention to itself.
-    ///
-    /// `.scrollTransition(.interactive)` is what makes it a wheel rather than
-    /// a switch: `phase.value` runs continuously from -1 to 1 as a frame
-    /// crosses the centre, so everything below is a smooth function of
-    /// distance and the whole strip turns under your finger instead of
-    /// snapping when a selection changes.
-    ///
-    /// **Perspective 0.5, and rotation capped at 42°.** Past about 55° a
-    /// rectangle turns into a sliver and the photograph stops being readable,
-    /// which is the failure every coverflow imitation makes. The cards nearest
-    /// the centre are meant to be legible; only the far ones are scenery.
-    /// Where this card sits on the wheel: -1 hard left, 0 dead centre, 1 hard
-    /// right.
-    ///
-    /// **Measured from the card's own frame, not from a scroll phase.**
-    /// `.scrollTransition` was the obvious API and it rendered nothing here:
-    /// photographed at rest, every card was flat and identical. Its phases are
-    /// about a view entering and leaving the viewport, and every card in a
-    /// short strip is already fully inside it. `visualEffect` hands over the
-    /// real geometry every frame, so the wheel is a plain function of distance
-    /// from the middle and is correct standing still as well as mid-drag.
-    private func offAxis(_ geo: GeometryProxy) -> CGFloat {
-        guard let container = geo.bounds(of: .scrollView)?.width, container > 0 else { return 0 }
-        let middle = container / 2
-        let x = geo.frame(in: .scrollView).midX
-        return max(-1, min(1, (x - middle) / middle))
-    }
 
     /// The scrubber, driven by the deck's LIVE scroll position.
     ///
@@ -539,7 +469,6 @@ struct PhotoViewer: View {
     // MARK: - Actions
 
     private var isSaved: Bool { current.map { saved.contains($0.id) } ?? false }
-    private var saveIcon: String { isSaved ? "checkmark" : "square.and.arrow.down" }
 
     /// The picture the share sheet sends — the one already on screen, not a
     /// second decode of it.

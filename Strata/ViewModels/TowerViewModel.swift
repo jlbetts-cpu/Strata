@@ -66,7 +66,6 @@ final class TowerViewModel {
     /// nor affordable. Callers use `hasBuiltOnce` to tell "the tower just
     /// loaded" from "a block just arrived".
     private(set) var hasBuiltOnce = false
-    private var dropCleanupTask: Task<Void, Never>? = nil
 
     // Day separators (Week/Month modes)
 

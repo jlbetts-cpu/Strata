@@ -39,14 +39,11 @@ struct FlippableBlockView: View {
     @State private var tapTrigger: Int = 0
 
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
 
     // displayCategory, not category: an unchosen block still needs a colour.
     private var style: CategoryStyle { block.habit.displayCategory.style }
-    private var borderHighlight: Color { style.lightTint }
-    private var isBig: Bool { block.columnSpan > 1 || block.rowSpan > 1 }
     private var hasImage: Bool { block.log.imageFileName != nil }
     private var massTier: CGFloat { CGFloat(block.habit.blockSize.massTier) }
     private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }

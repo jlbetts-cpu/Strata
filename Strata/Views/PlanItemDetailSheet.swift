@@ -158,7 +158,7 @@ struct PlanItemDetailSheet: View {
         return symbols.indices.contains(day - 1) ? symbols[day - 1] : "?"
     }
 
-    /// See `MainAppView.todayToolbar` — iOS 26's glass capsule behind every
+    /// See the Toolbars note in `MainAppView` — iOS 26's glass capsule behind every
     /// toolbar item, stripped so these read as bare glyphs like the rest of
     /// the app. One of three screens that had been missed.
     @ToolbarContentBuilder

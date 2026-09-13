@@ -41,7 +41,6 @@ struct OnboardingView: View {
     private static let headStep = 4
     private static let lastStep = 5
     private static let cell: CGFloat = 74
-    private static let slotCell: CGFloat = 84
 
     var body: some View {
         ZStack {
@@ -239,36 +238,6 @@ struct OnboardingView: View {
     // MARK: - The camera
 
     // MARK: - The map
-
-    /// The owner's own photographs, spread by a GLOBAL index rather than one
-    /// that restarts inside each place — restarting is why the first version
-    /// showed the same three pictures over and over.
-    private static let demoPins: [PlaceMap.Pin] = {
-        let hubs: [(Double, Double, Int, HabitCategory)] = [
-            (51.5074, -0.1278, 5, .health),
-            (51.5155, -0.1410, 3, .work),
-            (51.4975, -0.1357, 2, .mindfulness),
-            (51.5210, -0.1180, 4, .creativity)
-        ]
-        var pins: [PlaceMap.Pin] = []
-        var n = 0
-        for (lat, lon, count, category) in hubs {
-            for i in 0..<count {
-                n += 1
-                pins.append(PlaceMap.Pin(
-                    dateString: "2026-09-0\((n % 9) + 1)",
-                    completedAt: Date().addingTimeInterval(-Double(n) * 3600),
-                    title: "Win",
-                    category: category,
-                    photoFileName: "bundle:DemoPhoto\((n % 7) + 1)",
-                    place: WinPlace(latitude: lat + Double(i) * 0.0007,
-                                    longitude: lon + Double(i) * 0.0005,
-                                    accuracy: 20)
-                ))
-            }
-        }
-        return pins
-    }()
 
     // MARK: - The tutorial
 

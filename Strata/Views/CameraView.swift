@@ -180,10 +180,6 @@ struct CameraView: View {
     private let tabGap: CGFloat = 14
     /// Air between the shutter and the bottom edge of the viewfinder.
     private let shutterBottomGap: CGFloat = 40
-    /// Distance from the right edge to the centre of the control column.
-    private let controlInset: CGFloat = 40
-    private let shutterOuter: CGFloat = 80
-    private let shutterInner: CGFloat = 66
 
 
     var body: some View {
