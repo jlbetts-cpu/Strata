@@ -72,7 +72,7 @@ struct MemoriesView: View {
             // now and everything the tab used to be is a drawer over it —
             // Apple Maps' own anatomy, and the only arrangement that gives the
             // map the whole screen without losing anything.
-            MemoriesMapView(pins: vm.pins, style: mapStyle) { key in
+            MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, style: mapStyle) { key in
                 path.append(.place(key))
             }
             .ignoresSafeArea()
@@ -249,7 +249,7 @@ struct MemoriesView: View {
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
                 case .map:
-                    MemoriesMapView(pins: vm.pins, style: mapStyle) { key in
+                    MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, style: mapStyle) { key in
                         path.append(.place(key))
                     }
                     .ignoresSafeArea()

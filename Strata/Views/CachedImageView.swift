@@ -33,6 +33,10 @@ struct CachedImageView: View {
     /// its own and an empty square reads as a missing photograph rather than
     /// an arriving one.
     var showsPlaceholder = true
+    /// The width to decode at, when it is not the width drawn. For a view whose
+    /// size changes while it is on screen: one decode at the largest size
+    /// serves every smaller one. See `PlaceBlock.decodeWidth`.
+    var decodeWidth: CGFloat? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -46,7 +50,7 @@ struct CachedImageView: View {
     private var shown: (image: UIImage?, missing: Bool) {
         guard let fileName else { return (nil, false) }
         if fullResolution { return (fullImage, fullFailed) }
-        return ThumbnailStore.shared.state(for: fileName, width: width * displayScale)
+        return ThumbnailStore.shared.state(for: fileName, width: (decodeWidth ?? width) * displayScale)
     }
 
     var body: some View {

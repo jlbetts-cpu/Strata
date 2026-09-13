@@ -34,6 +34,9 @@ final class MemoriesViewModel {
     /// Every photographed win that knows where it was. Clustering happens in
     /// the view, because it depends on the camera's zoom.
     private(set) var pins: [PlaceMap.Pin] = []
+    /// Whether `reload` has run. Before it has, no pins means nothing read
+    /// yet, not nothing there.
+    private(set) var hasLoaded = false
 
     /// How far back the shelf and the gallery look.
     ///
@@ -110,6 +113,7 @@ final class MemoriesViewModel {
         selectedMonth = startOfMonth(Date())
         loadCarousel(context: context)
         loadMonth(context: context)
+        hasLoaded = true
     }
 
     // MARK: - The shelf

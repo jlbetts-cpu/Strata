@@ -14,6 +14,11 @@ import SwiftUI
 /// the blocks are the only saturated thing on the screen.
 struct MemoriesMapView: View {
     let pins: [PlaceMap.Pin]
+    /// Whether the pins have been read. The empty state waits for it: the
+    /// view is drawn before the store is read, so for that first moment no
+    /// pins is not an empty map, and every open of Memories flashed "Your map
+    /// starts here" over a map about to fill with photographs.
+    var hasLoaded: Bool = true
     /// Whether the map takes gestures.
     var isInteractive: Bool = true
     /// **Imagery, chosen by measuring.**
@@ -92,6 +97,23 @@ struct MemoriesMapView: View {
     /// Whether the first fill has happened. After it, blocks arriving are
     /// arriving because you moved the map, and they travel instead.
     @State private var hasSettled = false
+    /// The blocks the last zoom brought in, which are the only ones that fade
+    /// in. See `apply(_:from:to:)`.
+    @State private var justArrived: Set<String> = []
+    /// The photograph each arriving block opens on, when it holds one an old
+    /// block on screen was showing. See `apply(_:from:to:)`.
+    @State private var carry: [String: String] = [:]
+    /// Which change a clean-up belongs to, so a late one cannot remove what a
+    /// newer zoom has just put down.
+    @State private var generation = 0
+    /// Which blocks MapKit is drawing right now, as the blocks report it.
+    ///
+    /// A reference, not observed state: it changes every time a block scrolls
+    /// on or off the screen, and redrawing the map for each of those would be
+    /// the per-frame work the rest of this file is careful to avoid. It is
+    /// only read at the moment a zoom is applied.
+    final class DrawnBlocks { var ids: Set<String> = [] }
+    @State private var drawn = DrawnBlocks()
     /// Observed, so the empty state follows the answer to its own prompt
     /// rather than waiting for the screen to be opened again.
     ///
@@ -128,7 +150,7 @@ struct MemoriesMapView: View {
 
     var body: some View {
         map
-            .overlay { if pins.isEmpty { emptyState } }
+            .overlay { if hasLoaded && pins.isEmpty { emptyState } }
             .overlay(alignment: .bottomTrailing) { if isInteractive { recentre } }
             #if DEBUG
             // **The map's zoom, readable from outside.**
@@ -341,6 +363,12 @@ struct MemoriesMapView: View {
         }
         .task(id: pins.count) {
             displayed = PlaceMap.cluster(pins, zoom: zoom).map { Placed.atRest($0) }
+            // **Only a fill with something in it settles the map.** The map is
+            // drawn before the store is read, so the first pass has no pins;
+            // settling on that meant the real blocks, a moment later, counted
+            // as already there and appeared at full strength as grey squares
+            // before their photographs. Filmed: a fifth of a second of them.
+            guard !pins.isEmpty else { return }
             frameOnYourPlaces()
             // Long enough for the stagger above to finish, so the NEXT change
             // is treated as a move rather than as a first fill.
@@ -351,65 +379,77 @@ struct MemoriesMapView: View {
 
     // MARK: - Merging and splitting
 
-    /// Moves from one set of blocks to another so you can see what became what.
+    /// Moves from one set of blocks to another as the zoom changes.
     ///
-    /// **Zooming out is a merge.** Every block that is about to be swallowed
-    /// travels to the point where its parent will sit, then the parent arrives
-    /// there. **Zooming in is a split**: the new blocks are placed on their
-    /// parent's point first and then move out to where they belong. Either
-    /// way something travels, which is the difference between a map and a
-    /// slideshow.
+    /// **Every block is in its own place from the moment it is on screen,
+    /// and the picture you were looking at does not go anywhere.** The owner,
+    /// from a phone: "the animations of the map photos moving doesnt make
+    /// sense they come from nowhere they should always feel like they are in
+    /// their area the second its there on the screen and the animations need
+    /// to be more smooth."
     ///
-    /// The join is weighted by how much each block holds, so a merge lands on
-    /// the busy place rather than in the gap between two.
+    /// What was doing it, each found by filming the simulator at twenty frames
+    /// a second:
+    ///
+    /// - A split set the new blocks on their parent and slid them out, but
+    ///   both positions landed in one update, so the parent's point was never
+    ///   drawn and they appeared mid-slide from nowhere.
+    /// - Every block MapKit brought onto the screen sprang in from 82% and
+    ///   invisible, because arriving was tied to its view appearing, and MapKit
+    ///   makes that view when the block scrolls into sight. A block that had
+    ///   been in place all along arrived again every time you moved.
+    /// - Blocks being replaced were kept to fade or travel, and MapKit keeps
+    ///   views for blocks just past the screen's edge too: as the zoom settled
+    ///   those came into view already half-faded, as grey squares with no
+    ///   photograph decoded, drifting into their joins. Each annotation also
+    ///   draws in a hosting view of its own that the map's animation does not
+    ///   reach, which is how one attempt emptied the whole map for a frame.
+    ///
+    /// So nothing is kept to leave. The new set replaces the old on one frame,
+    /// and the continuity is in the pictures: **a block that holds the
+    /// photograph an old block on screen was showing opens on that photograph**,
+    /// already decoded, so zooming out the picture you were looking at is now
+    /// the joined block, and zooming in it stays with the block it belongs to.
+    /// Only a block with nothing on screen to carry on fades in, once its own
+    /// picture is ready. Anything merely scrolled into view is simply there.
     private func apply(_ next: [PlaceMap.Cluster], from old: Int, to new: Int) {
-        let zoomingOut = new < old
-        let byID = Dictionary(uniqueKeysWithValues: next.map { ($0.id, $0) })
-
-        if zoomingOut {
-            // Walk each current block up to the cell it is joining, and send
-            // it there.
-            var moved: [Placed] = []
-            for placed in displayed {
-                let target = ancestor(of: placed.cluster.key, at: new).flatMap { byID[keyID($0)] }
-                moved.append(Placed(cluster: placed.cluster,
-                                    latitude: target?.anchor.latitude ?? placed.latitude,
-                                    longitude: target?.anchor.longitude ?? placed.longitude))
-            }
-            withAnimation(GridConstants.mapTravel) { displayed = moved }
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(GridConstants.mapTravelDuration))
-                guard zoom == new else { return }
-                withAnimation(GridConstants.mapArrive) {
-                    displayed = next.map { Placed.atRest($0) }
-                }
-            }
-        } else {
-            // Place the arrivals on the block they came out of, then let them
-            // travel to their own ground.
-            let origins = Dictionary(uniqueKeysWithValues: displayed.map { ($0.id, $0) })
-            displayed = next.map { cluster in
-                let from = ancestor(of: cluster.key, at: old).flatMap { origins[keyID($0)] }
-                return Placed(cluster: cluster,
-                              latitude: from?.latitude ?? cluster.anchor.latitude,
-                              longitude: from?.longitude ?? cluster.anchor.longitude)
-            }
-            withAnimation(GridConstants.mapTravel) {
-                displayed = next.map { Placed.atRest($0) }
+        let onScreen = drawn.ids
+        // What each block on screen is showing right now, biggest first, so a
+        // join carries the picture of the place that holds the most.
+        let shown: [String] = displayed
+            .filter { onScreen.contains($0.id) }
+            .sorted { $0.cluster.winCount > $1.cluster.winCount }
+            .compactMap { PlaceBlock.showing(for: $0.cluster, tick: tick) }
+        var claimed = Set<String>()
+        var carried: [String: String] = [:]
+        for cluster in next {
+            let holds = Set(cluster.photoFileNames)
+            if let picture = shown.first(where: { holds.contains($0) && !claimed.contains($0) }) {
+                carried[cluster.id] = picture
+                claimed.insert(picture)
             }
         }
+        let presentIDs = Set(displayed.map(\.id))
+        let nextIDs = Set(next.map(\.id))
+        carry = carried
+        justArrived = Set(next.lazy.filter { !presentIDs.contains($0.id) && carried[$0.id] == nil }.map(\.id))
+        // **Held for a moment, unmoved, then gone.** MapKit adds a new
+        // annotation's view a frame or two after it removes an old one, so a
+        // swap on one frame showed an empty map for a frame. The blocks you
+        // could see stay exactly as they are — not fading, not travelling —
+        // until the new ones have had time to be drawn over them.
+        let held = displayed.filter { onScreen.contains($0.id) && !nextIDs.contains($0.id) }
+        generation &+= 1
+        let current = generation
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { displayed = held + next.map { Placed.atRest($0) } }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(110))
+            guard generation == current else { return }
+            withTransaction(instant) { displayed.removeAll { !nextIDs.contains($0.id) } }
+        }
     }
-
-    /// The cell containing `key` at a coarser zoom, by halving until it gets
-    /// there. Nil if `level` is not coarser.
-    private func ancestor(of key: PlaceMap.PlaceKey, at level: Int) -> PlaceMap.PlaceKey? {
-        guard level < key.z else { return nil }
-        var current = key
-        while current.z > level, let up = PlaceMap.parent(of: current) { current = up }
-        return current.z == level ? current : nil
-    }
-
-    private func keyID(_ key: PlaceMap.PlaceKey) -> String { "\(key.z)/\(key.x)/\(key.y)" }
 
     #if DEBUG
     /// The distance between the two closest blocks, in POINTS on screen.
@@ -596,12 +636,15 @@ struct MemoriesMapView: View {
         // The count only when the block is standing for a whole area rather
         // than for one place — see `PlaceBlock`.
         PlaceBlock(cluster: placed.cluster,
+                   arrives: !hasSettled || justArrived.contains(placed.id),
+                   carry: carry[placed.id],
                    delay: arrivalDelay(for: placed),
                    // A count wherever a block stands for more than one
                    // photograph, not only when zoomed out: "just have the
                    // number of photos if its in the relitive same area".
                    tick: tick,
-                   showsCount: placed.cluster.winCount > 1)
+                   showsCount: placed.cluster.winCount > 1,
+                   drawn: drawn)
             .onTapGesture { onSelect(placed.cluster.key) }
     }
 
@@ -717,6 +760,13 @@ private struct PlaceBlock: View {
     static let bundledPrefix = "bundle:"
 
     let cluster: PlaceMap.Cluster
+    /// Whether it fades in at all. Only for the first fill and for blocks a
+    /// zoom brought in; a block MapKit draws because you scrolled to it has
+    /// been in its place the whole time. See `MemoriesMapView.apply`.
+    var arrives: Bool = true
+    /// The photograph to open on: one an old block on screen was just
+    /// showing, so the picture carries on instead of starting again.
+    var carry: String? = nil
 
     /// How long to wait before arriving — see `arrivalDelay(for:)`.
     var delay: Double = 0
@@ -730,7 +780,12 @@ private struct PlaceBlock: View {
     /// are never on the same frame of the same beat. `id` is `z/x/y`, which
     /// does not change as photographs join, so a block does not jump to a
     /// different picture just because a new one arrived.
-    private var showing: String? {
+    private var showing: String? { Self.showing(for: cluster, tick: tick) }
+
+    /// Which photograph a block shows on a beat of the map's clock. Static so
+    /// the map can ask what a block on screen is showing without reaching
+    /// into it.
+    static func showing(for cluster: PlaceMap.Cluster, tick: Int) -> String? {
         let names = cluster.photoFileNames
         guard !names.isEmpty else { return nil }
         guard names.count > 1 else { return names[0] }
@@ -769,7 +824,8 @@ private struct PlaceBlock: View {
                             width: size.width,
                             height: size.height,
                             cornerRadius: 0,
-                            showsPlaceholder: false)
+                            showsPlaceholder: false,
+                            decodeWidth: Self.decodeWidth)
                 .frame(width: size.width, height: size.height)
                 // See `FlippableBlockView`: a hair of overscan, so the colour
                 // behind cannot show at a rounded corner.
@@ -818,6 +874,14 @@ private struct PlaceBlock: View {
     /// below it the map is a region and a block is an area.
     var showsCount = false
 
+    /// **One size of photograph for every block on the map.** A block
+    /// changes size as you zoom — a lone place wears the size its win was
+    /// drawn at, a crowd is one cell — and each size used to ask for its own
+    /// decode, so a block that had just shown its picture went grey while
+    /// the picture was made again at the new width. Decoded once at the
+    /// largest a block can be, every size after that is already in memory.
+    static let decodeWidth: CGFloat = cell * 2 + cell * GridConstants.spacing / GridConstants.blockReferenceCell
+
     /// One cell, on the map. Smaller than the tower's, because a map is denser
     /// than a tower and a 2x2 has to fit on a phone beside its neighbours.
     private static let cell: CGFloat = 44
@@ -832,7 +896,7 @@ private struct PlaceBlock: View {
         )
     }
 
-    @State private var arrived = false
+    @State private var arrived: Bool
     /// **Two slots, not one.** The picture underneath is always fully opaque
     /// and the incoming one fades in on top of it. A single slot with
     /// `.transition(.opacity)` crossfades symmetrically: both copies pass
@@ -851,20 +915,71 @@ private struct PlaceBlock: View {
     @State private var topOpacity: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Where it says it is being drawn. See `MemoriesMapView.DrawnBlocks`.
+    var drawn: MemoriesMapView.DrawnBlocks?
+
+    init(cluster: PlaceMap.Cluster, arrives: Bool = true, carry: String? = nil,
+         delay: Double = 0, tick: Int = 0, showsCount: Bool = false,
+         drawn: MemoriesMapView.DrawnBlocks? = nil) {
+        self.cluster = cluster
+        self.drawn = drawn
+        self.arrives = arrives
+        self.carry = carry
+        _base = State(initialValue: carry)
+        self.delay = delay
+        self.tick = tick
+        self.showsCount = showsCount
+        // Decided when the view is made, which is when MapKit brings the block
+        // on screen: one that is not arriving is drawn in full on its first
+        // frame, with nothing to animate from.
+        _arrived = State(initialValue: !arrives)
+    }
+
     var body: some View {
         block
-            .onAppear { base = showing }
+            .onAppear { if base == nil { base = showing } }
             .onChange(of: showing) { _, arriving in handover(to: arriving) }
-            // **It arrives.** Twenty blocks switching on at once is a map
-            // being drawn; twenty blocks landing is a map filling in. Scale
-            // from 0.82 rather than from nothing, so it reads as coming
-            // towards you rather than growing out of the ground.
-            .scaleEffect(arrived || reduceMotion ? 1 : 0.82)
+            // **It arrives, gently.** Twenty blocks switching on at once is a
+            // map being drawn; twenty blocks landing is a map filling in. A
+            // short ease from nearly full size, where it will stand — it was a
+            // spring from 0.82 that overshot, which read as bouncing into
+            // place from somewhere else.
+            .scaleEffect(arrived || reduceMotion ? 1 : 0.94)
             .opacity(arrived || reduceMotion ? 1 : 0)
             .onAppear {
+                drawn?.ids.insert(cluster.id)
+                guard !arrived else { return }
                 guard !reduceMotion else { arrived = true; return }
-                withAnimation(GridConstants.cascadeReveal.delay(delay)) { arrived = true }
+                if pictureReady { arrive() } else { waitForPicture() }
             }
+            .onDisappear { drawn?.ids.remove(cluster.id) }
+            .onChange(of: pictureReady) { _, ready in
+                if ready, !arrived, !reduceMotion { arrive() }
+            }
+    }
+
+    @Environment(\.displayScale) private var displayScale
+
+    /// **A block arrives with its photograph, not before it.** A block that
+    /// faded in ahead of its picture faded in as a grey square and then
+    /// changed into a photograph, which is two arrivals. Filmed on a zoom out:
+    /// two grey squares for a sixth of a second each.
+    private var pictureReady: Bool {
+        guard let name = showing, !name.hasPrefix(Self.bundledPrefix) else { return true }
+        return ThumbnailStore.shared.state(for: name, width: Self.decodeWidth * displayScale).image != nil
+    }
+
+    private func arrive() {
+        withAnimation(GridConstants.mapFade.delay(delay)) { arrived = true }
+    }
+
+    /// A picture that cannot be read still needs its block, so the wait has
+    /// a limit.
+    private func waitForPicture() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            if !arrived { arrive() }
+        }
     }
 
     private var block: some View {
