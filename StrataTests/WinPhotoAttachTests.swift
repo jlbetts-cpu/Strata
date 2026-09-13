@@ -100,3 +100,28 @@ struct WinCategoryTests {
         #expect(win.habit.spontaneousCategoryRaw == nil)
     }
 }
+
+/// What Siri reads back as today's wins.
+@MainActor
+@Suite("Today's wins for Siri")
+struct TodaysWinsTests {
+
+    @Test("today's wins are every completed win dated today, named or not")
+    func listsTodaysWins() throws {
+        let container = try ModelContainer(
+            for: Habit.self, HabitLog.self, Tower.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        _ = try QuickWinService.logWin(title: "Ran", category: .health, context: context, tower: nil)
+        _ = try QuickWinService.logWin(context: context, tower: nil)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        _ = try QuickWinService.logWin(title: "Old", on: yesterday, context: context, tower: nil)
+
+        let wins = TodaysWins.list(in: context)
+        #expect(wins.count == 2)
+        // A nameless win is read as nameless, not as the placeholder word.
+        #expect(wins.contains { $0.title == "Ran" })
+        #expect(wins.contains { $0.title == nil })
+        #expect(!wins.contains { $0.title == "Old" })
+    }
+}

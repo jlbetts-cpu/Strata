@@ -4,7 +4,7 @@ import UIKit
 
 struct HabitEntity: AppEntity, IndexedEntity {
     static var defaultQuery = HabitEntityQuery()
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Habit"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Win"
 
     var id: UUID
 
@@ -29,8 +29,8 @@ struct HabitEntity: AppEntity, IndexedEntity {
     var attributeSet: CSSearchableItemAttributeSet {
         let attrs = CSSearchableItemAttributeSet(contentType: .content)
         attrs.displayName = title
-        attrs.contentDescription = "\(category.capitalized) habit in Strata"
-        attrs.keywords = [title, category, "habit", "strata"]
+        attrs.contentDescription = "A win in Strata"
+        attrs.keywords = [title, "win", "strata"]
         attrs.thumbnailData = Self.categoryThumbnail(icon: iconName, category: category)
         return attrs
     }

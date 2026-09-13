@@ -1,9 +1,9 @@
 import AppIntents
 
 struct OpenHabitIntent: OpenIntent {
-    static var title: LocalizedStringResource = "Open Habit"
+    static var title: LocalizedStringResource = "Open Win"
 
-    @Parameter(title: "Habit")
+    @Parameter(title: "Win")
     var target: HabitEntity
 
     func perform() async throws -> some IntentResult {

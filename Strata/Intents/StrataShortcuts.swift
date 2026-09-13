@@ -1,41 +1,27 @@
 import AppIntents
 
+/// What Siri, Spotlight and the Shortcuts app offer. Said in the app's own
+/// words: a win is logged, and the tower is today's.
 struct StrataShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: CompleteHabitIntent(),
+            intent: LogWinIntent(),
             phrases: [
-                "Complete \(\.$habit) in \(.applicationName)",
-                "Mark \(\.$habit) done in \(.applicationName)",
-                "Finish \(\.$habit) in \(.applicationName)"
+                "Log a win in \(.applicationName)",
+                "Add a win to \(.applicationName)",
+                "I did something in \(.applicationName)"
             ],
-            shortTitle: "Complete Habit",
-            systemImageName: "checkmark.circle.fill"
+            shortTitle: "Log a Win",
+            systemImageName: "plus.square.fill"
         )
         AppShortcut(
-            intent: SkipHabitIntent(),
+            intent: ShowTodaysWinsIntent(),
             phrases: [
-                "Skip \(\.$habit) in \(.applicationName)"
+                "Show my wins in \(.applicationName)",
+                "How many wins today in \(.applicationName)"
             ],
-            shortTitle: "Skip Habit",
-            systemImageName: "forward.fill"
-        )
-        AppShortcut(
-            intent: ShowTodaysHabitsIntent(),
-            phrases: [
-                "Show my habits in \(.applicationName)",
-                "What's left in \(.applicationName)"
-            ],
-            shortTitle: "Today's Habits",
-            systemImageName: "list.bullet"
-        )
-        AppShortcut(
-            intent: LogMoodIntent(),
-            phrases: [
-                "Log my mood in \(.applicationName)"
-            ],
-            shortTitle: "Log Mood",
-            systemImageName: "face.smiling"
+            shortTitle: "Today's Wins",
+            systemImageName: "square.stack.fill"
         )
     }
 }

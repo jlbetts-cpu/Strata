@@ -1,18 +1,18 @@
 import AppIntents
 
 struct StrataFocusFilter: SetFocusFilterIntent {
-    static var title: LocalizedStringResource = "Filter Habits"
-    static var description = IntentDescription("Show only habits from a specific category during this Focus.")
+    static var title: LocalizedStringResource = "Filter Wins"
+    static var description = IntentDescription("Show only one kind of win during this Focus.")
 
     @Parameter(title: "Category")
     var category: CategoryAppEnum?
 
     var displayRepresentation: DisplayRepresentation {
         if let category {
-            return .init(title: "Show \(category.localizedStringResource) habits",
+            return .init(title: "Show \(category.localizedStringResource) wins",
                          image: .init(systemName: "line.3.horizontal.decrease.circle.fill"))
         }
-        return .init(title: "Show all habits",
+        return .init(title: "Show all wins",
                      image: .init(systemName: "line.3.horizontal.decrease.circle"))
     }
 
