@@ -183,20 +183,23 @@ struct AddWinSheet: View {
         // they happen and named later, so by the time you are filling this in
         // the picture is usually already in your library. Taking one now is
         // the other half, not the whole of it.
+        // Title case, as the photo menu further down, Profile and the viewer
+        // already have it, and as Photos does: these are buttons, and the
+        // same action was spelled two ways depending on which door you used.
         .contextMenu {
             if photo != nil {
-                Button("Replace photo") { choosingSource = true }
-                Button("Remove photo", role: .destructive) {
+                Button("Replace Photo") { choosingSource = true }
+                Button("Remove Photo", role: .destructive) {
                     photo = nil
                     photoChanged = true
                 }
             }
         }
         .confirmationDialog("Add a photo", isPresented: $choosingSource, titleVisibility: .hidden) {
-            Button("Take a photo") { showCamera = true }
-            Button("Choose from library") { showLibrary = true }
+            Button("Take Photo") { showCamera = true }
+            Button("Choose from Library") { showLibrary = true }
             if photo != nil {
-                Button("Remove photo", role: .destructive) {
+                Button("Remove Photo", role: .destructive) {
                     photo = nil
                     photoChanged = true
                 }
