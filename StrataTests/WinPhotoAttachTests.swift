@@ -62,3 +62,41 @@ struct WinPhotoAttachTests {
         #expect(after.count == 1, "the file name did not survive the save")
     }
 }
+
+/// **A colour nobody chose is not a category.** The win sheet opens on a
+/// colour so a new block is not always green, and hides the picker once there
+/// is a photograph. Saved as a category, that colour claimed a kind of win
+/// nobody picked, and reached Focus filters, the completion tone, Siri and
+/// Spotlight.
+@MainActor
+@Suite("Win colour and category")
+struct WinCategoryTests {
+
+    private func context() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Habit.self, HabitLog.self, Tower.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        return ModelContext(container)
+    }
+
+    @Test("an untouched colour is saved as a colour, not a kind of win")
+    func untouchedColourIsNotACategory() throws {
+        let labels = QuickWinService.labels(showing: .work, chosen: false)
+        let win = try QuickWinService.logWin(title: "Photo", category: labels.category,
+                                             spontaneous: labels.spontaneous,
+                                             context: try context(), tower: nil)
+        #expect(win.habit.category == .unlabeled)
+        // It still wears the colour it was shown in, so the block looks the same.
+        #expect(win.habit.displayCategory == .work)
+    }
+
+    @Test("a pressed swatch is saved as the win's category")
+    func chosenColourIsACategory() throws {
+        let labels = QuickWinService.labels(showing: .creativity, chosen: true)
+        let win = try QuickWinService.logWin(title: "Sketch", category: labels.category,
+                                             spontaneous: labels.spontaneous,
+                                             context: try context(), tower: nil)
+        #expect(win.habit.category == .creativity)
+        #expect(win.habit.spontaneousCategoryRaw == nil)
+    }
+}

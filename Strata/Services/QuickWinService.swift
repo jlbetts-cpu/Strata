@@ -77,6 +77,19 @@ enum QuickWinService {
         return leastUsed.randomElement() ?? .health
     }
 
+    /// **What to store for a colour, depending on whether anybody chose it.**
+    ///
+    /// Colour and category are two facts (CLAUDE.md). A swatch somebody
+    /// pressed is a category: it means "this was a work win". A colour the
+    /// sheet started on so the block would not be green is only a colour, and
+    /// storing it as a category claims a kind of win nobody picked, which then
+    /// reaches every place a category is read: Focus filters, the completion
+    /// tone, Siri and Spotlight.
+    static func labels(showing colour: HabitCategory, chosen: Bool)
+        -> (category: HabitCategory, spontaneous: HabitCategory?) {
+        chosen ? (colour, nil) : (.unlabeled, colour)
+    }
+
     /// Creates a completed one-time habit for today and returns it, so the
     /// caller can hand it to the tower's drop cascade.
     @discardableResult

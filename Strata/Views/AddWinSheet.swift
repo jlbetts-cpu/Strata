@@ -59,6 +59,10 @@ struct AddWinSheet: View {
     @State private var photoChanged = false
     /// Which part of the photograph the block shows. Carried from the review.
     @State private var crop: CGPoint = .zero
+    /// Whether a swatch was pressed. Until one is, `category` is only the
+    /// colour the sheet opened on, and is saved as a colour rather than as a
+    /// kind of win. See `QuickWinService.labels(showing:chosen:)`.
+    @State private var categoryChosen = false
     @State private var showCamera = false
     @State private var choosingSource = false
     /// Looking at the photograph this win already has.
@@ -421,6 +425,7 @@ struct AddWinSheet: View {
                 let isSelected = category == cat
                 Button {
                     HapticsEngine.tick()
+                    categoryChosen = true
                     withAnimation(GridConstants.motionSmooth) { category = cat }
                 } label: {
                     ZStack {
@@ -569,8 +574,13 @@ struct AddWinSheet: View {
 
         if let habit = editing {
             habit.title = trimmed
-            habit.category = category
-            habit.spontaneousCategoryRaw = nil
+            // Only a pressed swatch rewrites what the win is. Opening a win
+            // with no category and saving it used to promote the colour it
+            // was wearing into a category it never had.
+            if categoryChosen {
+                habit.category = category
+                habit.spontaneousCategoryRaw = nil
+            }
             habit.blockSize = size
             try? modelContext.save()
             if photoChanged, let log = editingLog {
@@ -595,10 +605,12 @@ struct AddWinSheet: View {
         }
 
         do {
+            let labels = QuickWinService.labels(showing: category, chosen: categoryChosen)
             let win = try QuickWinService.logWin(
                 title: trimmed,
-                category: category,
+                category: labels.category,
                 size: size,
+                spontaneous: labels.spontaneous,
                 context: modelContext,
                 tower: tower
             )
