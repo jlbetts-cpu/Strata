@@ -101,7 +101,6 @@ struct MainAppView: View {
     /// days are what History is for. The stale key is cleared on launch so
     /// existing installs recover.
     private let towerFilterMode: TowerFilterMode = .day
-    @State private var pendingTowerFilterMode: TowerFilterMode? = nil
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerProbe = TowerGeometryProbe()
 

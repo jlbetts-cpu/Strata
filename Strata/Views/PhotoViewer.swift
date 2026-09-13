@@ -453,13 +453,10 @@ struct PhotoViewer: View {
     private var dateLine: some View {
         // **When, and — if the win knows — where**, on one line in that order.
         //
-        // The place joins the date rather than taking a line of its own: the
-        // whole discipline of this screen is that the photograph is the
-        // content and everything else is a caption, and a second caption line
-        // would be the chrome growing to hold a fact nobody opened the screen
-        // to read. Photos does the same. It appears only when there is one,
-        // and it appears LATE — the name is a network call — so it fades in
-        // rather than pushing the line about.
+        // The place appears only when there is one, and it appears LATE — the
+        // name is a network call — so it fades in rather than pushing the
+        // line about.
+        //
         // **Two lines, so neither of them truncates.**
         //
         // It was one: size, date, time and place joined by middots, and on a
@@ -473,11 +470,14 @@ struct PhotoViewer: View {
         VStack(spacing: 2) {
             Text(caption)
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(.white.opacity(0.45))
+                // The viewer is always dark, so the dark-ground ink, not a
+                // private white. Both lines share it, as in Photos: the
+                // smaller size and the pin already say which is secondary.
+                .foregroundStyle(AppColors.onDarkQuiet)
             if let place = placeLine {
                 Label(place, systemImage: "mappin.and.ellipse")
                     .font(Typography.photoCaption)
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(AppColors.onDarkQuiet)
                     .labelStyle(.titleAndIcon)
             }
         }

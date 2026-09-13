@@ -27,12 +27,12 @@ struct MilestoneCelebration: View {
                 // Title
                 Text(milestone.title)
                     .font(Typography.brandHeader)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(AppColors.inkPrimary)
 
                 // Description
                 Text(milestone.description)
                     .font(Typography.bodySmall)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.inkSecondary)
                     .multilineTextAlignment(.center)
 
                 // Tier badge

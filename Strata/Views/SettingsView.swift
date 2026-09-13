@@ -92,7 +92,7 @@ struct SettingsView: View {
 
                     Text("Version \(appVersion)")
                         .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.inkQuiet)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
@@ -154,9 +154,15 @@ struct SettingsView: View {
             }
             .animation(reduceMotion ? .none : GridConstants.gentleReveal, value: notificationsEnabled)
 
-            // MARK: - Sounds
+            // MARK: - Sounds & Haptics
 
-            Section("Sounds") {
+            // **One section, under Apple's own name.** Haptics had a section of
+            // its own called "Feedback", and the same screen has a "Send
+            // Feedback" row further down: one word meaning a buzz in one place
+            // and an email in the other. What you hear and what you feel when a
+            // win lands are the same question, and Settings on the phone
+            // already answers it with this heading.
+            Section("Sounds & Haptics") {
                 Toggle(isOn: Binding(
                     get: { !SoundEngine.isMuted },
                     set: { SoundEngine.isMuted = !$0 }
@@ -168,9 +174,16 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.switchOn)
-            }
 
-            // MARK: - Tower Appearance (#172)
+                Toggle(isOn: $hapticsEnabled) {
+                    Label {
+                        Text("Haptic Feedback")
+                    } icon: {
+                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
+                    }
+                }
+                .tint(AppColors.switchOn)
+            }
 
             // MARK: - Camera
 
@@ -211,9 +224,8 @@ struct SettingsView: View {
                      : "Photographs you take in Strata remember where you were, and appear on your map.")
             }
 
-            // Was "Tower". The 3D Parallax switch went with the feature, and
-            // haptics are not a tower thing — they fire on every control in
-            // the app.
+            // MARK: - How Strata works
+
             Section {
                 Button {
                     HapticsEngine.lightTap()
@@ -233,17 +245,6 @@ struct SettingsView: View {
                 // — or who came back a month later — otherwise has no way to
                 // be told how the app works.
                 Text("The short walkthrough you saw when you first opened the app.")
-            }
-
-            Section("Feedback") {
-                Toggle(isOn: $hapticsEnabled) {
-                    Label {
-                        Text("Haptic Feedback")
-                    } icon: {
-                        SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
-                    }
-                }
-                .tint(AppColors.switchOn)
             }
 
             // MARK: - Section 3: Data
@@ -303,7 +304,7 @@ struct SettingsView: View {
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(AppColors.inkQuiet)
                         }
                     } icon: {
                         SettingsIcon(systemName: "envelope.fill")
@@ -321,8 +322,6 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            // MARK: - Section 5: Legal
 
             // MARK: - Section 5: Legal
             //

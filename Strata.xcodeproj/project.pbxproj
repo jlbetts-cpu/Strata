@@ -564,7 +564,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph, and to make your head if you choose to.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only looks while the camera is open.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only checks while the camera is open.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves photos you take in the app to your camera roll.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -603,7 +603,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph, and to make your head if you choose to.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only looks while the camera is open.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only checks while the camera is open.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves photos you take in the app to your camera roll.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

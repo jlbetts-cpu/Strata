@@ -21,13 +21,13 @@ struct PrivacyPolicyView: View {
                             .font(Typography.headerMedium)
                         Text(section.body)
                             .font(Typography.bodySmall)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppColors.inkSecondary)
                     }
                 }
 
                 Text("Last updated 11 September 2026")
                     .font(Typography.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(AppColors.inkQuiet)
                     .padding(.top, 8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
