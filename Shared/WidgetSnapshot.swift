@@ -75,6 +75,32 @@ struct WidgetSnapshot: Codable, Equatable {
     static let empty = WidgetSnapshot(total: 0, today: 0, streak: 0,
                                       blocks: [], updated: .distantPast)
 
+    /// **The snapshot as it stands on `date`, not as it stood when written.**
+    ///
+    /// The app writes this file when something changes, and the widget
+    /// redraws from it just after midnight. If the app has not run since,
+    /// the file is still yesterday's, and the widget said "6 wins" today with
+    /// yesterday's photographs cycling on a tower that had been empty for
+    /// hours. The midnight reload was documented as moving "today" and could
+    /// not: re-reading an unchanged file changes nothing.
+    ///
+    /// So a snapshot from an earlier day draws as an empty today. `updated`
+    /// is only rewritten when the content changes, but the content IS today's
+    /// tower, so whatever day last changed it is the day it describes.
+    ///
+    /// The streak follows `Streaks.current`: alive until a whole day passes
+    /// with nothing in it. The last day with a win is the snapshot's own day
+    /// if it had any, the day before if not.
+    func asOf(_ date: Date, calendar: Calendar = .current) -> WidgetSnapshot {
+        let written = calendar.startOfDay(for: updated)
+        let shown = calendar.startOfDay(for: date)
+        guard shown > written else { return self }
+        let lastWin = today > 0 ? written : calendar.date(byAdding: .day, value: -1, to: written) ?? written
+        let gap = calendar.dateComponents([.day], from: lastWin, to: shown).day ?? 0
+        return WidgetSnapshot(total: total, today: 0, streak: gap <= 1 ? streak : 0,
+                              blocks: [], updated: updated)
+    }
+
     /// How many blocks are worth carrying. The largest widget shows far fewer;
     /// the rest is headroom so a bigger widget never needs a new contract.
     static let blockCap = 24

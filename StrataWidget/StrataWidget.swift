@@ -46,15 +46,16 @@ struct TowerEntry: TimelineEntry {
 /// actually changes, which is the only moment this can be wrong. Asking for a
 /// refresh every fifteen minutes would spend the widget's budget redrawing a
 /// tower nobody added to, and WidgetKit answers that by throttling — which is
-/// how widgets end up stale. The `.after` date is only a long backstop so a
-/// day boundary eventually moves "today" even if the app is never opened.
+/// how widgets end up stale. The `.after` date is the backstop that moves
+/// "today" at midnight even if the app is never opened, by reading the
+/// snapshot `asOf` the new day.
 struct TowerProvider: TimelineProvider {
     func placeholder(in context: Context) -> TowerEntry {
         TowerEntry(date: Date(), snapshot: .preview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TowerEntry) -> Void) {
-        let snapshot = context.isPreview ? .preview : WidgetSnapshot.read()
+        let snapshot = context.isPreview ? .preview : WidgetSnapshot.read().asOf(Date())
         completion(TowerEntry(date: Date(), snapshot: snapshot))
     }
 
@@ -64,8 +65,10 @@ struct TowerProvider: TimelineProvider {
     /// in turn without waking the app at all. Entries are free; a refresh
     /// REQUEST is what gets throttled, and this asks for none.
     func getTimeline(in context: Context, completion: @escaping (Timeline<TowerEntry>) -> Void) {
-        let snapshot = WidgetSnapshot.read()
         let now = Date()
+        // Read as of now: just after midnight this is what empties yesterday's
+        // tower. See `WidgetSnapshot.asOf`.
+        let snapshot = WidgetSnapshot.read().asOf(now)
         let midnight = Calendar.current.nextDate(
             after: now, matching: DateComponents(hour: 0, minute: 1),
             matchingPolicy: .nextTime) ?? now.addingTimeInterval(3600)
