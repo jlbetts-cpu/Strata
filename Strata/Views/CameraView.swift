@@ -493,7 +493,12 @@ struct CameraView: View {
                         .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
                     }
                 }
-                .background(Capsule().fill(.black.opacity(0.35)))
+                // The app's own capsule for a control whose label is a word,
+                // not a private grey. It was a flat 35% black back when this
+                // was a LABEL saying which size you had drawn; now that it is
+                // three words you can press, it is the same kind of thing as
+                // the Memories header's control and wears the same material.
+                .glassCapsule()
                 .padding(.top, topInset + Header.topPadding)
                 Spacer(minLength: 0)
             }
@@ -548,15 +553,11 @@ struct CameraView: View {
         // its own colours sitting on a graded photograph reads as stuck on;
         // grade the whole thing and it belongs to the picture.
         //
-        // Off the main actor: a full-size photograph through the whole
-        // pipeline is tens of milliseconds, and the shutter must never be the
-        // thing that stutters.
-        // **A look is something you choose while taking the picture.** The
-        // owner's call: "that should be a camera only feature." So it is put
-        // on here, once, and everything downstream — the camera roll, the
-        // block, the map, the gallery — sees one finished photograph. Nothing
-        // later in the app offers to change it, because by then the picture
-        // is a win rather than a shot you are still composing.
+        // **And it is chosen only here.** The owner's call: "that should be a
+        // camera only feature." It is put on once, and everything downstream —
+        // the camera roll, the block, the map, the gallery — sees one finished
+        // photograph. Nothing later offers to change it, because by then the
+        // picture is a win rather than a shot you are still composing.
         //
         // Off the main actor: a full-size photograph through the whole
         // pipeline is tens of milliseconds, and the shutter must never be the
