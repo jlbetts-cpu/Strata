@@ -105,6 +105,27 @@ nonisolated enum HeadFraming {
         return (l + r) / 2
     }
 
+    /// One eye shut while the other stays open, read off a SINGLE frame.
+    ///
+    /// Better evidence than a blink, which has to compare two frames taken at
+    /// different moments: here both eyes are the same face in the same light
+    /// at the same distance, so the only thing that differs between them is
+    /// the one thing being asked about. `isRealBlink` judges the pair, since
+    /// "one eye is shut and the other is not" is exactly the same question.
+    nonisolated struct Wink: Sendable, Equatable {
+        var open: Double
+        var shut: Double
+        /// Which eye did it, so nothing downstream has to guess.
+        var leftIsShut: Bool
+        /// How good a wink it is: how far apart the two eyes are.
+        var gap: Double { open - shut }
+    }
+
+    static func wink(left: [CGPoint], right: [CGPoint]) -> Wink? {
+        guard let l = openness(of: left), let r = openness(of: right) else { return nil }
+        return Wink(open: max(l, r), shut: min(l, r), leftIsShut: l < r)
+    }
+
     /// Whether a most-open and a most-shut frame are an actual blink.
     ///
     /// **The proportion is the test; the gap is only a noise floor.** These
@@ -215,14 +236,69 @@ nonisolated enum HeadFraming {
     /// half as much again above it.
     static let headOverFace: CGFloat = 1.5
 
+    /// How far the head is tilted, in radians, read off the line between the
+    /// eyes. Positive turns clockwise on the screen.
+    ///
+    /// **The eyes, not Vision's roll.** The roll it reports is an estimate of
+    /// how the head sits in space; the eye line is where the face actually is
+    /// in the picture, it is already measured for the crop, and it is the
+    /// thing a person reads as level.
+    static func tilt(eyes: (CGPoint, CGPoint)) -> Double {
+        let (left, right) = eyes.0.x <= eyes.1.x ? eyes : (eyes.1, eyes.0)
+        return atan2(Double(right.y - left.y), Double(right.x - left.x))
+    }
+
+    /// A point turned about `pivot`. Screen coordinates, so a positive angle
+    /// turns clockwise.
+    static func turned(_ point: CGPoint, about pivot: CGPoint, by radians: Double) -> CGPoint {
+        let c = CGFloat(cos(radians)), s = CGFloat(sin(radians))
+        let dx = point.x - pivot.x, dy = point.y - pivot.y
+        return CGPoint(x: pivot.x + dx * c - dy * s, y: pivot.y + dx * s + dy * c)
+    }
+
+    /// The chin: the point on the face's outline furthest DOWN THE FACE from
+    /// the eyes, rather than furthest down the picture, so a tilted head still
+    /// reports its chin and not the corner of its jaw.
+    static func chin(contour: [CGPoint], eyes: (CGPoint, CGPoint)) -> CGPoint? {
+        guard !contour.isEmpty else { return nil }
+        let (left, right) = eyes.0.x <= eyes.1.x ? eyes : (eyes.1, eyes.0)
+        let span = hypot(right.x - left.x, right.y - left.y)
+        guard span > 0 else { return nil }
+        // Down the face is a quarter turn clockwise from the eye line.
+        let down = CGPoint(x: -(right.y - left.y) / span, y: (right.x - left.x) / span)
+        let mid = CGPoint(x: (left.x + right.x) / 2, y: (left.y + right.y) / 2)
+        return contour.max {
+            ($0.x - mid.x) * down.x + ($0.y - mid.y) * down.y
+                < ($1.x - mid.x) * down.x + ($1.y - mid.y) * down.y
+        }
+    }
+
     /// The square to crop from a frame, in PIXELS, so the head fills
     /// `contentHeight` of it with the chin at `chin`. May extend past the
     /// frame; the renderer fills that with transparency.
-    static func crop(face: CGRect, in size: CGSize, contentHeight: CGFloat, chin: CGFloat) -> CGRect {
+    ///
+    /// **Placed by the eyes and the chin when it has them.** Vision's box is
+    /// drawn around a face with a margin that is not the same on every face,
+    /// and its bottom edge sits BELOW the chin, so a head cut at the box left
+    /// a slice of neck under it: "it doesn't perfectly cut off the neck."
+    /// Given the eyes and the measured chin, the crop is hung off the two
+    /// landmarks instead, and because the head is turned upright about the
+    /// eyes (see `HeadCaptureEngine.cutOut`) the chin lands its own distance
+    /// straight below them. The box is still what sets the SIZE: it is the
+    /// only measure of the whole face, and it is what every existing head was
+    /// sized by.
+    static func crop(face: CGRect, in size: CGSize, contentHeight: CGFloat, chin: CGFloat,
+                     eyes: (CGPoint, CGPoint)? = nil, chinPoint: CGPoint? = nil) -> CGRect {
         let facePixels = CGRect(x: face.minX * size.width, y: face.minY * size.height,
                                 width: face.width * size.width, height: face.height * size.height)
         let side = facePixels.height * headOverFace / contentHeight
-        return CGRect(x: facePixels.midX - side / 2, y: facePixels.maxY - chin * side,
+        guard let eyes, let chinPoint else {
+            return CGRect(x: facePixels.midX - side / 2, y: facePixels.maxY - chin * side,
+                          width: side, height: side)
+        }
+        let mid = midpoint(eyes)
+        let drop = hypot(chinPoint.x - mid.x, chinPoint.y - mid.y)
+        return CGRect(x: mid.x - side / 2, y: mid.y + drop - chin * side,
                       width: side, height: side)
     }
 
@@ -246,9 +322,12 @@ nonisolated enum HeadFraming {
         return CGRect(x: mid.x + dx - width / 2, y: mid.y + dy - height / 2, width: width, height: height)
     }
 
-    private static func midpoint(_ pair: (CGPoint, CGPoint)) -> CGPoint {
+    /// Halfway between the eyes: where a head is hung from and turned about.
+    static func midpointOf(_ pair: (CGPoint, CGPoint)) -> CGPoint {
         CGPoint(x: (pair.0.x + pair.1.x) / 2, y: (pair.0.y + pair.1.y) / 2)
     }
+
+    private static func midpoint(_ pair: (CGPoint, CGPoint)) -> CGPoint { midpointOf(pair) }
 
     private static func distance(_ pair: (CGPoint, CGPoint)) -> CGFloat {
         hypot(pair.1.x - pair.0.x, pair.1.y - pair.0.y)

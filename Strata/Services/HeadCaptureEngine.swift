@@ -17,8 +17,8 @@ import Vision
 /// actor, and none of this may run there.
 nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
 
-    nonisolated enum Phase: Sendable { case idle, lining, blink, smile, brows, surprised }
-    nonisolated enum Slot: Sendable { case open, shut, smile, brows, surprised }
+    nonisolated enum Phase: Sendable { case idle, lining, blink, smile, brows, surprised, wink }
+    nonisolated enum Slot: Sendable { case open, shut, smile, brows, surprised, wink }
 
     nonisolated struct Update: Sendable {
         let hint: HeadFraming.Hint?
@@ -56,6 +56,11 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         let smileWidth: Double?
         let browRaise: Double?
         let mouthOpen: Double?
+        /// The chin, in the frame's PIXELS, top-left origin: the lowest point
+        /// of the face's own outline. Nil when the outline was not read.
+        var chin: CGPoint? = nil
+        /// Both eyes on this frame, for the wink.
+        var wink: HeadFraming.Wink? = nil
 
         var eyeCentres: (CGPoint, CGPoint)? {
             guard eyes.count == 2,
@@ -102,6 +107,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         case .smile: kept[.smile] = nil
         case .brows: kept[.brows] = nil
         case .surprised: kept[.surprised] = nil
+        case .wink: kept[.wink] = nil
         case .idle, .lining: break
         }
     }
@@ -154,6 +160,10 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
             guard let take = kept[.surprised] else { return false }
             guard let base = neutral.mouthOpen, let wide = take.mouthOpen else { return true }
             return HeadFraming.isRealSurprise(neutral: base, surprised: wide)
+        case .wink:
+            guard let take = kept[.wink] else { return false }
+            guard let wink = take.wink else { return true }
+            return HeadFraming.isRealBlink(open: wink.open, shut: wink.shut)
         }
     }
 
@@ -165,6 +175,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         case .smile:     return .smile
         case .brows:     return .brows
         case .surprised: return .surprised
+        case .wink:      return .wink
         case .idle, .lining: return nil
         }
     }
@@ -229,7 +240,19 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         let mouth = marks.innerLips.flatMap {
             HeadFraming.mouthOpenness(innerLips: $0.normalizedPoints, left: left, right: right)
         }
-        let measured = (box: box, face: face, size: size, smile: smile, raise: raise, mouth: mouth)
+        // The jawline in pixels, and the chin off it. Measured here because
+        // the landmarks are only in hand while the frame is.
+        let contour = marks.faceContour?.pointsInImage(imageSize: size)
+            .map { CGPoint(x: $0.x, y: size.height - $0.y) } ?? []
+        let eyeCentres = Self.eyeOutlines(face, size: size)
+        let chin: CGPoint? = {
+            guard eyeCentres.count == 2,
+                  let a = HeadFraming.centre(of: eyeCentres[0]),
+                  let b = HeadFraming.centre(of: eyeCentres[1]) else { return nil }
+            return HeadFraming.chin(contour: contour, eyes: (a, b))
+        }()
+        let measured = (box: box, face: face, size: size, smile: smile, raise: raise,
+                        mouth: mouth, chin: chin, wink: HeadFraming.wink(left: left, right: right))
 
         switch phase {
         case .idle, .lining:
@@ -247,6 +270,9 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         case .surprised:
             guard let mouth else { return }
             offer(mouth, to: .surprised, higherIsBetter: true, buffer: buffer, measured: measured)
+        case .wink:
+            guard let wink = measured.wink else { return }
+            offer(wink.gap, to: .wink, higherIsBetter: true, buffer: buffer, measured: measured)
         }
 
         // Say so the moment it lands, and only then. Published on the CHANGE
@@ -263,7 +289,8 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
 
     private func offer(_ score: Double, to slot: Slot, higherIsBetter: Bool, buffer: CVPixelBuffer,
                        measured: (box: CGRect, face: VNFaceObservation, size: CGSize,
-                                  smile: Double?, raise: Double?, mouth: Double?)) {
+                                  smile: Double?, raise: Double?, mouth: Double?, chin: CGPoint?,
+                                  wink: HeadFraming.Wink?)) {
         lock.lock()
         let current = kept[slot]?.score
         lock.unlock()
@@ -272,7 +299,8 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
                                                 from: CGRect(origin: .zero, size: measured.size)) else { return }
         let take = Take(image: image, face: measured.box, score: score,
                         eyes: Self.eyeOutlines(measured.face, size: measured.size),
-                        smileWidth: measured.smile, browRaise: measured.raise, mouthOpen: measured.mouth)
+                        smileWidth: measured.smile, browRaise: measured.raise, mouthOpen: measured.mouth,
+                        chin: measured.chin, wink: measured.wink)
         lock.lock()
         kept[slot] = take
         lock.unlock()
@@ -308,8 +336,22 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
 
         let size = CGSize(width: take.image.width, height: take.image.height)
         let scale = side / crop.width
-        func toCanvas(_ point: CGPoint) -> CGPoint {
+        func placed(_ point: CGPoint) -> CGPoint {
             CGPoint(x: (point.x - crop.minX) * scale, y: (point.y - crop.minY) * scale)
+        }
+
+        // **Turned upright about the eyes.** A head held at a tilt was cut out
+        // at that tilt and then stood on a photograph and a map pin as though
+        // it were level: "the orientation is wrong." The eye line says which
+        // way up the face is, so everything below turns by minus that and the
+        // head comes out standing straight, whichever way the phone was held.
+        // The pivot is the eye midpoint, which is the one point the crop is
+        // hung from, so turning about it moves nothing else.
+        let tilt = take.eyeCentres.map { HeadFraming.tilt(eyes: $0) } ?? 0
+        let pivot = take.eyeCentres.map { placed(HeadFraming.midpointOf($0)) }
+            ?? CGPoint(x: side / 2, y: side / 2)
+        func toCanvas(_ point: CGPoint) -> CGPoint {
+            HeadFraming.turned(placed(point), about: pivot, by: -tilt)
         }
 
         // Both eyes or neither: one painted eye beside one real one reads as
@@ -329,15 +371,28 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
         let head = renderer.image { rendererContext in
             let cg = rendererContext.cgContext
+            cg.saveGState()
+            cg.translateBy(x: pivot.x, y: pivot.y)
+            cg.rotate(by: -tilt)
+            cg.translateBy(x: -pivot.x, y: -pivot.y)
             UIImage(cgImage: cutout).draw(in: CGRect(x: -crop.minX * scale, y: -crop.minY * scale,
                                                      width: size.width * scale, height: size.height * scale))
+            cg.restoreGState()
             cg.saveGState()
             cg.setBlendMode(.destinationOut)
+            // **The cut starts at the chin, not above it.** It used to begin a
+            // hundredth of the canvas higher, back when `chin` meant the bottom
+            // of Vision's face box — a line that sits below the real chin by a
+            // margin that is different on every face, which is what left a
+            // slice of neck under some heads and shaved the jaw off others.
+            // The crop is hung off the measured chin now, so the fade can be
+            // where it says it is: the underside of the jaw carries its own
+            // shadow out and the neck is gone a twentieth of a canvas later.
             let fade = [UIColor.black.withAlphaComponent(0).cgColor, UIColor.black.cgColor] as CFArray
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: fade, locations: [0, 1]) {
                 cg.drawLinearGradient(gradient,
-                                      start: CGPoint(x: 0, y: side * (chin - 0.01)),
-                                      end: CGPoint(x: 0, y: side * min(chin + 0.05, 1)),
+                                      start: CGPoint(x: 0, y: side * chin),
+                                      end: CGPoint(x: 0, y: side * min(chin + 0.055, 1)),
                                       options: [.drawsAfterEndLocation])
             }
             cg.restoreGState()

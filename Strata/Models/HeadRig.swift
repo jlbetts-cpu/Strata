@@ -84,6 +84,21 @@ nonisolated struct HeadRig: @unchecked Sendable {
 
     func has(_ expression: Expression) -> Bool { faces[expression] != nil }
 
+    /// Every face this head really has, in a fixed order so two heads with the
+    /// same faces behave the same way.
+    var expressions: [Expression] { Expression.allCases.filter(has) }
+
+    /// A different face to wear, at random. Nil when there is no other one —
+    /// a head made without any expressions keeps the one it has rather than
+    /// pretending to change.
+    ///
+    /// Excluding the face it is already wearing matters more than it sounds:
+    /// a tap that lands on the same face reads as a tap that did not work,
+    /// and a head with three faces would do that one time in three.
+    func anotherFace(than current: Expression) -> Expression? {
+        expressions.filter { $0 != current }.randomElement()
+    }
+
     // MARK: - The creator's head
 
     /// The owner's own head from his portfolio, as a rig: its faces, and the

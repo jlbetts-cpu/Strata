@@ -177,7 +177,7 @@ struct HeadMakerView: View {
     private var isLinedUp: Bool {
         switch model.step {
         case .lining: return model.hint == nil
-        case .blink, .smile, .brows, .surprised, .making: return true
+        case .blink, .smile, .brows, .surprised, .wink, .making: return true
         default: return false
         }
     }
@@ -239,6 +239,7 @@ struct HeadMakerView: View {
         case .smile:       return model.caught ? "Got it" : "Now a big smile"
         case .brows:       return model.caught ? "Got it" : "Raise your eyebrows"
         case .surprised:   return model.caught ? "Got it" : "Now look surprised"
+        case .wink:        return model.caught ? "Got it" : "Last one, a wink"
         case .making:      return "Making your head…"
         case .preview:     return " "
         case .failed:      return model.failure
@@ -282,7 +283,7 @@ struct HeadMakerView: View {
 
     private var showsPips: Bool {
         switch model.step {
-        case .lining, .blink, .smile, .brows, .surprised, .making: return true
+        case .lining, .blink, .smile, .brows, .surprised, .wink, .making: return true
         default: return false
         }
     }
@@ -360,7 +361,7 @@ struct HeadMakerView: View {
         let outerRadius = outer.width * 0.147
         let innerRadius = inner.width * 0.147
         let ready = model.canCapture
-        let watching: Bool = [.blink, .smile, .brows, .surprised, .making].contains(model.step)
+        let watching: Bool = [.blink, .smile, .brows, .surprised, .wink, .making].contains(model.step)
         let lit = ready || watching
 
         return Button {
@@ -389,7 +390,7 @@ struct HeadMakerView: View {
         .accessibilityHint(watching
                            ? "\(model.landed.count) of \(HeadMakerModel.sequence.count) done"
                            : ready
-                           ? "Takes a slow blink, a smile, raised eyebrows and a surprised face"
+                           ? "Takes a slow blink, a smile, raised eyebrows, a surprised face and a wink"
                            : "Line your head up in the outline first")
     }
 
@@ -468,6 +469,7 @@ struct HeadMakerView: View {
         if !rig.has(.smile) { missing.append("smile") }
         if !rig.has(.browsUp) { missing.append("raise its brows") }
         if !rig.has(.surprised) { missing.append("look surprised") }
+        if !rig.has(.wink) { missing.append("wink") }
         guard !missing.isEmpty else {
             return "Your head is ready. It only shows up where you turn it on."
         }
@@ -480,7 +482,7 @@ struct HeadMakerView: View {
         switch step {
         case .lining:
             withAnimation(reduceMotion ? nil : GridConstants.layoutReflow) { outlineDrawn = 1 }
-        case .blink, .smile, .brows, .surprised:
+        case .blink, .smile, .brows, .surprised, .wink:
             outlineDrawn = 1
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.

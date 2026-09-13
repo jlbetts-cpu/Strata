@@ -232,19 +232,25 @@ struct MemoriesMapView: View {
             // coordinate is where the head is standing rather than its nose.
             // Custom `UserAnnotation` content is not tappable; nothing needs
             // it to be, the recentre button already does that job.
+            ForEach(displayed) { placed in
+                Annotation("", coordinate: placed.coordinate, anchor: .center) {
+                    block(for: placed)
+                }
+                .annotationTitles(.hidden)
+            }
+
+            // **Last, so it is never underneath a block.** Annotations are
+            // drawn in the order they are declared, and this one used to be
+            // declared first: stand where you have already photographed
+            // something and the marker for where you are went behind the
+            // picture of where you were. A player marker is the one thing on
+            // a map that is always on top.
             if showsUser {
                 if let head = HeadStore.shared.headForMap {
                     UserAnnotation(anchor: .bottom) { HeadMarker(head: head) }
                 } else {
                     UserAnnotation()
                 }
-            }
-
-            ForEach(displayed) { placed in
-                Annotation("", coordinate: placed.coordinate, anchor: .center) {
-                    block(for: placed)
-                }
-                .annotationTitles(.hidden)
             }
         }
         .mapStyle(mapStyle)

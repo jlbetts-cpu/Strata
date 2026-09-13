@@ -38,6 +38,12 @@ struct LivingHeadView: View {
     var liveliness: Liveliness = .calm
     /// A brow flash and a smile when it first appears.
     var greets = false
+    /// **A face to wear and keep.** Nil is the normal head, which lives on its
+    /// own: idles, blinks and plays its beats. Set, it morphs there and stays,
+    /// because something outside has chosen that face — tapping the sticker on
+    /// a photograph, where what you are looking at is what gets saved into the
+    /// picture.
+    var held: HeadRig.Expression?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expression: HeadRig.Expression = .neutral
@@ -101,6 +107,7 @@ struct LivingHeadView: View {
         .task(id: reduceMotion) { await wanderWhileIdle() }
         .task(id: reduceMotion) { await microSaccades() }
         .task(id: reduceMotion) { await beatWhileIdle() }
+        .task(id: held) { await wear(held) }
     }
 
     // MARK: - Drawing
@@ -184,7 +191,7 @@ struct LivingHeadView: View {
             // The watchdog. No beat holds a face for more than about two
             // seconds, so a face other than neutral with no beat running is a
             // face that was left behind. Bring it home, irises and all.
-            if !busy, expression != .neutral || outgoing != nil || shut {
+            if !busy, held == nil, expression != .neutral || outgoing != nil || shut {
                 #if DEBUG
                 NSLog("[strata-head] watchdog brought back a face left at \(expression) (outgoing \(String(describing: outgoing)), shut \(shut))")
                 #endif
@@ -251,7 +258,8 @@ struct LivingHeadView: View {
                 : Int.random(in: 7000...14000)
             try? await Task.sleep(for: .milliseconds(rest))
             guard !Task.isCancelled else { return }
-            guard !busy else { continue }
+            // A head that has been told which face to wear is not idle.
+            guard !busy, held == nil else { continue }
             await perform(nextBeat())
         }
     }
@@ -443,6 +451,17 @@ struct LivingHeadView: View {
             dip = 0
             busy = false
         }
+    }
+
+    /// Puts on the face it has been given, or takes it off again.
+    private func wear(_ face: HeadRig.Expression?) async {
+        guard let face else {
+            // Only undo a held face. On first appearance there is nothing to
+            // undo, and morphing to neutral here would cut a greeting short.
+            if expression != .neutral { await morph(to: .neutral) }
+            return
+        }
+        await morph(to: face)
     }
 
     /// A hard swap, for brows: the portfolio swaps its brow picture outright,
@@ -649,13 +668,16 @@ struct HeadStill: View {
     let rig: HeadRig
     /// The head's own height, crown to chin.
     let side: CGFloat
+    /// The face it is wearing. What was on screen is what gets drawn into the
+    /// photograph.
+    var expression: HeadRig.Expression = .neutral
 
     static let gaze = CGPoint(x: 0.35, y: 0.08)
 
     var body: some View {
         let canvas = side / rig.contentHeight
         let centring = (0.5 - (rig.chin - rig.contentHeight / 2)) * canvas
-        let face = rig.face(.neutral)
+        let face = rig.face(expression)
         ZStack {
             Image(uiImage: face.image)
                 .resizable()

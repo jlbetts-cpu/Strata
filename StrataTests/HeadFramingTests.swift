@@ -248,6 +248,60 @@ struct HeadFramingTests {
         #expect(close(crop.width, crop.height, 1e-4))
     }
 
+    @Test("a tilted head is measured as tilted, and turning it undoes that")
+    func tiltIsRead() {
+        // Eyes on a line 20 degrees clockwise of level.
+        let radians = 20 * Double.pi / 180
+        let left = CGPoint(x: 300, y: 500)
+        let right = CGPoint(x: 300 + 120 * CGFloat(cos(radians)), y: 500 + 120 * CGFloat(sin(radians)))
+        #expect(close(CGFloat(HeadFraming.tilt(eyes: (left, right))), CGFloat(radians), 1e-9))
+        // Turned back by that much about the left eye, the pair is level again.
+        let turned = HeadFraming.turned(right, about: left, by: -radians)
+        #expect(close(turned.y, left.y, 1e-6))
+        #expect(close(turned.x, left.x + 120, 1e-6))
+        // And a level pair reads as no tilt at all, whichever order it arrives in.
+        #expect(close(CGFloat(HeadFraming.tilt(eyes: (right: CGPoint(x: 400, y: 500),
+                                                      left: CGPoint(x: 300, y: 500)))), 0, 1e-12))
+    }
+
+    @Test("the chin is the lowest point down the FACE, not down the picture")
+    func chinFollowsTheFace() {
+        // A head lying on its side: the eye line runs down the picture, so the
+        // chin is off to one side and the jaw corners are above and below it.
+        let left = CGPoint(x: 500, y: 300), right = CGPoint(x: 500, y: 420)
+        let chin = CGPoint(x: 380, y: 360)          // down the face is -x here
+        let jawCorners = [CGPoint(x: 470, y: 250), CGPoint(x: 470, y: 470)]
+        let found = HeadFraming.chin(contour: jawCorners + [chin], eyes: (left, right))
+        #expect(found == chin)
+        // The lowest point in the PICTURE is a jaw corner, which is what a
+        // naive answer would have returned.
+        #expect(jawCorners.max { $0.y < $1.y } != chin)
+    }
+
+    @Test("a crop hung off the landmarks puts the chin exactly where it promises")
+    func cropUsesTheMeasuredChin() {
+        let face = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.25)
+        let size = CGSize(width: 1080, height: 1920)
+        // A tilted face whose chin is 260px from the eyes along its own axis.
+        let radians = 12 * Double.pi / 180
+        let mid = CGPoint(x: 540, y: 700)
+        let left = CGPoint(x: mid.x - 60 * CGFloat(cos(radians)), y: mid.y - 60 * CGFloat(sin(radians)))
+        let right = CGPoint(x: mid.x + 60 * CGFloat(cos(radians)), y: mid.y + 60 * CGFloat(sin(radians)))
+        // Down the face is a quarter turn clockwise from the eye line.
+        let chinPoint = CGPoint(x: mid.x - 260 * CGFloat(sin(radians)),
+                                y: mid.y + 260 * CGFloat(cos(radians)))
+        let crop = HeadFraming.crop(face: face, in: size, contentHeight: 0.86, chin: 0.93,
+                                    eyes: (left, right), chinPoint: chinPoint)
+        // Turned upright about the eyes, the chin drops straight below them,
+        // and that is the line the neck is cut on.
+        let upright = HeadFraming.turned(chinPoint, about: mid, by: -radians)
+        #expect(close((upright.y - crop.minY) / crop.height, 0.93, 1e-6))
+        #expect(close(crop.midX, mid.x, 1e-9))
+        // Same size as the old placement: the box still says how big a head is.
+        let byBox = HeadFraming.crop(face: face, in: size, contentHeight: 0.86, chin: 0.93)
+        #expect(close(crop.width, byBox.width, 1e-9))
+    }
+
     @Test("an expression lined up by the eyes keeps the same eyes in the same place")
     func alignedByEyes() {
         let reference = CGRect(x: 100, y: 200, width: 600, height: 600)

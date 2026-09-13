@@ -11,7 +11,7 @@ import UIKit
 final class HeadMakerModel {
     // Hashable, not merely Equatable: `landed` is a set of them and the
     // screen's pip row is a `ForEach` over them.
-    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, making, preview, failed }
+    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, wink, making, preview, failed }
 
     struct Result {
         let rig: HeadRig
@@ -52,6 +52,10 @@ final class HeadMakerModel {
     static let smileWindow: Duration = .milliseconds(2600)
     static let browsWindow: Duration = .milliseconds(2600)
     static let surprisedWindow: Duration = .milliseconds(2600)
+    /// A wink is one movement, not a face to arrange, so it lands as fast as
+    /// a blink does once it is understood. The window is the blink's, which
+    /// leaves room to read the words and try twice.
+    static let winkWindow: Duration = .milliseconds(3000)
 
     /// How long a stage keeps watching after the expression first lands.
     /// The engine keeps the BEST frame, not the first that passed, so ending
@@ -125,7 +129,7 @@ final class HeadMakerModel {
                 linedUpSince = Date()
                 HapticsEngine.tick()
             }
-        case .blink, .smile, .brows, .surprised:
+        case .blink, .smile, .brows, .surprised, .wink:
             // The same tick, for the same reason: it landed, and you felt it
             // without having to look away from your own face.
             guard update.phase == Self.phase(for: step) else { return }
@@ -167,12 +171,19 @@ final class HeadMakerModel {
         run(from: .blink)
     }
 
-    /// The four asks, in order. `Step` is the screen's word for one of them.
+    /// The asks, in order. `Step` is the screen's word for one of them.
+    ///
+    /// **The wink is last on purpose.** It is the one people enjoy and the one
+    /// some people cannot do, and both of those want it at the end: a flow
+    /// that finishes on the fun one is remembered as fun, and an expression
+    /// nobody manages costs nothing when everything before it is already in
+    /// hand. Every stage after the blink is optional to the head.
     static let sequence: [(step: Step, phase: HeadCaptureEngine.Phase, window: Duration)] = [
         (.blink, .blink, HeadMakerModel.blinkWindow),
         (.smile, .smile, HeadMakerModel.smileWindow),
         (.brows, .brows, HeadMakerModel.browsWindow),
-        (.surprised, .surprised, HeadMakerModel.surprisedWindow)
+        (.surprised, .surprised, HeadMakerModel.surprisedWindow),
+        (.wink, .wink, HeadMakerModel.winkWindow)
     ]
 
     /// **Each stage ends when it has what it came for, not when a clock runs
@@ -233,7 +244,8 @@ final class HeadMakerModel {
 
         let size = CGSize(width: open.image.width, height: open.image.height)
         let side = HeadStore.side, chin = HeadStore.chin
-        let base = HeadFraming.crop(face: open.face, in: size, contentHeight: HeadStore.contentHeight, chin: chin)
+        let base = HeadFraming.crop(face: open.face, in: size, contentHeight: HeadStore.contentHeight,
+                                    chin: chin, eyes: openEyes, chinPoint: open.chin)
         // Every other expression lined up with this one by the eyes, so
         // changing face never moves the head.
         func aligned(_ take: HeadCaptureEngine.Take) -> CGRect {
@@ -252,8 +264,10 @@ final class HeadMakerModel {
         let smile = engine.caught(.smile) ? takes[.smile] : nil
         let brows = engine.caught(.brows) ? takes[.brows] : nil
         let surprised = engine.caught(.surprised) ? takes[.surprised] : nil
+        let wink = engine.caught(.wink) ? takes[.wink] : nil
         let shutCrop = shut.map(aligned), smileCrop = smile.map(aligned), browsCrop = brows.map(aligned)
         let surprisedCrop = surprised.map(aligned)
+        let winkCrop = wink.map(aligned)
 
         let payload = await Task.detached(priority: .userInitiated) { () -> HeadStore.Payload? in
             guard let neutral = HeadCaptureEngine.cutOut(open, crop: base, side: side, chin: chin, paintsEyes: true) else {
@@ -271,6 +285,14 @@ final class HeadMakerModel {
             if let surprised, let surprisedCrop,
                let made = HeadCaptureEngine.cutOut(surprised, crop: surprisedCrop, side: side, chin: chin, paintsEyes: true) {
                 faces[.surprised] = HeadStore.Face(png: made.png, eyes: made.eyes)
+            }
+            // Keeps its own eyes. Painting takes both of them or neither, and
+            // one drawn iris beside one shut eye is exactly the uncanny thing
+            // the rule exists to prevent — the same reason a grin keeps its
+            // own narrowed eyes.
+            if let wink, let winkCrop,
+               let made = HeadCaptureEngine.cutOut(wink, crop: winkCrop, side: side, chin: chin, paintsEyes: false) {
+                faces[.wink] = HeadStore.Face(png: made.png, eyes: [])
             }
             var shutPNG: Data?
             if let shut, let shutCrop {
