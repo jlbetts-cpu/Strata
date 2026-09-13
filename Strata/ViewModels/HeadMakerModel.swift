@@ -356,6 +356,9 @@ final class HeadMakerModel {
         case "surprised":
             step = .surprised
             landed = [.blink, .smile, .brows]
+        case "wink":
+            step = .wink
+            landed = [.blink, .smile, .brows, .surprised]
         case "caught":
             step = .smile
             landed = [.blink, .smile]
