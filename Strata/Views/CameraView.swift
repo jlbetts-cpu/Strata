@@ -20,7 +20,7 @@ struct CameraView: View {
     /// sheet can sit open while you walk away, so save time is the wrong
     /// clock; a two-minute staleness cap is what makes "shutter time" honest
     /// rather than "the last fix, whenever that was".
-    var onCaptured: (UIImage, BlockSize, WinPlace?) -> Void = { _, _, _ in }
+    var onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint) -> Void = { _, _, _, _ in }
     var onClose: (() -> Void)? = nil
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
@@ -65,14 +65,17 @@ struct CameraView: View {
     /// Your head on the photo being reviewed, if you added it. See
     /// `HeadSticker`.
     @State private var sticker: StickerPlacement?
-    /// **The look is a preference, not a per-shot decision.** Apple's own
-    /// Photographic Styles are remembered between shots for the same reason:
-    /// somebody who shoots everything in Air is saying something about their
-    /// pictures, not about this one.
-    @AppStorage("filmLook") private var lookRaw = FilmLook.Kind.none.rawValue
+    /// **Every shot starts on none** (the owner: "the default filter should
+    /// always be on none"). A look is a decision about this photograph, not a
+    /// setting that follows you: a remembered one means the picture you take
+    /// tomorrow is graded by something you chose today and forgot.
+    @State private var lookRaw = FilmLook.Kind.none.rawValue
     /// The review photograph with the chosen look on it, at screen size. The
     /// real one is rendered full size only when the photograph is kept.
     @State private var looked: UIImage?
+    /// Which part of the photograph the block will show, as a fraction away
+    /// from the middle. Moved by dragging the picture on the review.
+    @State private var crop: CGPoint = .zero
     @State private var shutterDown = false
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
@@ -367,16 +370,22 @@ struct CameraView: View {
                     .aspectRatio(image.size.width / max(image.size.height, 1),
                                  contentMode: .fit)
                     // What the block will show of it: a hairline, nothing
-                    // dimmed. It changes with the size you drew.
+                    // dimmed. It changes with the size you drew, and with
+                    // where you drag it.
                     .overlay {
-                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize))
+                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize),
+                                         offset: crop)
                     }
-                    // Over the photograph's own frame, so the head's place is
-                    // a place in the picture.
+                    // Over the photograph's own frame, so the head's place and
+                    // the block's window are both places in the picture.
                     .overlay {
-                        if let rig = HeadStore.shared.headForSticker, sticker != nil {
-                            HeadStickerOverlay(rig: rig, placement: $sticker)
-                        }
+                        HeadStickerOverlay(
+                            rig: sticker == nil ? nil : HeadStore.shared.headForSticker,
+                            placement: $sticker,
+                            crop: $crop,
+                            cropRange: BlockCropOutline.range(
+                                for: BlockCropOutline.crop(photo: image.size, block: drawnSize)),
+                            look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
                     }
 
                 Spacer(minLength: 0)
@@ -401,6 +410,8 @@ struct CameraView: View {
                             drawnSize = .small
                             sticker = nil
                             looked = nil
+                            crop = .zero
+                            lookRaw = FilmLook.Kind.none.rawValue
                         }
                     } label: {
                         Text("Retake")
@@ -455,18 +466,37 @@ struct CameraView: View {
             // of a camera review is somewhere everybody already knows the
             // shape of: one word left, one word right, nothing between them.
             // The size still matters, so it is said rather than drawn.
+            // **The size, still changeable.** It was the word alone, which
+            // said what you had drawn and offered no way to change your mind
+            // without retaking the photograph. The owner: "on that screen you
+            // should be able to change its size on the top." Three words, the
+            // one you are on lit — the same language the shutter's draw
+            // gesture speaks, and the crop outline below follows it.
             VStack {
-                Text(drawnSize.effortLabel.uppercased())
-                    .font(Typography.sectionLabel)
-                    .kerning(Typography.sectionKerning)
-                    .foregroundStyle(AppColors.onDarkSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(.black.opacity(0.35)))
-                    .padding(.top, topInset + Header.topPadding)
+                HStack(spacing: 0) {
+                    ForEach(BlockSize.allCases, id: \.self) { option in
+                        Button {
+                            guard option != drawnSize else { return }
+                            HapticsEngine.tick()
+                            withAnimation(GridConstants.slotSnap) { drawnSize = option }
+                        } label: {
+                            Text(option.effortLabel.uppercased())
+                                .font(Typography.sectionLabel)
+                                .kerning(Typography.sectionKerning)
+                                .foregroundStyle(option == drawnSize
+                                                 ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
+                                .padding(.horizontal, GridConstants.gapItem)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
+                    }
+                }
+                .background(Capsule().fill(.black.opacity(0.35)))
+                .padding(.top, topInset + Header.topPadding)
                 Spacer(minLength: 0)
             }
-            .allowsHitTesting(false)
         }
     }
 
@@ -512,6 +542,7 @@ struct CameraView: View {
         let look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
         let size = drawnSize
         let place = LocationService.shared.place()
+        let window = crop
         let final = composed
         // **The look goes on last, over the head as well.** A cut-out face in
         // its own colours sitting on a graded photograph reads as stuck on;
@@ -535,9 +566,11 @@ struct CameraView: View {
                 FilmLookRenderer.shared.render(final, look: look)
             }.value
             Task { await PhotoLibrarySaver.save(graded) }
-            onCaptured(graded, size, place)
+            onCaptured(graded, size, place, window)
         }
         looked = nil
+        crop = .zero
+        lookRaw = FilmLook.Kind.none.rawValue
         review = nil
         // Back to one cell for the next shot. A size drawn once is not a
         // preference, and a shutter that stayed wide would make every later

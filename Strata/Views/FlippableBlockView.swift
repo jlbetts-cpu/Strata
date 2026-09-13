@@ -193,6 +193,8 @@ struct FlippableBlockView: View {
                     width: width,
                     height: height,
                     cornerRadius: 0,
+                    crop: CGPoint(x: block.log.cropPositionX ?? 0,
+                                  y: block.log.cropPositionY ?? 0),
                     // The block's own colour is what shows while this decodes.
                     showsPlaceholder: false
                 )

@@ -37,6 +37,9 @@ struct AddWinSheet: View {
     var initialSize: BlockSize = .small
     /// Where the photograph was taken, if it came from the camera.
     var initialPlace: WinPlace? = nil
+    /// Which part of the photograph the block shows, if it was moved on the
+    /// review.
+    var initialCrop: CGPoint = .zero
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -54,6 +57,8 @@ struct AddWinSheet: View {
     /// already been encoded, losing a little each time, for an edit that was
     /// only ever a rename.
     @State private var photoChanged = false
+    /// Which part of the photograph the block shows. Carried from the review.
+    @State private var crop: CGPoint = .zero
     @State private var showCamera = false
     @State private var choosingSource = false
     /// Looking at the photograph this win already has.
@@ -149,9 +154,10 @@ struct AddWinSheet: View {
             // No count passed: the tally belongs to the tower's camera, and
             // with nothing to put in it the grid line runs unbroken.
             CameraView(
-                onCaptured: { image, drawn, where_ in
+                onCaptured: { image, drawn, where_, window in
                     photo = image
                     photoChanged = true
+                    crop = window
                     // A size drawn out of the shutter wins over the sheet's
                     // own picker: it is the more recent thing you said, and
                     // you said it with your hand.
@@ -519,6 +525,7 @@ struct AddWinSheet: View {
         // edited already has a size and nobody drew a new one.
         size = initialSize
         place = initialPlace
+        crop = initialCrop
         if let initialTitle, !initialTitle.isEmpty {
             title = initialTitle
         }
@@ -635,6 +642,10 @@ struct AddWinSheet: View {
             log.longitude = place.longitude
             log.locationAccuracy = place.accuracy
         }
+        // Where the block's window sits on the picture. Zero is the middle,
+        // which is every win nobody dragged.
+        log.cropPositionX = crop.x == 0 ? nil : crop.x
+        log.cropPositionY = crop.y == 0 ? nil : crop.y
         // The file this is replacing, if any. Deleted only AFTER the new one
         // is safely written — the other order loses the photograph outright if
         // the save fails.

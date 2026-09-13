@@ -6,6 +6,14 @@ struct CachedImageView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     var fullResolution: Bool = false
+    /// **Which part of the photograph to show**, as a fraction of the
+    /// photograph away from its middle, chosen by dragging the crop on the
+    /// camera's review. Zero is centred, which is every picture nobody moved.
+    ///
+    /// The picture fills the frame and the frame cuts it, so only the
+    /// overflowing axis can move at all. Sliding the window right means
+    /// sliding the picture left, which is the minus below.
+    var crop: CGPoint = .zero
 
     /// The full-resolution picture, for the viewer. Thumbnails come from
     /// `ThumbnailStore` instead — see `body`.
@@ -47,9 +55,11 @@ struct CachedImageView: View {
         let loadFailed = state.missing
         return Group {
             if let image {
+                let drawn = filled(image.size)
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    .offset(x: -crop.x * drawn.width, y: -crop.y * drawn.height)
                     .frame(width: width, height: height)
                     .clipped()
                     .transition(reduceMotion ? .identity : .opacity.animation(.easeIn(duration: 0.25)))
@@ -78,6 +88,13 @@ struct CachedImageView: View {
         .task(id: fullResolution ? fileName : nil) {
             await loadFullImage()
         }
+    }
+
+    /// How big the picture is drawn once it has filled the frame.
+    private func filled(_ size: CGSize) -> CGSize {
+        guard size.width > 0, size.height > 0 else { return CGSize(width: width, height: height) }
+        let scale = max(width / size.width, height / size.height)
+        return CGSize(width: size.width * scale, height: size.height * scale)
     }
 
     private func loadFullImage() async {

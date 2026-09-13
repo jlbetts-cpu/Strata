@@ -27,8 +27,16 @@ final class HabitLog {
     var imageURL: String?       // Deprecated — retained for schema compatibility
     var videoURL: String?       // Deprecated — retained for schema compatibility
     var imageFlipped: Bool = false  // Deprecated — retained for schema compatibility
-    var cropPositionX: Double?  // Deprecated — retained for schema compatibility
-    var cropPositionY: Double?  // Deprecated — retained for schema compatibility
+    /// **Which part of the photograph the block shows**, as a fraction away
+    /// from its middle, set by dragging the crop on the camera's review. Nil
+    /// is the middle, which is every win nobody moved.
+    ///
+    /// These two were dead fields kept for schema compatibility. They are the
+    /// right name for what the owner asked for — "you should be able to move
+    /// the crop on the photo using a basic moving" — so they carry it rather
+    /// than a third column meaning the same thing.
+    var cropPositionX: Double?
+    var cropPositionY: Double?
     var surgeMode: Bool
     var pendingXP: Int?
     var xpCollected: Bool

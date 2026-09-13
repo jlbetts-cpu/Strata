@@ -496,6 +496,7 @@ struct MainAppView: View {
                 initialPhoto: draft.photo,
                 initialSize: draft.size,
                 initialPlace: draft.place,
+                initialCrop: draft.crop,
                 onSaved: { habit in
                     if let id = draft.planItemID {
                         // The win remembers the line, so deleting it later can
@@ -948,10 +949,10 @@ struct MainAppView: View {
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
         CameraView(
-            onCaptured: { image, size, place in
+            onCaptured: { image, size, place, crop in
                 capturedPhoto = image
                 selectedTab = .tower
-                winDraft = WinDraft(photo: image, size: size, place: place)
+                winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
             },
             fillsScreen: true
         )

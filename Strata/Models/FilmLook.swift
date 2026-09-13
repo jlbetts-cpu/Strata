@@ -134,6 +134,23 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     /// it carries.
     var grain: Grain?
     var vignette: Double = 0
+    /// What this look looks like to a moving view. See `Likeness`.
+    var likeness = Likeness()
+
+    /// **A likeness, for things that move.**
+    ///
+    /// The real pipeline is a colour table and six filters, which is right for
+    /// a photograph and wrong for a head that blinks thirty times a second on
+    /// top of one. These four numbers are what SwiftUI can do for nothing, and
+    /// they put the sticker in the same world as the picture under it — the
+    /// owner: "the head you add should have the filter on it as well." What
+    /// gets saved still goes through the real thing.
+    nonisolated struct Likeness: Equatable, Sendable {
+        var saturation: Double = 1
+        var contrast: Double = 1
+        var brightness: Double = 0
+        var grayscale: Double = 0
+    }
 
     nonisolated struct Glare: Equatable, Sendable {
         var threshold: Double
@@ -432,7 +449,8 @@ extension FilmLook {
         bloom: Glare(threshold: 0.86, radius: 54, amount: 0.10),
         glow: Glare(threshold: 0.22, radius: 40, amount: 0.30),
         clarity: 0.28,
-        grain: Grain(amount: 0.34, cell: 2.2, colour: 0.08))
+        grain: Grain(amount: 0.34, cell: 2.2, colour: 0.08),
+        likeness: Likeness(saturation: 1.02, contrast: 0.97, brightness: 0.045))
 
     /// Velvia's colour with the lights on: greens towards teal, blues deep,
     /// reds loud, and saturation that falls away near white so a sky keeps its
@@ -458,7 +476,8 @@ extension FilmLook {
         bloom: Glare(threshold: 0.90, radius: 38, amount: 0.07),
         glow: Glare(threshold: 0.22, radius: 28, amount: 0.17),
         clarity: 0.50,
-        grain: Grain(amount: 0.28, cell: 2.0, colour: 0.07))
+        grain: Grain(amount: 0.28, cell: 2.0, colour: 0.07),
+        likeness: Likeness(saturation: 1.24, contrast: 1.06, brightness: 0.02))
 
     /// Black and white through a light orange filter, so skin stays light and
     /// a sky keeps its clouds. Lifted rather than gloomy, with the grain film
@@ -477,5 +496,6 @@ extension FilmLook {
         glow: Glare(threshold: 0.22, radius: 36, amount: 0.25),
         clarity: 0.46,
         grain: Grain(amount: 0.56, cell: 2.6, colour: 0),
-        vignette: 0.05)
+        vignette: 0.05,
+        likeness: Likeness(contrast: 1.05, brightness: 0.04, grayscale: 1))
 }

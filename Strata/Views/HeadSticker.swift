@@ -23,6 +23,9 @@ struct StickerPlacement: Equatable {
     /// The head's height, crown to chin, as a fraction of the photo's width.
     var width: CGFloat = 0.3
     var angle: Angle = .zero
+    /// The face it is wearing. Tap the head to change it; what is on the
+    /// review is what is drawn into the photograph.
+    var expression: HeadRig.Expression = .neutral
 
     static let widthRange: ClosedRange<CGFloat> = 0.1...0.8
     /// Close enough to upright to mean upright.
@@ -47,7 +50,8 @@ enum HeadSticker {
         let size = photo.size
         let side = placement.width * size.width
         let canvas = side / rig.contentHeight
-        let renderer = ImageRenderer(content: HeadStill(rig: rig, side: side))
+        let renderer = ImageRenderer(content: HeadStill(rig: rig, side: side,
+                                                        expression: placement.expression))
         renderer.scale = photo.scale
         guard let head = renderer.uiImage else { return photo }
         let format = UIGraphicsImageRendererFormat()
@@ -63,17 +67,38 @@ enum HeadSticker {
     }
 }
 
-/// The head on the review, movable. Laid over the photograph's own frame, so
-/// its fractions are fractions of the picture and the composite lands exactly
-/// where it was shown.
+/// Everything you can do to the photograph on the review, on one layer.
+///
+/// **One layer, because the gestures have to see each other.** A finger on
+/// the head moves the head; a finger anywhere else moves the block's crop
+/// over the picture; two fingers size and turn the head. Split across two
+/// layers, whichever sat on top would swallow the other's touches, which is
+/// the same trap `CameraView` records about the viewfinder's own gestures.
+///
+/// Laid over the photograph's own frame, so its fractions are fractions of
+/// the picture and both the composite and the crop land exactly where they
+/// were shown.
 struct HeadStickerOverlay: View {
-    let rig: HeadRig
+    /// Nil when no head has been made or the sticker is switched off: the
+    /// layer is still here for the crop.
+    var rig: HeadRig?
     @Binding var placement: StickerPlacement?
+    /// Which part of the photograph the block will show, as a fraction of the
+    /// picture away from its middle. See `BlockCropOutline`.
+    @Binding var crop: CGPoint
+    /// How far the crop may travel before it leaves the picture.
+    var cropRange: CGSize = .zero
+    /// The look the photograph is wearing, so the head is in the same world
+    /// as the picture under it rather than sitting on top of it in its own
+    /// colours. A likeness, because this head is alive — what gets saved goes
+    /// through the real pipeline. See `FilmLook.Likeness`.
+    var look: FilmLook = .none
 
     private struct DragBase { var centre: CGPoint; var translation: CGSize }
     @State private var dragBase: DragBase?
     @State private var widthBase: CGFloat?
     @State private var angleBase: Angle?
+    @State private var cropBase: CGPoint?
     @State private var isHeld = false
 
     /// A head can be drawn smaller than a finger. Its target never is.
@@ -88,29 +113,35 @@ struct HeadStickerOverlay: View {
                 Color.clear
                     .contentShape(Rectangle())
 
-                if let current = placement {
+                if let current = placement, let rig {
                     let side = current.width * size.width
                     let canvas = side / rig.contentHeight
                     // Calm: it blinks and glances while you place it, and
                     // holds still in the picture.
-                    LivingHeadView(rig: rig, side: side, liveliness: .calm)
+                    LivingHeadView(rig: rig, side: side, liveliness: .calm,
+                                   held: current.expression == .neutral ? nil : current.expression)
                         .frame(width: canvas, height: canvas)
+                        .filmLook(look)
                         .rotationEffect(current.angle)
                         .scaleEffect(isHeld ? 1.04 : 1)
                         .frame(width: max(canvas, Self.minimumTarget),
                                height: max(canvas, Self.minimumTarget))
                         .contentShape(Rectangle())
+                        .onTapGesture { changeFace() }
                         .gesture(move(in: size))
                         .position(x: current.centre.x * size.width,
                                   y: current.centre.y * size.height)
                         .accessibilityElement()
                         .accessibilityLabel("Your head on the photo")
-                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it.")
+                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it. Tap for another face.")
+                        .accessibilityAction(named: "Another face") { changeFace() }
                         .accessibilityAction(named: "Make it bigger") { resize(by: 1.2) }
                         .accessibilityAction(named: "Make it smaller") { resize(by: 1 / 1.2) }
                 }
             }
             .simultaneousGesture(sizeAndTurn)
+            // A finger on the picture itself moves what the block will show.
+            .simultaneousGesture(moveCrop(in: size))
         }
         .coordinateSpace(.named(Self.space))
     }
@@ -141,6 +172,23 @@ struct HeadStickerOverlay: View {
             }
     }
 
+    /// **Dragging the picture moves the block's window over it** (the owner:
+    /// "you should be able to move the crop on the photo using a basic
+    /// moving"). Clamped so the window can never leave the photograph, which
+    /// is the one thing that would produce an empty edge on a block.
+    private func moveCrop(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
+            .onChanged { value in
+                guard cropRange != .zero, widthBase == nil, angleBase == nil else { return }
+                let base = cropBase ?? crop
+                if cropBase == nil { cropBase = base }
+                crop = CGPoint(
+                    x: min(max(base.x - value.translation.width / max(size.width, 1), -cropRange.width), cropRange.width),
+                    y: min(max(base.y - value.translation.height / max(size.height, 1), -cropRange.height), cropRange.height))
+            }
+            .onEnded { _ in cropBase = nil }
+    }
+
     private var sizeAndTurn: some Gesture {
         MagnifyGesture()
             .simultaneously(with: RotateGesture())
@@ -164,6 +212,17 @@ struct HeadStickerOverlay: View {
                 widthBase = nil
                 angleBase = nil
             }
+    }
+
+    /// **Tap it and it pulls another face.** The owner: "when you click it it
+    /// does a random expression." It keeps the face rather than flashing it,
+    /// so the head you are looking at is the head that gets drawn into the
+    /// picture, and tapping again is how you get a different one.
+    private func changeFace() {
+        guard let rig, let current = placement,
+              let next = rig.anotherFace(than: current.expression) else { return }
+        HapticsEngine.tick()
+        placement?.expression = next
     }
 
     private func resize(by factor: CGFloat) {
@@ -217,11 +276,14 @@ struct HeadStickerButton: View {
 struct BlockCropOutline: View {
     /// In fractions of the photo.
     let crop: CGRect
+    /// How far the window has been moved from the middle, in fractions of the
+    /// photo.
+    var offset: CGPoint = .zero
 
     var body: some View {
         GeometryReader { geometry in
-            let rect = CGRect(x: crop.minX * geometry.size.width,
-                              y: crop.minY * geometry.size.height,
+            let rect = CGRect(x: (crop.minX + offset.x) * geometry.size.width,
+                              y: (crop.minY + offset.y) * geometry.size.height,
                               width: crop.width * geometry.size.width,
                               height: crop.height * geometry.size.height)
             ZStack {
@@ -240,6 +302,12 @@ struct BlockCropOutline: View {
 
     /// The part of a photo a block of `size` shows. The block fills itself
     /// with the whole photo, centred (`CachedImageView`, `.scaledToFill`).
+    /// How far the window may be moved before it leaves the photograph, in
+    /// fractions of the photo.
+    static func range(for crop: CGRect) -> CGSize {
+        CGSize(width: max(0, (1 - crop.width) / 2), height: max(0, (1 - crop.height) / 2))
+    }
+
     static func crop(photo: CGSize, block size: BlockSize) -> CGRect {
         let photoAspect = photo.width / max(photo.height, 1)
         let blockAspect = size.cropAspectRatio
@@ -250,5 +318,18 @@ struct BlockCropOutline: View {
             let width = blockAspect / photoAspect
             return CGRect(x: (1 - width) / 2, y: 0, width: width, height: 1)
         }
+    }
+}
+
+
+extension View {
+    /// A look's likeness, for a view that is alive. See `FilmLook.Likeness`.
+    func filmLook(_ look: FilmLook) -> some View {
+        let like = look.likeness
+        return self
+            .saturation(like.saturation)
+            .contrast(like.contrast)
+            .brightness(like.brightness)
+            .grayscale(like.grayscale)
     }
 }

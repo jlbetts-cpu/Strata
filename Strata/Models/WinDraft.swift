@@ -23,6 +23,9 @@ struct WinDraft: Identifiable {
     var size: BlockSize = .small
     /// Where the photograph was taken, when the app knew. Nil is normal.
     var place: WinPlace? = nil
+    /// Which part of the photograph the block shows, as a fraction away from
+    /// the middle, chosen by dragging it on the review.
+    var crop: CGPoint = .zero
     /// The plan line this came from, so it can be marked done on save.
     var planItemID: UUID?
 }
