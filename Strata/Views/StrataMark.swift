@@ -131,7 +131,17 @@ private struct DrawnLettering: View {
             // row actually has, keeping the proportions. It still grows with
             // Dynamic Type; it just stops growing when it runs out of screen,
             // which is what every other title on the phone does.
-            .frame(maxWidth: size * aspect, maxHeight: size)
+            //
+            // **Leading, so a height limit cannot push it sideways.** The
+            // camera and the head maker hold their header to 32pt, because the
+            // break in the grid line is cut to that height. At a large text
+            // size `size` grows but the parent does not, so the drawing shrank
+            // back to 32pt and sat CENTRED in a frame that had stayed wide:
+            // photographed at AccessibilityLarge the word moved about 30pt in
+            // from the margin and ran across the second grid line. Every
+            // caller sets the word from the leading edge, so the drawing does
+            // too.
+            .frame(maxWidth: size * aspect, maxHeight: size, alignment: .leading)
             .foregroundStyle(color)
             .accessibilityLabel(label)
     }
