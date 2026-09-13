@@ -96,16 +96,3 @@ struct PhotoGalleryGrid: View {
     }
 }
 
-private extension View {
-    /// `matchedTransitionSource` wants a real namespace; this is the version
-    /// that tolerates not having one, so a caller that does not animate is not
-    /// forced to invent a namespace it never uses.
-    @ViewBuilder
-    func matchedTransitionSource(id: String, in namespace: Namespace.ID?) -> some View {
-        if let namespace {
-            self.matchedTransitionSource(id: id, in: namespace)
-        } else {
-            self
-        }
-    }
-}

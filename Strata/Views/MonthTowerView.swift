@@ -18,6 +18,11 @@ struct MonthTowerView: View {
     /// height cannot measure itself.
     let width: CGFloat
     var onSelect: (String) -> Void = { _ in }
+    /// The namespace the day's album is pushed into, so the block a finger
+    /// landed on is the thing that opens rather than a new page arriving over
+    /// it. Optional: the month tower is drawn in places that do not push
+    /// anything — onboarding, the widget preview — and those pass nothing.
+    var transitionNamespace: Namespace.ID?
 
     private var cell: CGFloat { GridConstants.cellSize(forGridWidth: width) }
     private var gridWidth: CGFloat { GridConstants.gridWidth(cellSize: cell) }
@@ -34,6 +39,7 @@ struct MonthTowerView: View {
                     cellSize: cell
                 )
                 dayBlock(block, size: CGSize(width: f.width, height: f.height))
+                    .matchedTransitionSource(id: block.dateString, in: transitionNamespace)
                     // Row 0 at the BOTTOM, like every other tower in the app.
                     // A month grows upward through itself.
                     .offset(x: f.minX, y: gridHeight - f.minY - f.height)

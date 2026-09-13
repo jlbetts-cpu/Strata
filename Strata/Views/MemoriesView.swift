@@ -269,6 +269,11 @@ struct MemoriesView: View {
                     .toolbar(.hidden, for: .navigationBar)
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))
+                        // Out of the day's own block on the month tower, the
+                        // same way a photograph comes out of its thumbnail.
+                        // A month you can open is what makes the two pages
+                        // one place rather than two lists of the same days.
+                        .navigationTransition(.zoom(sourceID: key, in: photoTransition))
                 case .place(let key):
                     PhotoCollectionView(source: .place(key))
                 case .curated(let key):
@@ -506,7 +511,8 @@ struct MemoriesView: View {
             MonthTowerView(
                 packed: vm.month,
                 width: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2,
-                onSelect: { path.append(.day($0)) }
+                onSelect: { path.append(.day($0)) },
+                transitionNamespace: photoTransition
             )
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, GridConstants.gapTight)
