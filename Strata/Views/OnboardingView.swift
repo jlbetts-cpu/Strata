@@ -50,9 +50,17 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 // Not on the camera page: that screenshot has the real
                 // wordmark in it already, and two would be one too many.
-                StrataWordmark(size: 26, color: onDark ? .white : AppColors.inkPrimary)
+                //
+                // **The camera's size, on the camera's line.** It was 26pt
+                // from its own offset, so on the one page that shows the
+                // real wordmark — baked into the camera screenshot — the word
+                // grew 6pt and dropped about 10 as you swiped onto it, then
+                // shrank back on the way off. Matching `CameraView.Header`
+                // and the head maker also means the app you land in after
+                // onboarding has its wordmark exactly where onboarding left it.
+                StrataWordmark(size: 32, color: onDark ? .white : AppColors.inkPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, GridConstants.gapItem)
+                    .padding(.top, GridConstants.headerArtworkTopPadding)
                     .opacity(step == 2 ? 0 : 1)
                 Spacer(minLength: 0)
                 words
@@ -470,12 +478,23 @@ struct OnboardingView: View {
         .padding(.bottom, GridConstants.gapSection)
     }
 
+    /// **The sizes are called what the rest of the app calls them.** These
+    /// said small, medium and large, and nothing after onboarding does: the
+    /// camera review, the win sheet and the photo caption all say Quick,
+    /// Regular and Deep. A new person was taught one set of words and then
+    /// met another. The shape still teaches the gesture; the words are the
+    /// ones they will see again.
+    ///
+    /// **And nothing here watches you.** Page four said "It remembers where
+    /// you were", which puts the app in the role of something keeping track
+    /// of a person. The photograph keeps its place instead, which is what the
+    /// location permission and the empty map already say.
     private var title: String {
         switch step {
         case 0: return "Everything you did, stacked up"
-        case 1: return hasDrawn ? "That's how every win is made" : "Small, medium or large"
+        case 1: return hasDrawn ? "That's how every win is made" : "Quick, regular or deep"
         case 2: return "A win can be a photograph"
-        case 3: return "It remembers where you were"
+        case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
         default: return "Thank you, genuinely"
         }
@@ -483,10 +502,10 @@ struct OnboardingView: View {
 
     private var subtitle: String {
         switch step {
-        case 0: return "Finish something and it becomes a block: small, medium or large, depending on what it took."
+        case 0: return "Finish something and it becomes a block: quick, regular or deep, depending on what it took."
         case 1: return hasDrawn
-            ? "Pull nothing and it stays small. The size is how much it took."
-            : "Hold the slot and pull. Sideways for a medium win, up for a large one. Let go to drop it in."
+            ? "Pull nothing and it's a quick one. The size is how much it took."
+            : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
         case 2: return "Take it here and the picture becomes the block."
         case 3: return "Your wins land on the map where you took them."
         case Self.headStep: return heads.head == nil

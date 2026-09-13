@@ -221,7 +221,7 @@ struct SettingsView: View {
                 // and it should not be discovered.
                 Text(location.isDenied
                      ? "Location is off for Strata in the Settings app, so photographs can't be placed on your map."
-                     : "Photographs you take in Strata remember where you were, and appear on your map.")
+                     : "Photographs you take in Strata keep the place they were taken, and appear on your map.")
             }
 
             // MARK: - How Strata works
