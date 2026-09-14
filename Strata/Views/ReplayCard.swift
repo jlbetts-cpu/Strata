@@ -19,6 +19,9 @@ import UIKit
 /// scheme.
 enum ReplayCard {
     static let size = CGSize(width: 360, height: 640)
+    /// The Share still and every frame of the saved video are the card at
+    /// this scale: 1080x1920.
+    static let shareScale: CGFloat = 3
 
     /// Clear of a story's own top bar (progress segments, the account row),
     /// which sits over the top of a posted picture.
@@ -34,8 +37,10 @@ enum ReplayCard {
     /// and every frame of the saved video. One function, so the two cannot
     /// drift apart in scheme, type size or insets.
     @MainActor
-    static func sharedFrame(_ script: ReplayScript, images: ReplayImages, t: Double, now: Date) -> some View {
+    static func sharedFrame(_ script: ReplayScript, images: ReplayImages, t: Double, now: Date,
+                            isSample: Bool) -> some View {
         ReplayFrame(script: script, images: images, t: t, now: now,
+                    showsSampleBadge: isSample,
                     topInset: topInset, bottomInset: 0)
             .environment(\.colorScheme, .light)
             .dynamicTypeSize(.large)
@@ -54,9 +59,10 @@ enum ReplayCard {
     }
 
     @MainActor
-    static func image(_ replay: Replay, images: ReplayImages, scale: CGFloat, now: Date = Date()) -> UIImage? {
+    static func image(_ replay: Replay, images: ReplayImages, scale: CGFloat, now: Date, isSample: Bool) -> UIImage? {
         let script = Self.script(replay)
-        let renderer = ImageRenderer(content: sharedFrame(script, images: images, t: script.duration, now: now))
+        let renderer = ImageRenderer(content: sharedFrame(script, images: images, t: script.duration, now: now,
+                                                          isSample: isSample))
         renderer.scale = rendererScale(pixelWidth: size.width * scale)
         renderer.isOpaque = true
         return renderer.uiImage
@@ -93,12 +99,12 @@ enum ReplayCard {
     /// the video keep the light still above.
     @MainActor
     static func poster(_ replay: Replay, images: ReplayImages, scale: CGFloat,
-                       rowTowerHeight: CGFloat, colorScheme: ColorScheme) -> UIImage? {
+                       rowTowerHeight: CGFloat, colorScheme: ColorScheme, now: Date) -> UIImage? {
         let script = Self.script(replay)
         let layout = ReplayFrame.Poster(scale: posterScale(rowTowerHeight: rowTowerHeight),
                                         baseY: size.height - posterMargin)
         let renderer = ImageRenderer(content:
-            ReplayFrame(script: script, images: images, t: script.duration, poster: layout)
+            ReplayFrame(script: script, images: images, t: script.duration, now: now, poster: layout)
                 .environment(\.colorScheme, colorScheme)
         )
         renderer.scale = rendererScale(pixelWidth: size.width * scale)

@@ -32,7 +32,7 @@ enum ReplaySample {
                 let size: BlockSize = roll < 5 ? .small : (roll < 8 ? .medium : .hard)
                 let hasPhoto = rng.next() % 3 == 0
                 wins.append(ReplayWin(
-                    id: UUID(uuidString: String(format: "00000000-0000-0000-%04X-%012X", day, n))!,
+                    id: UUID(uuidString: String(format: "00000000-0000-0000-%04lX-%012lX", day, n))!,
                     dateString: period.days[day],
                     completedAt: period.date(ofDay: day).addingTimeInterval(Double(7 * 3600 + n * 2400)),
                     title: titles[Int(rng.next() % UInt64(titles.count))],

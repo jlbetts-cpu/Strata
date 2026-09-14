@@ -197,7 +197,7 @@ struct MemoriesView: View {
                         // Between the month and the albums: finished months
                         // and weeks as posters. Draws nothing, heading
                         // included, until one has a win.
-                        ReplayShelf(model: replays, transitionNamespace: photoTransition) { playing = $0 }
+                        ReplayShelf(model: replays, now: replays.now, transitionNamespace: photoTransition) { playing = $0 }
 
                         // No heading over a gap. When nothing has earned a
                         // card the shelf is not drawn at all — only what there
@@ -363,7 +363,7 @@ struct MemoriesView: View {
     }
 
     private func reloadReplays() async {
-        await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale)
+        await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale, now: Date())
     }
 
     // MARK: - Title

@@ -18,6 +18,9 @@ final class ReplayShelfModel {
     /// page must not tell someone with last month's replay that their first
     /// month starts here.
     private(set) var hasLoaded = false
+    /// The `now` the last reload chose its periods against. The shelf words
+    /// its names against it, so the two agree.
+    private(set) var now = Date()
     /// By `key(_:scheme:)`: a poster is drawn in the page's scheme, and both
     /// schemes are kept so switching back does not redraw the shelf.
     var cards: [String: UIImage] = [:]
@@ -75,9 +78,13 @@ final class ReplayShelfModel {
     /// One card at a time with a yield between, so the drawer keeps drawing
     /// while the shelf fills in. The cards a person sees first (the newest
     /// months and every week) are drawn first.
-    func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date = Date()) async {
+    ///
+    /// Stops at the next period or card when its task is cancelled (the page
+    /// went away) or a newer reload started.
+    func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date) async {
         generation += 1
         let mine = generation
+        func superseded() -> Bool { mine != generation || Task.isCancelled }
         #if DEBUG
         let began = CACurrentMediaTime()
         var slices: [Double] = []
@@ -92,18 +99,21 @@ final class ReplayShelfModel {
         // actor for 202ms; one period at a time, no slice of the whole
         // reload, card drawing included, measured over 64ms.
         var found: [Replay] = []
-        for period in p.months + p.weeks where ReplayLoader.hasWins(period, context: context) {
+        for period in p.months + p.weeks {
+            guard !superseded() else { return }
+            guard ReplayLoader.hasWins(period, context: context) else { continue }
             let replay = ReplayLoader.replay(for: period, context: context)
             if replay.count > 0 { found.append(replay) }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
             await Task.yield()
-            guard mine == generation else { return }
+            guard !superseded() else { return }
             #if DEBUG
             slice = CACurrentMediaTime()
             #endif
         }
+        self.now = now
         months = found.filter { $0.period.kind == .month }
         weeks = found.filter { $0.period.kind == .week }
         hasLoaded = true
@@ -121,6 +131,7 @@ final class ReplayShelfModel {
 
         let order = Array(months.prefix(3)) + weeks + Array(months.dropFirst(3))
         for replay in order {
+            guard !superseded() else { return }
             let width = replay.period.kind == .month ? ReplayCard.monthPosterWidth : ReplayCard.weekPosterWidth
             let scale = width * displayScale / ReplayCard.size.width
             let rowHeight = heights[replay.period.kind] ?? 0
@@ -130,23 +141,27 @@ final class ReplayShelfModel {
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
-            let images = await ReplayImages.load(replay, width: ReplayCard.cell * scale)
-            guard mine == generation else { return }
+            let images = await ReplayImages.load(replay, cellPixels: ReplayCard.cell * scale)
+            guard !superseded() else { return }
             #if DEBUG
             slice = CACurrentMediaTime()
             #endif
             let image = ReplayCard.poster(replay, images: images, scale: scale,
-                                          rowTowerHeight: rowHeight, colorScheme: colorScheme)
+                                          rowTowerHeight: rowHeight, colorScheme: colorScheme, now: now)
             #if DEBUG
             renders.append(CACurrentMediaTime() - slice)
             #endif
-            cards[key] = image
-            drawn[key] = signature
+            // A render that came back empty is not recorded as drawn, so the
+            // next reload tries it again; whatever card was there stays.
+            if let image {
+                cards[key] = image
+                drawn[key] = signature
+            }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
             await Task.yield()
-            guard mine == generation else { return }
+            guard !superseded() else { return }
             #if DEBUG
             slice = CACurrentMediaTime()
             #endif

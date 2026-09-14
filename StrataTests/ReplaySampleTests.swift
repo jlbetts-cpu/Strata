@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Strata
 
 @Suite("Replay sample")
@@ -25,9 +26,27 @@ struct ReplaySampleTests {
         #expect(r.count >= (kind == .week ? 18 : 90))
     }
 
-    @Test("only real bundled photographs")
+    @Test("only real bundled photographs, and every one is in the bundle")
     func photos() {
-        let names = Set(ReplaySample.replay(.month, now: now).blocks.compactMap { $0.win.photo?.key })
-        for name in names { #expect(name.hasPrefix("bundled:DemoPhoto")) }
+        var photos = Set<ReplayPhoto>()
+        for kind in [ReplayKind.week, .month] {
+            photos.formUnion(ReplaySample.replay(kind, now: now).blocks.compactMap(\.win.photo))
+        }
+        #expect(!photos.isEmpty)
+        for photo in photos {
+            guard case .bundled(let name) = photo else {
+                Issue.record("\(photo.key) is not a bundled photograph")
+                continue
+            }
+            #expect(name.hasPrefix("DemoPhoto"))
+            #expect(UIImage(named: name) != nil, "\(name) is not in the app bundle")
+        }
+    }
+
+    @Test("sample ids are stable, formatted from Int with the long length modifier")
+    func ids() {
+        let a = ReplaySample.replay(.month, now: now).blocks.map(\.id)
+        #expect(a.contains(UUID(uuidString: "00000000-0000-0000-0011-000000000007")!))
+        #expect(Set(a).count == a.count)
     }
 }

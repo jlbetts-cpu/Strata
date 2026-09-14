@@ -131,7 +131,7 @@ struct ReplayView: View {
         }
         #if DEBUG
         .onChange(of: finished) { _, done in
-            if done, DebugHarness.exportsReplay, let images { save.start(replay: replay, images: images, now: now) }
+            if done, DebugHarness.exportsReplay, let images { save.start(replay: replay, images: images, now: now, isSample: isSample) }
         }
         #endif
         .fullScreenCover(item: $viewing) { photo in
@@ -285,7 +285,7 @@ struct ReplayView: View {
     private var controlItems: some View {
         if let images {
             SaveVideoControl(save: save) {
-                save.start(replay: replay, images: images, now: now)
+                save.start(replay: replay, images: images, now: now, isSample: isSample)
             }
         }
         if let shareImage {
@@ -311,7 +311,12 @@ struct ReplayView: View {
         #if DEBUG
         if let frozen = DebugHarness.replayAt { clock.freeze(at: frozen) }
         #endif
-        async let loaded = ReplayImages.load(replay, width: cell * displayScale)
+        // One decode serves the screen, the Share still and the video, so
+        // at whichever cell is bigger in pixels: this screen's, or the
+        // card's at the share scale (a 402pt phone at 3x: a 267px cell
+        // against the card's 237px; an SE at 2x: 164px, so the card's).
+        async let loaded = ReplayImages.load(replay, cellPixels: max(cell * displayScale,
+                                                                     ReplayCard.cell * ReplayCard.shareScale))
         // While the photographs decode, not on the first landing: starting
         // the engine there held that frame for 400ms. The yield lets the load
         // hand its decodes to their own tasks before this takes the main
@@ -326,10 +331,11 @@ struct ReplayView: View {
         // Once, after the photographs are in, and after the clock starts so
         // the first frame is not held for it.
         // The live photographs serve it: they are keyed by picture, not by
-        // size, and decoded for a bigger cell than the card's.
+        // size, and decoded for the larger of this screen's cell and the
+        // card's.
         if let images, shareImage == nil {
             await Task.yield()
-            shareImage = ReplayCard.image(replay, images: images, scale: 3, now: now)
+            shareImage = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)
         }
     }
 
@@ -380,10 +386,10 @@ final class ReplaySave {
     @ObservationIgnored private var exporter: ReplayVideoExporter?
 
     /// A press of Save Video. After a failure the same press tries again.
-    func start(replay: Replay, images: ReplayImages, now: Date) {
+    func start(replay: Replay, images: ReplayImages, now: Date, isSample: Bool) {
         if state == .failed { state = .idle }
         guard state == .idle else { return }
-        let job = ReplayVideoExporter(replay: replay, images: images, now: now)
+        let job = ReplayVideoExporter(replay: replay, images: images, now: now, isSample: isSample)
         exporter = job
         state = .saving(0)
         Task {
@@ -404,7 +410,7 @@ final class ReplaySave {
             #if DEBUG
             if DebugHarness.exportsReplay {
                 // The Share still beside it, to compare with the video's last frame.
-                let still = ReplayCard.image(replay, images: images, scale: 3, now: now)?.pngData()
+                let still = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)?.pngData()
                 state = Self.keepForInspection(url, job, still: still) ? .saved : .failed
                 return
             }
@@ -571,7 +577,8 @@ final class ReplayClock {
 /// Haptics and sound for the landings a frame has passed.
 ///
 /// Rate-limited to `replayFeedbackPerSecond`, so a busy month is a patter and
-/// not noise. Which landings sound is decided once per script by
+/// not noise. Under Reduce Motion a day's blocks appear together, and the day
+/// gets one landing, its heaviest. Which landings sound is decided once per script by
 /// `ReplayAudioMix.landingTimes`, the rule the saved video's track is mixed
 /// by, so the video sounds like the replay did. A skip passes many landings
 /// at once and plays none of them.
@@ -585,7 +592,10 @@ final class ReplayFeedback {
         // The script is rebuilt with every body; its landings are the key.
         if script.landings != landings {
             landings = script.landings
-            allowed = Set(ReplayAudioMix.landingTimes(landings, limitPerSecond: GridConstants.replayFeedbackPerSecond)
+            // Reduce Motion lands each day at one instant: one sound and one
+            // haptic for the day, at its heaviest block.
+            let candidates = script.reduceMotion ? ReplayAudioMix.heaviestPerInstant(landings) : landings
+            allowed = Set(ReplayAudioMix.landingTimes(candidates, limitPerSecond: GridConstants.replayFeedbackPerSecond)
                 .map(\.blockIndex))
         }
         return allowed

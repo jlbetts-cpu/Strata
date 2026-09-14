@@ -37,6 +37,8 @@ final class ReplayVideoExporter {
     /// The `now` the header's range is worded against: the replay's own, so
     /// the video says what the screen said.
     let now: Date
+    /// The Settings preview's sample wins: every frame carries "Sample".
+    let isSample: Bool
     private(set) var progress: Double = 0
     private var cancelled = false
 
@@ -44,7 +46,8 @@ final class ReplayVideoExporter {
     /// The video holds on the close, so it does not end as the count arrives.
     static let tail: Double = 2
     /// The card at 3x.
-    static let pixelSize = CGSize(width: ReplayCard.size.width * 3, height: ReplayCard.size.height * 3)
+    static let pixelSize = CGSize(width: ReplayCard.size.width * ReplayCard.shareScale,
+                                  height: ReplayCard.size.height * ReplayCard.shareScale)
     /// The longest one run of work holds the main actor before handing back.
     static let sliceBudget: Double = 0.05
     /// Audio is written in chunks this long, alongside the frames, so the
@@ -80,10 +83,11 @@ final class ReplayVideoExporter {
     private(set) var stats = Stats()
     #endif
 
-    init(replay: Replay, images: ReplayImages, now: Date = Date()) {
+    init(replay: Replay, images: ReplayImages, now: Date, isSample: Bool) {
         self.replay = replay
         self.images = images
         self.now = now
+        self.isSample = isSample
     }
 
     /// Stops the export at the next frame. `export` then deletes what it had
@@ -99,12 +103,20 @@ final class ReplayVideoExporter {
         } catch {
             if writer.status == .writing { writer.cancelWriting() }
             Self.remove(url)
-            throw error
+            throw Self.failure(error, cancelRequested: cancelled)
         }
         #if DEBUG
         stats.wall = CACurrentMediaTime() - started
         #endif
         return url
+    }
+
+    /// What an export that threw reports. A cancel stops the encoder, and
+    /// the encoder or writer can fail on its way down before the loop reads
+    /// the flag: once a cancel was asked for, that error IS the cancel, and
+    /// must not come out as "Couldn't save the video".
+    nonisolated static func failure(_ error: Error, cancelRequested: Bool) -> Error {
+        cancelRequested ? Failure.cancelled : error
     }
 
     /// Deletes a file this exporter wrote. A leftover temporary video is not
@@ -175,7 +187,7 @@ final class ReplayVideoExporter {
         #if DEBUG
         sliceLabel = "first frame"
         #endif
-        let renderer = ImageRenderer(content: ReplayCard.sharedFrame(script, images: images, t: 0, now: now))
+        let renderer = ImageRenderer(content: ReplayCard.sharedFrame(script, images: images, t: 0, now: now, isSample: isSample))
         renderer.scale = ReplayCard.rendererScale(pixelWidth: Self.pixelSize.width)
         renderer.isOpaque = true
 
@@ -194,7 +206,7 @@ final class ReplayVideoExporter {
                 if CACurrentMediaTime() - slice + lastDraw > Self.sliceBudget { try await pause(&slice) }
                 guard let pool = adaptor.pixelBufferPool else { throw Failure.writer("pool") }
                 let drawStart = CACurrentMediaTime()
-                renderer.content = ReplayCard.sharedFrame(script, images: images, t: t, now: now)
+                renderer.content = ReplayCard.sharedFrame(script, images: images, t: t, now: now, isSample: isSample)
                 buffer = try autoreleasepool { try Self.draw(renderer, into: pool, width: width, height: height) }
                 lastDraw = CACurrentMediaTime() - drawStart
                 if t >= script.duration { held = buffer }

@@ -32,6 +32,21 @@ enum ReplayAudioMix {
         return kept
     }
 
+    /// One landing per instant, the heaviest (the earliest block of that
+    /// mass on a tie), in time order.
+    ///
+    /// Reduce Motion lands a whole day at one moment, so a busy day was up
+    /// to 12 impacts and ticks in a single frame: one loud click, not a
+    /// patter. A day there is one landing, felt at its weightiest block.
+    static func heaviestPerInstant(_ landings: [ReplayScript.Landing]) -> [ReplayScript.Landing] {
+        var byTime: [Double: ReplayScript.Landing] = [:]
+        for l in landings {
+            if let kept = byTime[l.time], kept.mass > l.mass || (kept.mass == l.mass && kept.blockIndex < l.blockIndex) { continue }
+            byTime[l.time] = l
+        }
+        return byTime.values.sorted { $0.time < $1.time }
+    }
+
     /// The whole replay plus `tail` seconds, as a non-interleaved Float32
     /// stereo buffer at `SoundEngine.mixSampleRate`.
     static func mix(_ script: ReplayScript, tail: Double) -> AVAudioPCMBuffer? {

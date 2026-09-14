@@ -66,9 +66,29 @@ struct ReplayShelfModelTests {
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let model = ReplayShelfModel()
         #expect(!model.hasLoaded)
-        await model.reload(context: ModelContext(container), colorScheme: .light, displayScale: 1)
+        await model.reload(context: ModelContext(container), colorScheme: .light, displayScale: 1, now: Date())
         #expect(model.hasLoaded)
         #expect(model.months.isEmpty && model.weeks.isEmpty)
+        withExtendedLifetime(container) {}
+    }
+
+    @Test("a cancelled reload stops before it decides anything")
+    @MainActor func cancelledReloadStops() async throws {
+        let container = try ModelContainer(for: Habit.self, HabitLog.self, Tower.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        _ = try QuickWinService.logWin(title: "Ran", category: .health, context: context, tower: nil)
+        let model = ReplayShelfModel()
+        // Cancelled before it runs: this test holds the main actor until the
+        // await, so the task cannot have started.
+        let task = Task { await model.reload(context: context, colorScheme: .light, displayScale: 1, now: Date()) }
+        task.cancel()
+        await task.value
+        #expect(!model.hasLoaded)
+        #expect(model.cards.isEmpty)
+        // And an uncancelled one after it does the work.
+        await model.reload(context: context, colorScheme: .light, displayScale: 1, now: Date())
+        #expect(model.hasLoaded)
         withExtendedLifetime(container) {}
     }
 }

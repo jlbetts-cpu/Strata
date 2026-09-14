@@ -7,7 +7,13 @@ struct ReplayFrame: View {
     let script: ReplayScript
     let images: ReplayImages
     let t: Double
-    var now: Date = Date()
+    /// The one `now` the header's range is worded against. Required: a
+    /// default `Date()` per frame could reword the range mid-play at
+    /// midnight, and the still and the video would each pick their own.
+    let now: Date
+    /// "Sample" on the title's line. The Settings preview's live replay, and
+    /// its Share still and saved video, so a made-up week cannot be posted
+    /// as a real one.
     var showsSampleBadge = false
     /// Save Video and Share, supplied live; the exporter passes nothing.
     var controls: AnyView? = nil

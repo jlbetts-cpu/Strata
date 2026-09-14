@@ -92,4 +92,27 @@ struct ReplayAudioMixTests {
             .map(\.blockIndex))
         #expect(feedback.sounding(s) == expected)
     }
+
+    @Test("reduce motion: one landing per instant, the heaviest, earliest on a tie")
+    func heaviestPerInstant() {
+        typealias L = ReplayScript.Landing
+        let day1 = [L(time: 1, mass: 1, column: 0, blockIndex: 0), L(time: 1, mass: 3, column: 2, blockIndex: 1),
+                    L(time: 1, mass: 3, column: 0, blockIndex: 2), L(time: 1, mass: 2, column: 1, blockIndex: 3)]
+        let day2 = [L(time: 2, mass: 1, column: 0, blockIndex: 4), L(time: 2, mass: 1, column: 1, blockIndex: 5)]
+        let kept = ReplayAudioMix.heaviestPerInstant(day2 + day1)
+        #expect(kept.map(\.blockIndex) == [1, 4])
+        #expect(kept.map(\.mass) == [3, 1])
+    }
+
+    @Test("reduce motion: the script's month sounds once per day with a win")
+    func reduceMotionMonthIsOnePerDay() {
+        let r = ReplaySample.replay(.month, now: Date(timeIntervalSince1970: 1_789_300_000))
+        let s = ReplayScript(replay: r, metrics: .standard(frame: CGSize(width: 402, height: 874)), reduceMotion: true)
+        let kept = ReplayAudioMix.heaviestPerInstant(s.landings)
+        #expect(kept.count == r.countsByDay.filter { $0 > 0 }.count)
+        for l in kept {
+            let heaviest = s.landings.filter { $0.time == l.time }.map(\.mass).max()
+            #expect(l.mass == heaviest)
+        }
+    }
 }

@@ -19,7 +19,9 @@ import SwiftUI
 /// the album cover's rim is a block's, which a poster is not.
 struct ReplayShelf: View {
     let model: ReplayShelfModel
-    var now = Date()
+    /// The `now` the shelf's periods were chosen against, so a name is worded
+    /// against the same moment (`ReplayShelfModel.now`).
+    let now: Date
     /// Where the replay grows from, the way a photograph opens out of its
     /// thumbnail.
     var transitionNamespace: Namespace.ID?
