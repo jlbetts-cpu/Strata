@@ -173,6 +173,60 @@ final class ReplayGestureTests: XCTestCase {
         XCTAssertTrue(probe(app).exists, "dismissing the share sheet closed the replay")
     }
 
+    /// Save Video at the close: the press is the control's, not the player's,
+    /// the control says "Saving…" at once, and the save runs through to a
+    /// terminal word.
+    ///
+    /// **The Photos prompt.** Add-only permission is asked for after the
+    /// export, as a system alert owned by SpringBoard. The loop below taps its
+    /// allow button if it appears (an interruption monitor only fires on the
+    /// next interaction with the app, and there is none while waiting), so on
+    /// a simulator that has never been asked this passes through the prompt,
+    /// and on one that has already allowed it there is no prompt at all.
+    @MainActor
+    func testSaveVideoAtTheCloseIsNotASkip() throws {
+        let app = launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 30), "the replay never started")
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        let save = app.buttons["Save Video"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "no Save Video at the close. On screen: \(app.debugDescription)")
+        XCTAssertTrue(save.isHittable, "Save Video is at the close but not hittable: \(save.frame)")
+        let before = clock(app)
+        XCTAssertEqual(before.t, before.duration, accuracy: 0.001, "the replay had not finished (t \(before.t))")
+
+        save.tap()
+        let saving = app.buttons["Saving…"]
+        XCTAssertTrue(saving.waitForExistence(timeout: 5), "the control did not change to Saving…. On screen: \(app.debugDescription)")
+        keep(app, "saving")
+        let after = clock(app)
+        XCTAssertEqual(after.t, before.t, accuracy: 0.001, "pressing Save Video moved the clock \(before.t) -> \(after.t)")
+        XCTAssertTrue(probe(app).exists, "pressing Save Video closed the replay")
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let saved = app.buttons["Saved to Photos"]
+        let failed = app.buttons["Couldn't save the video"]
+        let deadline = Date().addingTimeInterval(240)
+        var prompted = false
+        while Date() < deadline, !saved.exists, !failed.exists {
+            for label in ["Allow Access", "Allow Full Access", "Allow", "OK"] {
+                let button = springboard.alerts.buttons[label]
+                if button.exists {
+                    button.tap()
+                    prompted = true
+                    break
+                }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        keep(app, prompted ? "after-photos-prompt" : "after-save")
+        XCTAssertTrue(saved.exists, failed.exists
+                      ? "the save failed (Photos prompt seen: \(prompted))"
+                      : "no terminal state in 240s. On screen: \(app.debugDescription)")
+        let end = clock(app)
+        XCTAssertEqual(end.t, end.duration, accuracy: 0.001, "the replay moved during the save (t \(end.t))")
+    }
+
     /// After the close, a block with a photograph opens it in the photo
     /// viewer. Before the close, the same tap is a skip.
     ///

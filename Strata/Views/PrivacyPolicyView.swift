@@ -25,7 +25,7 @@ struct PrivacyPolicyView: View {
                     }
                 }
 
-                Text("Last updated 13 September 2026")
+                Text("Last updated 14 September 2026")
                     .font(Typography.caption)
                     .foregroundStyle(AppColors.inkQuiet)
                     .padding(.top, 8)
@@ -71,7 +71,9 @@ struct PrivacyPolicyView: View {
          "Sharing a photo hands it to the iOS share sheet. Where it goes from "
          + "there is between you and whatever app you send it to. Save to Photos, "
          + "if you leave it on, puts a copy of each photo you take in your photo "
-         + "library, where it is yours like any other."),
+         + "library, where it is yours like any other. When you press Save Video on "
+         + "a replay, Strata saves that video to your camera roll. It is made on your "
+         + "device and not sent anywhere."),
         ("Deleting everything",
          "Profile › Settings › Data › Reset All Data removes every win, every photo, "
          + "your name, profile photo and head, and your tower from the device "

@@ -71,4 +71,29 @@ enum PhotoLibrarySaver {
             return false
         }
     }
+
+    /// Writes a replay video to the camera roll, asking for add-only
+    /// permission the first time.
+    ///
+    /// Always an explicit press of Save Video, so the Settings toggle does not
+    /// apply, for the reason `save(_:respectingPreference:)` gives. Unlike a
+    /// photo's automatic save the result IS shown: the person pressed a button
+    /// and is waiting on it.
+    static func saveVideo(at url: URL) async -> Bool {
+        let status = await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { continuation.resume(returning: $0) }
+        }
+        guard status == .authorized || status == .limited else { return false }
+
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let options = PHAssetResourceCreationOptions()
+                options.shouldMoveFile = false
+                PHAssetCreationRequest.forAsset().addResource(with: .video, fileURL: url, options: options)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
 }

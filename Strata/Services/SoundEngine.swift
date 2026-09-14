@@ -264,7 +264,9 @@ enum SoundEngine {
         return v
     }
 
-    private static func render(_ v: Voice) -> AVAudioPCMBuffer? {
+    /// `seed` fixes the contact noise, so a render can be repeated exactly;
+    /// nil draws a fresh burst, as live playback does.
+    private static func render(_ v: Voice, seed fixedSeed: UInt64? = nil) -> AVAudioPCMBuffer? {
         let frames = AVAudioFrameCount(sampleRate * v.duration)
         guard frames > 0,
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames),
@@ -280,7 +282,7 @@ enum SoundEngine {
         let attackFrames = max(1.0, v.attack * sampleRate)
         let levelSum = max(v.partials.reduce(0) { $0 + $1.level }, 0.0001)
         var noiseLP = 0.0
-        var seed = UInt64.random(in: 1...UInt64.max)
+        var seed = fixedSeed ?? UInt64.random(in: 1...UInt64.max)
 
         for i in 0..<Int(frames) {
             let t = Double(i) / sampleRate
@@ -342,6 +344,10 @@ enum SoundEngine {
     /// level, so a month's downpour is a patter under the picture rather than
     /// the full knock of a win you just logged.
     static func blockImpact(mass: Int, column: Int = 2, gain: Double = 1) {
+        play(impactVoice(mass: mass, column: column, gain: gain))
+    }
+
+    private static func impactVoice(mass: Int, column: Int, gain: Double) -> Voice {
         let pitch: Double = switch mass {
         case 1: 130.81   // C3
         case 2: 98.00    // G2
@@ -350,7 +356,7 @@ enum SoundEngine {
         // Four columns, gently spread. Wide panning on a phone speaker is a
         // gimmick; this is just enough to place it.
         let pan = (Double(column) - 1.5) / 1.5 * 0.35
-        play(Voice(
+        return Voice(
             cue: .impact,
             frequency: pitch,
             partials: body,
@@ -361,8 +367,22 @@ enum SoundEngine {
             noise: 0.16,
             noiseDecay: 190,
             pan: pan
-        ))
+        )
     }
+
+    /// A landing, rendered to PCM for mixing into a saved replay.
+    ///
+    /// Unvaried, with a fixed contact burst, so the same replay always saves
+    /// the same sound. Dry: the live room and tone are part of the playback
+    /// graph, not the voice. Not muted-checked, for the reason
+    /// `ReplayAudioMix` gives.
+    static func impactBuffer(mass: Int, column: Int, gain: Double) -> AVAudioPCMBuffer? {
+        render(impactVoice(mass: mass, column: column, gain: gain),
+               seed: 0x9E37_79B9_7F4A_7C15 &+ UInt64(max(mass, 0) * 8 + max(column, 0)))
+    }
+
+    /// The rate every rendered voice is at, and so the saved mix's.
+    static var mixSampleRate: Double { sampleRate }
 
     /// Everything is done.
     static func allClearChime() {

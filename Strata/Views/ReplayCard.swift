@@ -24,22 +24,40 @@ enum ReplayCard {
     /// which sits over the top of a posted picture.
     static let topInset: CGFloat = 48
 
+    /// The script every shared picture of `replay` is drawn from: the card's
+    /// frame, full motion.
+    static func script(_ replay: Replay) -> ReplayScript {
+        ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: false)
+    }
+
+    /// One moment of the replay as it is shared: the Share still at the end,
+    /// and every frame of the saved video. One function, so the two cannot
+    /// drift apart in scheme, type size or insets.
+    @MainActor
+    static func sharedFrame(_ script: ReplayScript, images: ReplayImages, t: Double, now: Date) -> some View {
+        ReplayFrame(script: script, images: images, t: t, now: now,
+                    topInset: topInset, bottomInset: 0)
+            .environment(\.colorScheme, .light)
+            .dynamicTypeSize(.large)
+    }
+
+    /// The renderer scale that gives exactly `pixelWidth` pixels across the
+    /// card.
+    ///
+    /// A hair under the whole-pixel width. `132 * 3 / 360` is 1.1, and
+    /// 360 * 1.1 in floating point is 396.00000000000006, so the bitmap
+    /// came out 397 pixels wide with its last column never drawn: opaque,
+    /// that column is black, and it showed as a hairline down the edge of
+    /// the August poster on the shelf.
+    static func rendererScale(pixelWidth: CGFloat) -> CGFloat {
+        (max(1, pixelWidth.rounded()) - 0.01) / size.width
+    }
+
     @MainActor
     static func image(_ replay: Replay, images: ReplayImages, scale: CGFloat, now: Date = Date()) -> UIImage? {
-        let script = ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: false)
-        let renderer = ImageRenderer(content:
-            ReplayFrame(script: script, images: images, t: script.duration, now: now,
-                        topInset: topInset, bottomInset: 0)
-                .environment(\.colorScheme, .light)
-                .dynamicTypeSize(.large)
-        )
-        // A hair under the whole-pixel width. `132 * 3 / 360` is 1.1, and
-        // 360 * 1.1 in floating point is 396.00000000000006, so the bitmap
-        // came out 397 pixels wide with its last column never drawn: opaque,
-        // that column is black, and it showed as a hairline down the edge of
-        // the August poster on the shelf.
-        let pixels = max(1, (size.width * scale).rounded())
-        renderer.scale = (pixels - 0.01) / size.width
+        let script = Self.script(replay)
+        let renderer = ImageRenderer(content: sharedFrame(script, images: images, t: script.duration, now: now))
+        renderer.scale = rendererScale(pixelWidth: size.width * scale)
         renderer.isOpaque = true
         return renderer.uiImage
     }
@@ -76,15 +94,14 @@ enum ReplayCard {
     @MainActor
     static func poster(_ replay: Replay, images: ReplayImages, scale: CGFloat,
                        rowTowerHeight: CGFloat, colorScheme: ColorScheme) -> UIImage? {
-        let script = ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: false)
+        let script = Self.script(replay)
         let layout = ReplayFrame.Poster(scale: posterScale(rowTowerHeight: rowTowerHeight),
                                         baseY: size.height - posterMargin)
         let renderer = ImageRenderer(content:
             ReplayFrame(script: script, images: images, t: script.duration, poster: layout)
                 .environment(\.colorScheme, colorScheme)
         )
-        let pixels = max(1, (size.width * scale).rounded())
-        renderer.scale = (pixels - 0.01) / size.width
+        renderer.scale = rendererScale(pixelWidth: size.width * scale)
         renderer.isOpaque = true
         return renderer.uiImage
     }

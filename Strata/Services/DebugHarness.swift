@@ -169,6 +169,12 @@ enum DebugHarness {
     /// `-strataReplayProbe`: the playing replay publishes its clock as an
     /// accessibility element, so a UI test can tell a pause from a skip.
     static var probesReplay: Bool { ProcessInfo.processInfo.arguments.contains("-strataReplayProbe") }
+    /// `-strataExportReplay`: with `-strataOpenReplay`, the replay saves its
+    /// video once it reaches the end, as a press of Save Video would, but to
+    /// `Documents/replay.mp4` instead of the camera roll, with the export's
+    /// timings beside it in `replay-export.txt`. The camera roll cannot be
+    /// read back from here; a file can be probed, played and compared.
+    static var exportsReplay: Bool { ProcessInfo.processInfo.arguments.contains("-strataExportReplay") }
     /// `-strataReplayWindow week|month`: forces the Wins tab pill on, for a
     /// period that may not actually have a win yet. The pill is only reachable
     /// by waiting for Sunday evening or the 1st, which nothing on this machine

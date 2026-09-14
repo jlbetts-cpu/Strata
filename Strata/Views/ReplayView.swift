@@ -55,6 +55,10 @@ struct ReplayView: View {
     /// Where that block is drawn, so the viewer can grow out of it.
     @State private var viewingSource: CGRect = .zero
     @Namespace private var photoTransition
+    /// Save Video. Its own observable, read only by the control, so the
+    /// progress ticking over does not rebuild the whole replay.
+    @State private var save = ReplaySave()
+    @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var cadence = ReplayCadence()
     #endif
@@ -97,6 +101,19 @@ struct ReplayView: View {
             .ignoresSafeArea()
         }
         .statusBarHidden(false)
+        // Closing the replay stops a save in progress and deletes the partial
+        // file. So does leaving the app: a phone will not encode video in the
+        // background. Only `.background`, not `.inactive`, which a pulled-down
+        // Control Center or the Photos permission alert also report.
+        .onDisappear { save.cancel() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { save.cancel() }
+        }
+        #if DEBUG
+        .onChange(of: finished) { _, done in
+            if done, DebugHarness.exportsReplay, let images { save.start(replay: replay, images: images, now: now) }
+        }
+        #endif
         .fullScreenCover(item: $viewing) { photo in
             PhotoViewer(photos: storedPhotos,
                         startAt: photo.id,
@@ -209,14 +226,19 @@ struct ReplayView: View {
             }
     }
 
-    /// Share, and Save Video in Task 11. The row reserves their height from
-    /// the first frame, so the close is laid out, and bounded above the home
-    /// indicator, at the size it has once they are in it.
+    /// Save Video and Share. The row reserves their height from the first
+    /// frame, so the close is laid out, and bounded above the home indicator,
+    /// at the size it has once they are in it.
     ///
     /// Share shares the still, not the video: the video is shared by saving
     /// it, since the camera roll is where people post stories from.
     private func controls(script: ReplayScript) -> some View {
         HStack(spacing: GridConstants.gapItem) {
+            if let images {
+                SaveVideoControl(save: save) {
+                    save.start(replay: replay, images: images, now: now)
+                }
+            }
             if let shareImage {
                 let image = Image(uiImage: shareImage)
                 ShareLink(item: image, preview: SharePreview(replay.period.title, image: image)) {
@@ -294,6 +316,136 @@ struct ReplayView: View {
     #endif
 }
 
+/// Saving a replay as a video: export, then the camera roll.
+@Observable
+final class ReplaySave {
+    enum State: Equatable {
+        case idle
+        case saving(Double)
+        case saved
+        case failed
+    }
+
+    private(set) var state: State = .idle
+    @ObservationIgnored private var exporter: ReplayVideoExporter?
+
+    /// A press of Save Video. After a failure the same press tries again.
+    func start(replay: Replay, images: ReplayImages, now: Date) {
+        if state == .failed { state = .idle }
+        guard state == .idle else { return }
+        let job = ReplayVideoExporter(replay: replay, images: images, now: now)
+        exporter = job
+        state = .saving(0)
+        Task {
+            defer { if exporter === job { exporter = nil } }
+            let url: URL
+            do {
+                url = try await job.export { [weak self] p in self?.state = .saving(p) }
+            } catch {
+                // Cancelled by closing (nothing is left to show it) or by
+                // leaving the app, where it did not save and says so.
+                state = .failed
+                if case ReplayVideoExporter.Failure.cancelled = error { return }
+                HapticsEngine.warning()
+                return
+            }
+            #if DEBUG
+            if DebugHarness.exportsReplay {
+                // The Share still beside it, to compare with the video's last frame.
+                let still = ReplayCard.image(replay, images: images, scale: 3, now: now)?.pngData()
+                state = Self.keepForInspection(url, job, still: still) ? .saved : .failed
+                return
+            }
+            #endif
+            let saved = await PhotoLibrarySaver.saveVideo(at: url)
+            ReplayVideoExporter.remove(url)
+            state = saved ? .saved : .failed
+            if saved { HapticsEngine.success() } else { HapticsEngine.warning() }
+        }
+    }
+
+    func cancel() { exporter?.cancel() }
+
+    var title: String {
+        switch state {
+        case .idle: "Save Video"
+        case .saving: "Saving…"
+        case .saved: "Saved to Photos"
+        case .failed: "Couldn't save the video"
+        }
+    }
+
+    #if DEBUG
+    /// `-strataExportReplay`: the file, and how long it took, in Documents.
+    private static func keepForInspection(_ url: URL, _ job: ReplayVideoExporter, still: Data?) -> Bool {
+        let destination = URL.documentsDirectory.appending(path: "replay.mp4")
+        ReplayVideoExporter.remove(destination)
+        do {
+            try FileManager.default.moveItem(at: url, to: destination)
+            try still?.write(to: URL.documentsDirectory.appending(path: "replay-still.png"))
+            let s = job.stats
+            let report = String(format: "duration %.4f frames %d drawn %d wall %.2fs mix %.0fms maxSlice %.0fms (%@) slices %d landings %d sounding %d\n",
+                                s.duration, s.frames, s.drawn, s.wall, s.audioMix * 1000, s.maxSlice * 1000,
+                                s.maxSliceAt, s.slices, s.landings, s.sounding)
+                + "sounding " + s.soundingTimes.map { String(format: "%.4f", $0) }.joined(separator: " ") + "\n"
+                + "draws " + ReplayVideoExporter.Stats.spread(s.draws) + "\n"
+                + "slices " + ReplayVideoExporter.Stats.spread(s.sliceList.map(\.0))
+                + " over100 \(s.sliceList.filter { $0.0 > 0.1 }.count)\n"
+                + "longest " + s.sliceList.sorted { $0.0 > $1.0 }.prefix(6)
+                    .map { String(format: "%.0fms %@", $0.0 * 1000, $0.1) }.joined(separator: ", ") + "\n"
+            try report.write(to: URL.documentsDirectory.appending(path: "replay-export.txt"), atomically: true, encoding: .utf8)
+            print("[REPLAY-EXPORT] \(report)")
+            return true
+        } catch {
+            print("[REPLAY-EXPORT] could not keep the file: \(error)")
+            return false
+        }
+    }
+    #endif
+}
+
+/// Save Video, in the same glass capsule as Share. While saving, a ring
+/// beside the word fills with the export.
+private struct SaveVideoControl: View {
+    let save: ReplaySave
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: GridConstants.gapTight) {
+                if case .saving(let p) = save.state {
+                    ZStack {
+                        Circle().stroke(AppColors.inkQuiet.opacity(0.3), lineWidth: 2)
+                        Circle().trim(from: 0, to: p)
+                            .stroke(AppColors.inkSecondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: GridConstants.iconAction, height: GridConstants.iconAction)
+                    .accessibilityHidden(true)
+                }
+                Text(save.title)
+                    .font(Typography.headerMedium)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .foregroundStyle(AppColors.inkPrimary)
+            }
+            // Layout first, glass after, as Share.
+            .padding(.horizontal, GridConstants.gapLabel)
+            .frame(height: GlassIconButton.defaultSide)
+            .glassCapsule()
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(save.title)
+        .accessibilityValue(progressValue)
+    }
+
+    private var progressValue: String {
+        if case .saving(let p) = save.state { return "\(Int((p * 100).rounded())) percent" }
+        return ""
+    }
+}
+
 /// Whether the touch in progress became a hold. A reference, not state:
 /// nothing draws from it, and gesture callbacks write it mid-touch.
 final class PressMemory {
@@ -355,17 +507,30 @@ final class ReplayClock {
 /// Haptics and sound for the landings a frame has passed.
 ///
 /// Rate-limited to `replayFeedbackPerSecond`, so a busy month is a patter and
-/// not noise. A skip passes many landings at once and plays none of them.
+/// not noise. Which landings sound is decided once per script by
+/// `ReplayAudioMix.landingTimes`, the rule the saved video's track is mixed
+/// by, so the video sounds like the replay did. A skip passes many landings
+/// at once and plays none of them.
 final class ReplayFeedback {
-    private var recent: [Double] = []
     private var danced = false
+    private var landings: [ReplayScript.Landing] = []
+    private var allowed: Set<Int> = []
+
+    /// The block indices whose landings sound, for this script.
+    func sounding(_ script: ReplayScript) -> Set<Int> {
+        // The script is rebuilt with every body; its landings are the key.
+        if script.landings != landings {
+            landings = script.landings
+            allowed = Set(ReplayAudioMix.landingTimes(landings, limitPerSecond: GridConstants.replayFeedbackPerSecond)
+                .map(\.blockIndex))
+        }
+        return allowed
+    }
 
     func play(_ script: ReplayScript, from old: Double, to new: Double) {
         guard new > old, new - old <= GridConstants.replaySkipGap else { return } // a skip is silent
-        for landing in script.landings where landing.time > old && landing.time <= new {
-            recent.removeAll { new - $0 >= 1 }
-            guard recent.count < GridConstants.replayFeedbackPerSecond else { continue }
-            recent.append(new)
+        let allowed = sounding(script)
+        for landing in script.landings where landing.time > old && landing.time <= new && allowed.contains(landing.blockIndex) {
             if landing.mass >= 3 { HapticsEngine.squish(mass: landing.mass) } else { HapticsEngine.tick() }
             SoundEngine.blockImpact(mass: landing.mass, column: landing.column,
                                     gain: GridConstants.replayImpactGain)
