@@ -271,8 +271,33 @@ struct ReplayScript {
         if reduceMotion { return Camera(rise: 0, scale: fitScale) }
         if t < revealStart { return Camera(rise: CGFloat(cameraCurve.value(at: t)), scale: 1) }
         guard revealDuration > 0 else { return Camera(rise: 0, scale: 1) }
-        let e = Self.smooth((t - revealStart) / revealDuration)
-        return Camera(rise: finalRise * CGFloat(1 - e), scale: 1 + (fitScale - 1) * CGFloat(e))
+        let e = CGFloat(Self.smooth((t - revealStart) / revealDuration))
+        // **The TOP is interpolated, and the rise solved from it.**
+        //
+        // This lerped rise and scale separately. The screen top is their
+        // product, `baseY - s * (H - rise)`, which is not monotone: sampled at
+        // 402x874 a 60-win week's top climbed to -254pt and a 150-win month's
+        // to -1171pt before coming back, so the reveal read as the camera
+        // travelling down the tower and then pulling out, over the header and
+        // the Dynamic Island.
+        //
+        // Now the top moves in a straight line from where the build left it
+        // to where the fitted tower ends, so it never leaves that span, and
+        // the base comes up from below into place.
+        //
+        // Scale is geometric, equal ratios per unit of progress, which is
+        // what reads as an even zoom, and exactly 1 throughout when the tower
+        // already fits.
+        let h = towerHeight
+        let scale = pow(fitScale, e)
+        let startTop = metrics.baseY - (h - finalRise)
+        // `fitTopY` whenever the tower had to shrink. When it fits at scale 1
+        // it is the tower's own top, so the rise eases out to 0 on the curve
+        // rather than clamping to 0 part way through.
+        let endTop = metrics.baseY - fitScale * h
+        let top = startTop + (endTop - startTop) * e
+        let rise = max(0, h - (metrics.baseY - top) / scale)
+        return Camera(rise: rise, scale: scale)
     }
 
     func pose(_ index: Int, at t: Double) -> BlockPose {

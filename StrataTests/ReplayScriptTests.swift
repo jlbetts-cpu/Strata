@@ -102,6 +102,47 @@ struct ReplayScriptTests {
         #expect(end.scale < 1)
     }
 
+    @Test("the reveal pulls out: the top stays between the fit line and the base, the zoom only shrinks, nothing jumps",
+          arguments: [(ReplayKind.month, 150), (ReplayKind.week, 60)])
+    func revealNeverOvershoots(kind: ReplayKind, wins: Int) {
+        let s = script(kind, wins: wins)
+        let m = s.metrics
+        let h = s.towerHeight
+        func top(_ t: Double) -> CGFloat {
+            let c = s.camera(at: t)
+            return m.baseY - c.scale * (h - c.rise)
+        }
+        #expect(s.revealDuration > 0 && s.fitScale < 1, "this case has to exercise a real reveal")
+
+        // Continuity with the last build frame.
+        let lastBuild = s.revealStart - 1.0 / 60
+        #expect(abs(top(s.revealStart) - top(lastBuild)) < 5)
+        #expect(abs(s.camera(at: s.revealStart).rise - s.camera(at: lastBuild).rise) < 5)
+
+        var lastScale = CGFloat.infinity
+        var lastTop = top(s.revealStart)
+        var worstTop = lastTop
+        var t = s.revealStart
+        let end = s.danceStart + 1.0 / 60
+        while t <= end {
+            let c = s.camera(at: t)
+            let y = top(t)
+            worstTop = min(worstTop, y)
+            #expect(y <= m.baseY, "top at \(y) fell below the base at t=\(t)")
+            #expect(c.scale <= lastScale + 1e-9, "zoom went back in at t=\(t)")
+            #expect(abs(y - lastTop) <= 40, "top jumped from \(lastTop) to \(y) at t=\(t)")
+            lastScale = c.scale
+            lastTop = y
+            t += 1.0 / 60
+        }
+        // One expectation for the bound, carrying the worst value, rather
+        // than one failure per frame.
+        #expect(worstTop >= m.fitTopY - 0.5, "the top reached \(worstTop), above fitTopY \(m.fitTopY)")
+        // And it lands exactly where it was going.
+        #expect(abs(top(s.danceStart) - (m.baseY - s.fitScale * h)) < 0.5)
+        #expect(s.camera(at: s.danceStart).rise < 0.5)
+    }
+
     @Test("a week that already fits never zooms")
     func smallWeekHolds() {
         let s = script(.week, wins: 4)
