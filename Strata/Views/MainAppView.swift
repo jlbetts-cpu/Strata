@@ -731,85 +731,28 @@ struct MainAppView: View {
     /// "Wins", not "blocks": a block is what the thing is made of, a win is
     /// what it means.
     private var towerHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("\(towerVM.placedBlocks.count)")
-                // The owner's own digits, at the screen-title size — see
-                // `Typography.tally`. Metrically compatible with the system
-                // face, so it still scales with Dynamic Type and its cap
-                // still lands on the shared header line.
-                .font(Typography.tally)
-                // Ink, not pink. It was pink for one build, on the argument
-                // that the one number on the page should carry the brand
-                // colour; the owner's call is black, and it is the right one
-                // — pink is a BLOCK colour here, so a pink numeral reads as
-                // a label belonging to whichever blocks happen to be pink
-                // that day rather than as the count of all of them.
-                .foregroundStyle(AppColors.inkPrimary)
-                .contentTransition(.numericText())
-                // Optical, not geometric. A digit's ink starts inside its
-                // layout box — measured at 4pt for SF Pro Rounded at 64pt — so
-                // a box aligned to the grid still LOOKS indented next to a
-                // block, whose colour goes right to its edge.
-                .padding(.leading, -GridConstants.tallyOpticalInset)
-            // SF Pro Rounded, at a subheadline size.
-            //
-            // It was drawn for one build, on the numeral's own 28-unit body,
-            // so the pair was one face at one size. The owner's call is this
-            // one, and the reasoning holds up: the count is the fact and the
-            // word is a caption for it, so the word being quieter AND smaller
-            // is the header saying which of the two you are meant to read.
-            // Matched in size it stopped being a caption and became half of a
-            // two-word title.
-            Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
-            Spacer(minLength: 0)
-            // A replay, only while its window is open. The one new piece of
-            // chrome the feature adds, and it leaves on its own once the
-            // window closes — there is no dismiss for it.
-            if let period = liveReplay {
-                Button {
-                    HapticsEngine.lightTap()
-                    let loaded = ReplayLoader.replay(for: period, context: modelContext)
-                    // The pill can be a moment behind the store (a win
-                    // deleted elsewhere). An empty replay is never played;
-                    // the pill is re-decided instead, and leaves.
-                    if loaded.count > 0 {
-                        playingReplay = loaded
-                    } else {
-                        updateLiveReplay()
-                    }
-                } label: {
-                    // Set as the replay's own Share control: the app's two
-                    // weights, the label step, one line.
-                    Text(period.title)
-                        .font(Typography.headerMedium)
-                        .lineLimit(1)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .padding(.horizontal, GridConstants.gapLabel)
-                        .frame(height: GlassIconButton.defaultSide)
+        // **One row when it fits, the pill on its own line when it does not.**
+        // At an accessibility text size on an iPhone SE the count, "wins",
+        // "Your month" and Plan are wider than the grid: squeezed into one
+        // row, "12" broke one digit per line and the pill read "Yo...", and
+        // capping the pill's type still left "Your...". So the row is
+        // measured, and when it does not fit, the pill drops under the count
+        // at full size, the way Dynamic Type layouts stack at large sizes.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                headerCount
+                Spacer(minLength: 0)
+                headerReplayPill
+                headerPlan
+            }
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    headerCount
+                    Spacer(minLength: 0)
+                    headerPlan
                 }
-                .glassCapsule()
-                .transition(.opacity)
+                headerReplayPill
             }
-            // The plan, where sharing was, which was where the range picker
-            // was before that.
-            //
-            // Sharing is a thing you do occasionally and can be reached other
-            // ways; planning is a thing some people do every morning, and it
-            // has to be one press from the tower or it will not happen. This
-            // corner takes whichever of the two is used more, and it is not
-            // the one that needs an audience.
-            GlassIconButton(
-                systemName: "checklist",
-                accessibilityLabel: "Plan"
-            ) {
-                isPlanning = true
-            }
-            // No profile button here. Profile lives on Memories only — the
-            // owner's call: the tower is today's record and its corner belongs
-            // to the plan; who you are and how your weeks have gone is the
-            // Memories tab's subject.
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
@@ -833,6 +776,103 @@ struct MainAppView: View {
         // tower that reaches the top of the scroll runs straight into the
         // number and the page reads as crowded.
         .padding(.bottom, 20)
+    }
+
+    /// The count and the word for what it counts. Never wrapped: at
+    /// accessibility sizes beside the replay pill, "12" broke onto two lines.
+    @ViewBuilder
+    private var headerCount: some View {
+        Text("\(towerVM.placedBlocks.count)")
+            // The owner's own digits, at the screen-title size — see
+            // `Typography.tally`. Metrically compatible with the system
+            // face, so it still scales with Dynamic Type and its cap
+            // still lands on the shared header line.
+            .font(Typography.tally)
+            // Ink, not pink. It was pink for one build, on the argument
+            // that the one number on the page should carry the brand
+            // colour; the owner's call is black, and it is the right one
+            // — pink is a BLOCK colour here, so a pink numeral reads as
+            // a label belonging to whichever blocks happen to be pink
+            // that day rather than as the count of all of them.
+            .foregroundStyle(AppColors.inkPrimary)
+            .contentTransition(.numericText())
+            // Optical, not geometric. A digit's ink starts inside its
+            // layout box — measured at 4pt for SF Pro Rounded at 64pt — so
+            // a box aligned to the grid still LOOKS indented next to a
+            // block, whose colour goes right to its edge.
+            .padding(.leading, -GridConstants.tallyOpticalInset)
+            // Never wrapped. At accessibility sizes with the replay pill
+            // beside it, "12" broke onto two lines, one digit on each.
+            .fixedSize(horizontal: true, vertical: false)
+        // SF Pro Rounded, at a subheadline size.
+        //
+        // It was drawn for one build, on the numeral's own 28-unit body,
+        // so the pair was one face at one size. The owner's call is this
+        // one, and the reasoning holds up: the count is the fact and the
+        // word is a caption for it, so the word being quieter AND smaller
+        // is the header saying which of the two you are meant to read.
+        // Matched in size it stopped being a caption and became half of a
+        // two-word title.
+        Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(AppColors.inkQuiet)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var headerReplayPill: some View {
+        // A replay, only while its window is open. The one new piece of
+        // chrome the feature adds, and it leaves on its own once the
+        // window closes — there is no dismiss for it.
+        if let period = liveReplay {
+            Button {
+                HapticsEngine.lightTap()
+                let loaded = ReplayLoader.replay(for: period, context: modelContext)
+                // The pill can be a moment behind the store (a win
+                // deleted elsewhere). An empty replay is never played;
+                // the pill is re-decided instead, and leaves.
+                if loaded.count > 0 {
+                    playingReplay = loaded
+                } else {
+                    updateLiveReplay()
+                }
+            } label: {
+                // Set as the replay's own Share control: the app's two
+                // weights, the label step, one line.
+                Text(period.title)
+                    .font(Typography.headerMedium)
+                    .lineLimit(1)
+                    // The one thing in the row that gives way, and only
+                    // so far: the count is the page's fact.
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    .frame(height: GlassIconButton.defaultSide)
+            }
+            .glassCapsule()
+            .transition(.opacity)
+        }
+    }
+
+    private var headerPlan: some View {
+        // The plan, where sharing was, which was where the range picker
+        // was before that.
+        //
+        // Sharing is a thing you do occasionally and can be reached other
+        // ways; planning is a thing some people do every morning, and it
+        // has to be one press from the tower or it will not happen. This
+        // corner takes whichever of the two is used more, and it is not
+        // the one that needs an audience.
+        GlassIconButton(
+            systemName: "checklist",
+            accessibilityLabel: "Plan"
+        ) {
+            isPlanning = true
+        }
+        // No profile button here. Profile lives on Memories only — the
+        // owner's call: the tower is today's record and its corner belongs
+        // to the plan; who you are and how your weeks have gone is the
+        // Memories tab's subject.
     }
 
     /// Which block is under a point in the grid's coordinate space.
