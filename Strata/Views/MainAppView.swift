@@ -124,9 +124,6 @@ struct MainAppView: View {
     @State private var showTowerConfetti = false
     @AppStorage("lastCelebrationDate") private var lastCelebrationDate: String = ""
 
-    // #84-86: Milestone system
-    @State private var milestoneStore = MilestoneStore.load()
-    @State private var pendingMilestone: Milestone? = nil
 
     // New habit menu
     /// What the add sheet is being opened WITH.
@@ -384,6 +381,11 @@ struct MainAppView: View {
                 if newPhase == .active {
                     focusFilterService.refresh()
                     SpotlightIndexer.reindex(container: SharedModelContainer.shared)
+                    // Keep a fortnight of reminders ahead. See `DailyReminder`.
+                    if reminderOn {
+                        Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
+                                                            loggedToday: blocksToday > 0) }
+                    }
                 } else {
                     // **Leaving the app is the moment before the home screen
                     // is looked at.** The snapshot was only ever published
@@ -1008,15 +1010,6 @@ struct MainAppView: View {
             // `CameraPickerView`, which is `UIImagePickerController` — the
             // stock iOS camera, with none of this app's chrome. The sheet uses
             // the app's own viewfinder.
-            .overlay {
-                if expandedBlockID != nil, let milestone = pendingMilestone {
-                    MilestoneCelebration(milestone: milestone) {
-                        pendingMilestone = nil
-                    }
-                    .transition(.opacity)
-                    .zIndex(200)
-                }
-            }
             .sheet(item: Binding(
                 get: {
                     expandedBlockID.flatMap { id in
@@ -1205,6 +1198,13 @@ struct MainAppView: View {
     /// Blocks that landed on the tower today — taps of the next slot plus
     /// habits completed. One honest number for what today added, rather than
     /// a count that stays still while the tower visibly grows.
+    @AppStorage("notificationsEnabled") private var reminderOn = false
+    @AppStorage("reminderHour") private var reminderHour = 8
+    @AppStorage("reminderMinute") private var reminderMinute = 0
+    /// The last day today's reminder was taken back, so a refresh that finds
+    /// the same win again does not ask the notification centre again.
+    @State private var reminderSkippedDay = ""
+
     private var blocksToday: Int {
         let today = DateUtils.dateString(from: Date())
         return logs.filter { $0.dateString == today && $0.completed }.count
@@ -1378,6 +1378,9 @@ struct MainAppView: View {
         // the share button — so the key goes, rather than sitting in defaults
         // waiting to be read by something.
         UserDefaults.standard.removeObject(forKey: "towerFilterMode")
+        // Milestones were removed; the list of ones already unlocked has
+        // nothing left to read it.
+        UserDefaults.standard.removeObject(forKey: "milestoneStore")
 
         // Yesterday off the plan: finished one-offs go, finished repeats come
         // back unchecked. Anything unfinished is left exactly where it is.
@@ -1590,47 +1593,6 @@ struct MainAppView: View {
         }
     }
 
-    /// The longest run of consecutive days with a completed win.
-    ///
-    /// **Cached, because `refreshData` is a hot path** and this needs a wider
-    /// window than the view's own query has: `MainAppView`'s `@Query` is
-    /// narrowed to the current month deliberately, and a streak can be a year
-    /// long. So it is computed by its own bounded fetch and only when the set
-    /// of completed days could have changed.
-    @State private var longestStreak = 0
-    /// What the streak was last computed from, so an unchanged tower does not
-    /// re-fetch.
-    @State private var streakSignature = ""
-
-    /// Recompute the streak, if anything could have moved it.
-    ///
-    /// **Six milestones depended on this and none of them could ever unlock.**
-    /// `MilestoneDetector` was handed a literal `0` with a `TODO` beside it,
-    /// so "Week Strong", "Fortnight", "Monthly", "Habit Formed", "Triple
-    /// Digits" and "Year One" were defined, listed, and unreachable — you
-    /// could use the app every day for a year and never be given the one
-    /// called "Year One".
-    private func refreshStreak() {
-        // One row per completed day is all `Streaks` needs, and the window is
-        // bounded: 400 days covers "Year One" with room and keeps the fetch
-        // off a table scan via `#Index<HabitLog>([\.dateString])`.
-        let horizon = Calendar.current.date(byAdding: .day, value: -400, to: Date())
-            .map { DateUtils.dateString(from: $0) } ?? ""
-        var descriptor = FetchDescriptor<HabitLog>(
-            predicate: #Predicate { $0.completed && $0.dateString >= horizon }
-        )
-        descriptor.propertiesToFetch = [\.dateString]
-        guard let logs = try? modelContext.fetch(descriptor) else { return }
-
-        let days = Set(logs.map(\.dateString))
-        // Cheap change detection: the number of distinct days plus the newest
-        // one. Anything that could lengthen a streak moves one of the two.
-        let signature = "\(days.count)|\(days.max() ?? "")"
-        guard signature != streakSignature else { return }
-        streakSignature = signature
-        longestStreak = Streaks.longest(among: days)
-    }
-
     @discardableResult
     private func refreshData() -> Set<UUID> {
         // Single-pass log index — O(n) once, then O(1) lookups downstream
@@ -1674,6 +1636,12 @@ struct MainAppView: View {
         }
         // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
+        // A win today means today's reminder has nothing to say.
+        let today = DateUtils.dateString(from: Date())
+        if reminderOn, reminderSkippedDay != today, blocksToday > 0 {
+            reminderSkippedDay = today
+            DailyReminder.skipToday()
+        }
         openDeepLinkedWin()
 
         // Purge stale animation state
@@ -1686,24 +1654,6 @@ struct MainAppView: View {
         let todayStr = TimelineViewModel.dateString(from: Date())
         let todayCompleted = cachedFilteredLogs.filter { $0.dateString == todayStr && $0.completed }.count
         if todayCompleted > 0 { lastCompletionDateString = todayStr }
-
-        // Before the milestones are checked, since one of them reads it.
-        // Guarded internally, so an unchanged tower costs one fetch of day
-        // keys and no work.
-        refreshStreak()
-
-        // #85: Milestone detection — check on every refresh
-        let newMilestones = MilestoneDetector.detectNewMilestones(
-            totalBlocks: towerVM.placedBlocks.count,
-            towerHeightMeters: towerVM.altimeterHeight,
-            perfectDayCount: perfectDayDates.count,
-            longestStreak: longestStreak,
-            store: &milestoneStore
-        )
-        if let first = newMilestones.first {
-            milestoneStore.save()
-            pendingMilestone = first
-        }
 
         // Debounced Spotlight reindex — only when habit count changes (create/delete)
         if habits.count != lastIndexedHabitCount {
@@ -2369,7 +2319,6 @@ struct MainAppView: View {
                     reduceMotion: reduceMotion, colorScheme: colorScheme,
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
-                    milestoneNumber: towerVM.milestoneBlockIDs[block.id],
                     isGroupMember: groupedIDs.contains(block.id),
                     willMerge: mergeDestinedIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
@@ -2474,7 +2423,6 @@ struct MainAppView: View {
         let colorScheme: ColorScheme
         let isFoundation: Bool
         let isCrown: Bool
-        let milestoneNumber: Int?
         let isGroupMember: Bool
         /// True once this block has settled into a merged run.
         /// True as soon as the tower knows it BELONGS to one, even mid-flight.
@@ -2510,7 +2458,6 @@ struct MainAppView: View {
             && lhs.colorScheme == rhs.colorScheme
             && lhs.isFoundation == rhs.isFoundation
             && lhs.isCrown == rhs.isCrown
-            && lhs.milestoneNumber == rhs.milestoneNumber
             && lhs.isGroupMember == rhs.isGroupMember
             && lhs.willMerge == rhs.willMerge
             && lhs.isCovered == rhs.isCovered

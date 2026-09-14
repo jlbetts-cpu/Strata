@@ -70,19 +70,8 @@ final class TowerViewModel {
     // Day separators (Week/Month modes)
 
     // Tower metadata
-    private(set) var milestoneBlockIDs: [UUID: Int] = [:]     // blockID → block number (10th, 50th, etc.)
     private(set) var topRowBlockIDs: Set<UUID> = []            // blocks on topmost row
     private(set) var foundationBlockIDs: Set<UUID> = []        // blocks on row 0
-
-    // Altimeter
-    var altimeterHeight: Double {
-        Double(peakCompletedHeight) * GridConstants.metersPerBlock
-    }
-
-    var peakCompletedHeight: Int {
-        guard !placedBlocks.isEmpty else { return 0 }
-        return placedBlocks.reduce(0) { max($0, $1.row + $1.rowSpan) }
-    }
 
     func startLoading() {
         isLoading = true
@@ -128,11 +117,6 @@ final class TowerViewModel {
         var currentDateString: String? = nil
         var dayBoundaryRows: [(dateString: String, row: Int)] = []
         var blockCountByDate: [String: Int] = [:]
-        var nonSkippedBlockNumber = 0
-
-        // Milestone thresholds
-        let milestoneThresholds: Set<Int> = [10, 25, 50, 100, 150, 200, 250, 500, 1000]
-        var milestones: [UUID: Int] = [:]
 
         for log in eligibleLogs {
             guard let habit = log.habit else { continue }
@@ -161,14 +145,6 @@ final class TowerViewModel {
                 )
                 placed.append(block)
                 blockCountByDate[log.dateString, default: 0] += 1
-
-                // Track milestones (skipped blocks excluded)
-                if !isSkipped {
-                    nonSkippedBlockNumber += 1
-                    if milestoneThresholds.contains(nonSkippedBlockNumber) {
-                        milestones[log.id] = nonSkippedBlockNumber
-                    }
-                }
             }
         }
 
@@ -184,7 +160,6 @@ final class TowerViewModel {
         coveredBlockIDs = BlockMerge.covered(in: placed)
         incompleteBlocks = []
         currentGrid = grid
-        milestoneBlockIDs = milestones
 
         // Compute top-row and foundation block IDs
         if !placed.isEmpty {

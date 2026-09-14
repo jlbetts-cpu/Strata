@@ -2,13 +2,9 @@ import Foundation
 
 /// Consecutive days you did something.
 ///
-/// **This exists because six milestones could not be won.** `MilestoneDetector`
-/// takes a `longestStreak` and `MainAppView` passed it a literal `0` with a
-/// `// TODO: compute from streaks` beside it — so "Week Strong", "Fortnight",
-/// "Monthly", "Habit Formed", "Triple Digits" and "Year One" were defined,
-/// listed, and unreachable. Somebody could use this app every day for a year
-/// and never unlock the one called "Year One". A promise the app makes and
-/// cannot keep is worse than one it never made.
+/// Read by Profile's current and best streak and by the widget. (It was
+/// written for streak milestones, which were removed on 2026-09-13: their
+/// celebration only ever drew behind an open edit sheet.)
 ///
 /// A namespace of value functions over `yyyy-MM-dd` strings, by the same
 /// pattern as `MonthTower` and `PlaceMap`: no SwiftData, no `Calendar`

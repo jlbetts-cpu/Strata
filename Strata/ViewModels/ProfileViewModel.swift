@@ -4,11 +4,9 @@ import SwiftData
 
 /// The facts on Profile: the streak, and wins per day, week and month.
 ///
-/// One fetch, the same one `MainAppView.refreshStreak` makes — completed rows
-/// only, a 400-day horizon, only `dateString` materialised — so the streak on
-/// Profile and the streak the milestones read can never disagree about which
-/// days count. Never `MainAppView`'s own query, which is narrowed to the
-/// current month on purpose.
+/// One bounded fetch — completed rows only, a 400-day horizon, only
+/// `dateString` materialised. Never `MainAppView`'s own query, which is
+/// narrowed to the current month on purpose.
 ///
 /// All three views of the chart are worked out at load, so switching between
 /// Day, Week and Month is instant rather than a recount per tap.

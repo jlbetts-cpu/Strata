@@ -176,9 +176,6 @@ enum GridConstants {
     static let headerDividerHeight: CGFloat = 0.5
     static let timelineGutterWidth: CGFloat = 56
 
-    // 1 block height = 3 meters for altimeter
-    static let metersPerBlock: Double = 3.0
-
     // Minimum scaffold blocks for new users
     static let minimumScaffoldBlocks = 12
 

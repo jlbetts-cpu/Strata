@@ -118,7 +118,7 @@ struct SettingsView: View {
                     if enabled {
                         Task { await requestNotificationPermission() }
                     } else {
-                        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+                        Task { await DailyReminder.removePending() }
                     }
                 }
 
@@ -434,27 +434,12 @@ struct SettingsView: View {
         }
     }
 
+    /// See `DailyReminder`: only on days with nothing on the tower yet.
     private func scheduleReminder() {
-        let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
-
-        let content = UNMutableNotificationContent()
-        content.title = "Time to build"
-        content.body = "Your tower is ready for a new block."
-        content.sound = .default
-
-        var dateComponents = DateComponents()
-        dateComponents.hour = reminderHour
-        dateComponents.minute = reminderMinute
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-        let request = UNNotificationRequest(
-            identifier: "strata.daily.reminder",
-            content: content,
-            trigger: trigger
-        )
-
-        center.add(request)
+        let today = DateUtils.dateString(from: Date())
+        let loggedToday = logs.contains { $0.dateString == today && $0.completed }
+        Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
+                                            loggedToday: loggedToday) }
     }
 
     private func checkNotificationStatus() async {
