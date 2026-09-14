@@ -27,6 +27,16 @@ struct PhotoGalleryGrid: View {
     /// moves.
     var transitionNamespace: Namespace.ID?
     var onSelect: (GalleryPhoto) -> Void = { _ in }
+    /// The screen's own title. When the grid is ONE section whose heading
+    /// says the same thing ("August" over "AUGUST"), the heading is dropped:
+    /// the same fact twice is the mistake the tower header already made once.
+    var screenTitle: String?
+
+    /// Whether the only section's heading repeats the screen's title.
+    static func headingRepeatsTitle(_ sections: [GallerySection], title: String?) -> Bool {
+        guard sections.count == 1, let title, !title.isEmpty else { return false }
+        return sections[0].title.localizedCaseInsensitiveCompare(title) == .orderedSame
+    }
 
     /// Two points, the way a camera roll does it.
     ///
@@ -64,7 +74,9 @@ struct PhotoGalleryGrid: View {
                         }
                     }
                 } header: {
-                    heading(section.title)
+                    if !Self.headingRepeatsTitle(sections, title: screenTitle) {
+                        heading(section.title)
+                    }
                 }
             }
         }

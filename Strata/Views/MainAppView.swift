@@ -2419,13 +2419,18 @@ struct MainAppView: View {
     /// says what pressing it is for, once, quietly.
     private var towerEmptyStateMessage: some View {
         VStack(spacing: GridConstants.gapTight) {
+            // The same ink pair as Memories' empty state, so the two empty
+            // screens speak at one volume. It was tertiary over quiet.
             Text("Nothing yet today")
                 .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkTertiary)
+                .foregroundStyle(AppColors.inkPrimary)
 
-            Text("Hold the block to log your first win.")
+            // "Slot", the tower's word for it everywhere else, and "tap",
+            // which is true: a tap on the slot opens the add sheet
+            // (`NextSlotButton`'s `onOpenMenu`). It said "Hold the block".
+            Text("Tap the slot to log your first win.")
                 .font(Typography.bodySmall)
-                .foregroundStyle(AppColors.inkQuiet)
+                .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2570,7 +2575,7 @@ struct MainAppView: View {
                 // frame and the fall is the whole of its entrance.
                 .transition(isNewlyDropped
                             ? .identity
-                            : .opacity.animation(.easeOut(duration: 0.2).delay(stagger)))
+                            : .opacity.animation(GridConstants.towerBlockFadeIn.delay(stagger)))
             }
         }
     }

@@ -634,7 +634,13 @@ struct MemoriesView: View {
                                    value: vm.month.isEmpty)
                 }
             }
-            .frame(width: 3 * cell + 2 * gutter, height: 3 * cell + 2 * gutter)
+            // **`.topLeading`, or the ghosts sit 33pt right and down.** The
+            // ghosts are placed with `.offset`, which moves the drawing and
+            // not the layout, so the ZStack's own size is only its biggest
+            // child (128pt). A centred frame centres that 128pt box, pushing
+            // every ghost off centre and into the headline below.
+            .frame(width: 3 * cell + 2 * gutter, height: 3 * cell + 2 * gutter,
+                   alignment: .topLeading)
 
             VStack(spacing: GridConstants.gapTight) {
                 Text("Your first month starts here")

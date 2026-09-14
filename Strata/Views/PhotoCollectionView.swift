@@ -36,14 +36,26 @@ struct PhotoCollectionView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PhotoGalleryGrid(sections: sections,
-                             transitionNamespace: photoTransition) {
-                viewing = ViewedPhoto(id: $0.fileName, title: $0.title)
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                // The heading would have carried the gap; without it, the
+                // grid keeps the same distance from the header on its own.
+                if PhotoGalleryGrid.headingRepeatsTitle(sections, title: title) {
+                    Color.clear.frame(height: GridConstants.gapWide)
+                }
+                PhotoGalleryGrid(sections: sections,
+                                 transitionNamespace: photoTransition,
+                                 onSelect: { viewing = ViewedPhoto(id: $0.fileName, title: $0.title) },
+                                 screenTitle: title)
             }
                 .padding(.bottom, GridConstants.tabBarClearance)
         }
         .background { WarmBackground().ignoresSafeArea() }
-        .navigationTitle(title)
+        // **The Day page's header, not a system inline title.** Both screens
+        // open from the same Albums shelf, and one put a 34pt title under the
+        // back button while the other put a 17pt one beside it, with its cap
+        // 46pt higher. One header for every album.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         // **The bar gets a ground.** The grid is edge to edge, so without one
         // the photographs slide under the title and the back chevron and both
@@ -69,6 +81,27 @@ struct PhotoCollectionView: View {
                 .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
         }
     }
+
+    // MARK: - Header
+
+    /// `DayAlbumDetailView.header`'s shape: the screen title, and a count
+    /// under it.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(Typography.screenTitle)
+                .foregroundStyle(AppColors.inkPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text("\(photoCount) \(photoCount == 1 ? "photo" : "photos")")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkQuiet)
+                .opacity(sections.isEmpty ? 0 : 1)
+        }
+        .padding(.horizontal, GridConstants.horizontalPadding)
+    }
+
+    private var photoCount: Int { sections.reduce(0) { $0 + $1.photos.count } }
 
     private func load() {
         // **Only rows that could possibly appear here.**

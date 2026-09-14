@@ -260,9 +260,15 @@ struct AddWinSheet: View {
     @ViewBuilder
     private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            // `SectionHeading`'s style, so a label here is recognisably the
+            // same kind of thing as a heading in Memories. Not `SectionHeading`
+            // itself: that carries the page margin and a section's top gap,
+            // and these sit inside a form that already has both.
             Text(label)
-                .font(Typography.caption)
-                .foregroundStyle(AppColors.inkQuiet)
+                .font(Typography.sectionLabel)
+                .kerning(Typography.sectionKerning)
+                .textCase(.uppercase)
+                .foregroundStyle(AppColors.inkSecondary)
             content()
         }
     }
@@ -290,18 +296,26 @@ struct AddWinSheet: View {
         }
     }
 
+    // **One toolbar-action style for every sheet**: `headerSmall`, as
+    // Profile, Settings, Plan and the plan line's Done already are. These were
+    // the system body size, so "Add" stood visibly bigger than Profile's
+    // "Done". Confirm wears the accent; Cancel stays the quieter ink, as the
+    // head maker's Retake does beside its Save.
     private var cancelButton: some View {
-        Button("Cancel") {
+        Button {
             HapticsEngine.lightTap()
             dismiss()
+        } label: {
+            Text("Cancel").font(Typography.headerSmall)
         }
         .foregroundStyle(AppColors.inkSecondary)
     }
 
     private var confirmButton: some View {
-        Button(isEditing ? "Save" : "Add") { Task { await save() } }
+        Button { Task { await save() } } label: {
+            Text(isEditing ? "Save" : "Add").font(Typography.headerSmall)
+        }
             .disabled(!canSave)
-            .fontWeight(.medium)
             .foregroundStyle(canSave ? AppColors.accentWarm : AppColors.inkQuiet)
     }
 
@@ -365,7 +379,10 @@ struct AddWinSheet: View {
                     // the app already has a way of saying that — a recess with
                     // a dashed edge. A flat grey rectangle said nothing.
                     RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
-                        .fill(AppColors.warmBlack.opacity(0.038))
+                        // `slotInk`, not `warmBlack`: an ink that inverts, as the
+                        // tower's slot and the Memories ghosts use. A fixed
+                        // dark ink measured about 1.1:1 on the dark sheet.
+                        .fill(AppColors.slotInk.opacity(0.035))
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
                             .font(Typography.bodyLarge.weight(.medium))
@@ -388,7 +405,7 @@ struct AddWinSheet: View {
                 // block with a photograph on it.
                 RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
                     .strokeBorder(
-                        photo == nil ? AppColors.warmBlack.opacity(0.26) : AppColors.onDarkQuiet,
+                        photo == nil ? AppColors.slotInk.opacity(0.26) : AppColors.onDarkQuiet,
                         style: photo == nil
                             ? StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
                             : StrokeStyle(lineWidth: GridConstants.blockRimWidth)
@@ -769,26 +786,8 @@ private struct PhotoPeek: View {
 
             VStack {
                 HStack {
-                    Button {
-                        HapticsEngine.lightTap()
-                        onClose()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background {
-                                if #available(iOS 26.0, *) {
-                                    Circle().fill(.clear).glassEffect(.regular, in: .circle)
-                                } else {
-                                    Circle().fill(.ultraThinMaterial)
-                                }
-                            }
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Close")
+                    GlassIconButton(systemName: "xmark", tint: .white,
+                                    accessibilityLabel: "Close", action: onClose)
                     Spacer(minLength: 0)
                     if onReplace != nil || onRemove != nil {
                         Menu {
@@ -809,19 +808,7 @@ private struct PhotoPeek: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
-                                .background {
-                                    if #available(iOS 26.0, *) {
-                                        Circle().fill(.clear).glassEffect(.regular, in: .circle)
-                                    } else {
-                                        Circle().fill(.ultraThinMaterial)
-                                    }
-                                }
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
+                            GlassIconLabel(systemName: "ellipsis", tint: .white)
                         }
                         .accessibilityLabel("Photo actions")
                     }
