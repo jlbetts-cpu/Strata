@@ -24,8 +24,7 @@ struct ShimmerModifier: ViewModifier {
                 AppColors.slotInk
                     .opacity(reduceMotion ? 0.05 : (deep ? 0.09 : 0.03))
             }
-            .animation(reduceMotion ? nil
-                       : .easeInOut(duration: 1.1).repeatForever(autoreverses: true),
+            .animation(reduceMotion ? nil : GridConstants.shimmerPulse,
                        value: deep)
             .onAppear { deep = true }
             .allowsHitTesting(false)

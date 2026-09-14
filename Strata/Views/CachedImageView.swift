@@ -66,7 +66,7 @@ struct CachedImageView: View {
                     .offset(x: -crop.x * drawn.width, y: -crop.y * drawn.height)
                     .frame(width: width, height: height)
                     .clipped()
-                    .transition(reduceMotion ? .identity : .opacity.animation(.easeIn(duration: 0.25)))
+                    .transition(reduceMotion ? .identity : .opacity.animation(GridConstants.imageFadeIn))
             } else if loadFailed {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(AppColors.quietFill)
@@ -82,10 +82,16 @@ struct CachedImageView: View {
                     .fill(AppColors.quietFill)
                     .frame(width: width, height: height)
                     .modifier(ShimmerModifier())
-                    .transition(reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.15)))
+                    // **Leaves at once, not on a fade.** It faded out over
+                    // 0.15s while the image faded in over 0.25s, so both were
+                    // partly transparent at the same moment and what is under
+                    // the view showed through the middle of the handover
+                    // (CLAUDE.md: a crossfade must never reveal what is under
+                    // it). Now there is one fading layer, the picture.
+                    .transition(.identity)
             }
         }
-        .animation(reduceMotion ? nil : .easeIn(duration: 0.25), value: image != nil)
+        .animation(reduceMotion ? nil : GridConstants.imageFadeIn, value: image != nil)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         // Only the viewer's full-resolution read needs a lifecycle: it is one
         // picture, on a screen that has certainly appeared.

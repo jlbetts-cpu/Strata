@@ -344,7 +344,7 @@ final class TowerAnimationCoordinator {
 
 
         if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(GridConstants.crossFade) {
                 for id in blockIDs {
                     state(for: id).dropPhase = nil
                 }
@@ -438,11 +438,11 @@ final class TowerAnimationCoordinator {
 
         // #28: Heavy micro-bounce — 2pt Y offset after stretch for mass 3+
         if mass >= 3 {
-            withAnimation(.spring(response: 0.10, dampingFraction: 0.50)) {
+            withAnimation(GridConstants.microBounceDownSpring) {
                 for id in blockIDs { state(for: id).microBounceY = 2 }
             }
             try? await Task.sleep(nanoseconds: 60_000_000)
-            withAnimation(.spring(response: 0.15, dampingFraction: 0.70)) {
+            withAnimation(GridConstants.microBounceUpSpring) {
                 for id in blockIDs { state(for: id).microBounceY = 0 }
             }
         }

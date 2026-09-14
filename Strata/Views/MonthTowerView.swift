@@ -94,7 +94,11 @@ struct MonthTowerView: View {
                     // this numeral is the block's coordinate, so it has to
                     // stay in proportion to the block.
                     .font(Typography.numeral(cell * 0.16))
-                    .foregroundStyle(.white.opacity(block.photoFileNames.isEmpty ? 0.55 : 0.9))
+                    // 0.9 on colour and on a photograph alike. At 0.55 a
+                    // day with no picture measured 1.67:1 on Work blue and
+                    // 1.8:1 on Health green, which is not a number you can
+                    // tap by, and the page showed two numeral weights.
+                    .foregroundStyle(.white.opacity(0.9))
                     // Only on a photograph, and only as much as it takes.
                     // On flat colour the numeral sits in the frosted band and
                     // needs nothing; on a picture it can land on anything.
@@ -150,7 +154,7 @@ private struct DayPhotoSlideshow: View {
     private static let dwell: Duration = .seconds(5)
     /// And how long the handover takes. Slow enough to read as a dissolve
     /// rather than a cut.
-    private static let fade: Double = 0.7
+    private static let fade: Double = GridConstants.monthPhotoFadeDuration
 
     var body: some View {
         ZStack {
@@ -190,7 +194,7 @@ private struct DayPhotoSlideshow: View {
             guard !Task.isCancelled else { return }
             let name = fileNames[next % fileNames.count]
             top = name
-            withAnimation(.easeInOut(duration: Self.fade)) { topOpacity = 1 }
+            withAnimation(GridConstants.monthPhotoFade) { topOpacity = 1 }
             try? await Task.sleep(for: .seconds(Self.fade))
             guard !Task.isCancelled else { return }
             base = name
@@ -270,10 +274,10 @@ struct MonthPicker: View {
                         .minimumScaleFactor(0.7)
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
-                        .font(Typography.miniBlockTitle)
+                        .iconSize(GridConstants.iconChevron, relativeTo: .footnote, weight: .medium)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, GridConstants.gapTight)
                 .frame(height: 44)
                 .contentShape(Rectangle())
             }

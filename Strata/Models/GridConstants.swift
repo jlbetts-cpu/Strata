@@ -275,6 +275,46 @@ enum GridConstants {
     /// Cascade reveal — new blocks dropping into tower
     static let cascadeReveal = Animation.spring(response: 0.50, dampingFraction: 0.65)
 
+    // MARK: - Named curves that used to be inline
+    //
+    // Each of these was typed at its call site. They are the SAME values,
+    // moved here so the motion vocabulary is in one file; nothing about how
+    // any of them feels changed when they were named.
+
+    /// The heavy micro-bounce's drop on a mass-3 landing: 2pt down, quick.
+    static let microBounceDownSpring = Animation.spring(response: 0.10, dampingFraction: 0.50)
+    /// And back up, a touch slower and less springy.
+    static let microBounceUpSpring = Animation.spring(response: 0.15, dampingFraction: 0.70)
+    /// A block already on the tower fading in when it first appears. The
+    /// stagger delay stays at the call site; a newly dropped block gets none.
+    static let towerBlockFadeIn = Animation.easeOut(duration: 0.2)
+
+    /// The shutter pressing in, before it springs back.
+    static let shutterPress = Animation.easeOut(duration: 0.08)
+    /// The shutter springing back out. It follows `shutterPress`, so the call
+    /// site delays it by that curve's duration.
+    static let shutterRelease = Animation.spring(response: 0.28, dampingFraction: 0.6)
+    /// The front flash's capture fill coming up. Fast: the screen has to be
+    /// bright before the sensor opens.
+    static let screenFlashIn = Animation.easeOut(duration: 0.12)
+    /// The capture fill going back to the modelling ring, and the ring itself
+    /// arming.
+    static let screenFlashOut = Animation.easeOut(duration: 0.22)
+
+    /// How long one month-tower photograph takes to hand over to the next.
+    /// Slow enough to read as a dissolve rather than a cut.
+    static let monthPhotoFadeDuration: Double = 0.7
+    /// The handover itself: the incoming picture coming up over one held at 1.
+    static let monthPhotoFade = Animation.easeInOut(duration: monthPhotoFadeDuration)
+
+    /// The photo viewer's title changing with the photograph.
+    static let photoTitleFade = Animation.easeOut(duration: 0.12)
+    /// A decoded photograph fading in where it was waiting.
+    static let imageFadeIn = Animation.easeIn(duration: 0.25)
+    /// The loading shimmer's slow breath, back and forth for as long as it
+    /// shows.
+    static let shimmerPulse = Animation.easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+
     // MARK: - Today Screen Motion (Timeline Claude)
 
     /// Tap feedback, check circles — fast, clean
