@@ -15,6 +15,9 @@ struct ReplayFrame: View {
     /// live, or a story-safe margin in the saved video. The header is set
     /// from it; the tower's lines are fractions of the frame.
     var topInset: CGFloat = 0
+    /// The home indicator live; 0 or a story-safe margin in the video. The
+    /// close never runs past it.
+    var bottomInset: CGFloat = 0
 
     private var m: ReplayScript.Metrics { script.metrics }
     private var replay: Replay { script.replay }
@@ -22,11 +25,19 @@ struct ReplayFrame: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             WarmBackground()
-            tower
+            // Type BENEATH the tower: a block falling past the running label
+            // passes in front of it, as a thing in the scene passes in front
+            // of a caption, rather than the word printing across the block.
             topCopy
+            tower
             close
         }
         .frame(width: m.frame.width, height: m.frame.height)
+        // **Capped.** The frame's lines (`followY`, `baseY`) are fractions of
+        // the frame and cannot grow with the type, so past xxLarge the label
+        // ran across the follow line and the close ran off the bottom. The
+        // exporter pins `.large`, so the video is the default setting.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
     // MARK: Header and running label
@@ -50,11 +61,18 @@ struct ReplayFrame: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // "Sample" rides on the title's own line, in its own ink. As a
+            // "Sample" rides on the title's own line, in its ink. As a
             // separate darker word it out-shouted the title it qualifies.
-            Text(showsSampleBadge ? "\(replay.period.title) · Sample" : replay.period.title)
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
+            // Two texts, so each is its own thing to VoiceOver: "Your week",
+            // "Sample", never "Your week dot Sample".
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(replay.period.title)
+                if showsSampleBadge {
+                    Text(" · Sample").accessibilityLabel("Sample")
+                }
+            }
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(AppColors.inkQuiet)
             Text(replay.period.range(relativeTo: now))
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
@@ -66,11 +84,13 @@ struct ReplayFrame: View {
     private var runningLabel: some View {
         let s = script.label(at: t)
         return ZStack(alignment: .topLeading) {
+            // Sizes the slot from the font as it is actually set, so the slot
+            // is one line tall at any text size and a label changing never
+            // moves anything.
+            labelText(0).hidden()
             if let p = s.previous { labelText(p).opacity(s.previousOpacity).offset(y: s.previousSlide) }
             if let c = s.current { labelText(c).opacity(s.currentOpacity).offset(y: s.currentSlide) }
         }
-        // A fixed slot, so a label changing never moves anything.
-        .frame(height: Self.labelSize * 1.2, alignment: .topLeading)
         .accessibilityHidden(true)
     }
 
@@ -96,10 +116,11 @@ struct ReplayFrame: View {
         let camera = script.camera(at: t)
         let radius = GridConstants.blockCornerRadius(forCell: m.cell)
         let height = max(script.towerHeight, 1)
-        let titles = camera.scale >= Self.titleScaleFloor
+        let titleOpacity = titleOpacity(at: camera.scale)
         return ZStack(alignment: .bottomLeading) {
             Color.clear.frame(width: script.gridWidth, height: height)
-            ForEach(Array(replay.blocks.enumerated()), id: \.element.id) { index, block in
+            ForEach(replay.blocks.indices, id: \.self) { index in
+                let block = replay.blocks[index]
                 let pose = script.pose(index, at: t)
                 if pose.visible {
                     let f = script.blockFrame(index)
@@ -107,7 +128,8 @@ struct ReplayFrame: View {
                     BlockFace(title: block.win.title, category: block.win.category,
                               iconCategory: block.win.category, rowSpan: block.rowSpan,
                               width: f.width, height: f.height, cornerRadius: radius,
-                              hasPhoto: image != nil, showOverlay: titles) {
+                              hasPhoto: image != nil, showOverlay: titleOpacity > 0,
+                              overlayOpacity: titleOpacity) {
                         if let image {
                             photo(image, crop: block.win.crop, width: f.width, height: f.height)
                         }
@@ -126,13 +148,27 @@ struct ReplayFrame: View {
         .accessibilityHidden(true)
     }
 
-    /// Below this camera scale a block's title is dropped.
+    /// How strongly block titles draw at a camera scale.
     ///
     /// Photographed at a month's fitted scale (0.11) every title rendered as a
     /// 2pt grey speck, so a finished month read as a ribbon covered in dust.
     /// At 0.45 `Typography.blockTitle` draws at about 7pt, which is where it
-    /// stops being words; a fitted week (0.50) keeps its titles.
+    /// stops being words.
+    ///
+    /// **Faded, not cut:** across scale 0.55 to 0.45, so the saved video has
+    /// no one-frame cut. **And decided by where the tower comes to REST:** a
+    /// tower whose fitted scale is at or above the floor keeps full titles
+    /// throughout. Fading by the live scale alone left the sample week, which
+    /// rests at 0.50, with every title at 47% for good, and a finished tower
+    /// with ghost-grey titles reads as a rendering fault. Any band would catch
+    /// some tower at rest; this way none is.
+    private func titleOpacity(at scale: CGFloat) -> Double {
+        if script.fitScale >= Self.titleScaleFloor { return 1 }
+        return Double(min(max((scale - Self.titleScaleFloor) / Self.titleFade, 0), 1))
+    }
+
     private static let titleScaleFloor: CGFloat = 0.45
+    private static let titleFade: CGFloat = 0.10
 
     /// The crop exactly as `CachedImageView` applies it: offset the FILLED
     /// picture by a fraction of its drawn size, then frame, then clip. Offset
@@ -180,13 +216,24 @@ struct ReplayFrame: View {
             }
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
-        .frame(width: m.frame.width)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         // Hung from the base, not centred in the space under it. Centred, the
         // controls arriving pushed the count UP toward the tower; hung, the
         // count keeps one distance from the base and the close grows down.
-        .offset(y: m.baseY + Self.closeGap - Self.tallyAscent)
-        .accessibilityElement(children: .combine)
+        //
+        // Placed by its own laid-out height, so at a large text size it rises
+        // just far enough that its bottom stays inside the frame's safe area
+        // instead of running off the screen.
+        .alignmentGuide(VerticalAlignment.top) { d in
+            -min(m.baseY + Self.closeGap - Self.tallyAscent,
+                 m.frame.height - bottomInset - Self.closeBottomMargin - d.height)
+        }
+        .frame(width: m.frame.width, height: m.frame.height, alignment: .top)
     }
+
+    /// The least room left under the close.
+    private static let closeBottomMargin: CGFloat = GridConstants.gapTight
 
     /// From the tower's base to the count's cap.
     private static let closeGap: CGFloat = 40
@@ -210,7 +257,8 @@ struct ReplayDebugFrame: View {
                 ReplayFrame(script: script, images: images,
                             t: DebugHarness.replayAt ?? script.duration,
                             showsSampleBadge: true,
-                            topInset: Self.windowInsets.top)
+                            topInset: Self.windowInsets.top,
+                            bottomInset: Self.windowInsets.bottom)
             }
         }
         .ignoresSafeArea()

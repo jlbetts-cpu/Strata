@@ -21,6 +21,9 @@ struct BlockFace<Photo: View>: View {
     let hasPhoto: Bool
     var timeText: String? = nil
     var showOverlay: Bool = true
+    /// The title overlay's opacity. Only a replay changes it, to fade titles
+    /// out as its camera pulls back; everywhere else it is 1.
+    var overlayOpacity: Double = 1
     @ViewBuilder var photo: () -> Photo
 
     var body: some View {
@@ -154,6 +157,7 @@ struct BlockFace<Photo: View>: View {
                     timeText: timeText,
                     hasImage: hasPhoto
                 )
+                .opacity(overlayOpacity)
             }
         }
         // #495: Smart Invert — photos excluded from color inversion
