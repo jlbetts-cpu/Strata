@@ -918,6 +918,12 @@ a 1x1 month needs.
 it. When the pill's `hasWins` and the replay disagreed, the pill could open
 an empty replay.
 
+**The Wins pill is measured, not squeezed.** `towerHeader` is a
+`ViewThatFits`: one row when count, word, pill and Plan fit the grid width,
+otherwise the pill on its own line under the count. Squeezed into one row at
+accessibility xxLarge on an SE, "12" wrapped a digit per line and the pill
+read "Yo..."; capping the pill's type still read "Your...".
+
 **The Settings preview is marked everywhere it can leave the phone**: the
 live header, the Share still and every video frame say "Sample"
 (`isSample` through `ReplayCard.image`, `sharedFrame` and the exporter).

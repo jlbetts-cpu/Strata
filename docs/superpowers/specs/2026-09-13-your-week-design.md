@@ -221,6 +221,9 @@ A replay that grades you is one people stop opening.
 **As an event.** In its window (table above), if the period has at least one
 win, a small glass pill appears in the Wins tab header beside the Plan button,
 set as the replay's Share control (`Typography.headerMedium`, one line).
+When the header row does not fit (an accessibility text size on an iPhone SE:
+"12" broke one digit per line and the pill read "Yo..."), the pill drops to
+its own line under the count at full size; the count never wraps.
 If both are live on the same day, the month wins. The pill stays for the whole
 window even after watching, so it can be shown to someone.
 
