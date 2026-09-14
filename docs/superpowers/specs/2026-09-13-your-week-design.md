@@ -31,8 +31,9 @@ applies to both unless a table says otherwise.
 | --- | --- | --- |
 | Covers | Monday to Sunday, the week ending on the Sunday | The calendar month |
 | Running label | Weekday name: Monday … Sunday | Day number in the owner's numerals: 1 … 30 |
-| Build phase | about 10s | about 18s |
-| Whole replay | 13 to 18s | 20 to 28s |
+| Build phase | about 10s, capped at 12.5s | about 18s, capped at 22s |
+| Air before a day's first drop | 0.35s | 0.12s |
+| Whole replay | at most 18s (a light week is shorter, never padded) | at most 28s |
 | Available as an event | Sunday 5pm to end of Monday | Last day of the month 5pm to end of the 2nd |
 | Notification | Sunday 6pm | The 1st at 10am |
 
@@ -87,7 +88,7 @@ across the wins, clamped between 0.14s and 0.55s apart. A week of 6 wins is
 unhurried; a month of 150 reads as a downpour, not a queue. Past the duration
 cap the spacing goes below 0.14s rather than the replay getting longer.
 
-**Day boundaries** get 0.35s of air before the next day's first drop. An empty
+**Day boundaries** get a moment of air before the next day's first drop (table above). An empty
 day shows its label for 0.45s in a week and 0.2s in a month, and nothing falls.
 Not skipped (that would misstate the record) and not remarked on.
 
@@ -291,7 +292,7 @@ Each step ships something that works on its own.
 - `ReplayScriptTests`: every block at rest before the reveal; every fall starts
   above the frame; the camera never moves down during the build and the top
   block is never clipped at its landing; the reveal ends with the whole tower
-  in frame; durations within bounds for 1, 6, 30, 150 and 400 wins; Reduce
+  in frame; durations never above the caps for 1, 6, 30, 150 and 400 wins, and never padded; Reduce
   Motion has no offsets.
 - `ReplaySampleTests`: deterministic, includes an empty day and a 2x2.
 - `ReplayReminderTests`: scheduled with wins, cancelled without, month wins
