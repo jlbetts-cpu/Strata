@@ -66,6 +66,29 @@ final class ReplayGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         let resumed = clock(app)
         XCTAssertGreaterThan(resumed.t - held.t, 1.0, "the clock did not resume after the hold (\(held.t) -> \(resumed.t))")
+        // Read again after a wait: a skip fired by the release could land
+        // after the first read.
+        XCTAssertLessThan(resumed.t, resumed.closeStart, "releasing a hold skipped to the close")
+        // And the hold is forgotten: the next plain tap still skips.
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        let tapped = clock(app)
+        XCTAssertGreaterThanOrEqual(tapped.t, tapped.closeStart - 0.001, "a tap after a hold did not skip (t \(tapped.t))")
+    }
+
+    /// A press just past the hold delay (0.2s): long enough to pause, too
+    /// long to be a tap. Its release must not skip.
+    @MainActor
+    func testShortHoldReleaseIsNotASkip() throws {
+        let app = launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 30), "the replay never started")
+        let before = clock(app)
+        XCTAssertLessThan(before.t, before.closeStart - 5, "too late to tell a skip from playback")
+        middle(app).press(forDuration: 0.35)
+        Thread.sleep(forTimeInterval: 0.8)
+        let after = clock(app)
+        XCTAssertLessThan(after.t, after.closeStart, "a 0.35s press skipped to the close (t \(before.t) -> \(after.t))")
+        XCTAssertGreaterThan(after.t, before.t, "the clock did not run on after a 0.35s press")
     }
 
     @MainActor

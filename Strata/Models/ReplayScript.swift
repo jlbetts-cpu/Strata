@@ -58,6 +58,17 @@ struct ReplayScript {
         /// The build camera starts rising for the first block that needs it
         /// no earlier than this before that block lands.
         let cameraEarliestRise = 0.75
+        /// Points the build camera's corridor is narrowed by on both sides, so
+        /// the curve's rounding between corners has room before it clips a
+        /// landing block or carries a waiting one into the frame. What rounding
+        /// still escapes is caught by the repair pass after the curve is built.
+        let cameraCorridorMargin = 3.0
+        /// Points under the drop clearance a ceiling sits at, so a block's
+        /// bottom edge is at least this far above the frame at its first
+        /// instant rather than exactly on the edge.
+        let cameraCeilingSlack = 2.0
+        /// How many times the repair pass may add keys before it stops.
+        let cameraRepairPasses = 12
         let labelFade = 0.22
         let labelSlide: CGFloat = 8
         let danceWave = 0.6
@@ -258,11 +269,15 @@ struct ReplayScript {
         // (string pulling). It is as straight as the corridor allows, so the
         // camera climbs at the tower's own rate and bends only where a floor
         // or a ceiling makes it. `MonotoneCurve` rounds the bends. The corridor
-        // is narrowed by `margin` on both sides (floors never past
-        // `finalRise`), so that rounding cannot carry the curve out of it.
+        // is narrowed by `cameraCorridorMargin` on both sides (floors never
+        // past `finalRise`). Between SPARSE corners that is not enough: a
+        // review sweep of 4000 inputs found the rounding bowing up to 56pt
+        // out of the corridor. So after the curve is built, every floor or
+        // ceiling it misses gets the straight path's own value as an extra
+        // key, and the curve is rebuilt, until nothing is missed.
         finalRise = rises.max() ?? 0
         let lead = pacing.cameraLead
-        let margin = 3.0
+        let margin = pacing.cameraCorridorMargin
         // Constraint points: y is a floor (the path at x is at least y) or
         // a ceiling (at most y).
         var floors: [(x: Double, y: Double)] = []
@@ -271,7 +286,7 @@ struct ReplayScript {
             floors.append((max(0, startList[k] + times[k] - lead), min(Double(rises[k]) + margin, Double(finalRise))))
         }
         for k in 0..<n {
-            ceilings.append((startList[k], Double(rises[k] + GridConstants.dropClearance) - 2 - margin))
+            ceilings.append((startList[k], Double(rises[k] + GridConstants.dropClearance) - pacing.cameraCeilingSlack - margin))
         }
         if let firstNeed = (0..<n).filter({ rises[$0] > 0 }).map({ startList[$0] + times[$0] }).min() {
             ceilings.append((max(0, firstNeed - pacing.cameraEarliestRise), 0))
@@ -319,9 +334,19 @@ struct ReplayScript {
                     j += 1
                 }
                 if !bent {
-                    // Reached the end: straight to the last floor, then flat.
+                    // Reached the end with the window still open. If a floor
+                    // needs a steeper line than the one to the end, that floor
+                    // is a corner: bend there and carry on sweeping, so the
+                    // floors after it are still seen. (Appending it and
+                    // jumping to the end skipped them: 120 hard wins over 30
+                    // days missed a floor by 63pt.)
                     let toEnd = (Double(finalRise) - apex.y) / max(end - apex.x, 1e-9)
-                    if lowAt >= 0, low > toEnd + 1e-12 { keys.append((events[lowAt].x, events[lowAt].y)) }
+                    if lowAt >= 0, low > toEnd + 1e-12 {
+                        apex = (events[lowAt].x, events[lowAt].y)
+                        keys.append(apex)
+                        i = lowAt + 1
+                        continue
+                    }
                     break
                 }
             }
@@ -332,7 +357,29 @@ struct ReplayScript {
         // and the apex steps down to the ceiling; `MonotoneCurve` holds the
         // camera level there rather than moving it down, so the floor wins,
         // as it did before.
-        cameraCurve = MonotoneCurve(points: keys)
+        var curve = MonotoneCurve(points: keys)
+        // Repair: the straight path is inside the corridor by construction;
+        // the rounded curve through its corners may not be. Pin the curve to
+        // the straight path wherever it strays, and rebuild.
+        keys.sort { $0.x < $1.x }
+        func straight(at x: Double) -> Double {
+            guard let first = keys.first, let last = keys.last else { return 0 }
+            if x <= first.x { return first.y }
+            if x >= last.x { return last.y }
+            var lo = 0, hi = keys.count - 1
+            while hi - lo > 1 { let mid = (lo + hi) / 2; if keys[mid].x <= x { lo = mid } else { hi = mid } }
+            let a = keys[lo], b = keys[hi]
+            return b.x - a.x < 1e-9 ? b.y : a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
+        }
+        for _ in 0..<pacing.cameraRepairPasses {
+            var extra: [(x: Double, y: Double)] = []
+            for f in floors where curve.value(at: f.x) < f.y - margin { extra.append((f.x, straight(at: f.x))) }
+            for c in ceilings where curve.value(at: c.x) > c.y + margin { extra.append((c.x, straight(at: c.x))) }
+            if extra.isEmpty { break }
+            keys = (keys + extra).sorted { $0.x < $1.x }
+            curve = MonotoneCurve(points: keys)
+        }
+        cameraCurve = curve
 
         let lastLanding = landings.last?.time ?? pacing.open
         // A trailing empty day (a quiet weekend, a month ending quietly) has
