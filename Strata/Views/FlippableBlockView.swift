@@ -233,5 +233,7 @@ struct FlippableBlockView: View {
         } animation: { phase in
             phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
         }
+        // #495: Smart Invert — photos excluded from color inversion
+        .accessibilityIgnoresInvertColors(hasImage)
     }
 }
