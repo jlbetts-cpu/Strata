@@ -88,7 +88,8 @@ label is showing, and which phase it is in. The live view draws it inside a
 
 **Drops.** Each block falls on `t = sqrt(2d/g)` with `GridConstants.dropGravity`
 and the clamp in `dropDurationRange`, arrives at full speed, and squashes on
-landing by `design-system.md` §6's values, scaled by mass. The fall distance is
+landing by `design-system.md` §6's values, scaled by mass
+(`GridConstants.squashScaleY` / `squashScaleX`, the tower's own tokens). The fall distance is
 from just above the top of the frame to the block's slot in screen space, so a
 block always enters from off screen, as CLAUDE.md requires of the tower.
 
@@ -119,7 +120,7 @@ block is already on screen). The camera does not start rising earlier than
 shortest path through the corridor, joined by a monotone curve (no
 overshoot, never moves down), and a repair pass pins the curve back to the
 straight path wherever its rounding strays outside, up to 12 passes. A debug
-build asserts if the passes run out with the curve still outside.
+build logs a warning if the passes run out with the curve still outside.
 
 Two simpler cameras were built and failed: one key per landing turned two
 landings a fraction of a second apart into a lurch, and a fixed 0.5s grid of
@@ -144,7 +145,9 @@ controls 80ms after that, each a 0.3s ease-out of opacity.
 
 **Reduce Motion:** no falls, no camera, no dance. The finished tower is laid
 out at its fitted size and each day's blocks fade in together, day by day,
-over about 4s (6s for a month). The running label leaves at the close.
+over about 4s (6s for a month). The running label leaves at the close. A
+day's blocks land at one instant, so the day makes one sound and one haptic,
+at its heaviest block, not one per block in a single frame.
 Same close. Filmed on 2026-09-14 with Reduce Motion on: days fade in place,
 nothing falls, no camera, no zoom.
 
@@ -164,7 +167,8 @@ haptic on the dance. Nothing else makes a sound.
 - Running label: under the header, top left, large but lighter than the tower.
 - The follow line sits a fifth of the way down the frame, below the label.
 - The tower's base sits at a fixed line with room under it for the close.
-- Close: count in `Typography.tally` with "wins" at `tallyWord`, the sentence
+- Close: count in `Typography.tally` with "wins" in `Typography.screenSubtitle`
+  as a quieter caption beside it, set as the Wins tab's header, the sentence
   in secondary ink, Save Video and Share as the app's glass controls.
 - Header and running label are drawn beneath the tower, so a falling block
   passes in front of the type rather than the type printing across it.
@@ -204,8 +208,9 @@ Every string it can show. No long dashes, nothing that reads as being watched.
 | Notification, month | September is ready · A month of wins, stacked into one tower. |
 | Replays section heading | REPLAYS |
 | Replays card | Two lines in the ALBUMS caption style: September over 142 wins / 7 to 13 Sep over 31 wins |
-| Settings section | Replays · Preview Your Week · Preview Your Month · Weekly and monthly replays |
-| Preview badge | Sample |
+| Settings, Replays section | Replays · Preview Your Week · Preview Your Month |
+| Settings, Notifications section | Weekly and monthly replays (a switch, beside the daily reminder) |
+| Preview badge | Sample, on the title's line: Your week · Sample |
 | Accessibility, at the close | Your week, 7 to 13 September. 31 wins. Thursday was your biggest day. |
 
 The sentence is one fact. No streaks, no comparison with other weeks, no score.
@@ -214,25 +219,36 @@ A replay that grades you is one people stop opening.
 ## Where it lives
 
 **As an event.** In its window (table above), if the period has at least one
-win, a small glass pill appears in the Wins tab header beside the share button.
+win, a small glass pill appears in the Wins tab header beside the Plan button,
+set as the replay's Share control (`Typography.headerMedium`, one line).
 If both are live on the same day, the month wins. The pill stays for the whole
 window even after watching, so it can be shown to someone.
 
 While the app stays open the pill is re-decided once at the next window edge
 (Sunday 5pm, Tuesday as it starts, the last day 5pm, the 3rd), by one sleep to
 that moment rather than a polling timer, as well as whenever the app becomes
-active or a win lands.
+active, a win lands, or the number of wins changes (a win deleted or undone
+takes the pill with it when it was the period's last). Tapping a pill whose
+period turns out to be empty plays nothing and re-decides the pill instead.
+Reset All Data removes the replay notifications and re-decides the pill.
+
+**What counts.** The tower's own rule (`TowerViewModel.buildTower`): a log
+completed or skipped, with its habit. `Replay.wins(from:)`, the replay fetch
+and the pill's `hasWins` all use it (`Replay.isBlock`), so the replay never
+disagrees with the Wins tab about what stands in it.
 
 **Notification.** Only if the user already allowed reminders, only if the
 period has a win, scheduled or cancelled when the app becomes active the way
 `DailyReminder` tops itself up. One Settings switch, "Weekly and monthly
-replays", on by default.
+replays", on by default, in the Notifications section beside the daily
+reminder.
 
 **Replays in Memories.** A new section in the Memories drawer, between the month
 tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
 
-- **Months:** a horizontal shelf, newest first, of every finished month with a
-  win, plus the current month once its window opens. Each card is a 9:16
+- **Months:** a horizontal shelf, newest first, of those of the last 12
+  finished months that had a win, plus the current month once its window
+  opens. Each card is a 9:16
   poster of the finished tower ALONE on the warm ground (no header, label or
   close), with the name and count as two caption lines under it. Every
   poster in a row is drawn at one shared scale, set so the row's tallest
@@ -240,8 +256,9 @@ tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
   shelf is a row of towers you can compare by eye, which is what makes it
   memorable rather than a list. Posters are drawn in the viewer's colour
   scheme; the Share still and the video stay light.
-- **Recent weeks:** a smaller row under it, the last four finished weeks with a
-  win, same card at a smaller size.
+- **Recent weeks:** a smaller row under it: those of the last four finished
+  weeks that had a win, plus the current week once its window opens, same
+  card at a smaller size.
 - Tapping a card plays that replay from the start, out of the card with the
   zoom transition the app already uses for photos.
 - Nothing is drawn when there is nothing finished to show. No heading over a
@@ -259,9 +276,11 @@ tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
 Your Month. Each plays the real replay view with a sample set of wins: the
 app's own bundled demo photographs (the onboarding set) and plausible names,
 sizes and colours, spread across the period with one empty day and one busy
-day, so every part of the choreography shows. A small "Sample" badge under the
-title says it is not your data. Save Video works here too, so the export can
-be checked.
+day, so every part of the choreography shows. "Sample" sits on the title's
+own line ("Your week · Sample") in its ink, and says it is not your data.
+Save Video and Share work here too, so the export can be checked, and the
+still and every frame of the video carry the same "Sample" mark, so a
+made-up week cannot be posted as a real one.
 
 ## Save Video
 
@@ -282,7 +301,12 @@ replays to your camera roll.").
   `CachedImageView`'s async decode, so the replay takes a `ReplayImages`
   dictionary of decoded thumbnails, loaded before playback starts, and the
   block view reads from it. Live and exported frames are drawn by the same
-  view from the same images, which is what makes them identical.
+  view from the same images, which is what makes them identical. Each
+  photograph is decoded once, for the largest block that shows it: its
+  longest side is 4/3 of that block's span in pixels (a 3:4 picture filling
+  a square still meets it 1:1), capped at the two cells every photograph got
+  before. The live replay decodes for the larger of its own cell and the
+  card's at 3x, so the Share still and video are as sharp as they were.
 - **Sound** is mixed offline: the script lists every landing's time and mass,
   `SoundEngine` renders each impact to PCM as it already does for playback,
   and they are summed into one AAC track. Same rate limit as live, by the

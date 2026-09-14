@@ -907,7 +907,20 @@ its timing in `ReplayScript.Pacing`.
 **Photographs are loaded BEFORE the replay plays** (`ReplayImages`), because
 `ImageRenderer` does not wait for `CachedImageView`'s async decode and the
 video would come out with coloured blanks. The live view draws from the same
-decoded images, which is what makes the video match.
+decoded images, which is what makes the video match. One decode per
+photograph, sized to the largest block showing it (`decodeSide`: 4/3 of the
+span, capped at two cells), for the larger of the screen's cell and the
+card's at 3x. Decoding everything two cells wide held four times the pixels
+a 1x1 month needs.
+
+**What counts is the tower's rule**: completed or skipped, with a habit
+(`Replay.isBlock`). `Replay.wins`, `ReplayLoader.replay` and `hasWins` all use
+it. When the pill's `hasWins` and the replay disagreed, the pill could open
+an empty replay.
+
+**The Settings preview is marked everywhere it can leave the phone**: the
+live header, the Share still and every video frame say "Sample"
+(`isSample` through `ReplayCard.image`, `sharedFrame` and the exporter).
 
 **`BlockFace` is shared with the tower.** A replay block is the real block
 face, photographs, veil and title, so a replay cannot drift from the Wins tab.
@@ -922,8 +935,10 @@ curve back to the straight path wherever its rounding strays. Two things
 failed first: one key per landing turned two blocks a fraction of a second
 apart into a lurch, and a fixed 0.5s grid of envelope keys failed
 `fallsStartOffScreen` 25 times and still stepped 21pt. The repair pass has 12
-passes; every tested case needs 4 or fewer, and a DEBUG build asserts if it
-ever runs out with the curve still outside the corridor.
+passes; every tested case needs 4 or fewer, and a DEBUG build logs a warning
+(`os.Logger` error, category `ReplayScript`, with the win count and period)
+if it ever runs out with the curve still outside the corridor. Not an
+assertion: that would crash a debug build installed on a phone.
 
 **The reveal is a geometric zoom.** Scale goes `fitScale^e` and the rise is
 SOLVED so the tower's top travels straight to its fitted position. Scale and
