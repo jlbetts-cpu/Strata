@@ -59,16 +59,6 @@ struct FlippableBlockView: View {
         return min(GridConstants.patinaMaxOpacity, 0.05 + Double(daysAgo) * GridConstants.patinaGrowthRate)
     }
 
-    private var timeText: String? {
-        BlockTimeFormatter.displayText(
-            filterMode: towerFilterMode,
-            dateString: block.log.dateString,
-            scheduledTime: block.habit.scheduledTime,
-            durationMinutes: block.habit.blockSize.durationMinutes,
-            completedAt: block.log.completedAt
-        )
-    }
-
     var body: some View {
         // A member hides instantly. No crossfade.
         //
@@ -167,7 +157,10 @@ struct FlippableBlockView: View {
             height: height,
             cornerRadius: cornerRadius,
             hasPhoto: hasImage,
-            timeText: timeText,
+            // No time. `BlockContentOverlay` has not drawn one since the
+            // tower stopped showing timestamps, and formatting it per block
+            // per body was the only thing left of it.
+            timeText: nil,
             showOverlay: showOverlay
         ) {
             CachedImageView(

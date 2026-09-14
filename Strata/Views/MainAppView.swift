@@ -2828,14 +2828,22 @@ struct MainAppView: View {
                     }
                 }
                 .scaleEffect(x: impactScaleX, y: impactScaleY, anchor: .bottom)
-                .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
-                .brightness(flashBrightness)
-                .shadow(
-                    color: phase != nil ? .black.opacity(
+                // The wobble, the impact flash and the landing shadow, only on
+                // a block that has dropped. At rest all three are zero, and a
+                // tower that opens on sixty blocks was stacking a zero
+                // rotation, a zero brightness filter and a clear shadow on
+                // every one of them. See `BlockAnimationState.hasDropped` for
+                // why the switch is one-way.
+                .modifier(DropOnlyEffects(
+                    active: animState.hasDropped,
+                    wobbleDegrees: wobbleDegrees,
+                    flashBrightness: flashBrightness,
+                    shadowColor: phase != nil ? .black.opacity(
                         GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)
                     ) : .clear,
-                    radius: dropShadowRadius, x: 0, y: dropShadowY
-                )
+                    shadowRadius: dropShadowRadius,
+                    shadowY: dropShadowY
+                ))
                 // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
                 //
                 .shadow(
@@ -2876,6 +2884,30 @@ struct MainAppView: View {
             // republished in 8pt steps it did it in visible jumps rather than
             // smoothly. The tower moves as one object or it is not one object.
             // The dance is applied by the grid, not here. See `placedBlocksGrid`.
+        }
+
+        /// Drop-only effects, in the order they were always applied.
+        ///
+        /// The MODIFIER is conditional, not its values (CLAUDE.md, on
+        /// `.gesture(cond ? g : nil)`): a zero-valued effect is still an effect.
+        private struct DropOnlyEffects: ViewModifier {
+            let active: Bool
+            let wobbleDegrees: Double
+            let flashBrightness: Double
+            let shadowColor: Color
+            let shadowRadius: CGFloat
+            let shadowY: CGFloat
+
+            func body(content: Content) -> some View {
+                if active {
+                    content
+                        .rotation3DEffect(.degrees(wobbleDegrees), axis: (x: 0, y: 0, z: 1))
+                        .brightness(flashBrightness)
+                        .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
+                } else {
+                    content
+                }
+            }
         }
 
         private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {

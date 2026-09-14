@@ -14,6 +14,17 @@ final class BlockAnimationState {
     var fallStartOffset: CGFloat = -GridConstants.dropRunway
 
     var dropPhase: TowerAnimationCoordinator.DropPhase? = nil
+    /// True from the moment this block is first told to fall, and never
+    /// false again.
+    ///
+    /// The block view applies its drop-only effects (the wobble rotation,
+    /// the impact flash and the landing shadow) only once this is set, so a
+    /// block that has never dropped carries none of them at rest. Set in the
+    /// same no-animation transaction that inserts a falling block, so the
+    /// view's first render already has them; never cleared, because a
+    /// modifier appearing or disappearing mid-animation resets the block's
+    /// view identity and would cut the settle short.
+    var hasDropped = false
     var isRippling: Bool = false
     var rippleIntensity: CGFloat = 1.0
     // #28: Heavy micro-bounce Y offset after stretch
@@ -112,6 +123,7 @@ final class TowerAnimationCoordinator {
             // is in flight this is what stops the block sliding up into it.
             withTransaction(Transaction(animation: nil)) {
                 for id in blockIDs {
+                    state(for: id).hasDropped = true
                     state(for: id).dropPhase = .falling
                     activelyAnimatingIDs.insert(id)
                 }
@@ -399,7 +411,10 @@ final class TowerAnimationCoordinator {
 
         // Phase 1: Falling — instant, for the same reason as in `enqueueDrop`.
         withTransaction(Transaction(animation: nil)) {
-            for id in blockIDs { state(for: id).dropPhase = .falling }
+            for id in blockIDs {
+                state(for: id).hasDropped = true
+                state(for: id).dropPhase = .falling
+            }
         }
 
         // Wait for the display, not for the clock.

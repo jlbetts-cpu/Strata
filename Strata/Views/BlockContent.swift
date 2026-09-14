@@ -90,6 +90,19 @@ enum BlockTimeFormatter {
 
 // MARK: - Shared Block Content Overlay
 
+/// The title's shadow on a photographed block: 0.55 black, 3pt, 1pt down.
+private struct PhotoTitleShadow: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content.shadow(color: .black.opacity(0.55), radius: 3, x: 0, y: 1)
+        } else {
+            content
+        }
+    }
+}
+
 struct BlockContentOverlay: View {
     let title: String
     let category: HabitCategory
@@ -144,7 +157,11 @@ struct BlockContentOverlay: View {
                         // On a photo the scrim is a light veil now, so the type
                         // carries its own contrast instead of the block being
                         // darkened until anything would be legible on it.
-                        .shadow(color: .black.opacity(hasImage ? 0.55 : 0), radius: 3, x: 0, y: 1)
+                        //
+                        // Only on a photo. Off one it was a shadow at zero
+                        // opacity on every label on the tower, and a
+                        // zero-valued effect is still an effect.
+                        .modifier(PhotoTitleShadow(active: hasImage))
 
                     // No time on the block.
                     //
