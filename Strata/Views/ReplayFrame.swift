@@ -22,6 +22,9 @@ struct ReplayFrame: View {
     /// once the close has arrived; the card and the exporter pass nothing,
     /// and then nothing extra is drawn or hit-tested.
     var onTapBlock: ((Int) -> Void)? = nil
+    /// VoiceOver's double tap on the header or the close words. Live only.
+    /// An action rather than the player's tap gesture: see `ReplayView`.
+    var onAccessibilityActivate: (() -> Void)? = nil
     /// The shelf's poster: the tower alone, at a scale and on a base the
     /// caller chose, so a row of posters shares one scale and compares by
     /// height. Nil everywhere else, which draws the replay as it plays.
@@ -95,6 +98,7 @@ struct ReplayFrame: View {
         }
         .opacity(script.headerOpacity(at: t))
         .accessibilityElement(children: .combine)
+        .replayActivation(onAccessibilityActivate)
     }
 
     private var runningLabel: some View {
@@ -254,6 +258,7 @@ struct ReplayFrame: View {
                 }
             }
             .accessibilityElement(children: .combine)
+            .replayActivation(onAccessibilityActivate)
             if let controls {
                 controls
                     .padding(.top, GridConstants.gapItem)
@@ -285,4 +290,12 @@ struct ReplayFrame: View {
     private static let closeGap: CGFloat = 40
     /// The count's layout top sits this far above its cap.
     private static let tallyAscent: CGFloat = GridConstants.roundedCapInset * GridConstants.tallyNumeral
+}
+
+private extension View {
+    /// The frame's accessibility default action, when the caller gave one.
+    @ViewBuilder
+    func replayActivation(_ action: (() -> Void)?) -> some View {
+        if let action { accessibilityAction(.default, action) } else { self }
+    }
 }

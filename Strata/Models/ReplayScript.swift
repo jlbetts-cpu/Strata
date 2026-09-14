@@ -419,14 +419,27 @@ struct ReplayScript {
             let a = keys[lo], b = keys[hi]
             return b.x - a.x < 1e-9 ? b.y : a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
         }
+        var repaired = false
         for _ in 0..<pacing.cameraRepairPasses {
             var extra: [(x: Double, y: Double)] = []
             for f in floors where curve.value(at: f.x) < f.y - margin { extra.append((f.x, straight(at: f.x))) }
             for c in ceilings where curve.value(at: c.x) > c.y + margin { extra.append((c.x, straight(at: c.x))) }
-            if extra.isEmpty { break }
+            if extra.isEmpty { repaired = true; break }
             keys = (keys + extra).sorted { $0.x < $1.x }
             curve = MonotoneCurve(points: keys)
         }
+        #if DEBUG
+        // Out of passes with the curve still outside the corridor: a block
+        // could be clipped as it lands or seen before it falls. Never silent
+        // in a debug build; a release build draws the best curve it has.
+        if !repaired {
+            let left = floors.contains { curve.value(at: $0.x) < $0.y - margin }
+                || ceilings.contains { curve.value(at: $0.x) > $0.y + margin }
+            if left {
+                assertionFailure("ReplayScript: camera repair used all \(pacing.cameraRepairPasses) passes and the curve still leaves its corridor (\(replay.count) wins, \(replay.period.id))")
+            }
+        }
+        #endif
         cameraCurve = curve
 
         let lastLanding = landings.last?.time ?? pacing.open

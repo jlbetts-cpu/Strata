@@ -887,6 +887,90 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   Put it in `.background { … .ignoresSafeArea() }` so it reaches the edges
   without taking part in layout.
 
+## Replays
+
+Your Week and Your Month: every win in a period falls into one tower, the
+camera follows, then pulls out and the whole tower stands on the screen. The
+spec is `docs/superpowers/specs/2026-09-13-your-week-design.md` and it
+describes what was built.
+
+**The whole replay is a function of time. No `withAnimation` anywhere in it.**
+`ReplayScript` is pure: for any `t` it gives every block's pose, the camera,
+the label, the close's opacity and the landings. `ReplayView` draws
+`ReplayFrame` at the clock's `t` inside a `TimelineView`; `ReplayVideoExporter`
+draws the same `ReplayFrame` to frames. Pause and skip are only changes to the
+clock, so nothing can drift out of step. The close used to arrive on
+`gentleReveal`; it is script-driven now because an implicit animation cannot
+be drawn into a video frame. Anything new that moves goes in the script, with
+its timing in `ReplayScript.Pacing`.
+
+**Photographs are loaded BEFORE the replay plays** (`ReplayImages`), because
+`ImageRenderer` does not wait for `CachedImageView`'s async decode and the
+video would come out with coloured blanks. The live view draws from the same
+decoded images, which is what makes the video match.
+
+**`BlockFace` is shared with the tower.** A replay block is the real block
+face, photographs, veil and title, so a replay cannot drift from the Wins tab.
+No merged runs, for the month tower's reason.
+
+**The build camera is a corridor, not keys per landing.** Each block gives a
+floor (the camera must have risen at least this far by the time it lands, less
+the lead) and a ceiling (no higher than this when its fall starts, or it is
+seen appearing on screen). The keys are the corners of the shortest path
+through that corridor, joined by `MonotoneCurve`, and a repair pass pins the
+curve back to the straight path wherever its rounding strays. Two things
+failed first: one key per landing turned two blocks a fraction of a second
+apart into a lurch, and a fixed 0.5s grid of envelope keys failed
+`fallsStartOffScreen` 25 times and still stepped 21pt. The repair pass has 12
+passes; every tested case needs 4 or fewer, and a DEBUG build asserts if it
+ever runs out with the curve still outside the corridor.
+
+**The reveal is a geometric zoom.** Scale goes `fitScale^e` and the rise is
+SOLVED so the tower's top travels straight to its fitted position. Scale and
+rise interpolated separately multiply into a bulge.
+
+**Hard caps: 18s a week, 28s a month.** Past the cap the build is compressed
+(gaps, day air and empty-day holds scaled together; falls untouched), so a
+600 win month is denser, never longer. Trailing empty days still get their
+moment before the reveal.
+
+**Type is capped at xxLarge inside the replay** (its lines are fractions of the
+frame and cannot grow), and the exporter renders at `.large` in the light
+scheme, so the video is the default setting. Shelf posters are drawn in the
+viewer's scheme; Share and the video stay light.
+
+**VoiceOver:** the replay opens at the close and announces it once
+("Your week, 7 to 13 September. 31 wins. Thursday was your biggest day.").
+Skipping is an accessibility action on the header and the close words, not
+the tap gesture, because an activation never passes through the hold gesture
+and a stale `press.held` would swallow it.
+
+Debug flags, since none of this is reachable by tap:
+`-strataOpenReplay week|month|lastWeek|sampleWeek|sampleMonth`,
+`-strataReplayAt <s>` (freeze at a moment), `-strataReplayWindow week|month`
+(force the Wins tab pill), `-strataExportReplay` (with `-strataOpenReplay`,
+writes `replay.mp4`, `replay-still.png` and `replay-export.txt` to Documents
+at the close), `-strataReplayProbe` (the clock as an accessibility label, for
+`ReplayGestureTests`), `-strataSeedHistoryPerDay <n>` (a busy month to
+measure). `ReplayGestureTests` is in the UI target, which the default test
+plan does not include: run it with `-testPlan StrataFull`.
+
+**Traps found building it:**
+- **The SwiftData store lives in the App Group container**
+  (`Containers/Shared/AppGroup/<id>/Library/Application Support/default.store`),
+  not in `simctl get_app_container ... data`. The one there is stale and never
+  changes, and reading it looks like seeding is broken.
+- **`xcrun simctl launch` does not restart a running app** and silently ignores
+  new launch arguments. Pass `--terminate-running-process`.
+- **`-strataSeedTodayPhotos` as the LAST argument reads false.**
+  `DebugHarness.argument` needs a token after the flag, so pass
+  `-strataSeedTodayPhotos 1`. Not fixed.
+
+**Not verified in the simulator, and not to be claimed:** haptics, the landing
+sounds on a device, how long a month takes to export on a real phone and its
+frame pacing there, the Photos add-only permission prompt, and the Sunday and
+1st notifications actually firing.
+
 ## Words the app says
 
 The owner's rules, 2026-09-11: **no long dash (—) in anything a person

@@ -99,6 +99,18 @@ struct Replay: Equatable {
         }
     }
 
+    /// What VoiceOver says once, at the close: "Your week, 7 to 13 September.
+    /// 31 wins. Thursday was your biggest day." The build is visual, so the
+    /// replay speaks its result rather than every landing.
+    func announcement(now: Date) -> String {
+        [period.title + ", " + period.range(relativeTo: now),
+         "\(count) \(count == 1 ? "win" : "wins")",
+         // The sentence carries its own full stop; the join adds them all.
+         sentence().map { $0.hasSuffix(".") ? String($0.dropLast()) : $0 }]
+            .compactMap { $0 }
+            .joined(separator: ". ") + "."
+    }
+
     /// The only function here that touches `@Model`.
     static func wins(from logs: [HabitLog]) -> [ReplayWin] {
         logs.compactMap { log in

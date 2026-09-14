@@ -24,7 +24,18 @@ import SwiftUI
 ///
 /// **After the close, a block with a photograph opens it**, in the app's
 /// own viewer, out of the block. Before the close a tap anywhere is still the
-/// skip. `testTapABlockAfterTheCloseOpensItsPhoto` presses it.
+/// skip. `testTapABlockAfterTheCloseOpensItsPhoto` presses it. A block whose
+/// photograph was deleted, from this replay's viewer or anywhere else, opens
+/// nothing: the replay keeps drawing the picture it decoded, but the file the
+/// viewer would open is gone.
+///
+/// **VoiceOver.** The build is visual, so with VoiceOver running the replay
+/// opens at the close, where the words and controls are, and it says the
+/// close once as it arrives (`Replay.announcement`). A double tap on the
+/// header or the close words is an accessibility ACTION that skips directly.
+/// It has to be: an activation never passes through the hold gesture, so the
+/// tap gesture's `press.held` could still be true from an earlier physical
+/// hold and would swallow the skip.
 struct ReplayView: View {
     let replay: Replay
     var isSample = false
@@ -47,6 +58,8 @@ struct ReplayView: View {
     @State private var finished = false
     @GestureState private var holding = false
     @State private var press = PressMemory()
+    /// Set when the close has been announced to VoiceOver, so it is said once.
+    @State private var announced = false
     /// The Share still, drawn once when the photographs have loaded. Never in
     /// `controls`, which runs every frame.
     @State private var shareImage: UIImage?
@@ -99,7 +112,7 @@ struct ReplayView: View {
                         .padding(.trailing, GridConstants.horizontalPadding)
                         .padding(.top, insets.top + GridConstants.gapTight)
                 }
-                .task(id: script.metrics.cell) { await prepare(cell: script.metrics.cell) }
+                .task(id: script.metrics.cell) { await prepare(cell: script.metrics.cell, closeStart: script.closeStart) }
             }
             .ignoresSafeArea()
         }
@@ -136,10 +149,13 @@ struct ReplayView: View {
     }
 
     /// The replay's own photographs, in drop order. Sample wins' bundled
-    /// pictures are not in the store and open nothing.
+    /// pictures are not in the store and open nothing, and nor does one
+    /// deleted since the replay opened: swiping to it would show a missing
+    /// file.
     private var storedPhotos: [GalleryPhoto] {
         replay.blocks.compactMap { block -> GalleryPhoto? in
-            guard case .stored(let name) = block.win.photo else { return nil }
+            guard case .stored(let name) = block.win.photo,
+                  ImageManager.shared.fileExists(fileName: name) else { return nil }
             return GalleryPhoto(fileName: name,
                                 title: Self.photoTitle(block.win.title),
                                 date: block.win.completedAt,
@@ -151,7 +167,10 @@ struct ReplayView: View {
     private func openPhoto(block index: Int, script: ReplayScript, t: Double) {
         // A press that got as far as a hold is not a tap on anything.
         if press.held { return }
-        guard case .stored(let name) = replay.blocks[index].win.photo else { return }
+        guard case .stored(let name) = replay.blocks[index].win.photo,
+              // Deleted from the viewer a moment ago: the block still shows
+              // the decoded picture, but there is nothing left to open.
+              ImageManager.shared.fileExists(fileName: name) else { return }
         HapticsEngine.lightTap()
         viewingSource = script.screenRect(ofBlock: index, at: t)
         viewing = ViewedPhoto(id: name, title: Self.photoTitle(replay.blocks[index].win.title))
@@ -171,7 +190,8 @@ struct ReplayView: View {
                         topInset: insets.top, bottomInset: insets.bottom,
                         onTapBlock: t >= script.closeStart
                             ? { index in openPhoto(block: index, script: script, t: t) }
-                            : nil)
+                            : nil,
+                        onAccessibilityActivate: { clock.skip(to: script.closeStart) })
                 .onChange(of: t) { old, new in
                     clock.lastRendered = new
                     feedback.play(script, from: old, to: new)
@@ -179,6 +199,13 @@ struct ReplayView: View {
                     if DebugHarness.probesReplay { cadence.record(script.phase(at: new), finished: new >= script.duration) }
                     #endif
                     if new >= script.duration { finished = true }
+                }
+                // Initial too: with VoiceOver running the first frame drawn
+                // is already the close, and there is no crossing to see.
+                .onChange(of: t >= script.closeStart, initial: true) { _, atClose in
+                    guard atClose, !announced else { return }
+                    announced = true
+                    AccessibilityNotification.Announcement(replay.announcement(now: now)).post()
                 }
                 #if DEBUG
                 .overlay(alignment: .topLeading) {
@@ -280,7 +307,7 @@ struct ReplayView: View {
         }
     }
 
-    private func prepare(cell: CGFloat) async {
+    private func prepare(cell: CGFloat, closeStart: Double) async {
         #if DEBUG
         if let frozen = DebugHarness.replayAt { clock.freeze(at: frozen) }
         #endif
@@ -293,6 +320,9 @@ struct ReplayView: View {
         SoundEngine.prepare()
         images = await loaded
         clock.start()
+        // In the same turn as the start, so the first frame drawn is the
+        // close: with VoiceOver the build is a wait with nothing to hear.
+        if UIAccessibility.isVoiceOverRunning { clock.skip(to: closeStart) }
         // Once, after the photographs are in, and after the clock starts so
         // the first frame is not held for it.
         // The live photographs serve it: they are keyed by picture, not by

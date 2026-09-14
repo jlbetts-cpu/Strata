@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftData
 import SwiftUI
 import Testing
 @testable import Strata
@@ -57,6 +58,18 @@ struct ReplayShelfModelTests {
         #expect(ReplayShelfModel.signature(base) == ReplayShelfModel.signature(same))
         #expect(ReplayShelfModel.signature(base) != ReplayShelfModel.signature(photographed))
         #expect(ReplayShelfModel.signature(base) != ReplayShelfModel.signature(longer))
+    }
+
+    @Test("the shelf says it has not loaded until a reload has asked, even when it finds nothing")
+    @MainActor func hasLoadedOnlyAfterAReload() async throws {
+        let container = try ModelContainer(for: Habit.self, HabitLog.self, Tower.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let model = ReplayShelfModel()
+        #expect(!model.hasLoaded)
+        await model.reload(context: ModelContext(container), colorScheme: .light, displayScale: 1)
+        #expect(model.hasLoaded)
+        #expect(model.months.isEmpty && model.weeks.isEmpty)
+        withExtendedLifetime(container) {}
     }
 }
 

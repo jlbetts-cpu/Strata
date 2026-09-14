@@ -224,9 +224,15 @@ struct MainAppView: View {
     /// `debugReplay` is set, by `DebugReplayCover`.
     @State private var debugReplayIsSample = true
     /// The period whose window is open right now, if it has a win. Drives the
-    /// Wins tab pill. Recomputed on scene-active and after `refreshData()`
-    /// finds a new win, the way `DailyReminder` re-decides itself.
+    /// Wins tab pill. Recomputed on scene-active, after `refreshData()`
+    /// finds a new win, the way `DailyReminder` re-decides itself, and at
+    /// the next window edge (`replayEdge`).
     @State private var liveReplay: ReplayPeriod?
+    /// The next moment a replay window opens or closes. The pill is
+    /// re-decided there once, so a window edge that passes with the app open
+    /// (Sunday 5pm, Tuesday as it starts, the last day 5pm, the 3rd) moves
+    /// the pill without a timer.
+    @State private var replayEdge: Date?
     /// The replay the pill opened, played over the tower.
     @State private var playingReplay: Replay?
     @State private var debugAutoWinsLeft = 0
@@ -414,6 +420,16 @@ struct MainAppView: View {
                     // throttles; a no-op is not one.
                     publishWidgetSnapshot()
                 }
+            }
+            // One sleep to the next window edge, then the pill is re-decided,
+            // which sets the edge after it and restarts this. Cancelled with
+            // the view; a wake that comes a moment early sleeps the rest.
+            .task(id: replayEdge) {
+                guard let edge = replayEdge else { return }
+                while Date() < edge {
+                    do { try await Task.sleep(for: .seconds(max(edge.timeIntervalSinceNow, 0.01))) } catch { return }
+                }
+                updateLiveReplay()
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
@@ -1253,7 +1269,9 @@ struct MainAppView: View {
     /// is cheap enough for a hot path — the full `ReplayLoader.replay` fetch
     /// only ever runs when the pill itself is tapped.
     private func updateLiveReplay() {
-        liveReplay = ReplayEntry.live(now: Date()) { ReplayLoader.hasWins($0, context: modelContext) }
+        let now = Date()
+        liveReplay = ReplayEntry.live(now: now) { ReplayLoader.hasWins($0, context: modelContext) }
+        replayEdge = ReplayEntry.nextEdge(after: now)
         #if DEBUG
         if let forced = DebugHarness.replayWindow {
             liveReplay = forced == "month" ? .month(containing: Date()) : .week(containing: Date())

@@ -34,6 +34,29 @@ struct ReplayReminderTests {
         #expect(!up.map(\.date).contains(at(9, 13, 18)))
     }
 
+    @Test("the pill wakes at the next window edge: Sunday 5pm, Tuesday as it starts, the last day 5pm, the 3rd")
+    func nextEdge() {
+        // Wednesday 9 September, noon: the week's window opens Sunday 13 at 5pm.
+        #expect(ReplayEntry.nextEdge(after: at(9, 9), calendar: calendar) == at(9, 13, 17))
+        // Sunday 13 at 6pm, the week open: it closes as Tuesday 15 starts.
+        #expect(ReplayEntry.nextEdge(after: at(9, 13, 18), calendar: calendar) == at(9, 15, 0))
+        // Exactly on an edge: the NEXT one, never the same instant again.
+        #expect(ReplayEntry.nextEdge(after: at(9, 13, 17), calendar: calendar) == at(9, 15, 0))
+        // Tuesday 29 September, noon: the last week's window closed at
+        // midnight and the next opens on 4 October, so the month opens
+        // first, 30 September at 5pm.
+        #expect(ReplayEntry.nextEdge(after: at(9, 29), calendar: calendar) == at(9, 30, 17))
+        // 2 October: the month's window closes as the 3rd starts.
+        #expect(ReplayEntry.nextEdge(after: at(10, 2), calendar: calendar) == at(10, 3, 0))
+        // Every edge found is in the future.
+        var t = at(1, 1)
+        while t < at(12, 31) {
+            let e = ReplayEntry.nextEdge(after: t, calendar: calendar)
+            #expect(e != nil && e! > t)
+            t = e ?? at(12, 31)
+        }
+    }
+
     @Test("the pill: the month wins when both windows are open")
     func monthWins() {
         // 30 September 2026 is a Wednesday; use a month ending on a Sunday: May 2026 ends Sunday 31.

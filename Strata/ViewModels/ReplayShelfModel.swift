@@ -13,6 +13,11 @@ import SwiftUI
 final class ReplayShelfModel {
     var months: [Replay] = []
     var weeks: [Replay] = []
+    /// Whether a reload has found out which periods have a replay. Until then
+    /// empty `months` and `weeks` mean "not asked yet", not "none", and the
+    /// page must not tell someone with last month's replay that their first
+    /// month starts here.
+    private(set) var hasLoaded = false
     /// By `key(_:scheme:)`: a poster is drawn in the page's scheme, and both
     /// schemes are kept so switching back does not redraw the shelf.
     var cards: [String: UIImage] = [:]
@@ -101,6 +106,7 @@ final class ReplayShelfModel {
         }
         months = found.filter { $0.period.kind == .month }
         weeks = found.filter { $0.period.kind == .week }
+        hasLoaded = true
         let live = Set((months + weeks).flatMap { [Self.key($0, scheme: .light), Self.key($0, scheme: .dark)] })
         for key in cards.keys where !live.contains(key) {
             cards[key] = nil

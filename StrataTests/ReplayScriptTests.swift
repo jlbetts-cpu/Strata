@@ -399,6 +399,34 @@ struct ReplayScriptTests {
         }
     }
 
+    @Test("a compressed build that ends on empty days: under the cap, the last day still shows, the corridor holds",
+          arguments: [(ReplayKind.month, 600, 10), (.week, 400, 3)])
+    func capWithTrailingEmptyDays(kind: ReplayKind, wins: Int, busyDays: Int) {
+        // Every win in the first days; the rest of the period is empty, so
+        // the build is compressed to fit the cap AND has to leave room for a
+        // run of empty days after the last landing.
+        let r = replay(kind, sizes: (0..<wins).map { [BlockSize.small, .medium, .small, .hard, .small][$0 % 5] },
+                       days: Array(0..<busyDays))
+        #expect(r.countsByDay.suffix(from: busyDays).allSatisfy { $0 == 0 })
+        let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
+        let lastDay = r.period.days.count - 1
+
+        #expect(s.duration <= s.pacing.totalCap + 1e-9, "ran \(s.duration)s against \(s.pacing.totalCap)")
+        #expect((s.landings.last?.time ?? .infinity) <= s.revealStart)
+
+        var shownAt: Double?
+        var t = 0.0
+        while t < s.revealStart {
+            if s.label(at: t).current == lastDay { shownAt = t; break }
+            t += 1.0 / 120
+        }
+        #expect(shownAt != nil, "the last day's label never showed before the reveal at \(s.revealStart)s")
+
+        let w = corridorWorst(s)
+        #expect(w.onScreen <= 0.5, "block \(w.block) starts \(w.onScreen)pt on screen")
+        #expect(w.overFollow <= 0.5, "a block lands \(w.overFollow)pt above the follow line")
+    }
+
     @Test("the camera eases its rise back to 0 even when the finished tower already fits at scale 1")
     func riseErasesWithoutAZoomJump() {
         let r = replay(.week, wins: 20)

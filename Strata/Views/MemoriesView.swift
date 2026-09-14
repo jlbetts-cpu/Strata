@@ -177,6 +177,10 @@ struct MemoriesView: View {
                     Section {
                         if pageIsEmpty {
                             emptyState
+                        } else if pageIsUndecided {
+                            // Neither the empty state nor an empty month for
+                            // the moment the shelf takes to answer.
+                            EmptyView()
                         } else {
                             // The month leads. It used to open on a search
                             // field, then a shelf of photo cards, with the
@@ -186,7 +190,7 @@ struct MemoriesView: View {
                             monthTower
                         }
                     } header: {
-                        if !pageIsEmpty { monthHeader }
+                        if !pageIsEmpty && !pageIsUndecided { monthHeader }
                     }
 
                     if !pageIsEmpty {
@@ -343,8 +347,19 @@ struct MemoriesView: View {
     /// finished replay. A person with last month's replay and nothing yet in
     /// this one gets the month (empty) and the shelf, not "Your first month
     /// starts here", which would be untrue.
+    ///
+    /// Only once the shelf has loaded: before that its rows are empty because
+    /// nobody has asked, and the empty state flashed for a person with a past
+    /// replay and nothing else.
     private var pageIsEmpty: Bool {
-        vm.carousel.isEmpty && vm.month.isEmpty && replays.months.isEmpty && replays.weeks.isEmpty
+        replays.hasLoaded
+            && vm.carousel.isEmpty && vm.month.isEmpty && replays.months.isEmpty && replays.weeks.isEmpty
+    }
+
+    /// Everything but the shelf is empty and the shelf has not answered yet,
+    /// so the page could still go either way.
+    private var pageIsUndecided: Bool {
+        !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
     private func reloadReplays() async {

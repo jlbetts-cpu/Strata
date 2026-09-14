@@ -367,6 +367,47 @@ final class ReplayGestureTests: XCTestCase {
         XCTAssertTrue(probe(app).exists, "closing the photograph closed the replay too")
     }
 
+    /// A photograph removed from the viewer a block opened: the replay still
+    /// draws the picture it decoded, but the block no longer opens anything,
+    /// since the file is gone.
+    @MainActor
+    func testADeletedPhotoBlockOpensNothing() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "tower", "-strataResetStore", "1", "-strataSeedHistory", "20",
+                               "-strataOpenReplay", "lastWeek", "-strataReplayProbe"]
+        app.launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 45), "the replay never started")
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        let blockProbe = app.descendants(matching: .any)["replayPhotoBlock"]
+        XCTAssertTrue(blockProbe.exists, "last week has no block with a stored photograph")
+        let fields = blockProbe.label.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        let parts = fields[0].split(separator: " ").compactMap { Double($0) }
+        XCTAssertEqual(parts.count, 4, "block probe unreadable: \(blockProbe.label)")
+        let point = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: parts[0], dy: parts[1]))
+        let viewerClose = app.buttons["Close photo"]
+
+        point.tap()
+        XCTAssertTrue(viewerClose.waitForExistence(timeout: 8), "the block did not open its photograph")
+        Thread.sleep(forTimeInterval: 1.0)
+        app.buttons["Photo actions"].tap()
+        let menuRemove = app.buttons["Remove Photo"].firstMatch
+        XCTAssertTrue(menuRemove.waitForExistence(timeout: 5), "no Remove Photo in the viewer's menu")
+        menuRemove.tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        let confirm = app.buttons.matching(identifier: "Remove Photo").allElementsBoundByIndex.last
+        XCTAssertNotNil(confirm, "no confirmation for Remove Photo")
+        confirm?.tap()
+        Thread.sleep(forTimeInterval: 2.0)
+        XCTAssertFalse(viewerClose.exists, "removing the photograph did not close the viewer")
+        XCTAssertTrue(probe(app).exists, "removing the photograph closed the replay")
+        keep(app, "after-photo-removed")
+
+        point.tap()
+        Thread.sleep(forTimeInterval: 3.0)
+        XCTAssertFalse(viewerClose.exists, "a block whose photograph was removed opened the viewer again")
+    }
+
     /// Settings' preview rows play the real replay.
     @MainActor
     func testSettingsPreviewPlays() throws {

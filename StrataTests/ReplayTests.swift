@@ -86,6 +86,21 @@ struct ReplayTests {
         #expect(m.sentence() == "All on the 14th.")
     }
 
+    @Test("VoiceOver hears the close as one sentence per fact, one full stop each")
+    func announcement() {
+        var wins: [ReplayWin] = []
+        for (day, n) in [("2026-09-07", 4), ("2026-09-08", 5), ("2026-09-09", 3), ("2026-09-10", 7),
+                         ("2026-09-11", 4), ("2026-09-12", 5), ("2026-09-13", 3)] {
+            wins += (0..<n).map { win(day, hour: 8 + $0) }
+        }
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 14))!
+        let r = Replay(period: week, wins: wins)
+        #expect(r.announcement(now: now) == "Your week, 7 to 13 September. 31 wins. Thursday was your biggest day.")
+        let one = Replay(period: week, wins: [win("2026-09-10", hour: 8)])
+        #expect(one.announcement(now: now) == "Your week, 7 to 13 September. 1 win. All on Thursday.")
+        #expect(Replay(period: week, wins: []).announcement(now: now) == "Your week, 7 to 13 September. 0 wins.")
+    }
+
     @Test("no wins, no sentence")
     func empty() {
         #expect(Replay(period: week, wins: []).sentence() == nil)

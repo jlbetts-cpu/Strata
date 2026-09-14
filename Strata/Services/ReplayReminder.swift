@@ -11,6 +11,24 @@ enum ReplayEntry {
         if let w = ReplayPeriod.current(.week, at: now, calendar: calendar), hasWins(w) { return w }
         return nil
     }
+
+    /// The next moment after `now` that a week's or a month's window opens or
+    /// closes: when the pill may have to appear or leave with the app open.
+    /// The Wins tab sleeps until it, once, rather than polling.
+    static func nextEdge(after now: Date, calendar: Calendar = .current) -> Date? {
+        var edges: [Date] = []
+        for step in [-1, 0, 1] {
+            if let d = calendar.date(byAdding: .day, value: 7 * step, to: now) {
+                let w = ReplayPeriod.week(containing: d, calendar: calendar)
+                edges += [w.windowOpens, w.windowCloses]
+            }
+            if let d = calendar.date(byAdding: .month, value: step, to: now) {
+                let m = ReplayPeriod.month(containing: d, calendar: calendar)
+                edges += [m.windowOpens, m.windowCloses]
+            }
+        }
+        return edges.filter { $0 > now }.min()
+    }
 }
 
 /// The Sunday and 1st-of-the-month notifications.
