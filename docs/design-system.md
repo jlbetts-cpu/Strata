@@ -3,9 +3,35 @@
 > Complete design token reference for Figma handoff. Every value verified against source code.
 > Last updated: 2026-03-26
 
+> **SECTIONS 1 TO 5 ARE SUPERSEDED (2026-09-14).** The code is the source of
+> truth for colour, type, spacing, radius, shadow and motion:
+> `Strata/Models/GridConstants.swift`, `Strata/Models/Typography.swift` and
+> `AppColors` in `Strata/Models/CategoryColors.swift`. Where this file
+> disagrees with them, this file is wrong. The values that most often mislead:
+>
+> - **Type:** SF Pro Rounded only, two weights (regular and medium). No Space
+>   Grotesk. Semibold is the wordmark's alone. The digits are the owner's
+>   `StrataNumerals` font (`Typography.tally`, `Typography.numeral(_:)`).
+> - **Spacing:** grid `spacing` 4, and the `gap*` scale (8, 12, 16, 24, 32).
+>   Page margin `horizontalPadding` 16.
+> - **Radius:** `blockCornerRadius` 12 at the reference cell, scaled with the
+>   cell; chrome ladder 20 / 12 / 8 / 4.
+> - **Shadow:** block shadow opacity 0.07 at radius 7, y 2 (0.20 in dark).
+>   Chrome casts none.
+> - **Blocks:** one flat colour, lit by a 1.4pt rim that is brightest along the
+>   top edge. No three-stop vertical gradient.
+> - **Motion:** named `Animation` tokens in `GridConstants`. No inline
+>   `.spring(...)` or duration curves at call sites.
+>
+> Sections 6 onward are from the same revision and describe some screens that
+> have since been removed (the Today, Plan and Insights tabs); check them
+> against the code before relying on them.
+
 ---
 
 ## 1. Color Tokens
+
+> Superseded: see the note at the top of this file.
 
 ### Category Palettes
 
@@ -78,6 +104,8 @@ Each category has 6 color roles. All text on category fills is white.
 
 ## 2. Typography
 
+> Superseded: see the note at the top of this file.
+
 ### Brand Fonts (Space Grotesk)
 
 Architectural/geometric. Used for logos, headers, and hero elements.
@@ -112,6 +140,8 @@ Warm/humanist. Used for all body text, labels, and UI elements.
 ---
 
 ## 3. Spacing & Layout
+
+> Superseded: see the note at the top of this file.
 
 ### Grid System
 
@@ -163,6 +193,8 @@ Warm/humanist. Used for all body text, labels, and UI elements.
 
 ## 4. Shadow System
 
+> Superseded: see the note at the top of this file.
+
 ### Ambient Shadow (default)
 
 | Token | Value |
@@ -192,6 +224,8 @@ Blocks higher in the tower cast slightly stronger shadows:
 ---
 
 ## 5. Animation Springs
+
+> Superseded: see the note at the top of this file.
 
 ### Drop Physics
 
