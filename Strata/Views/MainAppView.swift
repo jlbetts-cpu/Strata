@@ -108,9 +108,9 @@ struct MainAppView: View {
     @State private var flyawayCategory: HabitCategory? = nil
     @State private var flyawayLanded: Bool = false
 
-    // In-place block expansion
+    /// The block whose edit sheet is open. It also hides that block on the
+    /// tower while the sheet is up (`AnimatedBlockView`).
     @State private var expandedBlockID: UUID? = nil
-    @Namespace private var blockExpansion
 
 
     // #109: Comeback celebration
@@ -185,7 +185,18 @@ struct MainAppView: View {
     @State private var spotlightIndexTask: Task<Void, Never>?
     @State private var lastIndexedHabitCount: Int = 0
     @State private var scrollToTopTrigger = 0
+    /// The tower's scroll position, as far as block culling needs it.
+    ///
+    /// **Published only when culling can apply** (more than
+    /// `cullThreshold` blocks), and then only in half-viewport steps. It was
+    /// written every 8pt of scroll and passed into every block view, whose
+    /// `==` compared it, so each write re-evaluated every block's body: 884
+    /// block bodies a second over a scripted fling of a 60-block tower, for a
+    /// value no block drew with. The raw offset lives on `towerProbe`, which
+    /// is not observed, and is copied in here when culling starts.
     @State private var towerScrollOffset: CGFloat = 0
+    /// Above this many blocks the tower culls what is off screen.
+    private static let cullThreshold = 120
     @State private var screenHeight: CGFloat = 0
     @State private var currentColW: CGFloat = 82 // Default for iPhone 15 Pro — geometryTracker recalculates on appear
     @State private var safeAreaTop: CGFloat = 0
@@ -1492,6 +1503,19 @@ struct MainAppView: View {
         // run needs a store that has never been used. See
         // `DebugHarness.resetsStore`.
         if DebugHarness.resetsStore { resetTower() }
+        if let mode = DebugHarness.editBlock {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(20))
+                guard let top = towerVM.placedBlocks.last else { return }
+                top.habit.title = "Edited title"
+                top.habit.category = top.habit.displayCategory == .focus ? .social : .focus
+                top.log.imageFileName = towerVM.placedBlocks.lazy
+                    .compactMap(\.log.imageFileName).first
+                try? modelContext.save()
+                NSLog("[strata-edit] edited %@ (%@)", top.id.uuidString, mode)
+                if mode == "rebuild" { repackTower() }
+            }
+        }
         #endif
 
         // Before anything reads `isWin`.
@@ -2195,9 +2219,19 @@ struct MainAppView: View {
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
             } action: { _, newOffset in
-                if abs(newOffset - towerScrollOffset) > 8 {
+                towerProbe.scrollOffset = newOffset
+                // Only a culling tower reads the offset, and its buffer is a
+                // whole viewport either side (`visibleTowerBlocks`), so a
+                // value up to half a viewport stale still covers the screen.
+                guard towerVM.placedBlocks.count > Self.cullThreshold else { return }
+                if abs(newOffset - towerScrollOffset) > max(viewportHeight / 2, 100) {
                     towerScrollOffset = newOffset
                 }
+            }
+            // Crossing into culling: the published value may be from a
+            // scroll long ago, so take the real one before the first cull.
+            .onChange(of: towerVM.placedBlocks.count > Self.cullThreshold) { _, culls in
+                if culls { towerScrollOffset = towerProbe.scrollOffset }
             }
             .onChange(of: scrollToTopTrigger) {
                 withAnimation(GridConstants.heavySettle) {
@@ -2240,9 +2274,7 @@ struct MainAppView: View {
                 mergeDestinedIDs: towerVM.groupedBlockIDs,
                 colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
                 collapsedHeaderHeight: collapsedHeaderHeight,
-                towerScrollOffset: towerScrollOffset,
                 cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
-                blockExpansionNamespace: blockExpansion,
                 reduceMotion: reduceMotion, colorScheme: colorScheme,
                 onTapExpandBlock: { id in
                     // The release of a long press is not a tap, and a tap
@@ -2324,7 +2356,7 @@ struct MainAppView: View {
         //
         // This was 30, which is about seven rows — well inside what a good day
         // produces, so the cull was running constantly on ordinary towers.
-        guard blocks.count > 120 else { return blocks }
+        guard blocks.count > Self.cullThreshold else { return blocks }
         guard !isRearranging else { return blocks }
 
         let cellStride = colW + spacing
@@ -2455,10 +2487,8 @@ struct MainAppView: View {
         let gridH: CGFloat
         let safeAreaTop: CGFloat
         let collapsedHeaderHeight: CGFloat
-        let towerScrollOffset: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
-        let blockExpansionNamespace: Namespace.ID
         let reduceMotion: Bool
         let colorScheme: ColorScheme
         let onTapExpandBlock: (UUID) -> Void
@@ -2486,13 +2516,15 @@ struct MainAppView: View {
                 let stagger = towerVM.staggerDelay(for: block)
 
                 AnimatedBlockView(
-                    block: block, frame: f, animState: animState,
+                    block: block,
+                    // Read from the models now, so `==` compares this
+                    // evaluation's values with the last one's.
+                    look: PlacedBlock.Look(habit: block.habit, log: block.log),
+                    frame: f, animState: animState,
                     isNewlyDropped: isNewlyDropped, staggerDelay: stagger,
                     gridH: gridH, safeAreaTop: safeAreaTop,
                     collapsedHeaderHeight: collapsedHeaderHeight,
-                    towerScrollOffset: towerScrollOffset,
                     cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
-                        blockExpansionNamespace: blockExpansionNamespace,
                     reduceMotion: reduceMotion, colorScheme: colorScheme,
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
                     isCrown: towerVM.topRowBlockIDs.contains(block.id),
@@ -2566,7 +2598,6 @@ struct MainAppView: View {
                 .rotationEffect(.degrees(animState.jubilationWobble))
                 .offset(y: animState.jubilationLift)
                 .brightness(animState.jubilationGlow)
-                .id(block.id)
                 .offset(x: f.minX, y: gridH - f.minY - f.height)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
                 .accessibilitySortPriority(-Double(block.row))
@@ -2585,6 +2616,8 @@ struct MainAppView: View {
 
     private struct AnimatedBlockView: View, Equatable {
         let block: PlacedBlock
+        /// What the block draws with, as values. See `PlacedBlock.Look`.
+        let look: PlacedBlock.Look
         let frame: CGRect
         let animState: BlockAnimationState
         let isNewlyDropped: Bool
@@ -2592,10 +2625,8 @@ struct MainAppView: View {
         let gridH: CGFloat
         let safeAreaTop: CGFloat
         let collapsedHeaderHeight: CGFloat
-        let towerScrollOffset: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
-        let blockExpansionNamespace: Namespace.ID
         let reduceMotion: Bool
         let colorScheme: ColorScheme
         let isFoundation: Bool
@@ -2622,14 +2653,19 @@ struct MainAppView: View {
             // slot — compared equal, so SwiftUI skipped the redraw and the new
             // colour did not appear until something else forced a rebuild.
             // That is "editing a block only takes effect when I add another".
+            //
+            // And they must be VALUES. This compared
+            // `lhs.block.habit.title == rhs.block.habit.title`, but both sides
+            // hold the same `Habit`, so it read one object twice and was
+            // always true; edits showed only because `FlippableBlockView`
+            // observes the model itself. `look` is copied out of the models
+            // each time the grid builds this view, so it can differ.
             lhs.block.id == rhs.block.id
-            && lhs.block.habit.displayCategory == rhs.block.habit.displayCategory
-            && lhs.block.habit.title == rhs.block.habit.title
-            && lhs.block.habit.blockSize == rhs.block.habit.blockSize
+            && lhs.look == rhs.look
+            && lhs.block.isSkipped == rhs.block.isSkipped
             && lhs.frame == rhs.frame
             && lhs.isNewlyDropped == rhs.isNewlyDropped
             && lhs.gridH == rhs.gridH
-            && lhs.towerScrollOffset == rhs.towerScrollOffset
             && lhs.expandedBlockID == rhs.expandedBlockID
             && lhs.reduceMotion == rhs.reduceMotion
             && lhs.colorScheme == rhs.colorScheme
@@ -2767,7 +2803,11 @@ struct MainAppView: View {
                     },
                     isLifted: liftedBlockID == block.id
                 )
-                .matchedGeometryEffect(id: block.id, in: blockExpansionNamespace)
+                // No `matchedGeometryEffect`. It served the expansion card
+                // the edit sheet replaced, nothing else was in its namespace,
+                // and SwiftUI still tracked every block's geometry for it on
+                // every transaction. The opacity stays: it hides the edited
+                // block behind its sheet, which is still what you see.
                 .opacity(isExpanded ? 0 : block.isSkipped ? 0.30 : 1)
                 .overlay {
                     // Skipped block diagonal lines

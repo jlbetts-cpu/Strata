@@ -153,6 +153,17 @@ enum DebugHarness {
         argument("-strataOpenSheet")?.lowercased()
     }
 
+    /// `-strataEditBlock rebuild|quiet`: 20s after launch, renames the top
+    /// block of the tower, changes its colour and gives it the first
+    /// photograph found on another block. `rebuild` then repacks the tower the
+    /// way the edit sheet's save does; `quiet` only saves, the way an edit
+    /// from somewhere else arrives.
+    ///
+    /// For the `Equatable` trap: a screenshot before and after says whether
+    /// an edit still reaches a tower block. Nothing can open the edit sheet
+    /// and type into it from a script.
+    static var editBlock: String? { argument("-strataEditBlock")?.lowercased() }
+
     /// `-strataOpenReplay week|month|lastWeek|sampleWeek|sampleMonth`: opens a replay on launch.
     static var openReplay: String? { argument("-strataOpenReplay") }
     /// Overrides the per-day win count `-strataSeedHistory` seeds, from

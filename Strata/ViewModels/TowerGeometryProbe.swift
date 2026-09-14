@@ -25,6 +25,9 @@ final class TowerGeometryProbe {
     /// Cell size, so a block's frame can be recomputed without threading the
     /// column width through the drop path.
     var cellSize: CGFloat = 0
+    /// The tower's scroll offset, every frame. `MainAppView` publishes a
+    /// coarse copy only when the tower is big enough to cull.
+    var scrollOffset: CGFloat = 0
 
     /// True once a real layout pass has reported in. Before that the drop
     /// falls back to a fixed distance rather than trusting zeros.
