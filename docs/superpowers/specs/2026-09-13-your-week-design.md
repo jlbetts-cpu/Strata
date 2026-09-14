@@ -1,116 +1,137 @@
-# Your Week
+# Your Week and Your Month
 
-A Sunday replay. Every win from the last seven days falls into one tower, in
-the order you did them, and the finished week stands on the screen long enough
-to be looked at and shared.
+A replay. Every win from a week, or a month, falls into one tower in the order
+you did them, at full size, with the camera rising to follow the top. When the
+last one lands the camera pulls out and the whole tower stands on the screen,
+small, long enough to be looked at, saved as a video and shared.
 
-Status: design, awaiting the owner's approval. No code until then.
+Status: approved direction from the owner on 2026-09-13, with his additions
+(Settings preview, Your Month, a Replays section in Memories, save to camera
+roll as a video). Revised from the first draft accordingly.
 
 ## Why this is the feature
 
 Strata's tower is a day. At midnight it resets, and everything you built lives
-on only as a month block or a map pin. Nothing in the app ever shows you the
-week as one object, which is the unit people actually plan and remember in.
+on only as a month block or a map pin. Nothing in the app shows you a week or
+a month as one object, and those are the units people plan and remember in.
 The replay is the payoff for the whole loop: log something small every day,
-and once a week the app hands you back the shape of what you did.
+and at the end of the week and the month the app hands you back the shape of
+what you did.
 
-It rests on three things that are well supported: writing down good things
-from the day and revisiting them (Three Good Things), noticing small progress
-(the progress principle), and a replay people want to post (Wrapped, Memories).
-It adds no new data and asks nothing new of the user.
+It rests on well supported ideas: revisiting good things from the day (Three
+Good Things), noticing small progress (the progress principle), and a replay
+people want to post (Wrapped, Memories). It adds no new data about the user.
+
+## One engine, two lengths
+
+Week and month are the same replay with different inputs. Everything below
+applies to both unless a table says otherwise.
+
+| | Your Week | Your Month |
+| --- | --- | --- |
+| Covers | Monday to Sunday, the week ending on the Sunday | The calendar month |
+| Running label | Weekday name: Monday … Sunday | Day number in the owner's numerals: 1 … 30 |
+| Build phase | about 10s | about 18s |
+| Whole replay | 13 to 18s | 20 to 28s |
+| Available as an event | Sunday 5pm to end of Monday | Last day of the month 5pm to end of the 2nd |
+| Notification | Sunday 6pm | The 1st at 10am |
 
 ## What it is, in one shot
 
-One continuous take, 12 to 16 seconds, no pages, no swiping.
+One continuous take. No pages, no swiping.
 
-1. **Open.** Warm ground, empty. The date range fades in at the top,
-   "7 to 13 September", with "Your week" above it in the quiet weight.
-2. **Monday.** The weekday name sits top left. Monday's wins fall, one after
-   another, in the order they were logged, each with the real gravity drop and
-   the real landing.
-3. **The week builds.** The weekday name changes in place as each day begins.
-   Blocks keep stacking on the same tower: first-fit, exactly the packer the
-   Wins tab runs, so this is the app's arrangement and not a lookalike.
-4. **The pull-back.** The tower starts at full block size and the view pulls
-   back continuously as it grows, so every landing is visible and the finished
-   week ends fully in frame. Never a jump, never a scroll.
-5. **Sunday lands.** A short hold, then the tower dances once (the existing
-   dance, one wave). The weekday name leaves.
-6. **The close.** The count arrives under the tower in the owner's numerals,
-   one true sentence under it, and two controls: Share and Done.
+1. **Open.** Warm ground, empty. "Your week" (or "Your month") in the quiet
+   weight, the range under it: "7 to 13 September", or "September".
+2. **The build.** The running label sits top left. Wins fall one after another
+   in the order they were logged, each with the real gravity drop and the real
+   landing, at the same size as on the Wins tab. First-fit, the same packer the
+   tower runs, so this is the app's arrangement and not a lookalike.
+3. **The camera follows.** While the tower fits, the camera holds still. Once
+   the next landing would be above the frame, the camera rises smoothly so the
+   top of the tower stays at a fixed line. It never jumps and never waits for a
+   block to leave the frame.
+4. **The last win lands.** A short hold on the top of the tower.
+5. **The reveal.** One long pull-out, about 1.4s, that shrinks the view about
+   its base until the whole tower fits. This is the moment the replay exists
+   for: you have watched it built piece by piece, and now you see the whole
+   thing at once. The running label leaves as it starts.
+6. **The dance.** The tower dances once (the existing dance, one wave).
+7. **The close.** The count arrives under the tower in the owner's numerals,
+   one true sentence under it, then Save Video and Share.
 
-After the close, the tower stays live: tap a block to open that win's photo,
-the same way a block opens anywhere else.
+After the close the tower stays live: tap a block to open that win's photo.
 
 ## Motion, precisely
 
-**The whole replay is a function of time.** A pure `WeekReplay.Script`
-computes, for any moment `t`, where every block is, the pull-back scale, and
-which label is showing. The view draws that inside a `TimelineView`. This is
-the one decision that makes it clean:
+**The whole replay is a function of time.** A pure `Replay.Script` computes,
+for any moment `t`, where every block is, the camera's offset and scale, which
+label is showing, and which phase it is in. The live view draws it inside a
+`TimelineView`; the video exporter draws the same function to frames.
 
-- Nothing stacks. Thirty `withAnimation` calls in a row, each retargeting a
-  spring on the pull-back, is exactly how a sequence starts to shudder. A curve
-  sampled from a clock cannot.
-- It can be paused (press and hold) and skipped (tap) without any state going
-  out of step, because there is no state, only `t`.
-- It can be tested: render the script at fixed times and assert positions.
-- A video export later is the same function written to frames.
+- Nothing stacks. A run of `withAnimation` calls, each retargeting a spring on
+  the camera, is exactly how a sequence starts to shudder. A curve sampled from
+  a clock cannot.
+- Pause (press and hold) and skip to the close (tap) cannot put anything out of
+  step, because there is no state, only `t`.
+- It is testable: evaluate the script at fixed times and assert positions.
+- The saved video is frame-for-frame the thing you watched.
 
 **Drops.** Each block falls on `t = sqrt(2d/g)` with `GridConstants.dropGravity`
-and the clamp in `dropDurationRange`, arrives at full speed, and deforms on
-landing by the squash values in `design-system.md` §6, scaled by mass. Same
-numbers as the tower, taken from the same constants.
+and the clamp in `dropDurationRange`, arrives at full speed, and squashes on
+landing by `design-system.md` §6's values, scaled by mass. The fall distance is
+from just above the top of the frame to the block's slot in screen space, so a
+block always enters from off screen, as CLAUDE.md requires of the tower.
 
-**Spacing between drops** is solved from the week, not fixed: the build phase
-gets about 10 seconds, divided across the wins, clamped between 0.14s and
-0.55s apart. A week of 6 wins feels unhurried; a week of 60 still ends on time
-and reads as a downpour rather than a queue. Overlapping falls are fine and
-look right; they already happen on the tower.
+**Spacing between drops** is solved from the count: the build phase divided
+across the wins, clamped between 0.14s and 0.55s apart. A week of 6 wins is
+unhurried; a month of 150 reads as a downpour, not a queue. Past the duration
+cap the spacing goes below 0.14s rather than the replay getting longer.
 
 **Day boundaries** get 0.35s of air before the next day's first drop. An empty
-day shows its name for 0.45s and nothing falls. It is not skipped (that would
-misstate the week) and it is not remarked on.
+day shows its label for 0.45s in a week and 0.2s in a month, and nothing falls.
+Not skipped (that would misstate the record) and not remarked on.
 
-**The pull-back** is precomputed: for each landing, the scale at which the
-tower's new height fits the frame. Those points are joined by a smooth,
-monotonic curve (never zooms back in), eased so it leads the growth slightly
-and the top block is never clipped on arrival. Anchored at the base.
+**The camera during the build** targets "top of the tower at the follow line"
+and is precomputed per landing. Consecutive targets are joined with a
+critically damped curve evaluated analytically (no overshoot, never moves
+down), and the target is taken from the landing that is 0.25s ahead, so the
+camera is already rising when a block that would be clipped arrives.
 
-**Type changes** (weekday name) are a vertical 8pt slide plus opacity, 0.22s,
-outgoing and incoming overlapping, numerals and names never crossfading through
-each other in the same spot.
+**The reveal** interpolates scale from 1 to the fit scale, and offset from the
+follow position to base-anchored, on one ease-in-out curve, 1.4s for a month
+and 1.0s for a week. A week that already fits skips the reveal and holds.
 
-**The close** comes in on `gentleReveal`, count first, sentence 80ms later,
-controls 80ms after that.
+**Label changes** are an 8pt vertical slide plus opacity, 0.22s, outgoing and
+incoming overlapping.
 
-**Reduce Motion:** no falls, no pull-back, no dance. The finished tower is laid
+**The close** comes in on `gentleReveal`: count, sentence 80ms later, controls
+80ms after that.
+
+**Reduce Motion:** no falls, no camera, no dance. The finished tower is laid
 out at its fitted size and each day's blocks fade in together, day by day,
-over about 4 seconds. Same close.
+over about 4s (6s for a month). Same close.
 
 ## Sound and haptics
 
 One soft `HapticsEngine.tick()` per landing, rate-limited to 12 a second, a
 heavier `squish` for a 2x2. `SoundEngine.blockImpact` per landing at reduced
-level, following the Sounds & Haptics setting, with the same rate limit so a
-busy week is a patter, not noise. The dance gets the success haptic. Nothing
-else makes a sound.
+level with the same limit, following the Sounds & Haptics setting. Success
+haptic on the dance. Nothing else makes a sound.
 
 ## Layout
 
 - Full screen cover over the app, `WarmBackground`, status bar visible.
-- Header: "Your week" (quiet weight) over the date range (regular weight),
-  leading-aligned to the page margin, the same header line as other screens.
-- Weekday name: under the header, top left, large but lighter than the tower.
-- Tower: centred horizontally, base at a fixed line about a third up from the
-  bottom, so the close has room under it and the base never moves.
-- Close: the count in `Typography.tally`, the word "wins" beside it at
-  `tallyWord`, the sentence in secondary ink, Share and Done as the app's glass
-  controls. Done top right from the start (so leaving never waits on the
-  animation); Share appears only at the close.
-- Blocks are drawn with the real `FlippableBlockView`, photos and all.
-  **No merged runs**, for the reason the month tower gives: two touching blocks
-  are two different wins, and fusing them mid-replay would re-key and hard-cut.
+- Header: title in the quiet weight over the range, leading at the page margin.
+  Close button (the app's `GlassIconButton`, xmark) top right from the first
+  frame, so leaving never waits on the animation.
+- Running label: under the header, top left, large but lighter than the tower.
+- The follow line sits a fifth of the way down the frame, below the label.
+- The tower's base sits at a fixed line with room under it for the close.
+- Close: count in `Typography.tally` with "wins" at `tallyWord`, the sentence
+  in secondary ink, Save Video and Share as the app's glass controls.
+- Blocks use the real block surface, photos and all. **No merged runs**, for
+  the month tower's reason: touching blocks are different wins, and fusing
+  them mid-replay would re-key and hard-cut.
 
 ## Words
 
@@ -118,105 +139,174 @@ Every string it can show. No long dashes, nothing that reads as being watched.
 
 | Where | Text |
 | --- | --- |
-| Header | Your week |
-| Date range | 7 to 13 September (across months: 28 September to 4 October) |
-| Weekday | Monday … Sunday |
+| Title | Your week / Your month |
+| Range | 7 to 13 September (28 September to 4 October) / September (September 2026 when not this year) |
 | Count | 31 wins (1 win) |
-| Sentence, one busiest day | Thursday was your biggest day. |
-| Sentence, a tie | Thursday and Saturday were your biggest days. |
+| Sentence, one busiest day | Thursday was your biggest day. / The 14th was your biggest day. |
+| Sentence, two tied | Thursday and Saturday were your biggest days. / The 3rd and the 14th were your biggest days. |
 | Sentence, three or more tied | Three days tied for your biggest. (Four days, and so on) |
-| Sentence, wins on one day only | All on Thursday. |
-| Controls | Share · Done |
-| Entry on the Wins tab | Your week |
-| Notification title | Your week is ready |
-| Notification body | Seven days of wins, stacked into one tower. |
+| Sentence, one day only | All on Thursday. / All on the 14th. |
+| Controls | Save Video · Share |
+| Saving | Saving… then Saved to Photos |
+| Save failed | Couldn't save the video |
+| Entry pill on the Wins tab | Your week / Your month |
+| Notification, week | Your week is ready · Seven days of wins, stacked into one tower. |
+| Notification, month | September is ready · A month of wins, stacked into one tower. |
+| Replays section heading | REPLAYS |
+| Replays card | September · 142 wins / 7 to 13 Sep · 31 wins |
+| Settings section | Replays · Preview Your Week · Preview Your Month · Weekly and monthly replays |
+| Preview badge | Sample |
 | Accessibility, at the close | Your week, 7 to 13 September. 31 wins. Thursday was your biggest day. |
 
-The sentence is deliberately one fact. No streaks, no comparison with last
-week, no score, no "you could do better". A replay that grades you is one
-people stop opening.
+The sentence is one fact. No streaks, no comparison with other weeks, no score.
+A replay that grades you is one people stop opening.
 
-## When it appears
+## Where it lives
 
-- **The week** is the seven days ending on the Sunday it is shown, Monday to
-  Sunday, in the user's calendar. Chosen over the locale's week so a Sunday
-  evening replay is never a week with one day in it.
-- **Available** from Sunday 5pm until the end of Monday, if the week has at
-  least one win. Outside that window there is no entry, so it stays an event.
-- **Entry:** a small glass pill in the Wins tab header, "Your week", beside the
-  share button. It is the only new chrome in the app.
-- **Notification:** Sunday at 6pm, only if the user already allowed reminders,
-  only if the week has a win by then (scheduled or cancelled when the app
-  becomes active, the way `DailyReminder` tops itself up). A Settings switch,
-  "Weekly replay", on by default, under the existing reminder row.
-- **Seen once, still there:** watching it does not remove the pill until the
-  window closes, so it can be shown to someone.
+**As an event.** In its window (table above), if the period has at least one
+win, a small glass pill appears in the Wins tab header beside the share button.
+If both are live on the same day, the month wins. The pill stays for the whole
+window even after watching, so it can be shown to someone.
 
-## Sharing
+**Notification.** Only if the user already allowed reminders, only if the
+period has a win, scheduled or cancelled when the app becomes active the way
+`DailyReminder` tops itself up. One Settings switch, "Weekly and monthly
+replays", on by default.
 
-A still, 1080x1920, built the way `ShareTowerCard` is: the finished week tower
-at full size on the warm ground, the date range small at the top, the count
-under it. No watermark, no app plug, same reasoning as the existing card.
-Video export is left for later; the time-based script makes it a contained
-follow-up rather than a rewrite.
+**Replays in Memories.** A new section in the Memories drawer, between the month
+tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
+
+- **Months:** a horizontal shelf, newest first, of every finished month with a
+  win, plus the current month once its window opens. Each card is a 9:16
+  poster: the finished tower drawn small on the warm ground (the same
+  still the share card renders), with the month name and count under it. Side
+  by side, the shelf is a row of towers you can compare by eye, which is what
+  makes it memorable rather than a list.
+- **Recent weeks:** a smaller row under it, the last four finished weeks with a
+  win, same card at a smaller size.
+- Tapping a card plays that replay from the start, out of the card with the
+  zoom transition the app already uses for photos.
+- Nothing is drawn when there is nothing finished to show. No heading over a
+  gap.
+- Cards are rendered once per period and cached in `ThumbnailStore`, keyed by
+  period and a signature of its wins (count plus newest log id), so an edit to
+  a past week redraws its card.
+
+**Preview in Settings.** A Replays section with Preview Your Week and Preview
+Your Month. Each plays the real replay view with a sample set of wins: the
+app's own bundled demo photographs (the onboarding set) and plausible names,
+sizes and colours, spread across the period with one empty day and one busy
+day, so every part of the choreography shows. A small "Sample" badge under the
+title says it is not your data. Save Video works here too, so the export can
+be checked.
+
+## Save Video
+
+A 1080x1920 H.264 video at 30fps, with sound, saved to the camera roll through
+`PhotoLibrarySaver`'s add-only permission (the app already has the usage
+string; it gets reworded to cover videos: "Strata saves your photos and
+replays to your camera roll.").
+
+- **Same script, drawn to frames.** For each frame time, the replay's frame
+  view is rendered with `ImageRenderer` at 3x into a pixel buffer and appended
+  with `AVAssetWriter`. The video holds the close for 2s at the end so it does
+  not cut off as the count arrives.
+- **Photos must render synchronously.** `ImageRenderer` does not wait for
+  `CachedImageView`'s async decode, so the replay takes a `ReplayImages`
+  dictionary of decoded thumbnails, loaded before playback starts, and the
+  block view reads from it. Live and exported frames are drawn by the same
+  view from the same images, which is what makes them identical.
+- **Sound** is mixed offline: the script lists every landing's time and mass,
+  `SoundEngine` renders each impact to PCM as it already does for playback,
+  and they are summed into one AAC track. Same rate limit as live.
+- **Progress:** the Save Video control becomes a thin progress ring with
+  "Saving…". It can be cancelled by closing. A month takes roughly 25 to 40s
+  on a recent iPhone; stated as an estimate until measured on device.
+- **Share** shares the still (the card image). The video is shared by saving
+  it, since that is where people post stories from.
+- **Privacy docs:** the privacy policy and `docs/privacy.html` gain one line
+  that replays can be saved to the camera roll on request. Nothing leaves the
+  device, so `PrivacyInfo.xcprivacy` does not change.
 
 ## Architecture
 
-| Unit | Kind | Does | Depends on |
-| --- | --- | --- | --- |
-| `WeekReplay` | pure model | Picks the seven days, orders wins by time, packs them with `GridPacker.firstFit`, computes per-day counts, the busiest-day sentence and the date range string | `WinRecord`-style values, `Calendar` |
-| `WeekReplay.Script` | pure model | For time `t`: each block's fall offset and squash, the pull-back scale, the visible weekday, phase (build, dance, close), total duration; a Reduce Motion variant | `WeekReplay`, `GridConstants` drop constants |
-| `WeekReplayWindow` | pure | Whether now is inside Sunday 5pm to Monday end, and the week it refers to | `Calendar` |
-| `WeekReplayView` | view | `TimelineView` over the script, draws blocks, label, close; tap to skip, hold to pause, haptics and sound on landings | `FlippableBlockView`, `HapticsEngine`, `SoundEngine` |
-| `WeekShareCard` | view + renderer | The still for the share sheet | as `ShareTowerCard` |
-| `WeeklyReplayReminder` | service | Schedules or cancels the Sunday notification | `UNUserNotificationCenter`, same shape as `DailyReminder` |
-| Wins header pill, Settings switch | small edits | Entry and control | `MainAppView`, `SettingsView` |
+| Unit | Kind | Does |
+| --- | --- | --- |
+| `ReplayPeriod` | pure | A week or a month: its days, range string, running labels, window, notification date |
+| `Replay` | pure | Orders a period's wins by time, packs them with `GridPacker.firstFit`, per-day counts, the sentence |
+| `Replay.Script` | pure | For time `t`: block offsets and squash, camera offset and scale, label, phase, landing events; the Reduce Motion variant; total duration |
+| `ReplaySample` | pure | The sample wins for the Settings preview, deterministic |
+| `ReplayImages` | service | Loads decoded thumbnails for a replay before it plays |
+| `ReplayFrame` | view | Draws one moment of a script: blocks, label, close. No timers |
+| `ReplayView` | view | `TimelineView` around `ReplayFrame`; skip, pause, haptics and sound, controls |
+| `ReplayVideoExporter` | service | Frames plus mixed audio into an `.mp4`, progress, cancellation, then `PhotoLibrarySaver` |
+| `ReplayCard` | view | The 9:16 still, used for Replays cards and Share |
+| `ReplayShelf` | view | The Memories section |
+| `ReplayReminder` | service | Schedules or cancels the week and month notifications |
+| Pill, Settings rows, drawer slot | small edits | `MainAppView`, `SettingsView`, `MemoriesView` |
 
-Data is fetched once when the replay opens with a `FetchDescriptor` over the
-seven `dateString` keys, the way `MemoriesViewModel` fetches a month. Never
-`@Query`, and never through `MainAppView`'s narrowed query.
+Data is fetched when a replay or the shelf opens, with `FetchDescriptor`s over
+`dateString` ranges as `MemoriesViewModel` does. Never `@Query`, and never
+through `MainAppView`'s narrowed query.
 
-Debug flags, because nothing here is reachable by tap in the simulator:
-`-strataOpenWeek`, `-strataWeekAt <seconds>` (freeze the script at a time, for
-screenshots), `-strataWeekWindow open` (force the pill on).
+Debug flags, because none of this is reachable by tap in the simulator:
+`-strataOpenReplay week|month|sampleWeek|sampleMonth`, `-strataReplayAt <s>`
+(freeze at a time, for screenshots), `-strataReplayWindow week|month` (force
+the pill), `-strataExportReplay` (write the video to Documents for checking).
 
 ## Edge cases
 
-- **No wins in the week:** no pill, no notification, the view is unreachable.
-- **One win:** it plays; the tower is one block at full size, "1 win",
-  "All on Thursday."
-- **Very large week (100+):** spacing floors at 0.14s so the build runs longer
-  than 10s, capped at 18s total; past that the spacing goes below 0.14s and falls overlap more, which still reads as a downpour.
-  The pull-back keeps it in frame at any height.
-- **A win edited or deleted mid-replay:** the replay uses the snapshot it
-  opened with; closing and reopening shows the change.
-- **Photo not decoded yet:** the block shows its colour (already how blocks
-  behave), photos are preloaded for the first day before playback starts.
-- **Midnight during the window:** the week is fixed by the Sunday the window
-  belongs to, not by today.
-- **Time zones and DST:** days come from `Calendar`, never 86,400s steps, per
-  `Streaks`.
+- **No wins in a period:** no pill, no notification, no card.
+- **One win:** it plays; one block, "1 win", "All on Thursday."
+- **A win edited or deleted during a replay:** the replay uses the snapshot it
+  opened with.
+- **A thumbnail fails to load:** that block shows its colour, as blocks do.
+- **Midnight inside a window:** the period is fixed by the window, not today.
+- **Time zones and DST:** days come from `Calendar`, never 86,400s steps.
+- **Camera roll permission denied:** "Couldn't save the video", and the
+  control returns. No nagging.
+- **Export interrupted by backgrounding:** cancelled cleanly, partial file
+  deleted, control returns.
+
+## Build order
+
+Each step ships something that works on its own.
+
+1. `ReplayPeriod`, `Replay`, `Replay.Script` with tests.
+2. `ReplayFrame` and `ReplayView`, Your Week with real data, verified with
+   frozen frames and a filmed run.
+3. Settings preview with sample data (both lengths).
+4. Your Month (label, timings, reveal verified on a 150 win fixture).
+5. Replays shelf in Memories and the card still.
+6. Wins header pill and notifications.
+7. Save Video with sound, and the privacy wording.
 
 ## Testing
 
-- `WeekReplayTests`: day selection across a month boundary and DST, order by
-  time, packing matches the tower's packer, busiest-day sentence for one, two,
-  three-plus ties and a single day, date range strings.
-- `WeekReplayScriptTests`: every block is at rest by the close; no block's fall
-  starts before its predecessor's; scale is monotonic non-increasing and the
-  tower fits at every landing; total duration within 12 to 18s for 1, 6, 30 and
-  150 wins; Reduce Motion script has no offsets.
-- `WeekReplayWindowTests`: Sunday 4:59pm closed, 5pm open, Monday 11:59pm open,
-  Tuesday closed.
-- `WeeklyReplayReminderTests`: scheduled only with wins, cancelled without.
-- Visual: frozen frames at 0s, mid-Wednesday, Sunday landing and the close,
-  light and dark, plus a filmed simulator run checked frame by frame for any
-  jump in the pull-back.
-- Unverifiable here: haptics and sound on device. Stated, not implied.
+- `ReplayPeriodTests`: week across a month boundary and DST, month lengths,
+  windows at their edges (Sunday 4:59pm closed, 5pm open, Tuesday closed; the
+  2nd 11:59pm open, the 3rd closed), range strings.
+- `ReplayTests`: order by time, packing matches the tower packer, the sentence
+  for one day, two tied, three tied and one-day-only, in both lengths.
+- `ReplayScriptTests`: every block at rest before the reveal; every fall starts
+  above the frame; the camera never moves down during the build and the top
+  block is never clipped at its landing; the reveal ends with the whole tower
+  in frame; durations within bounds for 1, 6, 30, 150 and 400 wins; Reduce
+  Motion has no offsets.
+- `ReplaySampleTests`: deterministic, includes an empty day and a 2x2.
+- `ReplayReminderTests`: scheduled with wins, cancelled without, month wins
+  over week on a shared day.
+- Exporter: a DEBUG export of a short sample, read back with `AVAsset` to check
+  duration, size, frame rate and an audio track, and frames extracted and
+  compared with the live frozen frames.
+- Visual: frozen frames at the open, mid-build, camera following, mid-reveal
+  and the close, light and dark; a filmed simulator run checked frame by frame
+  for any jump in the camera.
+- Unverifiable here: haptics, sound on device, real export time on a phone, the
+  camera roll prompt. Stated, not implied.
 
 ## Not in this version
 
-Video export, past weeks archive, comparisons with other weeks, streaks,
-per-category breakdowns, captions over photos during the replay, music.
-Each one is something a person might ask for and each one dilutes the single
-thing this is.
+Comparisons between periods, streaks, per-category breakdowns, captions over
+photos during the replay, music, a year replay. Each is something a person
+might ask for and each dilutes the one thing this is.
