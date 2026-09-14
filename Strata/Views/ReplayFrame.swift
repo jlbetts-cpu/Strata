@@ -22,6 +22,17 @@ struct ReplayFrame: View {
     /// once the close has arrived; the card and the exporter pass nothing,
     /// and then nothing extra is drawn or hit-tested.
     var onTapBlock: ((Int) -> Void)? = nil
+    /// The shelf's poster: the tower alone, at a scale and on a base the
+    /// caller chose, so a row of posters shares one scale and compares by
+    /// height. Nil everywhere else, which draws the replay as it plays.
+    var poster: Poster? = nil
+
+    struct Poster: Equatable {
+        /// World points to frame points, the same for every card in a row.
+        var scale: CGFloat
+        /// Where the tower's base stands, in frame points.
+        var baseY: CGFloat
+    }
 
     private var m: ReplayScript.Metrics { script.metrics }
     private var replay: Replay { script.replay }
@@ -32,10 +43,10 @@ struct ReplayFrame: View {
             // Type BENEATH the tower: a block falling past the running label
             // passes in front of it, as a thing in the scene passes in front
             // of a caption, rather than the word printing across the block.
-            topCopy
+            if poster == nil { topCopy }
             tower
             if let onTapBlock { blockTaps(onTapBlock) }
-            close
+            if poster == nil { close }
         }
         .frame(width: m.frame.width, height: m.frame.height)
         // **Capped.** The frame's lines (`followY`, `baseY`) are fractions of
@@ -118,10 +129,12 @@ struct ReplayFrame: View {
     // MARK: Tower
 
     private var tower: some View {
-        let camera = script.camera(at: t)
+        let camera = poster.map { ReplayScript.Camera(rise: 0, scale: $0.scale) } ?? script.camera(at: t)
         let radius = GridConstants.blockCornerRadius(forCell: m.cell)
         let height = max(script.towerHeight, 1)
-        let titleOpacity = titleOpacity(at: camera.scale)
+        // A poster is a picture of a tower at a glance: at shelf size a
+        // title is a speck, and a row of them reads as dust.
+        let titleOpacity = poster == nil ? titleOpacity(at: camera.scale) : 0
         return ZStack(alignment: .bottomLeading) {
             Color.clear.frame(width: script.gridWidth, height: height)
             ForEach(replay.blocks.indices, id: \.self) { index in
@@ -149,7 +162,7 @@ struct ReplayFrame: View {
         .frame(width: script.gridWidth, height: height, alignment: .bottomLeading)
         .scaleEffect(camera.scale, anchor: .bottom)
         .offset(y: camera.rise * camera.scale)
-        .position(x: m.frame.width / 2, y: m.baseY - height / 2)
+        .position(x: m.frame.width / 2, y: (poster?.baseY ?? m.baseY) - height / 2)
         .accessibilityHidden(true)
     }
 

@@ -13,6 +13,8 @@ import SwiftUI
 final class ReplayShelfModel {
     var months: [Replay] = []
     var weeks: [Replay] = []
+    /// By `key(_:scheme:)`: a poster is drawn in the page's scheme, and both
+    /// schemes are kept so switching back does not redraw the shelf.
     var cards: [String: UIImage] = [:]
     /// Card key -> the signature it was drawn from.
     @ObservationIgnored private var drawn: [String: Int] = [:]
@@ -30,12 +32,26 @@ final class ReplayShelfModel {
         return (months, weeks)
     }
 
-    /// Everything a card draws. The spec's count plus newest id misses a
+    static func key(_ replay: Replay, scheme: ColorScheme) -> String {
+        "\(replay.id)-\(scheme == .dark ? "dark" : "light")"
+    }
+
+    /// The tallest finished tower in a row, in world points: what every
+    /// poster in that row is scaled against.
+    static func rowTowerHeight(_ replays: [Replay]) -> CGFloat {
+        let metrics = ReplayScript.Metrics.standard(frame: ReplayCard.size)
+        return replays.map { GridConstants.gridHeight(rows: $0.rows, cellSize: metrics.cell) }.max() ?? 0
+    }
+
+    /// Everything a poster draws. The spec's count plus newest id misses a
     /// photograph added to or removed from a win that is not the newest, and
     /// a card is mostly photographs; this costs one pass over at most a
-    /// month of blocks.
-    static func signature(_ replay: Replay) -> Int {
+    /// month of blocks. The row's tallest tower is in it too: a new, taller
+    /// month rescales, and so redraws, every poster in its row.
+    static func signature(_ replay: Replay, rowTowerHeight: CGFloat = 0, pixelScale: CGFloat = 0) -> Int {
         var h = Hasher()
+        h.combine(rowTowerHeight)
+        h.combine(pixelScale)
         h.combine(replay.count)
         for b in replay.blocks {
             h.combine(b.id)
@@ -54,7 +70,7 @@ final class ReplayShelfModel {
     /// One card at a time with a yield between, so the drawer keeps drawing
     /// while the shelf fills in. The cards a person sees first (the newest
     /// months and every week) are drawn first.
-    func reload(context: ModelContext, now: Date = Date(), displayScale: CGFloat = UIScreen.main.scale) async {
+    func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date = Date()) async {
         generation += 1
         let mine = generation
         #if DEBUG
@@ -85,11 +101,12 @@ final class ReplayShelfModel {
         }
         months = found.filter { $0.period.kind == .month }
         weeks = found.filter { $0.period.kind == .week }
-        let live = Set((months + weeks).map(\.id))
+        let live = Set((months + weeks).flatMap { [Self.key($0, scheme: .light), Self.key($0, scheme: .dark)] })
         for key in cards.keys where !live.contains(key) {
             cards[key] = nil
             drawn[key] = nil
         }
+        let heights: [ReplayKind: CGFloat] = [.month: Self.rowTowerHeight(months), .week: Self.rowTowerHeight(weeks)]
         #if DEBUG
         let fetched = CACurrentMediaTime()
         slices.append(fetched - slice)
@@ -98,10 +115,12 @@ final class ReplayShelfModel {
 
         let order = Array(months.prefix(3)) + weeks + Array(months.dropFirst(3))
         for replay in order {
-            let signature = Self.signature(replay)
-            guard drawn[replay.id] != signature else { continue }
-            let width = replay.period.kind == .month ? ReplayShelf.monthWidth : ReplayShelf.weekWidth
+            let width = replay.period.kind == .month ? ReplayCard.monthPosterWidth : ReplayCard.weekPosterWidth
             let scale = width * displayScale / ReplayCard.size.width
+            let rowHeight = heights[replay.period.kind] ?? 0
+            let key = Self.key(replay, scheme: colorScheme)
+            let signature = Self.signature(replay, rowTowerHeight: rowHeight, pixelScale: scale)
+            guard drawn[key] != signature else { continue }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
@@ -110,12 +129,13 @@ final class ReplayShelfModel {
             #if DEBUG
             slice = CACurrentMediaTime()
             #endif
-            let image = ReplayCard.image(replay, images: images, scale: scale, now: now)
+            let image = ReplayCard.poster(replay, images: images, scale: scale,
+                                          rowTowerHeight: rowHeight, colorScheme: colorScheme)
             #if DEBUG
             renders.append(CACurrentMediaTime() - slice)
             #endif
-            cards[replay.id] = image
-            drawn[replay.id] = signature
+            cards[key] = image
+            drawn[key] = signature
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif

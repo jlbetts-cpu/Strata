@@ -18,7 +18,7 @@ import SwiftUI
 /// parent's `onTapGesture`, so a tap on one is the button's and not a skip;
 /// the hold is SIMULTANEOUS, so holding a control would also pause, which
 /// changes nothing once the replay has finished.
-/// `testShareAtTheCloseIsNotASkip` taps Share and reads the clock.
+/// `testShareAfterTheCloseIsNotASkip` taps Share and reads the clock.
 /// Before the close arrives `ReplayFrame` turns their hit testing off, so a
 /// tap there falls through to the skip.
 ///
@@ -28,6 +28,9 @@ import SwiftUI
 struct ReplayView: View {
     let replay: Replay
     var isSample = false
+    /// A photograph opened from a block was deleted. The page that owns the
+    /// replay reloads what showed it; the replay keeps the picture it drew.
+    var onPhotoDeleted: (() -> Void)? = nil
     let onClose: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -99,8 +102,11 @@ struct ReplayView: View {
                         startAt: photo.id,
                         onClose: { viewing = nil },
                         // The replay keeps the picture it already decoded;
-                        // there is nothing here to reload.
-                        onDelete: { _ in viewing = nil })
+                        // the page under it reloads.
+                        onDelete: { _ in
+                            viewing = nil
+                            onPhotoDeleted?()
+                        })
                 .navigationTransition(.zoom(sourceID: "replayBlockPhoto", in: photoTransition))
         }
     }
@@ -110,9 +116,8 @@ struct ReplayView: View {
     private var storedPhotos: [GalleryPhoto] {
         replay.blocks.compactMap { block -> GalleryPhoto? in
             guard case .stored(let name) = block.win.photo else { return nil }
-            let title = block.win.title
             return GalleryPhoto(fileName: name,
-                                title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
+                                title: Self.photoTitle(block.win.title),
                                 date: block.win.completedAt,
                                 dateString: block.win.dateString,
                                 size: block.win.size)
@@ -125,8 +130,12 @@ struct ReplayView: View {
         guard case .stored(let name) = replay.blocks[index].win.photo else { return }
         HapticsEngine.lightTap()
         viewingSource = script.screenRect(ofBlock: index, at: t)
-        let title = replay.blocks[index].win.title
-        viewing = ViewedPhoto(id: name, title: title.isEmpty ? nil : title)
+        viewing = ViewedPhoto(id: name, title: Self.photoTitle(replay.blocks[index].win.title))
+    }
+
+    /// A win never named has no title, in the viewer as in the gallery.
+    static func photoTitle(_ title: String) -> String? {
+        (title.isEmpty || title == QuickWinService.untitled) ? nil : title
     }
 
     private func player(script: ReplayScript, images: ReplayImages, insets: EdgeInsets) -> some View {
@@ -269,11 +278,15 @@ struct ReplayView: View {
                     if case .stored = $0.win.photo { return true } else { return false }
                 }) {
                     let r = script.screenRect(ofBlock: index, at: t)
+                    let win = replay.blocks[index].win
+                    let file: String = if case .stored(let name) = win.photo { name } else { "" }
                     Color.clear
                         .frame(width: 1, height: 1)
                         .accessibilityElement()
                         .accessibilityIdentifier("replayPhotoBlock")
-                        .accessibilityLabel(String(format: "%.1f %.1f %.1f %.1f", r.midX, r.midY, r.width, r.height))
+                        // "x y w h|file|title": the rect, then what should open.
+                        .accessibilityLabel(String(format: "%.1f %.1f %.1f %.1f", r.midX, r.midY, r.width, r.height)
+                                            + "|\(file)|\(Self.photoTitle(win.title) ?? "")")
                 }
             }
         }

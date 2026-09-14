@@ -31,6 +31,7 @@ struct MemoriesView: View {
     /// is, so the two cannot be set independently.
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
@@ -174,7 +175,7 @@ struct MemoriesView: View {
                     // stays put for exactly as long as the thing it governs is
                     // on screen and then leaves with it.
                     Section {
-                        if vm.carousel.isEmpty && vm.month.isEmpty {
+                        if pageIsEmpty {
                             emptyState
                         } else {
                             // The month leads. It used to open on a search
@@ -185,18 +186,18 @@ struct MemoriesView: View {
                             monthTower
                         }
                     } header: {
-                        if !(vm.carousel.isEmpty && vm.month.isEmpty) { monthHeader }
+                        if !pageIsEmpty { monthHeader }
                     }
 
-                    if !(vm.carousel.isEmpty && vm.month.isEmpty) {
-                        // No heading over a gap. When nothing has earned a
-                        // card the shelf is not drawn at all — only what there
-                        // is to show gets shown.
+                    if !pageIsEmpty {
                         // Between the month and the albums: finished months
                         // and weeks as posters. Draws nothing, heading
                         // included, until one has a win.
                         ReplayShelf(model: replays, transitionNamespace: photoTransition) { playing = $0 }
 
+                        // No heading over a gap. When nothing has earned a
+                        // card the shelf is not drawn at all — only what there
+                        // is to show gets shown.
                         if !vm.carousel.isEmpty {
                             sectionLabel("ALBUMS")
                                 .id("MemoriesShelf")
@@ -257,13 +258,18 @@ struct MemoriesView: View {
                             onDelete: { _ in
                                 vm.reload(context: modelContext)
                                 // A card is mostly photographs.
-                                Task { await replays.reload(context: modelContext) }
+                                Task { await reloadReplays() }
                             })
                     // Out of the thumbnail, not up from the bottom.
                     .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
             }
             .fullScreenCover(item: $playing) { replay in
-                ReplayView(replay: replay) { playing = nil }
+                // A photograph deleted from a block inside the replay is gone
+                // from this page too: the gallery, the albums, and the card.
+                ReplayView(replay: replay, onPhotoDeleted: {
+                    vm.reload(context: modelContext)
+                    Task { await reloadReplays() }
+                }) { playing = nil }
                     // Out of its card, the way a photograph opens.
                     .navigationTransition(.zoom(sourceID: replay.id, in: photoTransition))
             }
@@ -293,7 +299,9 @@ struct MemoriesView: View {
         }
         // Its own task: drawing the cards yields between each, and the
         // drawer's reload and the launch flags below must not wait on it.
-        .task { await replays.reload(context: modelContext) }
+        // Keyed by scheme and scale: posters are drawn in the page's scheme,
+        // so a switch draws (once) the set for the other.
+        .task(id: "\(colorScheme)-\(displayScale)") { await reloadReplays() }
         .task {
             vm.reload(context: modelContext)
             #if DEBUG
@@ -329,6 +337,18 @@ struct MemoriesView: View {
             }
             #endif
         }
+    }
+
+    /// Nothing at all to show: no photographs, no wins this month, and no
+    /// finished replay. A person with last month's replay and nothing yet in
+    /// this one gets the month (empty) and the shelf, not "Your first month
+    /// starts here", which would be untrue.
+    private var pageIsEmpty: Bool {
+        vm.carousel.isEmpty && vm.month.isEmpty && replays.months.isEmpty && replays.weeks.isEmpty
+    }
+
+    private func reloadReplays() async {
+        await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale)
     }
 
     // MARK: - Title

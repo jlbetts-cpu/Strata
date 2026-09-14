@@ -6,11 +6,17 @@ import UIKit
 /// It is the last frame of the replay, drawn by the same view, at story size.
 /// No watermark, for the reason `ShareTowerCard` gives.
 ///
-/// **Pinned, so it is one picture everywhere.** Light, because a story is
-/// posted to people whose phones are set either way, and the shelf's row of
-/// posters should not flip with the drawer. `.large` type, because a card
-/// rendered at a large accessibility size would be a different composition
-/// from the one everybody else sees, and its header would crowd the tower.
+/// **The still is pinned, so it is one picture everywhere.** Light, because
+/// a story is posted to people whose phones are set either way. `.large`
+/// type, because a card rendered at a large accessibility size would be a
+/// different composition from the one everybody else sees, and its header
+/// would crowd the tower.
+///
+/// **The shelf does not show the still.** Side by side, stills each fitted
+/// their own tower, so a month of 86 and a month of 68 stood the same height,
+/// and every poster repeated in 5pt type the name and count printed under it.
+/// A poster is the tower alone, at its row's shared scale, in the page's
+/// scheme.
 enum ReplayCard {
     static let size = CGSize(width: 360, height: 640)
 
@@ -40,4 +46,46 @@ enum ReplayCard {
 
     /// The cell a card's blocks are laid out at, for decoding its photographs.
     static var cell: CGFloat { ReplayScript.Metrics.standard(frame: size).cell }
+
+    // MARK: - The shelf's poster
+
+    /// A month's poster on the shelf, in points.
+    static let monthPosterWidth: CGFloat = 132
+    /// A week's, smaller, in the row under the months.
+    static let weekPosterWidth: CGFloat = 96
+
+    /// Room above the row's tallest tower and below every base, in frame
+    /// points (about 9pt on a month poster).
+    static let posterMargin: CGFloat = 24
+
+    /// The scale every poster in a row is drawn at: the row's tallest tower
+    /// fills the poster's height less its margins, unless the grid's width
+    /// runs out first. Shared, so a month of 86 wins stands visibly taller
+    /// than one of 68 instead of each tower being fitted to its own card.
+    static func posterScale(rowTowerHeight: CGFloat) -> CGFloat {
+        let m = ReplayScript.Metrics.standard(frame: size)
+        let gridWidth = GridConstants.gridWidth(cellSize: m.cell)
+        let byHeight = (size.height - 2 * posterMargin) / max(rowTowerHeight, 1)
+        let byWidth = (size.width - 2 * posterMargin) / max(gridWidth, 1)
+        return min(byHeight, byWidth)
+    }
+
+    /// The finished tower alone: no header, no running label, no close.
+    /// Drawn in the viewer's scheme, since it sits on the page; Share and
+    /// the video keep the light still above.
+    @MainActor
+    static func poster(_ replay: Replay, images: ReplayImages, scale: CGFloat,
+                       rowTowerHeight: CGFloat, colorScheme: ColorScheme) -> UIImage? {
+        let script = ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: false)
+        let layout = ReplayFrame.Poster(scale: posterScale(rowTowerHeight: rowTowerHeight),
+                                        baseY: size.height - posterMargin)
+        let renderer = ImageRenderer(content:
+            ReplayFrame(script: script, images: images, t: script.duration, poster: layout)
+                .environment(\.colorScheme, colorScheme)
+        )
+        let pixels = max(1, (size.width * scale).rounded())
+        renderer.scale = (pixels - 0.01) / size.width
+        renderer.isOpaque = true
+        return renderer.uiImage
+    }
 }

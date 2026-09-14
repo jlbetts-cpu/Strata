@@ -112,11 +112,18 @@ final class ReplayGestureTests: XCTestCase {
         XCTAssertFalse(probe(app).exists, "the replay is still showing after Close (t \(probe(app).exists ? probe(app).label : "-"))")
     }
 
-    /// Share, at the close: a control under the tower is the control's tap,
-    /// not the player's. Before the close its hit testing is off, so a tap
-    /// on the same spot is still a skip.
+    /// Share, once the replay has finished: a control under the tower is the
+    /// control's tap, not the player's. Before the close its hit testing is
+    /// off, so a tap on the same spot is still a skip.
+    ///
+    /// **Named for what it can prove: AFTER the close, not during it.** The
+    /// close takes 0.46s from `closeStart` to `duration`. Tried: a second
+    /// coordinate tap fired straight after the skip opened the sheet, but the
+    /// next clock read was already at `duration` (13.948 of 13.948, close at
+    /// 13.488), and XCUITest waits for the app to idle between actions, so
+    /// there is no way to know or force the tap into that window.
     @MainActor
-    func testShareAtTheCloseIsNotASkip() throws {
+    func testShareAfterTheCloseIsNotASkip() throws {
         let app = launch()
         XCTAssertTrue(probe(app).waitForExistence(timeout: 30), "the replay never started")
         let share = app.buttons["Share"]
@@ -153,8 +160,8 @@ final class ReplayGestureTests: XCTestCase {
         let after = clock(app)
         XCTAssertTrue(appeared, "tapping Share showed no share sheet. On screen: \(app.debugDescription)")
         keep(app, "share-sheet")
-        // Finished, the clock sits at the end. A skip could not move it and a
-        // pause would hold it below; either way it must read the same.
+        // The clock reads the same either side of the tap and sits at the
+        // end: the replay was neither skipped nor left paused.
         XCTAssertEqual(after.t, before.t, accuracy: 0.001, "tapping Share moved the clock \(before.t) -> \(after.t)")
         XCTAssertEqual(after.t, after.duration, accuracy: 0.001, "the replay was not left finished (t \(after.t))")
 
@@ -190,8 +197,14 @@ final class ReplayGestureTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(skipped.t, skipped.closeStart - 0.001, "a tap before the close was not a skip")
         XCTAssertFalse(viewerClose.exists, "a tap before the close opened a photograph")
 
-        let parts = blockProbe.label.split(separator: " ").compactMap { Double($0) }
+        // "x y w h|file|title"
+        let fields = blockProbe.label.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        XCTAssertEqual(fields.count, 3, "block probe unreadable: \(blockProbe.label)")
+        let parts = fields[0].split(separator: " ").compactMap { Double($0) }
         XCTAssertEqual(parts.count, 4, "block probe unreadable: \(blockProbe.label)")
+        XCTAssertFalse(fields[1].isEmpty, "the probe's block has no stored file")
+        let title = fields[2]
+        XCTAssertFalse(title.isEmpty, "seeded wins are named; the probe's block has no title")
         keep(app, "close-before-block-tap")
         let point = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: parts[0], dy: parts[1]))
         point.tap()
@@ -199,6 +212,14 @@ final class ReplayGestureTests: XCTestCase {
                       "tapping the photo block at (\(parts[0]), \(parts[1])) opened nothing. On screen: \(app.debugDescription)")
         Thread.sleep(forTimeInterval: 1.0)
         keep(app, "photo-from-block")
+        // The photograph of THAT block, not merely a viewer: its title is the
+        // viewer's heading.
+        // Measured by position, since the filmstrip below can carry the same
+        // title for a different photograph.
+        let headings = app.staticTexts.matching(identifier: title).allElementsBoundByIndex
+            .filter { $0.frame.minY < 160 }
+        XCTAssertFalse(headings.isEmpty,
+                       "the viewer's heading is not \"\(title)\" (\(fields[1])). On screen: \(app.debugDescription)")
         viewerClose.tap()
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertFalse(viewerClose.exists, "the photo viewer did not close")

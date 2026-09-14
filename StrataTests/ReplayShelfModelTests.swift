@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import Strata
 
@@ -114,5 +115,50 @@ struct ReplayBlockHitTests {
         #expect(r.width < 44)
         // Just below the base, under the first block.
         #expect(s.block(at: CGPoint(x: r.midX, y: r.maxY + 6), t: s.duration) != nil)
+    }
+}
+
+@Suite("Replay shelf posters")
+struct ReplayPosterTests {
+    private let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        return c
+    }()
+
+    private func month(_ m: Int, wins n: Int) -> Replay {
+        let anchor = calendar.date(from: DateComponents(year: 2026, month: m, day: 9))!
+        let period = ReplayPeriod.month(containing: anchor, calendar: calendar)
+        let wins = (0..<n).map { i -> ReplayWin in
+            let day = i % period.days.count
+            return ReplayWin(id: UUID(), dateString: period.days[day],
+                             completedAt: period.date(ofDay: day).addingTimeInterval(Double(3600 + i)),
+                             title: "Win", category: .health, size: .small, photo: nil)
+        }
+        return Replay(period: period, wins: wins)
+    }
+
+    @Test("a row shares one scale, so a bigger month stands taller than a smaller one")
+    func sharedScale() {
+        let big = month(8, wins: 86), small = month(7, wins: 40)
+        let row = ReplayShelfModel.rowTowerHeight([big, small])
+        let scale = ReplayCard.posterScale(rowTowerHeight: row)
+        let cell = ReplayScript.Metrics.standard(frame: ReplayCard.size).cell
+        let bigDrawn = GridConstants.gridHeight(rows: big.rows, cellSize: cell) * scale
+        let smallDrawn = GridConstants.gridHeight(rows: small.rows, cellSize: cell) * scale
+        #expect(big.rows > small.rows)
+        #expect(bigDrawn > smallDrawn)
+        // The tallest fills the poster less its margins, and nothing leaves it.
+        #expect(bigDrawn <= ReplayCard.size.height - 2 * ReplayCard.posterMargin + 0.001)
+        let width = GridConstants.gridWidth(cellSize: cell) * scale
+        #expect(width <= ReplayCard.size.width - 2 * ReplayCard.posterMargin + 0.001)
+    }
+
+    @Test("a taller tower joining the row changes every poster's signature, and the scheme keys the cache")
+    func rowAndScheme() {
+        let r = month(7, wins: 40)
+        #expect(ReplayShelfModel.signature(r, rowTowerHeight: 500, pixelScale: 1.1)
+                != ReplayShelfModel.signature(r, rowTowerHeight: 620, pixelScale: 1.1))
+        #expect(ReplayShelfModel.key(r, scheme: .light) != ReplayShelfModel.key(r, scheme: .dark))
     }
 }

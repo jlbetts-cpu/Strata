@@ -6,6 +6,12 @@ import SwiftUI
 /// compare by eye. Weeks under them, smaller. Nothing is drawn when there is
 /// nothing finished: no heading over a gap.
 ///
+/// **One scale per row.** Each poster is the finished tower alone, and every
+/// poster in a row is drawn at the scale that fits the row's TALLEST tower,
+/// on a shared base. Fitted one by one, a month of 86 wins and one of 68
+/// stood exactly the same height, which is the one comparison the row exists
+/// to make.
+///
 /// **Set like the albums under it**, so it reads as a shelf this page always
 /// had: the same heading, the same `gapItem` step between cards, the name in
 /// `blockTitle` and the count as the album's small uppercase caption. No rim
@@ -19,8 +25,8 @@ struct ReplayShelf: View {
     var transitionNamespace: Namespace.ID?
     let onPlay: (Replay) -> Void
 
-    static let monthWidth: CGFloat = 132
-    static let weekWidth: CGFloat = 96
+    /// Posters are drawn in the page's scheme and cached per scheme.
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         if !model.months.isEmpty || !model.weeks.isEmpty {
@@ -28,8 +34,8 @@ struct ReplayShelf: View {
                 SectionHeading(text: "REPLAYS")
                     .id("MemoriesReplays")
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
-                    if !model.months.isEmpty { row(model.months, width: Self.monthWidth) }
-                    if !model.weeks.isEmpty { row(model.weeks, width: Self.weekWidth) }
+                    if !model.months.isEmpty { row(model.months, width: ReplayCard.monthPosterWidth) }
+                    if !model.weeks.isEmpty { row(model.weeks, width: ReplayCard.weekPosterWidth) }
                 }
             }
         }
@@ -69,7 +75,7 @@ struct ReplayShelf: View {
                 // The slot the poster lands in, as an album cover has one.
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(AppColors.warmBlack.opacity(0.04))
-                if let image = model.cards[replay.id] {
+                if let image = model.cards[ReplayShelfModel.key(replay, scheme: colorScheme)] {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -78,13 +84,22 @@ struct ReplayShelf: View {
             }
             .frame(width: width, height: height)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .animation(GridConstants.gentleReveal, value: model.cards[replay.id] != nil)
-            Text(name)
-                .font(Typography.blockTitle)
-                .foregroundStyle(AppColors.inkPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .padding(.top, GridConstants.gapTight)
+            .animation(GridConstants.gentleReveal,
+                       value: model.cards[ReplayShelfModel.key(replay, scheme: colorScheme)] != nil)
+            // **The line is as tall as the name at full size**, whatever the
+            // name shrank to. "31 Aug to 6 Sep" scales down to fit a week's
+            // card, and a shrunk line is a shorter line, so its count sat
+            // higher than its neighbours'. A hidden full-size line sets the
+            // height and the name sits on its baseline.
+            ZStack(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+                Text(verbatim: "Ag").hidden()
+                Text(name)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(Typography.blockTitle)
+            .foregroundStyle(AppColors.inkPrimary)
+            .lineLimit(1)
+            .padding(.top, GridConstants.gapTight)
             Text(count)
                 .font(Typography.photoCaption)
                 .kerning(Typography.sectionKerning)
