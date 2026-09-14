@@ -49,6 +49,11 @@ struct ReplayScript {
         var emptyHold: Double
         var reveal: Double
         var reduceMotionSpan: Double
+        /// The whole replay, open to the last of the close, never runs longer
+        /// than this, for any number of wins. The spec's promise, and a hard
+        /// one: a real 154-win fortnight measured 27.64s against 28, and a
+        /// full month with more wins would have passed it.
+        var totalCap: Double
         let open = 0.9
         let holdAfterLast = 0.5
         let minGap = 0.14
@@ -83,8 +88,8 @@ struct ReplayScript {
 
         static func of(_ kind: ReplayKind) -> Pacing {
             switch kind {
-            case .week: Pacing(buildBudget: 10, buildCap: 12.5, air: 0.35, emptyHold: 0.45, reveal: 1.0, reduceMotionSpan: 4)
-            case .month: Pacing(buildBudget: 18, buildCap: 22, air: 0.12, emptyHold: 0.2, reveal: 1.4, reduceMotionSpan: 6)
+            case .week: Pacing(buildBudget: 10, buildCap: 12.5, air: 0.35, emptyHold: 0.45, reveal: 1.0, reduceMotionSpan: 4, totalCap: 18)
+            case .month: Pacing(buildBudget: 18, buildCap: 22, air: 0.12, emptyHold: 0.2, reveal: 1.4, reduceMotionSpan: 6, totalCap: 28)
             }
         }
     }
@@ -202,21 +207,21 @@ struct ReplayScript {
             gap = max(pacing.floorGap, (pacing.buildCap - air) / Double(n))
         }
 
-        // Drop start times, walking the days.
-        var t = pacing.open
-        var dayStartList: [Double] = []
-        var startList = Array(repeating: 0.0, count: n)
+        // Drop OFFSETS, walking the days: where each drop and each day would
+        // start with every interval at full length, measured from the open.
+        var offset = 0.0
+        var dayOffsets: [Double] = []
+        var dropOffsets = Array(repeating: 0.0, count: n)
         var i = 0
         for count in replay.countsByDay {
-            dayStartList.append(t)
-            if count == 0 { t += pacing.emptyHold; continue }
-            if i > 0 { t += pacing.air }
-            for _ in 0..<count { startList[i] = t; t += gap; i += 1 }
+            dayOffsets.append(offset)
+            if count == 0 { offset += pacing.emptyHold; continue }
+            if i > 0 { offset += pacing.air }
+            for _ in 0..<count { dropOffsets[i] = offset; offset += gap; i += 1 }
         }
-        dayStarts = dayStartList
-        starts = startList
 
         // Camera targets and fall distances, block by block in drop order.
+        // None of this depends on when a block starts, only on where it lands.
         let followHeight = metrics.baseY - metrics.followY
         var top: CGFloat = 0
         var rises = Array(repeating: CGFloat(0), count: n)
@@ -235,6 +240,49 @@ struct ReplayScript {
         }
         fallTimes = times
         fallDistances = distances
+
+        // What follows the build, none of which is compressed: the reveal,
+        // the dance and the close.
+        let revealLength = (fitScale < 1 || (rises.max() ?? 0) > 0) ? pacing.reveal : 0
+        let rowDelay = GridConstants.danceRowDelay
+        let travel = Double(replay.rows) * rowDelay
+        let squeeze = travel > GridConstants.danceTravelCap ? GridConstants.danceTravelCap / travel : 1
+        let delays = replay.blocks.map { Double($0.row) * rowDelay * squeeze }
+        let afterBuild = revealLength + (delays.max() ?? 0) + pacing.danceWave
+            + pacing.closeFade + 2 * pacing.closeStagger
+        let trailingEmpty = replay.countsByDay.last == 0
+
+        // **The cap is hard.** The build's reveal starts at the latest of
+        // every landing plus the hold, and a trailing empty day's own moment.
+        // Each is `open + c * offset + fixed`, so the largest `c` in (0, 1]
+        // that ends the whole replay on `totalCap` is solved directly. It
+        // scales the gaps between drops, the air between days and the empty
+        // days' holds together, so the shape of the build is kept. `floorGap`
+        // may be undercut and falls may overlap; that is intended. At 1, as
+        // for every replay that already fits, nothing changes.
+        let latestReveal = pacing.totalCap - afterBuild
+        var compression = 1.0
+        func buildEnd(at c: Double) -> Double {
+            var r = pacing.open + pacing.holdAfterLast
+            for k in 0..<n { r = max(r, pacing.open + c * dropOffsets[k] + times[k] + pacing.holdAfterLast) }
+            if trailingEmpty, let lastDay = dayOffsets.last {
+                r = max(r, pacing.open + c * (lastDay + pacing.emptyHold))
+            }
+            return r
+        }
+        if buildEnd(at: 1) > latestReveal {
+            for k in 0..<n where dropOffsets[k] > 0 {
+                compression = min(compression, (latestReveal - pacing.open - times[k] - pacing.holdAfterLast) / dropOffsets[k])
+            }
+            if trailingEmpty, let lastDay = dayOffsets.last, lastDay + pacing.emptyHold > 0 {
+                compression = min(compression, (latestReveal - pacing.open) / (lastDay + pacing.emptyHold))
+            }
+            compression = min(max(compression, 0), 1)
+        }
+        let startList = dropOffsets.map { pacing.open + compression * $0 }
+        let dayStartList = dayOffsets.map { pacing.open + compression * $0 }
+        dayStarts = dayStartList
+        starts = startList
 
         landings = (0..<n).map {
             Landing(time: startList[$0] + times[$0], mass: replay.blocks[$0].win.size.massTier,
@@ -387,19 +435,15 @@ struct ReplayScript {
         // has had its own full moment on screen.
         var candidateRevealStart = lastLanding + pacing.holdAfterLast
         if replay.countsByDay.last == 0, let lastDayStart = dayStartList.last {
-            candidateRevealStart = max(candidateRevealStart, lastDayStart + pacing.emptyHold)
+            candidateRevealStart = max(candidateRevealStart, lastDayStart + pacing.emptyHold * compression)
         }
         revealStart = candidateRevealStart
         // Even when the finished tower fits at scale 1, the camera may have
         // had to rise during the build to keep the newest block in frame,
         // and that rise still has to ease back to 0, or it jumps.
-        revealDuration = (fitScale < 1 || finalRise > 0) ? pacing.reveal : 0
+        revealDuration = revealLength
         danceStart = revealStart + revealDuration
-
-        let rowDelay = GridConstants.danceRowDelay
-        let travel = Double(replay.rows) * rowDelay
-        let squeeze = travel > GridConstants.danceTravelCap ? GridConstants.danceTravelCap / travel : 1
-        danceDelays = replay.blocks.map { Double($0.row) * rowDelay * squeeze }
+        danceDelays = delays
         let danceEnd = danceStart + (danceDelays.max() ?? 0) + pacing.danceWave
         closeStart = danceEnd
         duration = closeStart + pacing.closeFade + 2 * pacing.closeStagger

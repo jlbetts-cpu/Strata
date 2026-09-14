@@ -13,8 +13,9 @@ struct ReplayScriptTests {
     }()
     private let frame = CGSize(width: 402, height: 874)
 
-    private func replay(_ kind: ReplayKind, wins n: Int, emptyDays: Set<Int> = []) -> Replay {
-        let anchor = calendar.date(from: DateComponents(year: 2026, month: 9, day: 9))!
+    private func replay(_ kind: ReplayKind, wins n: Int, emptyDays: Set<Int> = [],
+                        anchor: DateComponents = DateComponents(year: 2026, month: 9, day: 9)) -> Replay {
+        let anchor = calendar.date(from: anchor)!
         let period = kind == .week ? ReplayPeriod.week(containing: anchor, calendar: calendar)
                                    : ReplayPeriod.month(containing: anchor, calendar: calendar)
         let usable = period.days.indices.filter { !emptyDays.contains($0) }
@@ -45,6 +46,31 @@ struct ReplayScriptTests {
         }
         #expect(c.value(at: 1.2) == 10)
         #expect(c.value(at: 99) == 80)
+    }
+
+    @Test("the whole replay never runs past its cap, for any count, wins spread over every day",
+          arguments: [(ReplayKind.week, 1), (.week, 60), (.week, 150), (.week, 400),
+                      (.month, 1), (.month, 150), (.month, 300), (.month, 600), (.month, 1000)])
+    func durationNeverPassesTheCap(kind: ReplayKind, wins: Int) {
+        let s = script(kind, wins: wins)
+        #expect(s.duration <= s.pacing.totalCap + 1e-9, "\(kind) \(wins) wins ran \(s.duration)s against \(s.pacing.totalCap)")
+    }
+
+    @Test("a 31-day month of 1000 wins still ends on its cap")
+    func longMonthNeverPassesTheCap() {
+        // October 2026: 31 days, so a day more of air and holds than September.
+        let r = replay(.month, wins: 1000, anchor: DateComponents(year: 2026, month: 10, day: 9))
+        #expect(r.period.days.count == 31)
+        let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
+        #expect(s.duration <= s.pacing.totalCap + 1e-9, "ran \(s.duration)s against \(s.pacing.totalCap)")
+        // Compressed, not cut: every block still lands before the reveal.
+        #expect((s.landings.last?.time ?? 0) <= s.revealStart)
+    }
+
+    @Test("a replay that already fits is never padded to the cap")
+    func shortReplayIsNotPadded() {
+        #expect(script(.week, wins: 1).duration < 10)
+        #expect(script(.month, wins: 1).duration < 10)
     }
 
     @Test("durations stay under the caps and are never padded", arguments: [1, 6, 30, 150, 400])
@@ -190,6 +216,8 @@ struct ReplayScriptTests {
             ("month, 150 hard in one day", replay(.month, sizes: hard(150), days: [12])),
             ("week, 60 alternating hard and small", replay(.week, sizes: (0..<60).map { $0 % 2 == 0 ? .hard : .small }, days: Array(0..<7))),
         ]
+        // Past the old caps, where the build is compressed to fit the total.
+        for n in [600, 1000] { cases.append(("month \(n)", script(.month, wins: n))) }
         for (name, r) in mixes {
             cases.append((name, ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)))
         }
