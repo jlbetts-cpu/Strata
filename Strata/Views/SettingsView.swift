@@ -114,7 +114,7 @@ struct SettingsView: View {
                     Label {
                         Text("Daily Reminder")
                     } icon: {
-                        SettingsIcon(systemName: "bell.fill")
+                        SettingsIcon(systemName: "bell")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -147,7 +147,7 @@ struct SettingsView: View {
                 // told when the value changes, so the switch cannot show one
                 // thing while the store holds another.
                 Toggle(isOn: $replayRemindersOn) {
-                    Label { Text("Weekly and monthly replays") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
+                    Label { Text("Weekly and Monthly Replays") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
                 }
                 .tint(AppColors.switchOn)
                 .onChange(of: replayRemindersOn) { _, on in
@@ -185,7 +185,7 @@ struct SettingsView: View {
                     Label {
                         Text("Completion Sounds")
                     } icon: {
-                        SettingsIcon(systemName: "speaker.wave.2.fill")
+                        SettingsIcon(systemName: "speaker.wave.2")
                     }
                 }
                 .tint(AppColors.switchOn)
@@ -210,7 +210,7 @@ struct SettingsView: View {
                 // also inked the header, which then read darker and heavier
                 // than every other heading on the screen.
                 Button { previewing = ReplaySample.replay(.week, now: Date()) } label: {
-                    Label { Text("Preview Your Week") } icon: { SettingsIcon(systemName: "square.stack.3d.up.fill") }
+                    Label { Text("Preview Your Week") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
                 }
                 .foregroundStyle(AppColors.inkPrimary)
                 Button { previewing = ReplaySample.replay(.month, now: Date()) } label: {
@@ -266,7 +266,7 @@ struct SettingsView: View {
                     replayOnboarding = true
                 } label: {
                     Label {
-                        Text("How Strata works")
+                        Text("How Strata Works")
                             .foregroundStyle(.primary)
                     } icon: {
                         SettingsIcon(systemName: "questionmark.circle")
@@ -309,7 +309,7 @@ struct SettingsView: View {
                         // everything, and every platform marks that in red.
                         // The rule is that colour must MEAN something, not
                         // that chrome is grey.
-                        SettingsIcon(systemName: "trash.fill", tint: AppColors.warmRed)
+                        SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
                     }
                 }
                 .confirmationDialog(
@@ -349,7 +349,7 @@ struct SettingsView: View {
                                 .foregroundStyle(AppColors.inkQuiet)
                         }
                     } icon: {
-                        SettingsIcon(systemName: "envelope.fill")
+                        SettingsIcon(systemName: "envelope")
                     }
                 }
 
@@ -360,7 +360,7 @@ struct SettingsView: View {
                         Text("Rate on App Store")
                             .foregroundStyle(.primary)
                     } icon: {
-                        SettingsIcon(systemName: "star.fill")
+                        SettingsIcon(systemName: "star")
                     }
                 }
             }
@@ -380,7 +380,7 @@ struct SettingsView: View {
                     Label {
                         Text("Privacy")
                     } icon: {
-                        SettingsIcon(systemName: "hand.raised.fill")
+                        SettingsIcon(systemName: "hand.raised")
                     }
                 }
             } footer: {
@@ -597,6 +597,12 @@ struct SettingsView: View {
 ///
 /// The frame stays, so the labels still line up in a column.
 /// Internal so Profile's Settings row wears the same glyph at the same size.
+///
+/// **Outline glyphs, in both lists.** Settings mixed `bell.fill` and
+/// `star.fill` with outline `calendar` and `questionmark.circle`, once with
+/// `square.stack.3d.up` two rows above its own `.fill` twin; Profile was all
+/// outline. Profile's set is the reference. A destructive row is
+/// `AppColors.warmRed`, never the system red.
 struct SettingsIcon: View {
     let systemName: String
     /// Only a row whose colour MEANS something passes one — Reset All Data is

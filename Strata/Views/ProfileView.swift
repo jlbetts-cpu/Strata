@@ -498,7 +498,7 @@ struct ProfileView: View {
                     showsMaker = true
                 } label: {
                     Label {
-                        Text("Make your head").foregroundStyle(.primary)
+                        Text("Make Your Head").foregroundStyle(.primary)
                     } icon: {
                         SettingsIcon(systemName: "face.smiling")
                     }
@@ -507,7 +507,7 @@ struct ProfileView: View {
                 Toggle(isOn: Binding(get: { heads.isProfilePicture },
                                      set: { heads.setProfilePicture($0) })) {
                     Label {
-                        Text("Use as profile picture")
+                        Text("Use as Profile Picture")
                     } icon: {
                         SettingsIcon(systemName: "person.crop.circle")
                     }
@@ -528,7 +528,7 @@ struct ProfileView: View {
                 Toggle(isOn: Binding(get: { heads.showsOnMap },
                                      set: { heads.setShowsOnMap($0) })) {
                     Label {
-                        Text("Show my head on the map")
+                        Text("Show My Head on the Map")
                     } icon: {
                         SettingsIcon(systemName: "map")
                     }
@@ -538,7 +538,7 @@ struct ProfileView: View {
                 Toggle(isOn: Binding(get: { heads.showsCameraSticker },
                                      set: { heads.setShowsCameraSticker($0) })) {
                     Label {
-                        Text("Add my head to photos")
+                        Text("Add My Head to Photos")
                     } icon: {
                         SettingsIcon(systemName: "camera")
                     }
@@ -550,7 +550,7 @@ struct ProfileView: View {
                     showsMaker = true
                 } label: {
                     Label {
-                        Text("Make it again").foregroundStyle(.primary)
+                        Text("Make It Again").foregroundStyle(.primary)
                     } icon: {
                         SettingsIcon(systemName: "camera")
                     }
@@ -560,9 +560,9 @@ struct ProfileView: View {
                     confirmsDeleteHead = true
                 } label: {
                     Label {
-                        Text("Delete head")
+                        Text("Delete Head")
                     } icon: {
-                        SettingsIcon(systemName: "trash", tint: .red)
+                        SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
                     }
                 }
             }
