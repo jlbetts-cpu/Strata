@@ -34,18 +34,37 @@ struct GlassIconButton: View {
             HapticsEngine.lightTap()
             action()
         } label: {
-            Image(systemName: systemName)
-                .font(.system(size: glyphSize, weight: .medium))
-                .foregroundStyle(tint)
-                // Layout first, glass after: the effect takes its shape from
-                // the final frame, so applying it before the frame gives it
-                // the wrong bounds.
-                .frame(width: size, height: size)
-                .glassCircle()
-                .contentShape(Circle())
+            GlassIconLabel(systemName: systemName, tint: tint,
+                           size: size, glyphSize: glyphSize)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+/// `GlassIconButton`'s face without its `Button`: for a `Menu` label, which
+/// supplies its own press handling and cannot hold a button inside it.
+///
+/// **One face, two wrappers.** The photo viewer and the add sheet's photo
+/// review each rebuilt this privately (a 36pt disc in a 44pt frame, a
+/// semibold glyph), so their close was visibly smaller and heavier than the
+/// replay's. The styling lives here once and both wrappers draw it.
+struct GlassIconLabel: View {
+    let systemName: String
+    var tint: Color = .primary
+    var size: CGFloat = GlassIconButton.defaultSide
+    var glyphSize: CGFloat = 17
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: glyphSize, weight: .medium))
+            .foregroundStyle(tint)
+            // Layout first, glass after: the effect takes its shape from
+            // the final frame, so applying it before the frame gives it
+            // the wrong bounds.
+            .frame(width: size, height: size)
+            .glassCircle()
+            .contentShape(Circle())
     }
 }
 

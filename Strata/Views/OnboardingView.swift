@@ -513,7 +513,7 @@ struct OnboardingView: View {
                 advance()
             } label: {
                 Text(actionTitle)
-                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .font(.system(.body, design: .rounded, weight: .medium))
                     // **Disabled is a different pill, not a faded one.**
                     //
                     // Fading the whole control took the LABEL down with it:
@@ -521,13 +521,13 @@ struct OnboardingView: View {
                     // came out near-white on light grey. So waiting looks like
                     // an outline-weight pill with ink type — legible, and
                     // unmistakably not yet the thing you press.
-                    .foregroundStyle(canAdvance ? WarmBackground.top
+                    .foregroundStyle(canAdvance ? pillLabel
                                                 : AppColors.slotInk.opacity(0.55))
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background {
                         Capsule().fill(canAdvance
-                                       ? AppColors.slotInk
+                                       ? pillFill
                                        : AppColors.slotInk.opacity(0.12))
                     }
                     .contentShape(Capsule())
@@ -553,6 +553,26 @@ struct OnboardingView: View {
     }
 
     private var canAdvance: Bool { step != 1 || hasDrawn }
+
+    /// The primary pill's fill. **A surface, not an ink.**
+    ///
+    /// `slotInk` is an ink: warm black in light mode. On the camera and map
+    /// pages the ground behind the pill is a dark scrim (61,58,54), so a
+    /// warm-black pill measured 1.02:1 against it and only its white words
+    /// were left. On a dark ground the pill is the warm near-white dark mode
+    /// already shows, whatever the phone is set to.
+    private var pillFill: Color {
+        onDark ? Self.onDarkPill : AppColors.slotInk
+    }
+
+    /// The pill's words: the page's ground on an ink pill, warm black on the
+    /// fixed near-white one.
+    private var pillLabel: Color {
+        onDark ? AppColors.warmBlack : WarmBackground.top
+    }
+
+    /// `slotInk`'s dark value, fixed: the pill dark mode draws on these pages.
+    private static let onDarkPill = Color(red: 0.98, green: 0.97, blue: 0.96)
 
     /// The head page, with no head made yet.
     private var offersHead: Bool { step == Self.headStep && heads.head == nil }

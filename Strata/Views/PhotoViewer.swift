@@ -331,7 +331,7 @@ struct PhotoViewer: View {
             Text(shown?.title ?? " ")
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.onDarkStrong.opacity(shown?.title == nil ? 0 : 1))
-                .animation(.easeOut(duration: 0.12), value: shown?.id)
+                .animation(GridConstants.photoTitleFade, value: shown?.id)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 // Clear of the two chrome buttons, derived rather than
@@ -342,8 +342,8 @@ struct PhotoViewer: View {
                 .animation(GridConstants.crossFade, value: currentID)
 
             HStack {
-                Button(action: onClose) { chromeGlyph("xmark") }
-                    .accessibilityLabel("Close photo")
+                GlassIconButton(systemName: "xmark", tint: .white,
+                                accessibilityLabel: "Close photo", action: onClose)
                 Spacer(minLength: 0)
                 actionMenu
             }
@@ -373,7 +373,7 @@ struct PhotoViewer: View {
                 Label("Remove Photo", systemImage: "trash")
             }
         } label: {
-            chromeGlyph("ellipsis")
+            GlassIconLabel(systemName: "ellipsis", tint: .white)
         }
         .accessibilityLabel("Photo actions")
     }
@@ -439,32 +439,11 @@ struct PhotoViewer: View {
         return placeName ?? PlaceNames.shared.name(for: place)
     }
 
-    /// The viewer's own chrome: close, share, delete.
-    ///
-    /// **On glass, not bare.** These were white glyphs with nothing behind
-    /// them, which is fine while the header sits on black and fails the moment
-    /// it does not — and since today the deck reaches up behind the header, a
-    /// tall photograph can arrive directly under them. A white glyph on a
-    /// white sky is not a control.
-    ///
-    /// `glassCircle` is the same material `GlassIconButton` uses on the map
-    /// and the camera, so the app has one answer for "a control standing on
-    /// somebody's photograph" rather than three.
-    private func chromeGlyph(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(Typography.bodyMedium.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(width: 36, height: 36)
-            .background {
-                if #available(iOS 26.0, *) {
-                    Circle().fill(.clear).glassEffect(.regular, in: .circle)
-                } else {
-                    Circle().fill(.ultraThinMaterial)
-                }
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-    }
+    // The viewer's chrome (close, and the `⋯` menu) is `GlassIconButton`
+    // and `GlassIconLabel`: on glass, not bare, because a tall photograph can
+    // arrive directly under them and a white glyph on a white sky is not a
+    // control. It was a private 36pt disc with a semibold glyph; it is the
+    // same 44pt control the replay, the map and the camera use now.
 
     // MARK: - Actions
 

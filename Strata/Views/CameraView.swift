@@ -445,7 +445,9 @@ struct CameraView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 28)
+                // On the scale, and the same margin as the head maker's
+                // matching Retake / Save row. It was 28.
+                .padding(.horizontal, GridConstants.gapWide)
                 .padding(.bottom, bottomInset + shutterBottomGap)
             }
             .padding(.top, topInset + Header.topPadding)
@@ -476,9 +478,12 @@ struct CameraView: View {
                             HapticsEngine.tick()
                             withAnimation(GridConstants.slotSnap) { drawnSize = option }
                         } label: {
-                            Text(option.effortLabel.uppercased())
-                                .font(Typography.sectionLabel)
-                                .kerning(Typography.sectionKerning)
+                            // Sentence case in `headerSmall`: these are
+                            // choices, not headings. Uppercase kerned words
+                            // are `SectionHeading`'s style, and the add sheet
+                            // spells the same three options in sentence case.
+                            Text(option.effortLabel)
+                                .font(Typography.headerSmall)
                                 .foregroundStyle(option == drawnSize
                                                  ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
                                 .padding(.horizontal, GridConstants.gapItem)
@@ -815,7 +820,12 @@ struct CameraView: View {
                 glyphButton(camera.isFlashOn ? "bolt.fill" : "bolt.slash.fill",
                             label: camera.isFlashOn ? "Flash on" : "Flash off",
                             identifier: "flashToggle",
-                            value: camera.isFlashOn ? "on" : "off") {
+                            value: camera.isFlashOn ? "on" : "off",
+                            // Off is DIMMED, as the grid and the timer are
+                            // and as iOS Camera does it. It was a full-white
+                            // slashed glyph beside a dimmed timer, so one row
+                            // of four said "off" two different ways.
+                            dimmed: !camera.isFlashOn) {
                     camera.isFlashOn.toggle()
                 }
 
@@ -910,7 +920,7 @@ struct CameraView: View {
                 withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
             } label: {
                 Text(Self.zoomLabel(camera.zoom))
-                    .font(Typography.bodySmall.weight(.semibold))
+                    .font(Typography.bodySmall.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .frame(width: 56, height: 34)
@@ -940,7 +950,7 @@ struct CameraView: View {
 
     /// Off / 3s / 10s, cycling, exactly the set iOS Camera offers.
     private var timerButton: some View {
-        glyphButton(camera.timerSeconds == 0 ? "timer" : "timer",
+        glyphButton("timer",
                     label: camera.timerSeconds == 0 ? "Timer off" : "Timer \(camera.timerSeconds) seconds",
                     identifier: "timerToggle",
                     value: "\(camera.timerSeconds)",
@@ -1169,7 +1179,7 @@ struct CameraView: View {
         ZStack {
             warmLight(fillOpacity: Self.ringFill)
                 .opacity(ringIsArmed ? Self.ringLevel : 0)
-                .animation(.easeOut(duration: 0.22), value: ringIsArmed)
+                .animation(GridConstants.screenFlashOut, value: ringIsArmed)
             warmLight(fillOpacity: Self.captureFill)
                 .opacity(flashOpacity)
         }
@@ -1232,8 +1242,8 @@ struct CameraView: View {
         guard !camera.isCapturing else { return }
         HapticsEngine.snap()
 
-        withAnimation(.easeOut(duration: 0.08)) { shutterScale = 0.86 }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.6).delay(0.08)) {
+        withAnimation(GridConstants.shutterPress) { shutterScale = 0.86 }
+        withAnimation(GridConstants.shutterRelease.delay(0.08)) {
             shutterScale = 1
         }
 
@@ -1246,7 +1256,7 @@ struct CameraView: View {
         // the fill.
         let needsScreenFlash = camera.isFlashOn && camera.usesScreenFlash
         if needsScreenFlash {
-            withAnimation(.easeOut(duration: 0.12)) { flashOpacity = 1 }
+            withAnimation(GridConstants.screenFlashIn) { flashOpacity = 1 }
         }
 
         Task { @MainActor in
@@ -1258,7 +1268,7 @@ struct CameraView: View {
                 if needsScreenFlash {
                     // Back to the ring, not to darkness — the flash is still
                     // armed, so the light you were composing under stays.
-                    withAnimation(.easeOut(duration: 0.22)) { flashOpacity = 0 }
+                    withAnimation(GridConstants.screenFlashOut) { flashOpacity = 0 }
                 }
                 guard let image else {
                     // No photograph, so nothing was drawn for. Leaving the
