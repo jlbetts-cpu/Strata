@@ -1,4 +1,6 @@
 import AVFoundation
+import Accelerate
+import os
 
 /// Sound for Strata.
 ///
@@ -57,7 +59,7 @@ enum SoundEngine {
 
     /// The sounds the app makes. The raw value is also the file name to look
     /// for, so `win.wav` in the bundle replaces the synthesised `.win`.
-    enum Cue: String {
+    nonisolated enum Cue: String {
         case win            // a habit or win completed
         case impact         // a block landing on the tower
         case chime          // the day is clear
@@ -66,29 +68,52 @@ enum SoundEngine {
 
     // MARK: - Graph
 
-    private static let engine = AVAudioEngine()
-    private static let player = AVAudioPlayerNode()
-    private static let reverb = AVAudioUnitReverb()
-    private static let tone = AVAudioUnitEQ(numberOfBands: 2)
-    private static var isSetUp = false
+    // The graph is touched from `setUpQueue` (building and starting it) and
+    // from the main thread (scheduling buffers). Setup is serialised on the
+    // queue and `isSetUp` is only true once it has finished, so the main
+    // thread never sees a half-built graph.
+    nonisolated(unsafe) private static let engine = AVAudioEngine()
+    nonisolated(unsafe) private static let player = AVAudioPlayerNode()
+    nonisolated(unsafe) private static let reverb = AVAudioUnitReverb()
+    nonisolated(unsafe) private static let tone = AVAudioUnitEQ(numberOfBands: 2)
+    nonisolated private static let setUpState = OSAllocatedUnfairLock(initialState: false)
+    nonisolated private static var isSetUp: Bool { setUpState.withLock { $0 } }
+    nonisolated private static let setUpQueue = DispatchQueue(label: "strata.sound.setup", qos: .utility)
     nonisolated private static let sampleRate: Double = 44100
 
-    private static var format: AVAudioFormat {
+    nonisolated private static var format: AVAudioFormat {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     }
 
-    /// Starts the audio engine now rather than on the first sound.
+    /// Starts the audio engine now rather than on the first sound, OFF the
+    /// main thread, and renders the tower's landings ahead of time.
     ///
-    /// Starting it takes a moment on the main thread (measured: the first
-    /// landing of a replay held the frame 405 to 445ms, and 50 to 67ms when
-    /// muted). Something that is about to make sounds on a clock calls this
-    /// before the clock starts. Muted, it does nothing, as `play` would.
+    /// Starting the engine takes a moment (measured: the first landing of a
+    /// replay held the frame 405 to 445ms; the tower's first landing after a
+    /// cold launch held it 338 to 404ms on the iOS 26.3 simulator, 303 to
+    /// 365ms of that in `setUp`). It used to run on the main thread at the
+    /// moment of impact. Now `MainAppView` calls this once the first frame
+    /// is up, and a replay calls it before its clock starts; both return at
+    /// once. A sound asked for while this is still running waits for it,
+    /// which is never longer than it used to take. Muted, it does nothing, as
+    /// `play` would.
     static func prepare() {
         guard !isMuted else { return }
-        setUp()
+        setUpQueue.async {
+            setUp()
+            ImpactPool.shared.warm()
+        }
     }
 
-    private static func setUp() {
+    /// Builds and starts the graph. Blocks until any setup already running
+    /// on the queue has finished.
+    nonisolated private static func setUpNow() {
+        guard !isSetUp else { return }
+        setUpQueue.sync { setUp() }
+    }
+
+    /// Only ever called on `setUpQueue`.
+    nonisolated private static func setUp() {
         guard !isSetUp else { return }
         #if DEBUG
         let probeStart = CACurrentMediaTime()
@@ -126,7 +151,7 @@ enum SoundEngine {
 
         do {
             try engine.start()
-            isSetUp = true
+            setUpState.withLock { $0 = true }
         } catch {
             // The app works fine without sound.
         }
@@ -175,7 +200,7 @@ enum SoundEngine {
 
     /// One partial of a resonant body: where it sits, how loud it starts, and
     /// how much faster than the fundamental it dies.
-    private struct Partial {
+    nonisolated private struct Partial {
         let ratio: Double
         let level: Double
         let damping: Double
@@ -184,7 +209,7 @@ enum SoundEngine {
     /// A struck wooden bar. A marimba bar is undercut so its first overtones
     /// land near four and ten times the fundamental — nowhere near 2x and 3x,
     /// which is exactly why this reads as wood and that read as an organ.
-    private static let woodBar = [
+    nonisolated private static let woodBar = [
         Partial(ratio: 1.00, level: 1.00, damping: 1.0),
         Partial(ratio: 3.93, level: 0.26, damping: 2.8),
         Partial(ratio: 9.55, level: 0.08, damping: 5.4)
@@ -192,7 +217,7 @@ enum SoundEngine {
 
     /// Struck glass. Bell partials, thinned so it stays a hint rather than a
     /// church.
-    private static let glass = [
+    nonisolated private static let glass = [
         Partial(ratio: 1.00, level: 1.00, damping: 1.0),
         Partial(ratio: 2.76, level: 0.30, damping: 1.9),
         Partial(ratio: 5.40, level: 0.11, damping: 3.4),
@@ -201,13 +226,13 @@ enum SoundEngine {
 
     /// A soft, heavy body landing. Low, close ratios, damped hard: the sound of
     /// something with mass that does not ring.
-    private static let body = [
+    nonisolated private static let body = [
         Partial(ratio: 1.00, level: 1.00, damping: 1.0),
         Partial(ratio: 1.58, level: 0.20, damping: 2.6),
         Partial(ratio: 2.41, level: 0.07, damping: 4.2)
     ]
 
-    private struct Voice {
+    nonisolated private struct Voice {
         var cue: Cue
         var frequency: Double
         var partials: [Partial]
@@ -244,23 +269,25 @@ enum SoundEngine {
 
     private static func play(_ voice: Voice) {
         guard !isMuted else { return }
-        setUp()
+        setUpNow()
         guard isSetUp else { return }
 
         if let recorded = sample(for: voice.cue) {
-            player.scheduleBuffer(recorded, completionHandler: nil)
+            schedule(recorded)
         } else if let rendered = render(varied(voice)) {
-            player.scheduleBuffer(rendered, completionHandler: nil)
-        } else {
-            return
+            schedule(rendered)
         }
+    }
+
+    private static func schedule(_ buffer: AVAudioPCMBuffer) {
+        player.scheduleBuffer(buffer, completionHandler: nil)
         if !player.isPlaying { player.play() }
     }
 
     /// Round robin. Real recordings are never identical twice; an exact repeat
     /// is heard as mechanical within a few plays, which is most of what "cheap"
     /// means for a sound you will hear thousands of times.
-    private static func varied(_ voice: Voice) -> Voice {
+    nonisolated private static func varied(_ voice: Voice) -> Voice {
         var v = voice
         v.frequency *= Double.random(in: 0.988...1.012)
         v.decay *= Double.random(in: 0.92...1.08)
@@ -270,7 +297,7 @@ enum SoundEngine {
 
     /// `seed` fixes the contact noise, so a render can be repeated exactly;
     /// nil draws a fresh burst, as live playback does.
-    private static func render(_ v: Voice, seed fixedSeed: UInt64? = nil) -> AVAudioPCMBuffer? {
+    nonisolated private static func render(_ v: Voice, seed fixedSeed: UInt64? = nil) -> AVAudioPCMBuffer? {
         let frames = AVAudioFrameCount(sampleRate * v.duration)
         guard frames > 0,
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames),
@@ -347,11 +374,118 @@ enum SoundEngine {
     /// `gain` scales the voice's level. A replay plays a landing at a reduced
     /// level, so a month's downpour is a patter under the picture rather than
     /// the full knock of a win you just logged.
+    ///
+    /// **Not synthesised on the hit.** A landing is 0.45s of stereo rendered
+    /// sample by sample, a few milliseconds of main thread in the middle of
+    /// the squash. `ImpactPool` keeps a few rendered variants per mass and
+    /// column, rendered on a background queue, and plays a different one
+    /// from the last each time, so the round robin is kept.
     static func blockImpact(mass: Int, column: Int = 2, gain: Double = 1) {
-        play(impactVoice(mass: mass, column: column, gain: gain))
+        guard !isMuted else { return }
+        if sample(for: .impact) != nil {
+            play(impactVoice(mass: mass, column: column, gain: gain))
+            return
+        }
+        setUpNow()
+        guard isSetUp else { return }
+        guard let buffer = ImpactPool.shared.buffer(mass: mass, column: column) else { return }
+        schedule(gain == 1 ? buffer : scaled(buffer, by: gain) ?? buffer)
     }
 
-    private static func impactVoice(mass: Int, column: Int, gain: Double) -> Voice {
+    /// A copy of `buffer` at `gain`. Scaling a rendered landing is the same
+    /// as rendering it with the gain folded in: gain is a plain multiplier
+    /// on every sample (`render`'s last line).
+    nonisolated private static func scaled(_ buffer: AVAudioPCMBuffer, by gain: Double) -> AVAudioPCMBuffer? {
+        guard let out = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength),
+              let src = buffer.floatChannelData, let dst = out.floatChannelData else { return nil }
+        out.frameLength = buffer.frameLength
+        var g = Float(gain)
+        for channel in 0..<Int(buffer.format.channelCount) {
+            vDSP_vsmul(src[channel], 1, &g, dst[channel], 1, vDSP_Length(buffer.frameLength))
+        }
+        return out
+    }
+
+    /// Rendered landings, a few per mass and column.
+    ///
+    /// Every live landing used to be rendered on the spot with fresh jitter
+    /// (±1.2% pitch, ±8% decay, ±6% level) and a fresh contact burst. The pool
+    /// keeps `variants` of those per (mass, column), made the same way, and
+    /// never hands out the one it handed out last for that key. Filled
+    /// lazily: `warm()` renders the first variant of all twelve on the setup
+    /// queue, and each hit that finds a key short of its variants renders one
+    /// more there. At most 36 buffers of 0.45s stereo Float32, about 5.7 MB.
+    nonisolated final class ImpactPool: @unchecked Sendable {
+        static let shared = ImpactPool()
+        static let variants = 3
+        private static let masses = 1...3
+        /// `GridConstants.columnCount`, which is main-actor state and so out
+        /// of reach of a pool filled on a background queue.
+        private static let columns = 0..<4
+
+        private let lock = NSLock()
+        private var pool: [Int: [AVAudioPCMBuffer]] = [:]
+        private var lastIndex: [Int: Int] = [:]
+        private var rendering: Set<Int> = []
+        private let queue = DispatchQueue(label: "strata.sound.impacts", qos: .utility)
+
+        private func key(_ mass: Int, _ column: Int) -> Int { mass * 16 + column }
+
+        /// One variant of every tower landing, so no hit renders on the main
+        /// thread. Called on the setup queue.
+        func warm() {
+            for mass in Self.masses {
+                for column in Self.columns {
+                    let k = key(mass, column)
+                    let has = lock.withLock { !(pool[k]?.isEmpty ?? true) }
+                    guard !has, let buffer = SoundEngine.render(SoundEngine.varied(
+                        SoundEngine.impactVoice(mass: mass, column: column, gain: 1))) else { continue }
+                    lock.withLock { pool[k, default: []].append(buffer) }
+                }
+            }
+        }
+
+        /// A rendered landing, never the same variant twice running. Renders
+        /// synchronously only when the key has nothing yet, which `warm()`
+        /// exists to prevent; otherwise tops the key up in the background.
+        func buffer(mass: Int, column: Int) -> AVAudioPCMBuffer? {
+            let k = key(mass, column)
+            let (available, previous, wantsMore): ([AVAudioPCMBuffer], Int?, Bool) = lock.withLock {
+                let list = pool[k] ?? []
+                let more = list.count < Self.variants && !rendering.contains(k)
+                if more { rendering.insert(k) }
+                return (list, lastIndex[k], more)
+            }
+            if wantsMore {
+                queue.async { [self] in
+                    let voice = SoundEngine.varied(SoundEngine.impactVoice(mass: mass, column: column, gain: 1))
+                    let buffer = SoundEngine.render(voice)
+                    lock.withLock {
+                        if let buffer, (pool[k]?.count ?? 0) < Self.variants { pool[k, default: []].append(buffer) }
+                        rendering.remove(k)
+                    }
+                }
+            }
+            guard !available.isEmpty else {
+                let rendered = SoundEngine.render(SoundEngine.varied(
+                    SoundEngine.impactVoice(mass: mass, column: column, gain: 1)))
+                if let rendered {
+                    lock.withLock {
+                        if (pool[k]?.count ?? 0) < Self.variants { pool[k, default: []].append(rendered) }
+                    }
+                }
+                return rendered
+            }
+            var index = Int.random(in: 0..<available.count)
+            if available.count > 1, index == previous {
+                index = (index + 1) % available.count
+            }
+            lock.withLock { lastIndex[k] = index }
+            return available[index]
+        }
+    }
+
+    nonisolated private static func impactVoice(mass: Int, column: Int, gain: Double) -> Voice {
         let pitch: Double = switch mass {
         case 1: 130.81   // C3
         case 2: 98.00    // G2

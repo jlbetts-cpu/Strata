@@ -1498,6 +1498,14 @@ struct MainAppView: View {
         guard !hasSetUp else { return }
         hasSetUp = true
         HapticsEngine.prepare()
+        // The audio engine, started after the first frame and off the main
+        // thread, so the first block to land does not wait for it. It used
+        // to start inside the first impact and held that frame 338 to 404ms
+        // (`SoundEngine.prepare`). Nothing when muted.
+        Task(priority: .utility) { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            SoundEngine.prepare()
+        }
         #if DEBUG
         // Before anything is fetched or seeded: a test that asserts a first
         // run needs a store that has never been used. See

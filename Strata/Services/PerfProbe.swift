@@ -19,7 +19,7 @@ import Foundation
 /// (batch B): the body counts are the before/after for removing the scroll
 /// offset from the block view, and the mark is the first-landing stall.
 enum PerfProbe {
-    static let isOn = ProcessInfo.processInfo.arguments.contains("-strataPerfProbe")
+    nonisolated static let isOn = ProcessInfo.processInfo.arguments.contains("-strataPerfProbe")
 
     private static var counts: [String: Int] = [:]
     private static var link: CADisplayLink?
@@ -45,7 +45,7 @@ enum PerfProbe {
     }
 
     /// A duration measured by the caller, logged as is.
-    static func duration(_ name: String, since start: CFTimeInterval) {
+    nonisolated static func duration(_ name: String, since start: CFTimeInterval) {
         guard isOn else { return }
         NSLog("[PERF-SPAN] %@ %.1fms", name, (CACurrentMediaTime() - start) * 1000)
     }
