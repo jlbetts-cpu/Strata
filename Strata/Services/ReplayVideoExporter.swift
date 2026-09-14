@@ -206,6 +206,10 @@ final class ReplayVideoExporter {
             }
             while !video.isReadyForMoreMediaData {
                 try checkCancelled()
+                // A writer that failed never becomes ready again.
+                guard writer.status == .writing else {
+                    throw Failure.writer(writer.error?.localizedDescription ?? "status \(writer.status.rawValue)")
+                }
                 try await pause(&slice)
             }
             guard adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: Self.fps)) else {

@@ -4,9 +4,11 @@ import AVFoundation
 /// The replay's landings as one stereo track for the saved video, and the one
 /// rule for which landings make a sound at all.
 ///
-/// **One rule, two players.** `ReplayFeedback` plays the live replay's
-/// landings from `landingTimes`, and the video mixes the same set, so what
-/// you hear saving a replay is what you heard watching it.
+/// **One rule, two players.** `ReplayFeedback` chooses which of the live
+/// replay's landings sound with `landingTimes`, and the video's track is mixed
+/// by the same rule. The landings themselves can differ: the live script is
+/// laid out for the screen and may be the reduced-motion one, while the video
+/// always uses the card's full-motion script.
 ///
 /// **The video always carries the landings, even with sounds off in
 /// Settings.** A saved video is a file posted and played somewhere else; the

@@ -92,7 +92,10 @@ struct ReplayView: View {
                         .accessibilityHidden(true)
                     // From the first frame, loaded or not: leaving never waits
                     // on the animation.
-                    GlassIconButton(systemName: "xmark", accessibilityLabel: "Close", action: onClose)
+                    GlassIconButton(systemName: "xmark", accessibilityLabel: "Close") {
+                        save.cancel()
+                        onClose()
+                    }
                         .padding(.trailing, GridConstants.horizontalPadding)
                         .padding(.top, insets.top + GridConstants.gapTight)
                 }
@@ -101,11 +104,15 @@ struct ReplayView: View {
             .ignoresSafeArea()
         }
         .statusBarHidden(false)
-        // Closing the replay stops a save in progress and deletes the partial
-        // file. So does leaving the app: a phone will not encode video in the
-        // background. Only `.background`, not `.inactive`, which a pulled-down
-        // Control Center or the Photos permission alert also report.
-        .onDisappear { save.cancel() }
+        // Closing the replay (the close button, above) stops a save in
+        // progress and deletes the partial file. So does leaving the app: a
+        // phone will not encode video in the background. Only `.background`,
+        // not `.inactive`, which a pulled-down Control Center or the Photos
+        // permission alert also report.
+        //
+        // Not `onDisappear`: the photo viewer is a full-screen cover over the
+        // replay, and a disappearance there is not a close.
+        // `testSaveVideoSurvivesOpeningAPhoto` opens one mid-save.
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { save.cancel() }
         }
@@ -232,32 +239,45 @@ struct ReplayView: View {
     ///
     /// Share shares the still, not the video: the video is shared by saving
     /// it, since the camera roll is where people post stories from.
+    ///
+    /// **One row, always.** At xxLarge on an iPhone SE (375pt), "Couldn't save
+    /// the video" beside Share measured 349pt against 343pt between the
+    /// margins, 3pt into each side margin. Stacking
+    /// them was tried: the close is bounded above the home indicator, so a
+    /// taller close rose into the tower and the count printed over its bottom
+    /// row. Instead Save Video's words may shrink, to 80% at most, when the
+    /// row is short of room; Share never does. Nowhere else does it change.
     private func controls(script: ReplayScript) -> some View {
         HStack(spacing: GridConstants.gapItem) {
-            if let images {
-                SaveVideoControl(save: save) {
-                    save.start(replay: replay, images: images, now: now)
-                }
-            }
-            if let shareImage {
-                let image = Image(uiImage: shareImage)
-                ShareLink(item: image, preview: SharePreview(replay.period.title, image: image)) {
-                    Text("Share")
-                        .font(Typography.headerMedium)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        // Layout first, glass after: the Memories drawer's
-                        // Done, which is this app's glass capsule control.
-                        .padding(.horizontal, GridConstants.gapLabel)
-                        .frame(height: GlassIconButton.defaultSide)
-                        .glassCapsule()
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
+            controlItems
         }
         .frame(height: GlassIconButton.defaultSide)
+    }
+
+    @ViewBuilder
+    private var controlItems: some View {
+        if let images {
+            SaveVideoControl(save: save) {
+                save.start(replay: replay, images: images, now: now)
+            }
+        }
+        if let shareImage {
+            let image = Image(uiImage: shareImage)
+            ShareLink(item: image, preview: SharePreview(replay.period.title, image: image)) {
+                Text("Share")
+                    .font(Typography.headerMedium)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    // Layout first, glass after: the Memories drawer's
+                    // Done, which is this app's glass capsule control.
+                    .padding(.horizontal, GridConstants.gapLabel)
+                    .frame(height: GlassIconButton.defaultSide)
+                    .glassCapsule()
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func prepare(cell: CGFloat) async {
@@ -341,11 +361,13 @@ final class ReplaySave {
             let url: URL
             do {
                 url = try await job.export { [weak self] p in self?.state = .saving(p) }
+            } catch ReplayVideoExporter.Failure.cancelled {
+                // Closed, or the app was left: nothing went wrong, so the
+                // control offers Save Video again rather than an error.
+                state = .idle
+                return
             } catch {
-                // Cancelled by closing (nothing is left to show it) or by
-                // leaving the app, where it did not save and says so.
                 state = .failed
-                if case ReplayVideoExporter.Failure.cancelled = error { return }
                 HapticsEngine.warning()
                 return
             }
@@ -365,6 +387,10 @@ final class ReplaySave {
     }
 
     func cancel() { exporter?.cancel() }
+
+    /// Whether a press does anything: Save Video, or trying again after a
+    /// failure.
+    var acceptsPress: Bool { state == .idle || state == .failed }
 
     var title: String {
         switch state {
@@ -426,7 +452,9 @@ private struct SaveVideoControl: View {
                 Text(save.title)
                     .font(Typography.headerMedium)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    // Not fixed-size like Share's: the one label in the row
+                    // that may give way, for the reason `controls` gives.
+                    .minimumScaleFactor(0.8)
                     .foregroundStyle(AppColors.inkPrimary)
             }
             // Layout first, glass after, as Share.
@@ -438,6 +466,12 @@ private struct SaveVideoControl: View {
         .buttonStyle(.plain)
         .accessibilityLabel(save.title)
         .accessibilityValue(progressValue)
+        // Saving… and Saved to Photos do nothing when pressed, so VoiceOver
+        // reads them as words, not buttons. Not `.disabled`, which would grey
+        // them.
+        .accessibilityRemoveTraits(save.acceptsPress ? [] : .isButton)
+        .accessibilityAddTraits(save.acceptsPress ? [] : .isStaticText)
+        .accessibilityIdentifier("saveVideo")
     }
 
     private var progressValue: String {

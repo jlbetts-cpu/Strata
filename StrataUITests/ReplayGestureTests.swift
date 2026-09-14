@@ -178,8 +178,8 @@ final class ReplayGestureTests: XCTestCase {
     /// terminal word.
     ///
     /// **The Photos prompt.** Add-only permission is asked for after the
-    /// export, as a system alert owned by SpringBoard. The loop below taps its
-    /// allow button if it appears (an interruption monitor only fires on the
+    /// export, as a system alert owned by SpringBoard. `waitForSaveToFinish`
+    /// taps its allow button if it appears (an interruption monitor only fires on the
     /// next interaction with the app, and there is none while waiting), so on
     /// a simulator that has never been asked this passes through the prompt,
     /// and on one that has already allowed it there is no prompt at all.
@@ -196,19 +196,45 @@ final class ReplayGestureTests: XCTestCase {
         XCTAssertEqual(before.t, before.duration, accuracy: 0.001, "the replay had not finished (t \(before.t))")
 
         save.tap()
-        let saving = app.buttons["Saving…"]
-        XCTAssertTrue(saving.waitForExistence(timeout: 5), "the control did not change to Saving…. On screen: \(app.debugDescription)")
+        let control = saveControl(app)
+        XCTAssertTrue(waitForLabel(control, "Saving…", timeout: 5), "the control did not change to Saving… (\(control.label))")
+        XCTAssertNotEqual(control.elementType, .button, "Saving… does nothing when pressed but is still announced as a button")
         keep(app, "saving")
         let after = clock(app)
         XCTAssertEqual(after.t, before.t, accuracy: 0.001, "pressing Save Video moved the clock \(before.t) -> \(after.t)")
         XCTAssertTrue(probe(app).exists, "pressing Save Video closed the replay")
 
+        let (terminal, prompted) = waitForSaveToFinish(app)
+        keep(app, prompted ? "after-photos-prompt" : "after-save")
+        XCTAssertEqual(terminal, "Saved to Photos", "Photos prompt seen: \(prompted)")
+        let end = clock(app)
+        XCTAssertEqual(end.t, end.duration, accuracy: 0.001, "the replay moved during the save (t \(end.t))")
+    }
+
+    /// The Save Video control, read by identifier: in its Saving… and Saved
+    /// states it is no longer announced as a button.
+    private func saveControl(_ app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "saveVideo").firstMatch
+    }
+
+    private func waitForLabel(_ element: XCUIElement, _ label: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists, element.label == label { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return false
+    }
+
+    /// Waits for Saved to Photos or Couldn't save the video, allowing the
+    /// Photos prompt if SpringBoard shows it. Returns the final label.
+    private func waitForSaveToFinish(_ app: XCUIApplication, timeout: TimeInterval = 240) -> (String, Bool) {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let saved = app.buttons["Saved to Photos"]
-        let failed = app.buttons["Couldn't save the video"]
-        let deadline = Date().addingTimeInterval(240)
+        let control = saveControl(app)
+        let deadline = Date().addingTimeInterval(timeout)
         var prompted = false
-        while Date() < deadline, !saved.exists, !failed.exists {
+        while Date() < deadline {
+            if control.exists, control.label != "Saving…" { return (control.label, prompted) }
             for label in ["Allow Access", "Allow Full Access", "Allow", "OK"] {
                 let button = springboard.alerts.buttons[label]
                 if button.exists {
@@ -219,12 +245,73 @@ final class ReplayGestureTests: XCTestCase {
             }
             Thread.sleep(forTimeInterval: 1)
         }
-        keep(app, prompted ? "after-photos-prompt" : "after-save")
-        XCTAssertTrue(saved.exists, failed.exists
-                      ? "the save failed (Photos prompt seen: \(prompted))"
-                      : "no terminal state in 240s. On screen: \(app.debugDescription)")
-        let end = clock(app)
-        XCTAssertEqual(end.t, end.duration, accuracy: 0.001, "the replay moved during the save (t \(end.t))")
+        return (control.exists ? control.label : "(gone)", prompted)
+    }
+
+    /// Opening a block's photograph over the replay mid-save, and closing it
+    /// again, does not stop the save: nothing closed the replay.
+    @MainActor
+    func testSaveVideoSurvivesOpeningAPhoto() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-strataStartTab", "tower", "-strataResetStore", "1", "-strataSeedHistory", "20",
+                               "-strataOpenReplay", "lastWeek", "-strataReplayProbe"]
+        app.launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 45), "the replay never started")
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        let save = app.buttons["Save Video"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "no Save Video at the close")
+        save.tap()
+        let control = saveControl(app)
+        XCTAssertTrue(waitForLabel(control, "Saving…", timeout: 5), "the control did not change to Saving… (\(control.label))")
+
+        // "x y w h|file|title"
+        let blockProbe = app.descendants(matching: .any)["replayPhotoBlock"]
+        XCTAssertTrue(blockProbe.exists, "last week has no block with a stored photograph")
+        let parts = blockProbe.label.split(separator: "|").first.map { $0.split(separator: " ").compactMap { Double($0) } } ?? []
+        XCTAssertEqual(parts.count, 4, "block probe unreadable: \(blockProbe.label)")
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: parts[0], dy: parts[1])).tap()
+        let viewerClose = app.buttons["Close photo"]
+        XCTAssertTrue(viewerClose.waitForExistence(timeout: 15), "tapping the photo block opened nothing")
+        keep(app, "photo-over-save")
+        Thread.sleep(forTimeInterval: 1.0)
+        viewerClose.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertTrue(probe(app).exists, "closing the photograph closed the replay")
+        let midway = control.label
+        keep(app, "after-photo-closed")
+        // Otherwise the save could have finished before the viewer opened,
+        // and the test would prove nothing.
+        XCTAssertEqual(midway, "Saving…", "the save was not still running when the photograph closed")
+
+        let (terminal, prompted) = waitForSaveToFinish(app)
+        keep(app, "save-after-photo")
+        XCTAssertEqual(terminal, "Saved to Photos",
+                       "the save did not survive the photo viewer (label after closing it: \(midway), Photos prompt seen: \(prompted))")
+    }
+
+    /// Leaving the app mid-save stops it, and the control comes back as Save
+    /// Video, not as an error: nothing went wrong.
+    @MainActor
+    func testLeavingTheAppCancelsTheSaveQuietly() throws {
+        let app = launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 30), "the replay never started")
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        let save = app.buttons["Save Video"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "no Save Video at the close")
+        save.tap()
+        let control = saveControl(app)
+        XCTAssertTrue(waitForLabel(control, "Saving…", timeout: 5), "the control did not change to Saving… (\(control.label))")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 3)
+        app.activate()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 10), "the replay was not there on return")
+        XCTAssertTrue(waitForLabel(control, "Save Video", timeout: 15),
+                      "after leaving the app mid-save the control reads \(control.label), not Save Video")
+        keep(app, "after-leaving-mid-save")
+        Thread.sleep(forTimeInterval: 1.5)
+        keep(app, "after-leaving-mid-save-settled")
     }
 
     /// After the close, a block with a photograph opens it in the photo

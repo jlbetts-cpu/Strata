@@ -71,7 +71,7 @@ enum SoundEngine {
     private static let reverb = AVAudioUnitReverb()
     private static let tone = AVAudioUnitEQ(numberOfBands: 2)
     private static var isSetUp = false
-    private static let sampleRate: Double = 44100
+    nonisolated private static let sampleRate: Double = 44100
 
     private static var format: AVAudioFormat {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
@@ -376,13 +376,18 @@ enum SoundEngine {
     /// the same sound. Dry: the live room and tone are part of the playback
     /// graph, not the voice. Not muted-checked, for the reason
     /// `ReplayAudioMix` gives.
+    ///
+    /// **Always synthesised.** `play` prefers a recorded `impact` file from
+    /// the bundle when one exists; this does not look for one. There is none
+    /// today. Add one and the live replay and the saved video will sound
+    /// different until this reads the same file.
     static func impactBuffer(mass: Int, column: Int, gain: Double) -> AVAudioPCMBuffer? {
         render(impactVoice(mass: mass, column: column, gain: gain),
                seed: 0x9E37_79B9_7F4A_7C15 &+ UInt64(max(mass, 0) * 8 + max(column, 0)))
     }
 
     /// The rate every rendered voice is at, and so the saved mix's.
-    static var mixSampleRate: Double { sampleRate }
+    nonisolated static var mixSampleRate: Double { sampleRate }
 
     /// Everything is done.
     static func allClearChime() {

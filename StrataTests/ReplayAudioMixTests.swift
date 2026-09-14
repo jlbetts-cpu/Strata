@@ -81,8 +81,11 @@ struct ReplayAudioMixTests {
         #expect(memcmp(la, lb, n * MemoryLayout<Float>.size) == 0)
     }
 
-    @Test("the live replay sounds exactly the landings the video mixes")
-    func liveAgrees() {
+    /// The same RULE, applied to the same script. Live, the script is the
+    /// screen's (and may be reduced motion), so its landings are not the
+    /// video's; what is shared is how sounding landings are chosen.
+    @Test("the live replay chooses sounding landings by the rule the video is mixed by")
+    func liveUsesTheSameRule() {
         let s = script(.month)
         let feedback = ReplayFeedback()
         let expected = Set(ReplayAudioMix.landingTimes(s.landings, limitPerSecond: GridConstants.replayFeedbackPerSecond)
