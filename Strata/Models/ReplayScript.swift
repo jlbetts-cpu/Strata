@@ -25,13 +25,20 @@ struct ReplayScript {
         /// After the reveal, the finished tower's top may come no higher.
         var fitTopY: CGFloat
 
-        /// Same cell as the Wins tab at this width; tuned by eye in Task 6.
+        /// Same cell as the Wins tab at this width. The three lines were
+        /// set by photographing frozen frames at 402x874:
+        /// - `followY` 0.24 holds the tower's top a clear gap under the
+        ///   running label (label ink ends near 0.19).
+        /// - `baseY` 0.75 (was 0.72) and `fitTopY` 0.17 (was 0.22): the
+        ///   finished week sat at 0.43 scale with an empty band above it and
+        ///   below the close; now 0.50, top just under the header, and the
+        ///   close still hangs 40pt under the base with room for controls.
         static func standard(frame: CGSize) -> Metrics {
             let cell = GridConstants.cellSize(forGridWidth: frame.width - GridConstants.horizontalPadding * 2)
             return Metrics(frame: frame, cell: cell,
-                           baseY: (frame.height * 0.72).rounded(),
+                           baseY: (frame.height * 0.75).rounded(),
                            followY: (frame.height * 0.24).rounded(),
-                           fitTopY: (frame.height * 0.22).rounded())
+                           fitTopY: (frame.height * 0.17).rounded())
         }
     }
 

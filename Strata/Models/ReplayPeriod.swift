@@ -110,12 +110,23 @@ struct ReplayPeriod: Hashable, Identifiable {
 
     var title: String { kind == .week ? "Your week" : "Your month" }
 
+    /// Made once per format, calendar and time zone, and kept.
+    ///
+    /// A replay draws its range and its running label on every frame, so a
+    /// fresh `DateFormatter` per call was one allocation (and one ICU pattern
+    /// parse) per string per frame, for the whole of playback and every frame
+    /// of the saved video.
+    private static var formatters: [String: DateFormatter] = [:]
+
     private func formatter(_ format: String) -> DateFormatter {
+        let key = "\(format)|\(calendar.identifier)|\(calendar.timeZone.identifier)"
+        if let cached = Self.formatters[key] { return cached }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_GB")
         f.calendar = calendar
         f.timeZone = calendar.timeZone
         f.dateFormat = format
+        Self.formatters[key] = f
         return f
     }
 

@@ -153,6 +153,11 @@ enum DebugHarness {
         argument("-strataOpenSheet")?.lowercased()
     }
 
+    /// `-strataOpenReplay week|month|sampleWeek|sampleMonth`: opens a replay on launch.
+    static var openReplay: String? { argument("-strataOpenReplay") }
+    /// `-strataReplayAt <seconds>`: freezes the replay at that moment, for screenshots.
+    static var replayAt: Double? { argument("-strataReplayAt").flatMap(Double.init) }
+
     /// The creator's bundled faces as a made head, from `-strataSeedHead`.
     /// The simulator has no camera to make a real one with, so without this
     /// no head placement could ever be photographed here.

@@ -116,3 +116,8 @@ struct Replay: Equatable {
         }
     }
 }
+
+/// For `fullScreenCover(item:)`: one replay per period.
+extension Replay: Identifiable {
+    var id: String { period.id }
+}

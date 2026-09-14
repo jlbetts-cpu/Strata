@@ -217,6 +217,8 @@ struct MainAppView: View {
     /// Always present, only ever set in DEBUG — a `#if` around a @State that
     /// something in `body` binds to costs more than the property does.
     @State private var wantsDebugExpand = false
+    /// `-strataOpenReplay`: the replay opened on launch. DEBUG only.
+    @State private var debugReplay: Replay?
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
@@ -353,6 +355,7 @@ struct MainAppView: View {
                 wants: $wantsDebugExpand,
                 expanded: $expandedBlockID
             ))
+            .modifier(DebugReplayCover(replay: $debugReplay))
             // Not while a drop is queued. Inserting the habit changes
             // habits.count, which used to refresh the tower immediately — so
             // the block appeared in its final place, then vanished when the
@@ -1455,6 +1458,16 @@ struct MainAppView: View {
                 let url = URL.documentsDirectory.appending(path: "share-card.png")
                 try? data.write(to: url)
                 print("[SHARE] wrote \(Int(image.size.width))x\(Int(image.size.height)) to \(url.path)")
+            }
+        }
+        if let which = DebugHarness.openReplay, which.hasPrefix("sample") {
+            // A beat after launch, not in this pass. A cover takes its
+            // presenter's forced appearance, and the launch tab is the camera,
+            // which pins the window dark; presented before the start tab's
+            // scheme lands, the replay rendered dark on a light simulator.
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                debugReplay = ReplaySample.replay(which == "sampleMonth" ? .month : .week, now: Date())
             }
         }
         switch DebugHarness.openSheet {
@@ -2845,6 +2858,22 @@ private struct DebugExpandFirstBlock: ViewModifier {
             guard wants, count > 0 else { return }
             wants = false
             expanded = firstBlockID
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// Presents the replay `-strataOpenReplay` asked for. A modifier for the same
+/// reason as the one above: `body` is at the type-checker's ceiling.
+private struct DebugReplayCover: ViewModifier {
+    @Binding var replay: Replay?
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.fullScreenCover(item: $replay) { replay in
+            ReplayDebugFrame(replay: replay)
         }
         #else
         content
