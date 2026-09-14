@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-struct PlacedBlock: Identifiable {
+struct PlacedBlock: Identifiable, Equatable {
     let id: UUID
     let habit: Habit
     let log: HabitLog
@@ -11,6 +11,38 @@ struct PlacedBlock: Identifiable {
     let columnSpan: Int
     let rowSpan: Int
     let isSkipped: Bool
+    /// What the block looked like when the tower was built.
+    let look: Look
+
+    /// The values a tower block draws with, copied out of the models.
+    ///
+    /// **Values, because the models are shared references.** Two
+    /// `PlacedBlock`s for the same win hold the SAME `Habit`, so comparing
+    /// `lhs.habit.title == rhs.habit.title` reads one object twice and is
+    /// always true: the `Equatable` trap in CLAUDE.md. A `Look` taken at one
+    /// moment and a `Look` taken at another can actually differ, so a rename,
+    /// a colour change or a new photograph compares unequal.
+    struct Look: Equatable {
+        let title: String
+        /// `displayCategory`: the colour.
+        let displayCategory: HabitCategory
+        /// `category`: what the icon and the label logic are given.
+        let category: HabitCategory
+        let blockSize: BlockSize
+        let imageFileName: String?
+        let cropX: Double?
+        let cropY: Double?
+
+        init(habit: Habit, log: HabitLog) {
+            title = habit.title
+            displayCategory = habit.displayCategory
+            category = habit.category
+            blockSize = habit.blockSize
+            imageFileName = log.imageFileName
+            cropX = log.cropPositionX
+            cropY = log.cropPositionY
+        }
+    }
 
     init(id: UUID, habit: Habit, log: HabitLog, column: Int, row: Int, columnSpan: Int, rowSpan: Int, isSkipped: Bool = false) {
         self.id = id
@@ -21,6 +53,20 @@ struct PlacedBlock: Identifiable {
         self.columnSpan = columnSpan
         self.rowSpan = rowSpan
         self.isSkipped = isSkipped
+        self.look = Look(habit: habit, log: log)
+    }
+
+    /// Same win, same objects, same place, same look.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+            && lhs.habit === rhs.habit
+            && lhs.log === rhs.log
+            && lhs.column == rhs.column
+            && lhs.row == rhs.row
+            && lhs.columnSpan == rhs.columnSpan
+            && lhs.rowSpan == rhs.rowSpan
+            && lhs.isSkipped == rhs.isSkipped
+            && lhs.look == rhs.look
     }
 
     func frame(cellSize: CGFloat) -> CGRect {
@@ -117,6 +163,10 @@ final class TowerViewModel {
         var currentDateString: String? = nil
         var dayBoundaryRows: [(dateString: String, row: Int)] = []
         var blockCountByDate: [String: Int] = [:]
+        // The lowest row with a free cell. Nothing can start below it, so the
+        // packer starts there instead of re-scanning the full rows under it
+        // for every block, which made a build quadratic in the tower's height.
+        var floorRow = 0
 
         for log in eligibleLogs {
             guard let habit = log.habit else { continue }
@@ -132,7 +182,8 @@ final class TowerViewModel {
             }
             currentDateString = log.dateString
 
-            if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid) {
+            if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid, from: floorRow) {
+                while floorRow < grid.count && !grid[floorRow].contains(false) { floorRow += 1 }
                 let block = PlacedBlock(
                     id: log.id,
                     habit: habit,
@@ -148,28 +199,50 @@ final class TowerViewModel {
             }
         }
 
+        // Every published property below is assigned only when its value
+        // changed. `@Observable` already skips an equal write for an
+        // `Equatable` type, but `[PlacedBlock]` was not one and `MergeGroup`
+        // is not, and `refreshData()` rebuilds on every save and every drop:
+        // those two notified every view reading the tower on every rebuild,
+        // even when the tower was exactly what it had been. The checks on the
+        // Equatable ones say the same thing out loud rather than leaning on
+        // the macro. `TowerBuildTests` holds both halves.
+
         // Detect newly added blocks for cascade animation
         let newIDs = Set(placed.map(\.id))
-        newlyDroppedIDs = newIDs.subtracting(previousBlockIDs)
+        let dropped = newIDs.subtracting(previousBlockIDs)
+        if newlyDroppedIDs != dropped { newlyDroppedIDs = dropped }
         previousBlockIDs = newIDs
-        defer { hasBuiltOnce = true }
+        defer { if !hasBuiltOnce { hasBuiltOnce = true } }
 
-        placedBlocks = placed
-        mergeGroups = BlockMerge.groups(for: placed)
-        groupedBlockIDs = Set(mergeGroups.flatMap(\.memberIDs))
-        coveredBlockIDs = BlockMerge.covered(in: placed)
-        incompleteBlocks = []
-        currentGrid = grid
+        if placedBlocks != placed { placedBlocks = placed }
+        let groups = BlockMerge.groups(for: placed)
+        if !Self.sameGroups(mergeGroups, groups) {
+            mergeGroups = groups
+            let grouped = Set(groups.flatMap(\.memberIDs))
+            if groupedBlockIDs != grouped { groupedBlockIDs = grouped }
+        }
+        let covered = BlockMerge.covered(in: placed)
+        if coveredBlockIDs != covered { coveredBlockIDs = covered }
+        if !incompleteBlocks.isEmpty { incompleteBlocks = [] }
+        if currentGrid != grid {
+            currentGrid = grid
+            ghostPositionCache.removeAll()
+        }
 
         // Compute top-row and foundation block IDs
+        let topRow: Set<UUID>
+        let foundation: Set<UUID>
         if !placed.isEmpty {
             let maxRow = placed.map { $0.row + $0.rowSpan - 1 }.max() ?? 0
-            topRowBlockIDs = Set(placed.filter { $0.row + $0.rowSpan - 1 == maxRow }.map(\.id))
-            foundationBlockIDs = Set(placed.filter { $0.row == 0 }.map(\.id))
+            topRow = Set(placed.filter { $0.row + $0.rowSpan - 1 == maxRow }.map(\.id))
+            foundation = Set(placed.filter { $0.row == 0 }.map(\.id))
         } else {
-            topRowBlockIDs = []
-            foundationBlockIDs = []
+            topRow = []
+            foundation = []
         }
+        if topRowBlockIDs != topRow { topRowBlockIDs = topRow }
+        if foundationBlockIDs != foundation { foundationBlockIDs = foundation }
 
         // Pre-compute stagger delays (O(1) lookup per block instead of O(n) per call)
         if !newlyDroppedIDs.isEmpty {
@@ -185,7 +258,8 @@ final class TowerViewModel {
             }
         }
 
-        totalRows = placed.isEmpty ? 0 : placed.map { $0.row + $0.rowSpan }.max()!
+        let rows = placed.isEmpty ? 0 : placed.map { $0.row + $0.rowSpan }.max()!
+        if totalRows != rows { totalRows = rows }
 
         #if DEBUG
         // Validate: no two blocks overlap in the grid
@@ -202,7 +276,7 @@ final class TowerViewModel {
         }
         #endif
 
-        isLoading = false
+        if isLoading { isLoading = false }
 
         // Clear the dropped set after animation window
         if !newlyDroppedIDs.isEmpty {
@@ -228,9 +302,42 @@ final class TowerViewModel {
 
     // MARK: - Ghost Block Preview (Kliegel 2008 — external prospective memory aid)
 
+    /// Where a block of this size would land next.
+    ///
+    /// Called from `MainAppView`'s body, so on every evaluation of it; the
+    /// answer only changes when the grid does. Cached per size and cleared
+    /// wherever `currentGrid` is written. Reading `currentGrid` first keeps
+    /// the caller's observation of the grid exactly as it was.
     func computeGhostPosition(for blockSize: BlockSize) -> (column: Int, row: Int)? {
-        var gridCopy = currentGrid
-        return findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &gridCopy)
+        let grid = currentGrid
+        if let cached = ghostPositionCache[blockSize] { return cached.position }
+        var gridCopy = grid
+        let position = findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &gridCopy)
+        ghostPositionCache[blockSize] = GhostSlot(position: position)
+        return position
+    }
+
+    private struct GhostSlot {
+        let position: (column: Int, row: Int)?
+    }
+
+    /// Not observed: a cache filled from inside a view body must not publish.
+    @ObservationIgnored private var ghostPositionCache: [BlockSize: GhostSlot] = [:]
+
+    /// The same runs, in any order. `BlockMerge.groups` builds its array
+    /// from a dictionary, so the order is not stable from one build to the
+    /// next even when the groups are; a reorder alone is not a change.
+    private static func sameGroups(_ a: [MergeGroup], _ b: [MergeGroup]) -> Bool {
+        guard a.count == b.count else { return false }
+        var byID: [UUID: MergeGroup] = [:]
+        for group in a { byID[group.id] = group }
+        return b.allSatisfy { group in
+            guard let other = byID[group.id] else { return false }
+            return other.category == group.category
+                && other.cells == group.cells
+                && other.memberIDs == group.memberIDs
+                && other.bottomRow == group.bottomRow
+        }
     }
 
     /// Today's unfinished habits, packed onto the tower above what is built.
@@ -288,14 +395,16 @@ final class TowerViewModel {
     private func findPosition(
         columnSpan: Int,
         rowSpan: Int,
-        grid: inout [[Bool]]
+        grid: inout [[Bool]],
+        from startRow: Int = 0
     ) -> (column: Int, row: Int)? {
         let colCount = GridConstants.columnCount
         let maxStartCol = colCount - columnSpan
         guard maxStartCol >= 0 else { return nil }
 
-        // Scan from row 0 (bottom / foundation) upward
-        var row = 0
+        // Scan from `startRow` upward: row 0, the foundation, unless the
+        // caller knows every row below it is already full
+        var row = startRow
         while true {
             // Ensure the grid has enough rows to check this position
             let neededRows = row + rowSpan

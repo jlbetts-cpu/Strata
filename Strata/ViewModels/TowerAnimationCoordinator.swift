@@ -121,9 +121,19 @@ final class TowerAnimationCoordinator {
         startDrainIfNeeded()
     }
 
+    /// Drops state for blocks that are no longer on the tower.
+    ///
+    /// Writes only when something is actually stale. It runs after every
+    /// `refreshData()`, and an `@Observable` write notifies whether or not the
+    /// value changed, so reassigning the same dictionary invalidated the grid
+    /// on every save.
     func purgeStaleState(validIDs: Set<UUID>) {
-        blockStates = blockStates.filter { validIDs.contains($0.key) }
-        activelyAnimatingIDs.formIntersection(validIDs)
+        if blockStates.keys.contains(where: { !validIDs.contains($0) }) {
+            blockStates = blockStates.filter { validIDs.contains($0.key) }
+        }
+        if !activelyAnimatingIDs.isSubset(of: validIDs) {
+            activelyAnimatingIDs.formIntersection(validIDs)
+        }
     }
 
     func reset() {
