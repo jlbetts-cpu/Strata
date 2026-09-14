@@ -54,6 +54,11 @@ struct ReplayScript {
         let closeFade = 0.3
         let closeStagger = 0.08
         let squashTime = 0.35
+        /// How long the header takes to fade in.
+        let headerFade = 0.5
+        /// The squash-and-stretch settle: an exponentially decaying cosine.
+        let squashDecay = 0.08
+        let squashPeriod = 0.22
 
         static func of(_ kind: ReplayKind) -> Pacing {
             switch kind {
@@ -221,8 +226,18 @@ struct ReplayScript {
         finalRise = rises.max() ?? 0
 
         let lastLanding = landings.last?.time ?? pacing.open
-        revealStart = lastLanding + pacing.holdAfterLast
-        revealDuration = fitScale < 1 ? pacing.reveal : 0
+        // A trailing empty day (a quiet weekend, a month ending quietly) has
+        // no landing to anchor on, so the build cannot end before that day
+        // has had its own full moment on screen.
+        var candidateRevealStart = lastLanding + pacing.holdAfterLast
+        if replay.countsByDay.last == 0, let lastDayStart = dayStartList.last {
+            candidateRevealStart = max(candidateRevealStart, lastDayStart + pacing.emptyHold)
+        }
+        revealStart = candidateRevealStart
+        // Even when the finished tower fits at scale 1, the camera may have
+        // had to rise during the build to keep the newest block in frame,
+        // and that rise still has to ease back to 0, or it jumps.
+        revealDuration = (fitScale < 1 || finalRise > 0) ? pacing.reveal : 0
         danceStart = revealStart + revealDuration
 
         let rowDelay = GridConstants.danceRowDelay
@@ -274,7 +289,7 @@ struct ReplayScript {
             let dt = since - T
             if dt < pacing.squashTime {
                 let mass = CGFloat(replay.blocks[index].win.size.massTier)
-                let env = CGFloat(exp(-dt / 0.08) * cos(2 * .pi * dt / 0.22))
+                let env = CGFloat(exp(-dt / pacing.squashDecay) * cos(2 * .pi * dt / pacing.squashPeriod))
                 p.scaleY = 1 - 0.025 * mass * env
                 p.scaleX = 1 + 0.015 * mass * env
             }
@@ -296,7 +311,11 @@ struct ReplayScript {
     }
 
     func label(at t: Double) -> LabelState {
-        let leaving = reduceMotion ? 0 : Self.clamp01((t - revealStart) / pacing.labelFade)
+        // In reduce motion there is no reveal to leave at, so the label
+        // instead leaves when the close arrives; otherwise it would sit at
+        // full opacity beside the count forever.
+        let leavingStart = reduceMotion ? closeStart : revealStart
+        let leaving = Self.clamp01((t - leavingStart) / pacing.labelFade)
         guard let k = dayStarts.lastIndex(where: { $0 <= t }) else {
             return LabelState(current: nil, currentOpacity: 0, currentSlide: 0, previous: nil, previousOpacity: 0, previousSlide: 0)
         }
@@ -306,11 +325,11 @@ struct ReplayScript {
                           currentOpacity: p * (1 - leaving),
                           currentSlide: slide * CGFloat(1 - p),
                           previous: k > 0 && p < 1 ? k - 1 : nil,
-                          previousOpacity: 1 - p,
+                          previousOpacity: (1 - p) * (1 - leaving),
                           previousSlide: -slide * CGFloat(p))
     }
 
-    func headerOpacity(at t: Double) -> Double { Self.smooth(t / 0.5) }
+    func headerOpacity(at t: Double) -> Double { Self.smooth(t / pacing.headerFade) }
 
     func closeOpacity(_ item: Int, at t: Double) -> Double {
         let start = closeStart + Double(item) * pacing.closeStagger

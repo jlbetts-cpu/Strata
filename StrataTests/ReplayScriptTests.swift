@@ -121,6 +121,9 @@ struct ReplayScriptTests {
             }
         }
         #expect(s.pose(0, at: s.closeStart).opacity == 1)
+        // The label has no reveal to leave at in reduce motion, so it must
+        // still have left by the very end, beside the close.
+        #expect(s.label(at: s.duration).currentOpacity == 0)
     }
 
     @Test("the running label follows the days and leaves at the reveal")
@@ -161,5 +164,58 @@ struct ReplayScriptTests {
         let firstHalf = mid - a
         let secondHalf = 0 - mid
         #expect(abs(secondHalf / firstHalf - 3) < 0.15)
+    }
+
+    @Test("a trailing empty day still gets its moment, and a label never climbs back up once it starts leaving")
+    func trailingEmptyDayShowsAndLabelsNeverReappear() {
+        // A week with 8 small wins Monday to Thursday, Friday to Sunday empty.
+        let r = replay(.week, wins: 8, emptyDays: [4, 5, 6])
+        let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
+
+        var sawSunday = false
+        var t = 0.0
+        while t < s.revealStart {
+            if s.label(at: t).current == 6 { sawSunday = true; break }
+            t += 1.0 / 60
+        }
+        #expect(sawSunday, "Sunday, the trailing empty day, never appeared before the reveal")
+
+        var lastCurrent = Double.infinity
+        var lastPrevious = Double.infinity
+        var tt = s.revealStart
+        while tt <= s.duration {
+            let l = s.label(at: tt)
+            #expect(l.currentOpacity <= lastCurrent + 1e-9)
+            #expect(l.previousOpacity <= lastPrevious + 1e-9)
+            lastCurrent = l.currentOpacity
+            lastPrevious = l.previousOpacity
+            tt += 1.0 / 60
+        }
+    }
+
+    @Test("the camera eases its rise back to 0 even when the finished tower already fits at scale 1")
+    func riseErasesWithoutAZoomJump() {
+        let r = replay(.week, wins: 20)
+        let cell: CGFloat = 80
+        let towerHeight = GridConstants.gridHeight(rows: r.rows, cellSize: cell)
+        let baseY: CGFloat = 800
+        // Built directly, not through .standard: followY set so the tower had
+        // to make the camera rise during the build, fitTopY set so the same
+        // tower fits at scale 1 once finished.
+        let metrics = ReplayScript.Metrics(frame: frame, cell: cell, baseY: baseY,
+                                           followY: baseY - (towerHeight - 50),
+                                           fitTopY: baseY - (towerHeight + 50))
+        let s = ReplayScript(replay: r, metrics: metrics, reduceMotion: false)
+        #expect(s.fitScale == 1)
+
+        var t = max(0, s.revealStart - 1.0)
+        var last = s.camera(at: t).rise
+        let end = s.revealStart + s.revealDuration + 1.0
+        while t <= end {
+            let rise = s.camera(at: t).rise
+            #expect(abs(rise - last) <= 5, "camera rise jumped from \(last) to \(rise) at t=\(t)")
+            last = rise
+            t += 1.0 / 60
+        }
     }
 }
