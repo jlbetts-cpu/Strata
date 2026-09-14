@@ -153,7 +153,7 @@ enum DebugHarness {
         argument("-strataOpenSheet")?.lowercased()
     }
 
-    /// `-strataOpenReplay week|month|sampleWeek|sampleMonth`: opens a replay on launch.
+    /// `-strataOpenReplay week|month|lastWeek|sampleWeek|sampleMonth`: opens a replay on launch.
     static var openReplay: String? { argument("-strataOpenReplay") }
     /// Overrides the per-day win count `-strataSeedHistory` seeds, from
     /// `-strataSeedHistoryPerDay <n>`.
@@ -227,8 +227,8 @@ enum DebugHarness {
     /// state cannot be photographed at all, which is how an unreachable
     /// control stayed unexplained.
     static var scrollsMemories: Bool { argument("-strataScrollMemories") != nil }
-    /// Where to scroll to: `shelf` stops just past the month, anything else
-    /// goes to the bottom.
+    /// Where to scroll to: `shelf` stops just past the month, `replays` at the
+    /// Replays heading, anything else goes to the bottom.
     static var scrollTarget: String { argument("-strataScrollMemories") ?? "" }
 
     /// Walks the map's camera through a zoom ladder, from `-strataMapSweep`.

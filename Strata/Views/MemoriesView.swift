@@ -34,6 +34,9 @@ struct MemoriesView: View {
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
+    /// The Replays shelf, and the replay playing out of one of its cards.
+    @State private var replays = ReplayShelfModel()
+    @State private var playing: Replay?
     /// Ties each thumbnail to the viewer that opens out of it.
     @Namespace private var photoTransition
     /// How far the page is pulled up over the map. **Hidden on arrival** —
@@ -189,6 +192,11 @@ struct MemoriesView: View {
                         // No heading over a gap. When nothing has earned a
                         // card the shelf is not drawn at all — only what there
                         // is to show gets shown.
+                        // Between the month and the albums: finished months
+                        // and weeks as posters. Draws nothing, heading
+                        // included, until one has a win.
+                        ReplayShelf(model: replays, transitionNamespace: photoTransition) { playing = $0 }
+
                         if !vm.carousel.isEmpty {
                             sectionLabel("ALBUMS")
                                 .id("MemoriesShelf")
@@ -213,8 +221,12 @@ struct MemoriesView: View {
                 guard DebugHarness.scrollsMemories else { return }
                 try? await Task.sleep(for: .seconds(3))
                 withAnimation(nil) {
-                    proxy.scrollTo(DebugHarness.scrollsMemories && DebugHarness.scrollTarget == "shelf"
-                                   ? "MemoriesShelf" : "MemoriesContent", anchor: .top)
+                    let target = switch DebugHarness.scrollTarget {
+                    case "shelf": "MemoriesShelf"
+                    case "replays": "MemoriesReplays"
+                    default: "MemoriesContent"
+                    }
+                    proxy.scrollTo(target, anchor: .top)
                 }
             }
                 #endif
@@ -242,9 +254,18 @@ struct MemoriesView: View {
                 PhotoViewer(photos: vm.gallery.flatMap(\.photos),
                             startAt: photo.id,
                             onClose: { viewing = nil },
-                            onDelete: { _ in vm.reload(context: modelContext) })
+                            onDelete: { _ in
+                                vm.reload(context: modelContext)
+                                // A card is mostly photographs.
+                                Task { await replays.reload(context: modelContext) }
+                            })
                     // Out of the thumbnail, not up from the bottom.
                     .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
+            }
+            .fullScreenCover(item: $playing) { replay in
+                ReplayView(replay: replay) { playing = nil }
+                    // Out of its card, the way a photograph opens.
+                    .navigationTransition(.zoom(sourceID: replay.id, in: photoTransition))
             }
             .navigationDestination(for: MemoriesRoute.self) { route in
                 switch route {
@@ -270,6 +291,9 @@ struct MemoriesView: View {
                 }
             }
         }
+        // Its own task: drawing the cards yields between each, and the
+        // drawer's reload and the launch flags below must not wait on it.
+        .task { await replays.reload(context: modelContext) }
         .task {
             vm.reload(context: modelContext)
             #if DEBUG

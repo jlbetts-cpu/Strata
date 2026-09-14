@@ -15,12 +15,16 @@ import SwiftUI
 ///
 /// The controls under the close (Share, Save Video) are different: they are
 /// children of the player. A child `Button` takes precedence over the
-/// parent's `onTapGesture`, so a tap on one should be the button's and not a
-/// skip; but the hold is SIMULTANEOUS, so holding a control would also pause.
-/// Nothing in this task can press a control that does not exist yet: the
-/// tasks that add them must add a UI test that tapping one does not skip.
+/// parent's `onTapGesture`, so a tap on one is the button's and not a skip;
+/// the hold is SIMULTANEOUS, so holding a control would also pause, which
+/// changes nothing once the replay has finished.
+/// `testShareAtTheCloseIsNotASkip` taps Share and reads the clock.
 /// Before the close arrives `ReplayFrame` turns their hit testing off, so a
 /// tap there falls through to the skip.
+///
+/// **After the close, a block with a photograph opens it**, in the app's
+/// own viewer, out of the block. Before the close a tap anywhere is still the
+/// skip. `testTapABlockAfterTheCloseOpensItsPhoto` presses it.
 struct ReplayView: View {
     let replay: Replay
     var isSample = false
@@ -40,6 +44,14 @@ struct ReplayView: View {
     @State private var finished = false
     @GestureState private var holding = false
     @State private var press = PressMemory()
+    /// The Share still, drawn once when the photographs have loaded. Never in
+    /// `controls`, which runs every frame.
+    @State private var shareImage: UIImage?
+    /// The photograph opened from a block after the close.
+    @State private var viewing: ViewedPhoto?
+    /// Where that block is drawn, so the viewer can grow out of it.
+    @State private var viewingSource: CGRect = .zero
+    @Namespace private var photoTransition
     #if DEBUG
     @State private var cadence = ReplayCadence()
     #endif
@@ -62,6 +74,15 @@ struct ReplayView: View {
                     } else {
                         WarmBackground()
                     }
+                    // The block a photograph opens out of. A clear stand-in
+                    // at the block's rect: the blocks are drawn by a pure
+                    // frame, which knows nothing about transitions.
+                    Color.clear
+                        .frame(width: max(viewingSource.width, 1), height: max(viewingSource.height, 1))
+                        .matchedTransitionSource(id: "replayBlockPhoto", in: photoTransition)
+                        .position(x: viewingSource.midX, y: viewingSource.midY)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                     // From the first frame, loaded or not: leaving never waits
                     // on the animation.
                     GlassIconButton(systemName: "xmark", accessibilityLabel: "Close", action: onClose)
@@ -73,6 +94,39 @@ struct ReplayView: View {
             .ignoresSafeArea()
         }
         .statusBarHidden(false)
+        .fullScreenCover(item: $viewing) { photo in
+            PhotoViewer(photos: storedPhotos,
+                        startAt: photo.id,
+                        onClose: { viewing = nil },
+                        // The replay keeps the picture it already decoded;
+                        // there is nothing here to reload.
+                        onDelete: { _ in viewing = nil })
+                .navigationTransition(.zoom(sourceID: "replayBlockPhoto", in: photoTransition))
+        }
+    }
+
+    /// The replay's own photographs, in drop order. Sample wins' bundled
+    /// pictures are not in the store and open nothing.
+    private var storedPhotos: [GalleryPhoto] {
+        replay.blocks.compactMap { block -> GalleryPhoto? in
+            guard case .stored(let name) = block.win.photo else { return nil }
+            let title = block.win.title
+            return GalleryPhoto(fileName: name,
+                                title: (title.isEmpty || title == QuickWinService.untitled) ? nil : title,
+                                date: block.win.completedAt,
+                                dateString: block.win.dateString,
+                                size: block.win.size)
+        }
+    }
+
+    private func openPhoto(block index: Int, script: ReplayScript, t: Double) {
+        // A press that got as far as a hold is not a tap on anything.
+        if press.held { return }
+        guard case .stored(let name) = replay.blocks[index].win.photo else { return }
+        HapticsEngine.lightTap()
+        viewingSource = script.screenRect(ofBlock: index, at: t)
+        let title = replay.blocks[index].win.title
+        viewing = ViewedPhoto(id: name, title: title.isEmpty ? nil : title)
     }
 
     private func player(script: ReplayScript, images: ReplayImages, insets: EdgeInsets) -> some View {
@@ -81,7 +135,10 @@ struct ReplayView: View {
             ReplayFrame(script: script, images: images, t: t, now: now,
                         showsSampleBadge: isSample,
                         controls: AnyView(controls(script: script)),
-                        topInset: insets.top, bottomInset: insets.bottom)
+                        topInset: insets.top, bottomInset: insets.bottom,
+                        onTapBlock: t >= script.closeStart
+                            ? { index in openPhoto(block: index, script: script, t: t) }
+                            : nil)
                 .onChange(of: t) { old, new in
                     clock.lastRendered = new
                     feedback.play(script, from: old, to: new)
@@ -143,12 +200,33 @@ struct ReplayView: View {
             }
     }
 
-    /// Share arrives in Task 9 and Save Video in Task 11. The row already
-    /// reserves their height, so the close is laid out, and bounded above the
-    /// home indicator, at the size it will have once they are in it.
+    /// Share, and Save Video in Task 11. The row reserves their height from
+    /// the first frame, so the close is laid out, and bounded above the home
+    /// indicator, at the size it has once they are in it.
+    ///
+    /// Share shares the still, not the video: the video is shared by saving
+    /// it, since the camera roll is where people post stories from.
     private func controls(script: ReplayScript) -> some View {
-        HStack(spacing: GridConstants.gapItem) { EmptyView() }
-            .frame(height: GlassIconButton.defaultSide)
+        HStack(spacing: GridConstants.gapItem) {
+            if let shareImage {
+                let image = Image(uiImage: shareImage)
+                ShareLink(item: image, preview: SharePreview(replay.period.title, image: image)) {
+                    Text("Share")
+                        .font(Typography.headerMedium)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        // Layout first, glass after: the Memories drawer's
+                        // Done, which is this app's glass capsule control.
+                        .padding(.horizontal, GridConstants.gapLabel)
+                        .frame(height: GlassIconButton.defaultSide)
+                        .glassCapsule()
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(height: GlassIconButton.defaultSide)
     }
 
     private func prepare(cell: CGFloat) async {
@@ -164,17 +242,41 @@ struct ReplayView: View {
         SoundEngine.prepare()
         images = await loaded
         clock.start()
+        // Once, after the photographs are in, and after the clock starts so
+        // the first frame is not held for it.
+        // The live photographs serve it: they are keyed by picture, not by
+        // size, and decoded for a bigger cell than the card's.
+        if let images, shareImage == nil {
+            await Task.yield()
+            shareImage = ReplayCard.image(replay, images: images, scale: 3, now: now)
+        }
     }
 
     #if DEBUG
     /// The clock, readable by a UI test: a press cannot be verified by
     /// looking at a picture that is supposed to stop moving.
     private func probe(script: ReplayScript, t: Double) -> some View {
+        ZStack(alignment: .topLeading) {
         Color.clear
             .frame(width: 1, height: 1)
             .accessibilityElement()
             .accessibilityIdentifier("replayProbe")
             .accessibilityLabel(String(format: "%.3f %.3f %.3f", t, script.closeStart, script.duration))
+            Group {
+                // Where the first block with a stored photograph is drawn, so
+                // a test can tap it. Frame coordinates are screen points.
+                if let index = replay.blocks.firstIndex(where: {
+                    if case .stored = $0.win.photo { return true } else { return false }
+                }) {
+                    let r = script.screenRect(ofBlock: index, at: t)
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("replayPhotoBlock")
+                        .accessibilityLabel(String(format: "%.1f %.1f %.1f %.1f", r.midX, r.midY, r.width, r.height))
+                }
+            }
+        }
     }
     #endif
 }

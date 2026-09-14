@@ -1484,6 +1484,13 @@ struct MainAppView: View {
                 case "month":
                     debugReplayIsSample = false
                     debugReplay = ReplayLoader.replay(for: .month(containing: Date()), context: modelContext)
+                case "lastWeek":
+                    // A finished week of seeded history: its past days carry
+                    // stored photographs, which the current week's today
+                    // does not.
+                    debugReplayIsSample = false
+                    debugReplay = ReplayPeriod.finished(.week, before: Date(), count: 1).first
+                        .map { ReplayLoader.replay(for: $0, context: modelContext) }
                 default: break
                 }
             }

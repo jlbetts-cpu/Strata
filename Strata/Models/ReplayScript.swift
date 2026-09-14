@@ -570,3 +570,41 @@ struct ReplayScript {
         return .closed
     }
 }
+
+// MARK: - Where a block is drawn
+
+extension ReplayScript {
+    /// A block's rect in FRAME coordinates at `t`: where `ReplayFrame` draws
+    /// it, through the tower's own offset, the camera's scale about the base
+    /// and its rise. The dance's tilt and the landing squash are left out;
+    /// both are over by the close, which is the only time anything asks.
+    func screenRect(ofBlock index: Int, at t: Double) -> CGRect {
+        let c = camera(at: t)
+        let f = blockFrame(index)
+        let pose = pose(index, at: t)
+        let x = metrics.frame.width / 2 + (f.minX - gridWidth / 2) * c.scale
+        let y = metrics.baseY - c.scale * (f.minY + f.height - c.rise) + c.scale * (pose.fallOffset + pose.lift)
+        return CGRect(x: x, y: y, width: f.width * c.scale, height: f.height * c.scale)
+    }
+
+    /// The block under a tap at `point`, in frame coordinates.
+    ///
+    /// A finished month rests at a scale near 0.11, where a block is drawn
+    /// about 9pt across, far under a finger. So every visible block answers
+    /// to at least a 44pt square about its centre, and where those overlap
+    /// the nearest centre wins. A tap inside a block's drawn rect is always
+    /// that block, however big its neighbour's target is.
+    func block(at point: CGPoint, t: Double, minimumTarget: CGFloat = 44) -> Int? {
+        var best: (index: Int, distance: CGFloat)?
+        for i in replay.blocks.indices where pose(i, at: t).visible {
+            let r = screenRect(ofBlock: i, at: t)
+            if r.contains(point) { return i }
+            let target = r.insetBy(dx: min(0, (r.width - minimumTarget) / 2),
+                                   dy: min(0, (r.height - minimumTarget) / 2))
+            guard target.contains(point) else { continue }
+            let d = hypot(point.x - r.midX, point.y - r.midY)
+            if best == nil || d < best!.distance { best = (i, d) }
+        }
+        return best?.index
+    }
+}

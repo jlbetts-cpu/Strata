@@ -18,6 +18,10 @@ struct ReplayFrame: View {
     /// The home indicator live; 0 or a story-safe margin in the video. The
     /// close never runs past it.
     var bottomInset: CGFloat = 0
+    /// A tap on a block, by index into `replay.blocks`. Live only, and only
+    /// once the close has arrived; the card and the exporter pass nothing,
+    /// and then nothing extra is drawn or hit-tested.
+    var onTapBlock: ((Int) -> Void)? = nil
 
     private var m: ReplayScript.Metrics { script.metrics }
     private var replay: Replay { script.replay }
@@ -30,6 +34,7 @@ struct ReplayFrame: View {
             // of a caption, rather than the word printing across the block.
             topCopy
             tower
+            if let onTapBlock { blockTaps(onTapBlock) }
             close
         }
         .frame(width: m.frame.width, height: m.frame.height)
@@ -148,6 +153,28 @@ struct ReplayFrame: View {
         .accessibilityHidden(true)
     }
 
+    /// One tap layer over the whole tower, hit-tested against where the
+    /// script draws each block, rather than a recogniser per block.
+    ///
+    /// **Why one layer.** A finished month rests at a scale near 0.11, where a
+    /// block is 9pt across; the script's `block(at:)` gives every block at
+    /// least a finger's target. It is a sibling in the ZStack, not an
+    /// overlay: over the close it would take Share's taps, and an optional
+    /// sibling leaves the tower's identity alone when it arrives.
+    ///
+    /// **Why it cannot fight the player's gestures.** A child's tap gesture
+    /// wins over an ancestor's, so after the close a tap here is not also the
+    /// player's skip; that skip is a no-op there anyway, since it only moves
+    /// forward to the close. The player's hold is simultaneous and still runs.
+    private func blockTaps(_ onTap: @escaping (Int) -> Void) -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture(coordinateSpace: .local) { point in
+                if let index = script.block(at: point, t: t) { onTap(index) }
+            }
+            .accessibilityHidden(true)
+    }
+
     /// How strongly block titles draw at a camera scale.
     ///
     /// Photographed at a month's fitted scale (0.11) every title rendered as a
@@ -189,25 +216,31 @@ struct ReplayFrame: View {
 
     private var close: some View {
         VStack(spacing: GridConstants.gapTight) {
-            // The Wins tab's header, set the same way: the count in the
-            // owner's digits, the word a quieter caption beside it.
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(replay.count)")
-                    .font(Typography.tally)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .padding(.leading, -GridConstants.tallyOpticalInset)
-                Text(replay.count == 1 ? "win" : "wins")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkQuiet)
+            // The words are one element; the controls under them are not
+            // part of it. Combined with them, Share became a phrase in the
+            // count's sentence rather than a button of its own.
+            VStack(spacing: GridConstants.gapTight) {
+                // The Wins tab's header, set the same way: the count in the
+                // owner's digits, the word a quieter caption beside it.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(replay.count)")
+                        .font(Typography.tally)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .padding(.leading, -GridConstants.tallyOpticalInset)
+                    Text(replay.count == 1 ? "win" : "wins")
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkQuiet)
+                }
+                .opacity(script.closeOpacity(0, at: t))
+                if let sentence = replay.sentence() {
+                    Text(sentence)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .opacity(script.closeOpacity(1, at: t))
+                }
             }
-            .opacity(script.closeOpacity(0, at: t))
-            if let sentence = replay.sentence() {
-                Text(sentence)
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .opacity(script.closeOpacity(1, at: t))
-            }
+            .accessibilityElement(children: .combine)
             if let controls {
                 controls
                     .padding(.top, GridConstants.gapItem)
@@ -217,7 +250,7 @@ struct ReplayFrame: View {
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         // Hung from the base, not centred in the space under it. Centred, the
         // controls arriving pushed the count UP toward the tower; hung, the
         // count keeps one distance from the base and the close grows down.
