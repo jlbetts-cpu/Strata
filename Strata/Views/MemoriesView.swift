@@ -67,6 +67,9 @@ struct MemoriesView: View {
     var openProfile: (() -> Void)?
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("MemoriesView")
+        #endif
         NavigationStack(path: $path) {
             ZStack {
             // **The map is the tab.**

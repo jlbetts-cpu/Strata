@@ -1633,6 +1633,9 @@ struct MainAppView: View {
             // `blockImpact` has always taken it and always been called without
             // it, so the stereo placement its own comment describes has never
             // once happened.
+            #if DEBUG
+            PerfProbe.mark("impact")
+            #endif
             let landedColumn = towerVM.placedBlocks.first(where: { $0.id == landedID })?.column ?? 2
             SoundEngine.blockImpact(mass: mass, column: landedColumn) // Bimodal: haptic + audio (Vroomen 2000)
             // No whole-tower compression.
@@ -2646,6 +2649,9 @@ struct MainAppView: View {
 
 
         var body: some View {
+            #if DEBUG
+            let _ = PerfProbe.count("AnimatedBlockView")
+            #endif
             let phase = animState.dropPhase
             let mass = CGFloat(block.habit.blockSize.massTier)
 

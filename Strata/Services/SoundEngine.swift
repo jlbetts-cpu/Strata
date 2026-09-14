@@ -90,6 +90,10 @@ enum SoundEngine {
 
     private static func setUp() {
         guard !isSetUp else { return }
+        #if DEBUG
+        let probeStart = CACurrentMediaTime()
+        defer { PerfProbe.duration("SoundEngine.setUp", since: probeStart) }
+        #endif
 
         let session = AVAudioSession.sharedInstance()
         // `.ambient` + mixWithOthers: respects the silent switch and never

@@ -183,6 +183,9 @@ struct CameraView: View {
 
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("CameraView")
+        #endif
         GeometryReader { geo in
             let topInset = geo.safeAreaInsets.top
             // Edge to edge, both here and presented on its own.
