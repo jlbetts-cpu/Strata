@@ -612,7 +612,7 @@ enum MemoriesRoute: Hashable {
     /// worked, and a plain rectangle as the annotation did not help. A `Map`
     /// simply cannot live in a lazy stack inside a scroll view here.
     case map
-    /// One place, and everything you did there. A `PlaceKey` is three `Int`s,
+    /// One place, and everything you did there. A `PlaceKey` is a step and a name,
     /// so this is a route rather than a payload — `PhotoCollectionView`
     /// re-derives the photographs from the store, which is the contract that
     /// file already documents.

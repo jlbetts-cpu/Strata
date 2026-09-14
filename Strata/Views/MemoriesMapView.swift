@@ -63,6 +63,11 @@ struct MemoriesMapView: View {
 
     @State private var camera: MapCameraPosition = .automatic
     @State private var zoom: Int = 12
+    /// The scale the blocks were last laid out at, in quarter-zoom steps. See
+    /// `PlaceMap.cluster(_:step:)`: whether two places are one block depends
+    /// on how big their blocks are on screen, so this is measured from the
+    /// camera exactly rather than rounded to a grid.
+    @State private var step: Int = PlaceMap.step(zoom: 12)
     @State private var viewportWidth: CGFloat = 393
     /// What is on screen right now, with the coordinate each block is drawn
     /// at — which is not always where its cluster is. During a merge a block
@@ -139,7 +144,7 @@ struct MemoriesMapView: View {
             CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         }
 
-        /// At rest, a block sits on its cell — see `Cluster.anchor`.
+        /// At rest, a block stands on its leading place — see `Cluster.anchor`.
         static func atRest(_ cluster: PlaceMap.Cluster) -> Placed {
             Placed(cluster: cluster,
                    latitude: cluster.anchor.latitude,
@@ -337,14 +342,14 @@ struct MemoriesMapView: View {
         // second.
         .onMapCameraChange(frequency: .onEnd) { context in
             lastCameraMove = Date()
-            let next = PlaceMap.zoomLevel(
-                spanLongitude: context.region.span.longitudeDelta,
-                viewportWidth: Double(viewportWidth)
-            )
-            guard next != zoom else { return }
-            let previous = zoom
-            zoom = next
-            apply(PlaceMap.cluster(pins, zoom: next), from: previous, to: next)
+            let span = context.region.span.longitudeDelta
+            zoom = PlaceMap.zoomLevel(spanLongitude: span, viewportWidth: Double(viewportWidth))
+            let next = PlaceMap.step(pointsPerUnit: PlaceMap.pointsPerUnit(
+                spanLongitude: span, viewportWidth: Double(viewportWidth)))
+            guard next != step else { return }
+            let previous = step
+            step = next
+            apply(PlaceMap.cluster(pins, step: next), from: previous, to: next)
         }
         // The map's one clock. Stops itself when there is nothing to cycle and
         // never runs under Reduce Motion.
@@ -362,7 +367,7 @@ struct MemoriesMapView: View {
             }
         }
         .task(id: pins.count) {
-            displayed = PlaceMap.cluster(pins, zoom: zoom).map { Placed.atRest($0) }
+            displayed = PlaceMap.cluster(pins, step: step).map { Placed.atRest($0) }
             // **Only a fill with something in it settles the map.** The map is
             // drawn before the store is read, so the first pass has no pins;
             // settling on that meant the real blocks, a moment later, counted
@@ -605,10 +610,10 @@ struct MemoriesMapView: View {
                 ))
             }
             try? await Task.sleep(for: .milliseconds(900))
-            let z = PlaceMap.zoomLevel(spanLongitude: span,
-                                       viewportWidth: Double(viewportWidth))
-            let found = PlaceMap.cluster(pins, zoom: z)
-            NSLog("[strata-probe] mapSweep span=\(span) zoom=\(z) "
+            let z = PlaceMap.step(pointsPerUnit: PlaceMap.pointsPerUnit(
+                spanLongitude: span, viewportWidth: Double(viewportWidth)))
+            let found = PlaceMap.cluster(pins, step: z)
+            NSLog("[strata-probe] mapSweep span=\(span) step=\(z) "
                   + "blocks=\(found.count) wins=\(found.reduce(0) { $0 + $1.winCount }) "
                   + "of \(pins.count) "
                   + "closestPair=\(closestPair(found, span: span))pt")
@@ -844,8 +849,18 @@ private struct PlaceBlock: View {
     /// that blinks and a frame budget gone. The shared `tick` decides WHEN,
     /// and this only decides HOW — with a completion rather than a sleep, so
     /// nothing is left running between beats.
+    ///
+    /// **Only to a photograph that is already there.** The owner, from a
+    /// phone: on zoom out "the photos arent even loaded so it just shows up as
+    /// a grey box. find a way that the photo always can stay and casually
+    /// change." A handover to a picture still being read used to fade in the
+    /// grey that stands in for it. Now the photograph showing stays until the
+    /// next one has been read — which the block asks for a beat early, see
+    /// `upcoming` — and only then crossfades.
     private func handover(to arriving: String?) {
         guard let arriving, arriving != base else { return }
+        guard isDecoded(arriving) else { waitingFor = arriving; return }
+        waitingFor = nil
         guard !reduceMotion else { base = arriving; return }
         top = arriving
         topOpacity = 0
@@ -912,6 +927,8 @@ private struct PlaceBlock: View {
     /// masked copies.
     @State private var base: String?
     @State private var top: String?
+    /// A photograph a handover is waiting on, still being read.
+    @State private var waitingFor: String?
     @State private var topOpacity: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -937,7 +954,22 @@ private struct PlaceBlock: View {
 
     var body: some View {
         block
-            .onAppear { if base == nil { base = showing } }
+            .onAppear {
+                // **Open on something that is already there.** If the picture
+                // this beat asks for is still being read, a picture of the
+                // same place that is not goes up instead, and the handover
+                // brings the asked-for one in once it lands.
+                if base == nil {
+                    let ready = cluster.photoFileNames.first(where: isDecoded)
+                    base = showing.map { isDecoded($0) ? $0 : (ready ?? $0) }
+                    if base != showing { handover(to: showing) }
+                }
+            }
+            .onChange(of: waitingIsReady) { _, ready in
+                if ready, let name = waitingFor { handover(to: name) }
+            }
+            // Read the next beat's photograph ahead of time.
+            .task(id: upcoming) { if let upcoming { _ = isDecoded(upcoming) } }
             .onChange(of: showing) { _, arriving in handover(to: arriving) }
             // **It arrives, gently.** Twenty blocks switching on at once is a
             // map being drawn; twenty blocks landing is a map filling in. A
@@ -965,9 +997,23 @@ private struct PlaceBlock: View {
     /// changed into a photograph, which is two arrivals. Filmed on a zoom out:
     /// two grey squares for a sixth of a second each.
     private var pictureReady: Bool {
-        guard let name = showing, !name.hasPrefix(Self.bundledPrefix) else { return true }
+        guard let name = base ?? showing else { return true }
+        return isDecoded(name)
+    }
+
+    /// Whether a photograph is in memory at the map's size. Asking also starts
+    /// reading it if it is not, which is what makes this a preload.
+    private func isDecoded(_ name: String) -> Bool {
+        guard !name.hasPrefix(Self.bundledPrefix) else { return true }
         return ThumbnailStore.shared.state(for: name, width: Self.decodeWidth * displayScale).image != nil
     }
+
+    /// The photograph the next beat of the clock will ask for, read ahead so
+    /// it is ready by the time it is due.
+    private var upcoming: String? { Self.showing(for: cluster, tick: tick &+ 1) }
+
+    /// Whether the photograph a handover is waiting on has now been read.
+    private var waitingIsReady: Bool { waitingFor.map(isDecoded) ?? false }
 
     private func arrive() {
         withAnimation(GridConstants.mapFade.delay(delay)) { arrived = true }

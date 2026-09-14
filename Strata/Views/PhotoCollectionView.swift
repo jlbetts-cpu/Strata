@@ -17,7 +17,7 @@ struct PhotoCollectionView: View {
         case interest(String)
         /// An `AlbumMoment` id.
         case moment(String)
-        /// One cell of the place grid — see `PlaceMap.PlaceKey`.
+        /// One block on the map — see `PlaceMap.PlaceKey`.
         case place(PlaceMap.PlaceKey)
     }
 
@@ -94,11 +94,8 @@ struct PhotoCollectionView: View {
             matching = records.filter { $0.hasPhoto && Album.titleKey($0.title) == key }
             title = matching.first?.title ?? key
         case .place(let key):
-            // Widened to the cell PLUS a half-cell margin. A cell is a
-            // geographic identity, not a place identity, so two photographs
-            // twenty metres apart can straddle a boundary — and "my two photos
-            // of the same cafe are in different piles" is a bad bug. The map
-            // draws crisp cells; opening one is generous.
+            // Exactly the photographs the block stood for — see
+            // `PlaceMap.members(of:in:)`.
             let names = Set(PlaceMap.members(of: key, in: PlaceMap.pins(from: records))
                 .map(\.photoFileName))
             matching = records.filter { $0.photoFileName.map(names.contains) ?? false }

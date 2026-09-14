@@ -7,12 +7,32 @@ import Foundation
 /// Mercator, so it is testable with plain numbers — no framework, no device,
 /// no simulator.
 ///
-/// **The blocks are the point.** Other photo maps drop thumbnails or dots;
-/// this one drops the app's own object, sized by how much you did in that
-/// place, on the same rank encoding the month tower uses. It delegates to
-/// `MonthTower.size(forWinCount:)` and `MonthTower.dominantCategory(_:)`
-/// rather than restating them, which is what makes a place block and a day
-/// block the same object with the same grammar.
+/// **When two photographs are one block.** The owner, from a phone: "the map
+/// placement algorithm is still not the most accurate in terms of when to
+/// connect and when not, it should be a lot like snap maps in that aspect,
+/// only merge if its in the same location." And, choosing between three rules
+/// laid out for him: *overlap a little, then merge*.
+///
+/// So there are exactly two reasons, and no others:
+///
+/// 1. **The same spot.** Photographs within `samePlaceMetres` of each other
+///    are one place at every zoom — the ordinary wander of a phone's fix is
+///    not a second place.
+/// 2. **They would cover each other.** At the zoom being drawn, each place's
+///    block has a real size on screen. Two blocks may overlap by up to a third
+///    (`maxOverlap`), stacked newest on top, and still read as two places;
+///    past that the smaller joins the busier, and the block stays standing on
+///    the busier spot's own coordinate.
+///
+/// **It used to be a grid**, and the grid was the inaccuracy. Places were
+/// bucketed into cells about a third of a screen wide, so whether two
+/// photographs merged depended on where the cell lines fell, not on how far
+/// apart they were. Measured over 400 random pairs a distance: at street zoom
+/// two spots 80 metres apart merged 30% of the time though their blocks were
+/// nowhere near touching; at a city's zoom, places 1.2 km apart merged 36%
+/// of the time. A density cap then coarsened the grid further, and blocks with
+/// a neighbour were nudged off their coordinates to keep the cells apart.
+/// None of that is left.
 enum PlaceMap {
 
     // MARK: - Types
@@ -31,151 +51,68 @@ enum PlaceMap {
         var size: BlockSize = .small
     }
 
-    /// Which cell of the world grid, at which zoom. Also the route.
-    ///
-    /// Three `Int`s, `Hashable`, tiny — so a cluster can be pushed as a
-    /// destination and re-derived from the store rather than carried as a
-    /// payload, which is the contract `PhotoCollectionView` already documents.
+    /// One block, as a route: which place leads it, at which scale it was
+    /// drawn. `PhotoCollectionView` re-derives the block's photographs from
+    /// the store with it rather than carrying them.
     struct PlaceKey: Hashable, Sendable {
-        let z: Int
-        let x: Int
-        let y: Int
+        /// The scale step the block was drawn at. See `step(pointsPerUnit:)`.
+        let step: Int
+        /// The leading place's identity. See `Spot.id`.
+        let spot: String
     }
 
     /// A place, and everything you did there.
     struct Cluster: Identifiable, Equatable {
         let key: PlaceKey
-        /// Centroid of its members, so the block sits on what it contains
-        /// rather than on the corner of an invisible grid.
+        /// The leading place's own coordinate: a spot somebody stood on, never
+        /// a point between two.
         let latitude: Double
         let longitude: Double
         let winCount: Int
         let category: HabitCategory
         /// Newest first, de-duplicated.
         let photoFileNames: [String]
+        /// The newest photograph's time, which is what stacks a block on top
+        /// of a block it overlaps.
+        let newest: Date
 
-        /// **Deterministic from the grid, not from the members.**
-        ///
-        /// A centroid-based id changes whenever a pin joins, so every block
-        /// would get a new identity on every data change and SwiftUI would
-        /// tear it down and build a new one — which reads as blocks
-        /// teleporting around the map. The cell is stable: same cell, same id,
-        /// however many pins are in it and whatever order they arrived in.
-        var id: String { "\(key.z)/\(key.x)/\(key.y)" }
+        /// **The leading place, not the scale.** A place that is still leading
+        /// its block after a zoom keeps its identity, so SwiftUI keeps its view
+        /// and nothing on screen is torn down and rebuilt for a block that did
+        /// not change.
+        var id: String { key.spot }
 
-        /// The size of the win itself when there is one win, and the rank by
-        /// count when there are several.
-        ///
-        /// **One win should be its own size.** Every block on the map was
-        /// drawing at `MonthTower.size(forWinCount:)`, which is `.small` for
-        /// anything under three — so on a real map, where most places have one
-        /// or two photographs, every block came out identical. The owner:
-        /// "the blocks arent showing there size on the map." A lone win
-        /// already has a size, chosen with a finger when it was logged, and
-        /// that is the honest thing to draw. Only once a place holds several
-        /// does the count become the more useful fact.
         /// **One win is its own size; a crowd is one cell.**
         ///
-        /// It used to rank by count the way the month tower does, so pulling
-        /// the camera back grew the blocks as they merged — the owner: "they
-        /// should still stay in the same area dont need to get bigger". A map
-        /// block already says how many it holds, on its badge; saying it twice
-        /// costs the map its calm.
+        /// The owner: "they should still stay in the same area dont need to
+        /// get bigger." A block already says how many it holds, on its badge.
         var size: BlockSize { winCount == 1 ? loneSize : .small }
 
         /// The single member's own size, when there is a single member.
         var loneSize: BlockSize = .small
 
-        /// **Where the block is DRAWN**: its true centroid, nudged only as far
-        /// as it must be to keep blocks from overlapping.
-        ///
-        /// This was the cell's CENTRE, which guaranteed no two blocks could
-        /// touch and was badly wrong about where things happened. The owner,
-        /// testing on real wins: "the location blocks are a bit innacurate, it
-        /// wont even be in the same area." Measured, he was understating it —
-        /// pinning to a cell centre displaces a block by up to half a cell,
-        /// and half a cell is 1.2km at the zoom where you see a city and 4.9km
-        /// one step out. A map that puts your morning in the wrong
-        /// neighbourhood is not a map.
-        ///
-        /// So the block stands on its members and is clamped into the middle
-        /// of its cell only by the width of the block itself. Two neighbours
-        /// still cannot overlap — each is confined to a box a block narrower
-        /// than the cell, so the gap between boxes is exactly one block — and
-        /// whenever the real centroid is inside that box, which is most of the
-        /// time, the block is drawn exactly where the photograph was taken.
-        /// The worst-case error drops from half a cell to half a block.
-        /// Which sides have a block next door, so the clamp is only paid where
-        /// a collision is actually possible. Empty means an isolated block,
-        /// which is then drawn exactly where the photograph was taken.
-        let crowdedSides: Sides
-
-        var anchor: (latitude: Double, longitude: Double) {
-            PlaceMap.anchor(forCentroidAt: (latitude, longitude), in: key,
-                            size: size, crowdedSides: crowdedSides)
-        }
-    }
-
-    /// The sides of a cell that have an occupied neighbour.
-    struct Sides: OptionSet, Equatable, Sendable {
-        let rawValue: Int
-        static let west = Sides(rawValue: 1 << 0)
-        static let east = Sides(rawValue: 1 << 1)
-        static let north = Sides(rawValue: 1 << 2)
-        static let south = Sides(rawValue: 1 << 3)
-        /// What to assume when the neighbours are not known: clamp everywhere,
-        /// which is the conservative choice and the old behaviour.
-        static let all: Sides = [.west, .east, .north, .south]
+        /// Where the block is drawn: exactly on its leading place.
+        var anchor: (latitude: Double, longitude: Double) { (latitude, longitude) }
     }
 
     // MARK: - Tuning
 
-    /// How big a cell should be on screen, in points.
-    ///
-    /// **A cell is the size of the BIGGEST block plus its gap.** Blocks are
-    /// drawn on cell centres (`Cluster.anchor`), so the pitch is literally the
-    /// distance between two neighbours: a 2x2 on the map is about 90pt across,
-    /// which is why this is 116 and not the 100 it started at. At 100 two
-    /// neighbouring 2x2s touched.
-    ///
-    /// That gives roughly three and a half cells across a phone — a little
-    /// coarser than the tower, which is right: it merges sooner, and merging
-    /// is the behaviour the map is for.
+    /// **Photographs this close together are one place.** The app already
+    /// decided 60 metres is the same place for opening one; the drawing uses
+    /// the same number, so the two can never disagree.
+    static let samePlaceMetres: Double = 60
+
+    /// **How much of a block may be covered before it joins its neighbour**,
+    /// as a share of the smaller block. The owner's rule, chosen from three:
+    /// overlap a little, then merge. A third still reads as two blocks on a
+    /// pile; beyond it the one underneath is mostly hidden and stops being a
+    /// place you can see.
+    static let maxOverlap: Double = 1.0 / 3.0
+
+    /// How big a grid cell is on screen at an integer zoom, in points. Only
+    /// `zoomLevel` still uses a grid, to decide when the map is close enough
+    /// to show place names.
     static let targetBlockPitch: Double = 116
-
-    /// How many levels coarser than the camera's own grid merging may go. See
-    /// the density loop in `cluster(_:zoom:limit:)`.
-    static let maxCoarsening = 1
-
-    /// **The furthest apart two photographs may be and still be one block.**
-    ///
-    /// Bounding the coarsening against the camera was not enough on its own:
-    /// pull back to a country and the camera's own cell is already hundreds of
-    /// kilometres across, so two cities became one block sitting in a field
-    /// between them. From a phone: "photos from differnt cities shouldnt be
-    /// combining."
-    ///
-    /// Twenty kilometres is a city and its edges. Everything further apart
-    /// than that stays its own block however far out the camera goes, which
-    /// means a country view shows where you have been rather than one dot in
-    /// the middle of it.
-    static let maxMergeMetres: Double = 20_000
-
-    /// The coarsest grid merging may use, derived from `maxMergeMetres` so the
-    /// two cannot drift apart.
-    static var minClusterZoom: Int {
-        var z = 0
-        while z < maxClusterZoom && cellMetres(at: z) > maxMergeMetres { z += 1 }
-        return z
-    }
-
-    /// The most blocks allowed on screen at once.
-    ///
-    /// Density is the invariant, not zoom: past this the zoom is bumped and
-    /// everything re-clustered. It is a performance cap and a design one at
-    /// the same time — more than this many places on screen is a scatter plot,
-    /// not a map.
-    static let maxOnScreen = 28
 
     /// One tile is this many cells across.
     private static let cellsPerTile: Double = 4
@@ -202,20 +139,53 @@ enum PlaceMap {
         }
     }
 
-    // MARK: - Zoom
+    // MARK: - Zoom and scale
 
-    /// Which grid to cluster on, for a camera showing `spanLongitude` degrees
-    /// across `viewportWidth` points.
-    ///
-    /// Clamped to 0...20: past 20 a cell is smaller than a GPS fix is
-    /// accurate, so splitting further would be drawing precision the data does
-    /// not have.
+    /// A coarse integer zoom for a camera, used for place names and labels.
+    /// Clamped to 0...20.
     static func zoomLevel(spanLongitude: Double, viewportWidth: Double) -> Int {
         guard spanLongitude > 0, viewportWidth > 0 else { return 0 }
         let cellsAcross = viewportWidth / targetBlockPitch
         let degreesPerCell = spanLongitude / cellsAcross
         let raw = log2(360.0 / (degreesPerCell * cellsPerTile))
-        return min(max(Int(raw.rounded(.down)), 0), maxClusterZoom)
+        return min(max(Int(raw.rounded(.down)), 0), 20)
+    }
+
+    /// **Points on screen per unit of the projected world**, for a camera
+    /// showing `spanLongitude` degrees across `viewportWidth` points. Exact:
+    /// Mercator's x is linear in longitude.
+    static func pointsPerUnit(spanLongitude: Double, viewportWidth: Double) -> Double {
+        guard spanLongitude > 0, viewportWidth > 0 else { return 1 }
+        return viewportWidth / (spanLongitude / 360)
+    }
+
+    /// **The scale, in quarter-zoom steps.** Blocks are laid out again only
+    /// when this changes: often enough that a merge happens when two blocks
+    /// really start to cover each other, not so often that every pixel of a
+    /// pinch re-lays the map.
+    static func step(pointsPerUnit: Double) -> Int {
+        Int((log2(max(pointsPerUnit, 1)) * 4).rounded(.down))
+    }
+
+    /// The scale a step stands for — its lower edge, so a layout is never
+    /// drawn tighter than it was worked out for.
+    static func pointsPerUnit(step: Int) -> Double {
+        pow(2, Double(step) / 4)
+    }
+
+    /// The step of the old integer zoom, whose cell was `targetBlockPitch`
+    /// points across. For tests and probes that think in zooms.
+    static func step(zoom z: Int) -> Int {
+        step(pointsPerUnit: targetBlockPitch / cellSide(at: z))
+    }
+
+    static func cellSide(at z: Int) -> Double {
+        1 / (pow(2, Double(z)) * cellsPerTile)
+    }
+
+    /// A grid cell's rough width in metres at an integer zoom.
+    static func cellMetres(at z: Int) -> Double {
+        cellSide(at: z) * 360 * 111_000
     }
 
     // MARK: - Projection
@@ -239,306 +209,178 @@ enum PlaceMap {
         return (latitude, longitude)
     }
 
-    /// A block's own width on screen, in points.
-    ///
-    /// Mirrors `PlaceBlock` in `MemoriesMapView`, and has to: the clamp below
-    /// is the reason two blocks cannot overlap, and it can only promise that
-    /// if it knows how wide they actually are. `targetBlockPitch` is the other
-    /// half of the same arithmetic and lives here for the same reason.
-    static func blockPoints(for size: BlockSize) -> Double {
+    /// A block's size on screen, in points. Mirrors `PlaceBlock` in
+    /// `MemoriesMapView`, and has to: overlap is measured against what is
+    /// actually drawn.
+    static func blockPoints(for size: BlockSize) -> (width: Double, height: Double) {
         let cell = 44.0, gutter = 2.0
-        return cell * Double(size.columnSpan) + gutter * Double(size.columnSpan - 1)
+        return (cell * Double(size.columnSpan) + gutter * Double(size.columnSpan - 1),
+                cell * Double(size.rowSpan) + gutter * Double(size.rowSpan - 1))
     }
 
-    /// The centroid, clamped into the part of its cell where a block of that
-    /// size cannot reach a neighbour.
-    ///
-    /// The window is the cell less one block, centred: a block whose centre
-    /// stays inside it keeps at least half its width from every edge, so two
-    /// blocks in touching cells are always at least a block apart. Everything
-    /// inside the window is drawn exactly where it happened.
-    /// - Parameter crowdedSides: which neighbouring cells actually hold a
-    ///   block. **A side with nobody on it is not clamped**, because the clamp
-    ///   exists only to stop two blocks touching and there is nothing there to
-    ///   touch. Measured before this: at zoom 14 an isolated 1x1 could be
-    ///   drawn 189 metres from where its photograph was taken, and at zoom 15
-    ///   still 95 metres — the owner, holding a phone: "the photos are
-    ///   accurate in the right area ... it should be in the right place." An
-    ///   isolated block now lands on its exact coordinate at every zoom.
-    ///   Defaults to `.all`, which is the old always-clamp behaviour, so a
-    ///   caller that does not know its neighbours stays safe.
-    static func anchor(forCentroidAt centroid: (latitude: Double, longitude: Double),
-                       in key: PlaceKey,
-                       size: BlockSize,
-                       crowdedSides: Sides = .all) -> (latitude: Double, longitude: Double) {
-        let (px, py) = project(WinPlace(latitude: centroid.latitude,
-                                        longitude: centroid.longitude))
-        guard !crowdedSides.isEmpty else { return unproject(x: px, y: py) }
+    // MARK: - Places
 
-        let side = cellSide(at: key.z)
-        // How much of a cell the block covers. Cells are `targetBlockPitch`
-        // points across by construction, so this is a plain ratio.
-        let covered = min(blockPoints(for: size) / targetBlockPitch, 1)
-        let room = side * (1 - covered) / 2
-
-        let (cx, cy) = ((Double(key.x) + 0.5) * side, (Double(key.y) + 0.5) * side)
-        var x = px, y = py
-        if crowdedSides.contains(.west) { x = max(x, cx - room) }
-        if crowdedSides.contains(.east) { x = min(x, cx + room) }
-        // y grows southward in this projection, so north is the smaller y.
-        if crowdedSides.contains(.north) { y = max(y, cy - room) }
-        if crowdedSides.contains(.south) { y = min(y, cy + room) }
-        return unproject(x: x, y: y)
+    /// Photographs within `samePlaceMetres` of each other.
+    struct Spot {
+        var pins: [Pin]
+        /// **The earliest photograph's name**: stable as later photographs
+        /// join, so a place does not change identity because you went back.
+        var id: String {
+            pins.min { ($0.completedAt, $0.photoFileName) < ($1.completedAt, $1.photoFileName) }?
+                .photoFileName ?? ""
+        }
+        var centre: (latitude: Double, longitude: Double) {
+            let n = Double(max(pins.count, 1))
+            return (pins.reduce(0) { $0 + $1.place.latitude } / n,
+                    pins.reduce(0) { $0 + $1.place.longitude } / n)
+        }
+        var newest: Date { pins.map(\.completedAt).max() ?? .distantPast }
     }
 
-    /// Which of a cell's neighbours are occupied, diagonals included.
-    ///
-    /// A diagonal neighbour constrains BOTH axes toward that corner: two
-    /// blocks meeting at a corner overlap just as surely as two side by side.
-    static func crowdedSides(of key: PlaceKey, occupied: Set<PlaceKey>) -> Sides {
-        var sides: Sides = []
-        for dx in -1...1 {
-            for dy in -1...1 where !(dx == 0 && dy == 0) {
-                guard occupied.contains(PlaceKey(z: key.z, x: key.x + dx, y: key.y + dy))
-                else { continue }
-                if dx < 0 { sides.insert(.west) }
-                if dx > 0 { sides.insert(.east) }
-                if dy < 0 { sides.insert(.north) }
-                if dy > 0 { sides.insert(.south) }
+    /// Gathers photographs into places. Each photograph joins the nearest
+    /// place within `samePlaceMetres`, oldest first, and places that end up
+    /// within that distance of each other are joined, until nothing moves.
+    static func spots(_ pins: [Pin]) -> [Spot] {
+        var spots: [Spot] = []
+        for pin in pins.sorted(by: { ($0.completedAt, $0.photoFileName) < ($1.completedAt, $1.photoFileName) }) {
+            let here = (pin.place.latitude, pin.place.longitude)
+            if let nearest = spots.indices
+                .map({ ($0, metres(between: spots[$0].centre, and: here)) })
+                .filter({ $0.1 <= samePlaceMetres })
+                .min(by: { $0.1 < $1.1 })?.0 {
+                spots[nearest].pins.append(pin)
+            } else {
+                spots.append(Spot(pins: [pin]))
             }
         }
-        return sides
-    }
-
-    /// The middle of a cell, in degrees.
-    static func centre(of key: PlaceKey) -> (latitude: Double, longitude: Double) {
-        let side = cellSide(at: key.z)
-        return unproject(x: (Double(key.x) + 0.5) * side,
-                         y: (Double(key.y) + 0.5) * side)
-    }
-
-    static func cellSide(at z: Int) -> Double {
-        1 / (pow(2, Double(z)) * cellsPerTile)
-    }
-
-    /// Which cell a place falls in.
-    ///
-    /// **Cells are square in PROJECTED space**, which means square on screen
-    /// and progressively smaller in metres towards the poles. That is the
-    /// right trade for a screen: visual squareness is what a person perceives,
-    /// and a grid that stayed square in metres would draw as rectangles.
-    static func key(for place: WinPlace, z: Int) -> PlaceKey {
-        let (x, y) = project(place)
-        let side = cellSide(at: z)
-        // The x axis wraps, so longitude 180 and -180 — the same meridian —
-        // land in the same cell rather than one column apart.
-        //
-        // It does NOT make the two sides of the antimeridian one place. A pin
-        // at 179.99 and a pin at -179.99 are in adjacent cells, exactly as two
-        // pins either side of any other cell boundary are. That is the
-        // documented asymmetry, and `members(of:in:)` is its mitigation.
-        let columns = Int((1 / side).rounded())
-        let cx = Int((x / side).rounded(.down)) % max(columns, 1)
-        return PlaceKey(z: z,
-                        x: cx < 0 ? cx + columns : cx,
-                        y: Int((y / side).rounded(.down)))
-    }
-
-    // MARK: - Clustering
-
-    /// Groups pins into place blocks at a zoom, tightening the grid until the
-    /// result is under `maxOnScreen`.
-    ///
-    /// - Parameter minAccuracy: pins vaguer than the cell they would sit in
-    ///   are dropped. A reduced-accuracy fix is good to one to five
-    ///   kilometres, and a confident block in the wrong neighbourhood is worse
-    ///   than no block.
-    static func cluster(_ pins: [Pin], zoom z: Int,
-                        limit: Int = maxOnScreen) -> [Cluster] {
-        // **Honesty is judged at the camera's zoom; density is not.**
-        //
-        // Filtering inside the tightening loop below was a real bug and a
-        // nasty one: the loop can run to zoom 20, where a cell is under ten
-        // metres, so every ordinary pin became "too vague to draw" and the map
-        // went completely blank the more you asked of it. The accuracy
-        // question is about what the person is actually looking at, so it is
-        // asked once, here, against the zoom they are actually at.
-        let visible = pins.filter { pin in
-            guard let accuracy = pin.place.accuracy else { return true }
-            return accuracy <= cellMetres(at: z)
-        }
-
-        // Never coarser than the distance rule allows, however far out the
-        // camera is.
-        var level = max(z, Self.minClusterZoom)
-        var result = clustered(visible, z: level)
-        // **Density is the invariant, not zoom — and thinning means COARSER.**
-        //
-        // This loop used to step `level` UP, which is backwards and was a real
-        // bug with a visible symptom. A higher zoom is a finer grid, so every
-        // pass split the clusters further and the count went up, not down: the
-        // loop ran all the way to 20, where a cell is under ten metres, and
-        // every pin became its own block sitting on top of its neighbours.
-        // Merging is what reduces a count, so the grid gets coarser until the
-        // map is legible.
-        // **And it may only coarsen so far.**
-        //
-        // The loop below used to run until the count fitted, with no floor at
-        // all, so a busy corner plus one photograph a few kilometres away
-        // collapsed into a single block sitting between them — a block drawn
-        // where nobody had ever been. From a phone: "they shouldnt be merging
-        // all the way across town... it should only be same area merging."
-        //
-        // One level is the whole allowance, which is a cell twice as wide as
-        // the camera's own: about a screen's quarter. Places further apart
-        // than that stay separate blocks even if that means more of them on
-        // screen, because a legible map that lies is worse than a busy map
-        // that does not.
-        while result.count > limit, level > minClusterZoom, z - level < maxCoarsening {
-            level -= 1
-            result = clustered(visible, z: level)
-        }
-        return result
-    }
-
-    /// The finest grid worth clustering on.
-    ///
-    /// **Two photographs of one place must stay one block, however far you
-    /// zoom.** The app already decides that 60 metres is the same place —
-    /// `samePlaceMetres`, which is what `members(of:in:)` uses when you open a
-    /// block — but the drawing clustered all the way to zoom 20, where a cell
-    /// is under ten metres. So five photographs taken standing still, with the
-    /// ordinary jitter of a phone's fix, landed in different cells and broke
-    /// apart as you zoomed in. Reported exactly that way: "even though ive
-    /// taken 5 photos in the same place it still seperated the photos instead
-    /// of keeping them in the 5 clump which is better."
-    ///
-    /// The app was contradicting itself: one distance for opening a place and
-    /// another for drawing it. Derived from the constant rather than written
-    /// as a number, so the two cannot drift.
-    static var maxClusterZoom: Int {
-        var z = 20
-        while z > 0 && cellMetres(at: z) < samePlaceMetres { z -= 1 }
-        return z
-    }
-
-    /// A cell's rough width in metres. One degree of longitude is about 111km
-    /// at the equator; nothing here needs better than an order of magnitude.
-    static func cellMetres(at z: Int) -> Double {
-        cellSide(at: z) * 360 * 111_000
-    }
-
-    private static func clustered(_ pins: [Pin], z: Int) -> [Cluster] {
-        var groups: [PlaceKey: [Pin]] = [:]
-        for pin in pins {
-            groups[key(for: pin.place, z: z), default: []].append(pin)
-        }
-
-        // **A grid boundary must not split one place.** Capping the zoom was
-        // not enough and the test said so: two photographs 25 metres apart can
-        // straddle a cell edge at ANY zoom, so five taken standing still came
-        // apart into two, then four, as you zoomed in. The grid decides
-        // roughly where blocks go; this decides what counts as one place, and
-        // distance is the only thing that can.
-        let blobs = mergingNearby(groups)
-        let occupied = Set(blobs.keys)
-        return blobs.map { key, members in
-            let newestFirst = members.sorted { $0.completedAt > $1.completedAt }
-            let centre = busiestPoint(of: members, z: z)
-            var seen = Set<String>()
-            let names = newestFirst.compactMap { seen.insert($0.photoFileName).inserted
-                ? $0.photoFileName : nil }
-            return Cluster(
-                key: key,
-                latitude: centre.latitude,
-                longitude: centre.longitude,
-                winCount: members.count,
-                category: MonthTower.dominantCategory(
-                    members.map { (category: $0.category, at: $0.completedAt) }
-                ),
-                photoFileNames: names,
-                loneSize: members.count == 1 ? members[0].size : .small,
-                crowdedSides: crowdedSides(of: key, occupied: occupied)
-            )
-        }
-        // Sorted so the output is deterministic whatever order a dictionary
-        // hands its keys back in — otherwise a snapshot test flakes and,
-        // worse, `ForEach` reorders the map for no reason.
-        .sorted { $0.id < $1.id }
-    }
-
-    /// **Where a block stands: on its crowd, not at its mean.**
-    ///
-    /// A plain centroid puts a block between the places it holds, so eight
-    /// photographs on a corner and one up the road drew the block in the
-    /// middle of the road. From a phone: the map "is still not the most
-    /// accurate at knowing where they are suppossed to be on zoom out".
-    ///
-    /// The members are re-grouped on a grid eight times finer than the one
-    /// they were clustered on, and the block stands on the mean of the
-    /// busiest of those — which is the spot somebody actually stood in. Ties
-    /// go to the group holding the newest photograph, so the answer is
-    /// deterministic.
-    private static func busiestPoint(of members: [Pin], z: Int) -> (latitude: Double, longitude: Double) {
-        let fine = min(z + 3, maxClusterZoom)
-        var groups: [PlaceKey: [Pin]] = [:]
-        for pin in members { groups[key(for: pin.place, z: fine), default: []].append(pin) }
-        let busiest = groups.values.max { a, b in
-            if a.count != b.count { return a.count < b.count }
-            let newestA = a.map(\.completedAt).max() ?? .distantPast
-            let newestB = b.map(\.completedAt).max() ?? .distantPast
-            return newestA < newestB
-        } ?? members
-        return (busiest.reduce(0) { $0 + $1.place.latitude } / Double(busiest.count),
-                busiest.reduce(0) { $0 + $1.place.longitude } / Double(busiest.count))
-    }
-
-    /// Fuse cell groups whose centroids are within `samePlaceMetres`.
-    ///
-    /// Repeated until nothing moves, so a line of pins strung across several
-    /// cells ends up as one place rather than as pairs. The surviving key is
-    /// the lowest of those merged, which keeps the id deterministic — a
-    /// centroid-based id would change every time a pin joined, and blocks
-    /// would teleport on every camera nudge.
-    ///
-    /// O(n squared) per pass over at most a few dozen groups, and it only runs
-    /// when the integer zoom changes.
-    private static func mergingNearby(
-        _ groups: [PlaceKey: [Pin]]
-    ) -> [PlaceKey: [Pin]] {
-        var blobs = groups
-            .map { (key: $0.key, pins: $0.value) }
-            .sorted { lower($0.key, than: $1.key) }
-
         var changed = true
         while changed {
             changed = false
-            search: for i in blobs.indices {
-                for j in blobs.indices where j > i {
-                    guard metres(between: centroid(of: blobs[i].pins),
-                                 and: centroid(of: blobs[j].pins)) <= samePlaceMetres
-                    else { continue }
-                    blobs[i].pins.append(contentsOf: blobs[j].pins)
-                    if lower(blobs[j].key, than: blobs[i].key) {
-                        blobs[i].key = blobs[j].key
-                    }
-                    blobs.remove(at: j)
+            search: for i in spots.indices {
+                for j in spots.indices where j > i
+                    && metres(between: spots[i].centre, and: spots[j].centre) <= samePlaceMetres {
+                    spots[i].pins += spots[j].pins
+                    spots.remove(at: j)
                     changed = true
                     break search
                 }
             }
         }
-        return Dictionary(uniqueKeysWithValues: blobs.map { ($0.key, $0.pins) })
+        return spots
     }
 
-    private static func lower(_ a: PlaceKey, than b: PlaceKey) -> Bool {
-        (a.z, a.x, a.y) < (b.z, b.x, b.y)
+    // MARK: - Blocks
+
+    /// How much of the smaller of two blocks the larger covers, 0...1, for
+    /// blocks centred `dx`, `dy` points apart.
+    static func overlap(dx: Double, dy: Double,
+                        _ a: (width: Double, height: Double),
+                        _ b: (width: Double, height: Double)) -> Double {
+        let ox = max(0, min((a.width + b.width) / 2 - abs(dx), min(a.width, b.width)))
+        let oy = max(0, min((a.height + b.height) / 2 - abs(dy), min(a.height, b.height)))
+        return (ox / min(a.width, b.width)) * (oy / min(a.height, b.height))
     }
 
-    private static func centroid(of pins: [Pin]) -> (latitude: Double, longitude: Double) {
-        let n = Double(max(pins.count, 1))
-        return (pins.reduce(0) { $0 + $1.place.latitude } / n,
-                pins.reduce(0) { $0 + $1.place.longitude } / n)
+    /// The blocks to draw at a scale step. See the type's documentation for
+    /// the rule.
+    ///
+    /// Places are taken busiest first (then newest), and each either leads a
+    /// block of its own or joins the first block it would cover past
+    /// `maxOverlap`. Then any two blocks that still cover each other past it —
+    /// a block shrinks to one cell when it gains a second win, which changes
+    /// what it covers — are joined, the less busy into the busier, until none
+    /// do. Every block stands on its leading place.
+    ///
+    /// - Parameter minAccuracy: a photograph whose fix is vaguer than a
+    ///   block's own width on screen is not drawn. A reduced-accuracy fix is
+    ///   good to kilometres, and a confident block in the wrong neighbourhood
+    ///   is worse than no block.
+    static func cluster(_ pins: [Pin], step: Int) -> [Cluster] {
+        let scale = pointsPerUnit(step: step)
+        let metresPerPoint = 360 * 111_000 / scale
+        let blockMetres = blockPoints(for: .small).width * metresPerPoint
+        let visible = pins.filter { ($0.place.accuracy ?? 0) <= max(blockMetres, samePlaceMetres) }
+
+        struct Group {
+            var lead: Spot
+            var members: [Spot]
+            let x: Double
+            let y: Double
+            var wins: Int { members.reduce(0) { $0 + $1.pins.count } }
+            var size: BlockSize { wins == 1 ? (lead.pins.first?.size ?? .small) : .small }
+            var newest: Date { members.map(\.newest).max() ?? .distantPast }
+        }
+
+        func position(_ spot: Spot) -> (x: Double, y: Double) {
+            let c = spot.centre
+            let (px, py) = project(WinPlace(latitude: c.latitude, longitude: c.longitude))
+            return (px * scale, py * scale)
+        }
+        func covered(_ a: Group, _ b: Group) -> Double {
+            // The world wraps: take the shorter way round.
+            let world = scale
+            var dx = abs(a.x - b.x)
+            dx = min(dx, world - dx)
+            return overlap(dx: dx, dy: a.y - b.y, blockPoints(for: a.size), blockPoints(for: b.size))
+        }
+        func busier(_ a: Group, _ b: Group) -> Bool {
+            if a.wins != b.wins { return a.wins > b.wins }
+            if a.newest != b.newest { return a.newest > b.newest }
+            return a.lead.id < b.lead.id
+        }
+
+        var groups: [Group] = []
+        let ordered = spots(visible).map { spot -> Group in
+            let p = position(spot)
+            return Group(lead: spot, members: [spot], x: p.x, y: p.y)
+        }.sorted(by: busier)
+        for candidate in ordered {
+            if let host = groups.indices.first(where: { covered(groups[$0], candidate) > maxOverlap }) {
+                groups[host].members.append(candidate.lead)
+            } else {
+                groups.append(candidate)
+            }
+        }
+        var changed = true
+        while changed {
+            changed = false
+            search: for i in groups.indices {
+                for j in groups.indices where j > i && covered(groups[i], groups[j]) > maxOverlap {
+                    let (keep, fold) = busier(groups[i], groups[j]) ? (i, j) : (j, i)
+                    groups[keep].members += groups[fold].members
+                    groups.remove(at: fold)
+                    changed = true
+                    break search
+                }
+            }
+        }
+
+        return groups.map { group in
+            let all = group.members.flatMap(\.pins)
+            let newestFirst = all.sorted { $0.completedAt > $1.completedAt }
+            var seen = Set<String>()
+            let names = newestFirst.compactMap { seen.insert($0.photoFileName).inserted ? $0.photoFileName : nil }
+            let centre = group.lead.centre
+            return Cluster(
+                key: PlaceKey(step: step, spot: group.lead.id),
+                latitude: centre.latitude,
+                longitude: centre.longitude,
+                winCount: all.count,
+                category: MonthTower.dominantCategory(all.map { (category: $0.category, at: $0.completedAt) }),
+                photoFileNames: names,
+                newest: group.newest,
+                loneSize: all.count == 1 ? all[0].size : .small
+            )
+        }
+        // **Newest on top.** Annotations draw in order, so the block drawn last
+        // is the one on top of any it overlaps. Ties go by identity, so the
+        // order is the same on every pass.
+        .sorted { ($0.newest, $0.id) < ($1.newest, $1.id) }
+    }
+
+    /// The blocks at an old integer zoom. For tests and probes.
+    static func cluster(_ pins: [Pin], zoom z: Int) -> [Cluster] {
+        cluster(pins, step: step(zoom: z))
     }
 
     /// Equirectangular, which is exact enough for tens of metres and needs no
@@ -552,60 +394,15 @@ enum PlaceMap {
         return (dLat * dLat + dLon * dLon).squareRoot()
     }
 
-    /// The cell one level coarser that contains this one.
-    ///
-    /// **This is what makes blocks merge instead of blink.** Zooming out
-    /// changes every id at once, so without a parent there is no way to say
-    /// which blocks became which — the whole set can only cross-fade. With it,
-    /// each child knows the point it should travel to as it goes, and each new
-    /// block knows where it came from as it arrives.
-    ///
-    /// Halving the grid is exactly one zoom level, so the parent is the cell
-    /// at `z - 1` holding half the coordinates.
-    static func parent(of key: PlaceKey) -> PlaceKey? {
-        guard key.z > 0 else { return nil }
-        return PlaceKey(z: key.z - 1, x: key.x / 2, y: key.y / 2)
-    }
-
-    /// Where a set of clusters would sit if they were one block — the centre a
-    /// merge collapses to, weighted by how much each holds so the join lands
-    /// on the busy place rather than in the gap between them.
-    static func centroid(of clusters: [Cluster]) -> (latitude: Double, longitude: Double)? {
-        let total = clusters.reduce(0) { $0 + $1.winCount }
-        guard total > 0 else { return nil }
-        return (clusters.reduce(0) { $0 + $1.latitude * Double($1.winCount) } / Double(total),
-                clusters.reduce(0) { $0 + $1.longitude * Double($1.winCount) } / Double(total))
-    }
-
-    /// The pins belonging to one cell, **plus a half-cell margin**.
-    ///
-    /// A cell is a geographic identity, not a place identity, so two pins
-    /// twenty metres apart can straddle a boundary — and "my two photos of the
-    /// same café are in different piles" is a bad bug. The map draws crisp
-    /// cells; opening one is generous. That asymmetry is deliberate: the map
-    /// is a layout, the detail screen is an answer.
-    /// How far past a cell's edge counts as the same place, in metres.
-    ///
-    /// **A distance, not a fraction of the cell.** The margin used to be half
-    /// a cell, which is 20m at the tightest zoom and FIVE KILOMETRES at the
-    /// one where you see a city — so tapping a single block opened every
-    /// photograph for miles around. The owner: "if you just click one thats
-    /// alone it still opens all the photos in that area instead of just
-    /// opening that one." The thing the margin is for — two photographs of
-    /// the same cafe landing either side of an invisible line — is a
-    /// fixed-distance problem and always was.
-    static let samePlaceMetres: Double = 60
-
+    /// **The photographs a block stood for**, laid out again at the scale it
+    /// was drawn at. Opening a block opens what it showed: a lone block opens
+    /// its one place, a joined block every place that joined it, and never the
+    /// next town because a grid cell happened to reach it.
     static func members(of key: PlaceKey, in pins: [Pin]) -> [Pin] {
-        let side = cellSide(at: key.z)
-        let margin = min(side / 2, samePlaceMetres / (360 * 111_000))
-        let minX = Double(key.x) * side - margin
-        let maxX = Double(key.x + 1) * side + margin
-        let minY = Double(key.y) * side - margin
-        let maxY = Double(key.y + 1) * side + margin
-        return pins.filter { pin in
-            let (x, y) = project(pin.place)
-            return x >= minX && x <= maxX && y >= minY && y <= maxY
+        guard let block = cluster(pins, step: key.step).first(where: { $0.key == key }) else {
+            return []
         }
+        let names = Set(block.photoFileNames)
+        return pins.filter { names.contains($0.photoFileName) }
     }
 }
