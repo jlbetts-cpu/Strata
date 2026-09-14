@@ -112,9 +112,18 @@ struct Replay: Equatable {
     }
 
     /// The only function here that touches `@Model`.
+    ///
+    /// **The tower's rule, exactly** (`TowerViewModel.buildTower`): a log is a
+    /// block when it is completed OR skipped and still has its habit. The
+    /// replay is the tower replayed, so it must not disagree with the Wins tab
+    /// about what stands in it; `ReplayLoader` fetches by the same rule.
+    static func isBlock(_ log: HabitLog) -> Bool {
+        (log.completed || log.skipped) && log.habit != nil
+    }
+
     static func wins(from logs: [HabitLog]) -> [ReplayWin] {
         logs.compactMap { log in
-            guard log.completed, !log.skipped, let habit = log.habit else { return nil }
+            guard isBlock(log), let habit = log.habit else { return nil }
             return ReplayWin(
                 id: log.id,
                 dateString: log.dateString,

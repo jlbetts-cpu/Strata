@@ -102,6 +102,42 @@ struct ReplayLoaderHasWinsTests {
         #expect(!ReplayLoader.hasWins(week, context: context))
     }
 
+    /// A skipped habit's log, the way the Plan leaves one: not completed,
+    /// skipped, with its habit. The tower draws it as a block.
+    private func skippedLog(on day: Date, context: ModelContext) throws -> HabitLog {
+        let habit = Habit(title: "Stretch", category: .health)
+        context.insert(habit)
+        let log = HabitLog(habit: habit, dateString: DateUtils.dateString(from: day), completed: false)
+        log.skipped = true
+        context.insert(log)
+        try context.save()
+        return log
+    }
+
+    @Test("a skipped log is a block, as on the tower: hasWins, the replay and Replay.wins agree")
+    func skippedCountsLikeTheTower() throws {
+        let context = try context()
+        let log = try skippedLog(on: Date(), context: context)
+        let week = ReplayPeriod.week(containing: Date())
+        #expect(Replay.isBlock(log))
+        #expect(ReplayLoader.hasWins(week, context: context))
+        let replay = ReplayLoader.replay(for: week, context: context)
+        #expect(replay.count == 1, "hasWins said yes and the replay had \(replay.count) blocks")
+        #expect(Replay.wins(from: [log]).count == 1)
+    }
+
+    @Test("a log neither completed nor skipped is no block: hasWins says no and the replay is empty")
+    func undoneLogIsNothing() throws {
+        let context = try context()
+        let log = try skippedLog(on: Date(), context: context)
+        log.skipped = false
+        try context.save()
+        let week = ReplayPeriod.week(containing: Date())
+        #expect(!Replay.isBlock(log))
+        #expect(!ReplayLoader.hasWins(week, context: context))
+        #expect(ReplayLoader.replay(for: week, context: context).count == 0)
+    }
+
     @Test("a win outside the period's days does not count")
     func falseWhenWinIsOutsideRange() throws {
         let context = try context()

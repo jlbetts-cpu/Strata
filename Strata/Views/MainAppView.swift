@@ -225,8 +225,8 @@ struct MainAppView: View {
     @State private var debugReplayIsSample = true
     /// The period whose window is open right now, if it has a win. Drives the
     /// Wins tab pill. Recomputed on scene-active, after `refreshData()`
-    /// finds a new win, the way `DailyReminder` re-decides itself, and at
-    /// the next window edge (`replayEdge`).
+    /// finds a new win or a win count changes, the way `DailyReminder`
+    /// re-decides itself, and at the next window edge (`replayEdge`).
     @State private var liveReplay: ReplayPeriod?
     /// The next moment a replay window opens or closes. The pill is
     /// re-decided there once, so a window edge that passes with the app open
@@ -235,6 +235,10 @@ struct MainAppView: View {
     @State private var replayEdge: Date?
     /// The replay the pill opened, played over the tower.
     @State private var playingReplay: Replay?
+    /// `logs.count` and the tower's block count when the pill was last
+    /// re-decided from `refreshData()`. A win deleted or un-done drops no
+    /// block, so without these the pill outlived the period's last win.
+    @State private var replayDecidedCounts: [Int]?
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
@@ -766,12 +770,23 @@ struct MainAppView: View {
             if let period = liveReplay {
                 Button {
                     HapticsEngine.lightTap()
-                    playingReplay = ReplayLoader.replay(for: period, context: modelContext)
+                    let loaded = ReplayLoader.replay(for: period, context: modelContext)
+                    // The pill can be a moment behind the store (a win
+                    // deleted elsewhere). An empty replay is never played;
+                    // the pill is re-decided instead, and leaves.
+                    if loaded.count > 0 {
+                        playingReplay = loaded
+                    } else {
+                        updateLiveReplay()
+                    }
                 } label: {
+                    // Set as the replay's own Share control: the app's two
+                    // weights, the label step, one line.
                     Text(period.title)
-                        .font(Typography.bodySmall.weight(.semibold))
+                        .font(Typography.headerMedium)
+                        .lineLimit(1)
                         .foregroundStyle(AppColors.inkPrimary)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, GridConstants.gapLabel)
                         .frame(height: GlassIconButton.defaultSide)
                 }
                 .glassCapsule()
@@ -1740,7 +1755,14 @@ struct MainAppView: View {
         // droppedIDs rather than run every call — refreshData is a hot path,
         // called from a 60s timer among other places, and hasWins's two
         // fetchCounts are cheap but not free enough to pay when nothing changed.
-        if !droppedIDs.isEmpty { updateLiveReplay() }
+        //
+        // A count changing too: a deleted or un-done win drops nothing, and
+        // the period's last one going must take the pill with it.
+        let replayCounts = [logs.count, towerVM.placedBlocks.count]
+        if !droppedIDs.isEmpty || replayCounts != replayDecidedCounts {
+            replayDecidedCounts = replayCounts
+            updateLiveReplay()
+        }
         // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
         // A win today means today's reminder has nothing to say.
@@ -2864,6 +2886,11 @@ struct MainAppView: View {
 
         // 7. Rebuild all derived state from now-empty database
         refreshData()
+
+        // 8. No wins, so no replay: its notifications go, and the pill is
+        // re-decided now rather than when the query next catches up.
+        Task { await ReplayReminder.removePending() }
+        updateLiveReplay()
     }
 
 }
