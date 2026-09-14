@@ -30,6 +30,8 @@ struct SettingsView: View {
     /// Both default to on.
     @AppStorage(PhotoLibrarySaver.defaultsKey) private var savesToCameraRoll = true
     @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
+    /// On by default, the same default `ReplayReminder.isEnabled` registers.
+    @AppStorage(ReplayReminder.defaultsKey) private var replayRemindersOn = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
     /// The sample replay being previewed, from the Replays section.
@@ -141,13 +143,16 @@ struct SettingsView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                Toggle(isOn: Binding(get: { ReplayReminder.isEnabled }, set: { on in
-                    ReplayReminder.isEnabled = on
-                    Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
-                })) {
+                // `@AppStorage`, not a Binding over UserDefaults: SwiftUI is
+                // told when the value changes, so the switch cannot show one
+                // thing while the store holds another.
+                Toggle(isOn: $replayRemindersOn) {
                     Label { Text("Weekly and monthly replays") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
                 }
                 .tint(AppColors.switchOn)
+                .onChange(of: replayRemindersOn) { _, on in
+                    Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
+                }
             } header: {
                 Text("Notifications")
             } footer: {
