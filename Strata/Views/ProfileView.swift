@@ -514,6 +514,17 @@ struct ProfileView: View {
                 }
                 .tint(AppColors.switchOn)
 
+                // **Its look, wherever it appears.** The owner: "a way to add
+                // the filter to the profile picture head so the user can get
+                // different variety and choice of their head." The same four
+                // looks the camera has, on the head itself: your picture, the
+                // map, and the photos you add it to.
+                if let made = heads.undressed {
+                    HeadLookPicker(head: made, selection: heads.look) { kind in
+                        heads.setLook(kind)
+                    }
+                }
+
                 Toggle(isOn: Binding(get: { heads.showsOnMap },
                                      set: { heads.setShowsOnMap($0) })) {
                     Label {

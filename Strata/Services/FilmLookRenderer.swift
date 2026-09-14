@@ -57,6 +57,26 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         return UIImage(cgImage: out, scale: upright.scale, orientation: .up)
     }
 
+    /// **A look on a cut-out, keeping its outline.** A head is a picture with
+    /// nothing around it; the pipeline's grain and glow do not know that and
+    /// would lay speckle and haze into the empty corners. The result takes the
+    /// original's own transparency back, so the look is on the head and
+    /// nowhere else.
+    func renderKeepingShape(_ image: UIImage, look: FilmLook) -> UIImage {
+        guard look.kind != .none, let cg = image.cgImage else { return image }
+        let source = CIImage(cgImage: cg)
+        let graded = apply(look, to: source).cropped(to: source.extent)
+        let shaped = graded.applyingFilter("CIBlendWithAlphaMask", parameters: [
+            kCIInputBackgroundImageKey: CIImage(color: .clear).cropped(to: source.extent),
+            kCIInputMaskImageKey: source
+        ])
+        guard let out = context.createCGImage(shaped, from: source.extent,
+                                              format: .RGBA8, colorSpace: outputSpace) else {
+            return image
+        }
+        return UIImage(cgImage: out, scale: image.scale, orientation: .up)
+    }
+
     /// The whole pipeline, as `CIImage`s.
     func apply(_ look: FilmLook, to input: CIImage) -> CIImage {
         var image = input

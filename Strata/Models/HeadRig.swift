@@ -84,6 +84,30 @@ nonisolated struct HeadRig: @unchecked Sendable {
 
     func has(_ expression: Expression) -> Bool { faces[expression] != nil }
 
+    /// **The same head in a film look**: every face through the real
+    /// pipeline, keeping its outline, and the drawn irises graded by the same
+    /// colour maths so the eyes belong to the face they sit in. Slow enough to
+    /// be done off the main actor — see `HeadStore.setLook(_:)`.
+    func dressed(in look: FilmLook) -> HeadRig {
+        guard look.kind != .none else { return self }
+        let renderer = FilmLookRenderer.shared
+        var dressedFaces: [Expression: Face] = [:]
+        for (expression, face) in faces {
+            let eyes = face.eyes.map { eye -> Eye in
+                var graded = eye
+                if let iris = eye.iris {
+                    let out = look.graded(FilmLook.RGB(iris.r, iris.g, iris.b))
+                    graded.iris = RGB(r: out.r, g: out.g, b: out.b)
+                }
+                return graded
+            }
+            dressedFaces[expression] = Face(image: renderer.renderKeepingShape(face.image, look: look), eyes: eyes)
+        }
+        return HeadRig(faces: dressedFaces,
+                       shut: shut.map { renderer.renderKeepingShape($0, look: look) },
+                       contentHeight: contentHeight, chin: chin) ?? self
+    }
+
     /// Every face this head really has, in a fixed order so two heads with the
     /// same faces behave the same way.
     var expressions: [Expression] { Expression.allCases.filter(has) }

@@ -42,7 +42,15 @@ final class HeadStore {
     /// 200pt — 600px at 3x.
     nonisolated static let side: CGFloat = 600
 
+    /// The head as every screen draws it: wearing `look`.
     private(set) var head: HeadRig?
+    /// The head as it was made, before any look.
+    private(set) var undressed: HeadRig?
+    /// The film look the head wears everywhere it appears. The owner: "a way
+    /// to add the filter to the profile picture head so the user can get
+    /// different variety and choice of their head."
+    private(set) var look: FilmLook.Kind = .none
+    @ObservationIgnored private var dressing: Task<Void, Never>?
     private(set) var isProfilePicture: Bool
     private(set) var showsOnMap: Bool
     private(set) var showsCameraSticker: Bool
@@ -53,6 +61,7 @@ final class HeadStore {
         static let map = "headOnMap"
         static let sticker = "headCameraSticker"
         static let tower = "headOnTower"
+        static let look = "headLook"
     }
 
     private init() {
@@ -61,9 +70,10 @@ final class HeadStore {
         showsOnMap = defaults.bool(forKey: Key.map)
         showsCameraSticker = defaults.bool(forKey: Key.sticker)
         showsOnTower = defaults.bool(forKey: Key.tower)
-        head = Self.load()
+        look = defaults.string(forKey: Key.look).flatMap(FilmLook.Kind.init(rawValue:)) ?? .none
+        undressed = Self.load()
         #if DEBUG
-        if head == nil, DebugHarness.seedsHead { head = HeadRig.creator() }
+        if undressed == nil, DebugHarness.seedsHead { undressed = HeadRig.creator() }
         if let on = DebugHarness.headSwitches {
             isProfilePicture = on.contains("picture")
             showsOnMap = on.contains("map")
@@ -71,6 +81,33 @@ final class HeadStore {
             showsOnTower = on.contains("tower")
         }
         #endif
+        head = undressed
+        dress()
+    }
+
+    // MARK: - Look
+
+    /// Puts the head in a look, everywhere. The undressed head stays on
+    /// screen until the dressed one is ready, which is a fraction of a second
+    /// for five small faces.
+    func setLook(_ kind: FilmLook.Kind) {
+        look = kind
+        UserDefaults.standard.set(kind.rawValue, forKey: Key.look)
+        dress()
+    }
+
+    private func dress() {
+        dressing?.cancel()
+        guard let undressed else { head = nil; return }
+        let chosen = FilmLook.look(look)
+        guard chosen.kind != .none else { head = undressed; return }
+        dressing = Task { [undressed] in
+            let dressed = await Task.detached(priority: .userInitiated) {
+                undressed.dressed(in: chosen)
+            }.value
+            guard !Task.isCancelled else { return }
+            head = dressed
+        }
     }
 
     // MARK: - Switches
@@ -128,8 +165,10 @@ final class HeadStore {
                                 eyes: Dictionary(uniqueKeysWithValues: payload.faces.map { ($0.key.rawValue, $0.value.eyes) }))
         try JSONEncoder().encode(manifest).write(to: directory.appending(path: "head.json"), options: .atomic)
 
-        let isFirstHead = head == nil
+        let isFirstHead = undressed == nil
+        undressed = rig
         head = rig
+        dress()
         // Making a head is itself the request to use it: as your picture, and
         // as a sticker you can add to a photo (it still takes a press each
         // time). The map and the tower put it somewhere without asking each
@@ -143,6 +182,8 @@ final class HeadStore {
     /// Removes the files and turns every switch off.
     func delete() {
         if let directory = Self.directory { try? FileManager.default.removeItem(at: directory) }
+        dressing?.cancel()
+        undressed = nil
         head = nil
         setProfilePicture(false)
         setShowsOnMap(false)
