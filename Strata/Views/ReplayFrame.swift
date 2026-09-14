@@ -240,38 +240,3 @@ struct ReplayFrame: View {
     /// The count's layout top sits this far above its cap.
     private static let tallyAscent: CGFloat = GridConstants.roundedCapInset * GridConstants.tallyNumeral
 }
-
-#if DEBUG
-/// Temporary: a replay frozen at `-strataReplayAt`, for screenshots.
-/// Task 7 replaces it with `ReplayView`.
-struct ReplayDebugFrame: View {
-    let replay: Replay
-    @State private var images: ReplayImages?
-    @Environment(\.displayScale) private var displayScale
-
-    var body: some View {
-        GeometryReader { geo in
-            let script = ReplayScript(replay: replay, metrics: .standard(frame: geo.size),
-                                      reduceMotion: false)
-            if let images {
-                ReplayFrame(script: script, images: images,
-                            t: DebugHarness.replayAt ?? script.duration,
-                            showsSampleBadge: true,
-                            topInset: Self.windowInsets.top,
-                            bottomInset: Self.windowInsets.bottom)
-            }
-        }
-        .ignoresSafeArea()
-        .task {
-            let cell = GridConstants.cellSize(forGridWidth: Self.windowWidth - GridConstants.horizontalPadding * 2)
-            images = await ReplayImages.load(replay, width: cell * displayScale)
-        }
-    }
-
-    private static var window: UIWindow? {
-        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow
-    }
-    private static var windowInsets: UIEdgeInsets { window?.safeAreaInsets ?? .zero }
-    private static var windowWidth: CGFloat { window?.bounds.width ?? 402 }
-}
-#endif

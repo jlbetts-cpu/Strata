@@ -77,6 +77,17 @@ enum SoundEngine {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     }
 
+    /// Starts the audio engine now rather than on the first sound.
+    ///
+    /// Starting it takes a moment on the main thread (measured: the first
+    /// landing of a replay held the frame 405 to 445ms, and 50 to 67ms when
+    /// muted). Something that is about to make sounds on a clock calls this
+    /// before the clock starts. Muted, it does nothing, as `play` would.
+    static func prepare() {
+        guard !isMuted else { return }
+        setUp()
+    }
+
     private static func setUp() {
         guard !isSetUp else { return }
 
@@ -326,7 +337,11 @@ enum SoundEngine {
     /// A block touching down. Mass picks the octave; the column places it
     /// across the stereo field, so the sound comes from where you can see it
     /// happen.
-    static func blockImpact(mass: Int, column: Int = 2) {
+    ///
+    /// `gain` scales the voice's level. A replay plays a landing at a reduced
+    /// level, so a month's downpour is a patter under the picture rather than
+    /// the full knock of a win you just logged.
+    static func blockImpact(mass: Int, column: Int = 2, gain: Double = 1) {
         let pitch: Double = switch mass {
         case 1: 130.81   // C3
         case 2: 98.00    // G2
@@ -341,7 +356,7 @@ enum SoundEngine {
             partials: body,
             duration: 0.45,
             decay: 13.0,
-            gain: 0.26,
+            gain: 0.26 * gain,
             attack: 0.002,
             noise: 0.16,
             noiseDecay: 190,

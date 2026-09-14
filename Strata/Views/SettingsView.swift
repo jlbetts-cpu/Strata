@@ -32,6 +32,8 @@ struct SettingsView: View {
     @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
+    /// The sample replay being previewed, from the Replays section.
+    @State private var previewing: Replay?
 
     /// What the photographs are costing, in the units a phone uses.
     ///
@@ -183,6 +185,25 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.switchOn)
+            }
+
+            // MARK: - Replays
+
+            // **Watch it before it happens.** A replay only arrives at the end of a week
+            // or a month, so without this nobody could see what one looks like until
+            // then. The preview is the real replay on sample wins, not a video of one.
+            Section("Replays") {
+                // The ink is on the rows, not the Section: on the Section it
+                // also inked the header, which then read darker and heavier
+                // than every other heading on the screen.
+                Button { previewing = ReplaySample.replay(.week, now: Date()) } label: {
+                    Label { Text("Preview Your Week") } icon: { SettingsIcon(systemName: "square.stack.3d.up.fill") }
+                }
+                .foregroundStyle(AppColors.inkPrimary)
+                Button { previewing = ReplaySample.replay(.month, now: Date()) } label: {
+                    Label { Text("Preview Your Month") } icon: { SettingsIcon(systemName: "calendar") }
+                }
+                .foregroundStyle(AppColors.inkPrimary)
             }
 
             // MARK: - Camera
@@ -370,6 +391,9 @@ struct SettingsView: View {
         .task { await measureStorage() }
         .fullScreenCover(isPresented: $replayOnboarding) {
             OnboardingView { replayOnboarding = false }
+        }
+        .fullScreenCover(item: $previewing) { replay in
+            ReplayView(replay: replay, isSample: true) { previewing = nil }
         }
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }

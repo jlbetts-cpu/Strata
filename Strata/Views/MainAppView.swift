@@ -2872,8 +2872,8 @@ private struct DebugReplayCover: ViewModifier {
 
     func body(content: Content) -> some View {
         #if DEBUG
-        content.fullScreenCover(item: $replay) { replay in
-            ReplayDebugFrame(replay: replay)
+        content.fullScreenCover(item: $replay) { shown in
+            ReplayView(replay: shown, isSample: true) { replay = nil }
         }
         #else
         content

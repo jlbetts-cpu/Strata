@@ -157,6 +157,9 @@ enum DebugHarness {
     static var openReplay: String? { argument("-strataOpenReplay") }
     /// `-strataReplayAt <seconds>`: freezes the replay at that moment, for screenshots.
     static var replayAt: Double? { argument("-strataReplayAt").flatMap(Double.init) }
+    /// `-strataReplayProbe`: the playing replay publishes its clock as an
+    /// accessibility element, so a UI test can tell a pause from a skip.
+    static var probesReplay: Bool { ProcessInfo.processInfo.arguments.contains("-strataReplayProbe") }
 
     /// The creator's bundled faces as a made head, from `-strataSeedHead`.
     /// The simulator has no camera to make a real one with, so without this

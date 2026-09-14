@@ -374,6 +374,22 @@ enum GridConstants {
     /// One dance per this many wins.
     static let danceEvery: Int = 10
 
+    // MARK: - A replay, playing
+
+    /// How long a press has to be held before a replay pauses. Shorter than
+    /// this it is a tap, which skips to the close; pausing on touch-down
+    /// instead would freeze every tap for a moment before the skip.
+    static let replayHoldToPause: Double = 0.2
+    /// Landing haptics and sounds a replay plays in any one second. A month
+    /// can land more blocks than that; past the limit the rest are silent,
+    /// so a busy day is a patter and not noise.
+    static let replayFeedbackPerSecond: Int = 12
+    /// A frame that moves the clock further than this is a skip, not
+    /// playback, and plays nothing for the landings it passed.
+    static let replaySkipGap: Double = 0.25
+    /// The level a replay's landings sound at, against a live landing's 1.
+    static let replayImpactGain: Double = 0.6
+
     /// How far above the top of the screen a block starts its fall.
     ///
     /// The block has to come from somewhere, and "somewhere" has to be off
