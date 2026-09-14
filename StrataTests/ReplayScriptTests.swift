@@ -89,6 +89,71 @@ struct ReplayScriptTests {
         }
     }
 
+    @Test("the camera never lurches during the build: no step over 12pt in a 60Hz frame, unless the tower itself grows faster",
+          arguments: [(ReplayKind.month, 150), (ReplayKind.week, 60)])
+    func cameraNeverLurches(kind: ReplayKind, wins: Int) {
+        // One keyframe per landing squeezed a two-row step into the 50ms
+        // between two landings: the sample month moved 186pt in about 55ms at
+        // t=3.62, and the film showed the tower dropping in one frame. Against
+        // this test the old keys measured 82.6pt (month, 150) and 25.8pt
+        // (week, 60).
+        let s = script(kind, wins: wins)
+        var worst: (step: CGFloat, t: Double) = (0, 0)
+        var last = s.camera(at: 0).rise
+        var t = 1.0 / 60
+        while t < s.revealStart {
+            let rise = s.camera(at: t).rise
+            if rise - last > worst.step { worst = (rise - last, t) }
+            last = rise
+            t += 1.0 / 60
+        }
+        // The tower's own fastest growth: the most rise its landings demand
+        // within any half second, per 60Hz frame. A camera that keeps every
+        // block in frame cannot be slower than the tower for long.
+        let followHeight = s.metrics.baseY - s.metrics.followY
+        var top: CGFloat = 0
+        var needs: [(time: Double, rise: CGFloat)] = []
+        for k in s.replay.blocks.indices {
+            let f = s.blockFrame(k)
+            top = max(top, f.minY + f.height)
+            if let landing = s.landings.first(where: { $0.blockIndex == k }) {
+                needs.append((landing.time, max(0, top - followHeight)))
+            }
+        }
+        var growth: CGFloat = 0
+        for a in needs { for b in needs where b.time > a.time && b.time - a.time <= 0.5 {
+            growth = max(growth, (b.rise - a.rise) / 0.5 / 60)
+        } }
+        // 12pt a frame is the limit. Where the tower itself grows faster
+        // than that over half a second (the 150-win month: 12.4pt a frame),
+        // the camera may reach half as much again as the tower, and no more:
+        // the ease into and out of a climb has a peak above its average.
+        let limit = max(12, growth * 1.5)
+        #expect(worst.step <= limit,
+                "camera rose \(worst.step)pt in one frame at t=\(worst.t); the tower's own fastest growth is \(growth)pt a frame")
+    }
+
+    @Test("the camera starts rising no earlier than 0.75s before the first landing that needs it",
+          arguments: [(ReplayKind.month, 150), (ReplayKind.week, 60), (ReplayKind.month, 30)])
+    func cameraDoesNotRiseEarly(kind: ReplayKind, wins: Int) {
+        let s = script(kind, wins: wins)
+        let followHeight = s.metrics.baseY - s.metrics.followY
+        var top: CGFloat = 0
+        var firstNeed = Double.infinity
+        for k in s.replay.blocks.indices {
+            let f = s.blockFrame(k)
+            top = max(top, f.minY + f.height)
+            if top > followHeight, let landing = s.landings.first(where: { $0.blockIndex == k }) {
+                firstNeed = min(firstNeed, landing.time)
+            }
+        }
+        #expect(firstNeed.isFinite, "this case has to need the camera")
+        var t = 0.0
+        while t < s.revealStart, s.camera(at: t).rise <= 0.5 { t += 1.0 / 240 }
+        #expect(t >= firstNeed - 0.75 - 1.0 / 240,
+                "camera started rising at \(t), \(firstNeed - t)s before the first landing that needs it (\(firstNeed))")
+    }
+
     @Test("every block is at rest before the reveal, and the whole tower is in frame after it")
     func revealFits() {
         let s = script(.month, wins: 150)

@@ -55,6 +55,9 @@ struct ReplayScript {
         let maxGap = 0.55
         let floorGap = 0.04
         let cameraLead = 0.25
+        /// The build camera starts rising for the first block that needs it
+        /// no earlier than this before that block lands.
+        let cameraEarliestRise = 0.75
         let labelFade = 0.22
         let labelSlide: CGFloat = 8
         let danceWave = 0.6
@@ -227,10 +230,109 @@ struct ReplayScript {
                     column: replay.blocks[$0].column, blockIndex: $0)
         }.sorted { $0.time < $1.time }
 
-        var keys: [(x: Double, y: Double)] = [(0, 0)]
-        for k in 0..<n { keys.append((max(0, startList[k] + times[k] - pacing.cameraLead), Double(rises[k]))) }
-        cameraCurve = MonotoneCurve(points: keys)
+        // **The camera is a taut string through the space its two promises
+        // leave it.**
+        //
+        // It used to take one key per landing, `(landing - lead, rise)`. In a
+        // month landings are 50 to 140ms apart, so a two-row step between two
+        // keys was squeezed into 50ms: the sample month moved 186pt in about
+        // 55ms at t=3.62, and the film showed the tower drop in one frame.
+        //
+        // Two alternatives were measured and failed:
+        // - A fixed 0.5s grid of look-ahead keys was still 21pt per 60Hz frame
+        //   in a 150-win month. Rising 0.75s ahead, it also carried blocks
+        //   that had not started falling down into the frame: 25 appeared up
+        //   to 92pt on screen instead of falling in from above.
+        // - The laziest climb at the lowest workable speed kept both promises
+        //   but moved in stop-start stairs, 15pt per frame at each step.
+        //
+        // The promises are a corridor.
+        // - FLOOR: lead seconds before each landing, the camera is at least
+        //   that block's rise, or the block lands above the follow line.
+        // - CEILING: at each fall's first instant, the camera is at most that
+        //   block's rise plus the drop clearance, or the block starts on
+        //   screen. It is also 0 until `cameraEarliestRise` before the first
+        //   landing that needs any rise.
+        //
+        // The keys are the corners of the SHORTEST path through that corridor
+        // (string pulling). It is as straight as the corridor allows, so the
+        // camera climbs at the tower's own rate and bends only where a floor
+        // or a ceiling makes it. `MonotoneCurve` rounds the bends. The corridor
+        // is narrowed by `margin` on both sides (floors never past
+        // `finalRise`), so that rounding cannot carry the curve out of it.
         finalRise = rises.max() ?? 0
+        let lead = pacing.cameraLead
+        let margin = 3.0
+        // Constraint points: y is a floor (the path at x is at least y) or
+        // a ceiling (at most y).
+        var floors: [(x: Double, y: Double)] = []
+        var ceilings: [(x: Double, y: Double)] = []
+        for k in 0..<n where rises[k] > 0 {
+            floors.append((max(0, startList[k] + times[k] - lead), min(Double(rises[k]) + margin, Double(finalRise))))
+        }
+        for k in 0..<n {
+            ceilings.append((startList[k], Double(rises[k] + GridConstants.dropClearance) - 2 - margin))
+        }
+        if let firstNeed = (0..<n).filter({ rises[$0] > 0 }).map({ startList[$0] + times[$0] }).min() {
+            ceilings.append((max(0, firstNeed - pacing.cameraEarliestRise), 0))
+        }
+        var keys: [(x: Double, y: Double)] = [(0, 0)]
+        if finalRise > 0, let end = floors.map(\.x).max() {
+            let events = (floors.map { (x: $0.x, y: $0.y, isFloor: true) }
+                          + ceilings.map { (x: $0.x, y: $0.y, isFloor: false) }
+                          + [(x: end, y: Double(finalRise), isFloor: true)])
+                .filter { $0.x > 1e-9 }
+                .sorted { $0.x < $1.x }
+            var apex = (x: 0.0, y: 0.0)
+            var i = 0
+            while i < events.count {
+                // Sweep forward from the apex, narrowing the slopes a straight
+                // line from it may take, until the window closes.
+                var low = -Double.infinity, high = Double.infinity
+                var lowAt = -1, highAt = -1
+                var bent = false
+                var j = i
+                while j < events.count {
+                    let e = events[j]
+                    let dx = e.x - apex.x
+                    if dx <= 1e-9 {
+                        // Same instant as the apex: a floor raises it.
+                        if e.isFloor, e.y > apex.y { apex.y = e.y }
+                        j += 1
+                        continue
+                    }
+                    let slope = (e.y - apex.y) / dx
+                    if e.isFloor {
+                        if slope > high {
+                            // Pull tight around the ceiling that set `high`.
+                            apex = (events[highAt].x, events[highAt].y)
+                            keys.append(apex); i = highAt + 1; bent = true; break
+                        }
+                        if slope > low { low = slope; lowAt = j }
+                    } else {
+                        if slope < low {
+                            apex = (events[lowAt].x, events[lowAt].y)
+                            keys.append(apex); i = lowAt + 1; bent = true; break
+                        }
+                        if slope < high { high = slope; highAt = j }
+                    }
+                    j += 1
+                }
+                if !bent {
+                    // Reached the end: straight to the last floor, then flat.
+                    let toEnd = (Double(finalRise) - apex.y) / max(end - apex.x, 1e-9)
+                    if lowAt >= 0, low > toEnd + 1e-12 { keys.append((events[lowAt].x, events[lowAt].y)) }
+                    break
+                }
+            }
+            // Exactly `finalRise`: the reveal starts from it.
+            keys.append((end, Double(finalRise)))
+        }
+        // Where a ceiling sits below an earlier floor no path honours both,
+        // and the apex steps down to the ceiling; `MonotoneCurve` holds the
+        // camera level there rather than moving it down, so the floor wins,
+        // as it did before.
+        cameraCurve = MonotoneCurve(points: keys)
 
         let lastLanding = landings.last?.time ?? pacing.open
         // A trailing empty day (a quiet weekend, a month ending quietly) has
