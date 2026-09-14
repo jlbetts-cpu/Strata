@@ -155,6 +155,15 @@ enum DebugHarness {
 
     /// `-strataOpenReplay week|month|sampleWeek|sampleMonth`: opens a replay on launch.
     static var openReplay: String? { argument("-strataOpenReplay") }
+    /// Overrides the per-day win count `-strataSeedHistory` seeds, from
+    /// `-strataSeedHistoryPerDay <n>`.
+    ///
+    /// The default formula (`2 + (back * 3) % 6`) tops out around 7 a day,
+    /// which cannot reach a ~150-win month inside the handful of days
+    /// elapsed so far — a real month replay needs a real month's worth of
+    /// wins to measure against, not the sparse-history fixture Memories
+    /// tunes its curation gate against.
+    static var seedHistoryPerDay: Int? { argument("-strataSeedHistoryPerDay").flatMap(Int.init) }
     /// `-strataReplayAt <seconds>`: freezes the replay at that moment, for screenshots.
     static var replayAt: Double? { argument("-strataReplayAt").flatMap(Double.init) }
     /// `-strataReplayProbe`: the playing replay publishes its clock as an
@@ -617,6 +626,7 @@ enum DebugHarness {
     static var wantsSeed: Bool {
         argument("-strataSeedWins") != nil
             || argument("-strataSeedHistory") != nil
+            || argument("-strataSeedHistoryPerDay") != nil
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
@@ -718,7 +728,7 @@ enum DebugHarness {
                 // a history, and the empty days are half of what the chart
                 // above the albums is for.
                 if back % 7 == 3 || back % 11 == 5 { continue }
-                let count = 2 + (back * 3) % 6
+                let count = seedHistoryPerDay ?? (2 + (back * 3) % 6)
                 for i in 0..<count {
                     let n = back * 7 + i
                     guard let win = try? QuickWinService.logWin(

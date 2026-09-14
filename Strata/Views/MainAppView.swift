@@ -219,6 +219,10 @@ struct MainAppView: View {
     @State private var wantsDebugExpand = false
     /// `-strataOpenReplay`: the replay opened on launch. DEBUG only.
     @State private var debugReplay: Replay?
+    /// Whether the launch-opened replay is a sample (bundled faces, no close
+    /// gate on real data) or the user's own wins. Read once, at the moment
+    /// `debugReplay` is set, by `DebugReplayCover`.
+    @State private var debugReplayIsSample = true
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
@@ -355,7 +359,7 @@ struct MainAppView: View {
                 wants: $wantsDebugExpand,
                 expanded: $expandedBlockID
             ))
-            .modifier(DebugReplayCover(replay: $debugReplay))
+            .modifier(DebugReplayCover(replay: $debugReplay, isSample: debugReplayIsSample))
             // Not while a drop is queued. Inserting the habit changes
             // habits.count, which used to refresh the tower immediately — so
             // the block appeared in its final place, then vanished when the
@@ -1460,14 +1464,28 @@ struct MainAppView: View {
                 print("[SHARE] wrote \(Int(image.size.width))x\(Int(image.size.height)) to \(url.path)")
             }
         }
-        if let which = DebugHarness.openReplay, which.hasPrefix("sample") {
+        if let which = DebugHarness.openReplay {
             // A beat after launch, not in this pass. A cover takes its
             // presenter's forced appearance, and the launch tab is the camera,
             // which pins the window dark; presented before the start tab's
             // scheme lands, the replay rendered dark on a light simulator.
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                debugReplay = ReplaySample.replay(which == "sampleMonth" ? .month : .week, now: Date())
+                switch which {
+                case "sampleWeek":
+                    debugReplayIsSample = true
+                    debugReplay = ReplaySample.replay(.week, now: Date())
+                case "sampleMonth":
+                    debugReplayIsSample = true
+                    debugReplay = ReplaySample.replay(.month, now: Date())
+                case "week":
+                    debugReplayIsSample = false
+                    debugReplay = ReplayLoader.replay(for: .week(containing: Date()), context: modelContext)
+                case "month":
+                    debugReplayIsSample = false
+                    debugReplay = ReplayLoader.replay(for: .month(containing: Date()), context: modelContext)
+                default: break
+                }
             }
         }
         switch DebugHarness.openSheet {
@@ -2869,11 +2887,14 @@ private struct DebugExpandFirstBlock: ViewModifier {
 /// reason as the one above: `body` is at the type-checker's ceiling.
 private struct DebugReplayCover: ViewModifier {
     @Binding var replay: Replay?
+    /// `false` for `-strataOpenReplay week|month`: the user's own wins, not
+    /// the bundled sample faces.
+    let isSample: Bool
 
     func body(content: Content) -> some View {
         #if DEBUG
         content.fullScreenCover(item: $replay) { shown in
-            ReplayView(replay: shown, isSample: true) { replay = nil }
+            ReplayView(replay: shown, isSample: isSample) { replay = nil }
         }
         #else
         content
