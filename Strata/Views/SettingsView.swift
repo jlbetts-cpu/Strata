@@ -140,6 +140,14 @@ struct SettingsView: View {
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+
+                Toggle(isOn: Binding(get: { ReplayReminder.isEnabled }, set: { on in
+                    ReplayReminder.isEnabled = on
+                    Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
+                })) {
+                    Label { Text("Weekly and monthly replays") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
+                }
+                .tint(AppColors.switchOn)
             } header: {
                 Text("Notifications")
             } footer: {

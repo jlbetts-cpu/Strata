@@ -169,6 +169,11 @@ enum DebugHarness {
     /// `-strataReplayProbe`: the playing replay publishes its clock as an
     /// accessibility element, so a UI test can tell a pause from a skip.
     static var probesReplay: Bool { ProcessInfo.processInfo.arguments.contains("-strataReplayProbe") }
+    /// `-strataReplayWindow week|month`: forces the Wins tab pill on, for a
+    /// period that may not actually have a win yet. The pill is only reachable
+    /// by waiting for Sunday evening or the 1st, which nothing on this machine
+    /// can do, so without this it could never be screenshotted at all.
+    static var replayWindow: String? { argument("-strataReplayWindow") }
 
     /// The creator's bundled faces as a made head, from `-strataSeedHead`.
     /// The simulator has no camera to make a real one with, so without this

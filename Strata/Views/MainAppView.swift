@@ -223,6 +223,12 @@ struct MainAppView: View {
     /// gate on real data) or the user's own wins. Read once, at the moment
     /// `debugReplay` is set, by `DebugReplayCover`.
     @State private var debugReplayIsSample = true
+    /// The period whose window is open right now, if it has a win. Drives the
+    /// Wins tab pill. Recomputed on scene-active and after `refreshData()`
+    /// finds a new win, the way `DailyReminder` re-decides itself.
+    @State private var liveReplay: ReplayPeriod?
+    /// The replay the pill opened, played over the tower.
+    @State private var playingReplay: Replay?
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
     @State private var debugTabFlipsLeft = 0
@@ -393,6 +399,7 @@ struct MainAppView: View {
                         Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
                                                             loggedToday: blocksToday > 0) }
                     }
+                    updateLiveReplay()
                 } else {
                     // **Leaving the app is the moment before the home screen
                     // is looked at.** The snapshot was only ever published
@@ -495,6 +502,11 @@ struct MainAppView: View {
                 onSaved: { _ in scheduleRefresh() },
                 onDeleted: { scheduleRefresh() }
             )
+        }
+        // The Wins tab pill. A real replay over the user's own wins, never a
+        // sample — the sample previews live only in Settings.
+        .fullScreenCover(item: $playingReplay) { shown in
+            ReplayView(replay: shown) { playingReplay = nil }
         }
     }
 
@@ -732,6 +744,23 @@ struct MainAppView: View {
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)
             Spacer(minLength: 0)
+            // A replay, only while its window is open. The one new piece of
+            // chrome the feature adds, and it leaves on its own once the
+            // window closes — there is no dismiss for it.
+            if let period = liveReplay {
+                Button {
+                    HapticsEngine.lightTap()
+                    playingReplay = ReplayLoader.replay(for: period, context: modelContext)
+                } label: {
+                    Text(period.title)
+                        .font(Typography.bodySmall.weight(.semibold))
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(height: GlassIconButton.defaultSide)
+                }
+                .glassCapsule()
+                .transition(.opacity)
+            }
             // The plan, where sharing was, which was where the range picker
             // was before that.
             //
@@ -1217,6 +1246,22 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
+    /// Decides `liveReplay` and tops up the notifications, the way
+    /// `DailyReminder` re-decides itself: called on scene-active and, from
+    /// `refreshData()`, only when a win actually landed. `ReplayLoader.hasWins`
+    /// is a `fetchCount` capped at 1, called for at most two periods, so this
+    /// is cheap enough for a hot path — the full `ReplayLoader.replay` fetch
+    /// only ever runs when the pill itself is tapped.
+    private func updateLiveReplay() {
+        liveReplay = ReplayEntry.live(now: Date()) { ReplayLoader.hasWins($0, context: modelContext) }
+        #if DEBUG
+        if let forced = DebugHarness.replayWindow {
+            liveReplay = forced == "month" ? .month(containing: Date()) : .week(containing: Date())
+        }
+        #endif
+        Task { await ReplayReminder.schedule(context: modelContext) }
+    }
+
     /// The colour the next win will be — decided ONCE, held, and handed to
     /// `logWin` unchanged.
     ///
@@ -1672,6 +1717,12 @@ struct MainAppView: View {
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         }
+        // A win landed: the period it fell in may just have opened its pill,
+        // or may now be the one the month/week pill points at. Guarded on
+        // droppedIDs rather than run every call — refreshData is a hot path,
+        // called from a 60s timer among other places, and hasWins's two
+        // fetchCounts are cheap but not free enough to pay when nothing changed.
+        if !droppedIDs.isEmpty { updateLiveReplay() }
         // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
         // A win today means today's reminder has nothing to say.

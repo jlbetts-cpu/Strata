@@ -1,0 +1,90 @@
+import Foundation
+import SwiftData
+import Testing
+@testable import Strata
+
+@Suite("Replay reminders and entry")
+struct ReplayReminderTests {
+    private let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        return c
+    }()
+    private func at(_ m: Int, _ d: Int, _ h: Int = 12) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: m, day: d, hour: h))!
+    }
+
+    @Test("the coming Sunday and 1st are scheduled when their periods have wins")
+    func scheduledWithWins() {
+        let up = ReplayReminder.upcoming(now: at(9, 9), calendar: calendar) { _ in true }
+        #expect(up.map(\.date).contains(at(9, 13, 18)))
+        #expect(up.map(\.date).contains(at(10, 1, 10)))
+        #expect(up.first { $0.date == at(9, 13, 18) }?.title == "Your week is ready")
+        #expect(up.first { $0.date == at(10, 1, 10) }?.title == "September is ready")
+    }
+
+    @Test("nothing is scheduled for a period without wins")
+    func nothingWithoutWins() {
+        #expect(ReplayReminder.upcoming(now: at(9, 9), calendar: calendar) { _ in false }.isEmpty)
+    }
+
+    @Test("a time already passed is not scheduled")
+    func pastNotScheduled() {
+        let up = ReplayReminder.upcoming(now: at(9, 13, 19), calendar: calendar) { _ in true }
+        #expect(!up.map(\.date).contains(at(9, 13, 18)))
+    }
+
+    @Test("the pill: the month wins when both windows are open")
+    func monthWins() {
+        // 30 September 2026 is a Wednesday; use a month ending on a Sunday: May 2026 ends Sunday 31.
+        let live = ReplayEntry.live(now: at(5, 31, 18), calendar: calendar) { _ in true }
+        #expect(live?.kind == .month)
+        #expect(ReplayEntry.live(now: at(9, 13, 18), calendar: calendar) { _ in true }?.kind == .week)
+        #expect(ReplayEntry.live(now: at(9, 13, 18), calendar: calendar) { _ in false } == nil)
+    }
+
+    @Test("copy has no long dashes")
+    func copy() {
+        for item in ReplayReminder.upcoming(now: at(9, 9), calendar: calendar, hasWins: { _ in true }) {
+            #expect(!(item.title + item.body).contains("—") && !(item.title + item.body).contains("–"))
+        }
+    }
+}
+
+/// `ReplayLoader.hasWins` had no test at all. A limit-1 fetch count is easy to
+/// get backwards (an empty period reading as having wins, or the reverse), and
+/// it is the one call `ReplayReminder.schedule` and the pill both hang on.
+@MainActor
+@Suite("ReplayLoader.hasWins")
+struct ReplayLoaderHasWinsTests {
+    private func context() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Habit.self, HabitLog.self, Tower.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        return ModelContext(container)
+    }
+
+    @Test("a period with a completed win today reports true")
+    func trueWithAWin() throws {
+        let context = try context()
+        _ = try QuickWinService.logWin(title: "Ran", category: .health, context: context, tower: nil)
+        let week = ReplayPeriod.week(containing: Date())
+        #expect(ReplayLoader.hasWins(week, context: context))
+    }
+
+    @Test("a period with no wins reports false")
+    func falseWithNoWins() throws {
+        let context = try context()
+        let week = ReplayPeriod.week(containing: Date())
+        #expect(!ReplayLoader.hasWins(week, context: context))
+    }
+
+    @Test("a win outside the period's days does not count")
+    func falseWhenWinIsOutsideRange() throws {
+        let context = try context()
+        let longAgo = Calendar.current.date(byAdding: .day, value: -60, to: Date())!
+        _ = try QuickWinService.logWin(title: "Old", category: .health, on: longAgo, context: context, tower: nil)
+        let week = ReplayPeriod.week(containing: Date())
+        #expect(!ReplayLoader.hasWins(week, context: context))
+    }
+}
