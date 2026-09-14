@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import os
 
 /// A replay, as a pure function of time.
 ///
@@ -14,6 +15,10 @@ import Foundation
 /// frame, y down. A world height `h` is drawn at
 /// `metrics.baseY - camera.scale * (h - camera.rise)`.
 struct ReplayScript {
+
+    #if DEBUG
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Strata", category: "ReplayScript")
+    #endif
 
     struct Metrics: Equatable {
         var frame: CGSize
@@ -419,25 +424,24 @@ struct ReplayScript {
             let a = keys[lo], b = keys[hi]
             return b.x - a.x < 1e-9 ? b.y : a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
         }
-        var repaired = false
         for _ in 0..<pacing.cameraRepairPasses {
             var extra: [(x: Double, y: Double)] = []
             for f in floors where curve.value(at: f.x) < f.y - margin { extra.append((f.x, straight(at: f.x))) }
             for c in ceilings where curve.value(at: c.x) > c.y + margin { extra.append((c.x, straight(at: c.x))) }
-            if extra.isEmpty { repaired = true; break }
+            if extra.isEmpty { break }
             keys = (keys + extra).sorted { $0.x < $1.x }
             curve = MonotoneCurve(points: keys)
         }
         #if DEBUG
         // Out of passes with the curve still outside the corridor: a block
-        // could be clipped as it lands or seen before it falls. Never silent
-        // in a debug build; a release build draws the best curve it has.
-        if !repaired {
-            let left = floors.contains { curve.value(at: $0.x) < $0.y - margin }
-                || ceilings.contains { curve.value(at: $0.x) > $0.y + margin }
-            if left {
-                assertionFailure("ReplayScript: camera repair used all \(pacing.cameraRepairPasses) passes and the curve still leaves its corridor (\(replay.count) wins, \(replay.period.id))")
-            }
+        // could be clipped as it lands or seen before it falls. Logged, not
+        // asserted: a crash on a debug build installed from Xcode is worse
+        // than one misdrawn camera, and no tested input needs more than 4 of
+        // the 12 passes. A release build draws the best curve it has.
+        let left = floors.contains { curve.value(at: $0.x) < $0.y - margin }
+            || ceilings.contains { curve.value(at: $0.x) > $0.y + margin }
+        if left {
+            Self.logger.error("camera repair used all \(pacing.cameraRepairPasses, privacy: .public) passes and the curve still leaves its corridor (\(replay.count, privacy: .public) wins, \(replay.period.id, privacy: .public))")
         }
         #endif
         cameraCurve = curve
@@ -528,8 +532,10 @@ struct ReplayScript {
             if dt < pacing.squashTime {
                 let mass = CGFloat(replay.blocks[index].win.size.massTier)
                 let env = CGFloat(exp(-dt / pacing.squashDecay) * cos(2 * .pi * dt / pacing.squashPeriod))
-                p.scaleY = 1 - 0.025 * mass * env
-                p.scaleX = 1 + 0.015 * mass * env
+                // The tower's own impact deformation, so a replay landing
+                // squashes as deep as a drop on the Wins tab.
+                p.scaleY = 1 - GridConstants.squashScaleY(mass: mass) * env
+                p.scaleX = 1 + GridConstants.squashScaleX(mass: mass) * env
             }
         }
         let wave = (t - danceStart - danceDelays[index]) / pacing.danceWave

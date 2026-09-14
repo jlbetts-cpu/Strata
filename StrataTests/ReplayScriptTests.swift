@@ -12,6 +12,10 @@ struct ReplayScriptTests {
         return c
     }()
     private let frame = CGSize(width: 402, height: 874)
+    /// Every frame the corridor must hold at: the phone the camera was tuned
+    /// on, an iPhone SE, a Pro Max, and the Share card the video is drawn at.
+    static let sweepFrames: [CGSize] = [CGSize(width: 402, height: 874), CGSize(width: 375, height: 667),
+                                                CGSize(width: 440, height: 956), ReplayCard.size]
 
     private func replay(_ kind: ReplayKind, wins n: Int, emptyDays: Set<Int> = [],
                         anchor: DateComponents = DateComponents(year: 2026, month: 9, day: 9)) -> Replay {
@@ -196,14 +200,23 @@ struct ReplayScriptTests {
         return (onScreen, overFollow, block)
     }
 
-    @Test("every count from 1 to 400, both lengths and hard-heavy mixes: falls start above the frame, nothing lands above the follow line")
-    func corridorHoldsForEveryCount() {
+    @Test("every count from 1 to 400, both lengths and hard-heavy mixes, at every frame: falls start above the frame, nothing lands above the follow line",
+          arguments: ReplayScriptTests.sweepFrames)
+    func corridorHoldsForEveryCount(frame: CGSize) {
+        // Every count at the frame the camera was tuned on; a subsample at
+        // the others, always with 1, small counts, 150, 400 and past the
+        // caps, and every hard-heavy mix.
         var counts = [1, 2, 3, 400]
-        counts += Array(stride(from: 4, to: 400, by: 7))
+        if frame == self.frame {
+            counts += Array(stride(from: 4, to: 400, by: 7))
+        } else {
+            counts += [5, 8, 12, 20, 30, 45, 60, 90, 120, 150, 200, 250, 300, 350]
+        }
+        let metrics = ReplayScript.Metrics.standard(frame: frame)
         var cases: [(String, ReplayScript)] = []
         for n in counts {
             for kind in [ReplayKind.week, .month] {
-                cases.append(("\(kind) \(n)", script(kind, wins: n)))
+                cases.append(("\(kind) \(n)", ReplayScript(replay: replay(kind, wins: n), metrics: metrics, reduceMotion: false)))
             }
         }
         // Hard-heavy: two-row blocks arriving fast are what make the tower
@@ -217,9 +230,9 @@ struct ReplayScriptTests {
             ("week, 60 alternating hard and small", replay(.week, sizes: (0..<60).map { $0 % 2 == 0 ? .hard : .small }, days: Array(0..<7))),
         ]
         // Past the old caps, where the build is compressed to fit the total.
-        for n in [600, 1000] { cases.append(("month \(n)", script(.month, wins: n))) }
+        for n in [600, 1000] { cases.append(("month \(n)", ReplayScript(replay: replay(.month, wins: n), metrics: metrics, reduceMotion: false))) }
         for (name, r) in mixes {
-            cases.append((name, ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)))
+            cases.append((name, ReplayScript(replay: r, metrics: metrics, reduceMotion: false)))
         }
         var failures: [String] = []
         var worstOnScreen: (CGFloat, String) = (-.infinity, ""), worstOver: (CGFloat, String) = (-.infinity, "")
@@ -230,7 +243,7 @@ struct ReplayScriptTests {
             if w.onScreen > 0.5 { failures.append("\(name): block \(w.block) starts \(w.onScreen)pt on screen") }
             if w.overFollow > 0.5 { failures.append("\(name): a block lands \(w.overFollow)pt above the follow line") }
         }
-        #expect(failures.isEmpty, "\(failures.count) of \(cases.count) cases: \(failures.prefix(12)); worst start \(worstOnScreen), worst over follow \(worstOver)")
+        #expect(failures.isEmpty, "\(frame.width)x\(frame.height): \(failures.count) of \(cases.count) cases: \(failures.prefix(12)); worst start \(worstOnScreen), worst over follow \(worstOver)")
     }
 
     @Test("the camera starts rising no earlier than 0.75s before the first landing that needs it",
@@ -306,6 +319,22 @@ struct ReplayScriptTests {
         // And it lands exactly where it was going.
         #expect(abs(top(s.danceStart) - (m.baseY - s.fitScale * h)) < 0.5)
         #expect(s.camera(at: s.danceStart).rise < 0.5)
+    }
+
+    @Test("a replay landing squashes by the tower's own tokens, scaled by mass", arguments: [BlockSize.small, .medium, .hard])
+    func landingSquashMatchesTheTower(size: BlockSize) {
+        let r = replay(.week, sizes: [size], days: [0])
+        let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
+        let landing = s.landings[0]
+        let mass = CGFloat(size.massTier)
+        // The instant of impact: the decaying cosine's envelope is exactly 1.
+        let p = s.pose(landing.blockIndex, at: landing.time)
+        #expect(abs((1 - p.scaleY) - GridConstants.squashScaleY(mass: mass)) < 1e-6,
+                "squashed \(1 - p.scaleY), the tower squashes \(GridConstants.squashScaleY(mass: mass))")
+        #expect(abs((p.scaleX - 1) - GridConstants.squashScaleX(mass: mass)) < 1e-6)
+        // And it settles: nothing is left once the squash time has passed.
+        let after = s.pose(landing.blockIndex, at: landing.time + s.pacing.squashTime + 0.01)
+        #expect(after.scaleX == 1 && after.scaleY == 1)
     }
 
     @Test("a week that already fits never zooms")
@@ -400,8 +429,9 @@ struct ReplayScriptTests {
     }
 
     @Test("a compressed build that ends on empty days: under the cap, the last day still shows, the corridor holds",
-          arguments: [(ReplayKind.month, 600, 10), (.week, 400, 3)])
-    func capWithTrailingEmptyDays(kind: ReplayKind, wins: Int, busyDays: Int) {
+          arguments: [(ReplayKind.month, 600, 10), (.week, 400, 3)], ReplayScriptTests.sweepFrames)
+    func capWithTrailingEmptyDays(shape: (ReplayKind, Int, Int), frame: CGSize) {
+        let (kind, wins, busyDays) = shape
         // Every win in the first days; the rest of the period is empty, so
         // the build is compressed to fit the cap AND has to leave room for a
         // run of empty days after the last landing.
@@ -410,6 +440,7 @@ struct ReplayScriptTests {
         #expect(r.countsByDay.suffix(from: busyDays).allSatisfy { $0 == 0 })
         let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
         let lastDay = r.period.days.count - 1
+        let size = "\(frame.width)x\(frame.height)"
 
         #expect(s.duration <= s.pacing.totalCap + 1e-9, "ran \(s.duration)s against \(s.pacing.totalCap)")
         #expect((s.landings.last?.time ?? .infinity) <= s.revealStart)
@@ -423,8 +454,8 @@ struct ReplayScriptTests {
         #expect(shownAt != nil, "the last day's label never showed before the reveal at \(s.revealStart)s")
 
         let w = corridorWorst(s)
-        #expect(w.onScreen <= 0.5, "block \(w.block) starts \(w.onScreen)pt on screen")
-        #expect(w.overFollow <= 0.5, "a block lands \(w.overFollow)pt above the follow line")
+        #expect(w.onScreen <= 0.5, "\(size): block \(w.block) starts \(w.onScreen)pt on screen")
+        #expect(w.overFollow <= 0.5, "\(size): a block lands \(w.overFollow)pt above the follow line")
     }
 
     @Test("the camera eases its rise back to 0 even when the finished tower already fits at scale 1")
