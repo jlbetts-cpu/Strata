@@ -174,17 +174,20 @@ struct HeadStickerOverlay: View {
 
     /// **Dragging the picture moves the block's window over it** (the owner:
     /// "you should be able to move the crop on the photo using a basic
-    /// moving"). Clamped so the window can never leave the photograph, which
-    /// is the one thing that would produce an empty edge on a block.
+    /// moving"), and **the window follows the finger**: the hairline is the
+    /// only thing that moves on the review, and the head on the same photo
+    /// follows the finger too. It used to run against it ("the slider to crop
+    /// feels the wrong way"). Clamped so the window can never leave the
+    /// photograph, which is the one thing that would produce an empty edge on
+    /// a block. See `BlockCropOutline.dragged`.
     private func moveCrop(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
             .onChanged { value in
                 guard cropRange != .zero, widthBase == nil, angleBase == nil else { return }
                 let base = cropBase ?? crop
                 if cropBase == nil { cropBase = base }
-                crop = CGPoint(
-                    x: min(max(base.x - value.translation.width / max(size.width, 1), -cropRange.width), cropRange.width),
-                    y: min(max(base.y - value.translation.height / max(size.height, 1), -cropRange.height), cropRange.height))
+                crop = BlockCropOutline.dragged(from: base, translation: value.translation,
+                                                in: size, range: cropRange)
             }
             .onEnded { _ in cropBase = nil }
     }
@@ -306,6 +309,17 @@ struct BlockCropOutline: View {
     /// fractions of the photo.
     static func range(for crop: CGRect) -> CGSize {
         CGSize(width: max(0, (1 - crop.width) / 2), height: max(0, (1 - crop.height) / 2))
+    }
+
+    /// Where a dragged window lands, in fractions of the photo away from the
+    /// middle. It follows the finger (finger right, window right), clamped to
+    /// the picture. The block then shows exactly what the window framed:
+    /// `CachedImageView` offsets the picture by minus this, which is correct
+    /// there, because a window moved right means the picture moves left
+    /// inside the block.
+    static func dragged(from base: CGPoint, translation: CGSize, in size: CGSize, range: CGSize) -> CGPoint {
+        CGPoint(x: min(max(base.x + translation.width / max(size.width, 1), -range.width), range.width),
+                y: min(max(base.y + translation.height / max(size.height, 1), -range.height), range.height))
     }
 
     static func crop(photo: CGSize, block size: BlockSize) -> CGRect {

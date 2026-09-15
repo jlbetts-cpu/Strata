@@ -51,4 +51,60 @@ struct BlockCropTests {
             #expect(abs(room - (1 - window) / 2) < 0.0001)
         }
     }
+
+    /// What a block of `blockSize` shows of `photo` with the window moved by
+    /// `crop`, in photo fractions: `CachedImageView`'s `.scaledToFill` and
+    /// its offset of minus crop times the drawn size.
+    private func visible(photo: CGSize, block blockSize: BlockSize, crop: CGPoint) -> CGRect {
+        let height: CGFloat = 120
+        let width = height * blockSize.cropAspectRatio
+        let scale = max(width / photo.width, height / photo.height)
+        let drawn = CGSize(width: photo.width * scale, height: photo.height * scale)
+        return CGRect(x: ((drawn.width - width) / 2 + crop.x * drawn.width) / drawn.width,
+                      y: ((drawn.height - height) / 2 + crop.y * drawn.height) / drawn.height,
+                      width: width / drawn.width, height: height / drawn.height)
+    }
+
+    @Test("the window follows the finger, and the block shows exactly what the window framed")
+    func theWindowFollowsTheFinger() {
+        // Owner: "the slider to crop feels the wrong way". A landscape photo
+        // in a 1x1 block slides sideways.
+        let photo = CGSize(width: 4000, height: 3000)
+        let window = BlockCropOutline.crop(photo: photo, block: .small)
+        let range = BlockCropOutline.range(for: window)
+        let review = CGSize(width: 390, height: 292.5)
+        let right = BlockCropOutline.dragged(from: .zero, translation: CGSize(width: 40, height: 0),
+                                             in: review, range: range)
+        let down = BlockCropOutline.dragged(from: .zero, translation: CGSize(width: 0, height: 40),
+                                            in: review, range: range)
+        #expect(right.x > 0)                       // finger right, window right
+        #expect(abs(right.x - 40 / 390) < 0.0001)  // by exactly as far as the finger went
+        #expect(down.y == 0)                       // no vertical room in this photo
+        // Review: the hairline (BlockCropOutline.body) against the saved block.
+        let shown = visible(photo: photo, block: .small, crop: right)
+        #expect(abs(shown.minX - (window.minX + right.x)) < 0.001)
+        #expect(abs(shown.width - window.width) < 0.001)
+        // The picture inside the block moved left: its right-hand part shows.
+        #expect(shown.midX > 0.5)
+        // Dragged past the end it stops flush.
+        let far = BlockCropOutline.dragged(from: .zero, translation: CGSize(width: 4000, height: 0),
+                                           in: review, range: range)
+        #expect(far.x == range.width)
+        let back = BlockCropOutline.dragged(from: far, translation: CGSize(width: -8000, height: 0),
+                                            in: review, range: range)
+        #expect(back.x == -range.width)
+    }
+
+    @Test("a tall photo's window follows the finger down, and the block agrees")
+    func theWindowFollowsTheFingerDown() {
+        let photo = CGSize(width: 3000, height: 4000)
+        let window = BlockCropOutline.crop(photo: photo, block: .medium)
+        let range = BlockCropOutline.range(for: window)
+        let moved = BlockCropOutline.dragged(from: .zero, translation: CGSize(width: 0, height: 30),
+                                             in: CGSize(width: 300, height: 400), range: range)
+        #expect(moved.y > 0)
+        let shown = visible(photo: photo, block: .medium, crop: moved)
+        #expect(abs(shown.minY - (window.minY + moved.y)) < 0.001)
+        #expect(shown.midY > 0.5)
+    }
 }
