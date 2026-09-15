@@ -2003,10 +2003,13 @@ struct MainAppView: View {
     /// the same.
     ///
     /// **Not on every drop.** The set of days is kept (`Streaks.WidgetDays`)
-    /// and needs no fetch while the lifetime count is unchanged, or has risen
-    /// by one on a day that already had a win, which is every win after the
-    /// first of a day. Otherwise it is fetched on a background context and the
-    /// snapshot republished when it lands. The very first fetch of a launch is
+    /// and needs no fetch while the lifetime count is unchanged or has risen
+    /// by one, which is every win logged in the app: a win is always dated
+    /// today, so one more win means today is in the set. The day's first win
+    /// adds today locally rather than writing the widget once with the old
+    /// streak and again with the corrected one. Anything else (a deletion,
+    /// several at once) is fetched on a background context and the snapshot
+    /// republished when it lands. The very first fetch of a launch is
     /// synchronous, so the widget is never handed a zero streak to correct.
     /// The walk runs only when the days themselves changed (`Streaks.Memo`).
     private func widgetStreak(lifetime: Int) -> Int {
@@ -2028,11 +2031,17 @@ struct MainAppView: View {
         widgetPublisher.fetching = true
         let container = modelContext.container
         Task.detached(priority: .utility) {
-            let days = Self.fetchDayKeys(context: ModelContext(container), horizon: horizon)
+            // The count is taken in the same context as the days, so the two
+            // describe one moment even if a win is undone and redone while
+            // this runs.
+            let context = ModelContext(container)
+            let days = Self.fetchDayKeys(context: context, horizon: horizon)
+            let count = try? context.fetchCount(FetchDescriptor<HabitLog>(
+                predicate: #Predicate { $0.completed }))
             await MainActor.run {
                 widgetPublisher.fetching = false
-                guard let days else { return }
-                widgetPublisher.days.replace(days: days, lifetime: lifetime)
+                guard let days, let count else { return }
+                widgetPublisher.days.replace(days: days, lifetime: count)
                 // With the days in hand this is a compare and, only if the
                 // streak moved, a write.
                 publishWidgetSnapshot()
@@ -2356,8 +2365,10 @@ struct MainAppView: View {
             }
             // Crossing into culling: the published value may be from a
             // scroll long ago, so take the real one before the first cull.
+            // Leaving it: forget the value, so the next crossing culls its
+            // first body against the live offset rather than this old one.
             .onChange(of: towerVM.placedBlocks.count > Self.cullThreshold) { _, culls in
-                if culls { towerScrollOffset = towerProbe.scrollOffset }
+                towerScrollOffset = culls ? towerProbe.scrollOffset : nil
             }
             .onChange(of: scrollToTopTrigger) {
                 withAnimation(GridConstants.heavySettle) {

@@ -286,7 +286,9 @@ final class TowerViewModel {
                 if !self.newlyDroppedIDs.isDisjoint(with: droppedCopy) {
                     self.newlyDroppedIDs.subtract(droppedCopy)
                 }
-                for id in droppedCopy {
+                // Only keys that are there: block bodies read this cache, and
+                // a removal of nothing still notifies them.
+                for id in droppedCopy where self.staggerDelayCache[id] != nil {
                     self.staggerDelayCache.removeValue(forKey: id)
                 }
             }

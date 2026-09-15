@@ -115,9 +115,9 @@ enum Streaks {
     /// without asking the store again.
     ///
     /// Pure. The rule: the same lifetime count means the same days; a count
-    /// one higher on a day already in the set means the new win landed on a
-    /// day that was already counted, so the set is still exact. Anything else
-    /// (the day's first win, a deletion, several at once) needs a fetch.
+    /// one higher means one new win, and a win logged in the app is always
+    /// dated today, so today joins the set (it may already be there). Anything
+    /// else (a deletion, several at once) needs a fetch.
     struct WidgetDays {
         private(set) var days: Set<String>?
         private(set) var lifetime: Int?
@@ -127,7 +127,8 @@ enum Streaks {
         mutating func isCurrent(lifetime newLifetime: Int, todayKey: String) -> Bool {
             guard let days, let lifetime else { return false }
             if newLifetime == lifetime { return true }
-            if newLifetime == lifetime + 1, days.contains(todayKey) {
+            if newLifetime == lifetime + 1 {
+                self.days?.insert(todayKey)
                 self.lifetime = newLifetime
                 return true
             }

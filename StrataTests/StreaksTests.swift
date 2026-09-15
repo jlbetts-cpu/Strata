@@ -185,16 +185,29 @@ struct StreaksTests {
         #expect(r5)
     }
 
-    @Test("the day's first win, a deletion, or a jump of two all need a fetch")
+    /// The day's first win: today is not in the set yet. It joins locally,
+    /// so the widget is written once with the right streak rather than once
+    /// with the old one and again after a fetch.
+    @Test("the day's first win adds today without a fetch, and the streak it gives is right")
+    func firstWinOfTheDayAddsToday() {
+        var days = Streaks.WidgetDays()
+        days.replace(days: ["2026-09-13", "2026-09-14"], lifetime: 5)
+        let current = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
+        #expect(current)
+        #expect(days.days == ["2026-09-13", "2026-09-14", "2026-09-15"])
+        #expect(days.lifetime == 6)
+        #expect(Streaks.current(among: days.days!, today: noon("2026-09-15")) == 3)
+    }
+
+    @Test("a deletion or a jump of two needs a fetch, and changes nothing until it lands")
     func otherChangesNeedAFetch() {
         var days = Streaks.WidgetDays()
         days.replace(days: ["2026-09-14"], lifetime: 5)
-        let r6 = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
-        #expect(!r6)
-        let r7 = days.isCurrent(lifetime: 4, todayKey: "2026-09-14")
-        #expect(!r7)
-        let r8 = days.isCurrent(lifetime: 7, todayKey: "2026-09-14")
-        #expect(!r8)
+        let deleted = days.isCurrent(lifetime: 4, todayKey: "2026-09-14")
+        #expect(!deleted)
+        let jumped = days.isCurrent(lifetime: 7, todayKey: "2026-09-15")
+        #expect(!jumped)
         #expect(days.lifetime == 5)
+        #expect(days.days == ["2026-09-14"])
     }
 }
