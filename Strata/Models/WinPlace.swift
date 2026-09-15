@@ -11,7 +11,7 @@ import Foundation
 /// how much to believe it. A reduced-accuracy fix is good to one to five
 /// kilometres, and the map has to be able to refuse to draw a block that is
 /// vaguer than the ground it would sit on.
-struct WinPlace: Equatable, Hashable, Sendable {
+nonisolated struct WinPlace: Equatable, Hashable, Sendable {
     let latitude: Double
     let longitude: Double
     /// Horizontal accuracy in metres. Nil when it was never recorded.

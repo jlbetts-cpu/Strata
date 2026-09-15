@@ -16,7 +16,7 @@ import Foundation
 /// The rules are values, not stored data: every one is recomputed from the
 /// record, so a moment can never go stale and nothing has to be migrated when
 /// a rule changes.
-enum AlbumMoment: Hashable {
+nonisolated enum AlbumMoment: Hashable, Sendable {
     /// The same calendar date, `years` back. Snapchat's rule exactly.
     case onThisDay(years: Int)
     /// The same week of the year, one year back.
@@ -61,9 +61,7 @@ enum AlbumMoment: Hashable {
             return "This week last year"
         case .lastMonth:
             guard let date = calendar.date(byAdding: .month, value: -1, to: now) else { return "Last month" }
-            let df = DateFormatter()
-            df.dateFormat = "MMMM"
-            return df.string(from: date)
+            return Album.Formats.month.string(from: date)
         }
     }
 
@@ -91,7 +89,7 @@ enum AlbumMoment: Hashable {
     }
 }
 
-extension Album {
+nonisolated extension Album {
     /// How many photographs a moment needs before it earns a card.
     ///
     /// Three, not the five a repeated interest needs. A moment is rarer and

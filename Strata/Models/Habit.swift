@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Enums
 
-enum HabitCategory: String, Codable, CaseIterable {
+nonisolated enum HabitCategory: String, Codable, CaseIterable, Sendable {
     case health
     case work
     case creativity
@@ -43,7 +43,7 @@ enum HabitCategory: String, Codable, CaseIterable {
     }
 }
 
-enum BlockSize: String, Codable, CaseIterable {
+nonisolated enum BlockSize: String, Codable, CaseIterable, Sendable {
     case small    // 1x1
     case medium   // 2x1
     case hard     // 2x2

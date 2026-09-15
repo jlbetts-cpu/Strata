@@ -44,6 +44,17 @@ struct MemoriesView: View {
     /// the tab opens on the map, whole, and the photographs are the button in
     /// the corner.
     @State private var drawer: DrawerDetent = .hidden
+    /// Whether the drawer has ever been raised. **Its page is not built until
+    /// it has been.** The drawer rests hidden, and hiding it is only an offset,
+    /// which does not affect layout: the lazy stack inside still believed its
+    /// first screen was visible and built it — the month tower with a
+    /// slideshow running in every photographed day, the replay shelf, the
+    /// first rows of the gallery — under a map nobody had pulled anything up
+    /// over. Once raised it stays built, so lowering and raising again keeps
+    /// its place; while it is lowered its slideshows pause
+    /// (`memoriesDrawerVisible`).
+    @State private var hasRaisedDrawer = false
+    private var drawerIsBuilt: Bool { hasRaisedDrawer || drawer != .hidden }
     #if DEBUG
     @State private var debugFlingCounted = false
     #endif
@@ -137,6 +148,7 @@ struct MemoriesView: View {
             }
 
             MemoriesDrawer(detent: $drawer) {
+            if drawerIsBuilt {
             // **The header is above the scroll, and the scroll fades into
             // it.**
             //
@@ -264,7 +276,15 @@ struct MemoriesView: View {
             }
             }
             }
+            }
+            // Lowered, or covered by a photograph, a replay or a pushed page:
+            // nobody can see the month, so its slideshows hold still.
+            .environment(\.memoriesDrawerVisible,
+                         drawer != .hidden && viewing == nil && playing == nil && path.isEmpty)
             .ignoresSafeArea(edges: .bottom)
+            .onChange(of: drawer) { _, detent in
+                if detent != .hidden { hasRaisedDrawer = true }
+            }
             }
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(item: $viewing) { photo in
@@ -273,7 +293,7 @@ struct MemoriesView: View {
                             startAt: photo.id,
                             onClose: { viewing = nil },
                             onDelete: { _ in
-                                vm.reload(context: modelContext)
+                                Task { await vm.reload(context: modelContext) }
                                 // A card is mostly photographs.
                                 Task { await reloadReplays() }
                             })
@@ -284,7 +304,7 @@ struct MemoriesView: View {
                 // A photograph deleted from a block inside the replay is gone
                 // from this page too: the gallery, the albums, and the card.
                 ReplayView(replay: replay, onPhotoDeleted: {
-                    vm.reload(context: modelContext)
+                    Task { await vm.reload(context: modelContext) }
                     Task { await reloadReplays() }
                 }) { playing = nil }
                     // Out of its card, the way a photograph opens.
@@ -317,15 +337,17 @@ struct MemoriesView: View {
         // Its own task: drawing the cards yields between each, and the
         // drawer's reload and the launch flags below must not wait on it.
         // Keyed by scheme and scale: posters are drawn in the page's scheme,
-        // so a switch draws (once) the set for the other.
-        .task(id: "\(colorScheme)-\(displayScale)") { await reloadReplays() }
+        // so a switch draws (once) the set for the other. And by whether the
+        // drawer is up: a poster that is merely STALE is redrawn only when
+        // the shelf can be seen, and the old one stays up until then.
+        .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") { await reloadReplays() }
         .task {
             #if DEBUG
             let reloadStart = CACurrentMediaTime()
             #endif
-            vm.reload(context: modelContext)
+            await vm.reload(context: modelContext)
             #if DEBUG
-            PerfProbe.duration("MemoriesViewModel.reload main", since: reloadStart)
+            PerfProbe.duration("MemoriesViewModel.reload wall", since: reloadStart)
             #endif
             #if DEBUG
             if let detent = DebugHarness.openDrawer { drawer = detent }
@@ -382,7 +404,8 @@ struct MemoriesView: View {
     }
 
     private func reloadReplays() async {
-        await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale, now: Date())
+        await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
+                             now: Date(), redrawsStale: drawer != .hidden)
     }
 
     // MARK: - Title

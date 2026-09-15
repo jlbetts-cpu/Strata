@@ -9,7 +9,7 @@ enum GridConstants {
     /// number for anything that is a set of separate things, and it had leaked
     /// into the photo gallery, where three photographs 4pt apart read as
     /// cramped rather than as stacked. Use the `gap` scale below for those.
-    static let spacing: CGFloat = 4
+    nonisolated static let spacing: CGFloat = 4
 
     // MARK: - The spacing scale
     //

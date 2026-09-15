@@ -8,7 +8,11 @@ import Foundation
 /// container to construct, so its tests are not really store-free. Flattening
 /// at the boundary means everything downstream is a value function over value
 /// types, testable with struct literals.
-struct WinRecord: Equatable {
+///
+/// **`nonisolated`, with everything below it that the grouping touches**, so
+/// `MemoriesViewModel` can build the shelf, the gallery and the pins off the
+/// main actor: only the fetch and this flattening need the context.
+nonisolated struct WinRecord: Equatable, Sendable {
     let dateString: String
     let completedAt: Date
     let title: String
@@ -28,7 +32,7 @@ struct WinRecord: Equatable {
 }
 
 /// What an album is about: a day, or a thing you keep doing.
-enum AlbumKind: Hashable {
+nonisolated enum AlbumKind: Hashable, Sendable {
     /// `yyyy-MM-dd`.
     case day(String)
     /// A normalised title key — see `Album.titleKey`.
@@ -42,14 +46,14 @@ enum AlbumKind: Hashable {
 /// A route rather than the album itself, for the reason `DayRoute` already
 /// documents: the screen fetches its own logs and does not depend on what the
 /// carousel happens to be holding.
-enum AlbumRoute: Hashable {
+nonisolated enum AlbumRoute: Hashable, Sendable {
     case day(String)
     case curated(String)
     case moment(String)
 }
 
 /// One card in the carousel.
-struct Album: Identifiable, Equatable {
+nonisolated struct Album: Identifiable, Equatable, Sendable {
     /// `"day:2026-09-06"` or `"curated:gym session"`.
     let id: String
     let kind: AlbumKind
@@ -77,7 +81,7 @@ struct Album: Identifiable, Equatable {
 
 // MARK: - Building albums
 
-extension Album {
+nonisolated extension Album {
 
     /// How many photographs a title needs before it is an interest.
     ///
@@ -353,18 +357,35 @@ extension Album {
         if calendar.isDate(date, inSameDayAs: now) { return "Today" }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
            calendar.isDate(date, inSameDayAs: yesterday) { return "Yesterday" }
-        let df = DateFormatter(); df.dateFormat = "EEEE"
-        return df.string(from: date)
+        return Formats.weekday.string(from: date)
     }
 
     private static func shortDate(_ date: Date) -> String {
-        let df = DateFormatter(); df.dateFormat = "d MMM"
-        return df.string(from: date).uppercased()
+        return Formats.shortDate.string(from: date).uppercased()
     }
 
     private static func spelledDate(_ date: Date) -> String {
-        let df = DateFormatter(); df.dateFormat = "EEEE MMMM yyyy"
-        return df.string(from: date)
+        return Formats.spelledDate.string(from: date)
+    }
+
+    /// Made once. A `DateFormatter` costs a fraction of a millisecond to
+    /// create and these were made per album and per month, on every reload.
+    /// Formatting from several threads is safe; only mutating one is not, and
+    /// nothing does after this. `autoupdatingCurrent`, so a change of locale
+    /// is still followed as it was when each call made its own.
+    enum Formats {
+        nonisolated(unsafe) static let weekday = make("EEEE")
+        nonisolated(unsafe) static let shortDate = make("d MMM")
+        nonisolated(unsafe) static let spelledDate = make("EEEE MMMM yyyy")
+        nonisolated(unsafe) static let month = make("MMMM")
+        nonisolated(unsafe) static let monthYear = make("MMMM yyyy")
+
+        static func make(_ format: String) -> DateFormatter {
+            let f = DateFormatter()
+            f.locale = .autoupdatingCurrent
+            f.dateFormat = format
+            return f
+        }
     }
 }
 
@@ -392,7 +413,7 @@ extension Album {
 }
 
 /// One photograph in the gallery, and what it was of.
-struct GalleryPhoto: Identifiable, Equatable {
+nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     var id: String { fileName }
     let fileName: String
     /// The win's title, or nil when the win was never named. A win logged in
@@ -414,7 +435,7 @@ struct GalleryPhoto: Identifiable, Equatable {
 }
 
 /// A run of photographs under one heading — a month of the gallery.
-struct GallerySection: Identifiable, Equatable {
+nonisolated struct GallerySection: Identifiable, Equatable, Sendable {
     /// `yyyy-MM`.
     let id: String
     /// "September" this year, "September 2025" otherwise.
@@ -422,7 +443,7 @@ struct GallerySection: Identifiable, Equatable {
     let photos: [GalleryPhoto]
 }
 
-extension Album {
+nonisolated extension Album {
     /// The gallery, grouped by month.
     ///
     /// Month, not day. Snapchat's Memories groups by month once you are past
@@ -438,9 +459,8 @@ extension Album {
         let thisYear = calendar.component(.year, from: now)
         return byMonth.keys.sorted(by: >).map { key in
             let sorted = (byMonth[key] ?? []).sorted { $0.date > $1.date }
-            let df = DateFormatter()
             let sameYear = Int(key.prefix(4)) == thisYear
-            df.dateFormat = sameYear ? "MMMM" : "MMMM yyyy"
+            let df = sameYear ? Formats.month : Formats.monthYear
             let title = sorted.first.map { df.string(from: $0.date) } ?? key
             return GallerySection(id: key, title: title, photos: sorted)
         }

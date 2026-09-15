@@ -1,5 +1,9 @@
 import Foundation
 import SwiftData
+import UIKit
+#if DEBUG
+import QuartzCore
+#endif
 
 /// What the Memories tab knows: the shelf and the month on show.
 ///
@@ -53,7 +57,16 @@ final class MemoriesViewModel {
 
     // MARK: The month
 
-    private(set) var selectedMonth: Date = Date()
+    private(set) var selectedMonth: Date = Date() {
+        // Worked out once, when the month changes. It was a computed property
+        // that made a `DateFormatter`, read three times per body.
+        didSet {
+            let title = Self.title(for: selectedMonth, calendar: calendar)
+            if title != monthTitle { monthTitle = title }
+        }
+    }
+    /// "SEPTEMBER", or "SEPTEMBER 2025" for another year.
+    private(set) var monthTitle: String = MemoriesViewModel.title(for: Date(), calendar: MemoriesViewModel.mondayCalendar)
     private(set) var month: MonthTower.Packed = .empty
     /// Keyed "yyyy-MM", so stepping back and forth is free.
     private var monthCache: [String: MonthTower.Packed] = [:]
@@ -86,43 +99,114 @@ final class MemoriesViewModel {
     }
 
     func title(for month: Date) -> String {
-        let df = DateFormatter()
-        df.dateFormat = calendar.component(.year, from: month)
-            == calendar.component(.year, from: Date()) ? "MMMM" : "MMMM yyyy"
-        return df.string(from: month).uppercased()
+        Self.title(for: month, calendar: calendar)
     }
 
-    var monthTitle: String {
-        let df = DateFormatter()
-        df.dateFormat = calendar.component(.year, from: selectedMonth)
-            == calendar.component(.year, from: Date()) ? "MMMM" : "MMMM yyyy"
-        return df.string(from: selectedMonth).uppercased()
+    /// Cached formatters: the month menu asks twice per month, up to 120
+    /// months, on every body. See `Album.Formats`.
+    private static func title(for month: Date, calendar: Calendar) -> String {
+        let sameYear = calendar.component(.year, from: month) == calendar.component(.year, from: Date())
+        return (sameYear ? Album.Formats.month : Album.Formats.monthYear).string(from: month).uppercased()
     }
 
-    private let calendar: Calendar = {
+    private static let mondayCalendar: Calendar = {
         var c = Calendar.current
         c.firstWeekday = 2   // Monday, so a week section is Mon–Sun
         return c
     }()
+    private let calendar: Calendar = MemoriesViewModel.mondayCalendar
+
+    init() {
+        StoreSaves.observe()
+    }
 
     // MARK: - Loading
 
-    func reload(context: ModelContext) {
+    /// What the last completed reload was built from. See `reload`.
+    private var loadedSignature: StoreSignature?
+    /// A reload that finds a newer one started does not publish.
+    private var reloadGeneration = 0
+
+    /// **Only when something changed.** This ran in full on every visit to
+    /// the tab — `.task` inside a `TabView` is cancelled when the tab goes and
+    /// runs again when it comes back — fetching four years of photographs on
+    /// the main actor each time. A few counts say whether anything could have
+    /// changed; if nothing did, the month is put back to this one (as a reload
+    /// always did) and that is all.
+    ///
+    /// When something did, the fetch and the flattening to `WinRecord` stay on
+    /// the main actor, where the context lives, and the grouping — albums,
+    /// gallery, pins — runs off it: it is pure value work, which is what
+    /// `WinRecord` exists to make true.
+    func reload(context: ModelContext) async {
+        #if DEBUG
+        let began = CACurrentMediaTime()
+        #endif
+        let signature = StoreSignature.current(context: context)
+        if let loadedSignature, loadedSignature == signature {
+            // Assigned only if different: an equal write still invalidates
+            // every view reading it, and this runs on every visit.
+            let thisMonth = startOfMonth(Date())
+            if thisMonth != selectedMonth {
+                selectedMonth = thisMonth
+                loadMonth(context: context)
+            }
+            #if DEBUG
+            PerfProbe.duration("MemoriesViewModel.reload main (unchanged, skipped)", since: began)
+            #endif
+            return
+        }
+        reloadGeneration += 1
+        let mine = reloadGeneration
         monthCache = [:]
         earliestWinMonth = firstWinMonth(context: context)
         selectedMonth = startOfMonth(Date())
-        loadCarousel(context: context)
+        let records = carouselRecords(context: context)
         loadMonth(context: context)
+        let calendar = self.calendar
+        let now = Date()
+        #if DEBUG
+        PerfProbe.duration("MemoriesViewModel.reload main (fetch)", since: began)
+        #endif
+        let built = await Task.detached(priority: .userInitiated) {
+            #if DEBUG
+            let buildStart = CACurrentMediaTime()
+            defer { PerfProbe.duration("MemoriesViewModel.build off-main", since: buildStart) }
+            #endif
+            return Self.build(records, calendar: calendar, now: now)
+        }.value
+        guard mine == reloadGeneration else { return }
+        carousel = built.carousel
+        gallery = built.gallery
+        pins = built.pins
         hasLoaded = true
+        loadedSignature = signature
+    }
+
+    /// Everything the shelf, the gallery and the map draw, from one set of
+    /// records. Values in, values out.
+    nonisolated struct Built: Sendable {
+        let carousel: [Album]
+        let gallery: [GallerySection]
+        let pins: [PlaceMap.Pin]
+    }
+
+    nonisolated static func build(_ records: [WinRecord], calendar: Calendar, now: Date) -> Built {
+        Built(carousel: Album.carousel(from: records, calendar: calendar, now: now),
+              gallery: Album.gallerySections(Album.gallery(from: records),
+                                             calendar: calendar, now: now),
+              // Free: the same fetch, the same records. A second query for
+              // the map would double a cost measured at 53ms.
+              pins: PlaceMap.pins(from: records))
     }
 
     // MARK: - The shelf
 
     /// One fetch over the trailing window feeds both kinds of album.
-    private func loadCarousel(context: ModelContext) {
+    private func carouselRecords(context: ModelContext) -> [WinRecord] {
         guard let start = calendar.date(byAdding: .day,
                                         value: -Self.carouselWindowDays,
-                                        to: Date()) else { return }
+                                        to: Date()) else { return [] }
         let loKey = DateUtils.dateString(from: start)
         // PHOTOGRAPHED wins only.
         //
@@ -138,14 +222,7 @@ final class MemoriesViewModel {
         )
         d.relationshipKeyPathsForPrefetching = [\.habit]
         let logs = (try? context.fetch(d)) ?? []
-        let records = Album.records(from: logs)
-        let now = Date()
-        carousel = Album.carousel(from: records, calendar: calendar, now: now)
-        gallery = Album.gallerySections(Album.gallery(from: records),
-                                        calendar: calendar, now: now)
-        // Free: the same fetch, the same records. A second query for the map
-        // would double a cost already measured at 53ms on the main actor.
-        pins = PlaceMap.pins(from: records)
+        return Album.records(from: logs)
     }
 
     // MARK: - The month
@@ -220,16 +297,104 @@ final class MemoriesViewModel {
     }
 
     private func monthKey(_ date: Date) -> String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM"
-        return df.string(from: date)
+        Self.monthKeyFormat.string(from: date)
     }
 
     static func parse(_ key: String) -> Date? {
+        dayKeyFormat.date(from: key)
+    }
+
+    private static let monthKeyFormat = posix("yyyy-MM")
+    private static let dayKeyFormat = posix("yyyy-MM-dd")
+    private static func posix(_ format: String) -> DateFormatter {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM-dd"
-        return df.date(from: key)
+        df.dateFormat = format
+        return df
+    }
+}
+
+/// Whether the store could have changed since a page was last built from it.
+///
+/// Three counters, two counts and the newest win. The save counter catches
+/// anything this process writes, an EDIT included — a renamed win, a changed
+/// size or colour, a replaced photograph — which changes no count. The counts
+/// catch what another process writes to the shared store (the widget's
+/// intents), which can only happen while the app is not in front, so they are
+/// only queried again after a save or a return to the foreground: measured on
+/// a year of seeded history, the three queries cost 60 to 80ms on the first
+/// call of a visit, and a tab switch with nothing changed now makes none.
+/// Unsaved changes on the context mean "changed". The day is in it because the
+/// shelf's titles ("Today", "A year ago today") are relative to it.
+struct StoreSignature: Equatable {
+    let logs: Int
+    let photographs: Int
+    let newest: Date?
+    let saves: Int
+    let activations: Int
+    let day: String
+    let pending: Bool
+
+    private struct Counted {
+        let container: ObjectIdentifier
+        let saves: Int
+        let activations: Int
+        let logs: Int
+        let photographs: Int
+        let newest: Date?
+    }
+    private static var counted: Counted?
+
+    static func current(context: ModelContext) -> StoreSignature {
+        let container = ObjectIdentifier(context.container)
+        let saves = StoreSaves.generation
+        let activations = StoreSaves.activations
+        let counts: Counted
+        if let cached = counted, cached.container == container,
+           cached.saves == saves, cached.activations == activations {
+            counts = cached
+        } else {
+            let logs = (try? context.fetchCount(FetchDescriptor<HabitLog>())) ?? -1
+            let photographs = (try? context.fetchCount(FetchDescriptor<HabitLog>(
+                predicate: #Predicate { $0.imageFileName != nil }))) ?? -1
+            var newest = FetchDescriptor<HabitLog>(sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+            newest.fetchLimit = 1
+            let latest = (try? context.fetch(newest))?.first?.completedAt
+            counts = Counted(container: container, saves: saves, activations: activations,
+                             logs: logs, photographs: photographs, newest: latest)
+            counted = counts
+        }
+        return StoreSignature(logs: counts.logs, photographs: counts.photographs, newest: counts.newest,
+                              saves: saves, activations: activations,
+                              day: DateUtils.dateString(from: Date()),
+                              pending: context.hasChanges)
+    }
+
+    static func == (lhs: StoreSignature, rhs: StoreSignature) -> Bool {
+        // Pending changes never match: there is something not yet counted.
+        !lhs.pending && !rhs.pending
+            && lhs.logs == rhs.logs && lhs.photographs == rhs.photographs
+            && lhs.newest == rhs.newest && lhs.saves == rhs.saves
+            && lhs.activations == rhs.activations && lhs.day == rhs.day
+    }
+}
+
+/// Counts every save of every `ModelContext` in the process, and every return
+/// to the foreground.
+enum StoreSaves {
+    private(set) static var generation = 0
+    private(set) static var activations = 0
+    private static var tokens: [NSObjectProtocol] = []
+
+    static func observe() {
+        guard tokens.isEmpty else { return }
+        tokens.append(NotificationCenter.default.addObserver(forName: ModelContext.didSave,
+                                                             object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { generation &+= 1 }
+        })
+        tokens.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                             object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { activations &+= 1 }
+        })
     }
 }

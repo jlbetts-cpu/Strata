@@ -38,7 +38,7 @@ enum PlaceMap {
     // MARK: - Types
 
     /// One photographed win that knows where it was.
-    struct Pin: Equatable {
+    nonisolated struct Pin: Equatable, Sendable {
         let dateString: String
         let completedAt: Date
         let title: String
@@ -124,7 +124,7 @@ enum PlaceMap {
     /// A win with no photograph is not a pin. A colour-only block on a map
     /// would be a marker with nothing to show, and the whole claim of this
     /// screen is that you can see what you did there.
-    static func pins(from records: [WinRecord]) -> [Pin] {
+    nonisolated static func pins(from records: [WinRecord]) -> [Pin] {
         records.compactMap { record in
             guard let name = record.photoFileName, let place = record.place else { return nil }
             return Pin(dateString: record.dateString,

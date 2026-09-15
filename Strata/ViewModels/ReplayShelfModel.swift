@@ -28,6 +28,14 @@ final class ReplayShelfModel {
     @ObservationIgnored private var drawn: [String: Int] = [:]
     /// A reload that finds a newer one started stops drawing.
     @ObservationIgnored private var generation = 0
+    /// The store and the periods the rows were last found from. When neither
+    /// has changed the rows are still right and the up to 32 queries behind
+    /// them are skipped: every visit to Memories used to make them all again.
+    @ObservationIgnored private var foundFrom: (store: StoreSignature, periods: [String])?
+    /// The last pass that left every card for a scheme and scale up to date.
+    /// Asked again with nothing changed, there is nothing to draw and nothing
+    /// to sign: the pass is skipped outright.
+    @ObservationIgnored private var completePass: (store: StoreSignature, periods: [String], card: String)?
 
     static let monthCount = 12
     static let weekCount = 4
@@ -81,7 +89,15 @@ final class ReplayShelfModel {
     ///
     /// Stops at the next period or card when its task is cancelled (the page
     /// went away) or a newer reload started.
-    func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date) async {
+    ///
+    /// `redrawsStale` false: a card that is MISSING is drawn, but one that is
+    /// only out of date keeps its old poster and waits. Redrawing runs
+    /// `ImageRenderer` on the main actor, and after any new win the current
+    /// week's and month's cards are stale — so every visit to the tab redrew
+    /// them under a map where the shelf could not even be seen. The page asks
+    /// again, with true, when the drawer is raised.
+    func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date,
+                redrawsStale: Bool = true) async {
         generation += 1
         let mine = generation
         func superseded() -> Bool { mine != generation || Task.isCancelled }
@@ -92,14 +108,17 @@ final class ReplayShelfModel {
         #endif
 
         let p = Self.periods(now: now)
+        let store = StoreSignature.current(context: context)
+        let periodIDs = (p.months + p.weeks).map(\.id)
+        let unchanged = hasLoaded && foundFrom.map { $0.store == store && $0.periods == periodIDs } == true
         // A count with a limit of one per period first: most of a year of
         // months is usually empty, and a full fetch of an empty range is
         // still a fetch. **One period per slice.** Fetched in one pass, a
         // year of seeded history (`-strataSeedHistory 400`) held the main
         // actor for 202ms; one period at a time, no slice of the whole
         // reload, card drawing included, measured over 64ms.
-        var found: [Replay] = []
-        for period in p.months + p.weeks {
+        var found: [Replay] = unchanged ? months + weeks : []
+        for period in unchanged ? [] : p.months + p.weeks {
             guard !superseded() else { return }
             guard ReplayLoader.hasWins(period, context: context) else { continue }
             let replay = ReplayLoader.replay(for: period, context: context)
@@ -114,14 +133,27 @@ final class ReplayShelfModel {
             #endif
         }
         self.now = now
-        months = found.filter { $0.period.kind == .month }
-        weeks = found.filter { $0.period.kind == .week }
-        hasLoaded = true
+        if !unchanged {
+            months = found.filter { $0.period.kind == .month }
+            weeks = found.filter { $0.period.kind == .week }
+            foundFrom = (store, periodIDs)
+        }
+        if !hasLoaded { hasLoaded = true }
         let live = Set((months + weeks).flatMap { [Self.key($0, scheme: .light), Self.key($0, scheme: .dark)] })
         for key in cards.keys where !live.contains(key) {
             cards[key] = nil
             drawn[key] = nil
         }
+        let pass = "\(colorScheme == .dark ? "dark" : "light")-\(displayScale)"
+        if unchanged, let done = completePass, done.store == store, done.periods == periodIDs, done.card == pass {
+            #if DEBUG
+            PerfProbe.emit(String(format: "[PERF-SPAN] ReplayShelfModel.reload main %.1fms (unchanged, nothing to draw)",
+                                  (CACurrentMediaTime() - began) * 1000))
+            #endif
+            return
+        }
+        /// A card left stale or undrawn: this pass does not count as complete.
+        var skippedStale = false
         let heights: [ReplayKind: CGFloat] = [.month: Self.rowTowerHeight(months), .week: Self.rowTowerHeight(weeks)]
         #if DEBUG
         let fetched = CACurrentMediaTime()
@@ -138,6 +170,8 @@ final class ReplayShelfModel {
             let key = Self.key(replay, scheme: colorScheme)
             let signature = Self.signature(replay, rowTowerHeight: rowHeight, pixelScale: scale)
             guard drawn[key] != signature else { continue }
+            // Stale, not missing, and nobody can see the shelf: keep the old one.
+            guard redrawsStale || cards[key] == nil else { skippedStale = true; continue }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
@@ -156,6 +190,8 @@ final class ReplayShelfModel {
             if let image {
                 cards[key] = image
                 drawn[key] = signature
+            } else {
+                skippedStale = true
             }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
@@ -166,6 +202,8 @@ final class ReplayShelfModel {
             slice = CACurrentMediaTime()
             #endif
         }
+
+        if !skippedStale { completePass = (store, periodIDs, pass) }
 
         #if DEBUG
         let end = CACurrentMediaTime()

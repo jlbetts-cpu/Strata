@@ -16,7 +16,7 @@ import SwiftData
 enum QuickWinService {
 
     /// Title a win carries until it is named.
-    static let untitled = "Win"
+    nonisolated static let untitled = "Win"
 
     /// A win is identifiable after the fact by this signature: a one-time task
     /// belonging to no weekday. Used for counting today's wins without adding a

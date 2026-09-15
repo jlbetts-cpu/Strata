@@ -139,12 +139,19 @@ private struct DayPhotoSlideshow: View {
     let phase: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// False while the Memories drawer holding this month is lowered. The
+    /// slideshow holds its picture and stops its clock then: nobody can see
+    /// it, and it kept the tab busy under the map. Raised again, it carries on
+    /// from the picture it was showing.
+    @Environment(\.memoriesDrawerVisible) private var isVisible
     /// The picture underneath, always fully opaque, and the one fading in on
     /// top of it. Two slots rather than one index, because the substrate must
     /// never be visible — see below.
     @State private var base: String?
     @State private var top: String?
     @State private var topOpacity: Double = 0
+    /// The photographs the clock last ran over. See `run`.
+    @State private var clockFiles: [String] = []
 
     /// How long one photograph holds.
     ///
@@ -161,7 +168,13 @@ private struct DayPhotoSlideshow: View {
             if let base { picture(base) }
             if let top { picture(top).opacity(topOpacity) }
         }
-        .task(id: fileNames) { await run() }
+        .task(id: Clock(fileNames: fileNames, running: isVisible)) { await run() }
+    }
+
+    /// What the slideshow's task restarts on.
+    private struct Clock: Equatable {
+        let fileNames: [String]
+        let running: Bool
     }
 
     private func picture(_ name: String) -> some View {
@@ -181,14 +194,26 @@ private struct DayPhotoSlideshow: View {
     /// its two masked copies, in a different place. One layer holds at 1 while
     /// the other comes up, and the swap happens after it has arrived.
     private func run() async {
-        base = fileNames.first
+        // Paused: leave whatever is on the block exactly as it is. The drawer
+        // may still be sliding away, and a handover cut short here would be
+        // seen.
+        if !isVisible, base != nil { return }
+        // Resuming after a pause carries on from the picture showing (a
+        // handover cut short left the incoming one on top, at full strength
+        // by now). A day whose photographs changed starts at its newest, as
+        // it always did.
+        let resuming = clockFiles == fileNames
+        clockFiles = fileNames
+        let showing = top ?? base
+        let kept = resuming ? showing.flatMap { fileNames.firstIndex(of: $0) } : nil
+        base = kept.map { fileNames[$0] } ?? fileNames.first
         top = nil
         topOpacity = 0
-        guard fileNames.count > 1, !reduceMotion else { return }
+        guard fileNames.count > 1, !reduceMotion, isVisible else { return }
 
         // Offset the first tick so the month does not turn over at once.
         try? await Task.sleep(for: .seconds(Double(phase % 7) * 0.7))
-        var next = 1
+        var next = (kept ?? 0) + 1
         while !Task.isCancelled {
             try? await Task.sleep(for: Self.dwell)
             guard !Task.isCancelled else { return }
@@ -292,4 +317,10 @@ struct MonthPicker: View {
         .frame(height: 44)
     }
 
+}
+
+extension EnvironmentValues {
+    /// Whether the Memories drawer is raised. True everywhere else a month
+    /// tower is drawn (onboarding, the widget preview), where nothing hides it.
+    @Entry var memoriesDrawerVisible: Bool = true
 }
