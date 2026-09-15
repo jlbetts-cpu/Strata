@@ -54,7 +54,10 @@ struct CachedImageView: View {
     private var shown: (image: UIImage?, missing: Bool) {
         guard let fileName else { return (nil, false) }
         if fullResolution { return (fullImage, fullFailed) }
-        return ThumbnailStore.shared.state(for: fileName, width: (decodeWidth ?? width) * displayScale)
+        // A caller with its own stable decode width (the map) gets exactly
+        // that; everything else is rounded up to a shared bucket.
+        return ThumbnailStore.shared.state(for: fileName, width: (decodeWidth ?? width) * displayScale,
+                                           exact: decodeWidth != nil)
     }
 
     var body: some View {

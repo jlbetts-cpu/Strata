@@ -31,7 +31,7 @@ import UIKit
 /// second and never stopped, and the idle map tab about 1,000.
 ///
 /// **And at most `maxInFlight` reads at once.** A fling asks for every cell it
-/// passes; the extra asks wait in `deferred`, newest first, and are asked
+/// passes; the extra asks wait in `deferredSeq`, newest first, and are asked
 /// AGAIN (their slot is bumped) as places free up. A view that has gone by
 /// then asks for nothing, so its read never happens. The decode itself stays
 /// on `ImageManager`'s concurrent queue, which was measured and is kept.
@@ -52,19 +52,23 @@ final class ThumbnailStore {
 
     /// **The widths a thumbnail is decoded at, in pixels.** A request is
     /// rounded UP to the next of these, so nothing is ever softer than it was,
-    /// and one decode serves nearby sizes: the filmstrip (222px) and a
-    /// one-cell month block (about 255px) share one. Above the last, a width
-    /// is used as asked. 384 is there for the map: without it the map's 264px
-    /// would decode at 512, nearly four times the pixels, for eighty blocks.
+    /// and sizes a few pixels apart share one decode instead of one each.
     ///
-    /// The map's own rule still holds on top of this — one `decodeWidth` for
-    /// every block whatever size it draws at — and `ReplayImages` does not go
-    /// through here at all: a replay's decodes are sized to its blocks and
-    /// feed `ImageRenderer`, so they are exactly what they were.
-    static let widthBuckets: [Int] = [128, 256, 384, 512, 768, 1024]
+    /// **Steps of about 18%, so no decode holds more than 1.4 times the pixels
+    /// it was asked for.** The first set was 128/256/384/512/768/1024, which
+    /// put the gallery's 389px cells on 512 (1.73x the pixels) and anything
+    /// just over 512 on 768 (2.25x). Above the last, a width is used as asked.
+    ///
+    /// A caller that already passes one stable `decodeWidth` — the map, whose
+    /// rule is one width for every block — is not bucketed at all (`exact`).
+    /// `ReplayImages` does not come through here: a replay's decodes are sized
+    /// to its blocks and feed `ImageRenderer`, and are exactly what they were.
+    static let widthBuckets: [Int] = [128, 144, 168, 192, 224, 264, 312, 368, 432, 504,
+                                      592, 696, 816, 960, 1024]
 
-    static func bucket(_ pixels: CGFloat) -> Int {
+    static func bucket(_ pixels: CGFloat, exact: Bool = false) -> Int {
         let wanted = max(1, Int(pixels.rounded(.up)))
+        if exact { return wanted }
         return widthBuckets.first { $0 >= wanted } ?? wanted
     }
 
@@ -80,15 +84,36 @@ final class ThumbnailStore {
     /// What is already being read, so twenty blocks asking for the same
     /// photograph make one read.
     private var loading: Set<Key> = []
-    /// What was looked for and is not there: a file a log still points at but
-    /// which no longer exists on disk.
-    private var missing: Set<Key> = []
-    /// Asked for while `maxInFlight` reads were running. Newest last.
-    private var deferred: [Key] = []
+    /// What was looked for and is not there — a file a log still points at
+    /// but which no longer exists on disk — and when that was found out.
+    ///
+    /// **Not read again while it is recent.** A read that found nothing bumps
+    /// the slot so the view can say "missing", and the view asking again used
+    /// to schedule the read again: a read and a body for every missing file on
+    /// every frame, for ever, each holding a place in the flight. Asked again
+    /// after `missingRetry`, it is read again, in case the file has arrived.
+    private var missing: [Key: ContinuousClock.Instant] = [:]
+    private static let missingRetry: Duration = .seconds(10)
+    /// Asked for while `maxInFlight` reads were running, as an ordered set:
+    /// `deferredOrder` holds each ask with its sequence number, newest last,
+    /// and an entry counts only while `deferredSeq` still gives its key that
+    /// number. Removing a key is a dictionary write, not a scan; stale entries
+    /// are skipped when popped and compacted away.
+    private var deferredSeq: [Key: Int] = [:]
+    private var deferredOrder: [(key: Key, seq: Int)] = []
+    private var deferredHead = 0
+    private var nextSeq = 0
+    /// At most this many asks wait. Past it the OLDEST is let go — after a
+    /// fling those are the cells that scrolled away first — and its slot is
+    /// bumped, so a view still showing it asks again and queues as the newest.
+    static let maxDeferred = maxInFlight * 2
     /// Deferred asks whose slot was just bumped, each holding a place in the
-    /// flight until its view asks again or `reaskGrace` passes.
+    /// flight until its view asks again or `reaskGrace` passes. About three
+    /// frames: a view that is still there asks again on its next body pass,
+    /// and one that has gone should not keep a visible cell waiting. It was
+    /// 250ms.
     private var reasked: [Key: ContinuousClock.Instant] = [:]
-    private static let reaskGrace: Duration = .milliseconds(250)
+    private static let reaskGrace: Duration = .milliseconds(50)
     private var pumpPending = false
     #if DEBUG
     /// `-strataPerfProbe`: when a photograph not in memory was first asked
@@ -106,16 +131,16 @@ final class ThumbnailStore {
 
     /// What is known about a photograph right now: the picture if it is in
     /// memory, and whether a read has already been tried and found nothing.
-    func state(for fileName: String, width: CGFloat) -> (image: UIImage?, missing: Bool) {
-        let picture = image(for: fileName, width: width)
-        let key = Key(name: fileName, width: Self.bucket(width))
-        return (picture, picture == nil && missing.contains(key))
+    func state(for fileName: String, width: CGFloat, exact: Bool = false) -> (image: UIImage?, missing: Bool) {
+        let picture = image(for: fileName, width: width, exact: exact)
+        let key = Key(name: fileName, width: Self.bucket(width, exact: exact))
+        return (picture, picture == nil && missing[key] != nil)
     }
 
     /// The photograph if it is in memory; nil, and a read scheduled, if not.
-    /// `width` is in pixels.
-    func image(for fileName: String, width: CGFloat) -> UIImage? {
-        let key = Key(name: fileName, width: Self.bucket(width))
+    /// `width` is in pixels; `exact` skips the bucket (see `widthBuckets`).
+    func image(for fileName: String, width: CGFloat, exact: Bool = false) -> UIImage? {
+        let key = Key(name: fileName, width: Self.bucket(width, exact: exact))
         // Observed, so a view that asks is redrawn when THIS photograph lands.
         _ = slot(key).generation
         if let cached = ImageManager.shared.cachedThumbnail(fileName: fileName,
@@ -131,13 +156,50 @@ final class ThumbnailStore {
         if PerfProbe.isOn, askedAt[key] == nil { askedAt[key] = CACurrentMediaTime() }
         #endif
         guard !loading.contains(key) else { return nil }
+        if let found = missing[key] {
+            guard ContinuousClock.now - found >= Self.missingRetry else { return nil }
+            missing[key] = nil
+        }
         let heldPlace = reasked.removeValue(forKey: key) != nil
-        if let queued = deferred.firstIndex(of: key) { deferred.remove(at: queued) }
+        deferredSeq[key] = nil
         guard heldPlace || loading.count + reasked.count < Self.maxInFlight else {
-            deferred.append(key)
+            queueDeferred(key)
             return nil
         }
         schedule(key)
+        return nil
+    }
+
+    private func queueDeferred(_ key: Key) {
+        nextSeq &+= 1
+        deferredSeq[key] = nextSeq
+        deferredOrder.append((key, nextSeq))
+        while deferredSeq.count > Self.maxDeferred, let oldest = popOldestDeferred() {
+            slot(oldest).generation &+= 1
+        }
+        if deferredHead > 256, deferredHead * 2 > deferredOrder.count {
+            deferredOrder.removeFirst(deferredHead)
+            deferredHead = 0
+        }
+    }
+
+    private func isCurrent(_ entry: (key: Key, seq: Int)) -> Bool {
+        deferredSeq[entry.key] == entry.seq
+    }
+
+    private func popNewestDeferred() -> Key? {
+        while deferredOrder.count > deferredHead, let entry = deferredOrder.popLast() {
+            if isCurrent(entry) { deferredSeq[entry.key] = nil; return entry.key }
+        }
+        return nil
+    }
+
+    private func popOldestDeferred() -> Key? {
+        while deferredHead < deferredOrder.count {
+            let entry = deferredOrder[deferredHead]
+            deferredHead += 1
+            if isCurrent(entry) { deferredSeq[entry.key] = nil; return entry.key }
+        }
         return nil
     }
 
@@ -150,7 +212,7 @@ final class ThumbnailStore {
             let found = await ImageManager.shared.loadThumbnail(fileName: key.name,
                                                                 maxWidth: CGFloat(key.width))
             loading.remove(key)
-            if found == nil { missing.insert(key) } else { missing.remove(key) }
+            missing[key] = found == nil ? ContinuousClock.now : nil
             // Even a read that found nothing bumps this: the view asks again,
             // gets nil again, and can say so rather than waiting forever.
             slot(key).generation &+= 1
@@ -167,7 +229,7 @@ final class ThumbnailStore {
     private func pump() {
         let now = ContinuousClock.now
         reasked = reasked.filter { now - $0.value < Self.reaskGrace }
-        while loading.count + reasked.count < Self.maxInFlight, let key = deferred.popLast() {
+        while loading.count + reasked.count < Self.maxInFlight, let key = popNewestDeferred() {
             reasked[key] = now
             slot(key).generation &+= 1
         }
@@ -184,7 +246,9 @@ final class ThumbnailStore {
     func forgetInFlight() {
         loading.removeAll()
         missing.removeAll()
-        deferred.removeAll()
+        deferredSeq.removeAll()
+        deferredOrder.removeAll()
+        deferredHead = 0
         reasked.removeAll()
         for slot in slots.values { slot.generation &+= 1 }
     }
@@ -195,6 +259,6 @@ final class ThumbnailStore {
         slots[Key(name: fileName, width: Self.bucket(width))]?.generation ?? 0
     }
     var inFlightForTesting: Int { loading.count }
-    var deferredForTesting: Int { deferred.count }
+    var deferredForTesting: Int { deferredSeq.count }
     #endif
 }

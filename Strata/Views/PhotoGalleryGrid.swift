@@ -113,6 +113,11 @@ struct PhotoGalleryGrid: View {
                         CachedImageView(fileName: photo.fileName, width: side,
                                         height: side, cornerRadius: 0)
                             .frame(width: side, height: side)
+                    } else {
+                        // Before the grid has measured itself: the same
+                        // placeholder a cell shows while its picture loads,
+                        // never an empty square.
+                        Rectangle().fill(AppColors.quietFill)
                     }
                 }
                 .contentShape(Rectangle())

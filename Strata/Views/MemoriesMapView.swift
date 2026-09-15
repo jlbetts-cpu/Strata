@@ -980,7 +980,7 @@ private struct PlaceBlock: View {
     /// reading it if it is not, which is what makes this a preload.
     private func isDecoded(_ name: String) -> Bool {
         guard !name.hasPrefix(Self.bundledPrefix) else { return true }
-        return ThumbnailStore.shared.state(for: name, width: Self.decodeWidth * displayScale).image != nil
+        return ThumbnailStore.shared.state(for: name, width: Self.decodeWidth * displayScale, exact: true).image != nil
     }
 
     /// The photograph the next beat of the clock will ask for, read ahead so

@@ -77,6 +77,30 @@ struct ThumbnailStoreTests {
         #expect(store.state(for: name, width: 40).missing, "a missing file never resolved")
     }
 
+    /// A missing file used to be read again every time its view asked, and
+    /// every read that found nothing bumped the slot, which made the view ask
+    /// again: a read and a body per frame, for ever, holding a place in the
+    /// flight. A view drawing it keeps asking here, as a body would.
+    @Test("a missing file is read once, not once per frame")
+    func missingIsNotReadAgain() async throws {
+        let store = ThumbnailStore.shared
+        store.forgetInFlight()
+        await drain()
+        let name = "no-such-photograph-loop.jpg"
+        for _ in 0..<40 where !store.state(for: name, width: 40).missing {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(store.state(for: name, width: 40).missing)
+        let settled = store.generationForTesting(name, width: 40)
+        for _ in 0..<20 {
+            _ = store.state(for: name, width: 40)
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(store.generationForTesting(name, width: 40) == settled,
+                "a missing file kept being read and kept redrawing its view")
+        #expect(store.inFlightForTesting == 0)
+    }
+
     /// The one global `version` invalidated every image view in the app when
     /// any photograph landed. A view must now hear about its own photograph
     /// and nothing else.
@@ -122,19 +146,26 @@ struct ThumbnailStoreTests {
         #expect(asked.fired, "a view was not told its own photograph landed")
     }
 
-    @Test("widths are rounded up to a bucket, never down")
+    @Test("widths are rounded up to a bucket, never down, and never past 1.4x the pixels")
     func widthsBucketUp() {
         #expect(ThumbnailStore.bucket(1) == 128)
         #expect(ThumbnailStore.bucket(128) == 128)
-        #expect(ThumbnailStore.bucket(128.4) == 256)
-        #expect(ThumbnailStore.bucket(222) == 256)
-        #expect(ThumbnailStore.bucket(264) == 384)
-        #expect(ThumbnailStore.bucket(390) == 512)
+        #expect(ThumbnailStore.bucket(128.4) == 144)
+        #expect(ThumbnailStore.bucket(222) == 224)
+        #expect(ThumbnailStore.bucket(389) == 432)
         #expect(ThumbnailStore.bucket(1024) == 1024)
         #expect(ThumbnailStore.bucket(1206) == 1206)
-        for pixels in stride(from: CGFloat(1), through: 1400, by: 7.3) {
-            #expect(CGFloat(ThumbnailStore.bucket(pixels)) >= pixels, "\(pixels) would decode softer")
+        for pixels in stride(from: CGFloat(1), through: 1400, by: 3.7) {
+            let bucket = CGFloat(ThumbnailStore.bucket(pixels))
+            #expect(bucket >= pixels, "\(pixels) would decode softer")
+            if pixels >= 109 {
+                #expect((bucket / pixels) * (bucket / pixels) < 1.4,
+                        "\(pixels) decodes at \(bucket), too many extra pixels")
+            }
         }
+        // A caller with its own decode width (the map) gets exactly that.
+        #expect(ThumbnailStore.bucket(264, exact: true) == 264)
+        #expect(ThumbnailStore.bucket(263.2, exact: true) == 264)
     }
 
     @Test("two nearby widths share one decode")
@@ -145,8 +176,8 @@ struct ThumbnailStoreTests {
         store.forgetInFlight()
         ImageManager.shared.emptyThumbnailCacheForBenchmark()
         #expect(await waitForImage(name, width: 222) != nil)
-        // 255px is the same bucket: in memory already, no read.
-        #expect(store.image(for: name, width: 255) != nil)
+        // 224px is the same bucket: in memory already, no read.
+        #expect(store.image(for: name, width: 224) != nil)
         #expect(store.inFlightForTesting == 0)
     }
 
@@ -181,6 +212,26 @@ struct ThumbnailStoreTests {
         #expect(store.state(for: waiting.last!, width: 40).missing)
     }
 
+    /// Asks from cells that scrolled away must not pile up without limit.
+    @Test("at most maxDeferred asks wait, the oldest let go first")
+    func deferredIsCapped() async throws {
+        let store = ThumbnailStore.shared
+        store.forgetInFlight()
+        await drain()
+        let names = (0..<(ThumbnailStore.maxInFlight + ThumbnailStore.maxDeferred + 40))
+            .map { "no-such-deferred-\($0).jpg" }
+        for name in names { _ = store.image(for: name, width: 40) }
+        #expect(store.inFlightForTesting == ThumbnailStore.maxInFlight)
+        #expect(store.deferredForTesting == ThumbnailStore.maxDeferred)
+        // The 40 let go were the oldest waiting, and each was told, so a view
+        // still showing one asks again.
+        let firstWaiting = names[ThumbnailStore.maxInFlight]
+        #expect(store.generationForTesting(firstWaiting, width: 40) > 0)
+        let newest = names.last!
+        #expect(store.generationForTesting(newest, width: 40) == 0)
+        await drain()
+    }
+
     /// The filmstrip dimmed and re-faded after a switch to dark mode because
     /// the cache evicted pictures that were on screen. A picture something
     /// still holds must come back without a read.
@@ -197,5 +248,39 @@ struct ThumbnailStoreTests {
         #expect(again === shown, "an on-screen picture was dropped by eviction")
         #expect(store.inFlightForTesting == 0, "an on-screen picture was read again")
         _ = shown
+    }
+}
+
+/// The photo viewer's strip draws only the cards near its middle. On a
+/// phone about four either side fit; on an iPad many more, and a fixed
+/// window left cards on screen undrawn.
+@MainActor
+@Suite("Filmstrip window")
+struct FilmstripWindowTests {
+    @Test("every card any part of which is on screen is drawn, at phone and iPad widths")
+    func coversTheStrip() {
+        let pitch = Filmstrip.pitch
+        var undrawn: [String] = []
+        for width in [320.0, 393, 440, 768, 1032, 1366] as [CGFloat] {
+            for progress in stride(from: 0.0, through: 60.0, by: 0.25) {
+                guard let range = Filmstrip.window(progress: progress, count: 61, width: width) else {
+                    Issue.record("no window"); continue
+                }
+                for i in 0...60 {
+                    // Card i's left edge, in the strip's coordinates.
+                    let left = width / 2 - Filmstrip.card.width / 2 + CGFloat(Double(i) - progress) * pitch
+                    let onScreen = left < width && left + Filmstrip.card.width > 0
+                    if onScreen, !range.contains(i) {
+                        undrawn.append("card \(i) at width \(width), progress \(progress)")
+                    }
+                }
+                // The neighbours are always drawn, for VoiceOver.
+                let centre = Int(progress.rounded())
+                for n in [centre - 1, centre + 1] where (0...60).contains(n) && !range.contains(n) {
+                    undrawn.append("neighbour \(n) at width \(width), progress \(progress)")
+                }
+            }
+        }
+        #expect(undrawn.isEmpty, "\(undrawn.count) on screen but not drawn, first: \(undrawn.first ?? "")")
     }
 }
