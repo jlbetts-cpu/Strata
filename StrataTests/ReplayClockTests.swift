@@ -33,4 +33,21 @@ struct ReplayClockTests {
         clock.skip(to: 5)
         #expect(clock.time(at: Date(), duration: 30) == 10)
     }
+
+    @Test("restart plays from 0 again, forgetting a pause, a skip and the floor")
+    func restart() {
+        let clock = ReplayClock()
+        clock.start()
+        clock.skip(to: 12)
+        clock.lastRendered = 12
+        clock.pause()
+        #expect(clock.time(at: Date(), duration: 30) == 12)
+        clock.restart()
+        #expect(!clock.isPaused)
+        #expect(clock.lastRendered == 0)
+        let t = clock.time(at: Date(), duration: 30)
+        #expect(t >= 0 && t < 0.5, "restart read \(t)")
+        // And it runs.
+        #expect(clock.time(at: Date().addingTimeInterval(1), duration: 30) > 0.9)
+    }
 }

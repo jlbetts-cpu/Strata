@@ -433,6 +433,14 @@ enum GridConstants {
     static let replaySkipGap: Double = 0.25
     /// The level a replay's landings sound at, against a live landing's 1.
     static let replayImpactGain: Double = 0.6
+    /// A replay that cannot start inside this shows where its tower will
+    /// stand. Under it a wait reads as the cover arriving, and an indicator
+    /// that flashes for a frame is worse than none.
+    static let replayLoadingDelay: Double = 0.15
+    /// One breath of that slot, in and out.
+    static let replayLoadingBreath: Double = 1.6
+    /// The slot fading out as the replay starts.
+    static let replayLoadingFade: Double = 0.24
 
     /// How far above the top of the screen a block starts its fall.
     ///

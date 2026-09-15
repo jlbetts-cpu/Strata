@@ -116,6 +116,10 @@ final class ReplayGestureTests: XCTestCase {
     /// control's tap, not the player's. Before the close its hit testing is
     /// off, so a tap on the same spot is still a skip.
     ///
+    /// **Share shares the video** (2026-09-15), so the sheet opens only after
+    /// the export: the press shows the export's ring first, and the sheet
+    /// can take as long as a save.
+    ///
     /// **Named for what it can prove: AFTER the close, not during it.** The
     /// close takes 0.46s from `closeStart` to `duration`. Tried: a second
     /// coordinate tap fired straight after the skip opened the sheet, but the
@@ -130,9 +134,9 @@ final class ReplayGestureTests: XCTestCase {
         let early = clock(app)
         XCTAssertLessThan(early.t, early.closeStart - 3, "too late to check Share before the close")
         // Before the close Share is drawn at opacity 0 and its hit testing is
-        // off, but it is still an accessibility element (ShareLink does not
-        // take `accessibilityHidden`), so `isHittable` cannot answer. Press
-        // where it is instead: that must be the player's skip, not a sheet.
+        // off, but it is still an accessibility element, so `isHittable`
+        // cannot answer. Press where it is instead: that must be the player's
+        // skip, not a sheet.
         XCTAssertTrue(share.waitForExistence(timeout: 5), "no Share in the tree. On screen: \(app.debugDescription)")
         // Its frame can read as zero for the first moments of play (seen
         // once in three runs), so wait for layout rather than tap (0, 0).
@@ -154,10 +158,15 @@ final class ReplayGestureTests: XCTestCase {
 
         let before = clock(app)
         share.tap()
+        let control = app.descendants(matching: .any).matching(identifier: "shareVideo").firstMatch
+        let preparing = control.value as? String ?? ""
+        keep(app, "share-preparing")
         let sheet = app.otherElements["ActivityListView"]
         let copy = app.buttons["Copy"]
-        let appeared = sheet.waitForExistence(timeout: 8) || copy.exists
+        let appeared = sheet.waitForExistence(timeout: 240) || copy.exists
         let after = clock(app)
+        XCTAssertTrue(preparing.hasPrefix("Preparing") || appeared,
+                      "Share neither showed the export nor opened a sheet (value \(preparing))")
         XCTAssertTrue(appeared, "tapping Share showed no share sheet. On screen: \(app.debugDescription)")
         keep(app, "share-sheet")
         // The clock reads the same either side of the tap and sits at the
@@ -171,6 +180,35 @@ final class ReplayGestureTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertFalse(sheet.exists, "the share sheet did not go away")
         XCTAssertTrue(probe(app).exists, "dismissing the share sheet closed the replay")
+    }
+
+    /// Replay, at the close: the clock goes back to the start and plays,
+    /// and the controls are out of the way again until the next close.
+    @MainActor
+    func testReplayRestartsFromTheStart() throws {
+        let app = launch()
+        XCTAssertTrue(probe(app).waitForExistence(timeout: 30), "the replay never started")
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        let replay = app.buttons["Replay"]
+        XCTAssertTrue(replay.waitForExistence(timeout: 5), "no Replay at the close. On screen: \(app.debugDescription)")
+        let closed = clock(app)
+        XCTAssertEqual(closed.t, closed.duration, accuracy: 0.001, "the replay had not finished (t \(closed.t))")
+        XCTAssertTrue(replay.isHittable, "Replay is at the close but not hittable: \(replay.frame)")
+
+        replay.tap()
+        let restarted = clock(app)
+        XCTAssertLessThan(restarted.t, 2.0, "Replay left the clock at \(restarted.t)")
+        Thread.sleep(forTimeInterval: 1.5)
+        let running = clock(app)
+        XCTAssertGreaterThan(running.t, restarted.t + 1.0, "the clock did not run after Replay (\(restarted.t) -> \(running.t))")
+        XCTAssertLessThan(running.t, running.closeStart, "Replay skipped to the close")
+        keep(app, "after-replay")
+        // A tap still skips, so the restarted build behaves as the first.
+        middle(app).tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        let skipped = clock(app)
+        XCTAssertGreaterThanOrEqual(skipped.t, skipped.closeStart - 0.001, "a tap after Replay did not skip (t \(skipped.t))")
     }
 
     /// Save Video at the close: the press is the control's, not the player's,

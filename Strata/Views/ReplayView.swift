@@ -13,12 +13,13 @@ import SwiftUI
 /// so a touch on the button never reaches the tap or the hold at all.
 /// `ReplayGestureTests` presses all three.
 ///
-/// The controls under the close (Share, Save Video) are different: they are
-/// children of the player. A child `Button` takes precedence over the
-/// parent's `onTapGesture`, so a tap on one is the button's and not a skip;
-/// the hold is SIMULTANEOUS, so holding a control would also pause, which
-/// changes nothing once the replay has finished.
-/// `testShareAfterTheCloseIsNotASkip` taps Share and reads the clock.
+/// The controls under the close (Replay, Save Video, Share) are different:
+/// they are children of the player. A child `Button` takes precedence over
+/// the parent's `onTapGesture`, so a tap on one is the button's and not a
+/// skip; the hold is SIMULTANEOUS, so holding a control would also pause,
+/// which changes nothing once the replay has finished.
+/// `testShareAfterTheCloseIsNotASkip` taps Share and reads the clock, and
+/// `testReplayRestartsFromTheStart` taps Replay.
 /// Before the close arrives `ReplayFrame` turns their hit testing off, so a
 /// tap there falls through to the skip.
 ///
@@ -46,11 +47,19 @@ struct ReplayView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// One `now` for the whole replay. The header's range is worded against
     /// it, and a fresh `Date()` per frame could reword it mid-play at
     /// midnight.
     @State private var now = Date()
-    @State private var images: ReplayImages?
+    /// The photographs, arriving: playback starts once the first seconds'
+    /// are in (`ReplayImageLoad`).
+    @State private var load = ReplayImageLoad()
+    /// Shown only when nothing could start within `replayLoadingDelay`.
+    @State private var showsLoading = false
+    /// The clock has started: the player replaces the empty ground.
+    @State private var started = false
+    @State private var scripts = ReplayScriptCache()
     @State private var clock = ReplayClock()
     @State private var feedback = ReplayFeedback()
     /// Set once `t` reaches the end, so the timeline stops asking for frames
@@ -58,19 +67,18 @@ struct ReplayView: View {
     @State private var finished = false
     @GestureState private var holding = false
     @State private var press = PressMemory()
-    /// Set when the close has been announced to VoiceOver, so it is said once.
+    /// Set when the close has been announced to VoiceOver, so it is said
+    /// once a play (Replay says it again).
     @State private var announced = false
-    /// The Share still, drawn once when the photographs have loaded. Never in
-    /// `controls`, which runs every frame.
-    @State private var shareImage: UIImage?
     /// The photograph opened from a block after the close.
     @State private var viewing: ViewedPhoto?
     /// Where that block is drawn, so the viewer can grow out of it.
     @State private var viewingSource: CGRect = .zero
     @Namespace private var photoTransition
-    /// Save Video. Its own observable, read only by the control, so the
-    /// progress ticking over does not rebuild the whole replay.
-    @State private var save = ReplaySave()
+    /// The video, for Save Video and Share. Its own observable, read only by
+    /// the controls, so the progress ticking over does not rebuild the whole
+    /// replay.
+    @State private var video = ReplayVideo()
     @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var cadence = ReplayCadence()
@@ -87,12 +95,16 @@ struct ReplayView: View {
         GeometryReader { safe in
             let insets = safe.safeAreaInsets
             GeometryReader { geo in
-                let script = makeScript(size: geo.size)
+                let script = makeScript(size: geo.size, topInset: insets.top)
                 ZStack(alignment: .topTrailing) {
-                    if let images {
-                        player(script: script, images: images, insets: insets)
+                    if started {
+                        player(script: script, insets: insets)
                     } else {
                         WarmBackground()
+                    }
+                    if showsLoading && !started {
+                        ReplayLoadingSlot(metrics: script.metrics)
+                            .transition(.opacity)
                     }
                     // The block a photograph opens out of. A clear stand-in
                     // at the block's rect: the blocks are drawn by a pure
@@ -106,13 +118,14 @@ struct ReplayView: View {
                     // From the first frame, loaded or not: leaving never waits
                     // on the animation.
                     GlassIconButton(systemName: "xmark", accessibilityLabel: "Close") {
-                        save.cancel()
+                        video.close()
                         onClose()
                     }
                         .padding(.trailing, GridConstants.horizontalPadding)
                         .padding(.top, insets.top + GridConstants.gapTight)
                 }
-                .task(id: script.metrics.cell) { await prepare(cell: script.metrics.cell, closeStart: script.closeStart) }
+                .animation(.easeOut(duration: GridConstants.replayLoadingFade), value: started)
+                .task(id: script.metrics.cell) { await prepare(script: script) }
             }
             .ignoresSafeArea()
         }
@@ -127,11 +140,11 @@ struct ReplayView: View {
         // replay, and a disappearance there is not a close.
         // `testSaveVideoSurvivesOpeningAPhoto` opens one mid-save.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { save.cancel() }
+            if phase == .background { video.cancel() }
         }
         #if DEBUG
         .onChange(of: finished) { _, done in
-            if done, DebugHarness.exportsReplay, let images { save.start(replay: replay, images: images, now: now, isSample: isSample) }
+            if done, DebugHarness.exportsReplay { saveVideo() }
         }
         #endif
         .fullScreenCover(item: $viewing) { photo in
@@ -148,12 +161,17 @@ struct ReplayView: View {
         }
     }
 
-    private func makeScript(size: CGSize) -> ReplayScript {
+    /// The script for this frame size, made once. The body runs again for
+    /// every state change on the way to the first frame, and a month's
+    /// script solves its camera each time it is made.
+    private func makeScript(size: CGSize, topInset: CGFloat) -> ReplayScript {
         #if DEBUG
         let began = CACurrentMediaTime()
         defer { openTiming.mark("script", ms: (CACurrentMediaTime() - began) * 1000) }
         #endif
-        return ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: reduceMotion)
+        let metrics = ReplayScript.Metrics.standard(frame: size, topInset: topInset,
+                                                    topCopy: ReplayFrame.topCopyHeight(dynamicTypeSize))
+        return scripts.script(replay, metrics: metrics, reduceMotion: reduceMotion)
     }
 
     /// The replay's own photographs, in drop order. Sample wins' bundled
@@ -189,12 +207,19 @@ struct ReplayView: View {
         (title.isEmpty || title == QuickWinService.untitled) ? nil : title
     }
 
-    private func player(script: ReplayScript, images: ReplayImages, insets: EdgeInsets) -> some View {
-        TimelineView(.animation(paused: finished || clock.isPaused || clock.isFrozen)) { context in
+    private func player(script: ReplayScript, insets: EdgeInsets) -> some View {
+        // A finished replay keeps drawing until its last photographs have
+        // arrived and faded in, or a late one would never be seen.
+        TimelineView(.animation(paused: (finished && load.settled) || clock.isPaused || clock.isFrozen)) { context in
             let t = clock.time(at: context.date, duration: script.duration)
-            ReplayFrame(script: script, images: images, t: t, now: now,
+            let date = context.date
+            #if DEBUG
+            let _ = openTiming.markOnce("timeline")
+            #endif
+            ReplayFrame(script: script, images: load.images, t: t, now: now,
                         showsSampleBadge: isSample,
                         controls: AnyView(controls(script: script)),
+                        photoOpacity: { load.opacity($0, at: date) },
                         topInset: insets.top, bottomInset: insets.bottom,
                         onTapBlock: t >= script.closeStart
                             ? { index in openPhoto(block: index, script: script, t: t) }
@@ -269,96 +294,117 @@ struct ReplayView: View {
             }
     }
 
-    /// Save Video and Share. The row reserves their height from the first
-    /// frame, so the close is laid out, and bounded above the home indicator,
-    /// at the size it has once they are in it.
+    /// Replay, Save Video and Share. The row reserves their height from the
+    /// first frame, so the close is laid out, and bounded above the home
+    /// indicator, at the size it has once they are in it.
     ///
-    /// Share shares the still, not the video: the video is shared by saving
-    /// it, since the camera roll is where people post stories from.
+    /// **Share shares the video** (the owner, 2026-09-15: "sharing as an
+    /// image shouldn't be the option"). It exports the same file Save Video
+    /// does, once per replay, and hands it to the share sheet.
     ///
-    /// **One row, always.** At xxLarge on an iPhone SE (375pt), "Couldn't save
-    /// the video" beside Share measured 349pt against 343pt between the
-    /// margins, 3pt into each side margin. Stacking
-    /// them was tried: the close is bounded above the home indicator, so a
-    /// taller close rose into the tower and the count printed over its bottom
-    /// row. Instead Save Video's words may shrink, to 80% at most, when the
-    /// row is short of room; Share never does. Nowhere else does it change.
+    /// **One row, always.** Stacking was tried: the close is bounded above
+    /// the home indicator, so a taller close rose into the tower and printed
+    /// over its bottom row. Instead Save Video's and Share's words may shrink,
+    /// to 80% at most, when the row is short of room (an iPhone SE at
+    /// xxLarge). Replay is a glyph and never does.
     private func controls(script: ReplayScript) -> some View {
         HStack(spacing: GridConstants.gapItem) {
-            controlItems
+            GlassIconButton(systemName: "arrow.counterclockwise", accessibilityLabel: "Replay") {
+                restart()
+            }
+            SaveVideoControl(video: video) { saveVideo() }
+            ShareVideoControl(video: video) { shareVideo() }
         }
         .frame(height: GlassIconButton.defaultSide)
     }
 
-    @ViewBuilder
-    private var controlItems: some View {
-        if let images {
-            SaveVideoControl(save: save) {
-                save.start(replay: replay, images: images, now: now, isSample: isSample)
-            }
-        }
-        if let shareImage {
-            let image = Image(uiImage: shareImage)
-            ShareLink(item: image, preview: SharePreview(replay.period.title, image: image)) {
-                Text("Share")
-                    .font(Typography.headerMedium)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    // Layout first, glass after: the Memories drawer's
-                    // Done, which is this app's glass capsule control.
-                    .padding(.horizontal, GridConstants.gapLabel)
-                    .frame(height: GlassIconButton.defaultSide)
-                    .glassCapsule()
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
+    private func saveVideo() {
+        let load = load
+        video.save(replay: replay, images: { await load.all() }, now: now, isSample: isSample)
+    }
+
+    private func shareVideo() {
+        let load = load
+        video.share(replay: replay, images: { await load.all() }, now: now, isSample: isSample) { url in
+            ReplayShareSheet.present(url)
         }
     }
 
-    private func prepare(cell: CGFloat, closeStart: Double) async {
+    /// From the start again: the clock, the landings' sounds and haptics,
+    /// the dance's haptic and the VoiceOver announcement all fire again.
+    private func restart() {
+        feedback = ReplayFeedback()
+        announced = false
+        press.held = false
+        finished = false
+        clock.restart()
+    }
+
+    private func prepare(script: ReplayScript) async {
+        var start = 0.0
         #if DEBUG
-        if let frozen = DebugHarness.replayAt { clock.freeze(at: frozen) }
-        #endif
-        // One decode serves the screen, the Share still and the video, so
-        // at whichever cell is bigger in pixels: this screen's, or the
-        // card's at the share scale (a 402pt phone at 3x: a 267px cell
-        // against the card's 237px; an SE at 2x: 164px, so the card's).
-        #if DEBUG
-        openTiming.mark("prepare")
+        if let frozen = DebugHarness.replayAt { clock.freeze(at: frozen); start = frozen }
+        openTiming.mark(String(format: "prepare (reveal %.2fs, close %.2fs, end %.2fs)", script.revealStart, script.closeStart, script.duration))
         let decodeBegan = CACurrentMediaTime()
         #endif
-        async let loaded = ReplayImages.load(replay, cellPixels: max(cell * displayScale,
-                                                                     ReplayCard.cell * ReplayCard.shareScale))
-        // While the photographs decode, not on the first landing: starting
-        // the engine there held that frame for 400ms. The yield lets the load
-        // hand its decodes to their own tasks before this takes the main
-        // actor for the engine.
-        await Task.yield()
+        // With VoiceOver the replay opens at the close: the build is a wait
+        // with nothing to hear.
+        let voiceOver = UIAccessibility.isVoiceOverRunning
+        if voiceOver { start = script.closeStart }
+        // A frozen moment is a photograph of the replay, so it waits for
+        // every picture; playback waits only for its first seconds'.
+        var required = ReplayImageLoad.required(script, from: start)
+        #if DEBUG
+        if DebugHarness.replayAt != nil { required = Set(replay.blocks.compactMap { $0.win.photo?.key }) }
+        #endif
+        // One decode serves the screen and the video, so at whichever cell is
+        // bigger in pixels: this screen's, or the card's at the export scale
+        // (a 402pt phone at 3x: a 267px cell against the card's 237px; an SE
+        // at 2x: 164px, so the card's).
+        load.start(replay, cellPixels: max(script.metrics.cell * displayScale,
+                                           ReplayCard.cell * ReplayCard.shareScale),
+                   required: required)
+        #if DEBUG
+        // What the old path waited for before its first frame: every
+        // photograph. Logged in the same run, so the two compare under the
+        // same load.
+        let needed = required.count
+        Task {
+            let all = await load.all()
+            openTiming.log(String(format: "[REPLAY-OPEN] %@ all %d photos decoded %.0fms after prepare (%d needed to start)",
+                                  replay.period.id, all.count, (CACurrentMediaTime() - decodeBegan) * 1000, needed))
+        }
+        #endif
+        // Not on the first landing: starting the engine there held that
+        // frame for 400ms. `prepare` hands the setup to its own queue.
         SoundEngine.prepare()
-        images = await loaded
+        if !load.canPlay {
+            // A wait too short to notice shows nothing; a longer one shows
+            // where the tower will stand.
+            let indicator = Task {
+                try? await Task.sleep(for: .milliseconds(Int(GridConstants.replayLoadingDelay * 1000)))
+                if !Task.isCancelled, !load.canPlay { showsLoading = true }
+            }
+            await load.untilPlayable()
+            indicator.cancel()
+        }
+        #if DEBUG
+        if let hold = DebugHarness.replayHoldLoad {
+            showsLoading = true
+            try? await Task.sleep(for: .seconds(hold))
+        }
+        #endif
         #if DEBUG
         openTiming.mark("images", ms: (CACurrentMediaTime() - decodeBegan) * 1000)
         #endif
+        started = true
+        #if DEBUG
+        openTiming.mark("started")
+        #endif
         clock.start()
-        // In the same turn as the start, so the first frame drawn is the
-        // close: with VoiceOver the build is a wait with nothing to hear.
-        if UIAccessibility.isVoiceOverRunning { clock.skip(to: closeStart) }
-        // Once, after the photographs are in, and after the clock starts so
-        // the first frame is not held for it.
-        // The live photographs serve it: they are keyed by picture, not by
-        // size, and decoded for the larger of this screen's cell and the
-        // card's.
-        if let images, shareImage == nil {
-            await Task.yield()
-            #if DEBUG
-            let stillBegan = CACurrentMediaTime()
-            #endif
-            shareImage = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)
-            #if DEBUG
-            openTiming.log(String(format: "[REPLAY-OPEN] share still %.1fms on the main actor", (CACurrentMediaTime() - stillBegan) * 1000))
-            #endif
-        }
+        // In the same turn as the start, so the first frame drawn is the close.
+        if voiceOver { clock.skip(to: script.closeStart) }
+        showsLoading = false
     }
 
     #if DEBUG
@@ -394,79 +440,192 @@ struct ReplayView: View {
     #endif
 }
 
-/// Saving a replay as a video: export, then the camera roll.
+/// A replay's video, made once and used by Save Video and by Share.
+///
+/// **One export per replay.** Whichever is pressed first starts it; the
+/// other, pressed meanwhile, waits on the same export, and pressed after, uses
+/// the finished file. The file is deleted when the replay closes. Leaving the
+/// app stops an export in progress (a phone will not encode video in the
+/// background) but keeps a finished file.
+@MainActor
 @Observable
-final class ReplaySave {
-    enum State: Equatable {
+final class ReplayVideo {
+    enum SaveState: Equatable {
         case idle
-        case saving(Double)
+        case saving
         case saved
         case failed
     }
 
-    private(set) var state: State = .idle
+    enum ShareState: Equatable {
+        case idle
+        /// Exporting before the share sheet can open.
+        case preparing
+        case failed
+    }
+
+    private(set) var saveState: SaveState = .idle
+    private(set) var shareState: ShareState = .idle
+    /// The export's progress, 0 to 1, shared by both controls.
+    private(set) var progress: Double = 0
+    /// Whether an export is running. Save Video's ring follows it; once the
+    /// file is made, saving to Photos is a moment with a full ring.
+    private(set) var isExporting = false
+
     @ObservationIgnored private var exporter: ReplayVideoExporter?
+    @ObservationIgnored private var running: Task<Result<URL, Error>, Never>?
+    @ObservationIgnored private var cancelRequested = false
+    @ObservationIgnored private(set) var file: URL?
+    @ObservationIgnored private var closed = false
+    /// A write to Photos holds the file until it finishes, even past a close.
+    @ObservationIgnored private var writingToPhotos = false
 
     /// A press of Save Video. After a failure the same press tries again.
-    func start(replay: Replay, images: ReplayImages, now: Date, isSample: Bool) {
-        if state == .failed { state = .idle }
-        guard state == .idle else { return }
-        let job = ReplayVideoExporter(replay: replay, images: images, now: now, isSample: isSample)
-        exporter = job
-        state = .saving(0)
+    func save(replay: Replay, images: @escaping () async -> ReplayImages, now: Date, isSample: Bool) {
+        if saveState == .failed { saveState = .idle }
+        guard saveState == .idle else { return }
+        saveState = .saving
         Task {
-            defer { if exporter === job { exporter = nil } }
-            let url: URL
-            do {
-                url = try await job.export { [weak self] p in self?.state = .saving(p) }
-            } catch ReplayVideoExporter.Failure.cancelled {
-                // Closed, or the app was left: nothing went wrong, so the
-                // control offers Save Video again rather than an error.
-                state = .idle
-                return
-            } catch {
-                state = .failed
-                HapticsEngine.warning()
-                return
+            let result = await export(replay: replay, images: images, now: now, isSample: isSample)
+            switch result {
+            case .failure(let error):
+                if Self.isCancel(error) {
+                    // Closed, or the app was left: nothing went wrong, so the
+                    // control offers Save Video again rather than an error.
+                    saveState = .idle
+                } else {
+                    saveState = .failed
+                    HapticsEngine.warning()
+                }
+            case .success(let url):
+                #if DEBUG
+                if DebugHarness.exportsReplay {
+                    let images = await images()
+                    let still = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)?.pngData()
+                    saveState = Self.keepForInspection(url, exporter: lastExporter, still: still) ? .saved : .failed
+                    return
+                }
+                #endif
+                writingToPhotos = true
+                let saved = await PhotoLibrarySaver.saveVideo(at: url)
+                writingToPhotos = false
+                if closed { removeFile() }
+                saveState = saved ? .saved : .failed
+                if saved { HapticsEngine.success() } else { HapticsEngine.warning() }
             }
-            #if DEBUG
-            if DebugHarness.exportsReplay {
-                // The Share still beside it, to compare with the video's last frame.
-                let still = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)?.pngData()
-                state = Self.keepForInspection(url, job, still: still) ? .saved : .failed
-                return
-            }
-            #endif
-            let saved = await PhotoLibrarySaver.saveVideo(at: url)
-            ReplayVideoExporter.remove(url)
-            state = saved ? .saved : .failed
-            if saved { HapticsEngine.success() } else { HapticsEngine.warning() }
         }
     }
 
-    func cancel() { exporter?.cancel() }
-
-    /// Whether a press does anything: Save Video, or trying again after a
-    /// failure.
-    var acceptsPress: Bool { state == .idle || state == .failed }
-
-    var title: String {
-        switch state {
-        case .idle: "Save Video"
-        case .saving: "Saving…"
-        case .saved: "Saved to Photos"
-        case .failed: "Couldn't save the video"
+    /// A press of Share: the video, exported if it is not yet, then the share
+    /// sheet with the file.
+    func share(replay: Replay, images: @escaping () async -> ReplayImages, now: Date, isSample: Bool,
+               present: @escaping (URL) -> Void) {
+        guard shareState != .preparing else { return }
+        shareState = .preparing
+        Task {
+            let result = await export(replay: replay, images: images, now: now, isSample: isSample)
+            switch result {
+            case .failure(let error):
+                if Self.isCancel(error) {
+                    shareState = .idle
+                } else {
+                    shareState = .failed
+                    HapticsEngine.warning()
+                }
+            case .success(let url):
+                shareState = .idle
+                if !closed { present(url) }
+            }
         }
+    }
+
+    /// Stops an export in progress. A finished file is kept.
+    func cancel() {
+        guard running != nil else { return }
+        cancelRequested = true
+        exporter?.cancel()
+    }
+
+    /// The replay closed: stop, and delete the file.
+    func close() {
+        closed = true
+        cancel()
+        removeFile()
+    }
+
+    private func removeFile() {
+        guard let file, !writingToPhotos else { return }
+        ReplayVideoExporter.remove(file)
+        self.file = nil
     }
 
     #if DEBUG
-    /// `-strataExportReplay`: the file, and how long it took, in Documents.
-    private static func keepForInspection(_ url: URL, _ job: ReplayVideoExporter, still: Data?) -> Bool {
+    @ObservationIgnored private var lastExporter: ReplayVideoExporter?
+    #endif
+
+    /// The finished file, the export already running, or a new export.
+    private func export(replay: Replay, images: @escaping () async -> ReplayImages, now: Date,
+                        isSample: Bool) async -> Result<URL, Error> {
+        if let file { return .success(file) }
+        if let running { return await running.value }
+        cancelRequested = false
+        progress = 0
+        isExporting = true
+        let task = Task { () -> Result<URL, Error> in
+            // Every photograph, not the first seconds': the video is drawn
+            // with `ImageRenderer`, which draws what it has.
+            let images = await images()
+            if cancelRequested || closed { return .failure(ReplayVideoExporter.Failure.cancelled) }
+            let job = ReplayVideoExporter(replay: replay, images: images, now: now, isSample: isSample)
+            exporter = job
+            #if DEBUG
+            lastExporter = job
+            #endif
+            defer { exporter = nil }
+            do {
+                return .success(try await job.export { [weak self] p in self?.progress = p })
+            } catch {
+                return .failure(error)
+            }
+        }
+        running = task
+        let result = await task.value
+        running = nil
+        isExporting = false
+        if case .success(let url) = result {
+            if closed { ReplayVideoExporter.remove(url) } else { file = url }
+        }
+        return result
+    }
+
+    private static func isCancel(_ error: Error) -> Bool {
+        if case .cancelled? = error as? ReplayVideoExporter.Failure { return true }
+        return false
+    }
+
+    var saveTitle: String {
+        switch saveState {
+        case .idle: "Save Video"
+        case .saving: "Saving…"
+        case .saved: "Saved to Photos"
+        case .failed: "Couldn't save"
+        }
+    }
+
+    /// Whether a press of Save Video does anything: saving, or trying again
+    /// after a failure.
+    var saveAcceptsPress: Bool { saveState == .idle || saveState == .failed }
+
+    #if DEBUG
+    /// `-strataExportReplay`: a copy of the file, and how long it took, in
+    /// Documents. A copy, so Share can still use the original.
+    private static func keepForInspection(_ url: URL, exporter job: ReplayVideoExporter?, still: Data?) -> Bool {
         let destination = URL.documentsDirectory.appending(path: "replay.mp4")
         ReplayVideoExporter.remove(destination)
         do {
-            try FileManager.default.moveItem(at: url, to: destination)
+            try FileManager.default.copyItem(at: url, to: destination)
             try still?.write(to: URL.documentsDirectory.appending(path: "replay-still.png"))
+            guard let job else { return true }
             let s = job.stats
             let report = String(format: "duration %.4f frames %d drawn %d wall %.2fs mix %.0fms maxSlice %.0fms (%@) slices %d landings %d sounding %d\n",
                                 s.duration, s.frames, s.drawn, s.wall, s.audioMix * 1000, s.maxSlice * 1000,
@@ -488,53 +647,157 @@ final class ReplaySave {
     #endif
 }
 
-/// Save Video, in the same glass capsule as Share. While saving, a ring
-/// beside the word fills with the export.
+/// The ring beside a control's word while the video exports.
+private struct ExportRing: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(AppColors.inkQuiet.opacity(0.3), lineWidth: 2)
+            Circle().trim(from: 0, to: progress)
+                .stroke(AppColors.inkSecondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: GridConstants.iconAction, height: GridConstants.iconAction)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A glass capsule with a word, and the export ring beside it when asked.
+private struct CapsuleControlLabel: View {
+    let title: String
+    var ring: Double?
+
+    var body: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            if let ring { ExportRing(progress: ring) }
+            Text(title)
+                .font(Typography.headerMedium)
+                .lineLimit(1)
+                // The words give way before the row does, for the reason
+                // `ReplayView.controls` gives.
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(AppColors.inkPrimary)
+        }
+        // Layout first, glass after: the Memories drawer's Done, which is
+        // this app's glass capsule control.
+        .padding(.horizontal, GridConstants.gapLabel)
+        .frame(height: GlassIconButton.defaultSide)
+        .glassCapsule()
+        .contentShape(Capsule())
+    }
+}
+
+/// Save Video. While saving, a ring beside the word fills with the export.
 private struct SaveVideoControl: View {
-    let save: ReplaySave
+    let video: ReplayVideo
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: GridConstants.gapTight) {
-                if case .saving(let p) = save.state {
-                    ZStack {
-                        Circle().stroke(AppColors.inkQuiet.opacity(0.3), lineWidth: 2)
-                        Circle().trim(from: 0, to: p)
-                            .stroke(AppColors.inkSecondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                    }
-                    .frame(width: GridConstants.iconAction, height: GridConstants.iconAction)
-                    .accessibilityHidden(true)
-                }
-                Text(save.title)
-                    .font(Typography.headerMedium)
-                    .lineLimit(1)
-                    // Not fixed-size like Share's: the one label in the row
-                    // that may give way, for the reason `controls` gives.
-                    .minimumScaleFactor(0.8)
-                    .foregroundStyle(AppColors.inkPrimary)
-            }
-            // Layout first, glass after, as Share.
-            .padding(.horizontal, GridConstants.gapLabel)
-            .frame(height: GlassIconButton.defaultSide)
-            .glassCapsule()
-            .contentShape(Capsule())
+            CapsuleControlLabel(title: video.saveTitle,
+                                ring: video.saveState == .saving ? (video.isExporting ? video.progress : 1) : nil)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(save.title)
+        .accessibilityLabel(video.saveTitle)
         .accessibilityValue(progressValue)
         // Saving… and Saved to Photos do nothing when pressed, so VoiceOver
         // reads them as words, not buttons. Not `.disabled`, which would grey
         // them.
-        .accessibilityRemoveTraits(save.acceptsPress ? [] : .isButton)
-        .accessibilityAddTraits(save.acceptsPress ? [] : .isStaticText)
+        .accessibilityRemoveTraits(video.saveAcceptsPress ? [] : .isButton)
+        .accessibilityAddTraits(video.saveAcceptsPress ? [] : .isStaticText)
         .accessibilityIdentifier("saveVideo")
     }
 
     private var progressValue: String {
-        if case .saving(let p) = save.state { return "\(Int((p * 100).rounded())) percent" }
-        return ""
+        guard video.saveState == .saving, video.isExporting else { return "" }
+        return "\(Int((video.progress * 100).rounded())) percent"
+    }
+}
+
+/// Share. Pressed before the video exists, it shows the export's ring and
+/// opens the share sheet when the file is made.
+private struct ShareVideoControl: View {
+    let video: ReplayVideo
+    let action: () -> Void
+
+    private var title: String { video.shareState == .failed ? "Couldn't share" : "Share" }
+
+    var body: some View {
+        Button(action: action) {
+            CapsuleControlLabel(title: title, ring: video.shareState == .preparing ? video.progress : nil)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(video.shareState == .preparing ? "Preparing the video, \(Int((video.progress * 100).rounded())) percent" : "")
+        .accessibilityIdentifier("shareVideo")
+    }
+}
+
+/// The system share sheet with a video file, from the top of whatever is
+/// presented, so it opens over the replay's full-screen cover.
+enum ReplayShareSheet {
+    static func present(_ url: URL) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first
+        guard var top = window?.rootViewController else { return }
+        while let presented = top.presentedViewController, !presented.isBeingDismissed { top = presented }
+        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        // An iPad shows it as a popover, which needs somewhere to point.
+        if let popover = sheet.popoverPresentationController, let view = top.view {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
+        }
+        top.present(sheet, animated: true)
+    }
+}
+
+/// Where the tower will stand, while a replay waits for its photographs.
+///
+/// Shown only when nothing could start within `replayLoadingDelay`. The
+/// tower's own empty slot, a dashed ghost in `slotInk`, breathing: the page
+/// is about a tower, so the wait is the place it will stand rather than a
+/// spinner that could belong to anything. Live only, never in a video, so
+/// its breathing runs on the wall clock.
+struct ReplayLoadingSlot: View {
+    let metrics: ReplayScript.Metrics
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let side = metrics.cell
+        let radius = GridConstants.blockCornerRadius(forCell: side)
+        TimelineView(.animation) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate / GridConstants.replayLoadingBreath
+            let breath = 0.5 - 0.5 * cos(2 * .pi * phase)
+            ZStack {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(AppColors.slotInk.opacity(scheme == .dark ? 0.075 : 0.038))
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(AppColors.slotInk.opacity(scheme == .dark ? 0.42 : 0.26),
+                                  style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength]))
+            }
+            .frame(width: side, height: side)
+            .opacity(0.45 + 0.55 * breath)
+            .position(x: metrics.frame.width / 2, y: metrics.baseY - side / 2)
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement()
+        .accessibilityLabel("Loading the replay")
+    }
+}
+
+/// The script for a frame size and motion setting, kept between bodies.
+/// A reference, not state: nothing draws from it changing.
+final class ReplayScriptCache {
+    private var cached: ReplayScript?
+
+    func script(_ replay: Replay, metrics: ReplayScript.Metrics, reduceMotion: Bool) -> ReplayScript {
+        if let cached, cached.metrics == metrics, cached.reduceMotion == reduceMotion, cached.replay == replay {
+            return cached
+        }
+        let made = ReplayScript(replay: replay, metrics: metrics, reduceMotion: reduceMotion)
+        cached = made
+        return made
     }
 }
 
@@ -562,6 +825,16 @@ final class ReplayClock {
     var isFrozen: Bool { frozen != nil }
 
     func start() { if startedAt == nil { startedAt = Date() } }
+
+    /// From 0 again, playing: pause, skip and the floor are all forgotten.
+    /// A frozen clock stays frozen.
+    func restart() {
+        startedAt = Date()
+        offset = 0
+        floorT = 0
+        pausedT = nil
+        lastRendered = 0
+    }
     func freeze(at t: Double) { frozen = t }
 
     func time(at date: Date, duration: Double) -> Double {
@@ -652,9 +925,18 @@ final class ReplayOpenTiming {
         lines.append(ms.map { String(format: "%@ %.1fms (at %.0fms)", name, $0, at) } ?? String(format: "%@ at %.0fms", name, at))
     }
 
+    private var marked: Set<String> = []
+
+    /// A mark made the first time only, for a view body.
+    func markOnce(_ name: String) {
+        guard marked.insert(name).inserted else { return }
+        mark(name)
+    }
+
     func firstFrame(replay: Replay) {
         guard !reported else { return }
         reported = true
+        mark("appeared")
         // The frame is committed after this pass; the next turn of the main
         // queue is when it is on screen.
         DispatchQueue.main.async { [self] in

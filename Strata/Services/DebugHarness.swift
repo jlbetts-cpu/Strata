@@ -193,6 +193,10 @@ enum DebugHarness {
     /// wins to measure against, not the sparse-history fixture Memories
     /// tunes its curation gate against.
     static var seedHistoryPerDay: Int? { argument("-strataSeedHistoryPerDay").flatMap(Int.init) }
+    /// `-strataReplayHoldLoad <seconds>`: the replay waits this much longer
+    /// before it may start, so its loading slot can be photographed. A real
+    /// load is under the indicator's delay here, most of the time.
+    static var replayHoldLoad: Double? { argument("-strataReplayHoldLoad").flatMap(Double.init) }
     /// `-strataReplayAt <seconds>`: freezes the replay at that moment, for screenshots.
     static var replayAt: Double? { argument("-strataReplayAt").flatMap(Double.init) }
     /// `-strataReplayProbe`: the playing replay publishes its clock as an
