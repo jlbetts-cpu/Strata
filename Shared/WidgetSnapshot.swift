@@ -129,20 +129,15 @@ struct WidgetSnapshot: Codable, Equatable {
         return snapshot
     }
 
-    /// Writes only when something actually changed.
+    /// Everything but `updated`, for the app's write-only-on-change.
     ///
     /// `refreshData()` is a hot path that runs on every save, and asking
     /// WidgetKit to reload a timeline it has already drawn is work the system
     /// charges against the widget's budget — do it often enough and the
-    /// updates get throttled, which shows up as a stale tower.
-    @discardableResult
-    func writeIfChanged() -> Bool {
-        guard !sameContent(as: Self.read()) else { return false }
-        return write()
-    }
-
-    /// Everything but `updated`. The timestamp always differs, so it cannot
-    /// take part in the comparison or every write would look like a change.
+    /// updates get throttled, which shows up as a stale tower. The app keeps
+    /// the snapshot it last wrote and compares with this before `write()`.
+    /// The timestamp always differs, so it cannot take part in the comparison
+    /// or every write would look like a change.
     func sameContent(as other: WidgetSnapshot) -> Bool {
         total == other.total && today == other.today && streak == other.streak
             && blocks == other.blocks

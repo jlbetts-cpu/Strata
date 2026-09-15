@@ -283,7 +283,9 @@ final class TowerViewModel {
             let droppedCopy = newlyDroppedIDs
             Task {
                 try? await Task.sleep(for: .seconds(2.0))
-                self.newlyDroppedIDs.subtract(droppedCopy)
+                if !self.newlyDroppedIDs.isDisjoint(with: droppedCopy) {
+                    self.newlyDroppedIDs.subtract(droppedCopy)
+                }
                 for id in droppedCopy {
                     self.staggerDelayCache.removeValue(forKey: id)
                 }

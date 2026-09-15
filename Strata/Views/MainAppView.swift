@@ -1235,7 +1235,11 @@ struct MainAppView: View {
     /// cannot flash for a frame.
     private func armSkeleton() {
         skeletonBuildTask?.cancel()
-        skeletonShownAt = nil
+        // Already up (a reload cancelled during the hold): leave it up and
+        // keep its time, so the next `settleSkeleton` takes it down. Clearing
+        // the time here orphaned it at full count, and taking it down here
+        // would flash it out and back in 100ms later.
+        guard skeletonShownAt == nil else { return }
         skeletonBuildTask = Task { @MainActor in
             try? await Task.sleep(for: Self.skeletonGrace)
             guard !Task.isCancelled, towerVM.isLoading else { return }
@@ -1996,24 +2000,54 @@ struct MainAppView: View {
     /// purpose, and the streak was worked out over it, so the widget's streak
     /// could never be longer than the day of the month and fell to 1 on
     /// every 1st. `ProfileViewModel` fetched the horizon correctly; this does
-    /// the same. The fetch runs only when the lifetime count or the day has
-    /// moved since the last one, and the walk only when the days themselves
-    /// changed (`Streaks.Memo`).
+    /// the same.
+    ///
+    /// **Not on every drop.** The set of days is kept (`Streaks.WidgetDays`)
+    /// and needs no fetch while the lifetime count is unchanged, or has risen
+    /// by one on a day that already had a win, which is every win after the
+    /// first of a day. Otherwise it is fetched on a background context and the
+    /// snapshot republished when it lands. The very first fetch of a launch is
+    /// synchronous, so the widget is never handed a zero streak to correct.
+    /// The walk runs only when the days themselves changed (`Streaks.Memo`).
     private func widgetStreak(lifetime: Int) -> Int {
         let today = Date()
         let dayKey = DateUtils.dateString(from: today)
-        if widgetPublisher.streakInputs == [String(lifetime), dayKey] {
-            return widgetPublisher.streak.value
+        if widgetPublisher.days.isCurrent(lifetime: lifetime, todayKey: dayKey),
+           let days = widgetPublisher.days.days {
+            return widgetPublisher.streak.current(among: days, today: today)
         }
         let horizon = Streaks.horizonKey(today: today)
+        if widgetPublisher.days.days == nil {
+            if let days = Self.fetchDayKeys(context: modelContext, horizon: horizon) {
+                widgetPublisher.days.replace(days: days, lifetime: lifetime)
+                return widgetPublisher.streak.current(among: days, today: today)
+            }
+            return widgetPublisher.streak.value
+        }
+        guard !widgetPublisher.fetching else { return widgetPublisher.streak.value }
+        widgetPublisher.fetching = true
+        let container = modelContext.container
+        Task.detached(priority: .utility) {
+            let days = Self.fetchDayKeys(context: ModelContext(container), horizon: horizon)
+            await MainActor.run {
+                widgetPublisher.fetching = false
+                guard let days else { return }
+                widgetPublisher.days.replace(days: days, lifetime: lifetime)
+                // With the days in hand this is a compare and, only if the
+                // streak moved, a write.
+                publishWidgetSnapshot()
+            }
+        }
+        return widgetPublisher.streak.value
+    }
+
+    /// Completed days inside the horizon, only `dateString` materialised.
+    nonisolated private static func fetchDayKeys(context: ModelContext, horizon: String) -> Set<String>? {
         var descriptor = FetchDescriptor<HabitLog>(
             predicate: #Predicate { $0.completed && $0.dateString >= horizon })
         descriptor.propertiesToFetch = [\.dateString]
-        guard let rows = try? modelContext.fetch(descriptor) else {
-            return widgetPublisher.streak.value
-        }
-        widgetPublisher.streakInputs = [String(lifetime), dayKey]
-        return widgetPublisher.streak.current(among: rows.map(\.dateString), today: today)
+        guard let rows = try? context.fetch(descriptor) else { return nil }
+        return Set(rows.map(\.dateString))
     }
 
     /// Copy the handful of photographs the widget will draw into the group.
@@ -3140,8 +3174,10 @@ struct MainAppView: View {
 private final class WidgetPublisher {
     var last: WidgetSnapshot?
     var streak = Streaks.Memo()
-    /// Lifetime completed count and day key of the last streak fetch.
-    var streakInputs: [String] = []
+    /// The days with a win, and the lifetime count they were fetched at.
+    var days = Streaks.WidgetDays()
+    /// A background day fetch is in flight.
+    var fetching = false
 }
 
 // MARK: - Tab roots that ignore MainAppView's own updates

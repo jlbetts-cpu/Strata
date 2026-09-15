@@ -111,6 +111,35 @@ enum Streaks {
         }
     }
 
+    /// The widget's set of days with a win, and when it can be trusted
+    /// without asking the store again.
+    ///
+    /// Pure. The rule: the same lifetime count means the same days; a count
+    /// one higher on a day already in the set means the new win landed on a
+    /// day that was already counted, so the set is still exact. Anything else
+    /// (the day's first win, a deletion, several at once) needs a fetch.
+    struct WidgetDays {
+        private(set) var days: Set<String>?
+        private(set) var lifetime: Int?
+
+        /// True when `days` is still exact for this lifetime count. Moves the
+        /// recorded count along when it can.
+        mutating func isCurrent(lifetime newLifetime: Int, todayKey: String) -> Bool {
+            guard let days, let lifetime else { return false }
+            if newLifetime == lifetime { return true }
+            if newLifetime == lifetime + 1, days.contains(todayKey) {
+                self.lifetime = newLifetime
+                return true
+            }
+            return false
+        }
+
+        mutating func replace(days newDays: Set<String>, lifetime newLifetime: Int) {
+            days = newDays
+            lifetime = newLifetime
+        }
+    }
+
     /// Whether `day` is the calendar day immediately after `previous`.
     ///
     /// Via `Calendar`, not by adding one to the string: months end, years end,

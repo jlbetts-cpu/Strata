@@ -152,4 +152,49 @@ struct StreaksTests {
         // Two days on with nothing logged, the run is over.
         #expect(memo.current(among: gapped, today: noon("2026-09-05")) == 0)
     }
+
+    // MARK: - When the widget's days need no fetch
+
+    @Test("nothing fetched yet is never current")
+    func widgetDaysStartUnknown() {
+        var days = Streaks.WidgetDays()
+        let r1 = days.isCurrent(lifetime: 0, todayKey: "2026-09-15")
+        #expect(!r1)
+    }
+
+    @Test("the same lifetime count needs no fetch, even on a new day")
+    func sameCountIsCurrent() {
+        var days = Streaks.WidgetDays()
+        days.replace(days: ["2026-09-14"], lifetime: 5)
+        let r2 = days.isCurrent(lifetime: 5, todayKey: "2026-09-14")
+        #expect(r2)
+        let r3 = days.isCurrent(lifetime: 5, todayKey: "2026-09-15")
+        #expect(r3)
+    }
+
+    /// Every win after the first of a day: the new row is on a day already
+    /// in the set, so the set is still exact and the drop costs no fetch.
+    @Test("one more win on a day that already had one needs no fetch, and the count moves along")
+    func anotherWinTodayIsCurrent() {
+        var days = Streaks.WidgetDays()
+        days.replace(days: ["2026-09-14", "2026-09-15"], lifetime: 5)
+        let r4 = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
+        #expect(r4)
+        #expect(days.lifetime == 6)
+        let r5 = days.isCurrent(lifetime: 7, todayKey: "2026-09-15")
+        #expect(r5)
+    }
+
+    @Test("the day's first win, a deletion, or a jump of two all need a fetch")
+    func otherChangesNeedAFetch() {
+        var days = Streaks.WidgetDays()
+        days.replace(days: ["2026-09-14"], lifetime: 5)
+        let r6 = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
+        #expect(!r6)
+        let r7 = days.isCurrent(lifetime: 4, todayKey: "2026-09-14")
+        #expect(!r7)
+        let r8 = days.isCurrent(lifetime: 7, todayKey: "2026-09-14")
+        #expect(!r8)
+        #expect(days.lifetime == 5)
+    }
 }
