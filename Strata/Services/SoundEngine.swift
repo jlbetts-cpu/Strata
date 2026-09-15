@@ -111,8 +111,17 @@ enum SoundEngine {
     /// thread for every one of them. While a restart is queued or running
     /// (`restarting`), or for `startCooldown` after a start failed
     /// (`coolingUntil`), a sound is dropped at once instead.
+    ///
+    /// **Requests coalesce, they are never lost.** A request arriving while a
+    /// restart runs sets `again`, and the running restart goes round once
+    /// more before clearing `restarting`; a media services reset sets
+    /// `rebuild`, which that next round honours. So neither a second
+    /// interruption ending nor a reset can be dropped, and `restarting` stays
+    /// true until the last of them has run.
     nonisolated private struct RestartState {
         var restarting = false
+        var again = false
+        var rebuild = false
         var coolingUntil: CFTimeInterval = 0
     }
     nonisolated private static let restartState = OSAllocatedUnfairLock(initialState: RestartState())
@@ -145,11 +154,14 @@ enum SoundEngine {
     /// does nothing, as `play` would.
     ///
     /// Already set up, it restarts an engine that stopped in the meantime
-    /// (say, while muted), also off the main thread.
+    /// (say, while muted), also off the main thread. A running engine is
+    /// left alone and no restart is marked, so no sound is dropped for it.
     static func prepare() {
         guard !isMuted else { return }
         if isSetUp {
-            requestRestart()
+            setUpQueue.async {
+                if !graph.engine.isRunning { requestRestart() }
+            }
         } else {
             setUpQueue.async { setUp() }
         }
@@ -229,12 +241,17 @@ enum SoundEngine {
     /// it, and a player told to `play()` on a stopped engine raises. Every
     /// sound comes through here first, and so do the notifications. Inside
     /// the cooldown after a failed start it does not try again.
-    nonisolated private static func startIfNeeded() -> (running: Bool, started: Bool) {
+    ///
+    /// `ignoringCooldown`: a restart the system asked for (an interruption
+    /// ending, a configuration change, unmuting) is the moment the device has
+    /// said it can play again, so it tries even inside a failed start's
+    /// cooldown. Only a sound respects the cooldown.
+    nonisolated private static func startIfNeeded(ignoringCooldown: Bool = false) -> (running: Bool, started: Bool) {
         guard isSetUp else { return (false, false) }
         let g = graph
         if g.engine.isRunning { return (true, false) }
         let now = CACurrentMediaTime()
-        guard now >= restartState.withLock({ $0.coolingUntil }) else { return (false, false) }
+        guard ignoringCooldown || now >= restartState.withLock({ $0.coolingUntil }) else { return (false, false) }
         #if DEBUG
         debugStartAttempts.withLock { $0 += 1 }
         #endif
@@ -254,21 +271,43 @@ enum SoundEngine {
         }
     }
 
-    /// Marks a restart in flight, so sounds skip rather than wait, and runs it
-    /// on the setup queue. Safe from any thread.
-    nonisolated private static func requestRestart() {
-        let alreadyQueued = restartState.withLock { state -> Bool in
-            defer { state.restarting = true }
-            return state.restarting
+    /// Marks a restart (or, with `rebuild`, a fresh graph) in flight, so
+    /// sounds skip rather than wait, and runs it on the setup queue. Safe from
+    /// any thread. See `RestartState` for how requests coalesce.
+    nonisolated private static func requestRestart(rebuild: Bool = false) {
+        let startRunner = restartState.withLock { state -> Bool in
+            if rebuild { state.rebuild = true }
+            if state.restarting {
+                state.again = true
+                return false
+            }
+            state.restarting = true
+            return true
         }
-        guard !alreadyQueued else { return }
-        setUpQueue.async {
+        guard startRunner else { return }
+        setUpQueue.async { runRestarts() }
+    }
+
+    /// On `setUpQueue`. Runs requested restarts until none arrived while the
+    /// last one ran, then clears `restarting` in the same lock that checks.
+    nonisolated private static func runRestarts() {
+        while true {
+            let rebuild = restartState.withLock { state -> Bool in
+                defer { state.rebuild = false; state.again = false }
+                return state.rebuild
+            }
             #if DEBUG
             let hold = debugRestartDelay.withLock { $0 }
             if hold > 0 { Thread.sleep(forTimeInterval: hold) }
+            debugRestartRuns.withLock { $0 += 1 }
             #endif
-            restartUnlessMuted()
-            restartState.withLock { $0.restarting = false }
+            if rebuild { rebuildGraph() } else { restartUnlessMuted() }
+            let done = restartState.withLock { state -> Bool in
+                guard !state.again, !state.rebuild else { return false }
+                state.restarting = false
+                return true
+            }
+            if done { return }
         }
     }
 
@@ -293,11 +332,7 @@ enum SoundEngine {
         }
         center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
                            object: session, queue: nil) { _ in
-            restartState.withLock { $0.restarting = true }
-            setUpQueue.async {
-                rebuildGraph()
-                restartState.withLock { $0.restarting = false }
-            }
+            requestRestart(rebuild: true)
         }
     }
 
@@ -312,6 +347,12 @@ enum SoundEngine {
         graph = Graph()
         setUpState.withLock { $0 = false }
         restartState.withLock { $0.coolingUntil = 0 }
+        #if DEBUG
+        // Holds the window in which the flag is clear and setup has not run,
+        // which is the window a sound must not block in.
+        let hold = debugRebuildDelay.withLock { $0 }
+        if hold > 0 { Thread.sleep(forTimeInterval: hold) }
+        #endif
         guard !UserDefaults.standard.bool(forKey: mutedKey) else { return }
         setUp()
         if graph.engine.isRunning { graph.player.play() }
@@ -320,7 +361,18 @@ enum SoundEngine {
     /// On `setUpQueue`.
     nonisolated private static func restartUnlessMuted() {
         guard !UserDefaults.standard.bool(forKey: mutedKey) else { return }
-        if startIfNeeded().started { graph.player.play() }
+        if startIfNeeded(ignoringCooldown: true).started { graph.player.play() }
+    }
+
+    /// A sound must not wait on the setup queue for a restart or a rebuild.
+    /// Checked before `setUpNow`, which after a rebuild has cleared the setup
+    /// flag would otherwise `sync` behind the whole rebuild.
+    nonisolated private static var restartInFlight: Bool {
+        let busy = restartState.withLock { $0.restarting }
+        #if DEBUG
+        if busy { debugDropped.withLock { $0 += 1 } }
+        #endif
+        return busy
     }
 
     #if DEBUG
@@ -328,6 +380,12 @@ enum SoundEngine {
     nonisolated static let debugStartAttempts = OSAllocatedUnfairLock(initialState: 0)
     nonisolated static let debugFailStarts = OSAllocatedUnfairLock(initialState: false)
     nonisolated static let debugRestartDelay = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
+    nonisolated static let debugRebuildDelay = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
+    nonisolated static let debugRestartRuns = OSAllocatedUnfairLock(initialState: 0)
+    /// Whether the graph counts as set up (false inside a rebuild).
+    nonisolated static var debugIsSetUp: Bool { isSetUp }
+    /// Whether a restart is marked in flight.
+    nonisolated static var debugRestarting: Bool { restartState.withLock { $0.restarting } }
     nonisolated static let debugDropped = OSAllocatedUnfairLock(initialState: 0)
     /// The engine as a sound would find it.
     nonisolated static var debugEngineIsRunning: Bool { setUpQueue.sync { graph.engine.isRunning } }
@@ -354,13 +412,9 @@ enum SoundEngine {
     /// setting and the cooldown, so one test's stop does not decide the next.
     nonisolated static func debugStartEngine() {
         setUpNow()
+        setUpQueue.sync {}   // let any restart already queued finish first
         restartState.withLock { $0 = RestartState() }
         setUpQueue.sync { _ = startIfNeeded() }
-    }
-    /// Whether this simulator can run an audio engine at all.
-    nonisolated static var debugCanRunEngine: Bool {
-        debugStartEngine()
-        return debugEngineIsRunning
     }
     nonisolated static func debugDrainSetUpQueue() { setUpQueue.sync {} }
     nonisolated static func debugResetRestartState() { restartState.withLock { $0 = RestartState() } }
@@ -529,7 +583,7 @@ enum SoundEngine {
     }
 
     private static func play(_ voice: Voice) {
-        guard !isMuted else { return }
+        guard !isMuted, !restartInFlight else { return }
         setUpNow()
         guard isSetUp else { return }
 
@@ -678,6 +732,7 @@ enum SoundEngine {
             play(impactVoice(mass: mass, column: column, gain: gain))
             return
         }
+        guard !restartInFlight else { return }
         setUpNow()
         guard isSetUp else { return }
         if let buffer = ImpactPool.shared.buffer(mass: mass, column: column) {

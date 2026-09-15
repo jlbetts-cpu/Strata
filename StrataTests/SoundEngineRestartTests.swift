@@ -11,17 +11,48 @@ import Testing
 /// that may make a sound wait or retry in a loop. These stop it the way the
 /// system does and check.
 ///
-/// Skipped, not failed, on a simulator that cannot run an audio engine.
+/// Skipped, not failed, where this machine cannot run ANY audio engine. The
+/// probe is a bare `AVAudioEngine`, not `SoundEngine`'s own start path: a
+/// regression that stops that path starting must fail these tests, not turn
+/// them into a green skip.
+func bareAudioEngineCanRun() -> Bool {
+    let engine = AVAudioEngine()
+    let player = AVAudioPlayerNode()
+    engine.attach(player)
+    engine.connect(player, to: engine.mainMixerNode,
+                   format: AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2))
+    engine.prepare()
+    guard (try? engine.start()) != nil else { return false }
+    engine.stop()
+    return true
+}
+
+/// A class so `deinit` can put the host's mute setting back after each test.
 @MainActor
 @Suite("Sound engine restart", .serialized,
-       .enabled(if: SoundEngine.debugCanRunEngine, "this simulator cannot run an audio engine"))
-struct SoundEngineRestartTests {
+       .enabled(if: bareAudioEngineCanRun(), "this machine cannot run an audio engine"))
+final class SoundEngineRestartTests {
+    private let wasMuted = UserDefaults.standard.object(forKey: "soundEngineMuted")
 
     init() {
         UserDefaults.standard.set(false, forKey: "soundEngineMuted")
         SoundEngine.debugFailStarts.withLock { $0 = false }
         SoundEngine.debugRestartDelay.withLock { $0 = 0 }
+        SoundEngine.debugRebuildDelay.withLock { $0 = 0 }
         SoundEngine.debugStartEngine()
+    }
+
+    deinit {
+        if let wasMuted {
+            UserDefaults.standard.set(wasMuted, forKey: "soundEngineMuted")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "soundEngineMuted")
+        }
+    }
+
+    @Test("SoundEngine's own start path starts the engine")
+    func ownStartPathWorks() {
+        #expect(SoundEngine.debugEngineIsRunning)
     }
 
     private func waitUntil(_ condition: () -> Bool) async {
@@ -125,25 +156,120 @@ struct SoundEngineRestartTests {
         #expect(SoundEngine.debugEngineIsRunning)
     }
 
-    // MARK: - Formats
+    // MARK: - Round 3
 
-    private func sine(rate: Double, channels: AVAudioChannelCount, seconds: Double) throws -> AVAudioPCMBuffer {
-        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: rate, channels: channels))
-        let frames = AVAudioFrameCount(rate * seconds)
-        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
-        buffer.frameLength = frames
-        for c in 0..<Int(channels) {
-            for i in 0..<Int(frames) {
-                buffer.floatChannelData![c][i] = Float(sin(2 * .pi * 440 * Double(i) / rate) * 0.5)
-            }
+    /// A media services reset clears the setup flag and then rebuilds for
+    /// the best part of a second. A sound in that window used to `sync`
+    /// behind the whole rebuild on the main thread.
+    @Test("a sound during a media services rebuild does not wait for it")
+    func soundDuringRebuildDoesNotBlock() async {
+        SoundEngine.ImpactPool.shared.warmNow()
+        SoundEngine.debugRebuildDelay.withLock { $0 = 0.5 }
+        defer { SoundEngine.debugRebuildDelay.withLock { $0 = 0 } }
+        let droppedBefore = SoundEngine.debugDropped.withLock { $0 }
+        SoundEngine.debugPostMediaServicesReset()
+        // Into the window itself: the old engine stopped and the setup flag
+        // cleared, the new graph not yet set up. Stopping the old engine can
+        // take a few hundred ms, and a sound before then never reached the
+        // blocking path, which is how this test first passed with the guard
+        // removed.
+        for _ in 0..<150 where SoundEngine.debugIsSetUp {
+            try? await Task.sleep(for: .milliseconds(10))
         }
-        return buffer
+        #expect(!SoundEngine.debugIsSetUp, "never reached the rebuild window")
+        let start = CACurrentMediaTime()
+        SoundEngine.blockImpact(mass: 2, column: 0)
+        SoundEngine.completionTone(category: .work)
+        let waited = CACurrentMediaTime() - start
+        #expect(waited < 0.1, "the sounds waited \(waited)s on the rebuild")
+        #expect(SoundEngine.debugDropped.withLock { $0 } - droppedBefore == 2)
+        await waitUntil { !SoundEngine.debugRestarting && SoundEngine.debugEngineIsRunning }
+        #expect(SoundEngine.debugEngineIsRunning)
     }
 
+    /// The system saying "you can play again" is exactly when to try, even
+    /// if a sound's start failed a moment ago.
+    @Test("an interruption ending inside a failed start's cooldown still restarts")
+    func notificationBypassesCooldown() async {
+        SoundEngine.ImpactPool.shared.warmNow()
+        SoundEngine.debugStopEngine()
+        SoundEngine.debugFailStarts.withLock { $0 = true }
+        SoundEngine.blockImpact(mass: 1, column: 1)          // fails, cooldown begins
+        #expect(!SoundEngine.debugEngineIsRunning)
+        SoundEngine.debugFailStarts.withLock { $0 = false }
+        SoundEngine.debugPostInterruptionEnded()             // well inside 1s
+        await waitUntil { SoundEngine.debugEngineIsRunning }
+        #expect(SoundEngine.debugEngineIsRunning)
+        SoundEngine.debugResetRestartState()
+    }
+
+    /// Two requests while one restart runs: both are honoured by one more
+    /// round, and a reset among them still rebuilds.
+    @Test("requests arriving during a restart run it once more, and a reset among them rebuilds")
+    func requestsCoalesce() async {
+        SoundEngine.debugRestartDelay.withLock { $0 = 0.3 }
+        defer { SoundEngine.debugRestartDelay.withLock { $0 = 0 } }
+        let graphBefore = SoundEngine.debugGraphID
+        let runsBefore = SoundEngine.debugRestartRuns.withLock { $0 }
+        SoundEngine.debugStopEngine()
+        SoundEngine.debugPostConfigurationChange()
+        try? await Task.sleep(for: .milliseconds(100))       // the first round is running
+        SoundEngine.debugPostInterruptionEnded()
+        SoundEngine.debugPostMediaServicesReset()
+        #expect(SoundEngine.debugRestarting)
+        await waitUntil { !SoundEngine.debugRestarting }
+        #expect(SoundEngine.debugRestartRuns.withLock { $0 } - runsBefore == 2)
+        #expect(SoundEngine.debugGraphID != graphBefore, "the reset was dropped")
+        #expect(SoundEngine.debugEngineIsRunning)
+    }
+
+    @Test("preparing an engine that is already running marks no restart")
+    func prepareOnRunningEngineMarksNothing() async {
+        let runsBefore = SoundEngine.debugRestartRuns.withLock { $0 }
+        SoundEngine.prepare()
+        #expect(!SoundEngine.debugRestarting)
+        SoundEngine.debugDrainSetUpQueue()
+        #expect(!SoundEngine.debugRestarting)
+        #expect(SoundEngine.debugRestartRuns.withLock { $0 } == runsBefore)
+    }
+
+    // MARK: - Formats, on a running engine
+
+    @Test("a converted recording schedules on the player")
+    func convertedRecordingSchedules() throws {
+        let source = try sineBuffer(rate: 48000, channels: 1, seconds: 0.2)
+        let out = try #require(SoundEngine.debugConvertToRenderFormat(source))
+        #expect(SoundEngine.debugSchedule(out))
+    }
+
+    @Test("a buffer the player is not connected for is dropped, not scheduled")
+    func mismatchedBufferIsDropped() throws {
+        let wrong = try sineBuffer(rate: 48000, channels: 2, seconds: 0.1)
+        #expect(!SoundEngine.debugSchedule(wrong))
+        #expect(SoundEngine.debugEngineIsRunning)
+    }
+}
+
+func sineBuffer(rate: Double, channels: AVAudioChannelCount, seconds: Double) throws -> AVAudioPCMBuffer {
+    let format = try #require(AVAudioFormat(standardFormatWithSampleRate: rate, channels: channels))
+    let frames = AVAudioFrameCount(rate * seconds)
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+    buffer.frameLength = frames
+    for c in 0..<Int(channels) {
+        for i in 0..<Int(frames) {
+            buffer.floatChannelData![c][i] = Float(sin(2 * .pi * 440 * Double(i) / rate) * 0.5)
+        }
+    }
+    return buffer
+}
+
+/// Conversion needs no engine, so it is never skipped with the suite above.
+@Suite("Sound formats")
+struct SoundFormatTests {
     /// A recording dropped into the bundle at 48kHz mono.
     @Test("a 48kHz mono recording is converted to 44.1kHz stereo with both sides sounding")
     func monoRecordingIsConverted() throws {
-        let source = try sine(rate: 48000, channels: 1, seconds: 0.5)
+        let source = try sineBuffer(rate: 48000, channels: 1, seconds: 0.5)
         let out = try #require(SoundEngine.debugConvertToRenderFormat(source))
         #expect(out.format.sampleRate == 44100)
         #expect(out.format.channelCount == 2)
@@ -151,13 +277,11 @@ struct SoundEngineRestartTests {
         let left = (0..<Int(out.frameLength)).map { abs(out.floatChannelData![0][$0]) }.max() ?? 0
         let right = (0..<Int(out.frameLength)).map { abs(out.floatChannelData![1][$0]) }.max() ?? 0
         #expect(left > 0.4 && right > 0.4, "left \(left) right \(right)")
-        #expect(SoundEngine.debugSchedule(out))
     }
 
-    @Test("a buffer the player is not connected for is dropped, not scheduled")
-    func mismatchedBufferIsDropped() throws {
-        let wrong = try sine(rate: 48000, channels: 2, seconds: 0.1)
-        #expect(!SoundEngine.debugSchedule(wrong))
-        #expect(SoundEngine.debugEngineIsRunning)
+    @Test("a buffer already in the render format is returned as is")
+    func matchingBufferIsUntouched() throws {
+        let source = try sineBuffer(rate: 44100, channels: 2, seconds: 0.1)
+        #expect(SoundEngine.debugConvertToRenderFormat(source) === source)
     }
 }
