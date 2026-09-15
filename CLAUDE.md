@@ -368,12 +368,18 @@ method, every bug and what made it invisible, and the before/after numbers.
   nor raised, and `presentationBackgroundInteraction` restores interaction with
   content BEHIND the sheet, not with chrome it is sitting on. iOS 26's
   `tabViewBottomAccessory` is the native answer and the target is 18.0.
-- **The drawer's page is not built until it is first raised**, and its month
-  slideshows pause while it is lowered or covered by the viewer, a replay or
-  a pushed page (`\.memoriesDrawerVisible`). Hidden is
+- **The drawer's page is built off screen once the tab has settled
+  (1.5s after its reload), never with the tab and never inside the raise**,
+  and its month slideshows pause while it is lowered or covered by the
+  viewer, a replay or a pushed page (`\.memoriesDrawerVisible`). Hidden is
   only an offset, which does not affect layout, so the lazy stack inside built
-  its first screen anyway and ran a slideshow in every photographed day under
-  the map. Stale replay posters also wait for the drawer (missing ones do not).
+  its first screen with the tab and ran a slideshow in every photographed day
+  under the map. Built BY the first raise, its construction landed in the
+  spring (filmed: a 1.8s hold, the drawer appearing at the top with its page
+  fading in over the map), so a raise before the prebuild builds first in a
+  non-animated transaction and slides on the next run-loop turn, and the page
+  carries `.transition(.identity)`. Stale replay posters wait for the drawer
+  and then 700ms more for the spring (missing ones do not).
 - **`DrawerDetent` is a top-level enum, not nested in the drawer.** Nested it
   would be `MemoriesDrawer<Content>.Detent`, so the `@State` holding it must
   name a `Content` — which pins the drawer to that guess and rejects the real
@@ -423,15 +429,17 @@ method, every bug and what made it invisible, and the before/after numbers.
 - **One thumbnail width for every block on the map**, whatever size it draws
   at. `CachedImageView` keys its cache on the requested width, so asking for 88
   at one zoom and 176 at the next decodes the same photograph twice and
-  re-decodes it on every zoom step. (`ThumbnailStore` now also rounds every
-  width UP to a bucket, 128/256/384/512/768/1024px, which makes nearby sizes
-  share a decode; the map's one width still stands on top of that.)
+  re-decodes it on every zoom step. (`ThumbnailStore` rounds other callers'
+  widths UP to buckets about 18% apart, never over 1.4x the pixels; a caller
+  passing its own `decodeWidth`, which is the map, is used exactly.)
 - **`ThumbnailStore`: one observed slot per photograph, not one global
   version** (2026-09-15). A view still asks while drawing, never on appear.
   Every landing used to invalidate every image view in the app; with a year of
   photographs the viewer ran ~4,000 image bodies a second and the idle map
   ~1,000, and neither ever settled. Reads are capped at 48 in flight (extra
-  asks wait and are asked again). `ImageManager` hands back a thumbnail the
+  asks wait, newest first, at most 96, and are asked again). A missing file is
+  not read again for 10s: every nil landing bumps its slot, and re-reading on
+  the re-ask was a read and a body per frame for ever. `ImageManager` hands back a thumbnail the
   cache evicted if something still holds it, so a picture on screen can never
   be evicted out from under itself: that was the filmstrip dimming and
   re-fading after a switch to dark mode.
