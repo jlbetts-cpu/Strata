@@ -193,6 +193,9 @@ private struct DayPhotoSlideshow: View {
             try? await Task.sleep(for: Self.dwell)
             guard !Task.isCancelled else { return }
             let name = fileNames[next % fileNames.count]
+            #if DEBUG
+            PerfProbe.count("SlideshowTick")
+            #endif
             top = name
             withAnimation(GridConstants.monthPhotoFade) { topOpacity = 1 }
             try? await Task.sleep(for: .seconds(Self.fade))

@@ -136,6 +136,19 @@ enum DebugHarness {
     }
 
     /// Which moment card to open, from `-strataOpenMoment <index>`.
+    /// `-strataPhotoAutoPage n`: with `-strataOpenPhoto`, turns n pages
+    /// through the filmstrip's select path, for `PerfProbe` windows.
+    static var photoAutoPages: Int { argument("-strataPhotoAutoPage").flatMap(Int.init) ?? 0 }
+
+    /// `-strataFlipTo memories`: `-strataFlipTabs` alternates the tower with
+    /// this tab instead of the camera. `-strataFlipEvery s` sets the interval
+    /// (default 2s). For timing the second visit to Memories.
+    static var flipTo: StrataTab? {
+        guard let raw = argument("-strataFlipTo")?.lowercased() else { return nil }
+        return StrataTab.allCases.first { $0.rawValue.lowercased() == raw }
+    }
+    static var flipEvery: Double { argument("-strataFlipEvery").flatMap(Double.init) ?? 2 }
+
     static var openMomentIndex: Int? {
         argument("-strataOpenMoment").flatMap(Int.init)
     }

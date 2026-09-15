@@ -154,7 +154,10 @@ struct MemoriesMapView: View {
 
 
     var body: some View {
-        map
+        #if DEBUG
+        let _ = PerfProbe.count("MemoriesMapView")
+        #endif
+        return map
             .overlay { if hasLoaded && pins.isEmpty { emptyState } }
             .overlay(alignment: .bottomTrailing) { if isInteractive { recentre } }
             #if DEBUG

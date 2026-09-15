@@ -3376,13 +3376,14 @@ private struct DebugFlipTabs: ViewModifier {
         #if DEBUG
         content.task(id: remaining) {
             guard remaining > 0 else { return }
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(DebugHarness.flipEvery))
             guard !Task.isCancelled, remaining > 0 else { return }
             remaining -= 1
             var transaction = Transaction()
             transaction.disablesAnimations = true
+            let other = DebugHarness.flipTo ?? .camera
             withTransaction(transaction) {
-                selected = selected == .camera ? .tower : .camera
+                selected = selected == other ? .tower : other
             }
         }
         #else

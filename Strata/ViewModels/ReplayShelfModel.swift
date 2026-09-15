@@ -169,6 +169,8 @@ final class ReplayShelfModel {
 
         #if DEBUG
         let end = CACurrentMediaTime()
+        NSLog("[PERF-SPAN] ReplayShelfModel.reload main %.1fms (longest slice %.1fms, cards drawn %d, wall %.1fms)",
+              slices.reduce(0, +) * 1000, (slices.max() ?? 0) * 1000, renders.count, (end - began) * 1000)
         print(String(format: "[REPLAY-SHELF] months %d weeks %d, fetch %.1fms, cards drawn %d (render max %.1fms, sum %.1fms), longest main-actor slice %.1fms, total %.1fms",
                      months.count, weeks.count, (fetched - began) * 1000, renders.count,
                      (renders.max() ?? 0) * 1000, renders.reduce(0, +) * 1000,

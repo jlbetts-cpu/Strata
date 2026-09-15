@@ -219,6 +219,9 @@ struct MemoriesView: View {
                                          transitionNamespace: photoTransition) { photo in
                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                         }
+                        #if DEBUG
+                        Color.clear.frame(height: 0).id("MemoriesGalleryEnd")
+                        #endif
                     }
                 }
                 .padding(.bottom, GridConstants.tabBarClearance)
@@ -228,6 +231,15 @@ struct MemoriesView: View {
             .task {
                 guard DebugHarness.scrollsMemories else { return }
                 try? await Task.sleep(for: .seconds(3))
+                if DebugHarness.scrollTarget == "galleryFling" {
+                    // A cold fling through the gallery, for `PerfProbe`:
+                    // image-view bodies per landed decode.
+                    PerfProbe.window("Gallery fling", seconds: 8)
+                    withAnimation(.linear(duration: 4)) {
+                        proxy.scrollTo("MemoriesGalleryEnd", anchor: .bottom)
+                    }
+                    return
+                }
                 withAnimation(nil) {
                     let target = switch DebugHarness.scrollTarget {
                     case "shelf": "MemoriesShelf"
@@ -310,7 +322,13 @@ struct MemoriesView: View {
         // so a switch draws (once) the set for the other.
         .task(id: "\(colorScheme)-\(displayScale)") { await reloadReplays() }
         .task {
+            #if DEBUG
+            let reloadStart = CACurrentMediaTime()
+            #endif
             vm.reload(context: modelContext)
+            #if DEBUG
+            PerfProbe.duration("MemoriesViewModel.reload main", since: reloadStart)
+            #endif
             #if DEBUG
             if let detent = DebugHarness.openDrawer { drawer = detent }
             if let back = DebugHarness.openDayBack,

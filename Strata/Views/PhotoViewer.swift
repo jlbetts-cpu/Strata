@@ -83,6 +83,9 @@ struct PhotoViewer: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("PhotoViewer")
+        #endif
         GeometryReader { geo in
             ZStack {
                 Color.black.ignoresSafeArea()
@@ -124,6 +127,9 @@ struct PhotoViewer: View {
         .ignoresSafeArea()
         .statusBarHidden()
         .onAppear { currentID = startAt }
+        #if DEBUG
+        .task { await debugAutoPage() }
+        #endif
         // The window of decoded pictures follows whatever is on screen. This
         // was lost for one build when the layout was rewritten around it, and
         // the symptom was a viewer that showed a filmstrip and a black stage —
@@ -151,6 +157,26 @@ struct PhotoViewer: View {
             Text("The win stays on your tower. Only the photograph is deleted.")
         }
     }
+
+    #if DEBUG
+    /// `-strataPerfProbe`: what opening costs in its first two seconds, and,
+    /// with `-strataPhotoAutoPage n`, n page turns through the filmstrip's own
+    /// select path, each counted over its own window. Nothing here can swipe.
+    private func debugAutoPage() async {
+        PerfProbe.window("PhotoViewer open", seconds: 2)
+        let turns = DebugHarness.photoAutoPages
+        guard turns > 0 else { return }
+        try? await Task.sleep(for: .seconds(6))
+        for turn in 0..<turns {
+            guard !Task.isCancelled else { return }
+            let next = index + 1
+            guard photos.indices.contains(next) else { return }
+            PerfProbe.window("PhotoViewer page-turn \(turn)", seconds: 1.5)
+            select(photos[next])
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+    #endif
 
     // MARK: - Chrome
 
@@ -231,6 +257,9 @@ struct PhotoViewer: View {
     /// dragging it writes that same fraction back. One number, read every
     /// frame, and the two cannot disagree.
     private var filmstrip: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("Filmstrip")
+        #endif
         let pitch = Self.stripCard.width + Self.stripGap
         let progress = scrub ?? deckProgress
         return GeometryReader { geo in

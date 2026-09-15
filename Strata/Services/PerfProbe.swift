@@ -22,6 +22,8 @@ enum PerfProbe {
     nonisolated static let isOn = ProcessInfo.processInfo.arguments.contains("-strataPerfProbe")
 
     private static var counts: [String: Int] = [:]
+    /// Never reset: what `window(_:seconds:)` subtracts from.
+    private static var totals: [String: Int] = [:]
     private static var link: CADisplayLink?
     private static var target: LinkTarget?
     private static var lastFrame: CFTimeInterval = 0
@@ -32,7 +34,25 @@ enum PerfProbe {
     static func count(_ name: String) {
         guard isOn else { return }
         counts[name, default: 0] += 1
+        totals[name, default: 0] += 1
         start()
+    }
+
+    /// Logs every count that moved in the next `seconds`, as one
+    /// `[PERF-WINDOW] label ...` line. For "how many in the first two seconds
+    /// after X", which the once-a-second flush cannot answer to better than a
+    /// second either side. (Batch C, 2026-09-15.)
+    static func window(_ label: String, seconds: Double) {
+        guard isOn else { return }
+        start()
+        let before = totals
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            let line = totals.compactMap { key, value -> String? in
+                let d = value - (before[key] ?? 0)
+                return d == 0 ? nil : "\(key)=\(d)"
+            }.sorted().joined(separator: " ")
+            NSLog("[PERF-WINDOW] %@ %.1fs %@", label, seconds, line)
+        }
     }
 
     /// Something happened that the next frame should be timed against.
@@ -75,7 +95,7 @@ enum PerfProbe {
                 let line = counts.sorted { $0.key < $1.key }
                     .map { "\($0.key)=\($0.value)" }
                     .joined(separator: " ")
-                NSLog("[PERF] bodies %@ window=%.2fs", line, now - lastFlush)
+                NSLog("[PERF] bodies %@ window=%.2fs at=%.3f", line, now - lastFlush, now)
                 counts.removeAll()
             }
             lastFlush = now

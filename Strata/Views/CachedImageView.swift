@@ -57,6 +57,9 @@ struct CachedImageView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("CachedImageView")
+        #endif
         let state = shown
         let image = state.image
         let loadFailed = state.missing

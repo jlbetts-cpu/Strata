@@ -66,6 +66,9 @@ final class ThumbnailStore {
         let key = Key(name: fileName, width: rounded)
         guard !loading.contains(key) else { return nil }
         loading.insert(key)
+        #if DEBUG
+        PerfProbe.count("ThumbScheduled")
+        #endif
         Task { @MainActor in
             let found = await ImageManager.shared.loadThumbnail(fileName: fileName,
                                                                 maxWidth: CGFloat(rounded))
@@ -74,6 +77,9 @@ final class ThumbnailStore {
             // Even a read that found nothing bumps this: the view asks again,
             // gets nil again, and can say so rather than waiting forever.
             version &+= 1
+            #if DEBUG
+            PerfProbe.count("ThumbLanded")
+            #endif
         }
         return nil
     }
