@@ -363,6 +363,51 @@ struct HeadFramingTests {
         #expect(!inside(CGPoint(x: 300, y: 590)))    // the neck under the chin
     }
 
+    /// Even-odd point in polygon.
+    private func inside(_ outline: [CGPoint], _ p: CGPoint) -> Bool {
+        var hit = false
+        var j = outline.count - 1
+        for i in outline.indices {
+            let a = outline[i], b = outline[j]
+            if (a.y > p.y) != (b.y > p.y),
+               p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x { hit.toggle() }
+            j = i
+        }
+        return hit
+    }
+
+    @Test("below the jaw's midpoint the outline hugs the jaw, so no neck shows under its corners")
+    func headOutlineHugsTheJawCorners() {
+        // Owner: "the neck is still showing a little in the head". The ear
+        // margin used to reach all the way to the chin and pushed the sloping
+        // jaw corners out, leaving a band of neck under each one.
+        let contour = [CGPoint(x: 170, y: 320), CGPoint(x: 180, y: 420), CGPoint(x: 220, y: 500),
+                       CGPoint(x: 300, y: 558), CGPoint(x: 380, y: 500), CGPoint(x: 420, y: 420),
+                       CGPoint(x: 430, y: 320)]
+        let outline = HeadFraming.headOutline(contour: contour.reversed(), canvas: 600, margin: 40)
+        #expect(!inside(outline, CGPoint(x: 196, y: 470)))   // 9px outside the jaw corner: neck (it used to be kept)
+        #expect(!inside(outline, CGPoint(x: 404, y: 470)))
+        #expect(inside(outline, CGPoint(x: 208, y: 470)))    // just inside the jaw
+        #expect(inside(outline, CGPoint(x: 150, y: 330)))    // the ear still fits
+        #expect(outline.map(\.y).max() == 558)               // the chin has not moved
+    }
+
+    @Test("a smoothed jaw passes through every contour point")
+    func catmullRomKeepsThePoints() {
+        let points = [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 30), CGPoint(x: 40, y: 50), CGPoint(x: 80, y: 20)]
+        let curve = HeadFraming.catmullRom(points, samples: 6)
+        for p in points { #expect(curve.contains { hypot($0.x - p.x, $0.y - p.y) < 0.0001 }) }
+        #expect(curve.count == 3 * 6 + 1)
+    }
+
+    @Test("the sharp jaw edge takes over between 15% and 45% of temple to chin")
+    func sharpEdgeBandSitsOnTheJaw() {
+        let contour = [CGPoint(x: 170, y: 320), CGPoint(x: 300, y: 558), CGPoint(x: 430, y: 320)]
+        let band = HeadFraming.sharpEdgeBand(contour: contour)
+        #expect(close(band.lowerBound, 355.7, 1e-6))
+        #expect(close(band.upperBound, 427.1, 1e-6))
+    }
+
     @Test("a crop hung off the landmarks puts the chin exactly where it promises")
     func cropUsesTheMeasuredChin() {
         let face = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.25)
