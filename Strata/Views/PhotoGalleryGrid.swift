@@ -46,6 +46,10 @@ struct PhotoGalleryGrid: View {
     /// not merge into one.
     private static let gutter: CGFloat = 2
 
+    /// The grid's own width, measured once rather than by a `GeometryReader`
+    /// in every cell. See `cell`.
+    @State private var gridWidth: CGFloat = 0
+
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: Self.gutter), count: 3)
     }
@@ -80,6 +84,7 @@ struct PhotoGalleryGrid: View {
                 }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
     }
 
     /// Pinned, like Photos. The month you are inside stays named while you
@@ -95,12 +100,22 @@ struct PhotoGalleryGrid: View {
             HapticsEngine.lightTap()
             onSelect(photo)
         } label: {
-            GeometryReader { geo in
-                CachedImageView(fileName: photo.fileName, width: geo.size.width,
-                                height: geo.size.width, cornerRadius: 0)
-                    .frame(width: geo.size.width, height: geo.size.width)
-            }
-            .aspectRatio(1, contentMode: .fit)
+            // **A square from the grid's width, not a `GeometryReader` per
+            // cell.** Three flexible columns with two gutters are each a third
+            // of what is left, which is the width the reader used to report —
+            // and the width still has to be handed over, because it is what
+            // the photograph is decoded at.
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if gridWidth > 0 {
+                        let side = (gridWidth - Self.gutter * 2) / 3
+                        CachedImageView(fileName: photo.fileName, width: side,
+                                        height: side, cornerRadius: 0)
+                            .frame(width: side, height: side)
+                    }
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(photo.title ?? "Photo")
