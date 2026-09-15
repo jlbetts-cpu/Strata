@@ -349,6 +349,19 @@ enum GridConstants {
     /// the expressive head; a head in chrome holds still.
     static let headFloatX = Animation.easeInOut(duration: 3.7).repeatForever(autoreverses: true)
     static let headFloatY = Animation.easeInOut(duration: 2.9).repeatForever(autoreverses: true)
+    /// How long a tapped expression stays up, tap to ease-back. People hold a
+    /// posed expression two to four seconds; under that a tap reads as a
+    /// flicker (owner: "they should hold for longer"; it was 1.4s). Every take
+    /// in `HeadTake.catalogue` holds between the short and the long one.
+    nonisolated static let headTakeHoldShort: TimeInterval = 2.6
+    nonisolated static let headTakeHold: TimeInterval = 3.0
+    nonisolated static let headTakeHoldLong: TimeInterval = 3.4
+    /// The ease back to calm after a take, and a sleepy head's droop: slower
+    /// than a turn.
+    static let headTakeEaseBack = Animation.spring(response: 0.7, dampingFraction: 1.0)
+    /// One beat of a nod or a shake: fast enough to read as a gesture,
+    /// critically damped.
+    static let headNod = Animation.spring(response: 0.14, dampingFraction: 0.9)
     /// Fill sweep duration
     static let fillSweepDuration: TimeInterval = 0.4
 

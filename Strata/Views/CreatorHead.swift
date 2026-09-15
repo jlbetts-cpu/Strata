@@ -72,6 +72,7 @@ struct CreatorHead: View {
     @State private var reacting = false
     @State private var reaction: Task<Void, Never>?
     @State private var lastBeat: Beat?
+    @State private var deck = HeadTakeDeck()
 
     /// The portfolio's clock. Its blink steps on an 8fps grid, and the
     /// posterised snap is what makes it read as a blink rather than a fade.
@@ -110,12 +111,12 @@ struct CreatorHead: View {
         .offset(x: lean, y: dip)
         .frame(width: side, height: side)
         .contentShape(Rectangle())
-        .onTapGesture {
-            HapticsEngine.lightTap()
-            show(.wink, for: 1.4)
-        }
+        .onTapGesture { tapped() }
         .accessibilityHidden(true)
         .task { await greet() }
+        #if DEBUG
+        .task { await debugTakes() }
+        #endif
         .task(id: reduceMotion) { await blinkWhileCalm() }
         .task(id: reduceMotion) { await beatWhileIdle() }
     }
@@ -169,6 +170,130 @@ struct CreatorHead: View {
         }
         await blink(reopeningOn: next, allowDouble: false)
     }
+
+    // MARK: - Tap expressions
+
+    /// **A tap plays one of twelve expressions** (`HeadTake`), held 2.6 to
+    /// 3.4 seconds, never the same one twice running, and a new tap switches at
+    /// once. It used to be one wink for 1.4s: "there should be a bunch of
+    /// expressions and they should hold for longer." The same catalogue as a
+    /// made head, read here through this head's own faces.
+    private func tapped() {
+        let available = HeadTake.available(faces: Set(HeadRig.Expression.allCases), hasShut: true,
+                                           reduceMotion: reduceMotion)
+        guard let next = deck.next(from: available) else { return }
+        HapticsEngine.lightTap()
+        play(next, direction: Bool.random() ? 1 : -1)
+    }
+
+    /// The portfolio's faces for a rig's expressions. Raised brows are the
+    /// neutral face with its brow picture.
+    private static func headFace(_ expression: HeadRig.Expression) -> HeadFace {
+        switch expression {
+        case .neutral, .browsUp: return .neutral
+        case .surprised: return .rest
+        case .smile: return .smile
+        case .wink: return .wink
+        }
+    }
+
+    private func wear(_ expression: HeadRig.Expression) {
+        face = Self.headFace(expression)
+        browUp = expression == .browsUp
+    }
+
+    /// Runs in `reaction`, so a new tap (or the greeting) cancels it, and
+    /// every sleep throws: an interrupted take stops dead.
+    private func play(_ take: HeadTake, direction: Double) {
+        reaction?.cancel()
+        reacting = true
+        reaction = Task { @MainActor in
+            let start = ContinuousClock.now
+            let easeBack = start + .seconds(HeadTake.easeBackAt(take))
+            shut = false
+            squash = 1
+            if reduceMotion {
+                wear(take.face)
+                do { try await Task.sleep(until: easeBack, clock: .continuous) } catch { return }
+                wear(.neutral)
+                reacting = false
+                return
+            }
+            look(.zero)
+            pose()
+            let opensOnFace = take.cues.contains { cue in
+                if case .face = cue.step { return cue.at <= 0.1 }
+                return false
+            }
+            if !opensOnFace { wear(.neutral) }
+            for cue in take.cues(direction: direction) {
+                do { try await Task.sleep(until: start + .seconds(cue.at), clock: .continuous) } catch { return }
+                apply(cue.step)
+            }
+            do { try await Task.sleep(until: easeBack, clock: .continuous) } catch { return }
+            look(.zero)
+            pose(animation: GridConstants.headTakeEaseBack)
+            shut = false
+            squash = 1
+            browUp = false
+            await change(to: .neutral)
+            guard !Task.isCancelled else { return }
+            reacting = false
+        }
+    }
+
+    private func apply(_ step: HeadTake.Step) {
+        switch step {
+        case let .face(expression):
+            wear(expression)
+        case let .look(x, y, _, _):
+            look(CGPoint(x: x, y: y))
+        case .release:
+            look(.zero)
+        case let .pose(yaw, roll, lean, dip, motion):
+            let animation: Animation
+            switch motion {
+            case .turn: animation = GridConstants.headTurn
+            case .nod: animation = GridConstants.headNod
+            case .droop: animation = GridConstants.headTakeEaseBack
+            }
+            pose(yaw: min(max(yaw, -Self.maxYaw), Self.maxYaw), roll: roll,
+                 lean: CGFloat(lean) * side, dip: CGFloat(dip) * side, animation: animation)
+        case let .lids(closed):
+            shut = closed
+            squash = closed ? 0.94 : 1
+        case .bounce:
+            withAnimation(GridConstants.tapSquashSpring) { squash = 0.975 }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(160))
+                guard !shut else { return }
+                withAnimation(GridConstants.naturalSettle) { squash = 1 }
+            }
+        }
+    }
+
+    #if DEBUG
+    /// `-strataHeadTake cycle|<id>`: plays the takes on their own, so each
+    /// can be photographed at its hold. Logged as `[strata-head] take`.
+    private func debugTakes() async {
+        guard let wanted = DebugHarness.headTake else { return }
+        try? await Task.sleep(for: .seconds(greets ? 5 : 3))
+        var turn = 0
+        while !Task.isCancelled {
+            let pool = HeadTake.available(faces: Set(HeadRig.Expression.allCases), hasShut: true,
+                                          reduceMotion: reduceMotion)
+            let list = wanted == "cycle" ? pool : pool.filter { $0.id.rawValue.lowercased() == wanted }
+            guard !list.isEmpty else { return }
+            for next in list {
+                turn += 1
+                NSLog("[strata-head] take \(next.id.rawValue) hold \(next.hold) (creator)")
+                play(next, direction: turn % 2 == 0 ? -1 : 1)
+                try? await Task.sleep(for: .seconds(next.hold + 1.2))
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+    #endif
 
     // MARK: - Blinking
 
@@ -265,7 +390,7 @@ struct CreatorHead: View {
         case .turn:
             // Eyes first.
             look(lookTarget)
-            await pause(90)
+            guard await beatPause(90) else { return }
             if Double.random(in: 0..<1) < 0.5 {
                 Task { await blink(allowDouble: false) }
             }
@@ -274,41 +399,41 @@ struct CreatorHead: View {
                  roll: Double(lookTarget.x) * 3,
                  lean: lookTarget.x * scaled(3),
                  dip: lookTarget.y * scaled(1.5))
-            await pause(380)
+            guard await beatPause(380) else { return }
             // The head has carried the eyes most of the way, so they give some back.
             look(CGPoint(x: lookTarget.x * 0.45, y: lookTarget.y * 0.45))
-            await pause(Int.random(in: 1200...2200))
+            guard await beatPause(Int.random(in: 1200...2200)) else { return }
             // And back to you — eyes first again.
             look(.zero)
-            await pause(90)
+            guard await beatPause(90) else { return }
             pose()
-            await pause(650)
+            guard await beatPause(650) else { return }
         case .glance:
             // Portfolio: eyes 0.5 to one side, a 1.1° tip, 1150ms.
             look(CGPoint(x: dir * 0.5, y: -0.05))
-            await pause(80)
+            guard await beatPause(80) else { return }
             pose(yaw: Double(dir) * 5, roll: Double(dir) * 1.1, lean: dir * scaled(1))
-            await pause(900)
+            guard await beatPause(900) else { return }
             look(.zero)
             pose()
-            await pause(400)
+            guard await beatPause(400) else { return }
         case .tilt:
             // Portfolio: a 3° tilt, eyes barely moving, 1500ms.
             look(CGPoint(x: dir * 0.1, y: 0))
             pose(roll: Double(dir) * 3)
-            await pause(1300)
+            guard await beatPause(1300) else { return }
             look(.zero)
             pose()
-            await pause(500)
+            guard await beatPause(500) else { return }
         case .brow:
             // Portfolio: brows up for the middle half of 940ms.
             guard face == .neutral, !shut else { return }
             look(CGPoint(x: 0, y: -0.04))
             browUp = true
-            await pause(480)
+            guard await beatPause(480) else { return }
             browUp = false
             look(.zero)
-            await pause(460)
+            guard await beatPause(460) else { return }
         case .smile:
             // Eyes up a touch as it goes, the way a real one does, and back to
             // calm through the usual return in `show`.
@@ -319,12 +444,12 @@ struct CreatorHead: View {
         case .down:
             // A look at the words underneath, then back.
             look(CGPoint(x: -0.2, y: 1))
-            await pause(80)
+            guard await beatPause(80) else { return }
             pose(roll: Double(dir) * 1.2, dip: scaled(1.5))
-            await pause(Int.random(in: 900...1500))
+            guard await beatPause(Int.random(in: 900...1500)) else { return }
             look(.zero)
             pose()
-            await pause(500)
+            guard await beatPause(500) else { return }
         }
     }
 
@@ -338,8 +463,9 @@ struct CreatorHead: View {
         withAnimation(GridConstants.eyeSaccade) { gaze = point }
     }
 
-    private func pose(yaw y: Double = 0, roll r: Double = 0, lean l: CGFloat = 0, dip d: CGFloat = 0) {
-        withAnimation(GridConstants.headTurn) {
+    private func pose(yaw y: Double = 0, roll r: Double = 0, lean l: CGFloat = 0, dip d: CGFloat = 0,
+                      animation: Animation = GridConstants.headTurn) {
+        withAnimation(animation) {
             yaw = y
             roll = r
             lean = l
@@ -349,6 +475,13 @@ struct CreatorHead: View {
 
     private func pause(_ milliseconds: Int) async {
         try? await Task.sleep(for: .milliseconds(milliseconds))
+    }
+
+    /// An idle beat's pause. False when a tap's expression started while it
+    /// slept: the beat stops rather than turning the head under the take.
+    private func beatPause(_ milliseconds: Int) async -> Bool {
+        try? await Task.sleep(for: .milliseconds(milliseconds))
+        return !Task.isCancelled && !reacting
     }
 
     #if DEBUG

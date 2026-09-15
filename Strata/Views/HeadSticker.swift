@@ -24,8 +24,11 @@ struct StickerPlacement: Equatable {
     var width: CGFloat = 0.3
     var angle: Angle = .zero
     /// The face it is wearing. Tap the head to change it; what is on the
-    /// review is what is drawn into the photograph.
+    /// review is what is drawn into the photograph. Set to the face the
+    /// tapped take ends on, which the sticker keeps.
     var expression: HeadRig.Expression = .neutral
+    /// The tap's expression playing on it (`HeadTake`).
+    var take: HeadTake.Played? = nil
 
     static let widthRange: ClosedRange<CGFloat> = 0.1...0.8
     /// Close enough to upright to mean upright.
@@ -100,6 +103,8 @@ struct HeadStickerOverlay: View {
     @State private var angleBase: Angle?
     @State private var cropBase: CGPoint?
     @State private var isHeld = false
+    @State private var deck = HeadTakeDeck()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A head can be drawn smaller than a finger. Its target never is.
     private static let minimumTarget: CGFloat = 88
@@ -119,7 +124,8 @@ struct HeadStickerOverlay: View {
                     // Calm: it blinks and glances while you place it, and
                     // holds still in the picture.
                     LivingHeadView(rig: rig, side: side, liveliness: .calm,
-                                   held: current.expression == .neutral ? nil : current.expression)
+                                   held: current.expression == .neutral ? nil : current.expression,
+                                   take: current.take, keepsTake: true)
                         .frame(width: canvas, height: canvas)
                         .filmLook(look)
                         .rotationEffect(current.angle)
@@ -133,8 +139,8 @@ struct HeadStickerOverlay: View {
                                   y: current.centre.y * size.height)
                         .accessibilityElement()
                         .accessibilityLabel("Your head on the photo")
-                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it. Tap for another face.")
-                        .accessibilityAction(named: "Another face") { changeFace() }
+                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it. Tap for an expression.")
+                        .accessibilityAction(named: "Another expression") { changeFace() }
                         .accessibilityAction(named: "Make it bigger") { resize(by: 1.2) }
                         .accessibilityAction(named: "Make it smaller") { resize(by: 1 / 1.2) }
                 }
@@ -144,6 +150,9 @@ struct HeadStickerOverlay: View {
             .simultaneousGesture(moveCrop(in: size))
         }
         .coordinateSpace(.named(Self.space))
+        #if DEBUG
+        .task(id: placement == nil) { await debugTakes() }
+        #endif
     }
 
     /// One finger on the head. Measured in the photo's space, not the head's:
@@ -217,16 +226,52 @@ struct HeadStickerOverlay: View {
             }
     }
 
-    /// **Tap it and it pulls another face.** The owner: "when you click it it
-    /// does a random expression." It keeps the face rather than flashing it,
-    /// so the head you are looking at is the head that gets drawn into the
-    /// picture, and tapping again is how you get a different one.
+    /// **Tap it and it plays an expression** (`HeadTake`): one of twelve,
+    /// never the same one twice running, held about three seconds, and a new
+    /// tap switches at once. The owner: "when you click it it does a random
+    /// expression", then "there should be a bunch of expressions and they
+    /// should hold for longer." The motion eases back when the hold ends; the
+    /// FACE is kept, so the head you are looking at when you press Use Photo
+    /// is the head that gets drawn into the picture.
     private func changeFace() {
-        guard let rig, let current = placement,
-              let next = rig.anotherFace(than: current.expression) else { return }
+        guard let rig else { return }
+        let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil,
+                                           reduceMotion: reduceMotion)
+        guard let next = deck.next(from: available) else { return }
         HapticsEngine.tick()
-        placement?.expression = next
+        play(next, direction: Bool.random() ? 1 : -1, on: rig)
     }
+
+    private func play(_ next: HeadTake, direction: Double, on rig: HeadRig) {
+        guard let current = placement else { return }
+        placement?.expression = reduceMotion
+            ? (rig.has(next.face) ? next.face : .neutral)
+            : next.endFace(has: rig.has)
+        placement?.take = HeadTake.Played(id: next.id, direction: direction,
+                                          nonce: (current.take?.nonce ?? 0) + 1)
+    }
+
+    #if DEBUG
+    /// `-strataHeadTake`: taps the sticker on its own, through the same path
+    /// as a finger, so every take on a photo can be photographed.
+    private func debugTakes() async {
+        guard let wanted = DebugHarness.headTake, let rig, placement != nil else { return }
+        try? await Task.sleep(for: .seconds(4))
+        var turn = 0
+        while !Task.isCancelled {
+            let pool = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
+            let list = wanted == "cycle" ? pool : pool.filter { $0.id.rawValue.lowercased() == wanted }
+            guard !list.isEmpty else { return }
+            for next in list {
+                turn += 1
+                NSLog("[strata-head] take \(next.id.rawValue) hold \(next.hold) (sticker)")
+                play(next, direction: turn % 2 == 0 ? -1 : 1, on: rig)
+                try? await Task.sleep(for: .seconds(next.hold + 1.2))
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+    #endif
 
     private func resize(by factor: CGFloat) {
         guard let current = placement else { return }

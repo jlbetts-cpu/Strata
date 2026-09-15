@@ -422,8 +422,9 @@ struct HeadMakerView: View {
             VStack(spacing: GridConstants.gapWide) {
                 Spacer(minLength: 0)
                 // Expressive, and it says hello: brows, then a smile. The
-                // first thing a new head does is show it is alive.
-                LivingHeadView(rig: rig, side: Self.previewSide, liveliness: .expressive, greets: true)
+                // first thing a new head does is show it is alive. Tap it
+                // for an expression.
+                TappableHead(rig: rig, side: Self.previewSide, greets: true)
                 VStack(spacing: GridConstants.gapTight) {
                     Text("Looking good")
                         .font(Typography.headerLarge)

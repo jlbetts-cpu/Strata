@@ -356,8 +356,7 @@ struct OnboardingView: View {
             Circle()
                 .fill(HabitCategory.creativity.style.baseColor)
             if let rig = heads.head ?? HeadRig.creator() {
-                LivingHeadView(rig: rig, side: Self.headCircle * ProfileAvatar.headShare,
-                               liveliness: .expressive, greets: true)
+                TappableHead(rig: rig, side: Self.headCircle * ProfileAvatar.headShare, greets: true)
             }
         }
         .frame(width: Self.headCircle, height: Self.headCircle)

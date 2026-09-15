@@ -215,6 +215,12 @@ enum DebugHarness {
     /// no head placement could ever be photographed here.
     static var seedsHead: Bool { argument("-strataSeedHead") != nil }
 
+    /// Plays tap expressions on their own, from
+    /// `-strataHeadTake cycle|grin|laugh|wink|winkGrin|surprised|doubleTake|eyebrow|sideEye|sleepy|thinking|nod|shake`,
+    /// on every expressive head and on the review sticker, so each take can be
+    /// photographed at its hold without a finger. Logged as `[strata-head] take`.
+    static var headTake: String? { argument("-strataHeadTake")?.lowercased() }
+
     /// Which chart Profile opens on, from `-strataProfileChart day|week|month`.
     static var profileChartUnit: String? { argument("-strataProfileChart")?.lowercased() }
 
