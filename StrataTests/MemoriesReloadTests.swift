@@ -123,3 +123,34 @@ struct MemoriesReloadTests {
         #expect(!shelf.weeks.isEmpty, "a new win was hidden by a skipped reload")
     }
 }
+
+/// The date formatters are made once now. Made per call they followed a change
+/// of time zone for free; made once they must still follow it.
+@Suite("Album formats", .serialized)
+struct AlbumFormatsTests {
+    @Test("a cached formatter follows a change of time zone once the system says so")
+    func followsTimeZone() {
+        let original = NSTimeZone.default
+        defer {
+            NSTimeZone.default = original
+            NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
+        }
+        let instant = Date(timeIntervalSince1970: 1_789_000_000)
+        func fresh() -> String {
+            let f = DateFormatter()
+            f.dateFormat = "d MMMM HH:mm"
+            return f.string(from: instant)
+        }
+
+        NSTimeZone.default = TimeZone(identifier: "Pacific/Auckland")!
+        NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
+        let auckland = Album.Formats.formatter("d MMMM HH:mm").string(from: instant)
+        #expect(auckland == fresh())
+
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+        NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
+        let angeles = Album.Formats.formatter("d MMMM HH:mm").string(from: instant)
+        #expect(angeles == fresh())
+        #expect(auckland != angeles, "the zone change did not reach the cached formatter")
+    }
+}

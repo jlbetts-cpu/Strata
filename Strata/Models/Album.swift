@@ -368,23 +368,64 @@ nonisolated extension Album {
         return Formats.spelledDate.string(from: date)
     }
 
-    /// Made once. A `DateFormatter` costs a fraction of a millisecond to
+    /// Made once per format, and made again when the zone, calendar or
+    /// locale changes. A `DateFormatter` costs a fraction of a millisecond to
     /// create and these were made per album and per month, on every reload.
-    /// Formatting from several threads is safe; only mutating one is not, and
-    /// nothing does after this. `autoupdatingCurrent`, so a change of locale
-    /// is still followed as it was when each call made its own.
+    ///
+    /// **Explicit, and refreshed, rather than autoupdating.** Measured in
+    /// `AlbumFormatsTests`: a formatter given `.autoupdatingCurrent`, or
+    /// `TimeZone.current`, did NOT follow a change of `NSTimeZone.default`,
+    /// while a formatter made afterwards did. So each is made with the default
+    /// zone and the current calendar and locale set explicitly, and the whole
+    /// set is dropped on
+    /// `NSSystemTimeZoneDidChange`, `NSCurrentLocaleDidChange` and a change of
+    /// day, to be made again on next use. Behind a lock,
+    /// because the Memories grouping formats off the main actor.
     enum Formats {
-        nonisolated(unsafe) static let weekday = make("EEEE")
-        nonisolated(unsafe) static let shortDate = make("d MMM")
-        nonisolated(unsafe) static let spelledDate = make("EEEE MMMM yyyy")
-        nonisolated(unsafe) static let month = make("MMMM")
-        nonisolated(unsafe) static let monthYear = make("MMMM yyyy")
+        static var weekday: DateFormatter { formatter("EEEE") }
+        static var shortDate: DateFormatter { formatter("d MMM") }
+        static var spelledDate: DateFormatter { formatter("EEEE MMMM yyyy") }
+        static var month: DateFormatter { formatter("MMMM") }
+        static var monthYear: DateFormatter { formatter("MMMM yyyy") }
 
-        static func make(_ format: String) -> DateFormatter {
+        private static let lock = NSLock()
+        nonisolated(unsafe) private static var made: [String: DateFormatter] = [:]
+        nonisolated(unsafe) private static var observers: [NSObjectProtocol] = []
+
+        /// The formatter for `format`, in the phone's current zone, calendar
+        /// and locale. `posix` for keys, which must not follow the locale.
+        static func formatter(_ format: String, posix: Bool = false) -> DateFormatter {
+            lock.lock()
+            defer { lock.unlock() }
+            if observers.isEmpty { observe() }
+            let key = posix ? "posix:" + format : format
+            if let f = made[key] { return f }
             let f = DateFormatter()
-            f.locale = .autoupdatingCurrent
+            // What a `DateFormatter()` made on the spot would have used:
+            // Foundation's default zone, which is not always `TimeZone.current`.
+            f.locale = posix ? Locale(identifier: "en_US_POSIX") : NSLocale.current
+            f.calendar = NSCalendar.current
+            f.timeZone = NSTimeZone.default
             f.dateFormat = format
+            made[key] = f
             return f
+        }
+
+        /// Drops every formatter, so the next use makes one in the current
+        /// zone, calendar and locale.
+        static func refresh() {
+            lock.lock()
+            made.removeAll()
+            lock.unlock()
+        }
+
+        private static func observe() {
+            for name in [Notification.Name.NSSystemTimeZoneDidChange,
+                         NSLocale.currentLocaleDidChangeNotification,
+                         Notification.Name.NSCalendarDayChanged] {
+                observers.append(NotificationCenter.default.addObserver(
+                    forName: name, object: nil, queue: nil) { _ in refresh() })
+            }
         }
     }
 }

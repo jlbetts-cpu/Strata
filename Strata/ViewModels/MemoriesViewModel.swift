@@ -297,21 +297,13 @@ final class MemoriesViewModel {
     }
 
     private func monthKey(_ date: Date) -> String {
-        Self.monthKeyFormat.string(from: date)
+        Album.Formats.formatter("yyyy-MM", posix: true).string(from: date)
     }
 
     static func parse(_ key: String) -> Date? {
-        dayKeyFormat.date(from: key)
+        Album.Formats.formatter("yyyy-MM-dd", posix: true).date(from: key)
     }
 
-    private static let monthKeyFormat = posix("yyyy-MM")
-    private static let dayKeyFormat = posix("yyyy-MM-dd")
-    private static func posix(_ format: String) -> DateFormatter {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = format
-        return df
-    }
 }
 
 /// Whether the store could have changed since a page was last built from it.

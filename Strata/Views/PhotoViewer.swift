@@ -476,11 +476,9 @@ struct PhotoViewer: View {
         if calendar.isDateInYesterday(date) { return "Yesterday" }
         // Made once: this runs in the caption, on every body.
         return (calendar.isDate(date, equalTo: now, toGranularity: .year)
-                ? dayMonth : dayMonthYear).string(from: date)
+                ? Album.Formats.formatter("d MMMM") : Album.Formats.formatter("d MMMM yyyy")).string(from: date)
     }
 
-    private static let dayMonth = Album.Formats.make("d MMMM")
-    private static let dayMonthYear = Album.Formats.make("d MMMM yyyy")
 }
 
 /// The deck's live position, as a reference. See `PhotoViewer.position`.
@@ -516,10 +514,13 @@ final class DeckPosition {
 /// `PhotoViewer` drawing a card for EVERY photograph in the library, so each
 /// frame of a swipe rebuilt all of them, and opening the viewer asked for
 /// every thumbnail at once. It now reads the position itself, so a frame
-/// redraws the strip alone, and it draws the cards within `reach` of the
-/// middle. Everything further out is off the screen at any width a phone
-/// has (about four cards either side fit), so what is drawn is unchanged.
-private struct Filmstrip: View {
+/// redraws the strip alone, and it draws the cards within `reach(width:)` of
+/// the middle: every card any part of which can be on screen, plus one either
+/// side, worked out from the strip's own width so an iPad draws all of its
+/// cards too. What is drawn is unchanged. VoiceOver reads the drawn cards,
+/// which always include the neighbours either side (`reach` is never under 2);
+/// choosing one moves the window with it.
+struct Filmstrip: View {
     let photos: [GalleryPhoto]
     let position: DeckPosition
     let currentID: String?
@@ -532,20 +533,34 @@ private struct Filmstrip: View {
     static let radius: CGFloat = 7
     /// The size of the decode, as it always was.
     static let side: CGFloat = 74
-    /// How many cards either side of the middle are drawn.
-    static let reach = 8
+    static var pitch: CGFloat { card.width + gap }
+
+    /// How many cards either side of the middle are drawn: as many as reach
+    /// from the middle card's centre to the strip's edge, plus one.
+    static func reach(width: CGFloat) -> Int {
+        max(2, Int(((width / 2 + card.width / 2) / pitch).rounded(.up)) + 1)
+    }
+
+    /// The indices drawn for a position and a strip width.
+    static func window(progress: Double, count: Int, width: CGFloat) -> ClosedRange<Int>? {
+        guard count > 0 else { return nil }
+        let reach = Double(reach(width: width))
+        let last = count - 1
+        let lo = min(max(0, Int((progress - reach).rounded(.down))), last)
+        let hi = max(min(last, Int((progress + reach).rounded(.up))), lo)
+        return lo...hi
+    }
 
     var body: some View {
         #if DEBUG
         let _ = PerfProbe.count("Filmstrip")
         #endif
-        let pitch = Self.card.width + Self.gap
+        let pitch = Self.pitch
         let progress = position.live
-        let last = photos.count - 1
-        let lo = min(max(0, Int((progress - Double(Self.reach)).rounded(.down))), max(last, 0))
-        let hi = max(min(last, Int((progress + Double(Self.reach)).rounded(.up))), lo)
-        let drawn = photos.isEmpty ? [] : Array(photos[lo...hi].enumerated())
         return GeometryReader { geo in
+            let range = Self.window(progress: progress, count: photos.count, width: geo.size.width)
+            let lo = range?.lowerBound ?? 0
+            let drawn = range.map { Array(photos[$0].enumerated()) } ?? []
             HStack(spacing: Self.gap) {
                 ForEach(drawn, id: \.element.id) { offset, photo in
                     let distance = min(abs(Double(lo + offset) - progress), 1)
