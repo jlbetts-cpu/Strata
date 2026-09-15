@@ -137,16 +137,23 @@ struct WidgetSnapshot: Codable, Equatable {
     /// updates get throttled, which shows up as a stale tower.
     @discardableResult
     func writeIfChanged() -> Bool {
-        guard let url = Self.fileURL else { return false }
-        var previous = Self.read()
-        // The timestamp always differs, so it cannot take part in the
-        // comparison or every write would look like a change.
-        previous = WidgetSnapshot(total: previous.total, today: previous.today,
-                                  streak: previous.streak, blocks: previous.blocks,
-                                  updated: updated)
-        guard previous != self else { return false }
-        guard let data = try? JSONEncoder().encode(self) else { return false }
-        try? data.write(to: url, options: .atomic)
-        return true
+        guard !sameContent(as: Self.read()) else { return false }
+        return write()
+    }
+
+    /// Everything but `updated`. The timestamp always differs, so it cannot
+    /// take part in the comparison or every write would look like a change.
+    func sameContent(as other: WidgetSnapshot) -> Bool {
+        total == other.total && today == other.today && streak == other.streak
+            && blocks == other.blocks
+    }
+
+    /// Writes unconditionally. For a caller that already knows the content
+    /// changed, such as the app comparing against the snapshot it last wrote.
+    @discardableResult
+    func write() -> Bool {
+        guard let url = Self.fileURL,
+              let data = try? JSONEncoder().encode(self) else { return false }
+        return (try? data.write(to: url, options: .atomic)) != nil
     }
 }

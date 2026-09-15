@@ -72,6 +72,45 @@ enum Streaks {
         return count
     }
 
+    /// How far back a streak is looked for: the widget and Profile both
+    /// fetch this many days of wins, never the whole store.
+    static let horizonDays = 400
+
+    /// The oldest day key inside the horizon, for a `dateString >=` predicate.
+    static func horizonKey(today: Date = Date(), calendar: Calendar = .current) -> String {
+        calendar.date(byAdding: .day, value: -horizonDays, to: today)
+            .map { DateUtils.dateString(from: $0) } ?? ""
+    }
+
+    /// The current streak, remembered until the days it was worked out from
+    /// change.
+    ///
+    /// `refreshData()` publishes the widget on every save, and walking a
+    /// run back through `Calendar` a day at a time is not free. The signature
+    /// is `distinct day count | newest day | today`: a new day, a day emptied,
+    /// or midnight passing all change it. Pure, so the month boundary that
+    /// used to reset the widget's streak can be tested with literals.
+    struct Memo {
+        private(set) var signature: String?
+        private(set) var value = 0
+
+        static func signature(of days: Set<String>, today: Date) -> String {
+            "\(days.count)|\(days.max() ?? "")|\(DateUtils.dateString(from: today))"
+        }
+
+        mutating func current(among dayKeys: some Sequence<String>,
+                              today: Date = Date(),
+                              calendar: Calendar = .current) -> Int {
+            let days = Set(dayKeys)
+            let sig = Self.signature(of: days, today: today)
+            if sig != signature {
+                value = Streaks.current(among: days, today: today, calendar: calendar)
+                signature = sig
+            }
+            return value
+        }
+    }
+
     /// Whether `day` is the calendar day immediately after `previous`.
     ///
     /// Via `Calendar`, not by adding one to the string: months end, years end,

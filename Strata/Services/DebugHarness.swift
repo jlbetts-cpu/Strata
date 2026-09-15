@@ -649,6 +649,7 @@ enum DebugHarness {
         argument("-strataSeedWins") != nil
             || argument("-strataSeedHistory") != nil
             || argument("-strataSeedHistoryPerDay") != nil
+            || argument("-strataSeedStreak") != nil
             || argument("-strataSeedHabits") != nil
             || argument("-strataSeedUnlabeled") != nil
             || argument("-strataAutoWin") != nil
@@ -793,6 +794,24 @@ enum DebugHarness {
                         if seedsPlaces { place(log, index: n) }
                     }
                 }
+            }
+            try? context.save()
+        }
+
+        // `-strataSeedStreak n`: one win on each of the last n days, today
+        // included, with no gaps. `-strataSeedHistory` leaves gaps on
+        // purpose, so it can never show a streak longer than three; this is
+        // how a streak that crosses the 1st of a month is put on screen and
+        // into the widget's snapshot.
+        let streakDays = Int(argument("-strataSeedStreak") ?? "0") ?? 0
+        if streakDays > 0 {
+            let calendar = Calendar.current
+            for back in 0..<streakDays {
+                guard let day = calendar.date(byAdding: .day, value: -back, to: Date()) else { continue }
+                _ = try? QuickWinService.logWin(
+                    title: titles[back % titles.count],
+                    category: categories[back % categories.count],
+                    on: day, context: context, tower: tower)
             }
             try? context.save()
         }

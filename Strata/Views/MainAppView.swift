@@ -99,6 +99,8 @@ struct MainAppView: View {
     private let towerFilterMode: TowerFilterMode = .day
     @State private var animCoord = TowerAnimationCoordinator()
     @State private var towerProbe = TowerGeometryProbe()
+    /// What the widget was last handed. Not observed: see `WidgetPublisher`.
+    @State private var widgetPublisher = WidgetPublisher()
 
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
@@ -429,9 +431,9 @@ struct MainAppView: View {
                     // reach the widget late: "widget doesnt update fast when
                     // you add a win for the home widget."
                     //
-                    // Free when nothing changed, because `writeIfChanged`
-                    // compares before writing and only then asks WidgetKit to
-                    // reload. A reload request is the thing the system
+                    // Free when nothing changed, because the publish
+                    // compares with the snapshot it last wrote before writing,
+                    // and only then asks WidgetKit to reload. A reload request is the thing the system
                     // throttles; a no-op is not one.
                     publishWidgetSnapshot()
                 }
@@ -1939,13 +1941,46 @@ struct MainAppView: View {
         let snapshot = WidgetSnapshot(
             total: lifetime,
             today: blocksToday,
-            streak: Streaks.current(among: logs.filter(\.completed).map(\.dateString)),
+            streak: widgetStreak(lifetime: lifetime),
             blocks: Array(recent),
             updated: Date())
-        if snapshot.writeIfChanged() {
-            exportWidgetPhotos(for: tail)
-            WidgetReloader.reload()
+        // Compared against the snapshot this launch last wrote, held in
+        // memory, rather than by reading and decoding the file on the main
+        // thread every refresh. The file is read once, for the first compare.
+        if widgetPublisher.last == nil { widgetPublisher.last = WidgetSnapshot.read() }
+        guard let last = widgetPublisher.last, !snapshot.sameContent(as: last) else { return }
+        guard snapshot.write() else { return }
+        widgetPublisher.last = snapshot
+        // One reload, from the export once the photographs it needs are in
+        // the group. This reloaded here as well, a moment before the export's
+        // own, so every change cost the widget two reloads of its budget.
+        exportWidgetPhotos(for: tail)
+    }
+
+    /// The widget's streak: consecutive days, over the 400-day horizon.
+    ///
+    /// **Not `logs`.** That query is narrowed to the current month on
+    /// purpose, and the streak was worked out over it, so the widget's streak
+    /// could never be longer than the day of the month and fell to 1 on
+    /// every 1st. `ProfileViewModel` fetched the horizon correctly; this does
+    /// the same. The fetch runs only when the lifetime count or the day has
+    /// moved since the last one, and the walk only when the days themselves
+    /// changed (`Streaks.Memo`).
+    private func widgetStreak(lifetime: Int) -> Int {
+        let today = Date()
+        let dayKey = DateUtils.dateString(from: today)
+        if widgetPublisher.streakInputs == [String(lifetime), dayKey] {
+            return widgetPublisher.streak.value
         }
+        let horizon = Streaks.horizonKey(today: today)
+        var descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.completed && $0.dateString >= horizon })
+        descriptor.propertiesToFetch = [\.dateString]
+        guard let rows = try? modelContext.fetch(descriptor) else {
+            return widgetPublisher.streak.value
+        }
+        widgetPublisher.streakInputs = [String(lifetime), dayKey]
+        return widgetPublisher.streak.current(among: rows.map(\.dateString), today: today)
     }
 
     /// Copy the handful of photographs the widget will draw into the group.
@@ -1959,7 +1994,10 @@ struct MainAppView: View {
     /// here opens them for writing, moves them, or deletes them; it asks
     /// `ImageManager` for a thumbnail and writes a NEW file elsewhere.
     private func exportWidgetPhotos(for blocks: [PlacedBlock]) {
-        guard let directory = WidgetSnapshot.photoDirectory else { return }
+        guard let directory = WidgetSnapshot.photoDirectory else {
+            WidgetReloader.reload()
+            return
+        }
         let wanted = blocks.compactMap(\.log.imageFileName)
         Task.detached(priority: .utility) {
             try? FileManager.default.createDirectory(
@@ -3024,6 +3062,19 @@ struct MainAppView: View {
         updateLiveReplay()
     }
 
+}
+
+// MARK: - Widget publishing memory
+
+/// The last widget snapshot written and the streak memo, held across
+/// refreshes. A plain class, like `TowerGeometryProbe`: written from
+/// `refreshData()`, read by nothing on screen, so publishing it would only
+/// re-render the app to deliver a value no view draws.
+private final class WidgetPublisher {
+    var last: WidgetSnapshot?
+    var streak = Streaks.Memo()
+    /// Lifetime completed count and day key of the last streak fetch.
+    var streakInputs: [String] = []
 }
 
 // MARK: - Block Flyaway (Today → Tower visual bridge)

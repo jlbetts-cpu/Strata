@@ -107,4 +107,49 @@ struct StreaksTests {
     func noDaysNoCurrent() {
         #expect(Streaks.current(among: [String]()) == 0)
     }
+
+    // MARK: - The widget's streak
+
+    private func noon(_ key: String) -> Date {
+        DateUtils.date(from: key)!.addingTimeInterval(12 * 3600)
+    }
+
+    /// The widget's streak was worked out over `MainAppView`'s `logs`, which
+    /// is narrowed to the current month, so on the 3rd a ten-day run read 3
+    /// and on the 1st every streak read 1. It is worked out over the
+    /// 400-day horizon now; this is that run, both ways.
+    @Test("a current streak crossing the 1st of the month is not reset")
+    func currentCrossesTheFirst() {
+        let today = noon("2026-09-03")
+        let window = (0..<10).map { key($0, from: today) }   // Aug 25 to Sep 3
+        #expect(Streaks.current(among: window, today: today) == 10)
+        #expect(window.allSatisfy { $0 >= Streaks.horizonKey(today: today) })
+
+        // What the month-narrowed rows could see.
+        let monthOnly = window.filter { $0 >= "2026-09-01" }
+        #expect(Streaks.current(among: monthOnly, today: today) == 3)
+    }
+
+    @Test("the horizon is 400 days back")
+    func horizon() {
+        #expect(Streaks.horizonKey(today: noon("2026-09-14")) == "2025-08-10")
+    }
+
+    @Test("the memo answers from the same days without recounting, and recounts when they change")
+    func memoRecountsOnChange() {
+        let today = noon("2026-09-03")
+        var memo = Streaks.Memo()
+        let days = (0..<10).map { key($0, from: today) }
+        #expect(memo.current(among: days, today: today) == 10)
+        let first = memo.signature
+        #expect(memo.current(among: days.shuffled() + days, today: today) == 10)
+        #expect(memo.signature == first)
+
+        // A gap four days back: the run is now the last four days.
+        let gapped = days.filter { $0 != key(4, from: today) }
+        #expect(memo.current(among: gapped, today: today) == 4)
+
+        // Two days on with nothing logged, the run is over.
+        #expect(memo.current(among: gapped, today: noon("2026-09-05")) == 0)
+    }
 }
