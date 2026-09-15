@@ -49,7 +49,15 @@ final class LocationService: NSObject {
     private(set) var isPrecise = true
 
     private let manager = CLLocationManager()
-    private var isRunning = false
+    /// Who wants updates running. The camera pre-warms for as long as it is
+    /// open; the map's recentre button starts them too, and until 2026-09-15
+    /// nothing on the map ever stopped them, so one tap left location running
+    /// until the camera happened to be opened and closed. Each holder releases
+    /// only its own claim, so the map leaving cannot stop a camera that has
+    /// just appeared (the order of the two tabs' appear and disappear is not
+    /// promised).
+    private var holders: Set<String> = []
+    private var isRunning: Bool { !holders.isEmpty }
 
     override init() {
         super.init()
@@ -83,17 +91,24 @@ final class LocationService: NSObject {
     /// one is immediate. By the time you have framed a shot the answer has
     /// already arrived, so the shutter never has to wait for it and never has
     /// to show a spinner for it.
-    func start() {
-        guard !isRunning, !isDenied else { return }
-        isRunning = true
-        manager.startUpdatingLocation()
+    func start(for holder: String = "camera") {
+        guard !isDenied else { return }
+        let wasRunning = isRunning
+        holders.insert(holder)
+        if !wasRunning { manager.startUpdatingLocation() }
     }
 
-    func stop() {
+    func stop(for holder: String = "camera") {
         guard isRunning else { return }
-        isRunning = false
-        manager.stopUpdatingLocation()
+        holders.remove(holder)
+        // A start made by the permission arriving belongs to nobody in
+        // particular; the first holder to leave releases it, as a stop always
+        // did.
+        holders.remove(Self.grantedHolder)
+        if !isRunning { manager.stopUpdatingLocation() }
     }
+
+    private static let grantedHolder = "granted"
 
     /// A fix good enough to pin a photograph to, or nil.
     ///
@@ -158,7 +173,7 @@ extension LocationService: CLLocationManagerDelegate {
                 if self.isRunning {
                     manager.startUpdatingLocation()
                 } else {
-                    self.start()
+                    self.start(for: Self.grantedHolder)
                 }
             }
         }

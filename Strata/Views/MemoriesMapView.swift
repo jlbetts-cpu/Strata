@@ -159,7 +159,13 @@ struct MemoriesMapView: View {
         #endif
         return map
             .overlay { if hasLoaded && pins.isEmpty { emptyState } }
-            .overlay(alignment: .bottomTrailing) { if isInteractive { recentre } }
+            .overlay(alignment: .bottomTrailing) {
+                if isInteractive {
+                    RecentreButton(location: location) { goToMe() }
+                }
+            }
+            // The recentre button starts location; leaving the map ends it.
+            .onDisappear { location.stop(for: Self.locationHolder) }
             #if DEBUG
             // **The map's zoom, readable from outside.**
             //
@@ -179,42 +185,6 @@ struct MemoriesMapView: View {
             #endif
     }
 
-    /// Take me back to where I am.
-    ///
-    /// **Not `MapUserLocationButton`.** That is the native control and it is
-    /// the right idea, but it is styled by MapKit, placed by MapKit, and it
-    /// shows a blue system chevron in a system capsule — three things this
-    /// screen has spent its whole life not doing. This is the app's own glass
-    /// button, the same one the title row uses, in the place Apple Maps puts
-    /// it: bottom trailing, above the tab bar, where a thumb already is.
-    ///
-    /// It is the FOURTH piece of chrome on a screen aiming for three, and it
-    /// earns the slot because it is the only one that answers a question the
-    /// map itself raises. Once you have panned away from yourself there is
-    /// otherwise no way back except pinching until the world fits.
-    private var recentre: some View {
-        GlassIconButton(systemName: locationGlyph,
-                        accessibilityLabel: "Show my location") {
-            goToMe()
-        }
-        // Light in both appearances — see `MemoriesView.overMap`. Glass
-        // follows the system, and a dark disc on the night map is invisible.
-        .environment(\.colorScheme, .light)
-        .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.bottom, DrawerMetrics.tabBarClearance)
-        // It has nothing to say until it can say it.
-        .opacity(location.isDenied ? 0 : 1)
-        .allowsHitTesting(!location.isDenied)
-        .animation(GridConstants.gentleReveal, value: location.isDenied)
-    }
-
-    /// Filled once we know where you are, hollow while we do not — the same
-    /// grammar the system uses, so it needs no explaining.
-    private var locationGlyph: String {
-        location.fix(maxAge: 600, maxAccuracy: 1000) == nil
-            ? "location" : "location.fill"
-    }
-
     /// Frame on the user, or ask if we have never asked.
     ///
     /// Falls back to their own places rather than doing nothing: "I pressed it
@@ -223,10 +193,10 @@ struct MemoriesMapView: View {
     private func goToMe() {
         guard !location.canAsk else {
             location.requestAccess()
-            location.start()
+            location.start(for: Self.locationHolder)
             return
         }
-        location.start()
+        location.start(for: Self.locationHolder)
         guard let fix = location.fix(maxAge: 600, maxAccuracy: 1000) else {
             didFrame = false
             frameOnYourPlaces()
@@ -241,6 +211,8 @@ struct MemoriesMapView: View {
             ))
         }
     }
+
+    private static let locationHolder = "map"
 
     private var map: some View {
         Map(position: $camera, interactionModes: isInteractive ? .all : []) {
@@ -1148,5 +1120,51 @@ private extension View {
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
         }
+    }
+}
+
+/// Take me back to where I am.
+///
+/// **Not `MapUserLocationButton`.** That is the native control and it is
+/// the right idea, but it is styled by MapKit, placed by MapKit, and it
+/// shows a blue system chevron in a system capsule — three things this
+/// screen has spent its whole life not doing. This is the app's own glass
+/// button, the same one the title row uses, in the place Apple Maps puts
+/// it: bottom trailing, above the tab bar, where a thumb already is.
+///
+/// It is the FOURTH piece of chrome on a screen aiming for three, and it
+/// earns the slot because it is the only one that answers a question the
+/// map itself raises. Once you have panned away from yourself there is
+/// otherwise no way back except pinching until the world fits.
+///
+/// **Its own view, because it is the only thing that reads the fix.** As a
+/// property of the map, reading `location.latest` for the glyph made every
+/// location update (one per ten metres) re-evaluate the whole map and all of
+/// its annotations. Now an update redraws this button.
+private struct RecentreButton: View {
+    let location: LocationService
+    let action: () -> Void
+
+    var body: some View {
+        GlassIconButton(systemName: locationGlyph,
+                        accessibilityLabel: "Show my location") {
+            action()
+        }
+        // Light in both appearances — see `MemoriesView.overMap`. Glass
+        // follows the system, and a dark disc on the night map is invisible.
+        .environment(\.colorScheme, .light)
+        .padding(.trailing, GridConstants.horizontalPadding)
+        .padding(.bottom, DrawerMetrics.tabBarClearance)
+        // It has nothing to say until it can say it.
+        .opacity(location.isDenied ? 0 : 1)
+        .allowsHitTesting(!location.isDenied)
+        .animation(GridConstants.gentleReveal, value: location.isDenied)
+    }
+
+    /// Filled once we know where you are, hollow while we do not — the same
+    /// grammar the system uses, so it needs no explaining.
+    private var locationGlyph: String {
+        location.fix(maxAge: 600, maxAccuracy: 1000) == nil
+            ? "location" : "location.fill"
     }
 }
