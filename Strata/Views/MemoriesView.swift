@@ -44,6 +44,9 @@ struct MemoriesView: View {
     /// the tab opens on the map, whole, and the photographs are the button in
     /// the corner.
     @State private var drawer: DrawerDetent = .hidden
+    #if DEBUG
+    @State private var debugFlingCounted = false
+    #endif
 
     /// Which ground the map draws on.
     ///
@@ -219,27 +222,22 @@ struct MemoriesView: View {
                                          transitionNamespace: photoTransition) { photo in
                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
                         }
-                        #if DEBUG
-                        Color.clear.frame(height: 0).id("MemoriesGalleryEnd")
-                        #endif
                     }
                 }
                 .padding(.bottom, GridConstants.tabBarClearance)
                 .id("MemoriesContent")
             }
             #if DEBUG
+            // `-strataPerfProbe`: the first finger on the page opens a 10s
+            // window, so a UI test's flings are counted from their start.
+            .onScrollPhaseChange { _, phase in
+                guard PerfProbe.isOn, phase == .interacting, !debugFlingCounted else { return }
+                debugFlingCounted = true
+                PerfProbe.window("Gallery fling", seconds: 10)
+            }
             .task {
                 guard DebugHarness.scrollsMemories else { return }
                 try? await Task.sleep(for: .seconds(3))
-                if DebugHarness.scrollTarget == "galleryFling" {
-                    // A cold fling through the gallery, for `PerfProbe`:
-                    // image-view bodies per landed decode.
-                    PerfProbe.window("Gallery fling", seconds: 8)
-                    withAnimation(.linear(duration: 4)) {
-                        proxy.scrollTo("MemoriesGalleryEnd", anchor: .bottom)
-                    }
-                    return
-                }
                 withAnimation(nil) {
                     let target = switch DebugHarness.scrollTarget {
                     case "shelf": "MemoriesShelf"
