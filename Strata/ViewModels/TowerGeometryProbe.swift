@@ -8,7 +8,8 @@ import SwiftUI
 /// scrolled. Three attempts to derive that from `gridH`, `towerScrollOffset`
 /// and the layout paddings each got it wrong in a different way, because each
 /// of those changes on its own schedule and at least one of them is stale
-/// (`towerScrollOffset` is only republished in 8pt steps).
+/// (`towerScrollOffset` is published only for a culling tower, in
+/// half-viewport steps).
 ///
 /// Measuring it removes the arithmetic entirely.
 ///

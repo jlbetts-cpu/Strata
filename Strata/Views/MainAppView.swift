@@ -208,7 +208,12 @@ struct MainAppView: View {
     /// block bodies a second over a scripted fling of a 60-block tower, for a
     /// value no block drew with. The raw offset lives on `towerProbe`, which
     /// is not observed, and is copied in here when culling starts.
-    @State private var towerScrollOffset: CGFloat = 0
+    ///
+    /// Nil until it has been published once. Until then the cull reads the
+    /// probe's live value: the first culling body runs before the `onChange`
+    /// that would have copied it in, so a stored 0 there culled against the
+    /// top of the tower wherever it was scrolled.
+    @State private var towerScrollOffset: CGFloat?
     /// Above this many blocks the tower culls what is off screen.
     private static let cullThreshold = 120
     @State private var screenHeight: CGFloat = 0
@@ -2301,11 +2306,17 @@ struct MainAppView: View {
                 geo.contentOffset.y
             } action: { _, newOffset in
                 towerProbe.scrollOffset = newOffset
+                #if DEBUG
+                PerfProbe.cullCheck(gridTop: towerProbe.gridTopOnScreen,
+                                    windowHeight: viewportHeight + safeAreaTop + safeAreaBottom,
+                                    fade: 0.2)
+                #endif
                 // Only a culling tower reads the offset, and its buffer is a
-                // whole viewport either side (`visibleTowerBlocks`), so a
-                // value up to half a viewport stale still covers the screen.
+                // viewport and a half either side (`visibleTowerBlocks`), so
+                // a value up to half a viewport stale still leaves a whole
+                // viewport of blocks drawn beyond each edge.
                 guard towerVM.placedBlocks.count > Self.cullThreshold else { return }
-                if abs(newOffset - towerScrollOffset) > max(viewportHeight / 2, 100) {
+                if abs(newOffset - (towerScrollOffset ?? -.infinity)) > max(viewportHeight / 2, 100) {
                     towerScrollOffset = newOffset
                 }
             }
@@ -2455,11 +2466,21 @@ struct MainAppView: View {
         // positions. Rather than pretend an extent test can be made
         // height-neutral, the boundary moves a full screen off either edge,
         // where nothing crossing it is visible.
-        let buffer = max(viewportHeight, 400)
-        let visibleTop = towerScrollOffset - topInset - buffer
-        let visibleBottom = towerScrollOffset + viewportHeight + buffer
+        //
+        // **And one and a half viewports, not one.** A block entering the
+        // cull fades in over `towerBlockFadeIn` (0.2s), and the offset is
+        // only republished every half viewport, so a one-viewport buffer
+        // could insert a block about half a screen beyond the edge: an
+        // ordinary fling covers that inside the fade, and the block arrived
+        // on screen translucent. Measured over a scripted fling of a
+        // 150-block tower with `-strataPerfProbe`: 49 blocks on screen
+        // mid-fade with one viewport, 0 with this.
+        let buffer = max(viewportHeight * 1.5, 600)
+        let offset = towerScrollOffset ?? towerProbe.scrollOffset
+        let visibleTop = offset - topInset - buffer
+        let visibleBottom = offset + viewportHeight + buffer
 
-        return blocks.filter { block in
+        let kept = blocks.filter { block in
             // Blocks currently animating must always render
             if animCoord.activelyAnimatingIDs.contains(block.id) || towerVM.newlyDroppedIDs.contains(block.id) {
                 return true
@@ -2468,6 +2489,16 @@ struct MainAppView: View {
             let blockBottom = gridH - CGFloat(block.row) * cellStride
             return blockBottom >= visibleTop && blockY <= visibleBottom
         }
+        #if DEBUG
+        if PerfProbe.isOn {
+            PerfProbe.cullRender(kept.map { block in
+                (block.id,
+                 gridH - CGFloat(block.row + block.rowSpan) * cellStride,
+                 gridH - CGFloat(block.row) * cellStride)
+            })
+        }
+        #endif
+        return kept
     }
 
     // MARK: - Tower Ground Plane
@@ -2962,9 +2993,9 @@ struct MainAppView: View {
             // Higher rows used to shift more than lower ones as the tower
             // scrolled, as a depth cue. It is the one effect that directly
             // contradicts the tower being a single structure: the rows slide
-            // against each other, and because `towerScrollOffset` is only
-            // republished in 8pt steps it did it in visible jumps rather than
-            // smoothly. The tower moves as one object or it is not one object.
+            // against each other, and because `towerScrollOffset` was only
+            // republished in 8pt steps then, it did it in visible jumps rather
+            // than smoothly. The tower moves as one object or it is not one object.
             // The dance is applied by the grid, not here. See `placedBlocksGrid`.
         }
 

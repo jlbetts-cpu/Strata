@@ -82,6 +82,53 @@ enum PerfProbe {
         }
     }
 
+    // MARK: - Culling
+
+    private struct Inserted { let at: CFTimeInterval; let top: CGFloat; let bottom: CGFloat; var reported = false }
+    private static var cullVisible: Set<UUID> = []
+    private static var cullInserted: [UUID: Inserted] = [:]
+    private static var cullOnScreenMidFade = 0
+
+    /// The blocks a culling tower is drawing this evaluation, with each
+    /// one's top and bottom in the grid's own top-down space. Blocks that were
+    /// not drawn last time are fading in (`towerBlockFadeIn`) from now.
+    static func cullRender(_ blocks: [(id: UUID, top: CGFloat, bottom: CGFloat)]) {
+        guard isOn else { return }
+        start()
+        let now = CACurrentMediaTime()
+        let ids = Set(blocks.map(\.id))
+        if !cullVisible.isEmpty {
+            var n = 0
+            for b in blocks where !cullVisible.contains(b.id) {
+                cullInserted[b.id] = Inserted(at: now, top: b.top, bottom: b.bottom)
+                n += 1
+            }
+            if n > 0 { NSLog("[PERF-CULL] inserted %d", n) }
+        }
+        cullVisible = ids
+    }
+
+    /// Called every scroll frame: is any block still inside its fade-in
+    /// window already on screen? `gridTop` is the grid's top edge in window
+    /// coordinates, `windowHeight` the window's height.
+    static func cullCheck(gridTop: CGFloat, windowHeight: CGFloat, fade: CFTimeInterval) {
+        guard isOn, !cullInserted.isEmpty else { return }
+        let now = CACurrentMediaTime()
+        for (id, var entry) in cullInserted {
+            let age = now - entry.at
+            if age > fade + 0.05 { cullInserted[id] = nil; continue }
+            guard !entry.reported, age < fade else { continue }
+            let top = gridTop + entry.top, bottom = gridTop + entry.bottom
+            if bottom > 0 && top < windowHeight {
+                cullOnScreenMidFade += 1
+                entry.reported = true
+                cullInserted[id] = entry
+                NSLog("[PERF-CULL] ON SCREEN mid-fade age=%.0fms top=%.0f bottom=%.0f total=%d",
+                      age * 1000, top, bottom, cullOnScreenMidFade)
+            }
+        }
+    }
+
     private final class LinkTarget: NSObject {
         @objc func tick(_ link: CADisplayLink) { PerfProbe.tick(link) }
     }
