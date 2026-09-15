@@ -48,8 +48,9 @@ struct CachedImageView: View {
     /// `.task` never ran for a photograph inside a tower block, so the load
     /// was never even requested and every block kept its colour. Reading the
     /// store here both returns what is in memory and schedules what is not,
-    /// and the store's `version` brings the view back when it lands. See
-    /// `ThumbnailStore`.
+    /// and this photograph's slot in the store brings the view back when it
+    /// lands — this view is invalidated by its own photograph and no other.
+    /// See `ThumbnailStore`.
     private var shown: (image: UIImage?, missing: Bool) {
         guard let fileName else { return (nil, false) }
         if fullResolution { return (fullImage, fullFailed) }

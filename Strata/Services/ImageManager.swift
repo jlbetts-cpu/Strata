@@ -12,6 +12,24 @@ final class ImageManager: @unchecked Sendable {
     /// somebody, or keep when they change phone.
     let imageDirectory: URL
     private let thumbnailCache = NSCache<NSString, UIImage>()
+    /// **Every thumbnail something is still holding, whether or not the cache
+    /// still is.** Weak values: an entry lives exactly as long as a view (or
+    /// anything else) keeps the picture alive.
+    ///
+    /// The cache evicts on count and cost, and it used to evict pictures that
+    /// were ON SCREEN. The view asking again then got nothing, dropped the
+    /// picture, showed its placeholder, re-read the file and faded the same
+    /// picture back in. That is the photo viewer's filmstrip dimming and
+    /// re-fading for seconds after a switch to dark mode (the replay posters
+    /// for the new scheme decode dozens of photographs and pushed the strip's
+    /// out of a 100-entry cache), and with a year of photographs it never
+    /// stopped at all: the strip and the map traded evictions for ever and
+    /// their pictures never settled. A picture still alive is handed back and
+    /// put back in the cache instead, so nothing on screen can be evicted out
+    /// from under itself, and nothing is decoded twice while it is showing.
+    private let liveThumbnails = NSMapTable<NSString, UIImage>(keyOptions: .copyIn,
+                                                               valueOptions: .weakMemory)
+    private let liveLock = NSLock()
     /// Concurrent, and with NOTHING that blocks on it.
     ///
     /// **The bound was right and the primitive was wrong.** This queue briefly
@@ -85,7 +103,7 @@ final class ImageManager: @unchecked Sendable {
             try? FileManager.default.removeItem(at: url)
             removed += 1
         }
-        if removed > 0 { thumbnailCache.removeAllObjects() }
+        if removed > 0 { forgetAllThumbnails() }
         return removed
     }
 
@@ -98,9 +116,13 @@ final class ImageManager: @unchecked Sendable {
             try? FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
         }
 
-        // Cache limits: 100 thumbnails, ~50MB
-        thumbnailCache.countLimit = 100
-        thumbnailCache.totalCostLimit = 50 * 1024 * 1024
+        // **Cost governs, not count.** It was 100 thumbnails and 50MB, and a
+        // hundred is four screens of the gallery, or the map's eighty blocks
+        // and not much else — every visit back re-decoded. Three hundred is
+        // no longer the binding limit; 150MB is (about 300 map-sized
+        // pictures), and NSCache still empties itself under memory pressure.
+        thumbnailCache.countLimit = 300
+        thumbnailCache.totalCostLimit = 150 * 1024 * 1024
     }
 
     // MARK: - Save
@@ -206,15 +228,39 @@ final class ImageManager: @unchecked Sendable {
     /// it during its own body rather than waiting for a lifecycle callback
     /// that may never come. See `ThumbnailStore`.
     func cachedThumbnail(fileName: String, maxWidth: CGFloat) -> UIImage? {
-        thumbnailCache.object(forKey: "\(fileName)_\(Int(maxWidth))" as NSString)
+        let key = "\(fileName)_\(Int(maxWidth))" as NSString
+        if let cached = thumbnailCache.object(forKey: key) { return cached }
+        return recoverLive(key)
+    }
+
+    /// A picture the cache let go of that is still alive somewhere, put back.
+    /// See `liveThumbnails`.
+    private func recoverLive(_ key: NSString) -> UIImage? {
+        liveLock.lock()
+        let alive = liveThumbnails.object(forKey: key)
+        liveLock.unlock()
+        guard let alive else { return nil }
+        thumbnailCache.setObject(alive, forKey: key, cost: Self.cost(of: alive))
+        return alive
+    }
+
+    private static func cost(of image: UIImage) -> Int {
+        Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+    }
+
+    private func forgetAllThumbnails() {
+        thumbnailCache.removeAllObjects()
+        liveLock.lock()
+        liveThumbnails.removeAllObjects()
+        liveLock.unlock()
     }
 
     /// Returns a downsampled thumbnail from cache or disk. Thread-safe.
     func loadThumbnail(fileName: String, maxWidth: CGFloat) async -> UIImage? {
         let cacheKey = "\(fileName)_\(Int(maxWidth))" as NSString
 
-        // Cache hit
-        if let cached = thumbnailCache.object(forKey: cacheKey) {
+        // Cache hit, or a picture still alive after the cache let it go
+        if let cached = thumbnailCache.object(forKey: cacheKey) ?? recoverLive(cacheKey) {
             return cached
         }
 
@@ -222,20 +268,10 @@ final class ImageManager: @unchecked Sendable {
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
 
-        // **Decoded on Swift's cooperative pool, not on a GCD queue.**
-        //
-        // This used to be a concurrent `DispatchQueue` whose workers took a
-        // `DispatchSemaphore` to bound how many decodes ran at once. The bound
-        // was right and the primitive was wrong: a semaphore BLOCKS the thread
-        // holding it, and blocking GCD workers is how a thread pool is
-        // exhausted. With a gallery scrolling, a map of twenty-eight blocks
-        // and a month of thirty all asking at once, enough workers sat blocked
-        // that new work never started — photographs that were slow, and then
-        // photographs that never arrived at all.
-        //
-        // A detached task needs no bound, because the cooperative pool already
-        // has one: it is as wide as the machine has cores, and work queues
-        // rather than spawning threads. Nothing blocks, so nothing can starve.
+        // Decoded on `ioQueue`, the concurrent GCD queue, with nothing
+        // blocking on it — see that property for the measurement (5.12x
+        // against serial; the cooperative pool was 1.53x). How many are asked
+        // for at once is bounded one level up, in `ThumbnailStore`.
         let thumbnail: UIImage? = await withCheckedContinuation { continuation in
             ioQueue.async {
                 continuation.resume(returning:
@@ -243,9 +279,10 @@ final class ImageManager: @unchecked Sendable {
             }
         }
         guard let thumbnail else { return nil }
-        let cost = Int(thumbnail.size.width * thumbnail.size.height
-                       * thumbnail.scale * thumbnail.scale * 4)
-        thumbnailCache.setObject(thumbnail, forKey: cacheKey, cost: cost)
+        thumbnailCache.setObject(thumbnail, forKey: cacheKey, cost: Self.cost(of: thumbnail))
+        liveLock.lock()
+        liveThumbnails.setObject(thumbnail, forKey: cacheKey)
+        liveLock.unlock()
         return thumbnail
     }
 
@@ -283,7 +320,9 @@ final class ImageManager: @unchecked Sendable {
         try? FileManager.default.removeItem(at: fileURL)
         // Nuke all cached thumbnails — NSCache can't enumerate by prefix,
         // and hardcoded widths miss actual display sizes. Regeneration is cheap.
-        thumbnailCache.removeAllObjects()
+        // The live table goes too, or a deleted photograph could be handed
+        // back to a view still asking for it.
+        forgetAllThumbnails()
     }
 
     /// The directory, for the prune tests. They need real files on disk —
@@ -293,6 +332,12 @@ final class ImageManager: @unchecked Sendable {
     /// Drops every cached thumbnail. Only a benchmark needs this — it exists
     /// so a measurement can start cold rather than reporting cache hits.
     func emptyThumbnailCacheForBenchmark() {
+        forgetAllThumbnails()
+    }
+
+    /// Evicts the cache only, leaving pictures still held alive recoverable.
+    /// What memory pressure does; for `ThumbnailStoreTests`.
+    func evictThumbnailCacheForTesting() {
         thumbnailCache.removeAllObjects()
     }
 
