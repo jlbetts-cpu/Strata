@@ -100,9 +100,44 @@ nonisolated struct HeadTake: Equatable, Sendable {
         }
     }
 
-    /// When the player starts easing back to calm. The test pins this, and
-    /// the player calls it, so what runs is what is tested.
-    static func easeBackAt(_ take: HeadTake) -> TimeInterval { take.hold }
+    /// One thing that happens at one moment of a take.
+    nonisolated enum Event: Equatable, Sendable {
+        case cue(Step)
+        /// The end of the hold: the eyes and the head go back to calm, and
+        /// the face with them unless the sticker is keeping it.
+        case easeBack
+    }
+
+    nonisolated struct Moment: Equatable, Sendable {
+        let at: TimeInterval
+        let event: Event
+    }
+
+    /// **Everything the player does, in order, with the ease-back as its last
+    /// moment.** `LivingHeadView.play` and `CreatorHead.play` walk this, so
+    /// the timing a test reads is the timing that runs.
+    func schedule(direction: Double) -> [Moment] {
+        cues(direction: direction).map { Moment(at: $0.at, event: .cue($0.step)) }
+            + [Moment(at: hold, event: .easeBack)]
+    }
+
+    /// Where the eyes are left looking when a kept take ends, which is what a
+    /// sticker's photograph draws (`HeadStill`). The take's last look, unless
+    /// it keeps the resting point (which wanders) or hands the eyes back.
+    func stillGaze(direction: Double) -> CGPoint? {
+        var gaze: CGPoint?
+        for cue in cues(direction: direction) {
+            switch cue.step {
+            case let .look(x, y, keepsRest, _):
+                gaze = keepsRest ? nil : CGPoint(x: x, y: y)
+            case .release:
+                gaze = nil
+            default:
+                break
+            }
+        }
+        return gaze
+    }
 
     /// The face a head is left wearing when this take's hold ends, given the
     /// faces it has: the last face cue it can do. What a sticker keeps, and so
@@ -162,7 +197,7 @@ nonisolated struct HeadTake: Equatable, Sendable {
             HeadTake(id: .doubleTake, needs: [.browsUp], needsShut: false, face: .browsUp, hold: short, cues: [
                 C(at: 0, step: .look(x: 0.8, y: 0, speed: .drift)),
                 C(at: 0, step: .pose(roll: 1.6)),
-                C(at: 0.5, step: .look(x: -0.35, y: -0.05, speed: .snap)),
+                C(at: 0.5, step: .look(x: -0.5, y: -0.05, speed: .snap)),
                 C(at: 0.5, step: .pose()),
                 C(at: 0.61, step: .face(.browsUp))
             ]),
@@ -209,7 +244,7 @@ nonisolated struct HeadTake: Equatable, Sendable {
             ]),
             // A little shake of the head, and brows up if it has them.
             HeadTake(id: .shake, needs: [], needsShut: false, face: .neutral, hold: short, cues: [
-                C(at: 0, step: .look(x: -0.3, y: 0)),
+                C(at: 0, step: .look(x: -0.5, y: 0)),
                 C(at: 0.08, step: .pose(yaw: 8, roll: 1, motion: .nod)),
                 C(at: 0.19, step: .pose(yaw: -8, roll: 1, motion: .nod)),
                 C(at: 0.3, step: .pose(yaw: 6, roll: 1, motion: .nod)),

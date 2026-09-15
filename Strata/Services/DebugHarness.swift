@@ -221,6 +221,11 @@ enum DebugHarness {
     /// photographed at its hold without a finger. Logged as `[strata-head] take`.
     static var headTake: String? { argument("-strataHeadTake")?.lowercased() }
 
+    /// How long `-strataHeadTake` waits before the first one, in seconds
+    /// (default 4). A small number lands a take inside a head's greeting,
+    /// which is the case where the hello used to run over the take.
+    static var headTakeDelay: Double { argument("-strataHeadTakeDelay").flatMap(Double.init) ?? 4 }
+
     /// Which chart Profile opens on, from `-strataProfileChart day|week|month`.
     static var profileChartUnit: String? { argument("-strataProfileChart")?.lowercased() }
 

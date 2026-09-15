@@ -97,6 +97,13 @@ struct LivingHeadView: View {
     /// the watchdog took a kept grin back to neutral a moment after the sticker
     /// was told to keep it, while the photo would have saved the grin.
     @State private var heldFace: HeadRig.Expression?
+    /// The last take actually played. A view that goes away and comes back
+    /// keeps its state, and `.task(id:)` runs again on the same take: without
+    /// this it would replay a tap nobody made.
+    @State private var lastPlayed: HeadTake.Played?
+    /// A kept take has left the eyes somewhere (`HeadTake.stillGaze`), which is
+    /// what its photograph shows. Idle beats and the wander leave them there.
+    @State private var gazeHeld = false
     #if DEBUG
     /// `-strataHeadTake`: takes played without a finger, for screenshots.
     @State private var debugPlayed: HeadTake.Played?
@@ -209,7 +216,7 @@ struct LivingHeadView: View {
             let wait = liveliness == .expressive ? Int.random(in: 650...1800) : Int.random(in: 1500...4000)
             try? await Task.sleep(for: .milliseconds(wait))
             guard !Task.isCancelled else { return }
-            guard restShare > 0.5 else { continue }
+            guard restShare > 0.5, !gazeHeld else { continue }
             let angle = Double.random(in: 0..<(2 * .pi))
             let radius = Double.random(in: 0.45...0.9)
             withAnimation(GridConstants.eyeSaccade) {
@@ -263,9 +270,12 @@ struct LivingHeadView: View {
     }
 
     private func blink() async {
+        let mine = generation
         shut = true
         if liveliness == .expressive { squash = CGFloat.random(in: 0.93...0.95) }
         try? await Task.sleep(for: Self.step * Int.random(in: 2...3))
+        // A take that started while the lids were down owns them now.
+        guard generation == mine, !Task.isCancelled else { return }
         shut = false
         squash = 1
     }
@@ -273,11 +283,14 @@ struct LivingHeadView: View {
     /// The unimpressed blink: the lids stay down for five steps.
     private func slowBlink() async {
         guard rig.shut != nil else { return }
+        let mine = generation
         shut = true
         if liveliness == .expressive { squash = 0.9 }
         try? await Task.sleep(for: Self.step)
+        guard generation == mine, !Task.isCancelled else { return }
         if liveliness == .expressive { squash = 0.93 }
         try? await Task.sleep(for: Self.step * 4)
+        guard generation == mine, !Task.isCancelled else { return }
         shut = false
         squash = 1
     }
@@ -295,14 +308,31 @@ struct LivingHeadView: View {
         // the face on the smile — which has no drawn irises — with nothing
         // left to bring it back. That is the class of bug behind the
         // portfolio's irises going missing and not returning.
-        settleImmediately()
+        // Not over a take: a tap in the first moment of a page starts one, and
+        // this loop restarts whenever Reduce Motion changes.
+        if !taking { settleImmediately() }
         guard !reduceMotion else { return }
         if greets {
             try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
+            guard !taking else {
+                #if DEBUG
+                NSLog("[strata-head] greeting stood aside for a take")
+                #endif
+                return
+            }
             await perform(.browFlash)
             try? await Task.sleep(for: .milliseconds(250))
+            // **A tap wins over the hello.** The greeting used to carry on
+            // through a take: it read the take's generation as its own, put its
+            // own faces on over it and cleared `busy` mid-take.
             guard !Task.isCancelled else { return }
+            guard !taking else {
+                #if DEBUG
+                NSLog("[strata-head] greeting stood aside for a take")
+                #endif
+                return
+            }
             await perform(.smile)
         }
         while !Task.isCancelled {
@@ -313,7 +343,9 @@ struct LivingHeadView: View {
             try? await Task.sleep(for: .milliseconds(rest))
             guard !Task.isCancelled else { return }
             // A head that has been told which face to wear is not idle.
-            guard !busy, !taking, heldFace == nil else { continue }
+            // A head wearing a kept face, or looking where a kept take left
+            // it, is not idle: a beat would undo what its photograph shows.
+            guard !busy, !taking, heldFace == nil, !gazeHeld else { continue }
             await perform(nextBeat())
         }
     }
@@ -353,8 +385,10 @@ struct LivingHeadView: View {
     }
 
     private func perform(_ beat: Beat) async {
-        // A tap's take overtakes a beat: every pause checks it is still this
-        // beat's turn, and a beat that was overtaken leaves `busy` to the take.
+        // A tap's take overtakes a beat: no beat starts over one, every pause
+        // checks it is still this beat's turn, and a beat that was overtaken
+        // leaves `busy` to the take.
+        guard !taking else { return }
         let mine = generation
         busy = true
         lastBeat = beat
@@ -506,12 +540,14 @@ struct LivingHeadView: View {
     /// here THROWS: an interrupted take stops dead. A swallowed cancellation
     /// would run the rest of the old take on top of the new one.
     private func play(_ played: HeadTake.Played?) async {
-        guard let played else { return }
+        guard let played, played != lastPlayed else { return }
+        lastPlayed = played
         let take = HeadTake.take(played.id)
         generation &+= 1
         let mine = generation
         taking = true
         busy = true
+        gazeHeld = false
         let start = ContinuousClock.now
         var instant = Transaction()
         instant.disablesAnimations = true
@@ -527,7 +563,10 @@ struct LivingHeadView: View {
         if reduceMotion {
             // Reduce Motion: the face, and nothing that moves.
             swap(to: rig.has(take.face) ? take.face : .neutral)
-            do { try await Task.sleep(until: start + .seconds(HeadTake.easeBackAt(take)), clock: .continuous) } catch { return }
+            do { try await Task.sleep(until: start + .seconds(take.hold), clock: .continuous) } catch {
+                finishTake(mine)
+                return
+            }
             if !keepsTake { swap(to: .neutral) }
             finishTake(mine)
             return
@@ -543,12 +582,42 @@ struct LivingHeadView: View {
         if !opensOnFace, expression != .neutral, let token = beginMorph(to: .neutral, squashes: false) {
             scheduleEndMorph(token)
         }
-        for cue in take.cues(direction: played.direction) {
-            do { try await Task.sleep(until: start + .seconds(cue.at), clock: .continuous) } catch { return }
-            apply(cue.step)
+        // The whole take, ease-back included, is `HeadTake.schedule`, so the
+        // timing the tests read is the timing that runs here.
+        for moment in take.schedule(direction: played.direction) {
+            do { try await Task.sleep(until: start + .seconds(moment.at), clock: .continuous) } catch {
+                // Cancelled: by a newer take, which owns everything now, or by
+                // the view going away, which must not leave `taking` set.
+                finishTake(mine)
+                return
+            }
+            switch moment.event {
+            case let .cue(step):
+                apply(step)
+            case .easeBack:
+                await easeBack(take, direction: played.direction)
+            }
         }
-        do { try await Task.sleep(until: start + .seconds(HeadTake.easeBackAt(take)), clock: .continuous) } catch { return }
-        release()
+        guard !Task.isCancelled else {
+            finishTake(mine)
+            return
+        }
+        finishTake(mine)
+    }
+
+    /// The end of a take's hold: the head goes back to calm, and the face with
+    /// it unless the sticker is keeping it. A kept take also keeps the eyes
+    /// where it left them, because that is what its photograph shows.
+    private func easeBack(_ take: HeadTake, direction: Double) async {
+        if keepsTake, let gaze = take.stillGaze(direction: direction) {
+            gazeHeld = true
+            withAnimation(GridConstants.eyeSaccade) {
+                beatGaze = gaze
+                restShare = 0
+            }
+        } else {
+            release()
+        }
         pose(invited: true, animation: GridConstants.headTakeEaseBack)
         withAnimation(GridConstants.naturalSettle) { squash = 1 }
         shut = false
@@ -561,8 +630,6 @@ struct LivingHeadView: View {
         } else if expression != .neutral {
             await settleThroughBlink()
         }
-        guard !Task.isCancelled else { return }
-        finishTake(mine)
     }
 
     private func finishTake(_ mine: Int) {
@@ -633,7 +700,7 @@ struct LivingHeadView: View {
     /// hold without a finger. The sticker drives its own (`HeadStickerOverlay`).
     private func debugTakes() async {
         guard let wanted = DebugHarness.headTake, liveliness == .expressive, take == nil else { return }
-        try? await Task.sleep(for: .seconds(4))
+        try? await Task.sleep(for: .seconds(DebugHarness.headTakeDelay))
         var nonce = 0
         while !Task.isCancelled {
             let pool = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
@@ -759,11 +826,12 @@ struct LivingHeadView: View {
             expression = .neutral
             shut = true
         }
+        let mine = generation
         if liveliness == .expressive { squash = 0.94 }
         try? await Task.sleep(for: Self.step * 2)
         // Overtaken by a new take, which has already opened the eyes on
         // its own face: leave it alone.
-        guard !Task.isCancelled else { return }
+        guard generation == mine, !Task.isCancelled else { return }
         shut = false
         squash = 1
     }
@@ -953,8 +1021,13 @@ struct HeadStill: View {
     /// The face it is wearing. What was on screen is what gets drawn into the
     /// photograph.
     var expression: HeadRig.Expression = .neutral
+    /// Where the eyes look. A tapped take can leave them somewhere (a side-eye,
+    /// a look away while thinking), and the photograph then matches what was on
+    /// the review. See `HeadTake.stillGaze`.
+    var gaze: CGPoint = HeadStill.restingGaze
 
-    static let gaze = CGPoint(x: 0.35, y: 0.08)
+    /// Resting, a little to one side. Never straight at you.
+    static let restingGaze = CGPoint(x: 0.35, y: 0.08)
 
     var body: some View {
         let canvas = side / rig.contentHeight
@@ -966,7 +1039,7 @@ struct HeadStill: View {
                 .interpolation(.high)
             ZStack {
                 ForEach(Array(face.eyes.enumerated()), id: \.offset) { _, eye in
-                    IrisLayer(eye: eye, canvas: canvas, gaze: Self.gaze)
+                    IrisLayer(eye: eye, canvas: canvas, gaze: gaze)
                 }
             }
             .frame(width: canvas, height: canvas)

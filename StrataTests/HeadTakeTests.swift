@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CoreGraphics
 @testable import Strata
 
 /// A tap's expressions: the catalogue, the deck that picks them, and how long
@@ -43,9 +44,12 @@ struct HeadTakeTests {
             #expect(take.hold >= 2.6 && take.hold <= 3.4)
             #expect(take.cues.map(\.at) == take.cues.map(\.at).sorted(), "\(take.id) cues out of order")
             for cue in take.cues { #expect(cue.at >= 0 && cue.at < take.hold, "\(take.id) cue at \(cue.at)") }
-            // The player eases back exactly at the hold.
-            #expect(HeadTake.easeBackAt(take) == take.hold)
-            #expect(take.cues(direction: 1).last!.at < HeadTake.easeBackAt(take))
+            // The player walks `schedule`, so this is the timing that runs.
+            let schedule = take.schedule(direction: 1)
+            #expect(schedule.last?.event == .easeBack)
+            #expect(schedule.last?.at == take.hold)
+            #expect(schedule.dropLast().allSatisfy { $0.at < take.hold })
+            #expect(schedule.count == take.cues.count + 1)
         }
     }
 
@@ -67,12 +71,49 @@ struct HeadTakeTests {
         }
     }
 
+    @Test("a take's face is up for at least a second and a half before it eases back")
+    func theFaceIsHeld() {
+        // Owner: "they should hold for longer". The tap's face used to be up
+        // for 1.4s; every take now shows the face it reaches for longer than
+        // that before anything starts going back.
+        for take in HeadTake.catalogue {
+            var reached: TimeInterval?
+            var wearing: HeadRig.Expression = .neutral
+            for moment in take.schedule(direction: 1) {
+                guard case let .cue(step) = moment.event, case let .face(next) = step else { continue }
+                wearing = next
+                reached = next == .neutral ? nil : moment.at
+            }
+            guard let reached else {
+                // A take with no face of its own (sideEye, thinking, sleepy)
+                // carries its whole hold on the eyes and the head instead.
+                #expect(take.face == .neutral, "\(take.id)")
+                #expect(take.hold >= 2.6)
+                continue
+            }
+            #expect(wearing != .neutral)
+            #expect(take.hold - reached >= 1.5, "\(take.id) holds its face \(take.hold - reached)s")
+        }
+    }
+
+    @Test("a take that keeps its eyes somewhere says where, for the photograph")
+    func stillGazeIsTheLastLook() {
+        #expect(HeadTake.take(.sideEye).stillGaze(direction: 1) == CGPoint(x: 0.9, y: 0.05))
+        #expect(HeadTake.take(.sideEye).stillGaze(direction: -1) == CGPoint(x: -0.9, y: 0.05))
+        #expect(HeadTake.take(.thinking).stillGaze(direction: 1) == CGPoint(x: 0.2, y: -0.85))
+        // A look that keeps the resting point wanders, so there is nothing to keep.
+        #expect(HeadTake.take(.sleepy).stillGaze(direction: 1) == nil)
+        #expect(HeadTake.take(.nod).stillGaze(direction: 1) == nil)
+        #expect(HeadTake.take(.grin).stillGaze(direction: 1) == nil)
+    }
+
     @Test("no take looks straight at you")
     func nobodyStares() {
         for take in HeadTake.catalogue {
             for cue in take.cues {
                 if case let .look(x, y, keepsRest, _) = cue.step, !keepsRest {
-                    #expect(abs(x) + abs(y) >= 0.25, "\(take.id) looks near the middle")
+                    // The file's own floor for the eyes: 45% of the way out.
+                    #expect(hypot(x, y) >= 0.45, "\(take.id) looks near the middle")
                 }
             }
         }

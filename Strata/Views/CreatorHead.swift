@@ -73,6 +73,10 @@ struct CreatorHead: View {
     @State private var reaction: Task<Void, Never>?
     @State private var lastBeat: Beat?
     @State private var deck = HeadTakeDeck()
+    /// Bumped by every tapped take, so the greeting, a beat or an older take
+    /// knows it has been overtaken and stops rather than moving the head under
+    /// the one playing.
+    @State private var takeGeneration = 0
 
     /// The portfolio's clock. Its blink steps on an 8fps grid, and the
     /// posterised snap is what makes it read as a blink rather than a fade.
@@ -113,6 +117,9 @@ struct CreatorHead: View {
         .contentShape(Rectangle())
         .onTapGesture { tapped() }
         .accessibilityHidden(true)
+        // A take is an unstructured Task, so it has to be cancelled by hand
+        // when the page goes away.
+        .onDisappear { reaction?.cancel() }
         .task { await greet() }
         #if DEBUG
         .task { await debugTakes() }
@@ -131,16 +138,21 @@ struct CreatorHead: View {
 
     private func greet() async {
         guard greets else { return }
+        let mine = takeGeneration
         // Long enough for the page to have finished arriving, so the hello is
         // seen rather than lost in the transition.
         try? await Task.sleep(for: .milliseconds(700))
-        guard !Task.isCancelled else { return }
+        // **A tap wins over the hello.** Tapped inside the first second, the
+        // greeting would otherwise raise the brows over the take and then
+        // cancel it outright.
+        guard !Task.isCancelled, takeGeneration == mine else { return }
         if !reduceMotion {
             browUp = true
             try? await Task.sleep(for: .milliseconds(240))
+            guard !Task.isCancelled, takeGeneration == mine else { return }
             browUp = false
             try? await Task.sleep(for: .milliseconds(160))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, takeGeneration == mine else { return }
         }
         show(.wink, for: 1.6)
     }
@@ -207,16 +219,17 @@ struct CreatorHead: View {
     private func play(_ take: HeadTake, direction: Double) {
         reaction?.cancel()
         reacting = true
+        takeGeneration &+= 1
+        let mine = takeGeneration
         reaction = Task { @MainActor in
             let start = ContinuousClock.now
-            let easeBack = start + .seconds(HeadTake.easeBackAt(take))
             shut = false
             squash = 1
             if reduceMotion {
                 wear(take.face)
-                do { try await Task.sleep(until: easeBack, clock: .continuous) } catch { return }
+                do { try await Task.sleep(until: start + .seconds(take.hold), clock: .continuous) } catch { return }
                 wear(.neutral)
-                reacting = false
+                if takeGeneration == mine { reacting = false }
                 return
             }
             look(.zero)
@@ -226,18 +239,22 @@ struct CreatorHead: View {
                 return false
             }
             if !opensOnFace { wear(.neutral) }
-            for cue in take.cues(direction: direction) {
-                do { try await Task.sleep(until: start + .seconds(cue.at), clock: .continuous) } catch { return }
-                apply(cue.step)
+            // The same schedule the made head plays, ease-back included.
+            for moment in take.schedule(direction: direction) {
+                do { try await Task.sleep(until: start + .seconds(moment.at), clock: .continuous) } catch { return }
+                switch moment.event {
+                case let .cue(step):
+                    apply(step)
+                case .easeBack:
+                    look(.zero)
+                    pose(animation: GridConstants.headTakeEaseBack)
+                    shut = false
+                    squash = 1
+                    browUp = false
+                    await change(to: .neutral)
+                }
             }
-            do { try await Task.sleep(until: easeBack, clock: .continuous) } catch { return }
-            look(.zero)
-            pose(animation: GridConstants.headTakeEaseBack)
-            shut = false
-            squash = 1
-            browUp = false
-            await change(to: .neutral)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, takeGeneration == mine else { return }
             reacting = false
         }
     }
@@ -437,9 +454,12 @@ struct CreatorHead: View {
         case .smile:
             // Eyes up a touch as it goes, the way a real one does, and back to
             // calm through the usual return in `show`.
+            let smiling = takeGeneration
             look(CGPoint(x: 0, y: -0.05))
             show(.smile, for: Double.random(in: 1.3...2.0))
             await pause(Int.random(in: 1500...2300))
+            // A tap during the smile owns the eyes now.
+            guard takeGeneration == smiling, !Task.isCancelled else { return }
             look(.zero)
         case .down:
             // A look at the words underneath, then back.

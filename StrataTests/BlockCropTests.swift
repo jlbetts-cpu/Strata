@@ -53,16 +53,13 @@ struct BlockCropTests {
     }
 
     /// What a block of `blockSize` shows of `photo` with the window moved by
-    /// `crop`, in photo fractions: `CachedImageView`'s `.scaledToFill` and
-    /// its offset of minus crop times the drawn size.
+    /// `crop`, in photo fractions. **The block's own mapping**
+    /// (`CachedImageView.visibleRect`, which draws the picture), so a sign
+    /// flipped there fails here.
     private func visible(photo: CGSize, block blockSize: BlockSize, crop: CGPoint) -> CGRect {
         let height: CGFloat = 120
-        let width = height * blockSize.cropAspectRatio
-        let scale = max(width / photo.width, height / photo.height)
-        let drawn = CGSize(width: photo.width * scale, height: photo.height * scale)
-        return CGRect(x: ((drawn.width - width) / 2 + crop.x * drawn.width) / drawn.width,
-                      y: ((drawn.height - height) / 2 + crop.y * drawn.height) / drawn.height,
-                      width: width / drawn.width, height: height / drawn.height)
+        return CachedImageView.visibleRect(crop: crop, photo: photo,
+                                           frame: CGSize(width: height * blockSize.cropAspectRatio, height: height))
     }
 
     @Test("the window follows the finger, and the block shows exactly what the window framed")
@@ -106,5 +103,19 @@ struct BlockCropTests {
         let shown = visible(photo: photo, block: .medium, crop: moved)
         #expect(abs(shown.minY - (window.minY + moved.y)) < 0.001)
         #expect(shown.midY > 0.5)
+    }
+
+    @Test("the picture moves the opposite way to the window, and a centred window does not move it")
+    func thePictureMovesAgainstTheWindow() {
+        let photo = CGSize(width: 4000, height: 3000)
+        let frame = CGSize(width: 120, height: 120)
+        #expect(CachedImageView.shift(crop: .zero, photo: photo, frame: frame) == .zero)
+        let right = CachedImageView.shift(crop: CGPoint(x: 0.1, y: 0), photo: photo, frame: frame)
+        #expect(right.width < 0)      // window right, picture left inside the block
+        #expect(right.height == 0)
+        // A centred window shows the middle of the photograph.
+        let middle = CachedImageView.visibleRect(crop: .zero, photo: photo, frame: frame)
+        #expect(abs(middle.midX - 0.5) < 0.0001)
+        #expect(abs(middle.midY - 0.5) < 0.0001)
     }
 }

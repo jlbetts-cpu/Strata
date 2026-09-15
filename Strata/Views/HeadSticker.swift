@@ -29,6 +29,9 @@ struct StickerPlacement: Equatable {
     var expression: HeadRig.Expression = .neutral
     /// The tap's expression playing on it (`HeadTake`).
     var take: HeadTake.Played? = nil
+    /// Where the take left the eyes looking, if it did. What the photograph
+    /// draws, so it matches the review. See `HeadTake.stillGaze`.
+    var gaze: CGPoint? = nil
 
     static let widthRange: ClosedRange<CGFloat> = 0.1...0.8
     /// Close enough to upright to mean upright.
@@ -54,7 +57,8 @@ enum HeadSticker {
         let side = placement.width * size.width
         let canvas = side / rig.contentHeight
         let renderer = ImageRenderer(content: HeadStill(rig: rig, side: side,
-                                                        expression: placement.expression))
+                                                        expression: placement.expression,
+                                                        gaze: placement.gaze ?? HeadStill.restingGaze))
         renderer.scale = photo.scale
         guard let head = renderer.uiImage else { return photo }
         let format = UIGraphicsImageRendererFormat()
@@ -99,6 +103,10 @@ struct HeadStickerOverlay: View {
 
     private struct DragBase { var centre: CGPoint; var translation: CGSize }
     @State private var dragBase: DragBase?
+    /// A finger is on the HEAD. The crop's drag is a gesture on the layer
+    /// underneath and sees the same finger, so without this one drag moved the
+    /// head and the block's window at once.
+    @State private var movingHead = false
     @State private var widthBase: CGFloat?
     @State private var angleBase: Angle?
     @State private var cropBase: CGPoint?
@@ -164,6 +172,7 @@ struct HeadStickerOverlay: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
             .onChanged { value in
                 guard let current = placement else { return }
+                movingHead = true
                 if !isHeld { withAnimation(GridConstants.motionSnappy) { isHeld = true } }
                 guard widthBase == nil, angleBase == nil else {
                     dragBase = nil
@@ -177,6 +186,7 @@ struct HeadStickerOverlay: View {
             }
             .onEnded { _ in
                 dragBase = nil
+                movingHead = false
                 withAnimation(GridConstants.motionSnappy) { isHeld = false }
             }
     }
@@ -192,7 +202,7 @@ struct HeadStickerOverlay: View {
     private func moveCrop(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
             .onChanged { value in
-                guard cropRange != .zero, widthBase == nil, angleBase == nil else { return }
+                guard cropRange != .zero, widthBase == nil, angleBase == nil, !movingHead else { return }
                 let base = cropBase ?? crop
                 if cropBase == nil { cropBase = base }
                 crop = BlockCropOutline.dragged(from: base, translation: value.translation,
@@ -249,6 +259,9 @@ struct HeadStickerOverlay: View {
             : next.endFace(has: rig.has)
         placement?.take = HeadTake.Played(id: next.id, direction: direction,
                                           nonce: (current.take?.nonce ?? 0) + 1)
+        // The head keeps the take's look, so the photograph shows the same
+        // eyes as the review. Reduce Motion changes the face and nothing else.
+        placement?.gaze = reduceMotion ? nil : next.stillGaze(direction: direction)
     }
 
     #if DEBUG

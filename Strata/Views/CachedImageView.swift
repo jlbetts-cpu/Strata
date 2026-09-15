@@ -87,11 +87,11 @@ struct CachedImageView: View {
                     .transition(.identity)
             }
             if let image {
-                let drawn = filled(image.size)
+                let shift = Self.shift(crop: crop, photo: image.size, frame: CGSize(width: width, height: height))
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .offset(x: -crop.x * drawn.width, y: -crop.y * drawn.height)
+                    .offset(x: shift.width, y: shift.height)
                     .frame(width: width, height: height)
                     .clipped()
                     .transition(reduceMotion ? .identity : .opacity.animation(GridConstants.imageFadeIn))
@@ -129,10 +129,31 @@ struct CachedImageView: View {
     }
 
     /// How big the picture is drawn once it has filled the frame.
-    private func filled(_ size: CGSize) -> CGSize {
-        guard size.width > 0, size.height > 0 else { return CGSize(width: width, height: height) }
-        let scale = max(width / size.width, height / size.height)
-        return CGSize(width: size.width * scale, height: size.height * scale)
+    nonisolated static func filled(_ photo: CGSize, in frame: CGSize) -> CGSize {
+        guard photo.width > 0, photo.height > 0 else { return frame }
+        let scale = max(frame.width / photo.width, frame.height / photo.height)
+        return CGSize(width: photo.width * scale, height: photo.height * scale)
+    }
+
+    /// **How far the picture moves inside the frame** for a window moved by
+    /// `crop`. Sliding the window right means sliding the picture left, which
+    /// is the minus. `ReplayFrame` and `FlippableBlockView` do the same.
+    nonisolated static func shift(crop: CGPoint, photo: CGSize, frame: CGSize) -> CGSize {
+        let drawn = filled(photo, in: frame)
+        return CGSize(width: -crop.x * drawn.width, height: -crop.y * drawn.height)
+    }
+
+    /// **What the block ends up showing**, in fractions of the photograph: the
+    /// picture filled into the frame, moved by `shift`, and cut by the frame.
+    /// The camera's review draws its hairline over the same rectangle
+    /// (`BlockCropOutline`), so the two must agree.
+    nonisolated static func visibleRect(crop: CGPoint, photo: CGSize, frame: CGSize) -> CGRect {
+        let drawn = filled(photo, in: frame)
+        guard drawn.width > 0, drawn.height > 0 else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
+        let shift = shift(crop: crop, photo: photo, frame: frame)
+        return CGRect(x: ((drawn.width - frame.width) / 2 - shift.width) / drawn.width,
+                      y: ((drawn.height - frame.height) / 2 - shift.height) / drawn.height,
+                      width: frame.width / drawn.width, height: frame.height / drawn.height)
     }
 
     private func loadFullImage() async {
