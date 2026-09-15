@@ -29,6 +29,18 @@ enum PerfProbe {
     private static var lastFrame: CFTimeInterval = 0
     private static var lastFlush: CFTimeInterval = 0
     private static var pendingMark: (name: String, at: CFTimeInterval)?
+    /// Timed values (`sample`) and every display-link gap, for `window`.
+    private static var samples: [(name: String, at: CFTimeInterval, value: Double)] = []
+    private static var gaps: [(at: CFTimeInterval, ms: Double)] = []
+
+    /// One timed value, in milliseconds, reported by `window` as count, p50,
+    /// p95 and max.
+    static func sample(_ name: String, ms: Double) {
+        guard isOn else { return }
+        start()
+        samples.append((name, CACurrentMediaTime(), ms))
+        if samples.count > 20_000 { samples.removeFirst(10_000) }
+    }
 
     /// One body evaluation of `name`.
     static func count(_ name: String) {
@@ -46,11 +58,24 @@ enum PerfProbe {
         guard isOn else { return }
         start()
         let before = totals
+        let opened = CACurrentMediaTime()
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-            let line = totals.compactMap { key, value -> String? in
+            var line = totals.compactMap { key, value -> String? in
                 let d = value - (before[key] ?? 0)
                 return d == 0 ? nil : "\(key)=\(d)"
             }.sorted().joined(separator: " ")
+            let inWindow = gaps.filter { $0.at >= opened }.map(\.ms)
+            if let worst = inWindow.max() {
+                line += String(format: " frames=%d gaps>25ms=%d maxGap=%.0fms",
+                               inWindow.count, inWindow.filter { $0 > 25 }.count, worst)
+            }
+            let named = Dictionary(grouping: samples.filter { $0.at >= opened }, by: \.name)
+            for (name, values) in named.sorted(by: { $0.key < $1.key }) {
+                let sorted = values.map(\.value).sorted()
+                func q(_ f: Double) -> Double { sorted[min(sorted.count - 1, Int(Double(sorted.count) * f))] }
+                line += String(format: " %@[n=%d p50=%.0f p95=%.0f max=%.0f]",
+                               name, sorted.count, q(0.5), q(0.95), sorted.last ?? 0)
+            }
             emit(String(format: "[PERF-WINDOW] %@ %.1fs %@", label, seconds, line))
         }
     }
@@ -101,6 +126,10 @@ enum PerfProbe {
 
     fileprivate static func tick(_ link: CADisplayLink) {
         let now = CACurrentMediaTime()
+        if lastFrame > 0 {
+            gaps.append((now, (now - lastFrame) * 1000))
+            if gaps.count > 20_000 { gaps.removeFirst(10_000) }
+        }
         if lastFrame > 0, now - lastFrame > 0.050 {
             emit(String(format: "[PERF-HITCH] gap=%.0fms at=%.3f", (now - lastFrame) * 1000, now))
         }

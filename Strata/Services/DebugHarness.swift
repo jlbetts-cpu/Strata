@@ -149,6 +149,11 @@ enum DebugHarness {
     }
     static var flipEvery: Double { argument("-strataFlipEvery").flatMap(Double.init) ?? 2 }
 
+    /// `-strataRaiseDrawerAfter s`: raises the Memories drawer s seconds
+    /// after the tab loads, through the same path as the Photographs button,
+    /// animation included. `-strataOpenDrawer` sets the detent without one.
+    static var raiseDrawerAfter: Double? { argument("-strataRaiseDrawerAfter").flatMap(Double.init) }
+
     static var openMomentIndex: Int? {
         argument("-strataOpenMoment").flatMap(Int.init)
     }

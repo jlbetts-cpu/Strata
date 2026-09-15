@@ -90,6 +90,12 @@ final class ThumbnailStore {
     private var reasked: [Key: ContinuousClock.Instant] = [:]
     private static let reaskGrace: Duration = .milliseconds(250)
     private var pumpPending = false
+    #if DEBUG
+    /// `-strataPerfProbe`: when a photograph not in memory was first asked
+    /// for, so its arrival in a view that is still asking can be timed. A
+    /// view that has gone never asks again and is never counted.
+    private var askedAt: [Key: CFTimeInterval] = [:]
+    #endif
 
     private func slot(_ key: Key) -> Slot {
         if let slot = slots[key] { return slot }
@@ -114,8 +120,16 @@ final class ThumbnailStore {
         _ = slot(key).generation
         if let cached = ImageManager.shared.cachedThumbnail(fileName: fileName,
                                                             maxWidth: CGFloat(key.width)) {
+            #if DEBUG
+            if PerfProbe.isOn, let asked = askedAt.removeValue(forKey: key) {
+                PerfProbe.sample("ThumbAskToShown", ms: (CACurrentMediaTime() - asked) * 1000)
+            }
+            #endif
             return cached
         }
+        #if DEBUG
+        if PerfProbe.isOn, askedAt[key] == nil { askedAt[key] = CACurrentMediaTime() }
+        #endif
         guard !loading.contains(key) else { return nil }
         let heldPlace = reasked.removeValue(forKey: key) != nil
         if let queued = deferred.firstIndex(of: key) { deferred.remove(at: queued) }

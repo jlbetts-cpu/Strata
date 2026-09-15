@@ -351,6 +351,13 @@ struct MemoriesView: View {
             #endif
             #if DEBUG
             if let detent = DebugHarness.openDrawer { drawer = detent }
+            if let after = DebugHarness.raiseDrawerAfter {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(after))
+                    PerfProbe.window("Drawer raise", seconds: 1.5)
+                    raiseDrawer()
+                }
+            }
             if let back = DebugHarness.openDayBack,
                let date = Calendar.current.date(byAdding: .day, value: -back, to: Date()) {
                 path.append(.day(DateUtils.dateString(from: date)))
@@ -403,6 +410,11 @@ struct MemoriesView: View {
         !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
+    /// The Photographs button.
+    private func raiseDrawer() {
+        withAnimation(GridConstants.naturalSettle) { drawer = .full }
+    }
+
     private func reloadReplays() async {
         await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
                              now: Date(), redrawsStale: drawer != .hidden)
@@ -450,7 +462,7 @@ struct MemoriesView: View {
                 overMap {
                     GlassIconButton(systemName: "photo.on.rectangle.angled",
                                     accessibilityLabel: "Photographs") {
-                        withAnimation(GridConstants.naturalSettle) { drawer = .full }
+                        raiseDrawer()
                     }
                 }
                 .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
