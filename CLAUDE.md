@@ -165,8 +165,8 @@ find was located by sampling pixels down a screenshot, not by reading code.
 The fall starts **off screen**, always. Its start offset is measured from the
 grid's real position in the window (`TowerGeometryProbe`) and captured ONCE
 when the drop is queued, so nothing in flight can move it. Three earlier
-versions derived it live — from `towerScrollOffset` (stale; republished only in
-8pt steps), from `gridH` (jerked up a row-pitch on drops that completed a row),
+versions derived it live — from `towerScrollOffset` (stale; it is now published
+only when the tower culls, in half-viewport steps), from `gridH` (jerked up a row-pitch on drops that completed a row),
 and as a fixed distance above the slot (started low on a short tower, which
 read as blocks rising from the bottom). Do not reintroduce any of those.
 
@@ -593,6 +593,17 @@ compared nineteen properties and `liftedBlockID` was not one of them, so the
 lift had never rendered at all. Anything new that a block view reacts to must
 be added to `==`.
 
+**And `==` must compare VALUES, never two reads of one model.** It compared
+`lhs.block.habit.title == rhs.block.habit.title`, and both sides hold the same
+`Habit`, so that line was always true; edits showed only because
+`FlippableBlockView` observes the model itself. It compares a
+`PlacedBlock.Look` (title, colour, category, size, photo, crop) copied out of
+the models now. Equally, never pass the block view anything it does not draw:
+`towerScrollOffset` in `==` re-evaluated every block every 8pt of scroll (884
+block bodies a second over a scripted fling of 60 blocks; 0 without it).
+`-strataEditBlock rebuild|quiet` edits the top block 20s after launch, so a
+before and after screenshot says whether an edit still reaches the tower.
+
 ## Memories, and why it does not use `@Query`
 
 `@Query` has no fetch limit, materialises its whole result, and re-runs on
@@ -658,6 +669,13 @@ Onboarding is skipped from outside with `simctl spawn <dev> defaults write`.
 
 `-strataAutoWin n` presses the next slot n times, two seconds apart, so the
 drop cascade can be watched without a tap.
+
+`-strataPerfProbe` (`PerfProbe`, DEBUG) logs block, Memories and Camera body
+evaluations per second, display-link gaps over 50ms, `SoundEngine.setUp`'s
+duration, and each landing's impact-to-next-frame time, as `[PERF...]` lines:
+`xcrun simctl spawn <dev> log stream --predicate 'process == "Strata"'`. It is
+the before/after instrument for smoothness work; read the counts per event,
+not as an average.
 
 `-strataOpenMap`, `-strataMapStyle [quiet|satellite]`, `-strataSeedPlaces`,
 `-strataOpenDrawer [half|full]`, `-strataMapSweep`,
@@ -806,9 +824,13 @@ streak that silently breaks every spring is the worst kind of bug to be told
 about. And the CURRENT streak counts yesterday, because a run is not broken
 until a day passes with nothing in it.
 
-It is cached behind a signature (`distinct day count | newest day`) because
-`refreshData()` is a hot path and the streak needs a 400-day window, while
-`MainAppView`'s own query is deliberately narrowed to the current month.
+It is cached behind a signature (`distinct day count | newest day | today`,
+`Streaks.Memo`) because `refreshData()` is a hot path and the streak needs a
+400-day window, while `MainAppView`'s own query is deliberately narrowed to the
+current month. **That code went missing once**: until 2026-09-14 the widget's
+streak ran over `logs`, the month-narrowed query, so it could never exceed the
+day of the month and fell to 1 on every 1st. `-strataSeedStreak n` seeds a
+gapless run (`-strataSeedHistory` leaves gaps on purpose and tops out at 3).
 
 ## An ink is not a surface
 
