@@ -155,58 +155,85 @@ struct StreaksTests {
 
     // MARK: - When the widget's days need no fetch
 
-    @Test("nothing fetched yet is never current")
+    @Test("nothing fetched yet needs a fetch")
     func widgetDaysStartUnknown() {
         var days = Streaks.WidgetDays()
-        let r1 = days.isCurrent(lifetime: 0, todayKey: "2026-09-15")
-        #expect(!r1)
+        let d = days.advance(lifetime: 0, todayKey: "2026-09-15")
+        #expect(d == .needsFetch)
     }
 
-    @Test("the same lifetime count needs no fetch, even on a new day")
+    @Test("the same lifetime count needs nothing, even on a new day")
     func sameCountIsCurrent() {
         var days = Streaks.WidgetDays()
-        days.replace(days: ["2026-09-14"], lifetime: 5)
-        let r2 = days.isCurrent(lifetime: 5, todayKey: "2026-09-14")
-        #expect(r2)
-        let r3 = days.isCurrent(lifetime: 5, todayKey: "2026-09-15")
-        #expect(r3)
+        days.replace(days: ["2026-09-14"], lifetime: 5, todayKey: "2026-09-14")
+        let sameDay = days.advance(lifetime: 5, todayKey: "2026-09-14")
+        #expect(sameDay == .current)
+        let nextDay = days.advance(lifetime: 5, todayKey: "2026-09-15")
+        #expect(nextDay == .current)
+        #expect(days.dayKey == "2026-09-14", "an unchanged count must not move the day along")
     }
 
-    /// Every win after the first of a day: the new row is on a day already
-    /// in the set, so the set is still exact and the drop costs no fetch.
-    @Test("one more win on a day that already had one needs no fetch, and the count moves along")
-    func anotherWinTodayIsCurrent() {
+    @Test("more wins on the same day add today without a fetch")
+    func winsOnTheSameDay() {
         var days = Streaks.WidgetDays()
-        days.replace(days: ["2026-09-14", "2026-09-15"], lifetime: 5)
-        let r4 = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
-        #expect(r4)
-        #expect(days.lifetime == 6)
-        let r5 = days.isCurrent(lifetime: 7, todayKey: "2026-09-15")
-        #expect(r5)
-    }
-
-    /// The day's first win: today is not in the set yet. It joins locally,
-    /// so the widget is written once with the right streak rather than once
-    /// with the old one and again after a fetch.
-    @Test("the day's first win adds today without a fetch, and the streak it gives is right")
-    func firstWinOfTheDayAddsToday() {
-        var days = Streaks.WidgetDays()
-        days.replace(days: ["2026-09-13", "2026-09-14"], lifetime: 5)
-        let current = days.isCurrent(lifetime: 6, todayKey: "2026-09-15")
-        #expect(current)
+        days.replace(days: ["2026-09-13", "2026-09-14"], lifetime: 5, todayKey: "2026-09-15")
+        let first = days.advance(lifetime: 6, todayKey: "2026-09-15")
+        #expect(first == .current)
+        let second = days.advance(lifetime: 7, todayKey: "2026-09-15")
+        #expect(second == .current)
         #expect(days.days == ["2026-09-13", "2026-09-14", "2026-09-15"])
-        #expect(days.lifetime == 6)
+        #expect(days.lifetime == 7)
         #expect(Streaks.current(among: days.days!, today: noon("2026-09-15")) == 3)
+    }
+
+    /// Siri logs a win at 23:50 on the 14th while the app is suspended. The
+    /// app publishes at 08:00 on the 15th and sees one more win. That win is
+    /// the 14th's, not the 15th's: inserting today would show a streak of 1.
+    @Test("a Siri win before midnight, published the next morning, is asked for its day, not given today's")
+    func siriWinBeforeMidnight() {
+        var days = Streaks.WidgetDays()
+        // Last publish: the evening of the 14th, before the Siri win.
+        let before = (1...10).map { key($0, from: noon("2026-09-15")) }   // Sep 5 to Sep 14, minus...
+        var set = Set(before)
+        set.remove("2026-09-14")                                             // ...the 14th had no win yet
+        days.replace(days: set, lifetime: 20, todayKey: "2026-09-14")
+
+        let d = days.advance(lifetime: 21, todayKey: "2026-09-15")
+        #expect(d == .needsNewestKey)
+        #expect(days.days?.contains("2026-09-15") == false, "today was inserted without asking")
+        #expect(days.lifetime == 20, "nothing moves until the answer arrives")
+
+        // The store says the newest completed day is the 14th.
+        days.insert(newestKey: "2026-09-14", lifetime: 21, todayKey: "2026-09-15")
+        #expect(Streaks.current(among: days.days!, today: noon("2026-09-15").addingTimeInterval(-4 * 3600)) == 10)
+
+        // The morning's own win after that is the 15th's, and adds it.
+        let next = days.advance(lifetime: 22, todayKey: "2026-09-15")
+        #expect(next == .current)
+        #expect(Streaks.current(among: days.days!, today: noon("2026-09-15")) == 11)
+    }
+
+    /// Published at 23:59 on the 14th; a win logged at 00:01 is published on
+    /// the 15th. Same question, and the store's newest day is the 15th.
+    @Test("a win logged just after midnight is asked for, and the store's answer is used")
+    func publishStraddlingMidnight() {
+        var days = Streaks.WidgetDays()
+        days.replace(days: ["2026-09-13", "2026-09-14"], lifetime: 8, todayKey: "2026-09-14")
+        let d = days.advance(lifetime: 9, todayKey: "2026-09-15")
+        #expect(d == .needsNewestKey)
+        days.insert(newestKey: "2026-09-15", lifetime: 9, todayKey: "2026-09-15")
+        #expect(days.days == ["2026-09-13", "2026-09-14", "2026-09-15"])
+        #expect(days.dayKey == "2026-09-15")
     }
 
     @Test("a deletion or a jump of two needs a fetch, and changes nothing until it lands")
     func otherChangesNeedAFetch() {
         var days = Streaks.WidgetDays()
-        days.replace(days: ["2026-09-14"], lifetime: 5)
-        let deleted = days.isCurrent(lifetime: 4, todayKey: "2026-09-14")
-        #expect(!deleted)
-        let jumped = days.isCurrent(lifetime: 7, todayKey: "2026-09-15")
-        #expect(!jumped)
+        days.replace(days: ["2026-09-14"], lifetime: 5, todayKey: "2026-09-14")
+        let deleted = days.advance(lifetime: 4, todayKey: "2026-09-14")
+        #expect(deleted == .needsFetch)
+        let jumped = days.advance(lifetime: 7, todayKey: "2026-09-14")
+        #expect(jumped == .needsFetch)
         #expect(days.lifetime == 5)
         #expect(days.days == ["2026-09-14"])
     }

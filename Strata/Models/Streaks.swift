@@ -114,30 +114,54 @@ enum Streaks {
     /// The widget's set of days with a win, and when it can be trusted
     /// without asking the store again.
     ///
-    /// Pure. The rule: the same lifetime count means the same days; a count
-    /// one higher means one new win, and a win logged in the app is always
-    /// dated today, so today joins the set (it may already be there). Anything
-    /// else (a deletion, several at once) needs a fetch.
+    /// Pure. The rule, as `advance(lifetime:todayKey:)` answers it:
+    /// - **The same lifetime count:** the same days. Current.
+    /// - **One more, on the day the set was last made exact:** a win logged
+    ///   in the app is dated the day it is logged, so today joins the set.
+    /// - **One more, but the day has changed since** (a Siri win saved at
+    ///   23:50 while the app was suspended, published the next morning; or a
+    ///   publish straddling midnight): the new win's day is not knowable from
+    ///   the clock. Ask the store for the newest completed day, one row, and
+    ///   `insert(newestKey:)` it. Inserting today there showed a one-day
+    ///   streak for the rest of the session.
+    /// - **Anything else** (a deletion, several at once): fetch the lot.
     struct WidgetDays {
-        private(set) var days: Set<String>?
-        private(set) var lifetime: Int?
-
-        /// True when `days` is still exact for this lifetime count. Moves the
-        /// recorded count along when it can.
-        mutating func isCurrent(lifetime newLifetime: Int, todayKey: String) -> Bool {
-            guard let days, let lifetime else { return false }
-            if newLifetime == lifetime { return true }
-            if newLifetime == lifetime + 1 {
-                self.days?.insert(todayKey)
-                self.lifetime = newLifetime
-                return true
-            }
-            return false
+        enum Decision: Equatable {
+            case current
+            case needsNewestKey
+            case needsFetch
         }
 
-        mutating func replace(days newDays: Set<String>, lifetime newLifetime: Int) {
+        private(set) var days: Set<String>?
+        private(set) var lifetime: Int?
+        /// The day on which `days` was last known exact for `lifetime`. Not
+        /// moved along by an unchanged count: a win saved elsewhere before
+        /// midnight may not be visible to the count until after it.
+        private(set) var dayKey: String?
+
+        mutating func advance(lifetime newLifetime: Int, todayKey: String) -> Decision {
+            guard days != nil, let lifetime else { return .needsFetch }
+            if newLifetime == lifetime { return .current }
+            guard newLifetime == lifetime + 1 else { return .needsFetch }
+            guard todayKey == dayKey else { return .needsNewestKey }
+            days?.insert(todayKey)
+            self.lifetime = newLifetime
+            return .current
+        }
+
+        /// The answer to `.needsNewestKey`: the newest completed day in the
+        /// store, which is the day the one new win was logged on.
+        mutating func insert(newestKey: String, lifetime newLifetime: Int, todayKey: String) {
+            guard days != nil else { return }
+            days?.insert(newestKey)
+            lifetime = newLifetime
+            dayKey = todayKey
+        }
+
+        mutating func replace(days newDays: Set<String>, lifetime newLifetime: Int, todayKey: String) {
             days = newDays
             lifetime = newLifetime
+            dayKey = todayKey
         }
     }
 

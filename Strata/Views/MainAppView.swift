@@ -2002,33 +2002,46 @@ struct MainAppView: View {
     /// every 1st. `ProfileViewModel` fetched the horizon correctly; this does
     /// the same.
     ///
-    /// **Not on every drop.** The set of days is kept (`Streaks.WidgetDays`)
-    /// and needs no fetch while the lifetime count is unchanged or has risen
-    /// by one, which is every win logged in the app: a win is always dated
-    /// today, so one more win means today is in the set. The day's first win
-    /// adds today locally rather than writing the widget once with the old
-    /// streak and again with the corrected one. Anything else (a deletion,
-    /// several at once) is fetched on a background context and the snapshot
-    /// republished when it lands. The very first fetch of a launch is
+    /// **Not on every drop.** The set of days is kept (`Streaks.WidgetDays`,
+    /// which states the rule): an unchanged count needs nothing, one more win
+    /// on the same day adds today, one more across a day change asks the
+    /// store for the newest completed day (one row), and anything else is
+    /// fetched on a background context and the snapshot republished when it
+    /// lands. At most one full fetch runs per lifetime count, so a count the
+    /// store cannot agree with (unsaved changes in this context) does not
+    /// start a fetch on every publish. The very first fetch of a launch is
     /// synchronous, so the widget is never handed a zero streak to correct.
     /// The walk runs only when the days themselves changed (`Streaks.Memo`).
     private func widgetStreak(lifetime: Int) -> Int {
         let today = Date()
         let dayKey = DateUtils.dateString(from: today)
-        if widgetPublisher.days.isCurrent(lifetime: lifetime, todayKey: dayKey),
-           let days = widgetPublisher.days.days {
-            return widgetPublisher.streak.current(among: days, today: today)
+        switch widgetPublisher.days.advance(lifetime: lifetime, todayKey: dayKey) {
+        case .current:
+            if let days = widgetPublisher.days.days {
+                return widgetPublisher.streak.current(among: days, today: today)
+            }
+        case .needsNewestKey:
+            if let newest = Self.fetchNewestDayKey(context: modelContext) {
+                widgetPublisher.days.insert(newestKey: newest, lifetime: lifetime, todayKey: dayKey)
+                if let days = widgetPublisher.days.days {
+                    return widgetPublisher.streak.current(among: days, today: today)
+                }
+            }
+        case .needsFetch:
+            break
         }
         let horizon = Streaks.horizonKey(today: today)
         if widgetPublisher.days.days == nil {
             if let days = Self.fetchDayKeys(context: modelContext, horizon: horizon) {
-                widgetPublisher.days.replace(days: days, lifetime: lifetime)
+                widgetPublisher.days.replace(days: days, lifetime: lifetime, todayKey: dayKey)
                 return widgetPublisher.streak.current(among: days, today: today)
             }
             return widgetPublisher.streak.value
         }
-        guard !widgetPublisher.fetching else { return widgetPublisher.streak.value }
+        guard !widgetPublisher.fetching,
+              widgetPublisher.fetchedForLifetime != lifetime else { return widgetPublisher.streak.value }
         widgetPublisher.fetching = true
+        widgetPublisher.fetchedForLifetime = lifetime
         let container = modelContext.container
         Task.detached(priority: .utility) {
             // The count is taken in the same context as the days, so the two
@@ -2041,13 +2054,23 @@ struct MainAppView: View {
             await MainActor.run {
                 widgetPublisher.fetching = false
                 guard let days, let count else { return }
-                widgetPublisher.days.replace(days: days, lifetime: count)
+                widgetPublisher.days.replace(days: days, lifetime: count, todayKey: dayKey)
                 // With the days in hand this is a compare and, only if the
                 // streak moved, a write.
                 publishWidgetSnapshot()
             }
         }
         return widgetPublisher.streak.value
+    }
+
+    /// The newest completed day in the store, one row.
+    nonisolated private static func fetchNewestDayKey(context: ModelContext) -> String? {
+        var descriptor = FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.completed },
+            sortBy: [SortDescriptor(\.dateString, order: .reverse)])
+        descriptor.fetchLimit = 1
+        descriptor.propertiesToFetch = [\.dateString]
+        return (try? context.fetch(descriptor))?.first?.dateString
     }
 
     /// Completed days inside the horizon, only `dateString` materialised.
@@ -3189,6 +3212,10 @@ private final class WidgetPublisher {
     var days = Streaks.WidgetDays()
     /// A background day fetch is in flight.
     var fetching = false
+    /// The lifetime count the last full fetch was started for. One per
+    /// count: when this context holds unsaved changes the store's count never
+    /// matches it, and without this every publish started another fetch.
+    var fetchedForLifetime: Int?
 }
 
 // MARK: - Tab roots that ignore MainAppView's own updates
