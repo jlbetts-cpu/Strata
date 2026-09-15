@@ -323,6 +323,16 @@ method, every bug and what made it invisible, and the before/after numbers.
   outgoing layer at full opacity underneath and bring the incoming one up on
   top, then swap. Same mistake `BlockSurface` documents about its own two
   masked copies.
+  **Which layer is underneath is the part that changes with the subject.** A
+  photograph or a block has a substrate behind it that must not show, so the
+  OUTGOING one is held underneath. A head's faces have nothing behind them but
+  the page, and the thing that must never be seen is the head disappearing, so
+  `LivingHeadView` holds the INCOMING face underneath at full opacity and fades
+  the outgoing one out on top of it (and removes it on the fade's completion,
+  never on a timer). Measured: with the old way round and the main thread late,
+  the head vanished from Profile for up to 18 seconds. Either way the rule
+  underneath is the same one: at every instant of a crossfade something opaque
+  is covering what must not show through.
 - **Deleting a photo removes the PHOTOGRAPH, never the win.** `PhotoRemoval`
   clears `imageFileName`, saves, and only then deletes the file. A delete
   button inside a photo viewer that silently shortened your tower would be the
