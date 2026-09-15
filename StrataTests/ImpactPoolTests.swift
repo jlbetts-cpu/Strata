@@ -44,14 +44,21 @@ struct ImpactPoolTests {
                 let pool = SoundEngine.ImpactPool()
                 pool.warmNow()
                 var previous: AVAudioPCMBuffer?
-                var seen = Set<ObjectIdentifier>()
+                var seen: [ObjectIdentifier: AVAudioPCMBuffer] = [:]
                 for _ in 0..<30 {
                     let b = try #require(pool.buffer(mass: mass, column: column))
                     #expect(b !== previous, "mass \(mass) column \(column) repeated")
-                    seen.insert(ObjectIdentifier(b))
+                    seen[ObjectIdentifier(b)] = b
                     previous = b
                 }
-                #expect(seen.count <= SoundEngine.ImpactPool.variants)
+                // The round robin actually uses every variant: a random pick
+                // that avoids only the last one misses one of three over 30
+                // draws with probability about 2^-28.
+                #expect(seen.count == SoundEngine.ImpactPool.variants)
+                // And the variants are different sounds, not three copies of
+                // one render: jitter and a fresh contact burst each time.
+                let firsts = seen.values.map { $0.floatChannelData![0][2000] }
+                #expect(Set(firsts).count == firsts.count, "variants are identical")
             }
         }
     }

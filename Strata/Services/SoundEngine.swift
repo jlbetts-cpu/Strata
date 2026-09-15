@@ -75,15 +75,26 @@ enum SoundEngine {
 
     // MARK: - Graph
 
-    // The graph is built, started and restarted on `setUpQueue`, and buffers
-    // are scheduled on it too (a `sync` from the main thread, which costs
-    // nothing when the queue is idle). Everything that touches the engine is
-    // therefore serialised: a restart after an interruption can never race a
-    // `play()` on a stopped engine, which AVFAudio answers with an exception.
-    nonisolated(unsafe) private static let engine = AVAudioEngine()
-    nonisolated(unsafe) private static let player = AVAudioPlayerNode()
-    nonisolated(unsafe) private static let reverb = AVAudioUnitReverb()
-    nonisolated(unsafe) private static let tone = AVAudioUnitEQ(numberOfBands: 2)
+    /// The engine and its nodes, as one replaceable object.
+    ///
+    /// Replaceable because a media services reset (`mediaServicesWereReset`)
+    /// invalidates every AVAudioEngine and node in the process: the only
+    /// recovery is a new engine with new nodes.
+    nonisolated private final class Graph {
+        let engine = AVAudioEngine()
+        let player = AVAudioPlayerNode()
+        let reverb = AVAudioUnitReverb()
+        let tone = AVAudioUnitEQ(numberOfBands: 2)
+        var configurationObserver: NSObjectProtocol?
+    }
+
+    // The graph is built, started, restarted and rebuilt on `setUpQueue`, and
+    // buffers are scheduled on it too (a `sync` from the main thread, which
+    // costs nothing when the queue is idle). Everything that touches the
+    // engine is therefore serialised: a restart after an interruption can
+    // never race a `play()` on a stopped engine, which AVFAudio answers with
+    // an exception. `graph` is only read or replaced on that queue.
+    nonisolated(unsafe) private static var graph = Graph()
     /// The graph is attached and wired and the observers are installed. Says
     /// nothing about whether the engine is running right now; see
     /// `startIfNeeded`.
@@ -92,6 +103,21 @@ enum SoundEngine {
     nonisolated private static let setUpQueue = DispatchQueue(label: "strata.sound.setup", qos: .utility)
     nonisolated private static let sampleRate: Double = 44100
 
+    /// What a sound on the main thread may assume without asking the queue.
+    ///
+    /// **A sound never waits for a restart and never retries one in a loop.**
+    /// An interruption can last minutes, and a replay's downpour of landings
+    /// used to pay `setActive` + reconnect + a failed `start()` on the main
+    /// thread for every one of them. While a restart is queued or running
+    /// (`restarting`), or for `startCooldown` after a start failed
+    /// (`coolingUntil`), a sound is dropped at once instead.
+    nonisolated private struct RestartState {
+        var restarting = false
+        var coolingUntil: CFTimeInterval = 0
+    }
+    nonisolated private static let restartState = OSAllocatedUnfairLock(initialState: RestartState())
+    nonisolated static let startCooldown: CFTimeInterval = 1.0
+
     /// The format every voice is rendered in and the player is connected at.
     ///
     /// **Fixed, whatever the hardware does.** When the output changes rate
@@ -99,7 +125,8 @@ enum SoundEngine {
     /// configuration change; `startIfNeeded` reconnects the player at THIS
     /// format and the main mixer resamples to the new hardware rate. So the
     /// rendered landings in `ImpactPool` stay valid across the change and
-    /// nothing has to be re-rendered.
+    /// nothing has to be re-rendered. A recorded sample in another format is
+    /// converted to this one when it is loaded (`sample(for:)`).
     nonisolated private static var format: AVAudioFormat {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     }
@@ -116,9 +143,16 @@ enum SoundEngine {
     /// it; all return at once. A sound asked for while this is still running
     /// waits for it, which is never longer than it used to take. Muted, it
     /// does nothing, as `play` would.
+    ///
+    /// Already set up, it restarts an engine that stopped in the meantime
+    /// (say, while muted), also off the main thread.
     static func prepare() {
         guard !isMuted else { return }
-        setUpQueue.async { setUp() }
+        if isSetUp {
+            requestRestart()
+        } else {
+            setUpQueue.async { setUp() }
+        }
         // On the pool's own queue, so the setup queue is free for the first
         // sound the moment the engine is up.
         ImpactPool.shared.warm()
@@ -132,8 +166,8 @@ enum SoundEngine {
     }
 
     /// Only ever called on `setUpQueue`. Safe to call again after a failed
-    /// start: nodes are attached only if they are not already, and the
-    /// observers are installed once.
+    /// start or on a fresh graph: nodes are attached only if they are not
+    /// already, and the session observers are installed once.
     nonisolated private static func setUp() {
         guard !isSetUp else { return }
         #if DEBUG
@@ -146,38 +180,45 @@ enum SoundEngine {
         // interrupts music. A habit app must not stop someone's podcast.
         try? session.setCategory(.ambient, options: .mixWithOthers)
 
-        for node in [player, tone, reverb] as [AVAudioNode] where node.engine == nil {
-            engine.attach(node)
+        let g = graph
+        for node in [g.player, g.tone, g.reverb] as [AVAudioNode] where node.engine == nil {
+            g.engine.attach(node)
         }
 
         // A small room at a low mix. Not an effect — the point is that the
         // sound appears to happen somewhere rather than inside the speaker.
-        reverb.loadFactoryPreset(.smallRoom)
-        reverb.wetDryMix = 14
+        g.reverb.loadFactoryPreset(.smallRoom)
+        g.reverb.wetDryMix = 14
 
         // Takes the glassy top off without dulling it, and clears the sub-bass
         // that a phone speaker can only turn into distortion.
-        tone.bands[0].filterType = .lowPass
-        tone.bands[0].frequency = 7400
-        tone.bands[0].bypass = false
-        tone.bands[1].filterType = .highPass
-        tone.bands[1].frequency = 48
-        tone.bands[1].bypass = false
+        g.tone.bands[0].filterType = .lowPass
+        g.tone.bands[0].frequency = 7400
+        g.tone.bands[0].bypass = false
+        g.tone.bands[1].filterType = .highPass
+        g.tone.bands[1].frequency = 48
+        g.tone.bands[1].bypass = false
 
-        observeInterruptions()
+        observeSession()
+        if g.configurationObserver == nil {
+            // Bound to THIS engine; a rebuilt graph binds its own.
+            g.configurationObserver = NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange, object: g.engine, queue: nil
+            ) { _ in requestRestart() }
+        }
         setUpState.withLock { $0 = true }
         // The app works fine without sound: a failed start is retried by the
-        // next sound (`schedule`), not reported.
+        // next sound after the cooldown (`schedule`), not reported.
         _ = startIfNeeded()
     }
 
     /// Wires the graph at `format`. Reconnecting an existing connection
     /// replaces it, so this is also the repair after a configuration change.
     nonisolated private static func connectGraph() {
-        let f = format
-        engine.connect(player, to: tone, format: f)
-        engine.connect(tone, to: reverb, format: f)
-        engine.connect(reverb, to: engine.mainMixerNode, format: f)
+        let g = graph, f = format
+        g.engine.connect(g.player, to: g.tone, format: f)
+        g.engine.connect(g.tone, to: g.reverb, format: f)
+        g.engine.connect(g.reverb, to: g.engine.mainMixerNode, format: f)
     }
 
     /// On `setUpQueue`. Starts the engine if it is not running, returning
@@ -186,73 +227,148 @@ enum SoundEngine {
     /// **The engine stops underneath us.** An interruption (a call, Siri,
     /// an alarm) or a route or sample-rate change (AirPods connecting) stops
     /// it, and a player told to `play()` on a stopped engine raises. Every
-    /// sound comes through here first, and so do both notifications.
+    /// sound comes through here first, and so do the notifications. Inside
+    /// the cooldown after a failed start it does not try again.
     nonisolated private static func startIfNeeded() -> (running: Bool, started: Bool) {
         guard isSetUp else { return (false, false) }
-        if engine.isRunning { return (true, false) }
+        let g = graph
+        if g.engine.isRunning { return (true, false) }
+        let now = CACurrentMediaTime()
+        guard now >= restartState.withLock({ $0.coolingUntil }) else { return (false, false) }
+        #if DEBUG
+        debugStartAttempts.withLock { $0 += 1 }
+        #endif
         try? AVAudioSession.sharedInstance().setActive(true)
         connectGraph()
-        engine.prepare()
+        g.engine.prepare()
         do {
-            try engine.start()
+            #if DEBUG
+            if debugFailStarts.withLock({ $0 }) { throw CocoaError(.featureUnsupported) }
+            #endif
+            try g.engine.start()
+            restartState.withLock { $0.coolingUntil = 0 }
             return (true, true)
         } catch {
+            restartState.withLock { $0.coolingUntil = CACurrentMediaTime() + startCooldown }
             return (false, false)
+        }
+    }
+
+    /// Marks a restart in flight, so sounds skip rather than wait, and runs it
+    /// on the setup queue. Safe from any thread.
+    nonisolated private static func requestRestart() {
+        let alreadyQueued = restartState.withLock { state -> Bool in
+            defer { state.restarting = true }
+            return state.restarting
+        }
+        guard !alreadyQueued else { return }
+        setUpQueue.async {
+            #if DEBUG
+            let hold = debugRestartDelay.withLock { $0 }
+            if hold > 0 { Thread.sleep(forTimeInterval: hold) }
+            #endif
+            restartUnlessMuted()
+            restartState.withLock { $0.restarting = false }
         }
     }
 
     nonisolated private static let observing = OSAllocatedUnfairLock(initialState: false)
 
-    /// Restart when an interruption ends or the engine's configuration
-    /// changes. Installed once, on the setup queue. Not while muted: the next
-    /// sound starts it anyway, and a stopped engine costs nothing.
-    nonisolated private static func observeInterruptions() {
+    /// Session-wide observers, installed once: an interruption ending
+    /// restarts the engine, and a media services reset rebuilds it. (The
+    /// engine's own configuration change is observed per graph, in `setUp`.)
+    nonisolated private static func observeSession() {
         let first = observing.withLock { installed -> Bool in
             defer { installed = true }
             return !installed
         }
         guard first else { return }
         let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
         center.addObserver(forName: AVAudioSession.interruptionNotification,
-                           object: AVAudioSession.sharedInstance(), queue: nil) { note in
+                           object: session, queue: nil) { note in
             guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
-            setUpQueue.async { restartUnlessMuted() }
+            requestRestart()
         }
-        center.addObserver(forName: .AVAudioEngineConfigurationChange,
-                           object: engine, queue: nil) { _ in
-            setUpQueue.async { restartUnlessMuted() }
+        center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                           object: session, queue: nil) { _ in
+            restartState.withLock { $0.restarting = true }
+            setUpQueue.async {
+                rebuildGraph()
+                restartState.withLock { $0.restarting = false }
+            }
         }
+    }
+
+    /// On `setUpQueue`. A media services reset left every engine and node
+    /// dead: drop them, build fresh ones, and start if not muted.
+    nonisolated private static func rebuildGraph() {
+        let old = graph
+        if let token = old.configurationObserver {
+            NotificationCenter.default.removeObserver(token)
+        }
+        old.engine.stop()
+        graph = Graph()
+        setUpState.withLock { $0 = false }
+        restartState.withLock { $0.coolingUntil = 0 }
+        guard !UserDefaults.standard.bool(forKey: mutedKey) else { return }
+        setUp()
+        if graph.engine.isRunning { graph.player.play() }
     }
 
     /// On `setUpQueue`.
     nonisolated private static func restartUnlessMuted() {
         guard !UserDefaults.standard.bool(forKey: mutedKey) else { return }
-        if startIfNeeded().started { player.play() }
+        if startIfNeeded().started { graph.player.play() }
     }
 
     #if DEBUG
-    /// For `SoundEngineRestartTests`: the engine as a sound would find it.
-    static var debugEngineIsRunning: Bool { setUpQueue.sync { engine.isRunning } }
+    /// For `SoundEngineRestartTests`.
+    nonisolated static let debugStartAttempts = OSAllocatedUnfairLock(initialState: 0)
+    nonisolated static let debugFailStarts = OSAllocatedUnfairLock(initialState: false)
+    nonisolated static let debugRestartDelay = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
+    nonisolated static let debugDropped = OSAllocatedUnfairLock(initialState: 0)
+    /// The engine as a sound would find it.
+    nonisolated static var debugEngineIsRunning: Bool { setUpQueue.sync { graph.engine.isRunning } }
+    /// Which graph is live, so a rebuild can be seen.
+    nonisolated static var debugGraphID: ObjectIdentifier { setUpQueue.sync { ObjectIdentifier(graph) } }
     /// Stops the engine the way an interruption does, without one.
-    static func debugStopEngine() { setUpQueue.sync { engine.stop() } }
+    nonisolated static func debugStopEngine() { setUpQueue.sync { graph.engine.stop() } }
     /// Posts the notification a route or sample-rate change posts.
-    static func debugPostConfigurationChange() {
+    nonisolated static func debugPostConfigurationChange() {
+        let engine = setUpQueue.sync { graph.engine }
         NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: engine)
     }
     /// Posts an interruption that has just ended.
-    static func debugPostInterruptionEnded() {
+    nonisolated static func debugPostInterruptionEnded() {
         NotificationCenter.default.post(
             name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(),
             userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue])
     }
-    /// Waits until the setup queue has drained, and builds the graph if it
-    /// has not been built, without depending on the mute setting.
-    static func debugSetUpNow() { setUpNow() }
-    /// Starts a stopped engine directly, so one test's stop does not decide
-    /// the next test's outcome.
-    static func debugStartEngine() { setUpQueue.sync { _ = startIfNeeded() } }
-    static func debugDrainSetUpQueue() { setUpQueue.sync {} }
+    nonisolated static func debugPostMediaServicesReset() {
+        NotificationCenter.default.post(name: AVAudioSession.mediaServicesWereResetNotification,
+                                        object: AVAudioSession.sharedInstance())
+    }
+    /// Builds the graph if needed and starts it directly, bypassing the mute
+    /// setting and the cooldown, so one test's stop does not decide the next.
+    nonisolated static func debugStartEngine() {
+        setUpNow()
+        restartState.withLock { $0 = RestartState() }
+        setUpQueue.sync { _ = startIfNeeded() }
+    }
+    /// Whether this simulator can run an audio engine at all.
+    nonisolated static var debugCanRunEngine: Bool {
+        debugStartEngine()
+        return debugEngineIsRunning
+    }
+    nonisolated static func debugDrainSetUpQueue() { setUpQueue.sync {} }
+    nonisolated static func debugResetRestartState() { restartState.withLock { $0 = RestartState() } }
+    /// `schedule`, reporting whether the buffer was actually scheduled.
+    static func debugSchedule(_ buffer: AVAudioPCMBuffer) -> Bool { schedule(buffer) }
+    nonisolated static func debugConvertToRenderFormat(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        converted(buffer, to: format)
+    }
     #endif
 
     // MARK: - Scale
@@ -347,7 +463,14 @@ enum SoundEngine {
 
     private static var sampleCache: [Cue: AVAudioPCMBuffer?] = [:]
 
-    /// A recorded file for this cue, if one has been added to the bundle.
+    /// A recorded file for this cue, if one has been added to the bundle,
+    /// converted once to the render format.
+    ///
+    /// **Converted, or it would never play.** The player is connected at
+    /// 44.1kHz stereo and `schedule` refuses anything else (scheduling a
+    /// mismatched buffer raises), so a 48kHz or mono recording dropped into
+    /// `Resources/Sounds/` would be silently ignored, and "used
+    /// automatically" would be false.
     private static func sample(for cue: Cue) -> AVAudioPCMBuffer? {
         if let cached = sampleCache[cue] { return cached }
         var found: AVAudioPCMBuffer?
@@ -357,12 +480,52 @@ enum SoundEngine {
                let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
                                           frameCapacity: AVAudioFrameCount(file.length)),
                (try? file.read(into: buf)) != nil {
-                found = buf
+                found = converted(buf, to: format)
+                if found == nil { NSLog("[strata-sound] could not convert %@.%@", cue.rawValue, ext) }
                 break
             }
         }
         sampleCache[cue] = found
         return found
+    }
+
+    /// `buffer` in `target`'s format: resampled, and mono spread to both
+    /// channels. Returns the buffer itself when it already matches.
+    nonisolated static func converted(_ buffer: AVAudioPCMBuffer, to target: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let source = buffer.format
+        if source.sampleRate == target.sampleRate, source.channelCount == target.channelCount,
+           source.commonFormat == target.commonFormat, source.isInterleaved == target.isInterleaved {
+            return buffer
+        }
+        // Mono goes up to stereo by duplicating the channel, not through the
+        // converter's channel map, which would leave the right side silent.
+        let intermediate = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: target.sampleRate,
+                                         channels: min(source.channelCount, target.channelCount),
+                                         interleaved: false)!
+        guard let converter = AVAudioConverter(from: source, to: intermediate) else { return nil }
+        let ratio = target.sampleRate / source.sampleRate
+        let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 1024
+        guard let mid = AVAudioPCMBuffer(pcmFormat: intermediate, frameCapacity: capacity) else { return nil }
+        var fed = false
+        var error: NSError?
+        let status = converter.convert(to: mid, error: &error) { _, outStatus in
+            if fed { outStatus.pointee = .endOfStream; return nil }
+            fed = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        guard status != .error, error == nil, mid.frameLength > 0 else { return nil }
+        guard mid.format.channelCount != target.channelCount else {
+            return mid.format == target ? mid : nil
+        }
+        guard mid.format.channelCount == 1, target.channelCount == 2,
+              let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: mid.frameLength),
+              let src = mid.floatChannelData, let dst = out.floatChannelData else { return nil }
+        out.frameLength = mid.frameLength
+        let n = Int(mid.frameLength)
+        dst[0].update(from: src[0], count: n)
+        dst[1].update(from: src[0], count: n)
+        return out
     }
 
     private static func play(_ voice: Voice) {
@@ -380,22 +543,36 @@ enum SoundEngine {
     /// Plays `buffer`, restarting the engine first if something stopped it.
     /// Drops the sound, rather than raising, when the engine cannot run or the
     /// buffer is not in the format the player is connected at.
-    private static func schedule(_ buffer: AVAudioPCMBuffer) {
-        setUpQueue.sync {
+    @discardableResult
+    private static func schedule(_ buffer: AVAudioPCMBuffer) -> Bool {
+        // A restart in flight, or a failed start cooling down: drop the sound
+        // now rather than wait on the queue or try again.
+        let skip = restartState.withLock { state in
+            state.restarting || CACurrentMediaTime() < state.coolingUntil
+        }
+        if skip {
+            #if DEBUG
+            debugDropped.withLock { $0 += 1 }
+            #endif
+            return false
+        }
+        return setUpQueue.sync {
             let state = startIfNeeded()
-            guard state.running else { return }
-            let connected = player.outputFormat(forBus: 0)
+            guard state.running else { return false }
+            let g = graph
+            let connected = g.player.outputFormat(forBus: 0)
             guard buffer.format.sampleRate == connected.sampleRate,
                   buffer.format.channelCount == connected.channelCount else {
                 NSLog("[strata-sound] dropped a %.0fHz/%dch buffer on a %.0fHz/%dch player",
                       buffer.format.sampleRate, buffer.format.channelCount,
                       connected.sampleRate, connected.channelCount)
-                return
+                return false
             }
-            player.scheduleBuffer(buffer, completionHandler: nil)
+            g.player.scheduleBuffer(buffer, completionHandler: nil)
             // After a restart the player has to be told again: it can still
             // report playing from before the engine stopped.
-            if state.started || !player.isPlaying { player.play() }
+            if state.started || !g.player.isPlaying { g.player.play() }
+            return true
         }
     }
 
@@ -513,7 +690,7 @@ enum SoundEngine {
         ImpactPool.shared.renderLive(mass: mass, column: column) { rendered in
             guard let rendered else { return }
             let out = gain == 1 ? rendered : scaled(rendered, by: gain) ?? rendered
-            DispatchQueue.main.async { MainActor.assumeIsolated { schedule(out) } }
+            DispatchQueue.main.async { MainActor.assumeIsolated { _ = schedule(out) } }
         }
     }
 
