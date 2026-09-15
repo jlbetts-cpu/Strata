@@ -368,6 +368,12 @@ method, every bug and what made it invisible, and the before/after numbers.
   nor raised, and `presentationBackgroundInteraction` restores interaction with
   content BEHIND the sheet, not with chrome it is sitting on. iOS 26's
   `tabViewBottomAccessory` is the native answer and the target is 18.0.
+- **The drawer's page is not built until it is first raised**, and its month
+  slideshows pause while it is lowered or covered by the viewer, a replay or
+  a pushed page (`\.memoriesDrawerVisible`). Hidden is
+  only an offset, which does not affect layout, so the lazy stack inside built
+  its first screen anyway and ran a slideshow in every photographed day under
+  the map. Stale replay posters also wait for the drawer (missing ones do not).
 - **`DrawerDetent` is a top-level enum, not nested in the drawer.** Nested it
   would be `MemoriesDrawer<Content>.Detent`, so the `@State` holding it must
   name a `Content` — which pins the drawer to that guess and rejects the real
@@ -417,7 +423,18 @@ method, every bug and what made it invisible, and the before/after numbers.
 - **One thumbnail width for every block on the map**, whatever size it draws
   at. `CachedImageView` keys its cache on the requested width, so asking for 88
   at one zoom and 176 at the next decodes the same photograph twice and
-  re-decodes it on every zoom step.
+  re-decodes it on every zoom step. (`ThumbnailStore` now also rounds every
+  width UP to a bucket, 128/256/384/512/768/1024px, which makes nearby sizes
+  share a decode; the map's one width still stands on top of that.)
+- **`ThumbnailStore`: one observed slot per photograph, not one global
+  version** (2026-09-15). A view still asks while drawing, never on appear.
+  Every landing used to invalidate every image view in the app; with a year of
+  photographs the viewer ran ~4,000 image bodies a second and the idle map
+  ~1,000, and neither ever settled. Reads are capped at 48 in flight (extra
+  asks wait and are asked again). `ImageManager` hands back a thumbnail the
+  cache evicted if something still holds it, so a picture on screen can never
+  be evicted out from under itself: that was the filmstrip dimming and
+  re-fading after a switch to dark mode.
 - **`WinRecord.place` is `var`, not `let`.** Every other property there is
   `let`, and a `let` with a default value is omitted from the synthesized
   memberwise initializer entirely — it would compile and then be unsettable
@@ -618,6 +635,14 @@ shelf's tail card.
 weeks deep, so deriving an older month from them would silently show a partial
 one — wrong rather than slow.
 
+**Memories reloads only when `StoreSignature` changed** (every `ModelContext`
+save, every return to the foreground, the day, unsaved changes, and counts
+re-queried only after one of the first two, for writes from the widget's
+process), and builds the shelf,
+gallery and pins off the main actor from `WinRecord`s. Every visit to the tab
+used to refetch four years on main. An edit changes no count, which is why the
+save counter is in it; `MemoriesReloadTests` pins log, edit and remove.
+
 **`MainAppView`'s own query stays narrowed to the current month.** That is
 load-bearing, not a bug: `refreshData()` walks every log it holds, on a hot
 path.
@@ -675,7 +700,12 @@ evaluations per second, display-link gaps over 50ms, `SoundEngine.setUp`'s
 duration, and each landing's impact-to-next-frame time, as `[PERF...]` lines:
 `xcrun simctl spawn <dev> log stream --predicate 'process == "Strata"'`. It is
 the before/after instrument for smoothness work; read the counts per event,
-not as an average.
+not as an average. It also writes `Documents/perf.log` (read with
+`simctl get_app_container ... data`): the unified log store persisted lines
+tens of seconds late under load, and a `log show` straight after a run came
+back short. `PerfProbe.window(label, seconds:)` counts one window;
+`-strataPhotoAutoPage n` turns viewer pages, `-strataFlipTabs n -strataFlipTo
+memories -strataFlipEvery s` hops tabs.
 
 `-strataOpenMap`, `-strataMapStyle [quiet|satellite]`, `-strataSeedPlaces`,
 `-strataOpenDrawer [half|full]`, `-strataMapSweep`,
