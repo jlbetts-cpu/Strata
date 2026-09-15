@@ -44,17 +44,24 @@ struct MemoriesView: View {
     /// the tab opens on the map, whole, and the photographs are the button in
     /// the corner.
     @State private var drawer: DrawerDetent = .hidden
-    /// Whether the drawer has ever been raised. **Its page is not built until
-    /// it has been.** The drawer rests hidden, and hiding it is only an offset,
-    /// which does not affect layout: the lazy stack inside still believed its
-    /// first screen was visible and built it — the month tower with a
-    /// slideshow running in every photographed day, the replay shelf, the
-    /// first rows of the gallery — under a map nobody had pulled anything up
-    /// over. Once raised it stays built, so lowering and raising again keeps
-    /// its place; while it is lowered its slideshows pause
-    /// (`memoriesDrawerVisible`).
-    @State private var hasRaisedDrawer = false
-    private var drawerIsBuilt: Bool { hasRaisedDrawer || drawer != .hidden }
+    /// Whether the drawer's page has been built. **Not while the tab is
+    /// arriving.** The drawer rests hidden, and hiding it is only an offset,
+    /// which does not affect layout: the lazy stack inside built its first
+    /// screen with the tab — the month tower with a slideshow running in every
+    /// photographed day, the replay shelf, the first rows of the gallery —
+    /// under a map nobody had pulled anything up over.
+    ///
+    /// **But before the first raise, not during it.** Built by the raise
+    /// itself, the page's construction landed in the spring's first frames:
+    /// filmed on a year of seeded history, the first raise held the screen
+    /// for 1.8s and the drawer appeared already at the top, its page fading in
+    /// over the map. So it is built once the tab has been quiet for a moment
+    /// (`prebuildDelay`), off screen, with its slideshows paused
+    /// (`memoriesDrawerVisible`) and no poster redrawn; and a raise that comes
+    /// sooner builds first, then slides on the next turn of the run loop. Once
+    /// built it stays built, so lowering and raising again keeps its place.
+    @State private var drawerIsBuilt = false
+    private static let prebuildDelay: Duration = .milliseconds(1500)
     #if DEBUG
     @State private var debugFlingCounted = false
     #endif
@@ -275,6 +282,10 @@ struct MemoriesView: View {
                 .allowsHitTesting(false)
             }
             }
+            // Arrives as it is. Inserted inside a raise's animation, the
+            // default would fade the page in while it slides: filmed on the
+            // first raise, the page's title half-transparent over the map's.
+            .transition(.identity)
             }
             }
             // Lowered, or covered by a photograph, a replay or a pushed page:
@@ -283,7 +294,8 @@ struct MemoriesView: View {
                          drawer != .hidden && viewing == nil && playing == nil && path.isEmpty)
             .ignoresSafeArea(edges: .bottom)
             .onChange(of: drawer) { _, detent in
-                if detent != .hidden { hasRaisedDrawer = true }
+                // Every raise goes through `raiseDrawer`; this is the net.
+                if detent != .hidden, !drawerIsBuilt { buildDrawer() }
             }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -340,7 +352,15 @@ struct MemoriesView: View {
         // so a switch draws (once) the set for the other. And by whether the
         // drawer is up: a poster that is merely STALE is redrawn only when
         // the shelf can be seen, and the old one stays up until then.
-        .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") { await reloadReplays() }
+        .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") {
+            // Raised: let the spring settle before any stale poster is
+            // redrawn on the main actor under it.
+            if drawer != .hidden {
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !Task.isCancelled else { return }
+            }
+            await reloadReplays()
+        }
         .task {
             #if DEBUG
             let reloadStart = CACurrentMediaTime()
@@ -349,11 +369,26 @@ struct MemoriesView: View {
             #if DEBUG
             PerfProbe.duration("MemoriesViewModel.reload wall", since: reloadStart)
             #endif
+            if !drawerIsBuilt {
+                Task { @MainActor in
+                    try? await Task.sleep(for: Self.prebuildDelay)
+                    guard !drawerIsBuilt else { return }
+                    #if DEBUG
+                    let buildStart = CACurrentMediaTime()
+                    PerfProbe.mark("drawer prebuild")
+                    #endif
+                    buildDrawer()
+                    #if DEBUG
+                    PerfProbe.duration("MemoriesView.buildDrawer (state set)", since: buildStart)
+                    #endif
+                }
+            }
             #if DEBUG
             if let detent = DebugHarness.openDrawer { drawer = detent }
             if let after = DebugHarness.raiseDrawerAfter {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(after))
+                    PerfProbe.mark("drawer raise")
                     PerfProbe.window("Drawer raise", seconds: 1.5)
                     raiseDrawer()
                 }
@@ -410,9 +445,23 @@ struct MemoriesView: View {
         !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
-    /// The Photographs button.
+    /// The Photographs button. See `drawerIsBuilt`.
     private func raiseDrawer() {
+        guard drawerIsBuilt else {
+            buildDrawer()
+            DispatchQueue.main.async {
+                withAnimation(GridConstants.naturalSettle) { drawer = .full }
+            }
+            return
+        }
         withAnimation(GridConstants.naturalSettle) { drawer = .full }
+    }
+
+    /// Builds the page, never inside an animation.
+    private func buildDrawer() {
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet) { drawerIsBuilt = true }
     }
 
     private func reloadReplays() async {
