@@ -8,13 +8,20 @@ import Testing
 /// A landing used to be synthesised on the main thread at the moment of
 /// impact, freshly jittered every time. The pool renders them ahead and must
 /// keep the two things that made that worth doing: it is the same voice, and
-/// it does not repeat itself back to back.
+/// it does not repeat itself back to back, including on a key's first hits.
 @Suite("Impact pool")
 struct ImpactPoolTests {
+
+    @Test("an unfilled key hands out nothing rather than a lone variant")
+    func unfilledKeyIsNil() {
+        let pool = SoundEngine.ImpactPool()
+        #expect(pool.buffer(mass: 3, column: 2) == nil)
+    }
 
     @Test("a pooled landing is the same length and level as the voice rendered directly")
     func sameVoice() throws {
         let pool = SoundEngine.ImpactPool()
+        pool.warmNow()
         let pooled = try #require(pool.buffer(mass: 2, column: 1))
         let direct = try #require(SoundEngine.impactBuffer(mass: 2, column: 1, gain: 1))
         #expect(pooled.frameLength == direct.frameLength)
@@ -28,23 +35,24 @@ struct ImpactPoolTests {
         #expect(ratio > 0.85 && ratio < 1.15, "peak ratio \(ratio)")
     }
 
-    @Test("once a key has its variants, no landing repeats the one before it")
-    func noBackToBackRepeat() async throws {
-        let pool = SoundEngine.ImpactPool()
-        _ = pool.buffer(mass: 1, column: 0)
-        // Variants are topped up on a background queue, one per hit.
-        var seen = Set<ObjectIdentifier>()
-        for _ in 0..<200 where seen.count < SoundEngine.ImpactPool.variants {
-            if let b = pool.buffer(mass: 1, column: 0) { seen.insert(ObjectIdentifier(b)) }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(seen.count == SoundEngine.ImpactPool.variants)
-
-        var previous: AVAudioPCMBuffer?
-        for _ in 0..<40 {
-            let b = try #require(pool.buffer(mass: 1, column: 0))
-            #expect(b !== previous)
-            previous = b
+    /// The window the first version left open: one variant rendered, the
+    /// second still rendering, so the first two hits were the same buffer.
+    @Test("from the very first hit, no landing repeats the one before it")
+    func noBackToBackRepeatFromTheFirstHit() throws {
+        for mass in 1...3 {
+            for column in 0..<4 {
+                let pool = SoundEngine.ImpactPool()
+                pool.warmNow()
+                var previous: AVAudioPCMBuffer?
+                var seen = Set<ObjectIdentifier>()
+                for _ in 0..<30 {
+                    let b = try #require(pool.buffer(mass: mass, column: column))
+                    #expect(b !== previous, "mass \(mass) column \(column) repeated")
+                    seen.insert(ObjectIdentifier(b))
+                    previous = b
+                }
+                #expect(seen.count <= SoundEngine.ImpactPool.variants)
+            }
         }
     }
 }

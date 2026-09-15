@@ -51,9 +51,16 @@ enum SoundEngine {
     // MARK: - Preference
 
     static var isMuted: Bool {
-        get { UserDefaults.standard.bool(forKey: "soundEngineMuted") }
-        set { UserDefaults.standard.set(newValue, forKey: "soundEngineMuted") }
+        get { UserDefaults.standard.bool(forKey: mutedKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: mutedKey)
+            // Unmuting mid-session: start the engine and render the landings
+            // now, not on the next sound. Launching muted never prepared.
+            if !newValue { prepare() }
+        }
     }
+
+    nonisolated private static let mutedKey = "soundEngineMuted"
 
     // MARK: - Cues
 
@@ -68,19 +75,31 @@ enum SoundEngine {
 
     // MARK: - Graph
 
-    // The graph is touched from `setUpQueue` (building and starting it) and
-    // from the main thread (scheduling buffers). Setup is serialised on the
-    // queue and `isSetUp` is only true once it has finished, so the main
-    // thread never sees a half-built graph.
+    // The graph is built, started and restarted on `setUpQueue`, and buffers
+    // are scheduled on it too (a `sync` from the main thread, which costs
+    // nothing when the queue is idle). Everything that touches the engine is
+    // therefore serialised: a restart after an interruption can never race a
+    // `play()` on a stopped engine, which AVFAudio answers with an exception.
     nonisolated(unsafe) private static let engine = AVAudioEngine()
     nonisolated(unsafe) private static let player = AVAudioPlayerNode()
     nonisolated(unsafe) private static let reverb = AVAudioUnitReverb()
     nonisolated(unsafe) private static let tone = AVAudioUnitEQ(numberOfBands: 2)
+    /// The graph is attached and wired and the observers are installed. Says
+    /// nothing about whether the engine is running right now; see
+    /// `startIfNeeded`.
     nonisolated private static let setUpState = OSAllocatedUnfairLock(initialState: false)
     nonisolated private static var isSetUp: Bool { setUpState.withLock { $0 } }
     nonisolated private static let setUpQueue = DispatchQueue(label: "strata.sound.setup", qos: .utility)
     nonisolated private static let sampleRate: Double = 44100
 
+    /// The format every voice is rendered in and the player is connected at.
+    ///
+    /// **Fixed, whatever the hardware does.** When the output changes rate
+    /// (AirPods connecting, a call), the engine stops and posts a
+    /// configuration change; `startIfNeeded` reconnects the player at THIS
+    /// format and the main mixer resamples to the new hardware rate. So the
+    /// rendered landings in `ImpactPool` stay valid across the change and
+    /// nothing has to be re-rendered.
     nonisolated private static var format: AVAudioFormat {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     }
@@ -93,16 +112,16 @@ enum SoundEngine {
     /// cold launch held it 338 to 404ms on the iOS 26.3 simulator, 303 to
     /// 365ms of that in `setUp`). It used to run on the main thread at the
     /// moment of impact. Now `MainAppView` calls this once the first frame
-    /// is up, and a replay calls it before its clock starts; both return at
-    /// once. A sound asked for while this is still running waits for it,
-    /// which is never longer than it used to take. Muted, it does nothing, as
-    /// `play` would.
+    /// is up, a replay calls it before its clock starts, and unmuting calls
+    /// it; all return at once. A sound asked for while this is still running
+    /// waits for it, which is never longer than it used to take. Muted, it
+    /// does nothing, as `play` would.
     static func prepare() {
         guard !isMuted else { return }
-        setUpQueue.async {
-            setUp()
-            ImpactPool.shared.warm()
-        }
+        setUpQueue.async { setUp() }
+        // On the pool's own queue, so the setup queue is free for the first
+        // sound the moment the engine is up.
+        ImpactPool.shared.warm()
     }
 
     /// Builds and starts the graph. Blocks until any setup already running
@@ -112,7 +131,9 @@ enum SoundEngine {
         setUpQueue.sync { setUp() }
     }
 
-    /// Only ever called on `setUpQueue`.
+    /// Only ever called on `setUpQueue`. Safe to call again after a failed
+    /// start: nodes are attached only if they are not already, and the
+    /// observers are installed once.
     nonisolated private static func setUp() {
         guard !isSetUp else { return }
         #if DEBUG
@@ -124,11 +145,10 @@ enum SoundEngine {
         // `.ambient` + mixWithOthers: respects the silent switch and never
         // interrupts music. A habit app must not stop someone's podcast.
         try? session.setCategory(.ambient, options: .mixWithOthers)
-        try? session.setActive(true)
 
-        engine.attach(player)
-        engine.attach(tone)
-        engine.attach(reverb)
+        for node in [player, tone, reverb] as [AVAudioNode] where node.engine == nil {
+            engine.attach(node)
+        }
 
         // A small room at a low mix. Not an effect — the point is that the
         // sound appears to happen somewhere rather than inside the speaker.
@@ -144,18 +164,96 @@ enum SoundEngine {
         tone.bands[1].frequency = 48
         tone.bands[1].bypass = false
 
+        observeInterruptions()
+        setUpState.withLock { $0 = true }
+        // The app works fine without sound: a failed start is retried by the
+        // next sound (`schedule`), not reported.
+        _ = startIfNeeded()
+    }
+
+    /// Wires the graph at `format`. Reconnecting an existing connection
+    /// replaces it, so this is also the repair after a configuration change.
+    nonisolated private static func connectGraph() {
         let f = format
         engine.connect(player, to: tone, format: f)
         engine.connect(tone, to: reverb, format: f)
         engine.connect(reverb, to: engine.mainMixerNode, format: f)
+    }
 
+    /// On `setUpQueue`. Starts the engine if it is not running, returning
+    /// whether it is now and whether this call started it.
+    ///
+    /// **The engine stops underneath us.** An interruption (a call, Siri,
+    /// an alarm) or a route or sample-rate change (AirPods connecting) stops
+    /// it, and a player told to `play()` on a stopped engine raises. Every
+    /// sound comes through here first, and so do both notifications.
+    nonisolated private static func startIfNeeded() -> (running: Bool, started: Bool) {
+        guard isSetUp else { return (false, false) }
+        if engine.isRunning { return (true, false) }
+        try? AVAudioSession.sharedInstance().setActive(true)
+        connectGraph()
+        engine.prepare()
         do {
             try engine.start()
-            setUpState.withLock { $0 = true }
+            return (true, true)
         } catch {
-            // The app works fine without sound.
+            return (false, false)
         }
     }
+
+    nonisolated private static let observing = OSAllocatedUnfairLock(initialState: false)
+
+    /// Restart when an interruption ends or the engine's configuration
+    /// changes. Installed once, on the setup queue. Not while muted: the next
+    /// sound starts it anyway, and a stopped engine costs nothing.
+    nonisolated private static func observeInterruptions() {
+        let first = observing.withLock { installed -> Bool in
+            defer { installed = true }
+            return !installed
+        }
+        guard first else { return }
+        let center = NotificationCenter.default
+        center.addObserver(forName: AVAudioSession.interruptionNotification,
+                           object: AVAudioSession.sharedInstance(), queue: nil) { note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            setUpQueue.async { restartUnlessMuted() }
+        }
+        center.addObserver(forName: .AVAudioEngineConfigurationChange,
+                           object: engine, queue: nil) { _ in
+            setUpQueue.async { restartUnlessMuted() }
+        }
+    }
+
+    /// On `setUpQueue`.
+    nonisolated private static func restartUnlessMuted() {
+        guard !UserDefaults.standard.bool(forKey: mutedKey) else { return }
+        if startIfNeeded().started { player.play() }
+    }
+
+    #if DEBUG
+    /// For `SoundEngineRestartTests`: the engine as a sound would find it.
+    static var debugEngineIsRunning: Bool { setUpQueue.sync { engine.isRunning } }
+    /// Stops the engine the way an interruption does, without one.
+    static func debugStopEngine() { setUpQueue.sync { engine.stop() } }
+    /// Posts the notification a route or sample-rate change posts.
+    static func debugPostConfigurationChange() {
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: engine)
+    }
+    /// Posts an interruption that has just ended.
+    static func debugPostInterruptionEnded() {
+        NotificationCenter.default.post(
+            name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(),
+            userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue])
+    }
+    /// Waits until the setup queue has drained, and builds the graph if it
+    /// has not been built, without depending on the mute setting.
+    static func debugSetUpNow() { setUpNow() }
+    /// Starts a stopped engine directly, so one test's stop does not decide
+    /// the next test's outcome.
+    static func debugStartEngine() { setUpQueue.sync { _ = startIfNeeded() } }
+    static func debugDrainSetUpQueue() { setUpQueue.sync {} }
+    #endif
 
     // MARK: - Scale
 
@@ -279,9 +377,26 @@ enum SoundEngine {
         }
     }
 
+    /// Plays `buffer`, restarting the engine first if something stopped it.
+    /// Drops the sound, rather than raising, when the engine cannot run or the
+    /// buffer is not in the format the player is connected at.
     private static func schedule(_ buffer: AVAudioPCMBuffer) {
-        player.scheduleBuffer(buffer, completionHandler: nil)
-        if !player.isPlaying { player.play() }
+        setUpQueue.sync {
+            let state = startIfNeeded()
+            guard state.running else { return }
+            let connected = player.outputFormat(forBus: 0)
+            guard buffer.format.sampleRate == connected.sampleRate,
+                  buffer.format.channelCount == connected.channelCount else {
+                NSLog("[strata-sound] dropped a %.0fHz/%dch buffer on a %.0fHz/%dch player",
+                      buffer.format.sampleRate, buffer.format.channelCount,
+                      connected.sampleRate, connected.channelCount)
+                return
+            }
+            player.scheduleBuffer(buffer, completionHandler: nil)
+            // After a restart the player has to be told again: it can still
+            // report playing from before the engine stopped.
+            if state.started || !player.isPlaying { player.play() }
+        }
     }
 
     /// Round robin. Real recordings are never identical twice; an exact repeat
@@ -388,8 +503,18 @@ enum SoundEngine {
         }
         setUpNow()
         guard isSetUp else { return }
-        guard let buffer = ImpactPool.shared.buffer(mass: mass, column: column) else { return }
-        schedule(gain == 1 ? buffer : scaled(buffer, by: gain) ?? buffer)
+        if let buffer = ImpactPool.shared.buffer(mass: mass, column: column) {
+            schedule(gain == 1 ? buffer : scaled(buffer, by: gain) ?? buffer)
+            return
+        }
+        // This key's variants are not rendered yet (the first seconds after
+        // `prepare`). Synthesise this one landing live, off the main thread,
+        // as a fresh variant that is never stored, so it cannot be repeated.
+        ImpactPool.shared.renderLive(mass: mass, column: column) { rendered in
+            guard let rendered else { return }
+            let out = gain == 1 ? rendered : scaled(rendered, by: gain) ?? rendered
+            DispatchQueue.main.async { MainActor.assumeIsolated { schedule(out) } }
+        }
     }
 
     /// A copy of `buffer` at `gain`. Scaling a rendered landing is the same
@@ -411,10 +536,14 @@ enum SoundEngine {
     /// Every live landing used to be rendered on the spot with fresh jitter
     /// (±1.2% pitch, ±8% decay, ±6% level) and a fresh contact burst. The pool
     /// keeps `variants` of those per (mass, column), made the same way, and
-    /// never hands out the one it handed out last for that key. Filled
-    /// lazily: `warm()` renders the first variant of all twelve on the setup
-    /// queue, and each hit that finds a key short of its variants renders one
-    /// more there. At most 36 buffers of 0.45s stereo Float32, about 5.7 MB.
+    /// never hands out the one it handed out last for that key.
+    ///
+    /// **A key's variants arrive together.** They are all rendered before any
+    /// is handed out, so a key never has one variant to repeat while the
+    /// others are still rendering. Until a key is filled, `buffer` returns nil
+    /// and the caller synthesises that landing live, off the main thread.
+    /// `warm()` fills all twelve keys on the pool's own queue: 36 buffers of
+    /// 0.45s stereo Float32, about 5.7 MB.
     nonisolated final class ImpactPool: @unchecked Sendable {
         static let shared = ImpactPool()
         static let variants = 3
@@ -426,62 +555,69 @@ enum SoundEngine {
         private let lock = NSLock()
         private var pool: [Int: [AVAudioPCMBuffer]] = [:]
         private var lastIndex: [Int: Int] = [:]
-        private var rendering: Set<Int> = []
+        private var filling: Set<Int> = []
         private let queue = DispatchQueue(label: "strata.sound.impacts", qos: .utility)
+        private let liveQueue = DispatchQueue(label: "strata.sound.live", qos: .userInitiated)
 
         private func key(_ mass: Int, _ column: Int) -> Int { mass * 16 + column }
 
-        /// One variant of every tower landing, so no hit renders on the main
-        /// thread. Called on the setup queue.
+        /// Fills every tower landing, on the pool's queue. Returns at once.
         func warm() {
+            queue.async { [self] in warmNow() }
+        }
+
+        /// Fills every tower landing on the calling thread.
+        func warmNow() {
             for mass in Self.masses {
-                for column in Self.columns {
-                    let k = key(mass, column)
-                    let has = lock.withLock { !(pool[k]?.isEmpty ?? true) }
-                    guard !has, let buffer = SoundEngine.render(SoundEngine.varied(
-                        SoundEngine.impactVoice(mass: mass, column: column, gain: 1))) else { continue }
-                    lock.withLock { pool[k, default: []].append(buffer) }
-                }
+                for column in Self.columns { fill(mass: mass, column: column) }
             }
         }
 
-        /// A rendered landing, never the same variant twice running. Renders
-        /// synchronously only when the key has nothing yet, which `warm()`
-        /// exists to prevent; otherwise tops the key up in the background.
+        /// Renders all of a key's variants, then publishes them in one step.
+        private func fill(mass: Int, column: Int) {
+            let k = key(mass, column)
+            let claimed = lock.withLock { () -> Bool in
+                guard pool[k] == nil, !filling.contains(k) else { return false }
+                filling.insert(k)
+                return true
+            }
+            guard claimed else { return }
+            let rendered = (0..<Self.variants).compactMap { _ in
+                SoundEngine.render(SoundEngine.varied(
+                    SoundEngine.impactVoice(mass: mass, column: column, gain: 1)))
+            }
+            lock.withLock {
+                if rendered.count == Self.variants { pool[k] = rendered }
+                filling.remove(k)
+            }
+        }
+
+        /// A rendered landing, never the same variant twice running, or nil
+        /// when this key is not filled yet (in which case filling starts).
         func buffer(mass: Int, column: Int) -> AVAudioPCMBuffer? {
             let k = key(mass, column)
-            let (available, previous, wantsMore): ([AVAudioPCMBuffer], Int?, Bool) = lock.withLock {
-                let list = pool[k] ?? []
-                let more = list.count < Self.variants && !rendering.contains(k)
-                if more { rendering.insert(k) }
-                return (list, lastIndex[k], more)
-            }
-            if wantsMore {
-                queue.async { [self] in
-                    let voice = SoundEngine.varied(SoundEngine.impactVoice(mass: mass, column: column, gain: 1))
-                    let buffer = SoundEngine.render(voice)
-                    lock.withLock {
-                        if let buffer, (pool[k]?.count ?? 0) < Self.variants { pool[k, default: []].append(buffer) }
-                        rendering.remove(k)
-                    }
+            let picked: AVAudioPCMBuffer? = lock.withLock {
+                guard let list = pool[k], !list.isEmpty else { return nil }
+                var index = Int.random(in: 0..<list.count)
+                if list.count > 1, index == lastIndex[k] {
+                    index = (index + 1) % list.count
                 }
+                lastIndex[k] = index
+                return list[index]
             }
-            guard !available.isEmpty else {
-                let rendered = SoundEngine.render(SoundEngine.varied(
-                    SoundEngine.impactVoice(mass: mass, column: column, gain: 1)))
-                if let rendered {
-                    lock.withLock {
-                        if (pool[k]?.count ?? 0) < Self.variants { pool[k, default: []].append(rendered) }
-                    }
-                }
-                return rendered
+            if picked == nil {
+                queue.async { [self] in fill(mass: mass, column: column) }
             }
-            var index = Int.random(in: 0..<available.count)
-            if available.count > 1, index == previous {
-                index = (index + 1) % available.count
+            return picked
+        }
+
+        /// One landing synthesised now, off the calling thread, and not kept.
+        func renderLive(mass: Int, column: Int,
+                        then deliver: @escaping @Sendable (AVAudioPCMBuffer?) -> Void) {
+            liveQueue.async {
+                deliver(SoundEngine.render(SoundEngine.varied(
+                    SoundEngine.impactVoice(mass: mass, column: column, gain: 1))))
             }
-            lock.withLock { lastIndex[k] = index }
-            return available[index]
         }
     }
 
