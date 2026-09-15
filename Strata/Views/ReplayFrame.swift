@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// One moment of a replay. No timers, no state: everything comes from
 /// `script` at `t`. `ReplayView` draws it live and `ReplayVideoExporter`
@@ -7,16 +8,21 @@ struct ReplayFrame: View {
     let script: ReplayScript
     let images: ReplayImages
     let t: Double
-    /// The one `now` the header's range is worded against. Required: a
+    /// The one `now` the title's range is worded against. Required: a
     /// default `Date()` per frame could reword the range mid-play at
     /// midnight, and the still and the video would each pick their own.
     let now: Date
-    /// "Sample" on the title's line. The Settings preview's live replay, and
-    /// its Share still and saved video, so a made-up week cannot be posted
+    /// "Sample" beside the count, on every frame. The Settings preview's
+    /// live replay and its saved video, so a made-up week cannot be posted
     /// as a real one.
     var showsSampleBadge = false
-    /// Save Video and Share, supplied live; the exporter passes nothing.
+    /// Replay, Save Video and Share, supplied live; the exporter passes
+    /// nothing.
     var controls: AnyView? = nil
+    /// Live only: how far a photograph that arrived after playback started
+    /// has faded in. The exporter waits for every photograph and passes
+    /// nothing, so every frame of the video draws each picture whole.
+    var photoOpacity: ((ReplayPhoto) -> Double)? = nil
     /// The frame's top safe-area inset: the status bar and the Dynamic Island
     /// live, or a story-safe margin in the saved video. The header is set
     /// from it; the tower's lines are fractions of the frame.
@@ -46,12 +52,16 @@ struct ReplayFrame: View {
     private var m: ReplayScript.Metrics { script.metrics }
     private var replay: Replay { script.replay }
 
+    /// The count's size as the type is actually set, for the digit roll's
+    /// travel: a fraction of the digits, at any text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var tallySize: CGFloat = Typography.screenTitleSize
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             WarmBackground()
-            // Type BENEATH the tower: a block falling past the running label
-            // passes in front of it, as a thing in the scene passes in front
-            // of a caption, rather than the word printing across the block.
+            // Type BENEATH the tower: a block falling past the count passes
+            // in front of it, as a thing in the scene passes in front of a
+            // caption, rather than the number printing across the block.
             if poster == nil { topCopy }
             tower
             if let onTapBlock { blockTaps(onTapBlock) }
@@ -65,75 +75,126 @@ struct ReplayFrame: View {
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
-    // MARK: Header and running label
+    // MARK: The count and the title
 
-    /// The header over the running label, in one column so the label always
-    /// sits a fixed gap under whatever the header turned out to be.
+    /// The count over the title, top left.
+    ///
+    /// **During the build only the count** (the owner, 2026-09-15: "before
+    /// that it should just say the win numbers and be counting up as the
+    /// blocks place"). It is set as the Wins tab's header, the owner's
+    /// digits with the word a quieter caption beside it, and it counts one
+    /// landing at a time. **The title arrives with the reveal**, under the
+    /// count, which stays the lead. Its line is laid out from the first
+    /// frame at opacity 0, so nothing moves when it arrives.
     private var topCopy: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            runningLabel
-                .padding(.top, GridConstants.gapItem)
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            countLine
+            titleLine
         }
         .padding(.leading, GridConstants.horizontalPadding)
-        // The same cap line every screen title sits on, measured from the
-        // bottom of the frame's safe area.
-        .padding(.top, topInset + GridConstants.headerTopPadding(forTitleSize: Self.headerTitleSize))
-    }
-
-    /// `Typography.screenSubtitle`'s default size, for the cap arithmetic.
-    private static let headerTitleSize: CGFloat = 15
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // "Sample" rides on the title's own line, in its ink. As a
-            // separate darker word it out-shouted the title it qualifies.
-            // Two texts, so each is its own thing to VoiceOver: "Your week",
-            // "Sample", never "Your week dot Sample".
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(replay.period.title)
-                if showsSampleBadge {
-                    Text(" · Sample").accessibilityLabel("Sample")
-                }
-            }
-            .font(Typography.screenSubtitle)
-            .foregroundStyle(AppColors.inkQuiet)
-            Text(replay.period.range(relativeTo: now))
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-        }
-        .opacity(script.headerOpacity(at: t))
-        .accessibilityElement(children: .combine)
+        // The cap line the Wins tab's count sits on, measured from the bottom
+        // of the frame's safe area.
+        .padding(.top, topInset + GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(topCopyLabel)
         .replayActivation(onAccessibilityActivate)
     }
 
-    private var runningLabel: some View {
-        let s = script.label(at: t)
-        return ZStack(alignment: .topLeading) {
-            // Sizes the slot from the font as it is actually set, so the slot
-            // is one line tall at any text size and a label changing never
-            // moves anything.
-            labelText(0).hidden()
-            if let p = s.previous { labelText(p).opacity(s.previousOpacity).offset(y: s.previousSlide) }
-            if let c = s.current { labelText(c).opacity(s.currentOpacity).offset(y: s.currentSlide) }
-        }
-        .accessibilityHidden(true)
+    /// How tall the count and title stand under the top inset at a text
+    /// size: the header's top padding, the count's line, the gap and the
+    /// title's line. The script keeps the finished tower's top under it
+    /// (`Metrics.standard`). From the system's own line heights for the
+    /// styles the lines are set relative to, since the script is made before
+    /// anything is laid out.
+    static func topCopyHeight(_ size: DynamicTypeSize) -> CGFloat {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, .xxLarge)))
+        let count = UIFont.preferredFont(forTextStyle: .largeTitle, compatibleWith: traits).lineHeight
+        let title = UIFont.preferredFont(forTextStyle: .headline, compatibleWith: traits).lineHeight
+        return GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral) + count + GridConstants.gapTight + title
     }
 
-    private static let labelSize: CGFloat = Typography.screenTitleSize
+    /// "31 wins, Your week, 7 to 13 September": the numbers spoken, since
+    /// the digits are drawn a position at a time and the range as figures.
+    private var topCopyLabel: String {
+        let n = script.count(at: t)
+        return ["\(n) \(n == 1 ? "win" : "wins")", showsSampleBadge ? "Sample" : nil,
+                replay.period.title, replay.period.spokenRange(relativeTo: now)]
+            .compactMap { $0 }.joined(separator: ", ")
+    }
 
-    @ViewBuilder
-    private func labelText(_ day: Int) -> some View {
-        let text = replay.period.label(forDay: day)
-        if replay.period.kind == .month {
-            // The owner's digits; the optical inset lines the ink up with the
-            // header's margin, as on the Wins tab.
-            Text(text).font(Typography.numeral(Self.labelSize))
-                .foregroundStyle(AppColors.inkSecondary)
+    private var countLine: some View {
+        let roll = script.countRoll(at: t)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            digits(roll)
+                // Optical, as on the Wins tab: a digit's ink starts inside its
+                // box, so the box sits a little left of the margin.
                 .padding(.leading, -GridConstants.tallyOpticalInset)
-        } else {
-            Text(text).font(Typography.screenTitle).foregroundStyle(AppColors.inkSecondary)
+            Text(roll.count == 1 ? "win" : "wins")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkQuiet)
+            if showsSampleBadge {
+                Text("· Sample")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkQuiet)
+            }
         }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .opacity(script.countOpacity(at: t))
+    }
+
+    /// The count, one digit position at a time. A position that changes
+    /// rolls: the old digit rises out as the new one rises in from below,
+    /// crossing in opacity. The digits are tabular, so every position is the
+    /// same width and the number never shifts sideways inside itself.
+    private func digits(_ roll: ReplayScript.CountRoll) -> some View {
+        let slots = ReplayScript.digitSlots(roll)
+        let e = script.rollEase(roll.progress)
+        let rise = script.reduceMotion ? 0 : script.pacing.rollRise * tallySize
+        return HStack(spacing: 0) {
+            ForEach(slots.indices, id: \.self) { i in
+                let slot = slots[i]
+                ZStack {
+                    if slot.changes {
+                        if let old = slot.old {
+                            digit(old).opacity(1 - e).offset(y: -rise * CGFloat(e))
+                        }
+                        if let new = slot.new {
+                            digit(new).opacity(e).offset(y: rise * CGFloat(1 - e))
+                        }
+                    } else if let new = slot.new {
+                        digit(new)
+                    }
+                }
+            }
+        }
+    }
+
+    private func digit(_ c: Character) -> some View {
+        Text(String(c))
+            .font(Typography.tally)
+            .foregroundStyle(AppColors.inkPrimary)
+    }
+
+    /// "Your week" in the quiet weight, the range beside it: "9/7-9/13", or
+    /// "September". Each arrives up 8pt with opacity, 80ms apart.
+    private var titleLine: some View {
+        let title = script.titleArrival(0, at: t)
+        let range = script.titleArrival(1, at: t)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(replay.period.title)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkQuiet)
+                .opacity(title.opacity)
+                .offset(y: title.offset)
+            Text(replay.period.range(relativeTo: now))
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .opacity(range.opacity)
+                .offset(y: range.offset)
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: Tower
@@ -158,8 +219,9 @@ struct ReplayFrame: View {
                               width: f.width, height: f.height, cornerRadius: radius,
                               hasPhoto: image != nil, showOverlay: titleOpacity > 0,
                               overlayOpacity: titleOpacity) {
-                        if let image {
+                        if let image, let source = block.win.photo {
                             photo(image, crop: block.win.crop, width: f.width, height: f.height)
+                                .opacity(photoOpacity?(source) ?? 1)
                         }
                     }
                     .scaleEffect(x: pose.scaleX, y: pose.scaleY, anchor: .bottom)
@@ -237,65 +299,38 @@ struct ReplayFrame: View {
 
     // MARK: Close
 
+    /// Under the tower once it has danced: the controls, and nothing else.
+    ///
+    /// **No sentence** (the owner, 2026-09-15): a replay is shared with
+    /// friends, and "Thursday was your biggest day" means nothing to them.
+    /// The count and the title at the top already say what the tower is. The
+    /// video passes no controls, so its close is the tower alone.
+    @ViewBuilder
     private var close: some View {
-        VStack(spacing: GridConstants.gapTight) {
-            // The words are one element; the controls under them are not
-            // part of it. Combined with them, Share became a phrase in the
-            // count's sentence rather than a button of its own.
-            VStack(spacing: GridConstants.gapTight) {
-                // The Wins tab's header, set the same way: the count in the
-                // owner's digits, the word a quieter caption beside it.
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(replay.count)")
-                        .font(Typography.tally)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .padding(.leading, -GridConstants.tallyOpticalInset)
-                    Text(replay.count == 1 ? "win" : "wins")
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkQuiet)
+        if let controls {
+            let arrival = script.closeArrival(at: t)
+            controls
+                .opacity(arrival.opacity)
+                .offset(y: arrival.offset)
+                .allowsHitTesting(t >= script.closeStart)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .contain)
+                // Hung from the base, a fixed gap under it, and raised only as
+                // far as it takes to keep clear of the home indicator.
+                .alignmentGuide(VerticalAlignment.top) { d in
+                    -min(m.baseY + Self.closeGap,
+                         m.frame.height - bottomInset - Self.closeBottomMargin - d.height)
                 }
-                .opacity(script.closeOpacity(0, at: t))
-                if let sentence = replay.sentence() {
-                    Text(sentence)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkSecondary)
-                        .multilineTextAlignment(.center)
-                        .opacity(script.closeOpacity(1, at: t))
-                }
-            }
-            .accessibilityElement(children: .combine)
-            .replayActivation(onAccessibilityActivate)
-            if let controls {
-                controls
-                    .padding(.top, GridConstants.gapItem)
-                    .opacity(script.closeOpacity(2, at: t))
-                    .allowsHitTesting(t >= script.closeStart)
-            }
+                .frame(width: m.frame.width, height: m.frame.height, alignment: .top)
         }
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .contain)
-        // Hung from the base, not centred in the space under it. Centred, the
-        // controls arriving pushed the count UP toward the tower; hung, the
-        // count keeps one distance from the base and the close grows down.
-        //
-        // Placed by its own laid-out height, so at a large text size it rises
-        // just far enough that its bottom stays inside the frame's safe area
-        // instead of running off the screen.
-        .alignmentGuide(VerticalAlignment.top) { d in
-            -min(m.baseY + Self.closeGap - Self.tallyAscent,
-                 m.frame.height - bottomInset - Self.closeBottomMargin - d.height)
-        }
-        .frame(width: m.frame.width, height: m.frame.height, alignment: .top)
     }
 
     /// The least room left under the close.
     private static let closeBottomMargin: CGFloat = GridConstants.gapTight
 
-    /// From the tower's base to the count's cap.
-    private static let closeGap: CGFloat = 40
-    /// The count's layout top sits this far above its cap.
-    private static let tallyAscent: CGFloat = GridConstants.roundedCapInset * GridConstants.tallyNumeral
+    /// From the tower's base to the top of the controls.
+    private static let closeGap: CGFloat = 32
 }
 
 private extension View {

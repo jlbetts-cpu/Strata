@@ -36,11 +36,15 @@ struct ReplayShelfModelTests {
     func shortWeek() {
         let now = at(9, 16)
         let week = ReplayPeriod.week(containing: at(9, 9), calendar: calendar)
-        #expect(ReplayShelf.name(of: week, now: now) == "7 to 13 Sep")
+        let us = Locale(identifier: "en_US")
+        #expect(ReplayShelf.name(of: week, now: now, locale: us) == "9/7-9/13")
         let across = ReplayPeriod.week(containing: at(10, 1), calendar: calendar)
-        #expect(ReplayShelf.name(of: across, now: now) == "28 Sep to 4 Oct")
+        #expect(ReplayShelf.name(of: across, now: now, locale: us) == "9/28-10/4")
         let month = ReplayPeriod.month(containing: at(8, 9), calendar: calendar)
-        #expect(ReplayShelf.name(of: month, now: now) == "August")
+        #expect(ReplayShelf.name(of: month, now: now, locale: us) == "August")
+        // VoiceOver keeps the words.
+        let r = Replay(period: week, wins: [])
+        #expect(ReplayShelf.accessibilityLabel(r, now: now) == "Your week, 7 to 13 September, 0 wins")
     }
 
     @Test("an edit to a past period changes its signature, so its card redraws")

@@ -356,28 +356,97 @@ struct ReplayScriptTests {
             }
         }
         #expect(s.pose(0, at: s.closeStart).opacity == 1)
-        // The label has no reveal to leave at in reduce motion, so it must
-        // still have left by the very end, beside the close.
-        #expect(s.label(at: s.duration).currentOpacity == 0)
+        // The count has counted every block, and the title has arrived, in
+        // place: nothing slides under Reduce Motion.
+        #expect(s.count(at: s.duration) == s.replay.count)
+        #expect(s.titleArrival(1, at: s.duration).opacity == 1)
+        for t in stride(from: s.revealStart, through: s.duration, by: 0.05) {
+            #expect(s.titleArrival(0, at: t).offset == 0)
+            #expect(s.closeArrival(at: t).offset == 0)
+        }
     }
 
-    @Test("the running label follows the days and leaves at the reveal")
-    func labels() {
-        let r = replay(.week, wins: 14)
-        let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
-        #expect(s.label(at: 0).current == nil)
-        let lastLanding = s.landings.last!.time
-        #expect(s.label(at: lastLanding).current == 6)
-        #expect(s.label(at: s.revealStart + 0.5).currentOpacity == 0)
+    @Test("the count is the number of blocks landed: 0 at the open, one more at each landing, all of them by the reveal")
+    func countFollowsLandings() {
+        let s = script(.week, wins: 14)
+        #expect(s.count(at: 0) == 0)
+        for (k, landing) in s.landings.enumerated() {
+            // Landings at one instant count together.
+            let atOnce = s.landings.filter { $0.time == landing.time }.count
+            let before = s.landings.filter { $0.time < landing.time }.count
+            #expect(s.count(at: landing.time - 1e-6) == before, "landing \(k)")
+            #expect(s.count(at: landing.time) == before + atOnce, "landing \(k)")
+        }
+        #expect(s.count(at: s.revealStart) == 14)
+        var last = 0
+        for t in stride(from: 0.0, through: s.duration, by: 1.0 / 60) {
+            let n = s.count(at: t)
+            #expect(n >= last)
+            last = n
+        }
     }
 
-    @Test("the close arrives in order: count, sentence, controls")
-    func closeOrder() {
+    @Test("a digit roll takes rollTime, cut short to the gap after it, and is settled before the next landing")
+    func rollTiming() {
+        let s = script(.month, wins: 150)
+        let times = Array(Set(s.landings.map(\.time))).sorted()
+        for (k, time) in times.enumerated() {
+            let gap = k + 1 < times.count ? times[k + 1] - time : .infinity
+            let length = min(s.pacing.rollTime, gap)
+            let start = s.countRoll(at: time)
+            #expect(start.progress == 0 || length < 1e-9)
+            #expect(start.previous == s.count(at: time - 1e-6))
+            if length < gap {
+                #expect(s.countRoll(at: time + length + 1e-9).progress == 1, "landing \(k) not settled after \(length)s")
+            }
+            if length > 1e-6 {
+                let half = s.countRoll(at: time + length / 2)
+                #expect(abs(half.progress - 0.5) < 1e-6)
+            }
+            if k + 1 < times.count {
+                #expect(s.countRoll(at: times[k + 1] - 1e-9).progress > 0.999, "landing \(k)'s roll ran into the next")
+            }
+        }
+        #expect(s.countRoll(at: 0) == ReplayScript.CountRoll(count: 0, previous: 0, progress: 1))
+        // The ease is monotone from 0 to 1.
+        #expect(s.rollEase(0) == 0 && s.rollEase(1) == 1)
+        #expect(s.rollEase(0.25) < s.rollEase(0.5) && s.rollEase(0.5) < s.rollEase(0.75))
+    }
+
+    @Test("only the digits that change roll")
+    func digitSlots() {
+        typealias Slot = ReplayScript.DigitSlot
+        let nineToTen = ReplayScript.digitSlots(.init(count: 10, previous: 9, progress: 0.3))
+        #expect(nineToTen == [Slot(new: "1", old: nil), Slot(new: "0", old: "9")])
+        let twelve = ReplayScript.digitSlots(.init(count: 13, previous: 12, progress: 0.3))
+        #expect(twelve == [Slot(new: "1", old: "1"), Slot(new: "3", old: "2")])
+        #expect(!twelve[0].changes && twelve[1].changes)
+        let settled = ReplayScript.digitSlots(.init(count: 13, previous: 12, progress: 1))
+        #expect(settled.allSatisfy { !$0.changes })
+        let jump = ReplayScript.digitSlots(.init(count: 104, previous: 99, progress: 0))
+        #expect(jump == [Slot(new: "1", old: nil), Slot(new: "0", old: "9"), Slot(new: "4", old: "9")])
+    }
+
+    @Test("the title arrives with the reveal, its range 80ms behind, eased out; the controls with the close")
+    func titleAndClose() {
         let s = script(.week, wins: 12)
-        let t = s.closeStart + 0.1
-        #expect(s.closeOpacity(0, at: t) > s.closeOpacity(1, at: t))
-        #expect(s.closeOpacity(1, at: t) > s.closeOpacity(2, at: t))
-        #expect(s.closeOpacity(2, at: s.duration) == 1)
+        #expect(s.titleArrival(0, at: s.revealStart - 0.01).opacity == 0)
+        #expect(s.titleArrival(0, at: s.revealStart).offset == s.pacing.arriveSlide)
+        let t = s.revealStart + 0.1
+        #expect(s.titleArrival(0, at: t).opacity > s.titleArrival(1, at: t).opacity)
+        // Eased out: more than halfway at a quarter of the time.
+        #expect(s.titleArrival(0, at: s.revealStart + s.pacing.arrive / 4).opacity > 0.5)
+        #expect(s.titleArrival(1, at: s.revealStart + s.pacing.closeStagger + s.pacing.arrive) == .init(opacity: 1, offset: 0))
+        // The title is fully in before the controls start arriving.
+        #expect(s.titleArrival(1, at: s.closeStart).opacity == 1)
+        #expect(s.closeArrival(at: s.closeStart - 0.01).opacity == 0)
+        #expect(s.closeArrival(at: s.duration) == .init(opacity: 1, offset: 0))
+        var last = -1.0
+        for t in stride(from: s.revealStart, through: s.duration, by: 1.0 / 60) {
+            let o = s.titleArrival(0, at: t).opacity
+            #expect(o >= last)
+            last = o
+        }
     }
 
     @Test("landings are in time order and one per block")
@@ -401,31 +470,14 @@ struct ReplayScriptTests {
         #expect(abs(secondHalf / firstHalf - 3) < 0.15)
     }
 
-    @Test("a trailing empty day still gets its moment, and a label never climbs back up once it starts leaving")
-    func trailingEmptyDayShowsAndLabelsNeverReappear() {
+    @Test("a trailing empty day still gets its moment before the reveal")
+    func trailingEmptyDayShows() {
         // A week with 8 small wins Monday to Thursday, Friday to Sunday empty.
         let r = replay(.week, wins: 8, emptyDays: [4, 5, 6])
         let s = ReplayScript(replay: r, metrics: .standard(frame: frame), reduceMotion: false)
-
-        var sawSunday = false
-        var t = 0.0
-        while t < s.revealStart {
-            if s.label(at: t).current == 6 { sawSunday = true; break }
-            t += 1.0 / 60
-        }
-        #expect(sawSunday, "Sunday, the trailing empty day, never appeared before the reveal")
-
-        var lastCurrent = Double.infinity
-        var lastPrevious = Double.infinity
-        var tt = s.revealStart
-        while tt <= s.duration {
-            let l = s.label(at: tt)
-            #expect(l.currentOpacity <= lastCurrent + 1e-9)
-            #expect(l.previousOpacity <= lastPrevious + 1e-9)
-            lastCurrent = l.currentOpacity
-            lastPrevious = l.previousOpacity
-            tt += 1.0 / 60
-        }
+        #expect(s.revealStart >= s.dayStart(6) + s.pacing.emptyHold - 1e-9,
+                "the reveal at \(s.revealStart) cut Sunday, starting \(s.dayStart(6)), short")
+        #expect(s.dayStart(6) > s.landings.last!.time)
     }
 
     @Test("a compressed build that ends on empty days: under the cap, the last day still shows, the corridor holds",
@@ -445,13 +497,7 @@ struct ReplayScriptTests {
         #expect(s.duration <= s.pacing.totalCap + 1e-9, "ran \(s.duration)s against \(s.pacing.totalCap)")
         #expect((s.landings.last?.time ?? .infinity) <= s.revealStart)
 
-        var shownAt: Double?
-        var t = 0.0
-        while t < s.revealStart {
-            if s.label(at: t).current == lastDay { shownAt = t; break }
-            t += 1.0 / 120
-        }
-        #expect(shownAt != nil, "the last day's label never showed before the reveal at \(s.revealStart)s")
+        #expect(s.dayStart(lastDay) < s.revealStart, "the last day never had its moment before the reveal at \(s.revealStart)s")
 
         let w = corridorWorst(s)
         #expect(w.onScreen <= 0.5, "\(size): block \(w.block) starts \(w.onScreen)pt on screen")

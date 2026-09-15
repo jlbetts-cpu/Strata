@@ -76,39 +76,15 @@ struct Replay: Equatable {
         countsByDay = counts
     }
 
-    /// One true fact about the period, or nil when there is nothing in it.
+    /// What VoiceOver says once, at the close: "Your week, 7 to 13
+    /// September. 31 wins." The build is visual, so the replay speaks its
+    /// result rather than every landing.
     ///
-    /// Deliberately one fact. No streaks, no comparison, no score: a replay
-    /// that grades you is one people stop opening.
-    func sentence() -> String? {
-        guard let top = countsByDay.max(), top > 0 else { return nil }
-        let busiest = countsByDay.indices.filter { countsByDay[$0] == top }
-        let daysWithWins = countsByDay.filter { $0 > 0 }.count
-        if daysWithWins == 1 {
-            return "All on \(period.dayName(busiest[0], capitalised: false))."
-        }
-        switch busiest.count {
-        case 1:
-            return "\(period.dayName(busiest[0], capitalised: true)) was your biggest day."
-        case 2:
-            return "\(period.dayName(busiest[0], capitalised: true)) and \(period.dayName(busiest[1], capitalised: false)) were your biggest days."
-        default:
-            let words = [3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven"]
-            let n = words[busiest.count] ?? String(busiest.count)
-            return "\(n) days tied for your biggest."
-        }
-    }
-
-    /// What VoiceOver says once, at the close: "Your week, 7 to 13 September.
-    /// 31 wins. Thursday was your biggest day." The build is visual, so the
-    /// replay speaks its result rather than every landing.
+    /// **No sentence about the busiest day** (the owner, 2026-09-15). A replay
+    /// is shared with friends, and "Thursday was your biggest day" means
+    /// nothing to them, so the close says only what the picture says.
     func announcement(now: Date) -> String {
-        [period.title + ", " + period.range(relativeTo: now),
-         "\(count) \(count == 1 ? "win" : "wins")",
-         // The sentence carries its own full stop; the join adds them all.
-         sentence().map { $0.hasSuffix(".") ? String($0.dropLast()) : $0 }]
-            .compactMap { $0 }
-            .joined(separator: ". ") + "."
+        "\(period.title), \(period.spokenRange(relativeTo: now)). \(count) \(count == 1 ? "win" : "wins")."
     }
 
     /// The only function here that touches `@Model`.
