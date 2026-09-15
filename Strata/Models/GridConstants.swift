@@ -309,8 +309,12 @@ enum GridConstants {
 
     /// The photo viewer's title changing with the photograph.
     static let photoTitleFade = Animation.easeOut(duration: 0.12)
+    /// How long a decoded photograph takes to fade in. Named separately so
+    /// `CachedImageView` can hold its placeholder underneath for exactly as
+    /// long as the fade runs.
+    static let imageFadeInDuration: Double = 0.25
     /// A decoded photograph fading in where it was waiting.
-    static let imageFadeIn = Animation.easeIn(duration: 0.25)
+    static let imageFadeIn = Animation.easeIn(duration: imageFadeInDuration)
     /// The loading shimmer's slow breath, back and forth for as long as it
     /// shows.
     static let shimmerPulse = Animation.easeInOut(duration: 1.1).repeatForever(autoreverses: true)

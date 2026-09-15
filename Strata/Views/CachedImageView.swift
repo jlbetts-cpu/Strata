@@ -19,6 +19,9 @@ struct CachedImageView: View {
     /// `ThumbnailStore` instead — see `body`.
     @State private var fullImage: UIImage?
     @State private var fullFailed = false
+    /// The file whose picture has finished fading in, so its placeholder
+    /// underneath can go. See `body`.
+    @State private var settledFileName: String?
     @Environment(\.displayScale) private var displayScale
     /// Whether to draw a grey box while the photograph decodes.
     ///
@@ -57,7 +60,28 @@ struct CachedImageView: View {
         let state = shown
         let image = state.image
         let loadFailed = state.missing
-        return Group {
+        // **Stacked, not either/or.** The placeholder stays UNDER the
+        // photograph, at full strength, until the photograph has finished
+        // fading in, and only then leaves. As exclusive branches one of them
+        // had to go first: fading both crossed two half-transparent layers,
+        // and removing the placeholder at once left the picture fading in
+        // over nothing for 250ms, which in the edge-to-edge gallery is the
+        // page ground flashing through a cold thumbnail (CLAUDE.md: a
+        // crossfade must never reveal what is under it). Callers with
+        // `showsPlaceholder` off are unchanged: a block's own colour is what
+        // the picture fades in over.
+        let holdsPlaceholder = fileName != nil && showsPlaceholder && !loadFailed
+            && (image == nil || settledFileName != fileName)
+        return ZStack {
+            if holdsPlaceholder {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(AppColors.quietFill)
+                    .frame(width: width, height: height)
+                    .modifier(ShimmerModifier())
+                    // It leaves only once the picture on top is opaque, so
+                    // leaving at once is invisible.
+                    .transition(.identity)
+            }
             if let image {
                 let drawn = filled(image.size)
                 Image(uiImage: image)
@@ -77,18 +101,6 @@ struct CachedImageView: View {
                             .foregroundStyle(AppColors.inkQuiet)
                     )
                     .accessibilityLabel("Photo missing")
-            } else if fileName != nil, showsPlaceholder {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(AppColors.quietFill)
-                    .frame(width: width, height: height)
-                    .modifier(ShimmerModifier())
-                    // **Leaves at once, not on a fade.** It faded out over
-                    // 0.15s while the image faded in over 0.25s, so both were
-                    // partly transparent at the same moment and what is under
-                    // the view showed through the middle of the handover
-                    // (CLAUDE.md: a crossfade must never reveal what is under
-                    // it). Now there is one fading layer, the picture.
-                    .transition(.identity)
             }
         }
         .animation(reduceMotion ? nil : GridConstants.imageFadeIn, value: image != nil)
@@ -97,6 +109,18 @@ struct CachedImageView: View {
         // picture, on a screen that has certainly appeared.
         .task(id: fullResolution ? fileName : nil) {
             await loadFullImage()
+        }
+        // Retire the placeholder once the picture has faded in over it. Keyed
+        // on the file that arrived, so a reused cell showing a different
+        // photograph gets its placeholder back. If this task never runs, the
+        // placeholder simply stays hidden under an opaque picture.
+        .task(id: (showsPlaceholder && image != nil) ? fileName : nil) {
+            guard showsPlaceholder, image != nil, let fileName, settledFileName != fileName else { return }
+            if !reduceMotion {
+                try? await Task.sleep(for: .seconds(GridConstants.imageFadeInDuration))
+                guard !Task.isCancelled else { return }
+            }
+            settledFileName = fileName
         }
     }
 
