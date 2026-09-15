@@ -51,7 +51,7 @@ enum PerfProbe {
                 let d = value - (before[key] ?? 0)
                 return d == 0 ? nil : "\(key)=\(d)"
             }.sorted().joined(separator: " ")
-            NSLog("[PERF-WINDOW] %@ %.1fs %@", label, seconds, line)
+            emit(String(format: "[PERF-WINDOW] %@ %.1fs %@", label, seconds, line))
         }
     }
 
@@ -60,14 +60,33 @@ enum PerfProbe {
         guard isOn else { return }
         start()
         let now = CACurrentMediaTime()
-        NSLog("[PERF-MARK] %@ at=%.3f", name, now)
+        emit(String(format: "[PERF-MARK] %@ at=%.3f", name, now))
         pendingMark = (name, now)
     }
 
     /// A duration measured by the caller, logged as is.
     nonisolated static func duration(_ name: String, since start: CFTimeInterval) {
         guard isOn else { return }
-        NSLog("[PERF-SPAN] %@ %.1fms", name, (CACurrentMediaTime() - start) * 1000)
+        emit(String(format: "[PERF-SPAN] %@ %.1fms", name, (CACurrentMediaTime() - start) * 1000))
+    }
+
+    /// Every line goes to the unified log AND to `Documents/perf.log`, which
+    /// is read back with `simctl get_app_container ... data`. The log store
+    /// persists lines tens of seconds late on a loaded simulator, and a
+    /// `log show` run straight after a measurement silently came back short.
+    nonisolated private static let fileQueue = DispatchQueue(label: "strata.perfprobe.file")
+    nonisolated(unsafe) private static let handle: FileHandle? = {
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("perf.log")
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        return try? FileHandle(forWritingTo: url)
+    }()
+
+    nonisolated static func emit(_ line: String) {
+        guard isOn else { return }
+        NSLog("%@", line)
+        let stamped = String(format: "%.3f ", CACurrentMediaTime()) + line + "\n"
+        fileQueue.async { handle?.write(Data(stamped.utf8)) }
     }
 
     static func start() {
@@ -83,11 +102,11 @@ enum PerfProbe {
     fileprivate static func tick(_ link: CADisplayLink) {
         let now = CACurrentMediaTime()
         if lastFrame > 0, now - lastFrame > 0.050 {
-            NSLog("[PERF-HITCH] gap=%.0fms at=%.3f", (now - lastFrame) * 1000, now)
+            emit(String(format: "[PERF-HITCH] gap=%.0fms at=%.3f", (now - lastFrame) * 1000, now))
         }
         lastFrame = now
         if let mark = pendingMark {
-            NSLog("[PERF-MARK] %@ → next frame %.1fms", mark.name, (now - mark.at) * 1000)
+            emit(String(format: "[PERF-MARK] %@ → next frame %.1fms", mark.name, (now - mark.at) * 1000))
             pendingMark = nil
         }
         if now - lastFlush >= 1 {
@@ -95,7 +114,7 @@ enum PerfProbe {
                 let line = counts.sorted { $0.key < $1.key }
                     .map { "\($0.key)=\($0.value)" }
                     .joined(separator: " ")
-                NSLog("[PERF] bodies %@ window=%.2fs at=%.3f", line, now - lastFlush, now)
+                emit(String(format: "[PERF] bodies %@ window=%.2fs at=%.3f", line, now - lastFlush, now))
                 counts.removeAll()
             }
             lastFlush = now
@@ -123,7 +142,7 @@ enum PerfProbe {
                 cullInserted[b.id] = Inserted(at: now, top: b.top, bottom: b.bottom)
                 n += 1
             }
-            if n > 0 { NSLog("[PERF-CULL] inserted %d", n) }
+            if n > 0 { emit(String(format: "[PERF-CULL] inserted %d", n)) }
         }
         cullVisible = ids
     }
@@ -143,8 +162,8 @@ enum PerfProbe {
                 cullOnScreenMidFade += 1
                 entry.reported = true
                 cullInserted[id] = entry
-                NSLog("[PERF-CULL] ON SCREEN mid-fade age=%.0fms top=%.0f bottom=%.0f total=%d",
-                      age * 1000, top, bottom, cullOnScreenMidFade)
+                emit(String(format: "[PERF-CULL] ON SCREEN mid-fade age=%.0fms top=%.0f bottom=%.0f total=%d",
+                      age * 1000, top, bottom, cullOnScreenMidFade))
             }
         }
     }
