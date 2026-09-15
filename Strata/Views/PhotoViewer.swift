@@ -42,13 +42,21 @@ struct PhotoViewer: View {
     /// once; a window of three, pruned on every move, does.
     @State private var images: [String: UIImage] = [:]
     /// The deck's position as a FRACTIONAL index, republished every frame it
-    /// moves. This is what lets the strip below track a finger that is still
-    /// on the photograph above, rather than jumping once the page settles.
-    @State private var deckProgress: Double = 0
-    /// Set while a finger is on the strip itself, which then leads and the
-    /// deck follows on release.
-    @State private var scrub: Double?
-    @State private var scrubOrigin: Double?
+    /// moves, and the strip's scrub. This is what lets the strip below track a
+    /// finger that is still on the photograph above, rather than jumping once
+    /// the page settles.
+    ///
+    /// **A reference, read only by the strip.** It was `@State` here, so every
+    /// frame of a swipe re-ran this whole body — header, deck and a strip
+    /// holding a card for every photograph in the library. Now a frame redraws
+    /// the strip and nothing else; the title reads `shownIndex`, which changes
+    /// once per photograph.
+    @State private var position = DeckPosition()
+    /// `position.progress` rounded: which photograph the deck is over.
+    @State private var shownIndex: Int = 0
+    /// Where `currentID` sits in `photos`, found once per change rather than
+    /// by a scan on every read.
+    @State private var currentIndex: Int = 0
 
     /// Which photograph is on screen, by identity. `scrollPosition` wants an
     /// id, and identity survives a deletion changing every index.
@@ -62,7 +70,10 @@ struct PhotoViewer: View {
     @State private var isZoomed = false
 
     private var current: GalleryPhoto? {
-        photos.first { $0.id == currentID } ?? photos.first { $0.id == startAt } ?? photos.first
+        if photos.indices.contains(currentIndex), photos[currentIndex].id == currentID {
+            return photos[currentIndex]
+        }
+        return photos.first { $0.id == currentID } ?? photos.first { $0.id == startAt } ?? photos.first
     }
 
     /// **The photograph the title is of: the one actually on screen.**
@@ -70,16 +81,18 @@ struct PhotoViewer: View {
     /// A paging scroll view writes `currentID` when it settles, so the title
     /// belonged to the photograph you had just left for as long as a swipe
     /// takes — reported twice as "the photos and titles arent accurate at
-    /// times". `deckProgress` already reports where the deck is on every
-    /// frame for the strip below; the title reads the same number, so it is
-    /// right at every moment of a swipe rather than only at the end of one.
+    /// times". The deck reports where it is on every frame for the strip
+    /// below; the title reads the same number, rounded, so it is right at
+    /// every moment of a swipe rather than only at the end of one.
     private var shown: GalleryPhoto? {
-        let i = Int(deckProgress.rounded())
-        return photos.indices.contains(i) ? photos[i] : current
+        photos.indices.contains(shownIndex) ? photos[shownIndex] : current
     }
 
     private var index: Int {
-        photos.firstIndex { $0.id == currentID } ?? 0
+        if photos.indices.contains(currentIndex), photos[currentIndex].id == currentID {
+            return currentIndex
+        }
+        return photos.firstIndex { $0.id == currentID } ?? 0
     }
 
     var body: some View {
@@ -113,7 +126,8 @@ struct PhotoViewer: View {
                         dateLine
                             .frame(height: dateHeight)
 
-                        filmstrip
+                        Filmstrip(photos: photos, position: position,
+                                  currentID: currentID, select: select)
                             .frame(height: Self.stripHeight)
                     }
 
@@ -127,6 +141,9 @@ struct PhotoViewer: View {
         .ignoresSafeArea()
         .statusBarHidden()
         .onAppear { currentID = startAt }
+        .onChange(of: currentID, initial: true) { _, id in
+            currentIndex = photos.firstIndex { $0.id == id } ?? 0
+        }
         #if DEBUG
         .task { await debugAutoPage() }
         #endif
@@ -231,109 +248,14 @@ struct PhotoViewer: View {
             let page = geo.containerSize.width
             guard page > 0 else { return 0 }
             return Double(geo.contentOffset.x / page)
-        } action: { _, position in
-            deckProgress = position
+        } action: { _, progress in
+            position.progress = progress
+            let rounded = Int(progress.rounded())
+            if rounded != shownIndex { shownIndex = rounded }
         }
         .scrollIndicators(.hidden)
         .scrollDisabled(isZoomed)
         .frame(height: max(size.height, 1))
-    }
-
-    // MARK: - The strip
-
-    /// The scrubber, driven by the deck's LIVE scroll position.
-    ///
-    /// **The two used to be joined only at the ends.** Both bound
-    /// `scrollPosition(id: $currentID)`, but a paging scroll view writes that
-    /// binding when it SETTLES — so while your finger was on the photograph
-    /// the strip sat perfectly still, then jumped once you let go. From a
-    /// phone: "why is the bottom seprete from the top scroll doesnt make sense
-    /// at all." It is the right complaint: the strip is a position indicator,
-    /// and an indicator that only updates after the fact is not indicating
-    /// anything.
-    ///
-    /// So the strip is no longer a scroll view of its own. It is an `HStack`
-    /// offset by a FRACTIONAL index that the deck publishes continuously, and
-    /// dragging it writes that same fraction back. One number, read every
-    /// frame, and the two cannot disagree.
-    private var filmstrip: some View {
-        #if DEBUG
-        let _ = PerfProbe.count("Filmstrip")
-        #endif
-        let pitch = Self.stripCard.width + Self.stripGap
-        let progress = scrub ?? deckProgress
-        return GeometryReader { geo in
-            HStack(spacing: Self.stripGap) {
-                ForEach(Array(photos.enumerated()), id: \.element.id) { i, photo in
-                    let distance = min(abs(Double(i) - progress), 1)
-                    CachedImageView(fileName: photo.fileName,
-                                    width: Self.stripHeight,
-                                    height: Self.stripHeight,
-                                    cornerRadius: Self.stripRadius)
-                        // One size for every frame. The depth does the work; a
-                        // second, smaller size for the neighbours would be
-                        // saying it twice.
-                        .frame(width: Self.stripCard.width, height: Self.stripCard.height)
-                        .clipShape(RoundedRectangle(cornerRadius: Self.stripRadius,
-                                                    style: .continuous))
-                        // Depth without distortion: the middle frame is nearer,
-                        // its neighbours recede, sit slightly lower and go
-                        // slightly quiet. Every frame stays square on.
-                        //
-                        // **No rotation.** This was a coverflow wheel — asked
-                        // for, built, then seen: "why are the photos rotated
-                        // weirly on the bottom." A filmstrip has one job. You
-                        // are scanning for a picture you remember, and a
-                        // photograph turned forty degrees away is a sliver of
-                        // itself.
-                        .scaleEffect(1 - 0.22 * distance, anchor: .bottom)
-                        .offset(y: 5 * distance)
-                        .opacity(1 - 0.3 * distance)
-                        // The centre card passes in FRONT of its neighbours,
-                        // or the arriving card is drawn under the one it
-                        // replaces and the strip flickers as they cross.
-                        .zIndex(distance < 0.5 ? 1 : 0)
-                        .onTapGesture { select(photo) }
-                        .accessibilityLabel(photo.title ?? "Photo")
-                    }
-            }
-            // Centre the frame at `progress`. Half the card either side is why
-            // the FIRST and LAST photographs can reach the middle at all.
-            .offset(x: geo.size.width / 2 - Self.stripCard.width / 2
-                       - CGFloat(progress) * pitch)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-        }
-        .frame(height: Self.stripCard.height)
-        // The whole strip is draggable, not just the cards — a scrubber you
-        // can only catch by landing on a 46pt thumbnail is a scrubber that
-        // feels broken.
-        .contentShape(Rectangle())
-        .gesture(scrubGesture(pitch: pitch))
-        .sensoryFeedback(.selection, trigger: currentID)
-        // **A container, or the name lands on every thumbnail.** SwiftUI hands
-        // an identifier down to descendants, so without this the strip and all
-        // of its 46pt cards answer to "filmstrip" and a UI test swipes a
-        // thumbnail instead of the scrubber.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("filmstrip")
-    }
-
-    /// Dragging the strip scrubs the deck, and releasing settles on a frame.
-    private func scrubGesture(pitch: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                let from = scrubOrigin ?? deckProgress
-                if scrubOrigin == nil { scrubOrigin = from }
-                let raw = from - Double(value.translation.width / pitch)
-                scrub = min(max(raw, 0), Double(max(photos.count - 1, 0)))
-            }
-            .onEnded { _ in
-                let landing = Int((scrub ?? deckProgress).rounded())
-                scrub = nil
-                scrubOrigin = nil
-                guard photos.indices.contains(landing) else { return }
-                select(photos[landing])
-            }
     }
 
     private func select(_ photo: GalleryPhoto) {
@@ -448,11 +370,6 @@ struct PhotoViewer: View {
             .accessibilityHidden(current == nil)
     }
 
-    /// One card on the strip. Portrait, because a photograph is more often
-    /// portrait than not and a square frame crops the subject out of it.
-    private static let stripCard = CGSize(width: 46, height: 60)
-    private static let stripGap: CGFloat = 10
-    private static let stripRadius: CGFloat = 7
 
     private var caption: String {
         guard let current else { return " " }
@@ -557,10 +474,151 @@ struct PhotoViewer: View {
                          calendar: Calendar = .current) -> String {
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
-        let f = DateFormatter()
-        f.dateFormat = calendar.isDate(date, equalTo: now, toGranularity: .year)
-            ? "d MMMM" : "d MMMM yyyy"
-        return f.string(from: date)
+        // Made once: this runs in the caption, on every body.
+        return (calendar.isDate(date, equalTo: now, toGranularity: .year)
+                ? dayMonth : dayMonthYear).string(from: date)
+    }
+
+    private static let dayMonth = Album.Formats.make("d MMMM")
+    private static let dayMonthYear = Album.Formats.make("d MMMM yyyy")
+}
+
+/// The deck's live position, as a reference. See `PhotoViewer.position`.
+@Observable
+final class DeckPosition {
+    var progress: Double = 0
+    /// Set while a finger is on the strip itself, which then leads and the
+    /// deck follows on release.
+    var scrub: Double?
+    @ObservationIgnored var scrubOrigin: Double?
+    var live: Double { scrub ?? progress }
+}
+
+// MARK: - The strip
+
+/// The scrubber, driven by the deck's LIVE scroll position.
+///
+/// **The two used to be joined only at the ends.** Both bound
+/// `scrollPosition(id: $currentID)`, but a paging scroll view writes that
+/// binding when it SETTLES — so while your finger was on the photograph
+/// the strip sat perfectly still, then jumped once you let go. From a
+/// phone: "why is the bottom seprete from the top scroll doesnt make sense
+/// at all." It is the right complaint: the strip is a position indicator,
+/// and an indicator that only updates after the fact is not indicating
+/// anything.
+///
+/// So the strip is no longer a scroll view of its own. It is an `HStack`
+/// offset by a FRACTIONAL index that the deck publishes continuously, and
+/// dragging it writes that same fraction back. One number, read every
+/// frame, and the two cannot disagree.
+///
+/// **Its own view, and only the cards near the middle.** It was a property of
+/// `PhotoViewer` drawing a card for EVERY photograph in the library, so each
+/// frame of a swipe rebuilt all of them, and opening the viewer asked for
+/// every thumbnail at once. It now reads the position itself, so a frame
+/// redraws the strip alone, and it draws the cards within `reach` of the
+/// middle. Everything further out is off the screen at any width a phone
+/// has (about four cards either side fit), so what is drawn is unchanged.
+private struct Filmstrip: View {
+    let photos: [GalleryPhoto]
+    let position: DeckPosition
+    let currentID: String?
+    let select: (GalleryPhoto) -> Void
+
+    /// One card on the strip. Portrait, because a photograph is more often
+    /// portrait than not and a square frame crops the subject out of it.
+    static let card = CGSize(width: 46, height: 60)
+    static let gap: CGFloat = 10
+    static let radius: CGFloat = 7
+    /// The size of the decode, as it always was.
+    static let side: CGFloat = 74
+    /// How many cards either side of the middle are drawn.
+    static let reach = 8
+
+    var body: some View {
+        #if DEBUG
+        let _ = PerfProbe.count("Filmstrip")
+        #endif
+        let pitch = Self.card.width + Self.gap
+        let progress = position.live
+        let last = photos.count - 1
+        let lo = min(max(0, Int((progress - Double(Self.reach)).rounded(.down))), max(last, 0))
+        let hi = max(min(last, Int((progress + Double(Self.reach)).rounded(.up))), lo)
+        let drawn = photos.isEmpty ? [] : Array(photos[lo...hi].enumerated())
+        return GeometryReader { geo in
+            HStack(spacing: Self.gap) {
+                ForEach(drawn, id: \.element.id) { offset, photo in
+                    let distance = min(abs(Double(lo + offset) - progress), 1)
+                    CachedImageView(fileName: photo.fileName,
+                                    width: Self.side,
+                                    height: Self.side,
+                                    cornerRadius: Self.radius)
+                        // One size for every frame. The depth does the work; a
+                        // second, smaller size for the neighbours would be
+                        // saying it twice.
+                        .frame(width: Self.card.width, height: Self.card.height)
+                        .clipShape(RoundedRectangle(cornerRadius: Self.radius,
+                                                    style: .continuous))
+                        // Depth without distortion: the middle frame is nearer,
+                        // its neighbours recede, sit slightly lower and go
+                        // slightly quiet. Every frame stays square on.
+                        //
+                        // **No rotation.** This was a coverflow wheel — asked
+                        // for, built, then seen: "why are the photos rotated
+                        // weirly on the bottom." A filmstrip has one job. You
+                        // are scanning for a picture you remember, and a
+                        // photograph turned forty degrees away is a sliver of
+                        // itself.
+                        .scaleEffect(1 - 0.22 * distance, anchor: .bottom)
+                        .offset(y: 5 * distance)
+                        .opacity(1 - 0.3 * distance)
+                        // The centre card passes in FRONT of its neighbours,
+                        // or the arriving card is drawn under the one it
+                        // replaces and the strip flickers as they cross.
+                        .zIndex(distance < 0.5 ? 1 : 0)
+                        .onTapGesture { select(photo) }
+                        .accessibilityLabel(photo.title ?? "Photo")
+                    }
+            }
+            // Centre the frame at `progress`. Half the card either side is why
+            // the FIRST and LAST photographs can reach the middle at all. The
+            // cards before `lo` are not drawn, so the row starts `lo` pitches
+            // further along.
+            .offset(x: geo.size.width / 2 - Self.card.width / 2
+                       - CGFloat(progress - Double(lo)) * pitch)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+        }
+        .frame(height: Self.card.height)
+        // The whole strip is draggable, not just the cards — a scrubber you
+        // can only catch by landing on a 46pt thumbnail is a scrubber that
+        // feels broken.
+        .contentShape(Rectangle())
+        .gesture(scrubGesture(pitch: pitch))
+        .sensoryFeedback(.selection, trigger: currentID)
+        // **A container, or the name lands on every thumbnail.** SwiftUI hands
+        // an identifier down to descendants, so without this the strip and all
+        // of its 46pt cards answer to "filmstrip" and a UI test swipes a
+        // thumbnail instead of the scrubber.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("filmstrip")
+    }
+
+    /// Dragging the strip scrubs the deck, and releasing settles on a frame.
+    private func scrubGesture(pitch: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                let from = position.scrubOrigin ?? position.progress
+                if position.scrubOrigin == nil { position.scrubOrigin = from }
+                let raw = from - Double(value.translation.width / pitch)
+                position.scrub = min(max(raw, 0), Double(max(photos.count - 1, 0)))
+            }
+            .onEnded { _ in
+                let landing = Int((position.scrub ?? position.progress).rounded())
+                position.scrub = nil
+                position.scrubOrigin = nil
+                guard photos.indices.contains(landing) else { return }
+                select(photos[landing])
+            }
     }
 }
 
