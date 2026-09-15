@@ -29,6 +29,16 @@ struct MainAppView: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The minute refresh's clock, made once.
+    ///
+    /// It was `Timer.publish(...).autoconnect()` written inside `body`, which
+    /// built a new publisher on every evaluation; `onReceive` resubscribes
+    /// when handed a different one, so the minute restarted each time the
+    /// view updated and could go unfired while the tower was busy. A
+    /// `static let` is the same publisher every time. Not a `.task` loop:
+    /// that captures the view as it was when the task began, and the handler
+    /// reads `scenePhase` and `logs`, which must be current.
+    private static let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(FocusFilterService.self) private var focusFilterService
@@ -158,6 +168,8 @@ struct MainAppView: View {
     // Skeleton build-up animation
     @State private var visibleSkeletonCount: Int = 0
     @State private var skeletonBuildTask: Task<Void, Never>?
+    /// When the placeholder went up, or nil when it has not.
+    @State private var skeletonShownAt: ContinuousClock.Instant?
     @State private var reloadTask: Task<Void, Never>?
 
     // Setup guard
@@ -403,7 +415,7 @@ struct MainAppView: View {
                 animCoord.clearAnimationStates() // #430: Clear stale animation on filter change
                 reloadTowerForFilterChange()
             }
-            .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+            .onReceive(Self.minuteTimer) { _ in
                 guard scenePhase == .active else { return }
                 // Celebration guard removed — now uses date-based @AppStorage instead of timer reset
                 guard !towerVM.isLoading else { return }
@@ -1039,7 +1051,8 @@ struct MainAppView: View {
         // No `NavigationStack` here — `MemoriesView` owns its own, because it
         // pushes from four places: an album on the shelf, a curated album, a
         // day in the month tower, and the full grid behind the tail card.
-        MemoriesView(openProfile: { profileOrigin = .memories })
+        StableMemoriesTab(openProfile: { profileOrigin = .memories })
+        .equatable()
         .sheet(isPresented: profileBinding(for: .memories),
                onDismiss: { profileOpensSettings = false }) {
             profileSheet
@@ -1057,13 +1070,11 @@ struct MainAppView: View {
         // No `.ignoresSafeArea()` here. The preview ignores it from the
         // inside; the screen needs real insets so the shutter can be placed
         // above the tab bar and the count below the notch.
-        CameraView(
-            onCaptured: { image, size, place, crop in
-                selectedTab = .tower
-                winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
-            },
-            fillsScreen: true
-        )
+        StableCameraTab(onCaptured: { image, size, place, crop in
+            selectedTab = .tower
+            winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
+        })
+        .equatable()
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
@@ -1209,8 +1220,41 @@ struct MainAppView: View {
 
     // MARK: - Skeleton Build-Up
 
-    private func startSkeletonBuildUp() {
+    /// Puts the placeholder up only if the tower is still loading after
+    /// `skeletonGrace`.
+    ///
+    /// It used to go up at once and stay for at least 300ms, so even a tower
+    /// whose data was ready in 20ms sat behind a placeholder for a third of a
+    /// second: perceived load time had a floor. Now a fast load never shows
+    /// it. A slow one does, and once shown it stays `skeletonHold` so it
+    /// cannot flash for a frame.
+    private func armSkeleton() {
         skeletonBuildTask?.cancel()
+        skeletonShownAt = nil
+        skeletonBuildTask = Task { @MainActor in
+            try? await Task.sleep(for: Self.skeletonGrace)
+            guard !Task.isCancelled, towerVM.isLoading else { return }
+            skeletonShownAt = .now
+            startSkeletonBuildUp()
+        }
+    }
+
+    /// Takes the placeholder down if it went up, after its hold.
+    private func settleSkeleton() async {
+        skeletonBuildTask?.cancel()
+        skeletonBuildTask = nil
+        guard let shownAt = skeletonShownAt else { return }
+        let remaining = Self.skeletonHold - (ContinuousClock.now - shownAt)
+        if remaining > .zero { try? await Task.sleep(for: remaining) }
+        guard !Task.isCancelled else { return }
+        skeletonShownAt = nil
+        stopSkeletonBuildUp()
+    }
+
+    private static let skeletonGrace: Duration = .milliseconds(100)
+    private static let skeletonHold: Duration = .milliseconds(300)
+
+    private func startSkeletonBuildUp() {
         // The placeholder arrives as one object, quietly.
         //
         // It used to pop its eight blocks in one at a time, 50ms apart, each
@@ -1241,18 +1285,13 @@ struct MainAppView: View {
     private func reloadTowerWithAnimation() {
         reloadTask?.cancel()
         towerVM.startLoading()
-        startSkeletonBuildUp()
+        armSkeleton()
         reloadTask = Task {
-            let loadStart = ContinuousClock.now
             guard !Task.isCancelled else { return }
             _ = withAnimation(GridConstants.layoutReflow) {
                 refreshData()
             }
-            let elapsed = ContinuousClock.now - loadStart
-            let remaining = max(.zero, .milliseconds(300) - elapsed)
-            try? await Task.sleep(for: remaining)
-            guard !Task.isCancelled else { return }
-            stopSkeletonBuildUp()
+            await settleSkeleton()
         }
     }
 
@@ -1304,13 +1343,6 @@ struct MainAppView: View {
         return BlockMerge.groups(
             for: towerVM.placedBlocks.filter { !animating.contains($0.id) }
         )
-    }
-
-    private var liveGroupedIDs: Set<UUID> {
-        guard !isRearranging else { return [] }
-        let animating = animCoord.activelyAnimatingIDs
-        guard !animating.isEmpty else { return towerVM.groupedBlockIDs }
-        return Set(liveMergeGroups.flatMap(\.memberIDs))
     }
 
     // MARK: - Wins
@@ -1735,18 +1767,14 @@ struct MainAppView: View {
                 }
             }
         }
-        startSkeletonBuildUp()
+        armSkeleton()
         Task {
-            let loadStart = ContinuousClock.now
             // Migrate existing imageData blobs to file system
             await ImageMigrationRunner.migrateIfNeeded(context: modelContext)
             _ = withAnimation(GridConstants.layoutReflow) {
                 refreshData()
             }
-            let elapsed = ContinuousClock.now - loadStart
-            let remaining = max(.zero, .milliseconds(300) - elapsed)
-            try? await Task.sleep(for: remaining)
-            stopSkeletonBuildUp()
+            await settleSkeleton()
         }
     }
 
@@ -2170,6 +2198,13 @@ struct MainAppView: View {
         // of it and it hangs outside the measured bounds.
         // Nothing under the tower now, so nothing to reserve for it.
         let footerReserve: CGFloat = 0
+        // Once per evaluation. During a drop this is a fresh
+        // `BlockMerge.groups` pass, and the grid needed it twice: for the
+        // shapes here and for their member ids below.
+        let mergeGroupsNow = liveMergeGroups
+        let groupedIDsNow: Set<UUID> = animCoord.activelyAnimatingIDs.isEmpty && !isRearranging
+            ? towerVM.groupedBlockIDs
+            : Set(mergeGroupsNow.flatMap(\.memberIDs))
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
@@ -2205,7 +2240,7 @@ struct MainAppView: View {
                     } else {
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
-                        ForEach(liveMergeGroups) { group in
+                        ForEach(mergeGroupsNow) { group in
                             MergedGroupView(
                                 group: group,
                                 cellSize: colW,
@@ -2216,7 +2251,7 @@ struct MainAppView: View {
 
                         placedBlocksGrid(colW: colW, gridH: gridH,
                                          viewportHeight: viewportHeight, topInset: topInset,
-                                         slotPos: slotPos)
+                                         slotPos: slotPos, groupedIDs: groupedIDsNow)
 
                         // Nothing sits under the tower. The count moved to a
                         // fixed place at the top of the page (`towerTally`) so
@@ -2308,7 +2343,8 @@ struct MainAppView: View {
     @ViewBuilder
     private func placedBlocksGrid(colW: CGFloat, gridH: CGFloat,
                                    viewportHeight: CGFloat, topInset: CGFloat,
-                                   slotPos: (column: Int, row: Int)?) -> some View {
+                                   slotPos: (column: Int, row: Int)?,
+                                   groupedIDs: Set<UUID>) -> some View {
         let visibleBlocks = visibleTowerBlocks(
             colW: colW, gridH: gridH,
             viewportHeight: viewportHeight, topInset: topInset
@@ -2316,7 +2352,7 @@ struct MainAppView: View {
         ZStack(alignment: .topLeading) {
             TowerBlocksForEach(
                 visibleBlocks: visibleBlocks, animCoord: animCoord, towerVM: towerVM,
-                groupedIDs: liveGroupedIDs,
+                groupedIDs: groupedIDs,
                 mergeDestinedIDs: towerVM.groupedBlockIDs,
                 colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
                 collapsedHeaderHeight: collapsedHeaderHeight,
@@ -3075,6 +3111,38 @@ private final class WidgetPublisher {
     var streak = Streaks.Memo()
     /// Lifetime completed count and day key of the last streak fetch.
     var streakInputs: [String] = []
+}
+
+// MARK: - Tab roots that ignore MainAppView's own updates
+
+/// Memories, shielded from the tower's updates.
+///
+/// A closure cannot be compared, so `MemoriesView(openProfile: { ... })` was
+/// a changed input on every `MainAppView` evaluation — every save, every drop
+/// phase — and `MemoriesView.body` ran again each time, on a tab nobody was
+/// looking at. This compares equal always, which is safe because the closure
+/// only writes `MainAppView`'s `@State`, whose storage is the same from one
+/// evaluation to the next. `MemoriesView`'s own state, environment and
+/// observed models still update it.
+private struct StableMemoriesTab: View, Equatable {
+    let openProfile: () -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+
+    var body: some View {
+        MemoriesView(openProfile: openProfile)
+    }
+}
+
+/// The camera, shielded the same way and for the same reason.
+private struct StableCameraTab: View, Equatable {
+    let onCaptured: (UIImage, BlockSize, WinPlace?, CGPoint) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+
+    var body: some View {
+        CameraView(onCaptured: onCaptured, fillsScreen: true)
+    }
 }
 
 // MARK: - Block Flyaway (Today → Tower visual bridge)
