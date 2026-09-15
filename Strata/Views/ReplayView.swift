@@ -74,6 +74,7 @@ struct ReplayView: View {
     @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var cadence = ReplayCadence()
+    @State private var openTiming = ReplayOpenTiming()
     #endif
 
     var body: some View {
@@ -86,8 +87,7 @@ struct ReplayView: View {
         GeometryReader { safe in
             let insets = safe.safeAreaInsets
             GeometryReader { geo in
-                let script = ReplayScript(replay: replay, metrics: .standard(frame: geo.size),
-                                          reduceMotion: reduceMotion)
+                let script = makeScript(size: geo.size)
                 ZStack(alignment: .topTrailing) {
                     if let images {
                         player(script: script, images: images, insets: insets)
@@ -146,6 +146,14 @@ struct ReplayView: View {
                         })
                 .navigationTransition(.zoom(sourceID: "replayBlockPhoto", in: photoTransition))
         }
+    }
+
+    private func makeScript(size: CGSize) -> ReplayScript {
+        #if DEBUG
+        let began = CACurrentMediaTime()
+        defer { openTiming.mark("script", ms: (CACurrentMediaTime() - began) * 1000) }
+        #endif
+        return ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: reduceMotion)
     }
 
     /// The replay's own photographs, in drop order. Sample wins' bundled
@@ -211,6 +219,7 @@ struct ReplayView: View {
                 .overlay(alignment: .topLeading) {
                     if DebugHarness.probesReplay { probe(script: script, t: t) }
                 }
+                .onAppear { openTiming.firstFrame(replay: replay) }
                 #endif
         }
         .contentShape(Rectangle())
@@ -315,6 +324,10 @@ struct ReplayView: View {
         // at whichever cell is bigger in pixels: this screen's, or the
         // card's at the share scale (a 402pt phone at 3x: a 267px cell
         // against the card's 237px; an SE at 2x: 164px, so the card's).
+        #if DEBUG
+        openTiming.mark("prepare")
+        let decodeBegan = CACurrentMediaTime()
+        #endif
         async let loaded = ReplayImages.load(replay, cellPixels: max(cell * displayScale,
                                                                      ReplayCard.cell * ReplayCard.shareScale))
         // While the photographs decode, not on the first landing: starting
@@ -324,6 +337,9 @@ struct ReplayView: View {
         await Task.yield()
         SoundEngine.prepare()
         images = await loaded
+        #if DEBUG
+        openTiming.mark("images", ms: (CACurrentMediaTime() - decodeBegan) * 1000)
+        #endif
         clock.start()
         // In the same turn as the start, so the first frame drawn is the
         // close: with VoiceOver the build is a wait with nothing to hear.
@@ -335,7 +351,13 @@ struct ReplayView: View {
         // card's.
         if let images, shareImage == nil {
             await Task.yield()
+            #if DEBUG
+            let stillBegan = CACurrentMediaTime()
+            #endif
             shareImage = ReplayCard.image(replay, images: images, scale: ReplayCard.shareScale, now: now, isSample: isSample)
+            #if DEBUG
+            openTiming.log(String(format: "[REPLAY-OPEN] share still %.1fms on the main actor", (CACurrentMediaTime() - stillBegan) * 1000))
+            #endif
         }
     }
 
@@ -617,6 +639,50 @@ final class ReplayFeedback {
 }
 
 #if DEBUG
+/// `[REPLAY-OPEN]`: how long a replay takes from presenting to its first
+/// drawn frame, and what that time went on. Printed, and appended to
+/// `Documents/replay-open.log`, which survives the unified log's delays.
+final class ReplayOpenTiming {
+    private let began = CACurrentMediaTime()
+    private var lines: [String] = []
+    private var reported = false
+
+    func mark(_ name: String, ms: Double? = nil) {
+        let at = (CACurrentMediaTime() - began) * 1000
+        lines.append(ms.map { String(format: "%@ %.1fms (at %.0fms)", name, $0, at) } ?? String(format: "%@ at %.0fms", name, at))
+    }
+
+    func firstFrame(replay: Replay) {
+        guard !reported else { return }
+        reported = true
+        // The frame is committed after this pass; the next turn of the main
+        // queue is when it is on screen.
+        DispatchQueue.main.async { [self] in
+            let at = (CACurrentMediaTime() - began) * 1000
+            let photos = Set(replay.blocks.compactMap { $0.win.photo }).count
+            let line = String(format: "[REPLAY-OPEN] %@ wins %d photos %d first frame %.0fms | ", replay.period.id, replay.count, photos, at)
+                + lines.joined(separator: ", ")
+            print(line)
+            ReplayOpenTiming.append(line)
+        }
+    }
+
+    func log(_ line: String) {
+        print(line)
+        Self.append(line)
+    }
+
+    static func append(_ line: String) {
+        let url = URL.documentsDirectory.appending(path: "replay-open.log")
+        let data = Data((line + "\n").utf8)
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile(); h.write(data); try? h.close()
+        } else {
+            try? data.write(to: url)
+        }
+    }
+}
+
 /// How evenly the live replay was drawn, phase by phase: the gap between one
 /// evaluated frame and the next. A recording of the simulator drops frames of
 /// its own, so a film alone cannot say whether the app kept up.
