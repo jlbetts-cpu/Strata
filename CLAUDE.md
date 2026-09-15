@@ -536,6 +536,13 @@ throwaway build. The one thing the simulator CAN answer is whether the new
 gesture layer stole the controls' taps —
 `testGridToggleTurnsOffAndBackOn` is that test.
 
+**On the review, the crop window follows the finger** (2026-09-15, owner:
+"the slider to crop feels the wrong way"). The hairline is the only thing
+that moves there, and the head on the same photo follows the finger too, so
+`BlockCropOutline.dragged` ADDS the translation. `CachedImageView`'s minus is
+right and stays: window right means picture left inside the block.
+`BlockCropTests.theWindowFollowsTheFinger` pins both halves.
+
 The zoom pill is not drawn at 1x. At the lens's own field there is nothing to
 report and nothing to undo. Its height is reserved anyway: a control that
 appears by pushing the shutter down moves the one thing on this screen that
@@ -933,6 +940,40 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
 - `-strataSeedHead` puts the creator's faces in as a made head;
   `-strataHeadOn picture,map` turns placements on for one launch;
   `-strataOpenSheet profile|settings`; `-strataProfileChart day|week|month`.
+- **Tap expressions** (`HeadTake`, 2026-09-15; owner: "there should be a
+  bunch of expressions and they should hold for longer"). Twelve takes:
+  grin, laugh, wink, winkGrin, surprised, doubleTake, eyebrow (the People's
+  Eyebrow), sideEye, sleepy, thinking, nod, shake. Each holds 2.6 to 3.4s
+  (`GridConstants.headTakeHold*`), then eases back. `HeadTakeDeck` never
+  plays the same take twice running and plays every take before any repeats;
+  a new tap cancels the playing take at once (throwing sleeps, and a
+  `generation` every idle beat checks). A head only gets the takes its faces
+  allow (neutral only: sideEye, thinking, nod, shake). Reduce Motion is a
+  face swap only, one take per face. Taps: the review sticker (motion eases
+  back, **the face is kept**, so what is on the review when Use Photo is
+  pressed is what is saved), the maker preview and onboarding head page
+  (`TappableHead`), and `CreatorHead` (its own interpreter of the same
+  catalogue). Photograph them with `-strataHeadTake cycle|<id>`.
+- **Three bugs the takes flushed out of `LivingHeadView`**, each seen in a
+  simulator burst, not in code: (1) the idle loops read `held`, a view
+  property, inside long-running tasks, so they always saw nil and the
+  watchdog took a kept sticker face back to neutral; they read `heldFace`
+  state now. (2) The new face faded in over the old one and the old layer was
+  removed on a 160ms timer; with the main thread late the head vanished for
+  seconds, leaving one iris floating. The old face now fades OUT over the new
+  one, which is opaque underneath from the start. (3) One iris layer over
+  every face outlived the fade and sat on a wink's shut lid; each face layer
+  carries its own irises now.
+- **The neck mask rule** (`HeadFraming.headOutline`, `HeadCaptureEngine.masked`):
+  the ear margin reaches zero HALFWAY from temple to chin (`jawMarginReach`),
+  never at the chin; the jaw points are joined by a Catmull-Rom curve through
+  every point, so the chin does not move; and below the jaw's upper part the
+  mask edge is sharp (sigma side x 0.005, about 3px) instead of the hair's
+  7px, crossfaded over 15 to 45% of temple to chin (`jawEdgeBand`). Measured
+  on 12 faces off device: neck under the jaw corners 13 to 47px before, 0 to
+  11px after; chin 65% opaque before, 92% after. Do not widen the margin down
+  the jaw again. **Heads made before this keep their old cut** (the saved PNGs
+  are already cut and the frames are not kept): remake the head to get it.
 - **A full-screen layer must not be a sibling of the controls.** Given a frame
   the size of the screen inside the safe-area layout, it made the whole stack
   taller than the safe area and pushed the maker's shutter off the bottom.
