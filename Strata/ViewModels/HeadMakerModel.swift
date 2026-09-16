@@ -11,7 +11,7 @@ import UIKit
 final class HeadMakerModel {
     // Hashable, not merely Equatable: `landed` is a set of them and the
     // screen's pip row is a `ForEach` over them.
-    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, wink, making, preview, failed }
+    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, wink, blinkAgain, making, preview, failed }
 
     struct Result {
         let rig: HeadRig
@@ -129,13 +129,13 @@ final class HeadMakerModel {
                 linedUpSince = Date()
                 HapticsEngine.tick()
             }
-        case .blink, .smile, .brows, .surprised, .wink:
+        case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             // The same tick, for the same reason: it landed, and you felt it
             // without having to look away from your own face.
             guard update.phase == Self.phase(for: step) else { return }
             guard update.caught, !caught else { return }
             caught = true
-            landed.insert(step)
+            landed.insert(Self.pip(for: step))
             HapticsEngine.tick()
         default:
             break
@@ -143,8 +143,25 @@ final class HeadMakerModel {
     }
 
     static func phase(for step: Step) -> HeadCaptureEngine.Phase {
-        sequence.first { $0.step == step }?.phase ?? .idle
+        if step == .blinkAgain { return .blinkAgain }
+        return sequence.first { $0.step == step }?.phase ?? .idle
     }
+
+    /// The pip a step fills: asking again for the blink is still the blink.
+    static func pip(for step: Step) -> Step {
+        step == .blinkAgain ? .blink : step
+    }
+
+    /// **One more blink, only when the first was missed** (owner,
+    /// 2026-09-16). A head without a real blink can never blink, and a head
+    /// that never blinks is the one thing the creator's head never is. Asked
+    /// once, at the end, when everything else is already in hand; if it is
+    /// missed again the head is made without one, as before.
+    static func asksBlinkAgain(blinkCaught: Bool) -> Bool { !blinkCaught }
+
+    /// A quick blink lands in well under a second once it is understood; this
+    /// leaves room to read four words and try twice.
+    static let blinkAgainWindow: Duration = .milliseconds(2600)
 
     /// Whether the face is where the outline asks for it.
     var isLinedUp: Bool { step == .lining && hint == nil }
@@ -205,6 +222,14 @@ final class HeadMakerModel {
                 if stage.step != .blink { HapticsEngine.tick() }
                 await watch(for: stage.window,
                             atLeast: stage.step == .blink ? Self.leastBlink : .zero)
+                guard !Task.isCancelled else { return }
+            }
+            if Self.asksBlinkAgain(blinkCaught: engine.caught(.shut)) {
+                caught = false
+                step = .blinkAgain
+                engine.begin(.blinkAgain)
+                HapticsEngine.tick()
+                await watch(for: Self.blinkAgainWindow, atLeast: .zero)
                 guard !Task.isCancelled else { return }
             }
             await make()
@@ -306,7 +331,9 @@ final class HeadMakerModel {
             if let shut, let shutCrop {
                 shutPNG = HeadCaptureEngine.cutOut(shut, crop: shutCrop, side: side, chin: chin, paintsEyes: false)?.png
             }
-            return HeadStore.Payload(faces: faces, shut: shutPNG)
+            // The creator's kind of face from these captures: shut eyes on
+            // every face that can blink, brows that change only the brows.
+            return HeadStore.Payload(faces: faces, shut: shutPNG).derived()
         }.value
 
         guard !Task.isCancelled else { return }
@@ -364,6 +391,9 @@ final class HeadMakerModel {
         case "surprised":
             step = .surprised
             landed = [.blink, .smile, .brows]
+        case "blinkagain":
+            step = .blinkAgain
+            landed = [.smile, .brows, .surprised, .wink]
         case "wink":
             step = .wink
             landed = [.blink, .smile, .brows, .surprised]
