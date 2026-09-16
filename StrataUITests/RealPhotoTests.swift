@@ -61,7 +61,7 @@ final class RealPhotoTests: XCTestCase {
 
         well(app).tap()
         Thread.sleep(forTimeInterval: 2)
-        let library = app.buttons["Choose from library"]
+        let library = app.buttons["Choose from Library"]
         XCTAssertTrue(library.waitForExistence(timeout: 10),
                       "no library option. On screen: \(app.debugDescription)")
         library.tap()

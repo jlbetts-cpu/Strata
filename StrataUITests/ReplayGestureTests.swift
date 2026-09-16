@@ -434,12 +434,15 @@ final class ReplayGestureTests: XCTestCase {
         let menuRemove = app.buttons["Remove Photo"].firstMatch
         XCTAssertTrue(menuRemove.waitForExistence(timeout: 5), "no Remove Photo in the viewer's menu")
         menuRemove.tap()
-        Thread.sleep(forTimeInterval: 1.0)
+        // Wait for the dialog itself, not a fixed second: under load the menu's
+        // own "Remove Photo" can still be the last match when the tap lands.
+        XCTAssertTrue(app.staticTexts["Remove this photo?"].waitForExistence(timeout: 5),
+                      "no confirmation for Remove Photo")
         let confirm = app.buttons.matching(identifier: "Remove Photo").allElementsBoundByIndex.last
         XCTAssertNotNil(confirm, "no confirmation for Remove Photo")
         confirm?.tap()
-        Thread.sleep(forTimeInterval: 2.0)
-        XCTAssertFalse(viewerClose.exists, "removing the photograph did not close the viewer")
+        XCTAssertTrue(viewerClose.waitForNonExistence(timeout: 10),
+                      "removing the photograph did not close the viewer")
         XCTAssertTrue(probe(app).exists, "removing the photograph closed the replay")
         keep(app, "after-photo-removed")
 
