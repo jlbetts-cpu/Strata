@@ -451,6 +451,17 @@ enum DebugHarness {
     /// True when the run asked for the migration report.
     static var reportsMigration: Bool { argument("-strataReportMigration") != nil }
 
+    /// Logs every save `StoreStamp` sees, and what it stamped, from
+    /// `-strataCountSaves`.
+    ///
+    /// **So "it does not keep saving" is a number.** A stamp that left the
+    /// row dirty would make autosave write again, stamp again, forever; that
+    /// shows up here as a line every few seconds on an app nobody is touching.
+    /// It also answers the audit question: a launch that stamps anything
+    /// before a person has edited something is a launch that moves
+    /// `updatedAt` on its own.
+    static var countsSaves: Bool { argument("-strataCountSaves") != nil }
+
     /// Times the image pipeline, from `-strataBenchImages <n>`.
     ///
     /// **Because "photos load a bit slow" is a feeling until it is a number.**

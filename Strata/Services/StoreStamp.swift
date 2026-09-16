@@ -38,15 +38,28 @@ enum StoreStamp {
 
     static func stamp(_ context: ModelContext, now: Date = Date()) {
         guard suppressed == 0 else { return }
+        var stamped: [String] = []
         for model in context.changedModelsArray {
             switch model {
-            case let log as HabitLog: log.updatedAt = now
-            case let habit as Habit: habit.updatedAt = now
-            case let tower as Tower: tower.updatedAt = now
+            case let log as HabitLog: log.updatedAt = now; stamped.append("HabitLog")
+            case let habit as Habit: habit.updatedAt = now; stamped.append("Habit")
+            case let tower as Tower: tower.updatedAt = now; stamped.append("Tower")
             default: break
             }
         }
+        #if DEBUG
+        saves += 1
+        if DebugHarness.countsSaves {
+            let summary = Dictionary(grouping: stamped, by: { $0 }).map { "\($0.key)=\($0.value.count)" }.sorted()
+            NSLog("[strata-saves] save #\(saves) stamped: \(summary.isEmpty ? "nothing" : summary.joined(separator: " "))")
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Every stamped save this launch, for `-strataCountSaves`.
+    private(set) static var saves = 0
+    #endif
 
     static func withoutStamping<T>(_ body: () throws -> T) rethrows -> T {
         suppressed += 1
@@ -61,8 +74,17 @@ enum StoreStamp {
 /// A defaulted `Date` column is filled with the moment of migration for every
 /// existing row, which would say four years of wins were all logged and edited
 /// this morning. The truest thing available is when each win happened.
-/// `timeZoneIdentifier` is left empty on those rows: the zone they were logged
-/// in was never recorded, and a guess would be a fabrication.
+///
+/// **Only rows that predate the fields are touched, decided per row.** A win
+/// logged by this build always has a `timeZoneIdentifier` (`HabitLog.init`
+/// sets it), and a win from before never does, so an empty zone is the marker.
+/// It was every row: if the backfill failed on its first launch and somebody
+/// back-dated a win before the next one, that win's real `createdAt` would have
+/// been replaced by its `completedAt`. The zone stays empty on old rows; it was
+/// never recorded, and a guess would be a fabrication.
+///
+/// A habit is backfilled only when all of its wins are old ones, and a tower
+/// only when none of its habits has a new win, by the same marker.
 enum SocialFieldsBackfill {
     static let doneKey = "socialFieldsBackfilled"
 
@@ -72,25 +94,36 @@ enum SocialFieldsBackfill {
                             defaults: UserDefaults = .standard) -> Int? {
         guard !defaults.bool(forKey: doneKey) else { return nil }
         do {
-            let logs = try context.fetch(FetchDescriptor<HabitLog>())
+            let old = try context.fetch(FetchDescriptor<HabitLog>(
+                predicate: #Predicate { $0.timeZoneIdentifier == "" }))
             let habits = try context.fetch(FetchDescriptor<Habit>())
             let towers = try context.fetch(FetchDescriptor<Tower>())
+
+            func isOld(_ habit: Habit) -> Bool {
+                let logs = habit.logs ?? []
+                return !logs.isEmpty && logs.allSatisfy { $0.timeZoneIdentifier.isEmpty }
+            }
+
             try StoreStamp.withoutStamping {
                 try context.transaction {
-                    for log in logs {
+                    for log in old {
                         let happened = log.completedAt ?? log.habit?.createdAt ?? log.createdAt
                         log.createdAt = happened
                         log.updatedAt = happened
                     }
-                    for habit in habits {
+                    for habit in habits where isOld(habit) {
                         let latest = (habit.logs ?? []).compactMap(\.completedAt).max()
                         habit.updatedAt = max(habit.createdAt, latest ?? habit.createdAt)
                     }
-                    for tower in towers { tower.updatedAt = tower.createdAt }
+                    for tower in towers {
+                        let mine = habits.filter { $0.tower?.id == tower.id }
+                        let anyNew = mine.contains { ($0.logs ?? []).contains { !$0.timeZoneIdentifier.isEmpty } }
+                        if !anyNew { tower.updatedAt = tower.createdAt }
+                    }
                 }
             }
             defaults.set(true, forKey: doneKey)
-            return logs.count
+            return old.count
         } catch {
             NSLog("[strata-backfill] did not run, will try next launch: \(error)")
             return nil

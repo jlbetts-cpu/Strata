@@ -367,6 +367,8 @@ struct MainAppView: View {
     @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var winSaveFailed = false
+    /// Reset All Data did not commit. Nothing was deleted.
+    @State private var resetFailed = false
     /// Which tab's header opened Profile, if any. See `profileBinding(for:)`.
     @State private var profileOrigin: StrataTab?
     /// `-strataOpenSheet settings`: open Profile and push on to Settings.
@@ -469,6 +471,11 @@ struct MainAppView: View {
                     do { try await Task.sleep(for: .seconds(max(edge.timeIntervalSinceNow, 0.01))) } catch { return }
                 }
                 updateLiveReplay()
+            }
+            .alert("Nothing was deleted", isPresented: $resetFailed) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Strata could not reset your data, so every win and photo is still here. Try again.")
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
@@ -1524,7 +1531,10 @@ struct MainAppView: View {
         NavigationStack {
             ProfileView(
                 onResetAllData: {
-                    resetTower()
+                    // Profile and head only if the record really went: a reset
+                    // that deleted your face and kept your wins would be the
+                    // original bug the other way round.
+                    guard resetTower() else { return }
                     // The policy says Reset All Data removes every photo; a
                     // profile photo is one, and a head is made of them.
                     ProfileStore.shared.reset()
@@ -3127,7 +3137,10 @@ struct MainAppView: View {
     #endif
 
 
-    private func resetTower() {
+    /// - Returns: whether the record was actually emptied. When it was not,
+    ///   nothing after the delete runs and the person is told.
+    @discardableResult
+    private func resetTower() -> Bool {
         // 1. Read the photograph names while there is still a record to read
         //    them from. Read, NOT removed: the files go in step 3, after the
         //    rows have committed. This used to delete the files first, which
@@ -3138,7 +3151,8 @@ struct MainAppView: View {
             photoNames = try StoreReset.photographNames(context: modelContext)
         } catch {
             NSLog("[strata-reset] could not read the record, so the reset did not run: \(error)")
-            return
+            resetFailed = true
+            return false
         }
 
         // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME, in one
@@ -3152,6 +3166,17 @@ struct MainAppView: View {
         // reset and the seed need the same one and a second copy is a second
         // place for a batch delete to come back.
         let remaining = StoreReset.deleteEverything(context: modelContext)
+
+        // **Stop here if it did not commit.** The transaction rolled back, so
+        // every win and every photograph is still there, and carrying on would
+        // clear the tower selection, make a fresh default tower beside the old
+        // ones and redraw, which is an app that looks reset over a record that
+        // is not. Say so instead.
+        guard remaining.failure == nil else {
+            NSLog("[strata-reset] stopped: \(remaining.line)")
+            resetFailed = true
+            return false
+        }
 
         // 3. Only now the files, and only the ones no surviving win names.
         let removedPhotos = StoreReset.removePhotographs(photoNames, context: modelContext)
@@ -3198,6 +3223,7 @@ struct MainAppView: View {
         // re-decided now rather than when the query next catches up.
         Task { await ReplayReminder.removePending() }
         updateLiveReplay()
+        return true
     }
 
 }

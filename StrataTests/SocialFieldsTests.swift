@@ -48,6 +48,52 @@ struct SocialFieldsTests {
 
         #expect(log.updatedAt > old)
         #expect((log.habit?.updatedAt ?? old) > old)
+        // The stamp must be part of the save, not a change left pending after
+        // it. Pending, autosave would save again, stamp again, forever, and
+        // `updatedAt` would record the last autosave rather than the edit.
+        #expect(context.hasChanges == false)
+    }
+
+    /// **Proved from disk, not from the object in memory.** A stamp written
+    /// during `willSave` could sit on the object and never reach the store; a
+    /// second container over the same file is the only reader that cannot be
+    /// fooled by that.
+    @Test("the stamped updatedAt is what a second container reads off disk")
+    func stampReachesDisk() throws {
+        StoreStamp.observe()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stamp-\(UUID().uuidString).store")
+        defer {
+            for suffix in ["", "-shm", "-wal"] { try? FileManager.default.removeItem(atPath: url.path + suffix) }
+        }
+        func open() throws -> ModelContainer {
+            try ModelContainer(for: SharedModelContainer.schema,
+                               configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url))
+        }
+        let old = Date(timeIntervalSinceReferenceDate: 600_000_000)
+        var logID = UUID()
+        var stamped = old
+        do {
+            let context = ModelContext(try open())
+            let log = try win(context)
+            logID = log.id
+            try StoreStamp.withoutStamping {
+                log.updatedAt = old
+                try context.save()
+            }
+            log.caption = "edited"
+            try context.save()
+            stamped = log.updatedAt
+            #expect(stamped > old)
+            #expect(context.hasChanges == false)
+        }
+
+        let reader = ModelContext(try open())
+        let id = logID
+        let onDisk = try #require(try reader.fetch(FetchDescriptor<HabitLog>(
+            predicate: #Predicate { $0.id == id })).first)
+        #expect(onDisk.caption == "edited")
+        #expect(onDisk.updatedAt == stamped)
     }
 
     /// A stamp that marked the row dirty again would make every autosave
@@ -88,6 +134,115 @@ struct SocialFieldsTests {
         // The zone of an old win was never recorded; a guess would be made up.
         #expect(log.timeZoneIdentifier.isEmpty)
         #expect(SocialFieldsBackfill.runIfNeeded(context: context, defaults: defaults) == nil)
+    }
+
+    /// A file-backed store with one old win (no zone, as every win before
+    /// this change has) and returns its url.
+    private func storeWithAnOldWin(happened: Date) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("added-\(UUID().uuidString).store")
+        let context = ModelContext(try ModelContainer(
+            for: SharedModelContainer.schema,
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url)))
+        let tower = Tower(name: "Home")
+        context.insert(tower)
+        let habit = Habit(title: "Ran", category: .health)
+        habit.tower = tower
+        context.insert(habit)
+        let log = HabitLog(habit: habit, dateString: "2025-01-01", completed: true)
+        context.insert(log)
+        try StoreStamp.withoutStamping {
+            try context.save()
+            // What a migrated row looks like: no zone, and dates that are the
+            // moment of migration rather than anything true.
+            log.timeZoneIdentifier = ""
+            log.completedAt = happened
+            habit.createdAt = happened
+            tower.createdAt = happened
+            try context.save()
+        }
+        return url
+    }
+
+    private func remove(_ url: URL) {
+        for suffix in ["", "-shm", "-wal"] { try? FileManager.default.removeItem(atPath: url.path + suffix) }
+    }
+
+    private func open(_ url: URL) throws -> ModelContext {
+        ModelContext(try ModelContainer(
+            for: SharedModelContainer.schema,
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url)))
+    }
+
+    @Test("the added fields read back off disk identically, and hold backfilled dates, not launch time")
+    func addedFieldsSurviveAReopen() throws {
+        StoreStamp.observe()
+        let happened = Date(timeIntervalSinceReferenceDate: 650_000_000)
+        let url = try storeWithAnOldWin(happened: happened)
+        defer { remove(url) }
+        let defaults = try #require(UserDefaults(suiteName: "added-\(UUID().uuidString)"))
+
+        let written: StoreAddedFieldsCheck.Reading
+        do {
+            let context = try open(url)
+            #expect(SocialFieldsBackfill.runIfNeeded(context: context, defaults: defaults) == 1)
+            written = StoreAddedFieldsCheck.read(context: context)
+        }
+
+        let reader = try open(url)
+        let reread = StoreAddedFieldsCheck.read(context: reader)
+        #expect(written.isComplete && reread.isComplete)
+        #expect(reread == written)
+        #expect(reread.createdFromCompleted == 1)
+        #expect(reread.zoned == 0)
+
+        // From disk: the habit and tower carry the backfilled dates. Launch
+        // time would be years after `happened`.
+        let habit = try #require(try reader.fetch(FetchDescriptor<Habit>()).first)
+        let tower = try #require(try reader.fetch(FetchDescriptor<Tower>()).first)
+        #expect(habit.updatedAt == happened)
+        #expect(tower.updatedAt == happened)
+    }
+
+    @Test("the added-fields digest notices one changed value")
+    func addedDigestCanFail() throws {
+        StoreStamp.observe()
+        let url = try storeWithAnOldWin(happened: Date(timeIntervalSinceReferenceDate: 650_000_000))
+        defer { remove(url) }
+        let context = try open(url)
+        let before = StoreAddedFieldsCheck.read(context: context)
+        let log = try #require(try context.fetch(FetchDescriptor<HabitLog>()).first)
+        try StoreStamp.withoutStamping {
+            log.timeZoneIdentifier = "Europe/London"
+            try context.save()
+        }
+        #expect(StoreAddedFieldsCheck.read(context: context).digest != before.digest)
+    }
+
+    /// The backfill used to rewrite every log. If its first run failed and a
+    /// back-dated win was logged before the next launch, that win's real
+    /// `createdAt` would have been replaced.
+    @Test("the backfill never touches a win logged by this build")
+    func backfillLeavesNewWinsAlone() throws {
+        let context = try context()
+        let log = try win(context)
+        let logged = log.createdAt
+        try StoreStamp.withoutStamping {
+            log.completedAt = Date(timeIntervalSinceReferenceDate: 500_000_000)
+            try context.save()
+        }
+        let defaults = try #require(UserDefaults(suiteName: "new-win-\(UUID().uuidString)"))
+        #expect(SocialFieldsBackfill.runIfNeeded(context: context, defaults: defaults) == 0)
+        #expect(log.createdAt == logged)
+    }
+
+    @Test("reading the profile id for a report never creates one")
+    func storedProfileIDDoesNotWrite() {
+        let before = UserDefaults.standard.string(forKey: ProfileStore.profileIDKey)
+        UserDefaults.standard.removeObject(forKey: ProfileStore.profileIDKey)
+        defer { UserDefaults.standard.set(before, forKey: ProfileStore.profileIDKey) }
+        #expect(ProfileStore.storedProfileID == nil)
+        #expect(UserDefaults.standard.string(forKey: ProfileStore.profileIDKey) == nil)
     }
 
     @Test("the stored schedule default is the initialiser's: every day")
@@ -147,9 +302,19 @@ struct CloudKitValidatorProbe {
         }
     }
 
-    @Test("probe: a schema that breaks the rule")
-    func breaker() { NSLog("[ck-probe] breaker -> \(open(Schema([CloudKitRuleBreaker.self])))") }
+    /// Must be refused. If this opens, the validator is not running in this
+    /// environment and the app schema passing below proves nothing.
+    @Test("probe: a schema that breaks the rule is refused")
+    func breaker() {
+        let result = open(Schema([CloudKitRuleBreaker.self]))
+        NSLog("[ck-probe] breaker -> \(result)")
+        #expect(result.hasPrefix("THREW"))
+    }
 
-    @Test("probe: the app's schema")
-    func app() { NSLog("[ck-probe] app -> \(open(SharedModelContainer.schema))") }
+    @Test("probe: the app's schema passes the validator")
+    func app() {
+        let result = open(SharedModelContainer.schema)
+        NSLog("[ck-probe] app -> \(result)")
+        #expect(result == "OPENED")
+    }
 }

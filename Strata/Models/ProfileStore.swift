@@ -32,15 +32,26 @@ final class ProfileStore {
     ///
     /// In UserDefaults because there is no identity model yet. Not cleared by
     /// `reset()`: Reset All Data empties the record, not who you are.
+    ///
+    /// The first read creates it, under a lock, so two first readers cannot
+    /// each make a different one and the second overwrite the first.
+    /// Something that only wants to LOOK (a report, a probe) reads
+    /// `storedProfileID`, which never writes.
     nonisolated static var profileID: UUID {
-        let key = "profileID"
-        if let raw = UserDefaults.standard.string(forKey: key), let id = UUID(uuidString: raw) {
-            return id
-        }
+        profileIDLock.lock(); defer { profileIDLock.unlock() }
+        if let id = storedProfileID { return id }
         let id = UUID()
-        UserDefaults.standard.set(id.uuidString, forKey: key)
+        UserDefaults.standard.set(id.uuidString, forKey: profileIDKey)
         return id
     }
+
+    /// The id if one has been made, without making one.
+    nonisolated static var storedProfileID: UUID? {
+        UserDefaults.standard.string(forKey: profileIDKey).flatMap(UUID.init(uuidString:))
+    }
+
+    nonisolated static let profileIDKey = "profileID"
+    nonisolated private static let profileIDLock = NSLock()
 
     private static let nameKey = "profileName"
     private static let backgroundKey = "profileBackground"

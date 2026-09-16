@@ -56,7 +56,9 @@ enum StoreAddedFieldsCheck {
         let lines = logs.map { [$0.id.uuidString, stamp($0.createdAt), stamp($0.updatedAt), $0.timeZoneIdentifier].joined(separator: "|") }
             + habits.map { [$0.id.uuidString, stamp($0.updatedAt)].joined(separator: "|") }
             + towers.map { [$0.id.uuidString, stamp($0.updatedAt)].joined(separator: "|") }
-            + ["profileID|" + ProfileStore.profileID.uuidString]
+            // `storedProfileID`, never `profileID`: that getter makes one if
+            // there is none, and a report must not write.
+            + ["profileID|" + (ProfileStore.storedProfileID?.uuidString ?? "none")]
         reading.body = lines.joined(separator: "\n")
         return reading
     }
