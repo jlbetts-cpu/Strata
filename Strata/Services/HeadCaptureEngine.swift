@@ -417,9 +417,11 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         var finished = head
         if !take.contour.isEmpty, let eyes = take.eyeCentres {
             let span = hypot(eyes.1.x - eyes.0.x, eyes.1.y - eyes.0.y) * scale
-            let outline = HeadFraming.headOutline(contour: take.contour.map(toCanvas),
-                                                  canvas: side, margin: span * 0.5)
-            finished = Self.masked(head, to: outline, side: side) ?? head
+            let jaw = take.contour.map(toCanvas)
+            let outline = HeadFraming.headOutline(contour: jaw, canvas: side, margin: span * 0.5)
+            let band = HeadFraming.sharpEdgeBand(contour: jaw)
+            finished = Self.masked(head, to: outline, side: side,
+                                   sharpFrom: band.lowerBound, sharpBy: band.upperBound) ?? head
         }
         guard let png = finished.pngData() else { return nil }
 
@@ -432,8 +434,11 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         return Made(png: png, eyes: eyes.count == 2 ? eyes.sorted { $0.x < $1.x } : [])
     }
 
-    /// `image` with everything outside `outline` taken away, softly.
-    private static func masked(_ image: UIImage, to outline: [CGPoint], side: CGFloat) -> UIImage? {
+    /// `image` with everything outside `outline` taken away: a soft edge
+    /// above canvas height `sharpFrom` (hair, ears), a sharp one below
+    /// `sharpBy` (the jaw), crossfaded between.
+    static func masked(_ image: UIImage, to outline: [CGPoint], side: CGFloat,
+                       sharpFrom: CGFloat, sharpBy: CGFloat) -> UIImage? {
         guard outline.count >= 3, let source = image.cgImage,
               let context = CGContext(data: nil, width: Int(side), height: Int(side), bitsPerComponent: 8,
                                       bytesPerRow: Int(side), space: CGColorSpaceCreateDeviceGray(),
@@ -447,11 +452,22 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         context.addLines(between: outline)
         context.closePath()
         context.fillPath()
-        guard let shape = context.makeImage() else { return nil }
+        guard let drawn = context.makeImage() else { return nil }
         let bounds = CGRect(x: 0, y: 0, width: side, height: side)
-        let mask = CIImage(cgImage: shape).clampedToExtent()
-            .applyingGaussianBlur(sigma: Double(side) * 0.012)
-            .cropped(to: bounds)
+        let shape = CIImage(cgImage: drawn).clampedToExtent()
+        let soft = shape.applyingGaussianBlur(sigma: Double(side * HeadFraming.headEdgeSigma)).cropped(to: bounds)
+        let sharp = shape.applyingGaussianBlur(sigma: Double(side * HeadFraming.jawEdgeSigma)).cropped(to: bounds)
+        // Core Image is bottom-left: canvas y becomes side - y. Soft above
+        // sharpFrom, sharp below sharpBy.
+        let ramp = CIFilter(name: "CILinearGradient", parameters: [
+            "inputPoint0": CIVector(x: 0, y: side - sharpFrom), "inputColor0": CIColor.black,
+            "inputPoint1": CIVector(x: 0, y: side - sharpBy), "inputColor1": CIColor.white
+        ])?.outputImage?.cropped(to: bounds)
+        let mask = ramp.map {
+            sharp.applyingFilter("CIBlendWithMask", parameters: [
+                kCIInputBackgroundImageKey: soft, kCIInputMaskImageKey: $0
+            ]).cropped(to: bounds)
+        } ?? soft
         let blended = CIImage(cgImage: source).applyingFilter("CIBlendWithMask", parameters: [
             kCIInputBackgroundImageKey: CIImage(color: .clear).cropped(to: bounds),
             kCIInputMaskImageKey: mask

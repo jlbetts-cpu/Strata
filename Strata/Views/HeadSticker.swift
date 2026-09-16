@@ -24,8 +24,14 @@ struct StickerPlacement: Equatable {
     var width: CGFloat = 0.3
     var angle: Angle = .zero
     /// The face it is wearing. Tap the head to change it; what is on the
-    /// review is what is drawn into the photograph.
+    /// review is what is drawn into the photograph. Set to the face the
+    /// tapped take ends on, which the sticker keeps.
     var expression: HeadRig.Expression = .neutral
+    /// The tap's expression playing on it (`HeadTake`).
+    var take: HeadTake.Played? = nil
+    /// Where the take left the eyes looking, if it did. What the photograph
+    /// draws, so it matches the review. See `HeadTake.stillGaze`.
+    var gaze: CGPoint? = nil
 
     static let widthRange: ClosedRange<CGFloat> = 0.1...0.8
     /// Close enough to upright to mean upright.
@@ -51,7 +57,8 @@ enum HeadSticker {
         let side = placement.width * size.width
         let canvas = side / rig.contentHeight
         let renderer = ImageRenderer(content: HeadStill(rig: rig, side: side,
-                                                        expression: placement.expression))
+                                                        expression: placement.expression,
+                                                        gaze: placement.gaze ?? HeadStill.restingGaze))
         renderer.scale = photo.scale
         guard let head = renderer.uiImage else { return photo }
         let format = UIGraphicsImageRendererFormat()
@@ -96,10 +103,16 @@ struct HeadStickerOverlay: View {
 
     private struct DragBase { var centre: CGPoint; var translation: CGSize }
     @State private var dragBase: DragBase?
+    /// A finger is on the HEAD. The crop's drag is a gesture on the layer
+    /// underneath and sees the same finger, so without this one drag moved the
+    /// head and the block's window at once.
+    @State private var movingHead = false
     @State private var widthBase: CGFloat?
     @State private var angleBase: Angle?
     @State private var cropBase: CGPoint?
     @State private var isHeld = false
+    @State private var deck = HeadTakeDeck()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A head can be drawn smaller than a finger. Its target never is.
     private static let minimumTarget: CGFloat = 88
@@ -119,7 +132,8 @@ struct HeadStickerOverlay: View {
                     // Calm: it blinks and glances while you place it, and
                     // holds still in the picture.
                     LivingHeadView(rig: rig, side: side, liveliness: .calm,
-                                   held: current.expression == .neutral ? nil : current.expression)
+                                   held: current.expression == .neutral ? nil : current.expression,
+                                   take: current.take, keepsTake: true)
                         .frame(width: canvas, height: canvas)
                         .filmLook(look)
                         .rotationEffect(current.angle)
@@ -133,8 +147,8 @@ struct HeadStickerOverlay: View {
                                   y: current.centre.y * size.height)
                         .accessibilityElement()
                         .accessibilityLabel("Your head on the photo")
-                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it. Tap for another face.")
-                        .accessibilityAction(named: "Another face") { changeFace() }
+                        .accessibilityHint("Drag to move it. Pinch or turn with two fingers to change it. Tap for an expression.")
+                        .accessibilityAction(named: "Another expression") { changeFace() }
                         .accessibilityAction(named: "Make it bigger") { resize(by: 1.2) }
                         .accessibilityAction(named: "Make it smaller") { resize(by: 1 / 1.2) }
                 }
@@ -144,6 +158,9 @@ struct HeadStickerOverlay: View {
             .simultaneousGesture(moveCrop(in: size))
         }
         .coordinateSpace(.named(Self.space))
+        #if DEBUG
+        .task(id: placement == nil) { await debugTakes() }
+        #endif
     }
 
     /// One finger on the head. Measured in the photo's space, not the head's:
@@ -155,6 +172,7 @@ struct HeadStickerOverlay: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
             .onChanged { value in
                 guard let current = placement else { return }
+                movingHead = true
                 if !isHeld { withAnimation(GridConstants.motionSnappy) { isHeld = true } }
                 guard widthBase == nil, angleBase == nil else {
                     dragBase = nil
@@ -168,23 +186,27 @@ struct HeadStickerOverlay: View {
             }
             .onEnded { _ in
                 dragBase = nil
+                movingHead = false
                 withAnimation(GridConstants.motionSnappy) { isHeld = false }
             }
     }
 
     /// **Dragging the picture moves the block's window over it** (the owner:
     /// "you should be able to move the crop on the photo using a basic
-    /// moving"). Clamped so the window can never leave the photograph, which
-    /// is the one thing that would produce an empty edge on a block.
+    /// moving"), and **the window follows the finger**: the hairline is the
+    /// only thing that moves on the review, and the head on the same photo
+    /// follows the finger too. It used to run against it ("the slider to crop
+    /// feels the wrong way"). Clamped so the window can never leave the
+    /// photograph, which is the one thing that would produce an empty edge on
+    /// a block. See `BlockCropOutline.dragged`.
     private func moveCrop(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.space))
             .onChanged { value in
-                guard cropRange != .zero, widthBase == nil, angleBase == nil else { return }
+                guard cropRange != .zero, widthBase == nil, angleBase == nil, !movingHead else { return }
                 let base = cropBase ?? crop
                 if cropBase == nil { cropBase = base }
-                crop = CGPoint(
-                    x: min(max(base.x - value.translation.width / max(size.width, 1), -cropRange.width), cropRange.width),
-                    y: min(max(base.y - value.translation.height / max(size.height, 1), -cropRange.height), cropRange.height))
+                crop = BlockCropOutline.dragged(from: base, translation: value.translation,
+                                                in: size, range: cropRange)
             }
             .onEnded { _ in cropBase = nil }
     }
@@ -211,19 +233,62 @@ struct HeadStickerOverlay: View {
             .onEnded { _ in
                 widthBase = nil
                 angleBase = nil
+                // The head's own drag has one exit, and a pinch takes the
+                // fingers off it without one: clear the flag here too, or the
+                // crop stays dead for the rest of the review.
+                movingHead = false
             }
     }
 
-    /// **Tap it and it pulls another face.** The owner: "when you click it it
-    /// does a random expression." It keeps the face rather than flashing it,
-    /// so the head you are looking at is the head that gets drawn into the
-    /// picture, and tapping again is how you get a different one.
+    /// **Tap it and it plays an expression** (`HeadTake`): one of twelve,
+    /// never the same one twice running, held about three seconds, and a new
+    /// tap switches at once. The owner: "when you click it it does a random
+    /// expression", then "there should be a bunch of expressions and they
+    /// should hold for longer." The motion eases back when the hold ends; the
+    /// FACE is kept, so the head you are looking at when you press Use Photo
+    /// is the head that gets drawn into the picture.
     private func changeFace() {
-        guard let rig, let current = placement,
-              let next = rig.anotherFace(than: current.expression) else { return }
+        guard let rig else { return }
+        let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil,
+                                           reduceMotion: reduceMotion)
+        guard let next = deck.next(from: available) else { return }
         HapticsEngine.tick()
-        placement?.expression = next
+        play(next, direction: Bool.random() ? 1 : -1, on: rig)
     }
+
+    private func play(_ next: HeadTake, direction: Double, on rig: HeadRig) {
+        guard let current = placement else { return }
+        placement?.expression = reduceMotion
+            ? (rig.has(next.face) ? next.face : .neutral)
+            : next.endFace(has: rig.has)
+        placement?.take = HeadTake.Played(id: next.id, direction: direction,
+                                          nonce: (current.take?.nonce ?? 0) + 1)
+        // The head keeps the take's look, so the photograph shows the same
+        // eyes as the review. Reduce Motion changes the face and nothing else.
+        placement?.gaze = reduceMotion ? nil : next.stillGaze(direction: direction)
+    }
+
+    #if DEBUG
+    /// `-strataHeadTake`: taps the sticker on its own, through the same path
+    /// as a finger, so every take on a photo can be photographed.
+    private func debugTakes() async {
+        guard let wanted = DebugHarness.headTake, let rig, placement != nil else { return }
+        try? await Task.sleep(for: .seconds(4))
+        var turn = 0
+        while !Task.isCancelled {
+            let pool = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
+            let list = wanted == "cycle" ? pool : pool.filter { $0.id.rawValue.lowercased() == wanted }
+            guard !list.isEmpty else { return }
+            for next in list {
+                turn += 1
+                NSLog("[strata-head] take \(next.id.rawValue) hold \(next.hold) (sticker)")
+                play(next, direction: turn % 2 == 0 ? -1 : 1, on: rig)
+                try? await Task.sleep(for: .seconds(next.hold + 1.2))
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+    #endif
 
     private func resize(by factor: CGFloat) {
         guard let current = placement else { return }
@@ -306,6 +371,17 @@ struct BlockCropOutline: View {
     /// fractions of the photo.
     static func range(for crop: CGRect) -> CGSize {
         CGSize(width: max(0, (1 - crop.width) / 2), height: max(0, (1 - crop.height) / 2))
+    }
+
+    /// Where a dragged window lands, in fractions of the photo away from the
+    /// middle. It follows the finger (finger right, window right), clamped to
+    /// the picture. The block then shows exactly what the window framed:
+    /// `CachedImageView` offsets the picture by minus this, which is correct
+    /// there, because a window moved right means the picture moves left
+    /// inside the block.
+    static func dragged(from base: CGPoint, translation: CGSize, in size: CGSize, range: CGSize) -> CGPoint {
+        CGPoint(x: min(max(base.x + translation.width / max(size.width, 1), -range.width), range.width),
+                y: min(max(base.y + translation.height / max(size.height, 1), -range.height), range.height))
     }
 
     static func crop(photo: CGSize, block size: BlockSize) -> CGRect {

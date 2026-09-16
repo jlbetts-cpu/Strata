@@ -236,6 +236,23 @@ nonisolated enum HeadFraming {
     /// half as much again above it.
     static let headOverFace: CGFloat = 1.5
 
+    /// How far down the jaw the ear margin reaches, as a share of temple to
+    /// chin. Past the jaw's midpoint the margin only lowers the edge under the
+    /// jaw corner (the jaw slopes there), which is exactly where a band of
+    /// neck was left: "the neck is still showing a little in the head".
+    static let jawMarginReach: CGFloat = 0.5
+    /// The mask's edge, as a share of the canvas side: soft for hair, sharp
+    /// for the jaw. At the soft one alone about 15px of neck coloured smear
+    /// survived under the jaw and the chin itself was only 65% opaque.
+    static let headEdgeSigma: CGFloat = 0.012
+    static let jawEdgeSigma: CGFloat = 0.005
+    /// Where the soft edge hands over to the sharp one, as shares of temple
+    /// to chin, so ears and the hair beside the temples keep the soft edge.
+    static let jawEdgeBand: ClosedRange<CGFloat> = 0.15...0.45
+    /// Points per jaw segment when the outline is smoothed. Under a sharp edge
+    /// the 17 Vision points show as facets.
+    static let jawSamples = 6
+
     /// How far the head is tilted, in radians, read off the line between the
     /// eyes. Positive turns clockwise on the screen.
     ///
@@ -333,19 +350,57 @@ nonisolated enum HeadFraming {
         // Left to right across the jaw.
         let jaw = first.x <= last.x ? contour : contour.reversed()
         let centre = jaw.map(\.x).reduce(0, +) / CGFloat(jaw.count)
-        // **Tapered: the whole margin at the temples, none at the chin.** The
-        // margin is there for the ears, which sit high. Carried all the way
-        // down it let a sliver of collar back in beside the jaw.
+        // **Tapered: the whole margin at the temples, none below the jaw's
+        // midpoint.** The margin is there for the ears, which sit high. Carried
+        // down to the chin it pushed the sloping jaw corners sideways, which
+        // lowers the edge there, and a band of neck showed under each corner
+        // (measured on 12 faces: 13 to 47px of it; 0 to 11px now).
         let top = min(first.y, last.y)
         let chin = jaw.map(\.y).max() ?? top
         let widened = jaw.map { point -> CGPoint in
-            let weight = chin > top ? min(max((chin - point.y) / (chin - top), 0), 1) : 1
+            let weight = chin > top
+                ? min(max(1 - (point.y - top) / ((chin - top) * jawMarginReach), 0), 1)
+                : 1
             return CGPoint(x: point.x + (point.x < centre ? -1 : 1) * margin * weight, y: point.y)
         }
-        guard let left = widened.first, let right = widened.last else { return [] }
+        // A curve through the points, so a sharp jaw edge has no facets.
+        let jawline = catmullRom(widened, samples: jawSamples)
+        guard let left = jawline.first, let right = jawline.last else { return [] }
         return [CGPoint(x: 0, y: 0), CGPoint(x: canvas, y: 0), CGPoint(x: canvas, y: right.y)]
-            + widened.reversed()
+            + jawline.reversed()
             + [CGPoint(x: 0, y: left.y)]
+    }
+
+    /// A Catmull-Rom curve through every point, `samples` per segment, ends
+    /// kept. Through, not near: the chin is a contour point and must not move.
+    static func catmullRom(_ points: [CGPoint], samples: Int) -> [CGPoint] {
+        guard points.count >= 3, samples > 1 else { return points }
+        var out: [CGPoint] = []
+        out.reserveCapacity((points.count - 1) * samples + 1)
+        for i in 0..<(points.count - 1) {
+            let p0 = points[max(i - 1, 0)], p1 = points[i]
+            let p2 = points[i + 1], p3 = points[min(i + 2, points.count - 1)]
+            for k in 0..<samples {
+                let t = CGFloat(k) / CGFloat(samples), t2 = t * t, t3 = t2 * t
+                func f(_ a: CGFloat, _ b: CGFloat, _ c: CGFloat, _ d: CGFloat) -> CGFloat {
+                    0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t3)
+                }
+                out.append(CGPoint(x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y)))
+            }
+        }
+        out.append(points[points.count - 1])
+        return out
+    }
+
+    /// The canvas heights where the mask's soft hair edge hands over to the
+    /// sharp jaw edge (`jawEdgeBand` of temple to chin), for an upright jaw
+    /// contour in canvas points. Soft above the lower bound, sharp below the
+    /// upper one.
+    static func sharpEdgeBand(contour: [CGPoint]) -> ClosedRange<CGFloat> {
+        guard let first = contour.first, let last = contour.last else { return 0...0 }
+        let top = min(first.y, last.y), chin = contour.map(\.y).max() ?? top
+        let from = top + (chin - top) * jawEdgeBand.lowerBound
+        return from...max(from, top + (chin - top) * jawEdgeBand.upperBound)
     }
 
     /// The square to crop from a frame, in PIXELS, so the head fills
