@@ -63,6 +63,9 @@ struct ProfileView: View {
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { doneToolbar }
+        // Profile's head sleeps under the maker and the photo library. Before
+        // those modifiers, so the maker's own preview head stays awake.
+        .environment(\.headsAwake, !(showsMaker || showsLibrary))
         .navigationDestination(isPresented: $showsSettings) {
             SettingsView(onResetAllData: onResetAllData, isPushed: true)
         }

@@ -157,7 +157,8 @@ struct HeadDirectorTests {
             var director = full(seed: seed)
             let result = hour(&director)
             #expect(!result.holds.isEmpty)
-            #expect(result.holds.allSatisfy { $0 <= GridConstants.headContactMax }, "longest \(result.holds.max() ?? 0)")
+            // The owner's number, as a literal: raising the token must fail here.
+            #expect(result.holds.allSatisfy { $0 <= 3.0 }, "longest \(result.holds.max() ?? 0)")
             #expect(result.holds.allSatisfy { $0 >= GridConstants.headContactHold.lowerBound })
             // Enough to feel engaged, not so much it stares.
             let share = result.contact / result.total
@@ -188,6 +189,8 @@ struct HeadDirectorTests {
         var taking = full()
         #expect(hour(&taking, allowContact: false).holds.isEmpty)
         #expect(HeadLife.calm.contactShare == 0)
+        #expect(HeadLife.expressive.contactHold.upperBound <= 3.0)
+        #expect(GridConstants.headContactMax <= 3.0)
         for (id, _) in calm.weights {
             #expect(!calm.resolve(id, direction: 1).contains {
                 if case .cue(.pose) = $0.event { return true }
@@ -195,6 +198,51 @@ struct HeadDirectorTests {
             }, "\(id)")
         }
         #expect(calm.nextMicro() == nil)
+    }
+
+    @Test("a look that keeps the rest never pulls an away point near the middle, for any beat or take")
+    func keptRestNeverNearContact() {
+        var offsets: [CGPoint] = []
+        for take in HeadTake.catalogue {
+            for direction in [1.0, -1.0] {
+                for cue in take.cues(direction: direction) {
+                    if case let .look(x, y, true, _) = cue.step { offsets.append(CGPoint(x: x, y: y)) }
+                }
+            }
+        }
+        for seed in UInt64(1)...20 {
+            var director = full(seed: seed)
+            for id in director.weights.map(\.0) + [.hello] {
+                for direction in [1.0, -1.0] {
+                    for moment in director.resolve(id, direction: direction) {
+                        if case let .cue(.look(x, y, true, _)) = moment.event { offsets.append(CGPoint(x: x, y: y)) }
+                    }
+                }
+            }
+        }
+        #expect(offsets.contains { $0.y >= 0.3 }, "sleepy's droop is in the set")
+        // The worst away points: every direction at the floor, plus the director's own.
+        var aways: [CGPoint] = (0..<72).map { i in
+            let a = Double(i) / 72 * 2 * .pi
+            return CGPoint(x: cos(a) * 0.45, y: sin(a) * 0.45)
+        }
+        var director = full(seed: 99)
+        for _ in 0..<2_000 { aways.append(director.nextAway()) }
+        let micro = GridConstants.headMicroX, microY = GridConstants.headMicroY
+        var worst = 1.0
+        for away in aways {
+            for offset in offsets + [.zero] {
+                for m in [CGPoint(x: micro, y: microY), CGPoint(x: -micro, y: -microY), .zero] {
+                    let g = HeadDirector.composedGaze(rest: away, restShare: 1, micro: m, look: offset, restIsContact: false)
+                    worst = min(worst, hypot(g.x, g.y))
+                }
+            }
+        }
+        #expect(worst >= GridConstants.headStareFloor - 1e-9, "nearest \(worst)")
+        // Contact is left alone: that is the one time the eyes are meant to be on you.
+        let onYou = HeadDirector.composedGaze(rest: CGPoint(x: 0.05, y: 0), restShare: 1, micro: .zero,
+                                              look: .zero, restIsContact: true)
+        #expect(hypot(onYou.x, onYou.y) < 0.1)
     }
 
     // MARK: - Blinks

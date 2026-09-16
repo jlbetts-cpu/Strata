@@ -1067,6 +1067,9 @@ struct MainAppView: View {
         // day in the month tower, and the full grid behind the tail card.
         StableMemoriesTab(openProfile: { profileOrigin = .memories })
         .equatable()
+        // The header's head sleeps while Profile covers it. Before `.sheet`,
+        // so Profile's own head is not put to sleep with it.
+        .environment(\.headsAwake, profileOrigin != .memories)
         .sheet(isPresented: profileBinding(for: .memories),
                onDismiss: { profileOpensSettings = false }) {
             profileSheet

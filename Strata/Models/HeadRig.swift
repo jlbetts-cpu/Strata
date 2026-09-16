@@ -178,6 +178,8 @@ nonisolated struct HeadRig: @unchecked Sendable {
         }
         // The portfolio's canvas has more margin than a made head's: the
         // neutral face runs 0.113 to 0.898 of its height.
-        return HeadRig(faces: faces, popsIn: [.smile, .wink], contentHeight: 0.785, chin: 0.8988)
+        // The rest face overlaps neutral by 0.957, over the pop gate like a made
+        // face would be, so it pops too.
+        return HeadRig(faces: faces, popsIn: [.smile, .wink, .surprised], contentHeight: 0.785, chin: 0.8988)
     }
 }

@@ -388,6 +388,26 @@ enum GridConstants {
     /// and a measured outline's disc.
     nonisolated static let headPupilCalibrated: Double = 0.55
     nonisolated static let headPupilMeasured: Double = 0.46
+    /// Squashes: a lid cue in a take, a face popping or morphing in, a double
+    /// blink's second close and its release, and a settle's close and release.
+    nonisolated static let headSquashLids: Double = 0.94
+    nonisolated static let headSquashFace: Double = 0.975
+    nonisolated static let headSquashDoubleBlink: Double = 0.92
+    nonisolated static let headSquashDoubleBlinkRelease: Double = 0.95
+    nonisolated static let headSquashSettle: Double = 0.92
+    nonisolated static let headSquashSettleRelease: Double = 0.965
+    /// How long a face's squash, and a morph's old layer, are given to land.
+    nonisolated static let headMorphLands: Double = 0.16
+    /// Holds inside the creator's beats, seconds: a turn looking at something,
+    /// a look down at the words, an idle smile, an idle surprise.
+    nonisolated static let headTurnHold: ClosedRange<Double> = 1.2...2.2
+    nonisolated static let headDownHold: ClosedRange<Double> = 0.9...1.5
+    nonisolated static let headSmileHold: ClosedRange<Double> = 1.3...2.0
+    nonisolated static let headSurpriseHold: ClosedRange<Double> = 0.7...1.0
+    /// The hello: when it starts, how long the brows are up, how long the wink.
+    nonisolated static let headHelloDelay: Double = 0.7
+    nonisolated static let headHelloBrows: Double = 0.24
+    nonisolated static let headHelloWink: Double = 1.6
     /// A made face pops in, like the creator's grin, only when its silhouette
     /// overlaps neutral's this much; otherwise it morphs.
     nonisolated static let headPopIoU: Double = 0.94

@@ -13,7 +13,9 @@ import Foundation
 ///   down at the words, a smile now and then, the crunch blink, and eyes that
 ///   rest on you for up to three seconds and then look away on purpose.
 ///
-/// Every number is a `GridConstants` token.
+/// Every tunable (rests, holds, blink, contact, squash, yaw) is a
+/// `GridConstants` token. A beat's choreography, when each cue lands inside
+/// it, is authored data in `HeadDirector.resolve`, as `HeadTake.catalogue` is.
 nonisolated struct HeadLife: Equatable, Sendable {
     var beatWeights: [HeadBeat.ID: Double]
     var beatRest: ClosedRange<Double>

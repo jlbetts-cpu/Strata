@@ -230,7 +230,7 @@ nonisolated struct HeadDirector: Sendable {
             pose(lead, yaw: tx * maxYaw, roll: tx * 3, lean: tx * pts(3), dip: ty * pts(1.5))
             let given = lead + 0.38
             at(given, .look(x: tx * 0.45, y: ty * 0.45))
-            let back = given + uniform(1.2...2.2)
+            let back = given + uniform(GridConstants.headTurnHold)
             at(back, .release)
             pose(back + lead)
             end = back + lead + 0.65
@@ -245,7 +245,7 @@ nonisolated struct HeadDirector: Sendable {
             let target = CGPoint(x: -0.2, y: 1)
             at(0, .look(x: Double(target.x), y: Double(target.y)))
             pose(glanceLead, roll: dir * 1.2, dip: pts(1.5))
-            let back = glanceLead + uniform(0.9...1.5)
+            let back = glanceLead + uniform(GridConstants.headDownHold)
             at(back, .release)
             pose(back)
             end = back + 0.5
@@ -269,7 +269,7 @@ nonisolated struct HeadDirector: Sendable {
         case .smile:
             at(0, .look(x: 0, y: -0.05, keepsRest: true))
             at(0, .face(.smile))
-            let back = uniform(1.3...2.0)
+            let back = uniform(GridConstants.headSmileHold)
             at(back, .settle)
             at(back, .release)
             end = back + 0.4
@@ -328,7 +328,7 @@ nonisolated struct HeadDirector: Sendable {
             at(0, .look(x: dir * 0.6, y: -0.2))
             pose(0, roll: -dir * 1.5, dip: -0.02)
             at(0, .face(.surprised))
-            let back = uniform(0.7...1.0)
+            let back = uniform(GridConstants.headSurpriseHold)
             pose(back)
             at(back, .settle)
             at(back + 0.25, .release)
@@ -349,19 +349,19 @@ nonisolated struct HeadDirector: Sendable {
     /// on a head without one. Beats then wait `firstBeatAfterHello`.
     mutating func greeting() -> [HeadTake.Moment] {
         var cues: [(Double, HeadTake.Step)] = []
-        var t = 0.7
+        var t = GridConstants.headHelloDelay
         if faces.contains(.browsUp) {
             cues.append((t, .face(.browsUp)))
-            cues.append((t + 0.24, .face(.neutral)))
+            cues.append((t + GridConstants.headHelloBrows, .face(.neutral)))
             t += 0.4
         }
         var end = t
         if faces.contains(.wink) {
             cues.append((t, .face(.wink)))
-            cues.append((t + 1.6, .settle))
-            end = t + 1.85
+            cues.append((t + GridConstants.headHelloWink, .settle))
+            end = t + GridConstants.headHelloWink + 0.25
         } else if faces.contains(.smile) {
-            let hold = uniform(1.3...2.0)
+            let hold = uniform(GridConstants.headSmileHold)
             cues.append((t, .look(x: 0, y: -0.05, keepsRest: true)))
             cues.append((t, .face(.smile)))
             cues.append((t + hold, .settle))
@@ -380,6 +380,34 @@ nonisolated struct HeadDirector: Sendable {
     }
 
     // MARK: - Eyes
+
+    /// **Where the eyes are drawn**: the resting point (kept by `restShare`),
+    /// micro-saccades and a beat's or take's look, composed. When the resting
+    /// point is NOT eye contact the result never comes nearer the middle than
+    /// `headStareFloor`: a look that keeps the rest (a take's sleepy droop, a
+    /// nod) can otherwise cancel an away point straight up and hold near
+    /// contact for a whole take.
+    static func composedGaze(rest: CGPoint, restShare: CGFloat, micro: CGPoint, look: CGPoint,
+                             restIsContact: Bool) -> CGPoint {
+        var x = Double(rest.x * restShare + micro.x + look.x)
+        var y = Double(rest.y * restShare + micro.y + look.y)
+        if !restIsContact {
+            let floor = GridConstants.headStareFloor
+            let length = hypot(x, y)
+            if length < floor {
+                if length < 0.001 {
+                    // No direction left: out along the resting point, or down.
+                    let rx = Double(rest.x), ry = Double(rest.y)
+                    let r = hypot(rx, ry)
+                    (x, y) = r > 0.001 ? (rx / r * floor, ry / r * floor) : (0, floor)
+                } else {
+                    x *= floor / length
+                    y *= floor / length
+                }
+            }
+        }
+        return CGPoint(x: min(max(x, -1), 1), y: min(max(y, -1), 1))
+    }
 
     /// **Where the eyes rest next, and for how long.** On an expressive head,
     /// after a look away the eyes come back to you about half the time, for

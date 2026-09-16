@@ -114,6 +114,20 @@ struct StrataApp: App {
         UserDefaults.standard.set(true, forKey: MainAppView.welcomeWinKey)
     }
 
+    @ViewBuilder
+    private var appRoot: some View {
+        if !storeOpening.savesToDisk {
+            // **Before onboarding, and instead of everything.** An app
+            // that cannot write anything down must not take a win, and
+            // must not draw an empty tower that looks like the truth.
+            StoreUnavailableView(onRetry: retryOpeningStore)
+        } else if showsOnboarding {
+            OnboardingView { finishOnboarding() }
+        } else {
+            mainApp
+        }
+    }
+
     private var mainApp: some View {
         MainAppView()
             .environment(focusFilterService)
@@ -146,24 +160,11 @@ struct StrataApp: App {
             #if DEBUG
             if DebugHarness.headParity {
                 HeadParityView()
-            } else if !storeOpening.savesToDisk {
-                StoreUnavailableView(onRetry: retryOpeningStore)
-            } else if showsOnboarding {
-                OnboardingView { finishOnboarding() }
             } else {
-                mainApp
+                appRoot
             }
             #else
-            if !storeOpening.savesToDisk {
-                // **Before onboarding, and instead of everything.** An app
-                // that cannot write anything down must not take a win, and
-                // must not draw an empty tower that looks like the truth.
-                StoreUnavailableView(onRetry: retryOpeningStore)
-            } else if showsOnboarding {
-                OnboardingView { finishOnboarding() }
-            } else {
-                mainApp
-            }
+            appRoot
             #endif
         }
         .modelContainer(SharedModelContainer.shared)

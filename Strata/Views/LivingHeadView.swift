@@ -69,6 +69,9 @@ struct LivingHeadView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    /// False under something that covers the page, a sheet or a full-screen
+    /// cover: a head nobody can see does no work.
+    @Environment(\.headsAwake) private var headsAwake
     @State private var expression: HeadRig.Expression = .neutral
     /// The face being morphed away from, fading out on top of the new one.
     @State private var outgoing: HeadRig.Expression?
@@ -133,10 +136,17 @@ struct LivingHeadView: View {
     private struct LoopKey: Hashable {
         let reduceMotion: Bool
         let awake: Bool
+        /// The rig's neutral picture: a migrated or dressed head is a new rig,
+        /// and the loops must pick up its faces and blinks.
+        let rig: ObjectIdentifier
+    }
+
+    private var loopKey: LoopKey {
+        LoopKey(reduceMotion: reduceMotion, awake: awake, rig: ObjectIdentifier(rig.face(.neutral).image))
     }
 
     private var profile: HeadLife { liveliness == .calm ? .calm : .expressive }
-    private var awake: Bool { scenePhase == .active && onScreen }
+    private var awake: Bool { scenePhase == .active && onScreen && headsAwake }
     private var step: Duration { .seconds(GridConstants.headStep) }
 
     var body: some View {
@@ -195,9 +205,9 @@ struct LivingHeadView: View {
             // finish, and a kept sticker face stays.
             if !isAwake, !taking, heldFace == nil { settleImmediately() }
         }
-        .task(id: LoopKey(reduceMotion: reduceMotion, awake: awake)) { await liveWhileIdle() }
-        .task(id: LoopKey(reduceMotion: reduceMotion, awake: awake)) { await eyesWhileIdle() }
-        .task(id: LoopKey(reduceMotion: reduceMotion, awake: awake)) { await blinkWhileIdle() }
+        .task(id: loopKey) { await liveWhileIdle() }
+        .task(id: loopKey) { await eyesWhileIdle() }
+        .task(id: loopKey) { await blinkWhileIdle() }
         .task(id: held) {
             heldFace = held
             // A head playing takes wears the faces its takes give it.
@@ -226,7 +236,11 @@ struct LivingHeadView: View {
     private static func isOnScreen(_ frame: CGRect) -> Bool {
         let area = frame.width * frame.height
         guard area > 0 else { return true }
-        let seen = frame.intersection(UIScreen.main.bounds)
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow?.bounds }
+            .first
+        guard let window else { return true }
+        let seen = frame.intersection(window)
         guard !seen.isNull else { return false }
         return seen.width * seen.height >= area * 0.2
     }
@@ -242,8 +256,8 @@ struct LivingHeadView: View {
     // MARK: - Drawing
 
     private var gaze: CGPoint {
-        CGPoint(x: min(max(rest.x * restShare + micro.x + beatGaze.x, -1), 1),
-                y: min(max(rest.y * restShare + micro.y + beatGaze.y, -1), 1))
+        HeadDirector.composedGaze(rest: rest, restShare: restShare, micro: micro, look: beatGaze,
+                                  restIsContact: restIsContact)
     }
 
     private func showsShut(_ face: HeadRig.Expression) -> UIImage? {
@@ -392,10 +406,10 @@ struct LivingHeadView: View {
             try? await Task.sleep(for: step)
             guard generation == mine, !Task.isCancelled else { return }
             shut = true
-            if squashes { squash = 0.92 }
+            if squashes { squash = GridConstants.headSquashDoubleBlink }
             try? await Task.sleep(for: step)
             guard generation == mine, !Task.isCancelled else { return }
-            if squashes { squash = 0.95 }
+            if squashes { squash = GridConstants.headSquashDoubleBlinkRelease }
             try? await Task.sleep(for: step)
             guard generation == mine, !Task.isCancelled else { return }
         }
@@ -419,10 +433,10 @@ struct LivingHeadView: View {
             // Reduce Motion: the hello is a change of face and nothing else.
             guard greets, !life.greeted, rig.has(.wink) else { return }
             life.greeted = true
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: .seconds(GridConstants.headHelloDelay))
             guard !Task.isCancelled, !taking else { return }
             swap(to: .wink)
-            try? await Task.sleep(for: .seconds(1.6))
+            try? await Task.sleep(for: .seconds(GridConstants.headHelloWink))
             guard !Task.isCancelled, !taking else { return }
             swap(to: .neutral)
             return
@@ -629,12 +643,12 @@ struct LivingHeadView: View {
         case let .lids(closed):
             guard rig.shut(on: expression) != nil else { return }
             shut = closed
-            squash = closed ? 0.94 : 1
+            squash = closed ? GridConstants.headSquashLids : 1
         case .bounce:
-            withAnimation(GridConstants.tapSquashSpring) { squash = 0.975 }
+            withAnimation(GridConstants.tapSquashSpring) { squash = GridConstants.headSquashFace }
             let mine = generation
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(160))
+                try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
                 guard generation == mine else { return }
                 withAnimation(GridConstants.naturalSettle) { squash = 1 }
             }
@@ -649,7 +663,7 @@ struct LivingHeadView: View {
 
     private func scheduleEndMorph(_ token: Int) {
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(160))
+            try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
             endMorph(token)
         }
     }
@@ -734,10 +748,10 @@ struct LivingHeadView: View {
         guard next != expression, next == .neutral || rig.has(next) else { return }
         swap(to: next)
         guard profile.morphSquash, !reduceMotion else { return }
-        withAnimation(GridConstants.tapSquashSpring) { squash = 0.975 }
+        withAnimation(GridConstants.tapSquashSpring) { squash = GridConstants.headSquashFace }
         let mine = generation
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(160))
+            try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
             guard generation == mine, !shut else { return }
             withAnimation(GridConstants.naturalSettle) { squash = 1 }
         }
@@ -747,7 +761,7 @@ struct LivingHeadView: View {
     /// from the start; a slight squash sells it as one head moving.
     private func morph(to next: HeadRig.Expression) async {
         guard let token = beginMorph(to: next) else { return }
-        try? await Task.sleep(for: .milliseconds(160))
+        try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
         endMorph(token)
     }
 
@@ -778,7 +792,7 @@ struct LivingHeadView: View {
             withTransaction(instant) { outgoing = nil }
         }
         if profile.morphSquash, squashes {
-            withAnimation(GridConstants.tapSquashSpring) { squash = 0.975 }
+            withAnimation(GridConstants.tapSquashSpring) { squash = GridConstants.headSquashFace }
         }
         return token
     }
@@ -794,18 +808,30 @@ struct LivingHeadView: View {
     /// **Back to neutral behind a blink**, so the change itself is never seen.
     /// The creator's order: the lids close on the face being left, the face
     /// changes behind them, and they open on neutral. A face with no shut eyes
-    /// of its own closes on neutral's instead; a wink, whose own eyes are the
-    /// photograph's, and a head that cannot blink, morph.
+    /// of its own closes on neutral's instead. A face that does not pop in
+    /// (and a wink whose own eyes are the photograph's) morphs back and then
+    /// blinks; a head that cannot blink only morphs.
     private func settleThroughBlink() async {
         let leaving = expression
         guard leaving != .neutral else { return }
-        guard !reduceMotion, rig.shut(on: .neutral) != nil,
-              leaving != .wink || rig.shut(on: .wink) != nil else {
+        guard !reduceMotion, rig.shut(on: .neutral) != nil else {
             await morph(to: .neutral)
             return
         }
         let mine = generation
         let squashes = profile.blinkDepth != nil
+        // **Only a face that may be hard-swapped is swapped behind the lids.**
+        // A made surprised face with its jaw open, or a grin whose outline
+        // failed the pop gate, morphed in; snapping it out would move the
+        // head. It morphs back, and then blinks.
+        let swapsBehindLids = (leaving == .browsUp || rig.popsIn.contains(leaving))
+            && (leaving != .wink || rig.shut(on: .wink) != nil)
+        guard swapsBehindLids else {
+            await morph(to: .neutral)
+            guard generation == mine, !Task.isCancelled, expression == .neutral, !shut else { return }
+            await crunchBlink(depth: profile.blinkDepth?.lowerBound ?? 1, steps: 1, double: false)
+            return
+        }
         var instant = Transaction()
         instant.disablesAnimations = true
         if rig.shut(on: leaving) != nil {
@@ -814,11 +840,11 @@ struct LivingHeadView: View {
                 incoming = 1
                 shut = true
             }
-            if squashes { squash = 0.92 }
+            if squashes { squash = GridConstants.headSquashSettle }
             try? await Task.sleep(for: step)
             guard generation == mine, !Task.isCancelled else { return }
             withTransaction(instant) { expression = .neutral }
-            if squashes { squash = 0.965 }
+            if squashes { squash = GridConstants.headSquashSettleRelease }
             try? await Task.sleep(for: step)
         } else {
             withTransaction(instant) {
@@ -827,7 +853,7 @@ struct LivingHeadView: View {
                 expression = .neutral
                 shut = true
             }
-            if squashes { squash = 0.94 }
+            if squashes { squash = GridConstants.headSquashLids }
             try? await Task.sleep(for: step * 2)
         }
         // Overtaken by a new take, which has already opened the eyes on
@@ -1077,4 +1103,13 @@ struct HeadStill: View {
         .offset(y: centring)
         .frame(width: canvas, height: canvas)
     }
+}
+
+// MARK: - Sleeping under a cover
+
+extension EnvironmentValues {
+    /// **False when something covers the page a head is on**: Profile over the
+    /// Memories header, the maker over Profile. A sheet does not make the page
+    /// under it disappear, so without this its head kept living unseen.
+    @Entry var headsAwake: Bool = true
 }
