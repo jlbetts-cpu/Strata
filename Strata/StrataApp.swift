@@ -15,6 +15,18 @@ struct StrataApp: App {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @Environment(\.scenePhase) private var scenePhase
 
+    /// How the store opened, held in state so "Try Again" can put the app on
+    /// screen without a relaunch.
+    ///
+    /// Read into state rather than read on every render: `opening` is plain
+    /// static state and SwiftUI would not know when it moved.
+    ///
+    /// Seeded in `init`, not here. A property's default value is evaluated
+    /// before the initialiser's body, so it would have read `opening` before
+    /// anything had asked the ladder to climb, and every launch would have
+    /// reported the store fine.
+    @State private var storeOpening: StoreOpening
+
     init() {
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
@@ -25,8 +37,22 @@ struct StrataApp: App {
             UserDefaults.standard.set(false, forKey: "hasOnboarded")
         }
         #endif
-        // Register ModelContainer for App Intents access (WWDC 2024 pattern)
+        // Register ModelContainer for App Intents access (WWDC 2024 pattern).
+        // This is also the first thing to ask for the container, so the ladder
+        // climbs here and `opening` is settled before the first render.
         AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
+        _storeOpening = State(initialValue: SharedModelContainer.opening)
+    }
+
+    /// Walks the ladder again from the blocking screen's button, and says
+    /// whether it opened.
+    private func retryOpeningStore() -> Bool {
+        let opening = SharedModelContainer.retry()
+        storeOpening = opening
+        guard opening.savesToDisk else { return false }
+        // The dependency was registered against the container that failed.
+        AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
+        return true
     }
 
     /// Whether to put onboarding on screen.
@@ -84,7 +110,12 @@ struct StrataApp: App {
             // Swapping the two removes the inheritance rather than fighting
             // it, and it is the more honest structure anyway: until somebody
             // has been through this, it IS the app.
-            if showsOnboarding {
+            if !storeOpening.savesToDisk {
+                // **Before onboarding, and instead of everything.** An app
+                // that cannot write anything down must not take a win, and
+                // must not draw an empty tower that looks like the truth.
+                StoreUnavailableView(onRetry: retryOpeningStore)
+            } else if showsOnboarding {
                 OnboardingView { finishOnboarding() }
             } else {
                 MainAppView()

@@ -371,7 +371,12 @@ struct MainAppView: View {
     @State private var profileOrigin: StrataTab?
     /// `-strataOpenSheet settings`: open Profile and push on to Settings.
     @State private var profileOpensSettings = false
-    @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
+    // `showDataFallbackAlert` was here. It was an alert over a working-looking
+    // tower saying nothing would be saved between sessions, and somebody who
+    // tapped OK could log four wins and lose all four. The store's third
+    // outcome is now a screen INSTEAD of the app (`StoreUnavailableView`, put
+    // up by `StrataApp`), so by the time this view exists the store is open and
+    // there is nothing for an alert to say.
 
     var body: some View {
         mainContent
@@ -469,11 +474,6 @@ struct MainAppView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Nothing was added. Try again.")
-            }
-            .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting. If it keeps happening, use Profile › Settings › Back Up Everything to save what you have.")
             }
     }
 
@@ -1623,6 +1623,9 @@ struct MainAppView: View {
         }
         if DebugHarness.reportsStore {
             DebugHarness.runStoreProbe()
+        }
+        if DebugHarness.reportsMigration {
+            DebugHarness.runMigrationReport(context: modelContext)
         }
         if DebugHarness.probesPhotos {
             DebugHarness.runPhotoPipelineProbe()
@@ -3120,13 +3123,10 @@ struct MainAppView: View {
 
 
     private func resetTower() {
-        // 1. Delete all image files from disk (must read file names before deleting entities)
-        let allLogs = (try? modelContext.fetch(FetchDescriptor<HabitLog>())) ?? []
-        for log in allLogs {
-            if let fileName = log.imageFileName {
-                ImageManager.shared.deleteImage(fileName: fileName)
-            }
-        }
+        // 1. Delete all image files from disk (must read file names before
+        //    deleting entities). In `StoreReset` so the test can drive it and
+        //    prove which files go and which stay.
+        let removedPhotos = StoreReset.deleteEveryPhotograph(context: modelContext)
 
         // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME.
         //
@@ -3134,33 +3134,21 @@ struct MainAppView: View {
         // simulator, 2026-09-11: `delete(model: HabitLog.self)` fails with
         // "Constraint trigger violation: Batch delete failed due to mandatory
         // OTO nullify inverse on HabitLog/habit", and `Habit` the same on
-        // `Habit/tower`. A batch delete bypasses the relationship rules the
-        // object graph would apply, so the store refuses it. Every one of the
-        // calls was `try?`, so Reset All Data deleted the photograph files and
-        // left every win in place — while the privacy policy told people it
-        // removes everything. Deleting through the context applies the
-        // nullify rules, which is exactly what the batch path cannot do; it is
-        // also what `DebugHarness.seed` already did, which is why seeding
-        // always worked and reset never did.
-        func deleteEvery<Model: PersistentModel>(_ type: Model.Type) {
-            do {
-                for item in try modelContext.fetch(FetchDescriptor<Model>()) {
-                    modelContext.delete(item)
-                }
-            } catch {
-                NSLog("[strata-reset] could not fetch \(Model.self) to delete: \(error)")
-            }
-        }
-        for log in allLogs { modelContext.delete(log) }
-        deleteEvery(Habit.self)
-        deleteEvery(PlanFolder.self)
-        deleteEvery(MoodLog.self)
-        deleteEvery(Tower.self)
-        do { try modelContext.save() } catch { NSLog("[strata-reset] save failed: \(error)") }
+        // `Habit/tower`. The loop that replaced it lived here; it lives in
+        // `StoreReset` now, because the debug reset and the seed need the same
+        // one and a second copy is a second place for a batch delete to come
+        // back. `StoreReset` also adds `PlanItem`, which used to survive a
+        // reset, and does the whole sweep inside one transaction.
+        let remaining = StoreReset.deleteEverything(context: modelContext)
+        // Reset runs once, on purpose, so one line about it is worth having in
+        // a device log rather than only in DEBUG.
+        NSLog("[strata-reset] photographs removed: \(removedPhotos.count)")
         #if DEBUG
-        let remaining = (try? modelContext.fetchCount(FetchDescriptor<HabitLog>())) ?? -1
-        NSLog("[strata-reset] logs remaining after reset: \(remaining)")
+        NSLog("[strata-reset] remaining after reset: \(remaining.line)")
         #endif
+        if !remaining.isEmpty {
+            NSLog("[strata-reset] reset did not empty the store: \(remaining.line)")
+        }
 
         // 3. Reset UserDefaults (tower selection, first-drop, day boundary)
         //
