@@ -141,19 +141,35 @@ nonisolated enum DayCode: String, Codable, CaseIterable {
 
 @Model
 final class Habit {
-    var id: UUID
-    var title: String
-    var category: HabitCategory
-    var blockSize: BlockSize
-    var frequencyRawValues: [String]
-    var createdAt: Date
+    // **Every attribute below is optional or carries a default, and that is a
+    // rule now rather than a habit.** CloudKit's mirroring refuses a schema in
+    // which a non-optional attribute has no default, because there is nothing
+    // for it to put in the field when a record arrives without one. Ten
+    // properties on this model broke that rule.
+    //
+    // Nothing changed type, changed name or went away, and the initialiser
+    // below still assigns every one of them, so no value anybody has is
+    // touched and no behaviour moves. A default is not part of Core Data's
+    // version hash, so the store opens in place with no migration plan, which
+    // is the same shape `planItemID`, `sortOrder` and `isQuickWin` already use
+    // further down this file. Each default is the value the initialiser would
+    // have produced anyway, so the two cannot disagree.
+    var id: UUID = UUID()
+    var title: String = ""
+    /// `.unlabeled` because that is this app's word for "nobody has chosen
+    /// one", which is the honest reading of a field with nothing in it.
+    var category: HabitCategory = HabitCategory.unlabeled
+    var blockSize: BlockSize = BlockSize.small
+    var frequencyRawValues: [String] = []
+    var createdAt: Date = Date()
     var scheduledTime: String?
-    var reminderEnabled: Bool
-    var isTodo: Bool
+    var reminderEnabled: Bool = false
+    var isTodo: Bool = false
     var scheduledDate: String?
     var todoOrder: Int?
-    var creationXP: Int
-    var graceDays: Int
+    var creationXP: Int = 0
+    /// 2, the same number the initialiser defaults to.
+    var graceDays: Int = 2
     var timeOfDay: TimeOfDay?
     var anchorHabitID: UUID?
 

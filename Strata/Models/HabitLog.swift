@@ -13,15 +13,26 @@ final class HabitLog {
     /// at a time with a range predicate on it. Without the index that page is
     /// a table scan of every log ever written. Additive: the store migrates in
     /// place.
+    ///
+    /// **Not a CloudKit index and not a blocker for one.** `#Index` is a local
+    /// SQLite index; CloudKit keeps its own indexes and does not inherit this
+    /// one. It stays exactly as it is.
     #Index<HabitLog>([\.dateString])
 
+    // Six of these carried no default. See the note at the top of `Habit`:
+    // CloudKit's mirroring refuses a non-optional attribute with nothing to
+    // fall back on, a default is not part of the version hash, and the
+    // initialiser still assigns all six, so nothing moves.
     var id: UUID = UUID()
     var habit: Habit?
-    var dateString: String // YYYY-MM-DD format for easy lookup
-    var completed: Bool
+    var dateString: String = "" // YYYY-MM-DD format for easy lookup
+    var completed: Bool = false
     var completedAt: Date?
     var note: String?
-    var caption: String
+    var caption: String = ""
+    /// Optional, so it already satisfies the rule. `.externalStorage` is also
+    /// the right shape for bytes under sync: they travel as an asset rather
+    /// than inline in the record. Kept exactly as it is.
     @Attribute(.externalStorage) var imageData: Data? // Retained temporarily for migration
     var imageFileName: String?
     var imageURL: String?       // Deprecated — retained for schema compatibility
@@ -37,10 +48,10 @@ final class HabitLog {
     /// than a third column meaning the same thing.
     var cropPositionX: Double?
     var cropPositionY: Double?
-    var surgeMode: Bool
+    var surgeMode: Bool = false
     var pendingXP: Int?
-    var xpCollected: Bool
-    var isBonusBlock: Bool
+    var xpCollected: Bool = false
+    var isBonusBlock: Bool = false
     var skipped: Bool = false
     var verifiedByHealthKit: Bool = false
     var subtasks: [SubTask] = []
