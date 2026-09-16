@@ -246,7 +246,8 @@ struct HeadMakerView: View {
         case .smile:       return model.caught ? "Got it" : "Now a big smile"
         case .brows:       return model.caught ? "Got it" : "Raise your eyebrows"
         case .surprised:   return model.caught ? "Got it" : "Now look surprised"
-        case .wink:        return model.caught ? "Got it" : "Last one, a wink"
+        // "Last" only when it is: a missed blink is asked for again after it.
+        case .wink:        return model.caught ? "Got it" : (model.landed.contains(.blink) ? "Last one, a wink" : "Now a wink")
         // Only when the first blink was missed. Without one the head can
         // never blink, so it is worth one more second.
         case .blinkAgain:  return model.caught ? "Got it" : "One more quick blink"

@@ -212,28 +212,46 @@ final class HeadMakerModel {
     private func run(from start: Step) {
         flow?.cancel()
         linedUpSince = nil
-        guard let first = Self.sequence.firstIndex(where: { $0.step == start }) else { return }
+        guard Self.sequence.contains(where: { $0.step == start }) else { return }
         landed = []
         flow = Task { @MainActor in
-            for stage in Self.sequence[first...] {
+            let finished = await Self.askAll(from: start, ask: { stage in
                 caught = false
                 step = stage.step
                 engine.begin(stage.phase)
                 if stage.step != .blink { HapticsEngine.tick() }
-                await watch(for: stage.window,
-                            atLeast: stage.step == .blink ? Self.leastBlink : .zero)
-                guard !Task.isCancelled else { return }
-            }
-            if Self.asksBlinkAgain(blinkCaught: engine.caught(.shut)) {
-                caught = false
-                step = .blinkAgain
-                engine.begin(.blinkAgain)
-                HapticsEngine.tick()
-                await watch(for: Self.blinkAgainWindow, atLeast: .zero)
-                guard !Task.isCancelled else { return }
-            }
+                await watch(for: stage.window, atLeast: stage.least)
+            }, blinkCaught: { engine.caught(.shut) }, isCancelled: { Task.isCancelled })
+            guard finished else { return }
             await make()
         }
+    }
+
+    /// One ask: the step on screen, the engine's phase, its ceiling and floor.
+    struct Ask: Equatable {
+        let step: Step
+        let phase: HeadCaptureEngine.Phase
+        let window: Duration
+        let least: Duration
+    }
+
+    /// **Every ask, in order, then one more blink only if the blink was
+    /// missed.** Each ask runs once; the second blink is asked at most once,
+    /// never in a loop, and never after a cancel. True when the head should be
+    /// made. Pure over its closures, so `HeadMakerFlowTests` can run it.
+    static func askAll(from start: Step, ask: (Ask) async -> Void, blinkCaught: () -> Bool,
+                       isCancelled: () -> Bool) async -> Bool {
+        guard let first = sequence.firstIndex(where: { $0.step == start }) else { return false }
+        for stage in sequence[first...] {
+            await ask(Ask(step: stage.step, phase: stage.phase, window: stage.window,
+                          least: stage.step == .blink ? leastBlink : .zero))
+            if isCancelled() { return false }
+        }
+        if asksBlinkAgain(blinkCaught: blinkCaught()) {
+            await ask(Ask(step: .blinkAgain, phase: .blinkAgain, window: blinkAgainWindow, least: .zero))
+            if isCancelled() { return false }
+        }
+        return true
     }
 
     /// Waits until the expression lands or the ceiling is reached, then keeps
