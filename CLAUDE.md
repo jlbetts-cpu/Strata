@@ -947,10 +947,44 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   header only. Settings lives only inside it.
 - **The head is 100% optional.** `HeadStore` holds it and every switch; all
   start off. Ask `headForPicture` / `headForMap`, never the raw switch.
-- **One head, one view.** `HeadRig` is the faces and where the eyes are on
-  each; `LivingHeadView` draws it everywhere, `.calm` in chrome and
-  `.expressive` where the head is the subject. `CreatorHead` (thank-you page)
-  is separate and untouched.
+- **One head, one engine** (2026-09-16, owner: a made head must be "as
+  expressive as the head we added of me with the black and white"). `HeadRig`
+  is the faces, each face's shut eyes and where the eyes are; `LivingHeadView`
+  plays every head, `.calm` in chrome and `.expressive` where the head is the
+  subject. `CreatorHead` is `TappableHead` on `HeadRig.creatorRig`, nothing
+  more, and **its behaviour is the standard**: never give a made head a
+  different number from the creator's. Idle beats are data (`HeadBeat`,
+  resolved by `HeadDirector`, seeded) played through the same `apply` as a
+  tap's `HeadTake`; `HeadLife.calm`/`.expressive` hold every difference, and
+  every number is a `GridConstants` head token. Plan and baseline:
+  `research-head-parity.md`, report `head-parity-report.md` (StrataWork).
+- **Eye contact is bounded, not forbidden.** Expressive heads rest their
+  eyes on you 1.2 to 2.6s, never more than `headContactMax` (3s), and the next
+  fixation after contact is ALWAYS away (at least `headStareFloor`, 0.45).
+  Calm heads, takes, a kept sticker gaze and Reduce Motion never make contact
+  (`HeadDirectorTests.contactIsBounded`, `calmNeverMovesOrStares`). The old
+  rule "it never looks straight at you" is gone; the old creator engine stared
+  for 34s at a time, which is also gone.
+- **Faces a made head blinks on are derived, never drawn**
+  (`HeadDerivation`): the blink frame's eye regions feathered onto neutral,
+  raised brows and surprised, lit to match (without the gain match a relit
+  frame read as a pale oval round each eye), so a blink moves the lids and
+  nothing else. Raised brows are banded onto neutral only when the seam
+  measures clean, else the raw capture stays. A face pops in (hard swap) only
+  when its silhouette IoU with neutral is at least `headPopIoU`. Heads saved
+  before this are migrated once off the main actor (manifest v2 to v3), and
+  every original file is kept. `-strataSeedMadeHead` writes a v2 fixture head
+  with a relit blink so the migration can be run and looked at.
+- **A head sleeps when it cannot be seen**: scene not active, or less than a
+  fifth of its frame on screen. The loops cancel, the float stops, and on
+  waking the first beat waits a full rest. Measured: zero trace events over
+  39s backgrounded. A sheet covering Profile does NOT put its head to sleep.
+- **The maker asks for one more quick blink** (`.blinkAgain`) only when the
+  blink stage did not catch a real one; it keeps the open frame and looks for
+  a shut one only.
+- `-strataHeadParity` (creator, made, neutral-and-shut, calm on key-green),
+  `-strataHeadTrace` (every gaze, pose, lids and face target),
+  `-strataHeadSeed <n>`, `-strataHeadBeat <id>`.
 - **The maker** (`HeadMakerView`, `HeadMakerModel`, `HeadCaptureEngine`,
   `HeadFraming`) uses Strata's camera, never the system one. Capture and
   subject lifting **do not run in the simulator**; every state can be
@@ -969,9 +1003,8 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   allow (neutral only: sideEye, thinking, nod, shake). Reduce Motion is a
   face swap only, one take per face. Taps: the review sticker (motion eases
   back, **the face is kept**, so what is on the review when Use Photo is
-  pressed is what is saved), the maker preview and onboarding head page
-  (`TappableHead`), and `CreatorHead` (its own interpreter of the same
-  catalogue). Photograph them with `-strataHeadTake cycle|<id>`.
+  pressed is what is saved), the maker preview, onboarding head page and
+  thank-you page (`TappableHead`). Photograph them with `-strataHeadTake cycle|<id>`.
 - **Three bugs the takes flushed out of `LivingHeadView`**, each seen in a
   simulator burst, not in code: (1) the idle loops read `held`, a view
   property, inside long-running tasks, so they always saw nil and the
