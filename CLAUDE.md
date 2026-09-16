@@ -956,7 +956,8 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   different number from the creator's. Idle beats are data (`HeadBeat`,
   resolved by `HeadDirector`, seeded) played through the same `apply` as a
   tap's `HeadTake`; `HeadLife.calm`/`.expressive` hold every difference, and
-  every number is a `GridConstants` head token. Plan and baseline:
+  every tunable is a `GridConstants` head token (a beat's cue timings are
+  authored data, like `HeadTake`'s catalogue). Plan and baseline:
   `research-head-parity.md`, report `head-parity-report.md` (StrataWork).
 - **Eye contact is bounded, not forbidden.** Expressive heads rest their
   eyes on you 1.2 to 2.6s, never more than `headContactMax` (3s), and the next
@@ -973,12 +974,26 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   measures clean, else the raw capture stays. A face pops in (hard swap) only
   when its silhouette IoU with neutral is at least `headPopIoU`. Heads saved
   before this are migrated once off the main actor (manifest v2 to v3), and
-  every original file is kept. `-strataSeedMadeHead` writes a v2 fixture head
+  every image it wrote stays byte for byte (only `head.json` is replaced).
+  The derive runs off the main actor; the write happens on it, into a copy of
+  the folder that then replaces it, and only if no save or delete bumped
+  `HeadStore.epoch` meanwhile. A blink whose cheek ring still differs after
+  the light match (`lidRingLimit` 6.1, measured 4.1 in place, 6.7 to 10.1 moved 3px) is
+  refused: neutral keeps the raw frame, brows and surprised get no blink. `-strataSeedMadeHead` writes a v2 fixture head
   with a relit blink so the migration can be run and looked at.
 - **A head sleeps when it cannot be seen**: scene not active, or less than a
   fifth of its frame on screen. The loops cancel, the float stops, and on
   waking the first beat waits a full rest. Measured: zero trace events over
-  39s backgrounded. A sheet covering Profile does NOT put its head to sleep.
+  39s backgrounded. A sheet does not make the page under it disappear, so a
+  cover sets `\.headsAwake` false BEFORE its `.sheet`/`.fullScreenCover`
+  modifier (Memories under Profile, Profile under the maker and the photo
+  library); after it, the sheet's own head would sleep too.
+- **Eyes never compose near the middle unless resting on you**
+  (`HeadDirector.composedGaze`): a take's look that keeps the rest (sleepy,
+  nod) used to cancel an away point to |gaze| 0.13.
+- **A face that morphed in morphs out.** `settleThroughBlink` swaps behind
+  the lids only for brows and `rig.popsIn` faces; anything else morphs back
+  and then blinks.
 - **The maker asks for one more quick blink** (`.blinkAgain`) only when the
   blink stage did not catch a real one; it keeps the open frame and looks for
   a shut one only.
