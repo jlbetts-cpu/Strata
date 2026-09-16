@@ -51,9 +51,10 @@ final class HeadStore {
     }
 
     /// Version 3 adds each face's derived shut eyes (`<face>-shut.png`), the
-    /// banded brows (`browsUp-banded.png`) and which faces pop in. Every file
-    /// a version 2 head wrote is left exactly as it was.
-    private nonisolated struct Manifest: Codable {
+    /// banded brows (`browsUp-banded.png`) and which faces pop in. Migrating
+    /// leaves every image a version 2 head wrote byte for byte as it was and
+    /// replaces only `head.json`.
+    nonisolated struct Manifest: Codable {
         var version = 3
         var contentHeight: CGFloat
         var chin: CGFloat
@@ -83,6 +84,10 @@ final class HeadStore {
     /// different variety and choice of their head."
     private(set) var look: FilmLook.Kind = .none
     @ObservationIgnored private var dressing: Task<Void, Never>?
+    /// **Bumped by every save and delete.** A migration that started before
+    /// one of them must not write over the new head or bring back a deleted
+    /// one, so it checks this, on the main actor, before it touches disk.
+    @ObservationIgnored private(set) var epoch = 0
     private(set) var isProfilePicture: Bool
     private(set) var showsOnMap: Bool
     private(set) var showsCameraSticker: Bool
@@ -106,7 +111,8 @@ final class HeadStore {
         #if DEBUG
         if DebugHarness.seedsMadeHead { Self.writeMadeHeadFixture() }
         #endif
-        undressed = Self.load()
+        let loaded = Self.load()
+        undressed = loaded?.rig
         #if DEBUG
         if undressed == nil, DebugHarness.seedsHead { undressed = HeadRig.creator() }
         if let on = DebugHarness.headSwitches {
@@ -118,6 +124,7 @@ final class HeadStore {
         #endif
         head = undressed
         dress()
+        if loaded?.needsMigration == true, let directory = Self.directory { migrate(directory) }
     }
 
     // MARK: - Look
@@ -188,6 +195,7 @@ final class HeadStore {
         let manager = FileManager.default
         // Clear first, so a smile skipped this time does not leave last
         // time's smile behind.
+        epoch &+= 1
         try? manager.removeItem(at: directory)
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
         try Self.write(payload, to: directory)
@@ -207,6 +215,7 @@ final class HeadStore {
 
     /// Removes the files and turns every switch off.
     func delete() {
+        epoch &+= 1
         if let directory = Self.directory { try? FileManager.default.removeItem(at: directory) }
         dressing?.cancel()
         undressed = nil
@@ -237,25 +246,29 @@ final class HeadStore {
             .appending(path: "Head", directoryHint: .isDirectory)
     }
 
-    private nonisolated static func write(_ payload: Payload, to directory: URL,
-                                          contentHeight: CGFloat = HeadStore.contentHeight,
-                                          chin: CGFloat = HeadStore.chin) throws {
+    /// `addsOnly`: a file that is already there is left exactly as it is (a
+    /// migration adds files beside a version 2 head's; only `head.json` is
+    /// replaced).
+    nonisolated static func write(_ payload: Payload, to directory: URL,
+                                  contentHeight: CGFloat = HeadStore.contentHeight,
+                                  chin: CGFloat = HeadStore.chin, addsOnly: Bool = false) throws {
+        func put(_ data: Data, _ file: String) throws {
+            let url = directory.appending(path: file)
+            if addsOnly, FileManager.default.fileExists(atPath: url.path) { return }
+            try data.write(to: url, options: .atomic)
+        }
         var eyes: [String: [HeadRig.Eye]] = [:]
         for (expression, face) in payload.faces {
             let name = expression == .browsUp && payload.rawBrows != nil ? "browsUp-banded" : expression.rawValue
-            try face.png.write(to: directory.appending(path: "\(name).png"), options: .atomic)
-            if let shut = face.shut {
-                try shut.write(to: directory.appending(path: "\(expression.rawValue)-shut.png"), options: .atomic)
-            }
+            try put(face.png, "\(name).png")
+            if let shut = face.shut { try put(shut, "\(expression.rawValue)-shut.png") }
             eyes[expression.rawValue] = face.eyes
         }
         if let raw = payload.rawBrows {
-            try raw.png.write(to: directory.appending(path: "browsUp.png"), options: .atomic)
+            try put(raw.png, "browsUp.png")
             eyes["browsUp-raw"] = raw.eyes
         }
-        if let shut = payload.shut {
-            try shut.write(to: directory.appending(path: "shut.png"), options: .atomic)
-        }
+        if let shut = payload.shut { try put(shut, "shut.png") }
         let manifest = Manifest(contentHeight: contentHeight, chin: chin, eyes: eyes,
                                 popsIn: payload.popsIn.map(\.rawValue).sorted(),
                                 shutFaces: payload.faces.compactMap { $0.value.shut == nil ? nil : $0.key.rawValue }.sorted(),
@@ -264,15 +277,28 @@ final class HeadStore {
     }
 
     /// What is on disk, and whether it predates derivation.
-    private nonisolated static func read(from directory: URL) -> (payload: Payload, manifest: Manifest)? {
+    nonisolated static func read(from directory: URL) -> (payload: Payload, manifest: Manifest)? {
         guard let data = try? Data(contentsOf: directory.appending(path: "head.json")),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else { return nil }
         let banded = manifest.version >= 3 && manifest.bandedBrows == true
         var faces: [HeadRig.Expression: Face] = [:]
+        var bandedMissing = false
         for expression in HeadRig.Expression.allCases {
-            let name = expression == .browsUp && banded ? "browsUp-banded" : expression.rawValue
-            guard let png = try? Data(contentsOf: directory.appending(path: "\(name).png")) else { continue }
-            var face = Face(png: png, eyes: manifest.eyes[expression.rawValue] ?? [])
+            var png: Data?
+            var eyes = manifest.eyes[expression.rawValue] ?? []
+            if expression == .browsUp, banded {
+                png = try? Data(contentsOf: directory.appending(path: "browsUp-banded.png"))
+                if png == nil {
+                    // The banded face has gone: the raw capture, with its own eyes.
+                    bandedMissing = true
+                    png = try? Data(contentsOf: directory.appending(path: "browsUp.png"))
+                    eyes = manifest.eyes["browsUp-raw"] ?? eyes
+                }
+            } else {
+                png = try? Data(contentsOf: directory.appending(path: "\(expression.rawValue).png"))
+            }
+            guard let png else { continue }
+            var face = Face(png: png, eyes: eyes)
             if manifest.version >= 3 {
                 face.shut = try? Data(contentsOf: directory.appending(path: "\(expression.rawValue)-shut.png"))
             }
@@ -281,18 +307,18 @@ final class HeadStore {
         var payload = Payload(faces: faces, shut: try? Data(contentsOf: directory.appending(path: "shut.png")))
         if manifest.version >= 3 {
             payload.popsIn = Set((manifest.popsIn ?? []).compactMap(HeadRig.Expression.init(rawValue:)))
-            if banded, let raw = try? Data(contentsOf: directory.appending(path: "browsUp.png")) {
+            if banded, !bandedMissing, let raw = try? Data(contentsOf: directory.appending(path: "browsUp.png")) {
                 payload.rawBrows = (raw, manifest.eyes["browsUp-raw"] ?? [])
             }
         }
         return (payload, manifest)
     }
 
-    private static func load() -> HeadRig? {
+    private static func load() -> (rig: HeadRig?, needsMigration: Bool)? {
         guard let directory, let (payload, manifest) = read(from: directory) else { return nil }
-        if manifest.version < 3 { migrate(directory) }
-        return HeadRig(faces: rigFaces(payload), shut: payload.shut.flatMap(UIImage.init(data:)),
-                       popsIn: payload.popsIn, contentHeight: manifest.contentHeight, chin: manifest.chin)
+        return (HeadRig(faces: rigFaces(payload), shut: payload.shut.flatMap(UIImage.init(data:)),
+                        popsIn: payload.popsIn, contentHeight: manifest.contentHeight, chin: manifest.chin),
+                manifest.version < 3)
     }
 
     private nonisolated static func rigFaces(_ payload: Payload) -> [HeadRig.Expression: HeadRig.Face] {
@@ -304,29 +330,68 @@ final class HeadStore {
         return faces
     }
 
-    /// **A head made before derivation gets it once, off the main actor.**
-    /// Its own saved PNGs are all it needs (every face shares one eye-aligned
-    /// canvas), and every file it wrote is kept: new files are added beside
-    /// them, and the manifest moves to version 3. The head on screen swaps to
-    /// the derived one when it is ready.
-    private static func migrate(_ directory: URL) {
+    /// **A head made before derivation gets it once.** The slow part (deriving
+    /// the faces) runs off the main actor; the write and the swap happen back on
+    /// it, and only if nothing was saved or deleted in between (`epoch`). The
+    /// images a version 2 head wrote are left byte for byte as they were: the
+    /// new faces are added beside them and `head.json` moves to version 3.
+    private func migrate(_ directory: URL) {
+        let started = epoch
         Task {
-            let rig = await Task.detached(priority: .utility) { () -> HeadRig? in
-                guard let (payload, manifest) = read(from: directory), manifest.version < 3 else { return nil }
-                let derived = payload.derived()
-                do {
-                    try write(derived, to: directory, contentHeight: manifest.contentHeight, chin: manifest.chin)
-                } catch { return nil }
-                #if DEBUG
-                let seam = derived.rawBrows == nil ? "not banded" : "banded"
-                NSLog("[strata-head] migrated a version \(manifest.version) head (brows \(seam)): shut on \(derived.faces.compactMap { $0.value.shut == nil ? nil : $0.key.rawValue }.sorted()), pops \(derived.popsIn.map(\.rawValue).sorted()), banded brows \(derived.rawBrows != nil)")
-                #endif
-                return HeadRig(faces: rigFaces(derived), shut: derived.shut.flatMap(UIImage.init(data:)),
-                               popsIn: derived.popsIn, contentHeight: manifest.contentHeight, chin: manifest.chin)
-            }.value
-            guard let rig else { return }
-            shared.replaceUndressed(rig)
+            guard let prepared = await Task.detached(priority: .utility, operation: {
+                Self.prepareMigration(directory)
+            }).value else { return }
+            guard let rig = Self.finishMigration(prepared, in: directory, startedAt: started, now: epoch) else { return }
+            #if DEBUG
+            let derived = prepared.derived
+            NSLog("[strata-head] migrated a version \(prepared.manifest.version) head: shut on \(derived.faces.compactMap { $0.value.shut == nil ? nil : $0.key.rawValue }.sorted()), pops \(derived.popsIn.map(\.rawValue).sorted()), banded brows \(derived.rawBrows != nil)")
+            #endif
+            replaceUndressed(rig)
         }
+    }
+
+    /// What a migration derived, ready to write.
+    nonisolated struct PreparedMigration: Sendable {
+        let derived: Payload
+        let manifest: Manifest
+    }
+
+    /// Off the main actor: read a version 2 head and derive. Writes nothing.
+    nonisolated static func prepareMigration(_ directory: URL) -> PreparedMigration? {
+        guard let (payload, manifest) = read(from: directory), manifest.version < 3 else { return nil }
+        return PreparedMigration(derived: payload.derived(), manifest: manifest)
+    }
+
+    /// **On the main actor: write, only if the head is still the one that was
+    /// read.** Nil when a save or delete ran since (`now != startedAt`), when
+    /// the head on disk is no longer version 2, or when writing failed. The
+    /// write goes to a copy of the folder, which then replaces it, so a failure
+    /// part way leaves the old head whole.
+    static func finishMigration(_ prepared: PreparedMigration, in directory: URL,
+                                startedAt: Int, now: Int) -> HeadRig? {
+        guard now == startedAt else {
+            #if DEBUG
+            NSLog("[strata-head] migration dropped: the head was saved or deleted while it ran")
+            #endif
+            return nil
+        }
+        let manager = FileManager.default
+        guard let (_, onDisk) = read(from: directory), onDisk.version < 3 else { return nil }
+        let staging = directory.deletingLastPathComponent().appending(path: "Head-migrating", directoryHint: .isDirectory)
+        do {
+            try? manager.removeItem(at: staging)
+            try manager.copyItem(at: directory, to: staging)
+            try write(prepared.derived, to: staging, contentHeight: prepared.manifest.contentHeight,
+                      chin: prepared.manifest.chin, addsOnly: true)
+            _ = try manager.replaceItemAt(directory, withItemAt: staging)
+        } catch {
+            try? manager.removeItem(at: staging)
+            return nil
+        }
+        let derived = prepared.derived
+        return HeadRig(faces: rigFaces(derived), shut: derived.shut.flatMap(UIImage.init(data:)),
+                       popsIn: derived.popsIn, contentHeight: prepared.manifest.contentHeight,
+                       chin: prepared.manifest.chin)
     }
 
     private func replaceUndressed(_ rig: HeadRig) {
@@ -344,6 +409,11 @@ final class HeadStore {
     /// Written only when there is no head on disk.
     private static func writeMadeHeadFixture() {
         guard let directory, !FileManager.default.fileExists(atPath: directory.appending(path: "head.json").path) else { return }
+        writeVersion2Fixture(to: directory)
+    }
+
+    /// The fixture's files, anywhere (tests write it to a temporary folder).
+    static func writeVersion2Fixture(to directory: URL) {
         func outline(_ x: CGFloat, _ y: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> [CGPoint] {
             (0..<16).map { i in
                 let a = Double(i) / 16 * 2 * .pi
@@ -376,7 +446,7 @@ final class HeadStore {
             }
             try put(UIImage(named: "HeadNeutral")?.pngData(), "neutral.png")
             eyes["neutral"] = neutralEyes
-            try put(shifted("HeadNeutralClosed", dx: 1, dy: 1, light: 0.06), "shut.png")
+            try put(shifted("HeadNeutralClosed", dx: 1, dy: 0, light: 0.06), "shut.png")
             try put(shifted("HeadNeutralBrowsUp", dx: 1, dy: 0, light: 0.03), "browsUp.png")
             eyes["browsUp"] = neutralEyes.map { var e = $0; e.x += 1.0 / 480; e.outline = outline(e.x, e.y, e.rx, e.ry); return e }
             try put(UIImage(named: "HeadSmile")?.pngData(), "smile.png")
