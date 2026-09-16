@@ -165,8 +165,10 @@ final class ReplayGestureTests: XCTestCase {
         let copy = app.buttons["Copy"]
         let appeared = sheet.waitForExistence(timeout: 240) || copy.exists
         let after = clock(app)
-        XCTAssertTrue(preparing.hasPrefix("Preparing") || appeared,
-                      "Share neither showed the export nor opened a sheet (value \(preparing))")
+        // The export takes seconds; straight after the press the control has
+        // to be showing it, whatever the sheet does later.
+        XCTAssertTrue(preparing.hasPrefix("Preparing"),
+                      "Share did not show the export's progress after the press (value \(preparing))")
         XCTAssertTrue(appeared, "tapping Share showed no share sheet. On screen: \(app.debugDescription)")
         keep(app, "share-sheet")
         // The clock reads the same either side of the tap and sits at the

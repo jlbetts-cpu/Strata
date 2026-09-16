@@ -86,6 +86,12 @@ struct ReplayPeriodTests {
         let gb = ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar)
             .range(relativeTo: now, locale: Locale(identifier: "en_GB"))
         #expect(gb == "07/09-13/09", "the UK reads \(gb)")
+        // A reader who writes dates with hyphens gets a spaced hyphen between
+        // the ends, never one run of numbers and never a long dash.
+        let nl = ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar)
+            .range(relativeTo: now, locale: Locale(identifier: "nl_NL"))
+        #expect(nl.contains(" - ") && !nl.contains("\u{2013}") && !nl.contains("\u{2014}"), "Dutch reads \(nl)")
+        #expect(nl.hasPrefix("7-9") && nl.hasSuffix("13-9"), "Dutch reads \(nl)")
         #expect(ReplayPeriod.month(containing: at(2026, 9, 9), calendar: calendar).range(relativeTo: now, locale: us) == "September")
         #expect(ReplayPeriod.month(containing: at(2025, 9, 9), calendar: calendar).range(relativeTo: now, locale: us) == "September 2025")
     }
@@ -107,7 +113,10 @@ struct ReplayPeriodTests {
         let now = at(2026, 9, 13)
         #expect(ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar).spokenRange(relativeTo: now) == "7 to 13 September")
         #expect(ReplayPeriod.week(containing: at(2026, 10, 1), calendar: calendar).spokenRange(relativeTo: now) == "28 September to 4 October")
-        #expect(ReplayPeriod.week(containing: at(2025, 9, 10), calendar: calendar).spokenRange(relativeTo: now) == "8 to 14 September 2025")
+        #expect(ReplayPeriod.week(containing: at(2025, 9, 10), calendar: calendar).spokenRange(relativeTo: now) == "8 September 2025 to 14 September 2025")
+        // Across New Year, seen from the new year: the same rule as the printed range.
+        #expect(ReplayPeriod.week(containing: at(2025, 12, 31), calendar: calendar).spokenRange(relativeTo: at(2026, 1, 5))
+                == "29 December 2025 to 4 January 2026")
         #expect(ReplayPeriod.month(containing: at(2025, 9, 9), calendar: calendar).spokenRange(relativeTo: now) == "September 2025")
     }
 

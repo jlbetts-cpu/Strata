@@ -68,20 +68,22 @@ struct ReplayImages {
     static func load(_ replay: Replay, cellPixels: CGFloat) async -> ReplayImages {
         var out = ReplayImages()
         await decode(photos(replay), cellPixels: cellPixels) { photo, image in
-            out.insert(image, for: photo)
+            if let image { out.insert(image, for: photo) }
         }
         return out
     }
 
     /// Decodes `photos` in order, `concurrentDecodes` at a time, calling
-    /// `arrived` on the calling actor as each finishes. Only this function's
-    /// own task calls `arrived`, so what it writes needs no lock.
+    /// `arrived` on the calling actor as each finishes, with nil for one that
+    /// could not be decoded. Only this function's own task calls `arrived`,
+    /// so what it writes needs no lock. Stops starting new decodes when its
+    /// task is cancelled.
     static func decode(_ photos: [(photo: ReplayPhoto, span: Int)], cellPixels: CGFloat,
-                       arrived: (ReplayPhoto, UIImage) -> Void) async {
+                       arrived: (ReplayPhoto, UIImage?) -> Void) async {
         await withTaskGroup(of: (ReplayPhoto, UIImage?).self) { group in
             var next = 0
             func addNext() {
-                guard next < photos.count else { return }
+                guard next < photos.count, !Task.isCancelled else { return }
                 let (photo, span) = photos[next]
                 next += 1
                 let width = decodeSide(cellPixels: cellPixels, span: span)
@@ -94,7 +96,7 @@ struct ReplayImages {
             }
             for _ in 0..<concurrentDecodes { addNext() }
             for await (photo, image) in group {
-                if let image { arrived(photo, image) }
+                arrived(photo, image)
                 addNext()
             }
         }
@@ -118,11 +120,19 @@ struct ReplayImages {
 /// **The replay starts before every photograph is in** (the owner,
 /// 2026-09-15: "the loading is slow"). It waits only for the photographs of
 /// the blocks that appear in its first `startWindow` seconds from where it
-/// starts, decoding in drop order, and the rest keep decoding while it
-/// plays. A block whose photograph is not in yet draws its colour, as every
-/// block does while it decodes, and the picture fades in over `fade` when it
-/// lands. That fade runs on the wall clock, not the script: it is live only.
-/// Save Video and Share wait for `all()`, so the video never has a blank.
+/// starts, decoding those first, and the rest keep decoding while it plays.
+///
+/// **A block that will show a photograph is drawn as one from its first
+/// frame** (`expects`): its veil, vignette and title shadow are there at
+/// once, and only the picture fades in when it lands. Switching those on
+/// with the picture's arrival darkened the block in one frame.
+///
+/// **The fade runs on the replay's clock, not the wall's**, so a hold pauses
+/// it with everything else. A photograph that lands while the replay is not
+/// running (held, frozen or finished) has nothing to fade against and shows
+/// at once; after Replay, one that arrived later in the first play shows
+/// whole. The fade is live only: Save Video and Share wait for `all()`, so
+/// the video never has a blank or a half-faded picture.
 @MainActor
 @Observable
 final class ReplayImageLoad {
@@ -134,8 +144,15 @@ final class ReplayImageLoad {
     /// Every photograph is in and every fade has finished, so a finished
     /// replay may stop asking for frames.
     private(set) var settled = false
+    /// Photographs that could not be decoded: their blocks are drawn as
+    /// plain colour, as a block without a photograph is.
+    private(set) var failed: Set<String> = []
 
-    @ObservationIgnored private var arrivals: [String: Date] = [:]
+    /// The replay's time and whether it is running, read as a photograph
+    /// lands. Set by the view that owns the clock.
+    @ObservationIgnored var clock: (() -> (t: Double, running: Bool))?
+    /// Replay time each late photograph landed at.
+    @ObservationIgnored private var arrivals: [String: Double] = [:]
     @ObservationIgnored private var started = false
     @ObservationIgnored private var playWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var allTask: Task<ReplayImages, Never>?
@@ -143,7 +160,8 @@ final class ReplayImageLoad {
     /// How long ahead of the starting moment the replay's photographs must
     /// already be decoded.
     static let startWindow: Double = 2
-    /// How long a photograph that arrives during playback takes to fade in.
+    /// How long, in replay time, a photograph that lands during playback
+    /// takes to fade in.
     static let fade: Double = 0.25
 
     /// The photographs the replay needs before it may start at `from`: those
@@ -171,10 +189,12 @@ final class ReplayImageLoad {
             var decoded = ReplayImages()
             for batch in [first, rest] where !batch.isEmpty {
                 await ReplayImages.decode(batch, cellPixels: cellPixels) { photo, image in
-                    decoded.insert(image, for: photo)
+                    if let image { decoded.insert(image, for: photo) }
                     guard let self else { return }
+                    if image == nil { self.failed.insert(photo.key) }
                     if self.canPlay {
-                        self.arrivals[photo.key] = Date()
+                        guard let image else { return }
+                        if let now = self.clock?(), now.running { self.arrivals[photo.key] = now.t }
                         self.images.insert(image, for: photo)
                     } else {
                         missing.remove(photo.key)
@@ -184,8 +204,8 @@ final class ReplayImageLoad {
                         }
                     }
                 }
-                // A photograph that failed to decode is never going to
-                // arrive: start with what there is.
+                // Cancelled, or a photograph never arrived: start with what
+                // there is, so nothing waits for ever.
                 if let self, !self.canPlay {
                     self.images = decoded
                     self.becomePlayable()
@@ -216,10 +236,23 @@ final class ReplayImageLoad {
         await allTask?.value ?? images
     }
 
-    /// How far `photo` has faded in at `date`: 1 for anything that was in
-    /// before playback started.
-    func opacity(_ photo: ReplayPhoto, at date: Date) -> Double {
-        guard let arrived = arrivals[photo.key] else { return 1 }
-        return min(max(date.timeIntervalSince(arrived) / Self.fade, 0), 1)
+    /// The replay closed: stop decoding. A month's photographs no longer
+    /// decode behind a screen that has gone.
+    func cancel() {
+        allTask?.cancel()
+    }
+
+    /// Whether a block showing `photo` should be drawn as a photograph: its
+    /// picture is in or on its way.
+    func expects(_ photo: ReplayPhoto) -> Bool {
+        !failed.contains(photo.key)
+    }
+
+    /// How far `photo` has faded in at replay time `t`: 1 for anything that
+    /// was in before playback started, landed while the replay was not
+    /// running, or landed later than `t` in an earlier play.
+    func opacity(_ photo: ReplayPhoto, at t: Double) -> Double {
+        guard let arrived = arrivals[photo.key], t >= arrived else { return 1 }
+        return min(max((t - arrived) / Self.fade, 0), 1)
     }
 }

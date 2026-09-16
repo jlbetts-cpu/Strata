@@ -23,6 +23,12 @@ struct ReplayFrame: View {
     /// has faded in. The exporter waits for every photograph and passes
     /// nothing, so every frame of the video draws each picture whole.
     var photoOpacity: ((ReplayPhoto) -> Double)? = nil
+    /// Live only: whether a block's photograph is in or still on its way, so
+    /// the block is drawn as a photograph (veil, vignette, title shadow) from
+    /// its first frame and only the picture fades in. Without it a block is
+    /// drawn as a photograph exactly when its picture is in, which is always
+    /// for the exporter and the posters.
+    var expectsPhoto: ((ReplayPhoto) -> Bool)? = nil
     /// The frame's top safe-area inset: the status bar and the Dynamic Island
     /// live, or a story-safe margin in the saved video. The header is set
     /// from it. The tower's lines and the controls' row come from the
@@ -107,7 +113,8 @@ struct ReplayFrame: View {
     static func topCopyHeight(_ size: DynamicTypeSize) -> CGFloat {
         let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, .xxLarge)))
         let count = UIFont.preferredFont(forTextStyle: .largeTitle, compatibleWith: traits).lineHeight
-        let title = UIFont.preferredFont(forTextStyle: .headline, compatibleWith: traits).lineHeight
+        // The date line is `Typography.screenSubtitle`, a subheadline.
+        let title = UIFont.preferredFont(forTextStyle: .subheadline, compatibleWith: traits).lineHeight
         return GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral)
             + count + GridConstants.gapTight + title
     }
@@ -142,44 +149,65 @@ struct ReplayFrame: View {
 
     /// The count, one digit position at a time.
     ///
-    /// **Only a position that changes moves, inside its own line.** Each
-    /// position is clipped to its line box, the old digit rising out of it as
-    /// the new one rises in, a third of the type's size, over 0.16s. The two
-    /// hand over rather than cross: the old is gone by the middle of the roll
-    /// and the new appears from there, so no frame draws two digits over each
-    /// other. The owner's digits are tabular, so neighbours never shift; a
-    /// new leading digit (9 to 10) opens its width in the first half, before
-    /// it appears, so "wins" slides over rather than jumping.
+    /// **An odometer.** Only a position that changes moves: its old digit
+    /// rises out of a window the height of the digits' own ink as the new
+    /// one rises in from below it, both at full strength. The window is the
+    /// cap band (`roundedCapInset` below the line's top, a cap high, with a
+    /// little room for round overshoot), not the line box: the owner's face
+    /// sets its digits in a line about 1.2 em tall with the ink in the
+    /// middle, and clipped to that box, a roll a whole line long showed the
+    /// two numbers stacked with a gap between them, "19" over "20". The
+    /// digits travel the window's height and a small gap more, so they never
+    /// overlap and nothing fades or dims: a frame mid-roll shows the bottom
+    /// of the old digit leaving the top of the window and the top of the new
+    /// one entering at the bottom, the way a counter wheel looks.
+    ///
+    /// The owner's digits are tabular, so neighbours never shift; a new
+    /// leading digit (9 to 10) opens its width in the first half of the roll,
+    /// so "wins" slides over rather than jumping. Under Reduce Motion nothing
+    /// travels: the digit changes at the middle of the roll.
     private func digits(_ roll: ReplayScript.CountRoll) -> some View {
         let slots = ReplayScript.digitSlots(roll)
-        let e = script.rollEase(roll.progress)
-        let (outOpacity, inOpacity) = ReplayScript.rollOpacities(e)
-        let rise = script.reduceMotion ? 0 : script.pacing.rollRise * tallySize
+        let e = CGFloat(script.rollEase(roll.progress))
+        let still = script.reduceMotion
+        let size = tallySize
+        let pad = size * Self.rollWindowPad
+        let windowTop = GridConstants.roundedCapInset * size - pad
+        let windowHeight = Typography.screenTitleCap / Typography.screenTitleSize * size + 2 * pad
+        let travel = windowHeight + size * Self.rollGap
         return HStack(alignment: .firstTextBaseline, spacing: 0) {
             ForEach(slots.indices, id: \.self) { i in
                 let slot = slots[i]
-                WidthReveal(fraction: slot.old == nil && slot.changes ? CGFloat(ReplayScript.rollOpening(e)) : 1) {
-                    ZStack {
-                        if slot.changes {
-                            if let old = slot.old {
-                                digit(old).opacity(outOpacity).offset(y: -rise * CGFloat(e))
-                            }
-                            if let new = slot.new {
-                                digit(new).opacity(inOpacity).offset(y: rise * CGFloat(1 - e))
-                            }
-                        } else if let new = slot.new {
-                            digit(new)
+                WidthReveal(fraction: slot.old == nil && slot.changes ? CGFloat(ReplayScript.rollOpening(Double(e))) : 1) {
+                    if slot.changes, !still {
+                        ZStack {
+                            if let old = slot.old { digit(old).offset(y: -travel * e) }
+                            if let new = slot.new { digit(new).offset(y: travel * (1 - e)) }
                         }
+                        .mask(alignment: .top) {
+                            Rectangle()
+                                .frame(height: windowHeight)
+                                .padding(.top, windowTop)
+                        }
+                    } else if slot.changes {
+                        if let shown = e < 0.5 ? slot.old : slot.new { digit(shown) } else { Color.clear }
+                    } else if let new = slot.new {
+                        digit(new)
                     }
-                    .clipped()
                 }
                 // The part of a still-opening position that is not open yet
-                // is not drawn: without this the new digit hung out past the
-                // margin while its width grew.
+                // is not drawn.
                 .clipped()
             }
         }
     }
+
+    /// Room above and below the digits' cap band inside the roll's window,
+    /// for the round digits' overshoot, as a fraction of the type's size.
+    private static let rollWindowPad: CGFloat = 0.06
+    /// The space between a leaving digit and an arriving one, as a fraction
+    /// of the type's size.
+    private static let rollGap: CGFloat = 0.1
 
     private func digit(_ c: Character) -> some View {
         Text(String(c))
@@ -242,7 +270,8 @@ struct ReplayFrame: View {
                     BlockFace(title: block.win.title, category: block.win.category,
                               iconCategory: block.win.category, rowSpan: block.rowSpan,
                               width: f.width, height: f.height, cornerRadius: radius,
-                              hasPhoto: image != nil, showOverlay: titleOpacity > 0,
+                              hasPhoto: image != nil || block.win.photo.map { expectsPhoto?($0) ?? false } == true,
+                              showOverlay: titleOpacity > 0,
                               overlayOpacity: titleOpacity) {
                         if let image, let source = block.win.photo {
                             photo(image, crop: block.win.crop, width: f.width, height: f.height)

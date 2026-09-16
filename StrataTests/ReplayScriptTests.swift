@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import Strata
 
@@ -32,6 +33,20 @@ struct ReplayScriptTests {
                              photo: nil, crop: .zero)
         }
         return Replay(period: period, wins: wins)
+    }
+
+    /// The metrics a replay actually ships with at `frame`: laid out from the
+    /// screen (`Metrics.standard` with the top copy, insets and controls),
+    /// the way `ReplayView` and `ReplayCard` make them. The fractions-only
+    /// form is what most of these tests were first written against.
+    static func shippedMetrics(_ frame: CGSize) -> ReplayScript.Metrics {
+        let copy = ReplayFrame.topCopyHeight(.large)
+        if frame == ReplayCard.size {
+            return .standard(frame: frame, topInset: ReplayCard.topInset, topCopy: copy, bottomInset: ReplayCard.bottomInset)
+        }
+        let (top, bottom): (CGFloat, CGFloat) = frame.height < 700 ? (20, 0) : (62, 34)
+        return .standard(frame: frame, topInset: top, topCopy: copy, bottomInset: bottom,
+                         controlsHeight: GlassIconButton.defaultSide)
     }
 
     private func script(_ kind: ReplayKind, wins n: Int, reduceMotion: Bool = false) -> ReplayScript {
@@ -201,8 +216,8 @@ struct ReplayScriptTests {
     }
 
     @Test("every count from 1 to 400, both lengths and hard-heavy mixes, at every frame: falls start above the frame, nothing lands above the follow line",
-          arguments: ReplayScriptTests.sweepFrames)
-    func corridorHoldsForEveryCount(frame: CGSize) {
+          arguments: ReplayScriptTests.sweepFrames, [false, true])
+    func corridorHoldsForEveryCount(frame: CGSize, shipped: Bool) {
         // Every count at the frame the camera was tuned on; a subsample at
         // the others, always with 1, small counts, 150, 400 and past the
         // caps, and every hard-heavy mix.
@@ -212,7 +227,7 @@ struct ReplayScriptTests {
         } else {
             counts += [5, 8, 12, 20, 30, 45, 60, 90, 120, 150, 200, 250, 300, 350]
         }
-        let metrics = ReplayScript.Metrics.standard(frame: frame)
+        let metrics = shipped ? Self.shippedMetrics(frame) : ReplayScript.Metrics.standard(frame: frame)
         var cases: [(String, ReplayScript)] = []
         for n in counts {
             for kind in [ReplayKind.week, .month] {
@@ -243,7 +258,7 @@ struct ReplayScriptTests {
             if w.onScreen > 0.5 { failures.append("\(name): block \(w.block) starts \(w.onScreen)pt on screen") }
             if w.overFollow > 0.5 { failures.append("\(name): a block lands \(w.overFollow)pt above the follow line") }
         }
-        #expect(failures.isEmpty, "\(frame.width)x\(frame.height): \(failures.count) of \(cases.count) cases: \(failures.prefix(12)); worst start \(worstOnScreen), worst over follow \(worstOver)")
+        #expect(failures.isEmpty, "\(frame.width)x\(frame.height)\(shipped ? " shipped" : ""): \(failures.count) of \(cases.count) cases: \(failures.prefix(12)); worst start \(worstOnScreen), worst over follow \(worstOver)")
     }
 
     @Test("the camera starts rising no earlier than 0.75s before the first landing that needs it",
@@ -281,9 +296,12 @@ struct ReplayScriptTests {
     }
 
     @Test("the reveal pulls out: the top stays between the fit line and the base, the zoom only shrinks, nothing jumps",
-          arguments: [(ReplayKind.month, 150), (ReplayKind.week, 60)])
-    func revealNeverOvershoots(kind: ReplayKind, wins: Int) {
-        let s = script(kind, wins: wins)
+          arguments: [(ReplayKind.month, 150, false), (ReplayKind.week, 60, false),
+                      (ReplayKind.month, 150, true), (ReplayKind.week, 60, true)])
+    func revealNeverOvershoots(kind: ReplayKind, wins: Int, shipped: Bool) {
+        let s = shipped
+            ? ReplayScript(replay: replay(kind, wins: wins), metrics: Self.shippedMetrics(frame), reduceMotion: false)
+            : script(kind, wins: wins)
         let m = s.metrics
         let h = s.towerHeight
         func top(_ t: Double) -> CGFloat {
@@ -408,14 +426,9 @@ struct ReplayScriptTests {
             }
         }
         #expect(s.countRoll(at: 0) == ReplayScript.CountRoll(count: 0, previous: 0, progress: 1))
-        // The digits hand over: never both above a third at once.
-        for e in stride(from: 0.0, through: 1.0, by: 0.01) {
-            let o = ReplayScript.rollOpacities(e)
-            #expect(min(o.leaving, o.arriving) == 0, "at \(e) both digits show: \(o.leaving) \(o.arriving)")
-            if o.arriving > 0 { #expect(ReplayScript.rollOpening(e) == 1, "a digit appeared in a slot still opening at \(e)") }
-        }
-        let start = ReplayScript.rollOpacities(0), end = ReplayScript.rollOpacities(1)
-        #expect(start.leaving == 1 && start.arriving == 0 && end.leaving == 0 && end.arriving == 1)
+        // A new leading digit's position is fully open by the middle of the
+        // roll, and not at all at its start.
+        #expect(ReplayScript.rollOpening(0) == 0 && ReplayScript.rollOpening(0.5) == 1 && ReplayScript.rollOpening(1) == 1)
         // The ease is monotone from 0 to 1.
         #expect(s.rollEase(0) == 0 && s.rollEase(1) == 1)
         #expect(s.rollEase(0.25) < s.rollEase(0.5) && s.rollEase(0.5) < s.rollEase(0.75))

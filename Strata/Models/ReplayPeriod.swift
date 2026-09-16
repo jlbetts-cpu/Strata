@@ -137,7 +137,7 @@ struct ReplayPeriod: Hashable, Identifiable {
     }
 
     /// What the replay and the shelf print: "9/7-9/13" for a week, in the
-    /// reader's own month and day order ("7/9-13/9" in the UK), and
+    /// reader's own month and day order ("07/09-13/09" in the UK), and
     /// "September" for a month.
     ///
     /// **Numbers and a plain hyphen, the owner's call (2026-09-15):** "7 to
@@ -146,6 +146,10 @@ struct ReplayPeriod: Hashable, Identifiable {
     /// to both ends, so a week across New Year reads "12/29/25-1/4/26"
     /// rather than leaving one end to guess. A month adds its year the same
     /// way: "September 2025".
+    ///
+    /// **A reader whose dates are written with hyphens** ("7-9" in Dutch)
+    /// gets the two ends joined by a spaced hyphen, "7-9 - 13-9", so the
+    /// range never reads as one run of numbers. Never a long dash.
     func range(relativeTo now: Date, locale: Locale = .current) -> String {
         let first = firstDay
         let last = date(ofDay: days.count - 1)
@@ -157,7 +161,9 @@ struct ReplayPeriod: Hashable, Identifiable {
             let otherYear = calendar.component(.year, from: first) != nowYear
                 || calendar.component(.year, from: last) != nowYear
             let f = formatter(otherYear ? "yyMd" : "Md", template: true, locale: locale)
-            return "\(f.string(from: first))-\(f.string(from: last))"
+            let head = f.string(from: first), tail = f.string(from: last)
+            let joint = head.contains("-") || tail.contains("-") ? " - " : "-"
+            return head + joint + tail
         }
     }
 
@@ -168,15 +174,18 @@ struct ReplayPeriod: Hashable, Identifiable {
     func spokenRange(relativeTo now: Date) -> String {
         let first = firstDay
         let last = date(ofDay: days.count - 1)
-        let otherYear = calendar.component(.year, from: last) != calendar.component(.year, from: now)
+        let nowYear = calendar.component(.year, from: now)
+        // The year rule `range` uses: both ends carry it when either end is
+        // not in `now`'s year.
+        let otherYear = calendar.component(.year, from: first) != nowYear
+            || calendar.component(.year, from: last) != nowYear
         switch kind {
         case .month:
             return formatter(otherYear ? "MMMM yyyy" : "MMMM").string(from: first)
         case .week:
             let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
-            let yearsDiffer = calendar.component(.year, from: first) != calendar.component(.year, from: last)
-            let head = formatter(yearsDiffer ? "d MMMM yyyy" : (sameMonth ? "d" : "d MMMM")).string(from: first)
-            let tail = formatter(otherYear || yearsDiffer ? "d MMMM yyyy" : "d MMMM").string(from: last)
+            let head = formatter(otherYear ? "d MMMM yyyy" : (sameMonth ? "d" : "d MMMM")).string(from: first)
+            let tail = formatter(otherYear ? "d MMMM yyyy" : "d MMMM").string(from: last)
             return "\(head) to \(tail)"
         }
     }

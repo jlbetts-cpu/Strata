@@ -117,7 +117,8 @@ struct ReplayScript {
         let danceWave = 0.6
         /// Reduce Motion's blocks fade in over this.
         let closeFade = 0.3
-        /// Between the title's two words arriving.
+        /// Between the date arriving and a Settings preview's "Sample" after
+        /// it, and the step Reduce Motion's close adds to the replay's end.
         let closeStagger = 0.08
         let squashTime = 0.35
         /// How long the count takes to fade in at the open.
@@ -126,9 +127,6 @@ struct ReplayScript {
         /// the time to the next landing, so a roll always finishes before
         /// the next one starts.
         let rollTime = 0.16
-        /// How far a rolling digit travels, as a fraction of the type's size:
-        /// a third, so it slides inside its own line rather than leaping.
-        let rollRise: CGFloat = 0.3
         /// The squash-and-stretch settle: an exponentially decaying cosine.
         let squashDecay = 0.08
         let squashPeriod = 0.22
@@ -666,24 +664,16 @@ struct ReplayScript {
         }
     }
 
-    /// A digit's rise through a roll, eased out: the arriving digit comes up
-    /// from `rise` below and the leaving one goes `rise` above, crossing in
-    /// opacity. Nothing slides under Reduce Motion; the digits cross-fade.
+    /// How far through its travel a rolling digit is, eased out: the leaving
+    /// digit is this many line heights above its place, the arriving one
+    /// this many short of arriving from a line below.
     func rollEase(_ progress: Double) -> Double {
         let q = 1 - Self.clamp01(progress)
         return 1 - q * q
     }
 
-    /// The leaving and arriving digits' opacities at eased progress `e`. They
-    /// hand over rather than cross: the old is gone by the middle and the new
-    /// starts there, so no frame draws two digits over each other.
-    static func rollOpacities(_ e: Double) -> (leaving: Double, arriving: Double) {
-        (clamp01(1 - e / 0.5), clamp01((e - 0.5) / 0.5))
-    }
-
     /// How open a position gaining a digit is (9 to 10): fully by the middle
-    /// of the roll, before its digit starts to appear, so the digit is never
-    /// drawn into a slot too narrow for it.
+    /// of the roll, while its digit is still in the lower half of its travel.
     static func rollOpening(_ e: Double) -> Double { clamp01(e / 0.5) }
 
     /// The count and its word at the open. Faded in, so the first frame is

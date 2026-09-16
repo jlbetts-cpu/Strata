@@ -60,6 +60,8 @@ struct ReplayView: View {
     /// The clock has started: the player replaces the empty ground.
     @State private var started = false
     @State private var scripts = ReplayScriptCache()
+    /// Share's frame on screen, for the iPad's share popover.
+    @State private var shareAnchor = ReplayShareAnchor()
     @State private var clock = ReplayClock()
     @State private var feedback = ReplayFeedback()
     /// Set once `t` reaches the end, so the timeline stops asking for frames
@@ -119,6 +121,7 @@ struct ReplayView: View {
                     // on the animation.
                     GlassIconButton(systemName: "xmark", accessibilityLabel: "Close") {
                         video.close()
+                        load.cancel()
                         onClose()
                     }
                         .padding(.trailing, GridConstants.horizontalPadding)
@@ -214,14 +217,14 @@ struct ReplayView: View {
         // arrived and faded in, or a late one would never be seen.
         TimelineView(.animation(paused: (finished && load.settled) || clock.isPaused || clock.isFrozen)) { context in
             let t = clock.time(at: context.date, duration: script.duration)
-            let date = context.date
             #if DEBUG
             let _ = openTiming.markOnce("timeline")
             #endif
             ReplayFrame(script: script, images: load.images, t: t, now: now,
                         showsSampleBadge: isSample,
                         controls: AnyView(controls(script: script)),
-                        photoOpacity: { load.opacity($0, at: date) },
+                        photoOpacity: { load.opacity($0, at: t) },
+                        expectsPhoto: { load.expects($0) },
                         topInset: insets.top,
                         onTapBlock: t >= script.closeStart
                             ? { index in openPhoto(block: index, script: script, t: t) }
@@ -313,10 +316,13 @@ struct ReplayView: View {
         HStack(spacing: GridConstants.gapItem) {
             // Quieter than the two words beside it: the glyph in secondary ink.
             GlassIconButton(systemName: "arrow.counterclockwise", tint: AppColors.inkSecondary, accessibilityLabel: "Replay") {
-                restart()
+                restart(script: script)
             }
             SaveVideoControl(video: video) { saveVideo() }
             ShareVideoControl(video: video) { shareVideo() }
+                // Where the share sheet points from on an iPad. A reference,
+                // written on layout, so it does not redraw the replay.
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { shareAnchor.rect = $0 }
         }
         .frame(height: GlassIconButton.defaultSide)
     }
@@ -329,18 +335,26 @@ struct ReplayView: View {
     private func shareVideo() {
         let load = load
         video.share(replay: replay, images: { await load.all() }, now: now, isSample: isSample) { url in
-            ReplayShareSheet.present(url)
+            ReplayShareSheet.present(url, from: shareAnchor.rect)
         }
     }
 
     /// From the start again: the clock, the landings' sounds and haptics,
     /// the dance's haptic and the VoiceOver announcement all fire again.
-    private func restart() {
+    ///
+    /// **With VoiceOver, straight back to the close**, as the replay opens:
+    /// played from 0 the controls went invisible and focus had nowhere to
+    /// go for the whole build. The announcement is said again.
+    ///
+    /// Save Video's and Share's state survives on purpose: the video is the
+    /// same video, so "Saved to Photos" stays and a finished file is reused.
+    private func restart(script: ReplayScript) {
         feedback = ReplayFeedback()
         announced = false
         press.held = false
         finished = false
         clock.restart()
+        if UIAccessibility.isVoiceOverRunning { clock.skip(to: script.closeStart) }
     }
 
     private func prepare(script: ReplayScript) async {
@@ -364,6 +378,11 @@ struct ReplayView: View {
         // bigger in pixels: this screen's, or the card's at the export scale
         // (a 402pt phone at 3x: a 267px cell against the card's 237px; an SE
         // at 2x: 164px, so the card's).
+        // A photograph landing mid-play fades in on the replay's own clock;
+        // one landing while it is held, frozen or finished shows at once.
+        let clock = clock
+        let duration = script.duration
+        load.clock = { (clock.lastRendered, !clock.isPaused && !clock.isFrozen && clock.lastRendered < duration) }
         load.start(replay, cellPixels: max(script.metrics.cell * displayScale,
                                            ReplayCard.cell * ReplayCard.shareScale),
                    required: required)
@@ -596,7 +615,13 @@ final class ReplayVideo {
         running = nil
         isExporting = false
         if case .success(let url) = result {
-            if closed { ReplayVideoExporter.remove(url) } else { file = url }
+            // Finished as the replay closed: the file is deleted, so it is a
+            // cancel, not a file for Save Video to hand to Photos.
+            if closed {
+                ReplayVideoExporter.remove(url)
+                return .failure(ReplayVideoExporter.Failure.cancelled)
+            }
+            file = url
         }
         return result
     }
@@ -737,19 +762,28 @@ private struct ShareVideoControl: View {
     }
 }
 
+/// Share's frame in window coordinates. A reference, not state: layout
+/// writes it and only the share sheet reads it.
+final class ReplayShareAnchor {
+    var rect: CGRect = .zero
+}
+
 /// The system share sheet with a video file, from the top of whatever is
 /// presented, so it opens over the replay's full-screen cover.
 enum ReplayShareSheet {
-    static func present(_ url: URL) {
+    static func present(_ url: URL, from anchor: CGRect = .zero) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first
         guard var top = window?.rootViewController else { return }
         while let presented = top.presentedViewController, !presented.isBeingDismissed { top = presented }
         let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         // An iPad shows it as a popover, which needs somewhere to point.
-        if let popover = sheet.popoverPresentationController, let view = top.view {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
+        // Pointed at Share itself, in window coordinates.
+        if let popover = sheet.popoverPresentationController, let window {
+            popover.sourceView = window
+            popover.sourceRect = anchor.isEmpty
+                ? CGRect(x: window.bounds.midX, y: window.bounds.maxY - 80, width: 1, height: 1)
+                : anchor
         }
         top.present(sheet, animated: true)
     }
