@@ -251,9 +251,23 @@ enum DebugHarness {
     /// no head placement could ever be photographed here.
     static var seedsHead: Bool { argument("-strataSeedHead") != nil }
 
+    /// `-strataSeedMadeHead`: writes a version 2 made head to disk from the
+    /// creator's faces, with its blink and brows as separate, shifted frames,
+    /// so the migration and a made head's own path can run here. A bare flag.
+    static var seedsMadeHead: Bool { ProcessInfo.processInfo.arguments.contains("-strataSeedMadeHead") }
+
     /// `-strataHeadParity`: opens the head parity page instead of the app
     /// (`HeadParityView`). A bare flag.
     static var headParity: Bool { ProcessInfo.processInfo.arguments.contains("-strataHeadParity") }
+
+    /// `-strataHeadSeed <n>`: every head's director draws from this seed, so
+    /// the creator and a made head on one page live the same life.
+    static var headSeed: UInt64? { argument("-strataHeadSeed").flatMap(UInt64.init) }
+
+    /// `-strataHeadBeat turn|glance|tilt|down|brow|smile|...`: every head plays
+    /// this beat after a 1.5s rest, so it can be photographed rather than
+    /// waited for. Any `HeadBeat.ID`.
+    static var headBeat: HeadBeat.ID? { argument("-strataHeadBeat").flatMap(HeadBeat.ID.init(rawValue:)) }
 
     /// Plays tap expressions on their own, from
     /// `-strataHeadTake cycle|grin|laugh|wink|winkGrin|surprised|doubleTake|eyebrow|sideEye|sleepy|thinking|nod|shake`,

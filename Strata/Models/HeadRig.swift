@@ -60,23 +60,48 @@ nonisolated struct HeadRig: @unchecked Sendable {
         /// Where irises are drawn. Empty means the eyes are the photograph's
         /// own — a grin narrows them past the point where an iris sits right.
         let eyes: [Eye]
+        /// **This face with its eyes shut.** The creator has one for every
+        /// face; a made head has one for neutral, raised brows and surprised,
+        /// each derived from its own blink (`HeadDerivation.lidPatch`), so a
+        /// blink changes the lids and nothing else. Nil: this face does not
+        /// blink.
+        var shut: UIImage? = nil
     }
 
     let faces: [Expression: Face]
-    /// The neutral face with its eyes shut. Nil: this head does not blink.
-    let shut: UIImage?
+    /// Faces that pop straight in, like a grin, instead of morphing. The
+    /// creator's grin and wink; on a made head, the faces whose silhouette
+    /// overlaps neutral's closely enough that a hard swap does not move the
+    /// head (`GridConstants.headPopIoU`).
+    let popsIn: Set<Expression>
     /// Crown to chin, as a share of the canvas's height.
     let contentHeight: CGFloat
     /// Where the chin sits, from the canvas's top.
     let chin: CGFloat
 
-    init?(faces: [Expression: Face], shut: UIImage?, contentHeight: CGFloat, chin: CGFloat) {
-        guard faces[.neutral] != nil else { return nil }
+    /// The neutral face with its eyes shut. Nil: this head does not blink.
+    var shut: UIImage? { faces[.neutral]?.shut }
+
+    /// `shut` fills the neutral face's blink when it has none of its own.
+    init?(faces: [Expression: Face], shut: UIImage? = nil, popsIn: Set<Expression> = [],
+          contentHeight: CGFloat, chin: CGFloat) {
+        guard var neutral = faces[.neutral] else { return nil }
+        var faces = faces
+        if neutral.shut == nil, let shut {
+            neutral.shut = shut
+            faces[.neutral] = neutral
+        }
         self.faces = faces
-        self.shut = shut
+        self.popsIn = popsIn
         self.contentHeight = contentHeight
         self.chin = chin
     }
+
+    /// The shut eyes for one face, if it has them.
+    func shut(on expression: Expression) -> UIImage? { faces[expression]?.shut }
+
+    /// Every face that can blink.
+    var shutFaces: Set<Expression> { Set(faces.compactMap { $0.value.shut == nil ? nil : $0.key }) }
 
     func face(_ expression: Expression) -> Face {
         faces[expression] ?? faces[.neutral]!
@@ -101,11 +126,10 @@ nonisolated struct HeadRig: @unchecked Sendable {
                 }
                 return graded
             }
-            dressedFaces[expression] = Face(image: renderer.renderKeepingShape(face.image, look: look), eyes: eyes)
+            dressedFaces[expression] = Face(image: renderer.renderKeepingShape(face.image, look: look), eyes: eyes,
+                                            shut: face.shut.map { renderer.renderKeepingShape($0, look: look) })
         }
-        return HeadRig(faces: dressedFaces,
-                       shut: shut.map { renderer.renderKeepingShape($0, look: look) },
-                       contentHeight: contentHeight, chin: chin) ?? self
+        return HeadRig(faces: dressedFaces, popsIn: popsIn, contentHeight: contentHeight, chin: chin) ?? self
     }
 
     /// Every face this head really has, in a fixed order so two heads with the
@@ -117,37 +141,43 @@ nonisolated struct HeadRig: @unchecked Sendable {
 
     // MARK: - The creator's head
 
-    /// The owner's own head from his portfolio, as a rig: its faces, and the
-    /// eye positions measured for them in the portfolio's calibration mode
-    /// (`hero-engine.js`, `FACES`) — the same numbers `HeadFace` holds.
+    /// Built once. Onboarding used to build a rig in every body pass.
+    static let creatorRig: HeadRig? = creator()
+
+    /// The owner's own head from his portfolio, as a rig: its faces, their
+    /// shut twins, and the eye positions measured for them in the portfolio's
+    /// calibration mode (`hero-engine.js`, `FACES`).
     ///
-    /// Stands in for a made head on a simulator that has no camera to make
-    /// one with (`-strataSeedHead`).
+    /// **It is the standard every made head is held to** (owner, 2026-09-16),
+    /// and it plays in the same engine. It also stands in for a made head on a
+    /// simulator that has no camera to make one with (`-strataSeedHead`).
     static func creator() -> HeadRig? {
         guard let neutral = UIImage(named: "HeadNeutral") else { return nil }
         func eye(_ x: CGFloat, _ y: CGFloat, ry: CGFloat = 0.0192) -> Eye {
             Eye(x: x, y: y, rx: 0.0385, ry: ry)
         }
+        let neutralShut = UIImage(named: "HeadNeutralClosed")
         var faces: [Expression: Face] = [
-            .neutral: Face(image: neutral, eyes: [eye(0.3999, 0.5176), eye(0.6018, 0.5265)])
+            .neutral: Face(image: neutral, eyes: [eye(0.3999, 0.5176), eye(0.6018, 0.5265)], shut: neutralShut)
         ]
         if let brows = UIImage(named: "HeadNeutralBrowsUp") {
             // Same canvas and eyes as neutral: the portfolio swaps the picture
-            // and nothing else.
-            faces[.browsUp] = Face(image: brows, eyes: [eye(0.3999, 0.5176), eye(0.6018, 0.5265)])
+            // and nothing else, so neutral's shut eyes are its shut eyes too.
+            faces[.browsUp] = Face(image: brows, eyes: [eye(0.3999, 0.5176), eye(0.6018, 0.5265)], shut: neutralShut)
         }
         if let rest = UIImage(named: "HeadRest") {
-            faces[.surprised] = Face(image: rest, eyes: [eye(0.4000, 0.5169), eye(0.6041, 0.5269)])
+            faces[.surprised] = Face(image: rest, eyes: [eye(0.4000, 0.5169), eye(0.6041, 0.5269)],
+                                     shut: UIImage(named: "HeadRestClosed"))
         }
         if let smile = UIImage(named: "HeadSmile") {
-            faces[.smile] = Face(image: smile, eyes: [])
+            faces[.smile] = Face(image: smile, eyes: [], shut: UIImage(named: "HeadSmileClosed"))
         }
         if let wink = UIImage(named: "HeadWink") {
-            faces[.wink] = Face(image: wink, eyes: [eye(0.4000, 0.5169, ry: 0.0172)])
+            faces[.wink] = Face(image: wink, eyes: [eye(0.4000, 0.5169, ry: 0.0172)],
+                                shut: UIImage(named: "HeadWinkClosed"))
         }
         // The portfolio's canvas has more margin than a made head's: the
         // neutral face runs 0.113 to 0.898 of its height.
-        return HeadRig(faces: faces, shut: UIImage(named: "HeadNeutralClosed"),
-                       contentHeight: 0.785, chin: 0.8988)
+        return HeadRig(faces: faces, popsIn: [.smile, .wink], contentHeight: 0.785, chin: 0.8988)
     }
 }

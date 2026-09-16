@@ -17,7 +17,7 @@ import Foundation
 /// gaze cue, because it would do nothing.
 ///
 /// Pure data, so the whole catalogue is pinned by `HeadTakeTests`.
-/// `LivingHeadView.play` and `CreatorHead` interpret it.
+/// `LivingHeadView` plays it, with the idle beats (`HeadBeat`), through one `apply`.
 nonisolated struct HeadTake: Equatable, Sendable {
     nonisolated enum ID: String, CaseIterable, Sendable {
         case grin, laugh, wink, winkGrin, surprised, doubleTake, eyebrow, sideEye, sleepy, thinking, nod, shake
@@ -57,6 +57,14 @@ nonisolated struct HeadTake: Equatable, Sendable {
         case lids(shut: Bool)
         /// A small squash and back, like a breath of laughter.
         case bounce
+        /// **Idle beats only.** The creator's blink on whichever face shows,
+        /// if that face has shut eyes: the head squashes to `depth` as the
+        /// lids close, gives `GridConstants.headBlinkRelease` back a step
+        /// later, and opens `steps` steps after that. No take uses it.
+        case blink(depth: Double, steps: Int, double: Bool)
+        /// **Idle beats only.** Back to neutral: through a blink when the face
+        /// being left has shut eyes (the creator's order), otherwise a morph.
+        case settle
     }
 
     nonisolated struct Cue: Equatable, Sendable {
@@ -106,6 +114,9 @@ nonisolated struct HeadTake: Equatable, Sendable {
         /// The end of the hold: the eyes and the head go back to calm, and
         /// the face with them unless the sticker is keeping it.
         case easeBack
+        /// The end of an idle beat (`HeadDirector.resolve`). Takes end on
+        /// `easeBack` instead.
+        case end
     }
 
     nonisolated struct Moment: Equatable, Sendable {
@@ -114,7 +125,7 @@ nonisolated struct HeadTake: Equatable, Sendable {
     }
 
     /// **Everything the player does, in order, with the ease-back as its last
-    /// moment.** `LivingHeadView.play` and `CreatorHead.play` walk this, so
+    /// moment.** `LivingHeadView.play` walks this, so
     /// the timing a test reads is the timing that runs.
     func schedule(direction: Double) -> [Moment] {
         cues(direction: direction).map { Moment(at: $0.at, event: .cue($0.step)) }
