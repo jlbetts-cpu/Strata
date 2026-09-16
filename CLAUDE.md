@@ -984,18 +984,34 @@ otherwise the pill on its own line under the count. Squeezed into one row at
 accessibility xxLarge on an SE, "12" wrapped a digit per line and the pill
 read "Yo..."; capping the pill's type still read "Your...".
 
-**The Settings preview is marked everywhere it can leave the phone**: the
-count's line says "· Sample" on every live and video frame (`isSample`
-through `sharedFrame` and the exporter).
+**The Settings preview is marked where it can leave the phone**: "Sample"
+follows the range on the line under the count, live and in the video
+(`isSample` through `sharedFrame` and the exporter). Not during the build:
+the owner asked for less on screen (2026-09-15), so the build shows the
+count alone.
 
-**During the build only the count; the title arrives with the reveal; the
+**During the build only the count; the date arrives with the reveal; the
 close is the controls alone** (the owner, 2026-09-15). The count sits top
 left as the Wins tab's header and counts one landing at a time with a
-script-driven digit roll (only positions that change move; each roll is cut
-short to the gap before the next landing). "Your week 9/7-9/13" arrives under
-it as the reveal starts. There is no sentence about a busiest day, anywhere:
-a replay is shared with friends and that line meant nothing to them. Replay,
-Save Video and Share sit under the tower. **Share shares the video**, the same
+script-driven digit roll: only positions that change move, each clipped to
+its own line, a third of the type's size over 0.16s; the old digit is gone by
+the middle of the roll and the new one appears from there, so no frame draws
+two digits over each other; a new leading digit opens its width before it
+appears; each roll is cut short to the gap before the next landing.
+**The date alone arrives under it** as the reveal starts: "9/7-9/13", or
+"September", in the quiet ink at the caption size. No "Your week" over it,
+which the owner called "a bit too much": four layouts were drawn and
+photographed (this one, the date after "wins" on the count's line, the count
+alone, and "Your week" with the range in the medium weight), and this one
+keeps the count's line exactly as the Wins tab sets it. The words "Your
+week" are the app talking about itself; a friend watching the video does not
+need them. There is no sentence about a busiest day, anywhere:
+a replay is shared with friends and that line meant nothing to them. Replay
+(quieter, a secondary-ink glyph), Save Video and Share sit on the bottom
+margin, `gapWide` above the home indicator; the finished tower fills the space
+between the title and them with `gapWide` of air on both sides
+(`Metrics.standard` with `topCopy`), and the video, which has no controls,
+gives their room to the tower. **Share shares the video**, the same
 export Save Video makes, once per replay; the file is deleted on close.
 
 **Dates are numbers and a hyphen**: "9/7-9/13" in the reader's month/day

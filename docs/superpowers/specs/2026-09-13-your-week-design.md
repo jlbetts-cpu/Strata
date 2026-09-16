@@ -14,8 +14,9 @@ says what shipped.
 Revised on 2026-09-15 after the owner watched it on his phone: "the loading
 is slow and there isn't an indicator", simpler dates ("6/7-6/13"), a way to
 replay it, a better text animation, Share should share the video, and during
-the build only the win count, counting up, with "Your week" and the range
-arriving at the end. The same day he removed the busiest-day sentence: a
+the build only the win count, counting up, with the date arriving at the end
+(he then asked for the "Your week" words to go too: they "look a bit too
+much"). The same day he removed the busiest-day sentence: a
 replay is shared with friends, and that line means nothing to them. The text
 below describes the revised build.
 
@@ -40,7 +41,7 @@ applies to both unless a table says otherwise.
 | | Your Week | Your Month |
 | --- | --- | --- |
 | Covers | Monday to Sunday, the week ending on the Sunday | The calendar month |
-| Title at the reveal | Your week 9/7-9/13 | Your month September |
+| Date at the reveal | 9/7-9/13 | September |
 | Build phase | about 10s, capped at 12.5s | about 18s, capped at 22s |
 | Air before a day's first drop | 0.35s | 0.12s |
 | Whole replay | at most 18s, a hard cap (a light week is shorter, never padded) | at most 28s, a hard cap |
@@ -66,9 +67,8 @@ One continuous take. No pages, no swiping.
    whole tower fits, with the top of the tower travelling to its fitted
    position rather than the view shrinking about a fixed point. This is the
    moment the replay exists for: you have watched it built piece by piece,
-   and now you see the whole thing at once. As it starts, the title arrives
-   under the count: "Your week" in the quiet weight and "9/7-9/13" beside it
-   ("Your month September").
+   and now you see the whole thing at once. As it starts, the date arrives
+   under the count, in the quiet ink: "9/7-9/13", or "September".
 6. **The dance.** The tower dances once (the existing dance, one wave).
 7. **The close.** Replay, Save Video and Share arrive under the tower. No
    sentence, and the count is not repeated: it has been at the top all along.
@@ -145,9 +145,13 @@ fits at scale 1 still gets the reveal, easing the rise back to 0, because a
 jump is exactly what this must never do.
 
 **The count** is the number of landings at or before `t`. Each change rolls:
-only the digit positions that change move, the old digit rising 0.4 of the
-type's size out as the new one rises in from below, crossing in opacity, on
-an ease-out over 0.18s. A roll is cut short to the time before the next
+only the digit positions that change move, each clipped to its own line, the
+old digit rising a third of the type's size out as the new one rises in from
+below, on an ease-out over 0.16s. They hand over rather than cross: the old
+is gone by the middle of the roll and the new appears from there, so no frame
+draws two digits over each other. A new leading digit (9 to 10) opens its
+width in the first half, before it appears, so "wins" slides rather than
+jumps. A roll is cut short to the time before the next
 landing, so in a busy month, where landings are 50ms apart, rolls are quick
 and always finish rather than jumping mid-slide. Landings at one instant (a
 day under Reduce Motion) are one change. It is computed by the script
@@ -157,8 +161,8 @@ rolls exactly as the screen did.
 **The title and the controls** arrive by the script, not by `withAnimation`,
 so the saved video matches frame for frame: each rises 8pt with opacity over
 0.45s on an ease-out cubic (most of the travel early, a long soft settle),
-the range 80ms behind "Your week", from the reveal's start; the controls from
-the close's start.
+the date from the reveal's start (a preview's "Sample" 80ms behind it); the
+controls from the close's start.
 
 **Reduce Motion:** no falls, no camera, no dance. The finished tower is laid
 out at its fitted size and each day's blocks fade in together, day by day,
@@ -182,17 +186,23 @@ haptic on the dance. Nothing else makes a sound.
 - Count, top left on the Wins tab's cap line: `Typography.tally` in the
   owner's numerals with "wins" in `Typography.screenSubtitle` as a quieter
   caption beside it. Under it, laid out from the first frame and invisible
-  until the reveal, the title line: "Your week" in `screenSubtitle`,
-  `inkQuiet`, and the range in `headerMedium`, `inkPrimary`. Close button (the
-  app's `GlassIconButton`, xmark) top right from the first frame, so leaving
-  never waits on the animation.
+  until the reveal, the date alone in `screenSubtitle`, `inkQuiet`:
+  "9/7-9/13", or "September". **No "Your week" over it** (2026-09-15): four
+  layouts were drawn and photographed side by side, and this one keeps the
+  count's line exactly as the Wins tab sets it and leaves the date as
+  context under the fact. Close button (the app's `GlassIconButton`, xmark)
+  top right from the first frame, so leaving never waits on the animation.
 - The follow line sits at 0.24 of the frame, under the count.
-- The tower's base sits at 0.79 of the frame (0.75 before the close lost its
-  count and sentence) and the finished tower's top at no higher than 0.18,
-  clear of the title line.
-- Close: Replay (`GlassIconButton`, arrow.counterclockwise), Save Video and
-  Share as the app's glass controls, hung 32pt under the base and kept above
-  the home indicator.
+- **The whole height is used** (the owner: "the buttons sit kinda high when
+  there's a lot of space below"). The controls row sits on the bottom margin,
+  `gapWide` above the home indicator (never under `gapSection` from the
+  edge). The tower's base stands `gapWide` above the controls, and the
+  finished tower may rise to `gapWide` under the date line, so it fills the
+  space between with the same air above and below. The video has no controls,
+  so its base takes their room, 48pt clear of a story's reply bar.
+- Close: Replay (`GlassIconButton`, arrow.counterclockwise, its glyph in
+  secondary ink so it is quieter than the words beside it), Save Video and
+  Share as the app's glass controls.
 - The count and title are drawn beneath the tower, so a falling block passes
   in front of the type rather than the type printing across it.
 - Blocks use the real block surface, photos and all, through `BlockFace`,
@@ -241,7 +251,6 @@ Every string it can show. No long dashes, nothing that reads as being watched.
 
 | Where | Text |
 | --- | --- |
-| Title | Your week / Your month |
 | Range | 9/7-9/13 in the reader's month and day order (07/09-13/09 in the UK), 12/29/25-1/4/26 when not this year / September (September 2025 when not this year) |
 | Count | 0 wins, 1 win, 31 wins |
 | Controls | Replay (a glyph) · Save Video · Share |
@@ -256,7 +265,7 @@ Every string it can show. No long dashes, nothing that reads as being watched.
 | Replays card | Two lines in the ALBUMS caption style: September over 142 wins / 9/7-9/13 over 31 wins |
 | Settings, Replays section | Replays · Preview Your Week · Preview Your Month |
 | Settings, Notifications section | Weekly and monthly replays (a switch, beside the daily reminder) |
-| Preview badge | Sample, on the count's line: 31 wins · Sample |
+| Preview badge | Sample, after the date: 9/7-9/13 Sample |
 | Accessibility, at the close | Your week, 7 to 13 September. 31 wins. |
 | Accessibility, shelf card | Your week, 7 to 13 September, 31 wins |
 | Loading | Loading the replay (VoiceOver, on the slot) |
@@ -330,10 +339,10 @@ tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
 Your Month. Each plays the real replay view with a sample set of wins: the
 app's own bundled demo photographs (the onboarding set) and plausible names,
 sizes and colours, spread across the period with one empty day and one busy
-day, so every part of the choreography shows. "Sample" sits on the title's
-own line ("Your week · Sample") in its ink, and says it is not your data.
+day, so every part of the choreography shows. "Sample" follows the date, in
+the quiet ink, and says it is not your data.
 Save Video and Share work here too, so the export can be checked, and every
-frame of the video carries the same "Sample" mark, so a made-up week cannot
+frame of the video from the reveal on carries the same "Sample" mark, so a made-up week cannot
 be posted as a real one.
 
 ## Save Video
@@ -348,7 +357,7 @@ replays to your camera roll.").
   with `AVAssetWriter`. Every frame is `ReplayCard.sharedFrame` at that `t`:
   the light scheme, `.large` type, a story-safe top inset and the full-motion
   script, whatever the phone's own text size or Reduce Motion setting. The
-  count rolls, the title arrives and the tower dances exactly as on screen;
+  count rolls, the date arrives and the tower dances exactly as on screen;
   the controls are not drawn. The video holds the finished tower for 2s at
   the end.
 - **Photos must render synchronously.** `ImageRenderer` does not wait for
@@ -484,7 +493,7 @@ Each step ships something that works on its own.
   no lurch over 12pt a frame unless the tower grows faster; the reveal never
   bulges; a compressed build that ends on empty days stays under the cap and
   still gives the last day its moment; the count at every landing; the digit
-  roll's timing and which positions move; the title's and controls' arrival
+  roll's timing and which positions move; the date's and controls' arrival
   order, easing and Reduce Motion's lack of slide.
 - `ReplaySampleTests`: deterministic, includes an empty day and a 2x2.
 - `ReplayShelfModelTests`: finished periods, short week names, signatures,
