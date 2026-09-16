@@ -8,13 +8,13 @@ struct ReplayFrame: View {
     let script: ReplayScript
     let images: ReplayImages
     let t: Double
-    /// The one `now` the title's range is worded against. Required: a
+    /// The one `now` the date is worded against. Required: a
     /// default `Date()` per frame could reword the range mid-play at
     /// midnight, and the still and the video would each pick their own.
     let now: Date
-    /// "Sample" beside the count, on every frame. The Settings preview's
-    /// live replay and its saved video, so a made-up week cannot be posted
-    /// as a real one.
+    /// "Sample" after the date once it arrives. The Settings
+    /// preview's live replay and its saved video, so a made-up week cannot
+    /// be posted as a real one.
     var showsSampleBadge = false
     /// Replay, Save Video and Share, supplied live; the exporter passes
     /// nothing.
@@ -25,11 +25,9 @@ struct ReplayFrame: View {
     var photoOpacity: ((ReplayPhoto) -> Double)? = nil
     /// The frame's top safe-area inset: the status bar and the Dynamic Island
     /// live, or a story-safe margin in the saved video. The header is set
-    /// from it; the tower's lines are fractions of the frame.
+    /// from it. The tower's lines and the controls' row come from the
+    /// script's metrics, which were laid out from the same insets.
     var topInset: CGFloat = 0
-    /// The home indicator live; 0 or a story-safe margin in the video. The
-    /// close never runs past it.
-    var bottomInset: CGFloat = 0
     /// A tap on a block, by index into `replay.blocks`. Live only, and only
     /// once the close has arrived; the card and the exporter pass nothing,
     /// and then nothing extra is drawn or hit-tested.
@@ -75,21 +73,21 @@ struct ReplayFrame: View {
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
-    // MARK: The count and the title
+    // MARK: The count and the date
 
-    /// The count over the title, top left.
+    /// The count over the date, top left.
     ///
     /// **During the build only the count** (the owner, 2026-09-15: "before
     /// that it should just say the win numbers and be counting up as the
     /// blocks place"). It is set as the Wins tab's header, the owner's
     /// digits with the word a quieter caption beside it, and it counts one
-    /// landing at a time. **The title arrives with the reveal**, under the
+    /// landing at a time. **The date arrives with the reveal**, under the
     /// count, which stays the lead. Its line is laid out from the first
     /// frame at opacity 0, so nothing moves when it arrives.
     private var topCopy: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             countLine
-            titleLine
+            rangeLine
         }
         .padding(.leading, GridConstants.horizontalPadding)
         // The cap line the Wins tab's count sits on, measured from the bottom
@@ -100,9 +98,9 @@ struct ReplayFrame: View {
         .replayActivation(onAccessibilityActivate)
     }
 
-    /// How tall the count and title stand under the top inset at a text
+    /// How tall the count and date stand under the top inset at a text
     /// size: the header's top padding, the count's line, the gap and the
-    /// title's line. The script keeps the finished tower's top under it
+    /// date's line. The script keeps the finished tower's top under it
     /// (`Metrics.standard`). From the system's own line heights for the
     /// styles the lines are set relative to, since the script is made before
     /// anything is laid out.
@@ -110,7 +108,8 @@ struct ReplayFrame: View {
         let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, .xxLarge)))
         let count = UIFont.preferredFont(forTextStyle: .largeTitle, compatibleWith: traits).lineHeight
         let title = UIFont.preferredFont(forTextStyle: .headline, compatibleWith: traits).lineHeight
-        return GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral) + count + GridConstants.gapTight + title
+        return GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral)
+            + count + GridConstants.gapTight + title
     }
 
     /// "31 wins, Your week, 7 to 13 September": the numbers spoken, since
@@ -122,6 +121,9 @@ struct ReplayFrame: View {
             .compactMap { $0 }.joined(separator: ", ")
     }
 
+    /// The range, or a month's name: "9/7-9/13", "September".
+    private var rangeText: String { replay.period.range(relativeTo: now) }
+
     private var countLine: some View {
         let roll = script.countRoll(at: t)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -132,40 +134,49 @@ struct ReplayFrame: View {
             Text(roll.count == 1 ? "win" : "wins")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)
-            if showsSampleBadge {
-                Text("· Sample")
-                    .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkQuiet)
-            }
         }
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
         .opacity(script.countOpacity(at: t))
     }
 
-    /// The count, one digit position at a time. A position that changes
-    /// rolls: the old digit rises out as the new one rises in from below,
-    /// crossing in opacity. The digits are tabular, so every position is the
-    /// same width and the number never shifts sideways inside itself.
+    /// The count, one digit position at a time.
+    ///
+    /// **Only a position that changes moves, inside its own line.** Each
+    /// position is clipped to its line box, the old digit rising out of it as
+    /// the new one rises in, a third of the type's size, over 0.16s. The two
+    /// hand over rather than cross: the old is gone by the middle of the roll
+    /// and the new appears from there, so no frame draws two digits over each
+    /// other. The owner's digits are tabular, so neighbours never shift; a
+    /// new leading digit (9 to 10) opens its width in the first half, before
+    /// it appears, so "wins" slides over rather than jumping.
     private func digits(_ roll: ReplayScript.CountRoll) -> some View {
         let slots = ReplayScript.digitSlots(roll)
         let e = script.rollEase(roll.progress)
+        let (outOpacity, inOpacity) = ReplayScript.rollOpacities(e)
         let rise = script.reduceMotion ? 0 : script.pacing.rollRise * tallySize
-        return HStack(spacing: 0) {
+        return HStack(alignment: .firstTextBaseline, spacing: 0) {
             ForEach(slots.indices, id: \.self) { i in
                 let slot = slots[i]
-                ZStack {
-                    if slot.changes {
-                        if let old = slot.old {
-                            digit(old).opacity(1 - e).offset(y: -rise * CGFloat(e))
+                WidthReveal(fraction: slot.old == nil && slot.changes ? CGFloat(ReplayScript.rollOpening(e)) : 1) {
+                    ZStack {
+                        if slot.changes {
+                            if let old = slot.old {
+                                digit(old).opacity(outOpacity).offset(y: -rise * CGFloat(e))
+                            }
+                            if let new = slot.new {
+                                digit(new).opacity(inOpacity).offset(y: rise * CGFloat(1 - e))
+                            }
+                        } else if let new = slot.new {
+                            digit(new)
                         }
-                        if let new = slot.new {
-                            digit(new).opacity(e).offset(y: rise * CGFloat(1 - e))
-                        }
-                    } else if let new = slot.new {
-                        digit(new)
                     }
+                    .clipped()
                 }
+                // The part of a still-opening position that is not open yet
+                // is not drawn: without this the new digit hung out past the
+                // margin while its width grew.
+                .clipped()
             }
         }
     }
@@ -176,22 +187,36 @@ struct ReplayFrame: View {
             .foregroundStyle(AppColors.inkPrimary)
     }
 
-    /// "Your week" in the quiet weight, the range beside it: "9/7-9/13", or
-    /// "September". Each arrives up 8pt with opacity, 80ms apart.
-    private var titleLine: some View {
-        let title = script.titleArrival(0, at: t)
-        let range = script.titleArrival(1, at: t)
+    /// The line under the count: the range, or a month's name, in the quiet
+    /// ink at the caption size.
+    ///
+    /// **No "Your week" over it** (the owner, 2026-09-15: the title block
+    /// "looks a bit too much"). Four were drawn and looked at: this one; the
+    /// range after "wins" on the count's line; the count alone; and "Your
+    /// week" with the range in the darker medium weight, which is what
+    /// shipped first. This one keeps the count's line exactly as the Wins
+    /// tab sets it, and leaves the date as what it is: context under the
+    /// fact. The words "Your week" are the app talking about itself, which
+    /// the person the video is sent to does not need.
+    ///
+    /// It arrives up 8pt with opacity as the reveal starts, and a Settings
+    /// preview's "Sample" follows it 80ms later.
+    private var rangeLine: some View {
+        let range = script.titleArrival(0, at: t)
+        let badge = script.titleArrival(1, at: t)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(replay.period.title)
+            Text(rangeText)
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)
-                .opacity(title.opacity)
-                .offset(y: title.offset)
-            Text(replay.period.range(relativeTo: now))
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
                 .opacity(range.opacity)
                 .offset(y: range.offset)
+            if showsSampleBadge {
+                Text("Sample")
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkQuiet)
+                    .opacity(badge.opacity)
+                    .offset(y: badge.offset)
+            }
         }
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
@@ -316,21 +341,35 @@ struct ReplayFrame: View {
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .contain)
-                // Hung from the base, a fixed gap under it, and raised only as
-                // far as it takes to keep clear of the home indicator.
-                .alignmentGuide(VerticalAlignment.top) { d in
-                    -min(m.baseY + Self.closeGap,
-                         m.frame.height - bottomInset - Self.closeBottomMargin - d.height)
-                }
+                // On the bottom margin the script laid out (`closeTop`), so
+                // the row is seated just above the home indicator on every
+                // phone and the tower fills the space above it.
+                .alignmentGuide(VerticalAlignment.top) { _ in -m.closeTop }
                 .frame(width: m.frame.width, height: m.frame.height, alignment: .top)
         }
     }
+}
 
-    /// The least room left under the close.
-    private static let closeBottomMargin: CGFloat = GridConstants.gapTight
+/// Lays its content out at a fraction of its width, trailing-aligned: a
+/// digit position opening as the count gains a digit. Its baselines are the
+/// content's, so the count's line still sits on "wins".
+private struct WidthReveal: Layout {
+    var fraction: CGFloat
 
-    /// From the tower's base to the top of the controls.
-    private static let closeGap: CGFloat = 32
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let size = subviews.first?.sizeThatFits(.unspecified) ?? .zero
+        return CGSize(width: size.width * min(max(fraction, 0), 1), height: size.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: CGPoint(x: bounds.maxX, y: bounds.minY), anchor: .topTrailing, proposal: .unspecified)
+    }
+
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+                           subviews: Subviews, cache: inout ()) -> CGFloat? {
+        guard let first = subviews.first else { return nil }
+        return bounds.minY + first.dimensions(in: .unspecified)[guide]
+    }
 }
 
 private extension View {

@@ -95,7 +95,7 @@ struct ReplayView: View {
         GeometryReader { safe in
             let insets = safe.safeAreaInsets
             GeometryReader { geo in
-                let script = makeScript(size: geo.size, topInset: insets.top)
+                let script = makeScript(size: geo.size, insets: insets)
                 ZStack(alignment: .topTrailing) {
                     if started {
                         player(script: script, insets: insets)
@@ -164,13 +164,15 @@ struct ReplayView: View {
     /// The script for this frame size, made once. The body runs again for
     /// every state change on the way to the first frame, and a month's
     /// script solves its camera each time it is made.
-    private func makeScript(size: CGSize, topInset: CGFloat) -> ReplayScript {
+    private func makeScript(size: CGSize, insets: EdgeInsets) -> ReplayScript {
         #if DEBUG
         let began = CACurrentMediaTime()
         defer { openTiming.mark("script", ms: (CACurrentMediaTime() - began) * 1000) }
         #endif
-        let metrics = ReplayScript.Metrics.standard(frame: size, topInset: topInset,
-                                                    topCopy: ReplayFrame.topCopyHeight(dynamicTypeSize))
+        let metrics = ReplayScript.Metrics.standard(frame: size, topInset: insets.top,
+                                                    topCopy: ReplayFrame.topCopyHeight(dynamicTypeSize),
+                                                    bottomInset: insets.bottom,
+                                                    controlsHeight: GlassIconButton.defaultSide)
         return scripts.script(replay, metrics: metrics, reduceMotion: reduceMotion)
     }
 
@@ -220,7 +222,7 @@ struct ReplayView: View {
                         showsSampleBadge: isSample,
                         controls: AnyView(controls(script: script)),
                         photoOpacity: { load.opacity($0, at: date) },
-                        topInset: insets.top, bottomInset: insets.bottom,
+                        topInset: insets.top,
                         onTapBlock: t >= script.closeStart
                             ? { index in openPhoto(block: index, script: script, t: t) }
                             : nil,
@@ -309,7 +311,8 @@ struct ReplayView: View {
     /// xxLarge). Replay is a glyph and never does.
     private func controls(script: ReplayScript) -> some View {
         HStack(spacing: GridConstants.gapItem) {
-            GlassIconButton(systemName: "arrow.counterclockwise", accessibilityLabel: "Replay") {
+            // Quieter than the two words beside it: the glyph in secondary ink.
+            GlassIconButton(systemName: "arrow.counterclockwise", tint: AppColors.inkSecondary, accessibilityLabel: "Replay") {
                 restart()
             }
             SaveVideoControl(video: video) { saveVideo() }

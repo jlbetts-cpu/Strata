@@ -29,30 +29,49 @@ struct ReplayScript {
         var followY: CGFloat
         /// After the reveal, the finished tower's top may come no higher.
         var fitTopY: CGFloat
+        /// Where the close's controls row starts, live. In the video, which
+        /// draws no controls, the frame's usable bottom.
+        var closeTop: CGFloat = 0
 
-        /// Same cell as the Wins tab at this width. The three lines were
-        /// set by photographing frozen frames at 402x874:
-        /// - `followY` 0.24 holds the tower's top a clear gap under the
-        ///   count during the build (its ink ends near 0.13).
-        /// - `baseY` 0.79 (was 0.75) and `fitTopY` 0.18 (was 0.17), on
-        ///   2026-09-15 when the close lost its count and sentence: the
-        ///   close is now only the controls, so the tower stands lower and
-        ///   larger, and its top keeps clear of the title line that arrives
-        ///   under the count.
-                ///
-        /// **And the finished top never rises into the title.** `topCopy`
-        /// is the count and title's height below `topInset`, when the caller
-        /// knows it. A fraction alone was measured wrong on the saved video:
-        /// the card is short (640pt) with a 48pt story-safe inset, so 0.18
-        /// put the tower's top at 115pt and over the range, which ends near
-        /// 124pt. The phone is unchanged by it (156pt against 157pt).
-        static func standard(frame: CGSize, topInset: CGFloat = 0, topCopy: CGFloat = 0) -> Metrics {
+        /// The replay's lines for a frame.
+        ///
+        /// **Laid out from what is on the screen, not from fractions**
+        /// (the owner, 2026-09-15: "use the whole screen; right now the
+        /// buttons sit kinda high when there's a lot of space below"). When
+        /// the caller says how tall the count and title stand (`topCopy`):
+        /// - the controls row sits a fixed margin above the home indicator
+        ///   (`gapWide` over the bottom inset, never under `gapSection` from
+        ///   the edge), so no dead band opens under it on a tall phone;
+        /// - the tower's base stands `gapWide` above the controls, and the
+        ///   finished tower's top may rise to `gapWide` under the title, so
+        ///   it fills the space between them with the same air above and
+        ///   below;
+        /// - with no controls (the video) the base takes their room too.
+        ///
+        /// `followY` stays at 0.24 of the frame, a clear gap under the count
+        /// during the build, and never above where the finished top may go.
+        ///
+        /// Without `topCopy` (the script's tests, and anything that only
+        /// wants a cell) the lines are the fractions they were set to at
+        /// 402x874: base 0.79, fitted top 0.18.
+        static func standard(frame: CGSize, topInset: CGFloat = 0, topCopy: CGFloat = 0,
+                             bottomInset: CGFloat = 0, controlsHeight: CGFloat = 0) -> Metrics {
             let cell = GridConstants.cellSize(forGridWidth: frame.width - GridConstants.horizontalPadding * 2)
-            let underCopy = topCopy > 0 ? topInset + topCopy + GridConstants.gapItem : 0
-            return Metrics(frame: frame, cell: cell,
-                           baseY: (frame.height * 0.79).rounded(),
-                           followY: (frame.height * 0.24).rounded(),
-                           fitTopY: max((frame.height * 0.18).rounded(), underCopy.rounded()))
+            guard topCopy > 0 else {
+                let baseY = (frame.height * 0.79).rounded()
+                return Metrics(frame: frame, cell: cell, baseY: baseY,
+                               followY: (frame.height * 0.24).rounded(),
+                               fitTopY: (frame.height * 0.18).rounded(),
+                               closeTop: baseY + GridConstants.gapWide)
+            }
+            let air = GridConstants.gapWide
+            let bottom = max(bottomInset + GridConstants.gapWide, GridConstants.gapSection)
+            let closeTop = (frame.height - bottom - controlsHeight).rounded()
+            let baseY = controlsHeight > 0 ? closeTop - air : closeTop
+            let fitTopY = (topInset + topCopy + air).rounded()
+            return Metrics(frame: frame, cell: cell, baseY: baseY,
+                           followY: max((frame.height * 0.24).rounded(), fitTopY),
+                           fitTopY: fitTopY, closeTop: closeTop)
         }
     }
 
@@ -106,9 +125,10 @@ struct ReplayScript {
         /// The count's digit roll: at most this long, and never longer than
         /// the time to the next landing, so a roll always finishes before
         /// the next one starts.
-        let rollTime = 0.18
-        /// How far a rolling digit travels, as a fraction of the type's size.
-        let rollRise: CGFloat = 0.4
+        let rollTime = 0.16
+        /// How far a rolling digit travels, as a fraction of the type's size:
+        /// a third, so it slides inside its own line rather than leaping.
+        let rollRise: CGFloat = 0.3
         /// The squash-and-stretch settle: an exponentially decaying cosine.
         let squashDecay = 0.08
         let squashPeriod = 0.22
@@ -654,12 +674,24 @@ struct ReplayScript {
         return 1 - q * q
     }
 
+    /// The leaving and arriving digits' opacities at eased progress `e`. They
+    /// hand over rather than cross: the old is gone by the middle and the new
+    /// starts there, so no frame draws two digits over each other.
+    static func rollOpacities(_ e: Double) -> (leaving: Double, arriving: Double) {
+        (clamp01(1 - e / 0.5), clamp01((e - 0.5) / 0.5))
+    }
+
+    /// How open a position gaining a digit is (9 to 10): fully by the middle
+    /// of the roll, before its digit starts to appear, so the digit is never
+    /// drawn into a slot too narrow for it.
+    static func rollOpening(_ e: Double) -> Double { clamp01(e / 0.5) }
+
     /// The count and its word at the open. Faded in, so the first frame is
     /// the ground alone.
     func countOpacity(at t: Double) -> Double { Self.smooth(t / pacing.headerFade) }
 
-    /// The title's lines, "Your week" (0) then the range (1), arriving as
-    /// the reveal starts.
+    /// The date under the count (0), and a Settings preview's "Sample" after
+    /// it (1), arriving as the reveal starts.
     func titleArrival(_ item: Int, at t: Double) -> Arrival {
         arrival(from: revealStart + Double(item) * pacing.closeStagger, at: t)
     }

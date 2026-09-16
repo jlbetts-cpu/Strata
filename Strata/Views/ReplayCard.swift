@@ -23,12 +23,16 @@ enum ReplayCard {
     /// Clear of a story's own top bar (progress segments, the account row),
     /// which sits over the top of a posted picture.
     static let topInset: CGFloat = 48
+    /// Clear of a story's reply bar, which sits over the bottom of a posted
+    /// picture. The video has no controls, so the tower stands on this.
+    static let bottomInset: CGFloat = 48
 
     /// The script every shared picture of `replay` is drawn from: the card's
     /// frame, full motion.
     static func script(_ replay: Replay) -> ReplayScript {
         ReplayScript(replay: replay,
-                     metrics: .standard(frame: size, topInset: topInset, topCopy: ReplayFrame.topCopyHeight(.large)),
+                     metrics: .standard(frame: size, topInset: topInset, topCopy: ReplayFrame.topCopyHeight(.large),
+                                        bottomInset: bottomInset),
                      reduceMotion: false)
     }
 
@@ -41,7 +45,7 @@ enum ReplayCard {
                             isSample: Bool) -> some View {
         ReplayFrame(script: script, images: images, t: t, now: now,
                     showsSampleBadge: isSample,
-                    topInset: topInset, bottomInset: 0)
+                    topInset: topInset)
             .environment(\.colorScheme, .light)
             .dynamicTypeSize(.large)
     }

@@ -408,6 +408,14 @@ struct ReplayScriptTests {
             }
         }
         #expect(s.countRoll(at: 0) == ReplayScript.CountRoll(count: 0, previous: 0, progress: 1))
+        // The digits hand over: never both above a third at once.
+        for e in stride(from: 0.0, through: 1.0, by: 0.01) {
+            let o = ReplayScript.rollOpacities(e)
+            #expect(min(o.leaving, o.arriving) == 0, "at \(e) both digits show: \(o.leaving) \(o.arriving)")
+            if o.arriving > 0 { #expect(ReplayScript.rollOpening(e) == 1, "a digit appeared in a slot still opening at \(e)") }
+        }
+        let start = ReplayScript.rollOpacities(0), end = ReplayScript.rollOpacities(1)
+        #expect(start.leaving == 1 && start.arriving == 0 && end.leaving == 0 && end.arriving == 1)
         // The ease is monotone from 0 to 1.
         #expect(s.rollEase(0) == 0 && s.rollEase(1) == 1)
         #expect(s.rollEase(0.25) < s.rollEase(0.5) && s.rollEase(0.5) < s.rollEase(0.75))
@@ -427,7 +435,7 @@ struct ReplayScriptTests {
         #expect(jump == [Slot(new: "1", old: nil), Slot(new: "0", old: "9"), Slot(new: "4", old: "9")])
     }
 
-    @Test("the title arrives with the reveal, its range 80ms behind, eased out; the controls with the close")
+    @Test("the date arrives with the reveal, a preview's Sample 80ms behind, eased out; the controls with the close")
     func titleAndClose() {
         let s = script(.week, wins: 12)
         #expect(s.titleArrival(0, at: s.revealStart - 0.01).opacity == 0)
@@ -437,7 +445,7 @@ struct ReplayScriptTests {
         // Eased out: more than halfway at a quarter of the time.
         #expect(s.titleArrival(0, at: s.revealStart + s.pacing.arrive / 4).opacity > 0.5)
         #expect(s.titleArrival(1, at: s.revealStart + s.pacing.closeStagger + s.pacing.arrive) == .init(opacity: 1, offset: 0))
-        // The title is fully in before the controls start arriving.
+        // The date is fully in before the controls start arriving.
         #expect(s.titleArrival(1, at: s.closeStart).opacity == 1)
         #expect(s.closeArrival(at: s.closeStart - 0.01).opacity == 0)
         #expect(s.closeArrival(at: s.duration) == .init(opacity: 1, offset: 0))
@@ -502,6 +510,30 @@ struct ReplayScriptTests {
         let w = corridorWorst(s)
         #expect(w.onScreen <= 0.5, "\(size): block \(w.block) starts \(w.onScreen)pt on screen")
         #expect(w.overFollow <= 0.5, "\(size): a block lands \(w.overFollow)pt above the follow line")
+    }
+
+    @Test("laid out from the screen: controls on the bottom margin, the finished tower filling the space with even air, the video using the controls' room",
+          arguments: [(CGSize(width: 375, height: 667), 20.0, 0.0), (CGSize(width: 402, height: 874), 62.0, 34.0),
+                      (CGSize(width: 440, height: 956), 62.0, 34.0)])
+    func layoutFromTheScreen(shape: (CGSize, Double, Double)) {
+        let (size, topValue, bottomValue) = shape
+        let top = CGFloat(topValue), bottom = CGFloat(bottomValue)
+        let copy: CGFloat = 76
+        let m = ReplayScript.Metrics.standard(frame: size, topInset: top, topCopy: copy, bottomInset: bottom, controlsHeight: 44)
+        let air = GridConstants.gapWide
+        // The controls sit on the bottom margin, not hung from the tower.
+        #expect(abs(size.height - (m.closeTop + 44) - max(bottom + GridConstants.gapWide, GridConstants.gapSection)) < 0.001)
+        // The same air above the finished tower as below it.
+        #expect(abs(m.closeTop - m.baseY - air) < 0.001)
+        #expect(abs(m.fitTopY - (top + copy) - air) < 0.001)
+        #expect(m.followY >= m.fitTopY)
+        // A month that has to shrink fills the space exactly.
+        let s = ReplayScript(replay: replay(.month, wins: 150), metrics: m, reduceMotion: false)
+        let end = s.camera(at: s.duration)
+        #expect(abs(m.baseY - end.scale * s.towerHeight - m.fitTopY) < 0.5)
+        // The video: no controls, so the base takes their room.
+        let card = ReplayScript.Metrics.standard(frame: size, topInset: top, topCopy: copy, bottomInset: bottom)
+        #expect(card.baseY > m.baseY)
     }
 
     @Test("the camera eases its rise back to 0 even when the finished tower already fits at scale 1")
