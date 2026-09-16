@@ -351,7 +351,7 @@ struct PlanSheet: View {
         // and a full tick on every backspace would be noise.
         HapticsEngine.lightTap()
         modelContext.delete(item)
-        try? modelContext.save()
+        StoreReset.commitDelete("backspacing a plan line away", context: modelContext)
         focused = previous?.id
     }
 
@@ -359,7 +359,7 @@ struct PlanSheet: View {
         HapticsEngine.tick()
         if focused == item.id { focused = nil }
         modelContext.delete(item)
-        try? modelContext.save()
+        StoreReset.commitDelete("deleting a plan line", context: modelContext)
     }
 
     /// Drops blank lines. An empty bullet you walked away from was never an
@@ -370,6 +370,6 @@ struct PlanSheet: View {
             && item.id != focused {
             modelContext.delete(item)
         }
-        try? modelContext.save()
+        StoreReset.commitDelete("dropping blank plan lines", context: modelContext)
     }
 }

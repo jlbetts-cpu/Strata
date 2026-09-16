@@ -121,6 +121,6 @@ final class PlanItem {
             }
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { StoreReset.commitDelete("the overnight plan sweep", context: context) }
     }
 }

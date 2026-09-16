@@ -189,7 +189,7 @@ struct PlanItemDetailSheet: View {
         Button(role: .destructive) {
             HapticsEngine.warning()
             modelContext.delete(item)
-            try? modelContext.save()
+            StoreReset.commitDelete("deleting a plan line", context: modelContext)
             dismiss()
         } label: {
             Image(systemName: "trash")

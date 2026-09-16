@@ -842,13 +842,23 @@ private struct PhotoPage: View {
 /// read them, and the inverse holds too: a file removed before the reference
 /// is what leaves a block pointing at nothing.
 enum PhotoRemoval {
+    /// **Not `try?`, and the file goes only if the save went.** A save that
+    /// failed silently left the file deleted and the log still pointing at it,
+    /// which is a block naming a photograph that is not there. Same rule as
+    /// the batch delete: never `try?` a write another step depends on, and say
+    /// so in the log when it fails.
     static func removePhoto(fileName: String, context: ModelContext) {
         let descriptor = FetchDescriptor<HabitLog>(
             predicate: #Predicate { $0.imageFileName == fileName }
         )
-        let logs = (try? context.fetch(descriptor)) ?? []
-        for log in logs { log.imageFileName = nil }
-        try? context.save()
+        do {
+            try context.transaction {
+                for log in try context.fetch(descriptor) { log.imageFileName = nil }
+            }
+        } catch {
+            NSLog("[strata-photo] could not clear the reference to \(fileName), so the file stays: \(error)")
+            return
+        }
         ImageManager.shared.deleteImage(fileName: fileName)
     }
 }

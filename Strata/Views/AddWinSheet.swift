@@ -633,11 +633,22 @@ struct AddWinSheet: View {
                     // set `photo` to nil, and the save path only ever ran when
                     // there WAS a photo, so `imageFileName` was never cleared
                     // and the block kept its face.
-                    if let name = log.imageFileName {
-                        ImageManager.shared.deleteImage(fileName: name)
-                    }
+                    //
+                    // **The reference is cleared first and the file goes only
+                    // if that saved.** It was the other way round, under a
+                    // `try?`: the photograph was deleted, the save failed
+                    // silently, and the block was left naming a file that no
+                    // longer existed. `PhotoRemoval.removePhoto` is the same
+                    // rule in the viewer.
+                    let name = log.imageFileName
                     log.imageFileName = nil
-                    try? modelContext.save()
+                    do {
+                        try modelContext.save()
+                        if let name { ImageManager.shared.deleteImage(fileName: name) }
+                    } catch {
+                        NSLog("[strata-photo] could not remove the photo from the win, so the file stays: \(error)")
+                        log.imageFileName = name
+                    }
                 }
             }
             HapticsEngine.success()
@@ -735,15 +746,23 @@ struct AddWinSheet: View {
         // files was one of three leaks that put 3127 images and 522MB on a
         // phone. Read the names BEFORE the entities go, or there is nothing
         // left to read them from.
-        for log in habit.logs {
-            if let name = log.imageFileName {
-                ImageManager.shared.deleteImage(fileName: name)
+        let names = habit.logs.compactMap(\.imageFileName)
+
+        // **Object by object, in one transaction, and never `try?`.** The rows
+        // go first and the photographs only if they went: a delete that fails
+        // silently while the files are already gone is the shape of the bug
+        // that left Reset All Data deleting pictures and keeping wins.
+        do {
+            try modelContext.transaction {
+                for log in habit.logs { modelContext.delete(log) }
+                PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
+                modelContext.delete(habit)
             }
+        } catch {
+            NSLog("[strata-delete] could not delete the win, so its photographs stay: \(error)")
+            return
         }
-        for log in habit.logs { modelContext.delete(log) }
-        PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
-        modelContext.delete(habit)
-        try? modelContext.save()
+        for name in names { ImageManager.shared.deleteImage(fileName: name) }
         HapticsEngine.tick()
         onDeleted()
         dismiss()
