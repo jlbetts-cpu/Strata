@@ -1007,7 +1007,8 @@ describes what was built.
 
 **The whole replay is a function of time. No `withAnimation` anywhere in it.**
 `ReplayScript` is pure: for any `t` it gives every block's pose, the camera,
-the label, the close's opacity and the landings. `ReplayView` draws
+the count and its digit roll, the title's and the controls' arrival, and the
+landings. `ReplayView` draws
 `ReplayFrame` at the clock's `t` inside a `TimelineView`; `ReplayVideoExporter`
 draws the same `ReplayFrame` to frames. Pause and skip are only changes to the
 clock, so nothing can drift out of step. The close used to arrive on
@@ -1015,10 +1016,19 @@ clock, so nothing can drift out of step. The close used to arrive on
 be drawn into a video frame. Anything new that moves goes in the script, with
 its timing in `ReplayScript.Pacing`.
 
-**Photographs are loaded BEFORE the replay plays** (`ReplayImages`), because
-`ImageRenderer` does not wait for `CachedImageView`'s async decode and the
-video would come out with coloured blanks. The live view draws from the same
-decoded images, which is what makes the video match. One decode per
+**The video waits for every photograph; the live replay does not.**
+`ImageRenderer` does not wait for `CachedImageView`'s async decode, so Save
+Video and Share export from `ReplayImageLoad.all()`, the complete set, or the
+video would come out with coloured blanks. The live replay starts as soon as
+the photographs of the blocks appearing in its first 2s are decoded
+(`ReplayImageLoad.required`), keeps decoding the rest in drop order, and
+fades a late photograph in over 0.25s on the replay's clock (live only), with
+the block drawn as a photograph from its first frame so only the picture
+changes (`ReplayFrame.expectsPhoto`). A frozen
+frame (`-strataReplayAt`) waits for all of them. Past 150ms without a start,
+the tower's dashed slot breathes where the tower will stand
+(`ReplayLoadingSlot`). Both draw from the same decoded images, which is what
+makes the video match. One decode per
 photograph, sized to the largest block showing it (`decodeSide`: 4/3 of the
 span, capped at two cells), for the larger of the screen's cell and the
 card's at 3x. Decoding everything two cells wide held four times the pixels
@@ -1035,9 +1045,42 @@ otherwise the pill on its own line under the count. Squeezed into one row at
 accessibility xxLarge on an SE, "12" wrapped a digit per line and the pill
 read "Yo..."; capping the pill's type still read "Your...".
 
-**The Settings preview is marked everywhere it can leave the phone**: the
-live header, the Share still and every video frame say "Sample"
-(`isSample` through `ReplayCard.image`, `sharedFrame` and the exporter).
+**The Settings preview is marked where it can leave the phone**: "Sample"
+follows the range on the line under the count, live and in the video
+(`isSample` through `sharedFrame` and the exporter). Not during the build:
+the owner asked for less on screen (2026-09-15), so the build shows the
+count alone.
+
+**During the build only the count; the date arrives with the reveal; the
+close is the controls alone** (the owner, 2026-09-15). The count sits top
+left as the Wins tab's header and counts one landing at a time with a
+script-driven odometer roll: only positions that change move, old and new at
+full strength inside a window the height of the digits' ink (not the line
+box: the face's ink sits in the middle of a 1.2em line, and a line-high window
+showed "19" stacked over "20"), 0.16s, a small gap apart so they never
+overlap; a new leading digit opens its width in the first half; each roll is
+cut short to the gap before the next landing.
+**The date alone arrives under it** as the reveal starts: "9/7-9/13", or
+"September", in the quiet ink at the caption size. No "Your week" over it,
+which the owner called "a bit too much": four layouts were drawn and
+photographed (this one, the date after "wins" on the count's line, the count
+alone, and "Your week" with the range in the medium weight), and this one
+keeps the count's line exactly as the Wins tab sets it. The words "Your
+week" are the app talking about itself; a friend watching the video does not
+need them. There is no sentence about a busiest day, anywhere:
+a replay is shared with friends and that line meant nothing to them. Replay
+(quieter, a secondary-ink glyph), Save Video and Share sit on the bottom
+margin, `gapWide` above the home indicator; the finished tower fills the space
+between the title and them with `gapWide` of air on both sides
+(`Metrics.standard` with `topCopy`), and the video, which has no controls,
+gives their room to the tower. **Share shares the video**, the same
+export Save Video makes, once per replay; the file is deleted on close.
+
+**Dates are numbers and a hyphen**: "9/7-9/13" in the reader's month/day
+order (template `Md`), the year on both ends only when some of the week is
+not this year's ("12/29/25-1/4/26"). VoiceOver keeps the words
+(`spokenRange`: "7 to 13 September"), since it reads the figures as numbers
+and slashes.
 
 **`BlockFace` is shared with the tower.** A replay block is the real block
 face, photographs, veil and title, so a replay cannot drift from the Wins tab.
@@ -1069,20 +1112,23 @@ moment before the reveal.
 **Type is capped at xxLarge inside the replay** (its lines are fractions of the
 frame and cannot grow), and the exporter renders at `.large` in the light
 scheme, so the video is the default setting. Shelf posters are drawn in the
-viewer's scheme; Share and the video stay light.
+viewer's scheme; the video stays light.
 
-**VoiceOver:** the replay opens at the close and announces it once
-("Your week, 7 to 13 September. 31 wins. Thursday was your biggest day.").
-Skipping is an accessibility action on the header and the close words, not
-the tap gesture, because an activation never passes through the hold gesture
-and a stale `press.held` would swallow it.
+**VoiceOver:** the replay opens at the close and announces it once per play
+("Your week, 7 to 13 September. 31 wins."). Skipping is an accessibility
+action on the count and title, not the tap gesture, because an activation
+never passes through the hold gesture and a stale `press.held` would swallow
+it.
 
 Debug flags, since none of this is reachable by tap:
 `-strataOpenReplay week|month|lastWeek|sampleWeek|sampleMonth`,
 `-strataReplayAt <s>` (freeze at a moment), `-strataReplayWindow week|month`
 (force the Wins tab pill), `-strataExportReplay` (with `-strataOpenReplay`,
 writes `replay.mp4`, `replay-still.png` and `replay-export.txt` to Documents
-at the close), `-strataReplayProbe` (the clock as an accessibility label, for
+at the close), `[REPLAY-OPEN]` lines in `Documents/replay-open.log` (DEBUG:
+presenting to first frame, what it went on, and when every photograph was
+in), `-strataReplayHoldLoad <s>` (holds the start so the loading slot can be
+photographed), `-strataReplayProbe` (the clock as an accessibility label, for
 `ReplayGestureTests`), `-strataSeedHistoryPerDay <n>` (a busy month to
 measure). `ReplayGestureTests` is in the UI target, which the default test
 plan does not include: run it with `-testPlan StrataFull`.

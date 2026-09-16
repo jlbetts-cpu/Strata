@@ -110,63 +110,83 @@ struct ReplayPeriod: Hashable, Identifiable {
 
     var title: String { kind == .week ? "Your week" : "Your month" }
 
-    /// Made once per format, calendar and time zone, and kept.
+    /// Made once per format, locale, calendar and time zone, and kept.
     ///
-    /// A replay draws its range and its running label on every frame, so a
-    /// fresh `DateFormatter` per call was one allocation (and one ICU pattern
-    /// parse) per string per frame, for the whole of playback and every frame
-    /// of the saved video.
+    /// A replay draws its range on every frame, so a fresh `DateFormatter`
+    /// per call was one allocation (and one ICU pattern parse) per string per
+    /// frame, for the whole of playback and every frame of the saved video.
+    /// A static dictionary is only safe because every caller is on the main
+    /// actor: the frame, the shelf, the reminder and the exporter.
     private static var formatters: [String: DateFormatter] = [:]
 
-    private func formatter(_ format: String) -> DateFormatter {
-        let key = "\(format)|\(calendar.identifier)|\(calendar.timeZone.identifier)"
+    /// The app's words are English, so names of months and days come from
+    /// one fixed English locale. The numeric week range is the one thing set
+    /// in the reader's own order, below.
+    private static let wordsLocale = Locale(identifier: "en_GB")
+
+    private func formatter(_ format: String, template: Bool = false, locale: Locale = ReplayPeriod.wordsLocale) -> DateFormatter {
+        let key = "\(format)|\(template)|\(locale.identifier)|\(calendar.identifier)|\(calendar.timeZone.identifier)"
         if let cached = Self.formatters[key] { return cached }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_GB")
+        f.locale = locale
         f.calendar = calendar
         f.timeZone = calendar.timeZone
-        f.dateFormat = format
+        if template { f.setLocalizedDateFormatFromTemplate(format) } else { f.dateFormat = format }
         Self.formatters[key] = f
         return f
     }
 
-    /// "7 to 13 September", "28 September to 4 October", "September",
-    /// with the year added when it is not `now`'s year.
-    func range(relativeTo now: Date) -> String {
+    /// What the replay and the shelf print: "9/7-9/13" for a week, in the
+    /// reader's own month and day order ("07/09-13/09" in the UK), and
+    /// "September" for a month.
+    ///
+    /// **Numbers and a plain hyphen, the owner's call (2026-09-15):** "7 to
+    /// 13 September" read as a sentence where a glance was wanted. The year
+    /// is added only when some of the week is not in `now`'s year, and then
+    /// to both ends, so a week across New Year reads "12/29/25-1/4/26"
+    /// rather than leaving one end to guess. A month adds its year the same
+    /// way: "September 2025".
+    ///
+    /// **A reader whose dates are written with hyphens** ("7-9" in Dutch)
+    /// gets the two ends joined by a spaced hyphen, "7-9 - 13-9", so the
+    /// range never reads as one run of numbers. Never a long dash.
+    func range(relativeTo now: Date, locale: Locale = .current) -> String {
         let first = firstDay
         let last = date(ofDay: days.count - 1)
-        let otherYear = calendar.component(.year, from: last) != calendar.component(.year, from: now)
+        let nowYear = calendar.component(.year, from: now)
+        switch kind {
+        case .month:
+            return formatter(calendar.component(.year, from: first) != nowYear ? "MMMM yyyy" : "MMMM").string(from: first)
+        case .week:
+            let otherYear = calendar.component(.year, from: first) != nowYear
+                || calendar.component(.year, from: last) != nowYear
+            let f = formatter(otherYear ? "yyMd" : "Md", template: true, locale: locale)
+            let head = f.string(from: first), tail = f.string(from: last)
+            let joint = head.contains("-") || tail.contains("-") ? " - " : "-"
+            return head + joint + tail
+        }
+    }
+
+    /// The range as it is SPOKEN: "7 to 13 September", "28 September to 4
+    /// October", with the year when it is not `now`'s. VoiceOver reads
+    /// "9/7-9/13" as a string of numbers and slashes, so the announcement and
+    /// the shelf's accessibility labels keep the words.
+    func spokenRange(relativeTo now: Date) -> String {
+        let first = firstDay
+        let last = date(ofDay: days.count - 1)
+        let nowYear = calendar.component(.year, from: now)
+        // The year rule `range` uses: both ends carry it when either end is
+        // not in `now`'s year.
+        let otherYear = calendar.component(.year, from: first) != nowYear
+            || calendar.component(.year, from: last) != nowYear
         switch kind {
         case .month:
             return formatter(otherYear ? "MMMM yyyy" : "MMMM").string(from: first)
         case .week:
             let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
-            let yearsDiffer = calendar.component(.year, from: first) != calendar.component(.year, from: last)
-            let head = formatter(yearsDiffer ? "d MMMM yyyy" : (sameMonth ? "d" : "d MMMM")).string(from: first)
-            let tail = formatter(otherYear || yearsDiffer ? "d MMMM yyyy" : "d MMMM").string(from: last)
+            let head = formatter(otherYear ? "d MMMM yyyy" : (sameMonth ? "d" : "d MMMM")).string(from: first)
+            let tail = formatter(otherYear ? "d MMMM yyyy" : "d MMMM").string(from: last)
             return "\(head) to \(tail)"
         }
-    }
-
-    /// The running label: "Monday" in a week, "14" in a month.
-    func label(forDay index: Int) -> String {
-        kind == .week
-            ? formatter("EEEE").string(from: date(ofDay: index))
-            : String(index + 1)
-    }
-
-    /// A day as a sentence names it: "Thursday", "the 14th" ("The 14th" to start one).
-    func dayName(_ index: Int, capitalised: Bool) -> String {
-        if kind == .week { return formatter("EEEE").string(from: date(ofDay: index)) }
-        let n = index + 1
-        let suffix: String
-        switch (n % 100, n % 10) {
-        case (11...13, _): suffix = "th"
-        case (_, 1): suffix = "st"
-        case (_, 2): suffix = "nd"
-        case (_, 3): suffix = "rd"
-        default: suffix = "th"
-        }
-        return (capitalised ? "The " : "the ") + "\(n)\(suffix)"
     }
 }

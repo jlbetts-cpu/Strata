@@ -11,6 +11,15 @@ Memories, save to camera roll as a video). This document describes what was
 built; where the build ruled differently from the first draft, the text below
 says what shipped.
 
+Revised on 2026-09-15 after the owner watched it on his phone: "the loading
+is slow and there isn't an indicator", simpler dates ("6/7-6/13"), a way to
+replay it, a better text animation, Share should share the video, and during
+the build only the win count, counting up, with the date arriving at the end
+(he then asked for the "Your week" words to go too: they "look a bit too
+much"). The same day he removed the busiest-day sentence: a
+replay is shared with friends, and that line means nothing to them. The text
+below describes the revised build.
+
 ## Why this is the feature
 
 Strata's tower is a day. At midnight it resets, and everything you built lives
@@ -32,7 +41,7 @@ applies to both unless a table says otherwise.
 | | Your Week | Your Month |
 | --- | --- | --- |
 | Covers | Monday to Sunday, the week ending on the Sunday | The calendar month |
-| Running label | Weekday name: Monday … Sunday | Day number in the owner's numerals: 1 … 30 |
+| Date at the reveal | 9/7-9/13 | September |
 | Build phase | about 10s, capped at 12.5s | about 18s, capped at 22s |
 | Air before a day's first drop | 0.35s | 0.12s |
 | Whole replay | at most 18s, a hard cap (a light week is shorter, never padded) | at most 28s, a hard cap |
@@ -43,9 +52,9 @@ applies to both unless a table says otherwise.
 
 One continuous take. No pages, no swiping.
 
-1. **Open.** Warm ground, empty. "Your week" (or "Your month") in the quiet
-   weight, the range under it: "7 to 13 September", or "September".
-2. **The build.** The running label sits top left. Wins fall one after another
+1. **Open.** Warm ground, empty, "0 wins" top left, fading in.
+2. **The build.** Only the count sits top left, set as the Wins tab's header,
+   and it counts up by one as each block lands. Wins fall one after another
    in the order they were logged, each with the real gravity drop and the real
    landing, at the same size as on the Wins tab. First-fit, the same packer the
    tower runs, so this is the app's arrangement and not a lookalike.
@@ -58,11 +67,11 @@ One continuous take. No pages, no swiping.
    whole tower fits, with the top of the tower travelling to its fitted
    position rather than the view shrinking about a fixed point. This is the
    moment the replay exists for: you have watched it built piece by piece,
-   and now you see the whole thing at once. The running label leaves as it
-   starts.
+   and now you see the whole thing at once. As it starts, the date arrives
+   under the count, in the quiet ink: "9/7-9/13", or "September".
 6. **The dance.** The tower dances once (the existing dance, one wave).
-7. **The close.** The count arrives under the tower in the owner's numerals,
-   one true sentence under it, then Save Video and Share.
+7. **The close.** Replay, Save Video and Share arrive under the tower. No
+   sentence, and the count is not repeated: it has been at the top all along.
 
 After the close the tower stays live: tap a block to open that win's photo in
 the app's photo viewer, growing out of the block. Before the close a tap
@@ -105,11 +114,10 @@ dance and close are never compressed. So a 600 win month is denser, never
 longer, and the shape of the build (busy days, quiet days) is kept.
 
 **Day boundaries** get a moment of air before the next day's first drop (table above). An empty
-day shows its label for 0.45s in a week and 0.2s in a month, and nothing falls.
-Not skipped (that would misstate the record) and not remarked on. A trailing
+day holds for 0.45s in a week and 0.2s in a month, and nothing falls. Not
+skipped (that would misstate the record) and not remarked on. A trailing
 empty day (a quiet weekend, a month ending quietly) has no landing to wait
-for, so the reveal starts no earlier than that day's label has had its own
-moment.
+for, so the reveal starts no earlier than that day has had its own moment.
 
 **The camera during the build** is precomputed from a corridor. Every block
 sets two limits: a floor (by the time it lands, less a 0.25s lead, the camera
@@ -136,16 +144,32 @@ already fits skips the reveal and holds; one that rose during the build but
 fits at scale 1 still gets the reveal, easing the rise back to 0, because a
 jump is exactly what this must never do.
 
-**Label changes** are an 8pt vertical slide plus opacity, 0.22s, outgoing and
-incoming overlapping.
+**The count** is the number of landings at or before `t`. Each change rolls:
+only the digit positions that change move, like an odometer: the old digit
+rises out of a window the height of the digits' ink as the new one rises in
+from below it, both at full strength, a small gap apart, on an ease-out over
+0.16s. Nothing fades and no frame draws two digits over each other. (A fade
+hand-over made the number blink grey, and a window the height of the whole
+line showed "19" stacked over "20": the face sets its ink in the middle of a
+1.2em line.) A new leading digit (9 to 10) opens its width in the first half,
+so "wins" slides rather than jumps. Under Reduce Motion the digit changes in
+place. A roll is cut short to the time before the next
+landing, so in a busy month, where landings are 50ms apart, rolls are quick
+and always finish rather than jumping mid-slide. Landings at one instant (a
+day under Reduce Motion) are one change. It is computed by the script
+(`countRoll`, `digitSlots`), not a `numericText` transition, so the video
+rolls exactly as the screen did.
 
-**The close** is driven by the script, not a `gentleReveal` animation, so the
-saved video matches the replay frame for frame: count, sentence 80ms later,
-controls 80ms after that, each a 0.3s ease-out of opacity.
+**The title and the controls** arrive by the script, not by `withAnimation`,
+so the saved video matches frame for frame: each rises 8pt with opacity over
+0.45s on an ease-out cubic (most of the travel early, a long soft settle),
+the date from the reveal's start (a preview's "Sample" 80ms behind it); the
+controls from the close's start.
 
 **Reduce Motion:** no falls, no camera, no dance. The finished tower is laid
 out at its fitted size and each day's blocks fade in together, day by day,
-over about 4s (6s for a month). The running label leaves at the close. A
+over about 4s (6s for a month). The count's digits and the title cross-fade
+in place, without their slide; the title arrives with the close. A
 day's blocks land at one instant, so the day makes one sound and one haptic,
 at its heaviest block, not one per block in a single frame.
 Same close. Filmed on 2026-09-14 with Reduce Motion on: days fade in place,
@@ -161,17 +185,28 @@ haptic on the dance. Nothing else makes a sound.
 ## Layout
 
 - Full screen cover over the app, `WarmBackground`, status bar visible.
-- Header: title in the quiet weight over the range, leading at the page margin.
-  Close button (the app's `GlassIconButton`, xmark) top right from the first
-  frame, so leaving never waits on the animation.
-- Running label: under the header, top left, large but lighter than the tower.
-- The follow line sits a fifth of the way down the frame, below the label.
-- The tower's base sits at a fixed line with room under it for the close.
-- Close: count in `Typography.tally` with "wins" in `Typography.screenSubtitle`
-  as a quieter caption beside it, set as the Wins tab's header, the sentence
-  in secondary ink, Save Video and Share as the app's glass controls.
-- Header and running label are drawn beneath the tower, so a falling block
-  passes in front of the type rather than the type printing across it.
+- Count, top left on the Wins tab's cap line: `Typography.tally` in the
+  owner's numerals with "wins" in `Typography.screenSubtitle` as a quieter
+  caption beside it. Under it, laid out from the first frame and invisible
+  until the reveal, the date alone in `screenSubtitle`, `inkQuiet`:
+  "9/7-9/13", or "September". **No "Your week" over it** (2026-09-15): four
+  layouts were drawn and photographed side by side, and this one keeps the
+  count's line exactly as the Wins tab sets it and leaves the date as
+  context under the fact. Close button (the app's `GlassIconButton`, xmark)
+  top right from the first frame, so leaving never waits on the animation.
+- The follow line sits at 0.24 of the frame, under the count.
+- **The whole height is used** (the owner: "the buttons sit kinda high when
+  there's a lot of space below"). The controls row sits on the bottom margin,
+  `gapWide` above the home indicator (never under `gapSection` from the
+  edge). The tower's base stands `gapWide` above the controls, and the
+  finished tower may rise to `gapWide` under the date line, so it fills the
+  space between with the same air above and below. The video has no controls,
+  so its base takes their room, 48pt clear of a story's reply bar.
+- Close: Replay (`GlassIconButton`, arrow.counterclockwise, its glyph in
+  secondary ink so it is quieter than the words beside it), Save Video and
+  Share as the app's glass controls.
+- The count and title are drawn beneath the tower, so a falling block passes
+  in front of the type rather than the type printing across it.
 - Blocks use the real block surface, photos and all, through `BlockFace`,
   the one view the tower also draws a block's face with. **No merged runs**,
   for the month tower's reason: touching blocks are different wins, and
@@ -180,12 +215,40 @@ haptic on the dance. Nothing else makes a sound.
   being words, rather than cutting. A tower that comes to rest at or above
   0.45 keeps its titles throughout.
 - Dynamic Type is capped at xxLarge inside the replay: its lines are
-  fractions of the frame and cannot grow with the type. The running label
-  sits under the header by layout and the close is bounded above the home
-  indicator.
-- Save Video and Share sit in one row. At extreme type sizes Save Video's
-  words may shrink to 80%; Share never does. Stacking them pushed the count
-  over the tower's bottom row on an iPhone SE.
+  fractions of the frame and cannot grow with the type. The close is bounded
+  above the home indicator.
+- Replay, Save Video and Share sit in one row. At extreme type sizes Save
+  Video's and Share's words may shrink to 80%; Replay is a glyph. Stacking
+  them pushed the close into the tower's bottom row on an iPhone SE.
+
+## Loading
+
+Measured in the simulator from presenting the cover to the first drawn frame
+(`[REPLAY-OPEN]`, DEBUG): the replay used to decode every photograph, then
+start, then render the Share still on the main actor before the first frame
+was committed. Now:
+
+- **It starts once the photographs of the blocks that appear in its first 2s
+  are decoded** (`ReplayImageLoad`). Those decode first, on their own; the
+  rest follow in drop order. A block whose photograph is
+  not in yet draws its colour, as blocks always do, and the picture fades in
+  over 0.25s when it arrives. The block is drawn as a photograph (veil,
+  vignette, title shadow) from its first frame, so only the picture changes.
+  The fade runs on the replay's clock, so a hold pauses it, and a photograph
+  that lands while the replay is held or finished shows at once. It is live
+  only.
+- **The video still waits for every photograph**: Save Video and Share
+  export from the complete set, so no frame has a blank. A frozen frame
+  (`-strataReplayAt`) also waits for all of them.
+- **No Share still at open.** Share shares the video, so the still that was
+  rendered on every open is gone from the path.
+- **The script is made once** per frame size, not on every body.
+- **Past 150ms without a start, an indicator.** The tower's own dashed slot,
+  in `slotInk`, breathes where the tower will stand. It fades out as the
+  replay starts. Under 150ms nothing flashes.
+- Decode sizes are unchanged: 4/3 of the largest block's span in pixels,
+  capped at two cells, for the larger of the screen's cell and the card's at
+  3x, so the video stays sharp.
 
 ## Words
 
@@ -193,28 +256,30 @@ Every string it can show. No long dashes, nothing that reads as being watched.
 
 | Where | Text |
 | --- | --- |
-| Title | Your week / Your month |
-| Range | 7 to 13 September (28 September to 4 October) / September (September 2026 when not this year) |
-| Count | 31 wins (1 win) |
-| Sentence, one busiest day | Thursday was your biggest day. / The 14th was your biggest day. |
-| Sentence, two tied | Thursday and Saturday were your biggest days. / The 3rd and the 14th were your biggest days. |
-| Sentence, three or more tied | Three days tied for your biggest. (Four days, and so on) |
-| Sentence, one day only | All on Thursday. / All on the 14th. |
-| Controls | Save Video · Share |
+| Range | 9/7-9/13 in the reader's month and day order (07/09-13/09 in the UK), 12/29/25-1/4/26 when not this year / September (September 2025 when not this year) |
+| Count | 0 wins, 1 win, 31 wins |
+| Controls | Replay (a glyph) · Save Video · Share |
 | Saving | Saving… then Saved to Photos |
-| Save failed | Couldn't save the video |
+| Save failed | Couldn't save |
+| Share preparing | Share, with the export's ring (VoiceOver: Preparing the video, 40 percent) |
+| Share failed | Couldn't share |
 | Entry pill on the Wins tab | Your week / Your month |
 | Notification, week | Your week is ready · Seven days of wins, stacked into one tower. |
 | Notification, month | September is ready · A month of wins, stacked into one tower. |
 | Replays section heading | REPLAYS |
-| Replays card | Two lines in the ALBUMS caption style: September over 142 wins / 7 to 13 Sep over 31 wins |
+| Replays card | Two lines in the ALBUMS caption style: September over 142 wins / 9/7-9/13 over 31 wins |
 | Settings, Replays section | Replays · Preview Your Week · Preview Your Month |
 | Settings, Notifications section | Weekly and monthly replays (a switch, beside the daily reminder) |
-| Preview badge | Sample, on the title's line: Your week · Sample |
-| Accessibility, at the close | Your week, 7 to 13 September. 31 wins. Thursday was your biggest day. |
+| Preview badge | Sample, after the date: 9/7-9/13 Sample |
+| Accessibility, at the close | Your week, 7 to 13 September. 31 wins. |
+| Accessibility, shelf card | Your week, 7 to 13 September, 31 wins |
+| Loading | Loading the replay (VoiceOver, on the slot) |
 
-The sentence is one fact. No streaks, no comparison with other weeks, no score.
-A replay that grades you is one people stop opening.
+No sentence about the period. It was one fact ("Thursday was your biggest
+day."), and it was removed on 2026-09-15: a replay is shared with friends,
+and a fact about your busiest day means nothing to them. VoiceOver keeps the
+range in words ("7 to 13 September"), since it reads "9/7-9/13" as numbers
+and slashes. No streaks, no comparison with other weeks, no score.
 
 ## Where it lives
 
@@ -258,7 +323,7 @@ tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
   tower fills its poster, so towers stand in proportion. Side by side, the
   shelf is a row of towers you can compare by eye, which is what makes it
   memorable rather than a list. Posters are drawn in the viewer's colour
-  scheme; the Share still and the video stay light.
+  scheme; the video stays light.
 - **Recent weeks:** a smaller row under it: those of the last four finished
   weeks that had a win, plus the current week once its window opens, same
   card at a smaller size.
@@ -279,11 +344,11 @@ tower and Albums, headed REPLAYS in the existing `SectionHeading` style.
 Your Month. Each plays the real replay view with a sample set of wins: the
 app's own bundled demo photographs (the onboarding set) and plausible names,
 sizes and colours, spread across the period with one empty day and one busy
-day, so every part of the choreography shows. "Sample" sits on the title's
-own line ("Your week · Sample") in its ink, and says it is not your data.
-Save Video and Share work here too, so the export can be checked, and the
-still and every frame of the video carry the same "Sample" mark, so a
-made-up week cannot be posted as a real one.
+day, so every part of the choreography shows. "Sample" follows the date, in
+the quiet ink, and says it is not your data.
+Save Video and Share work here too, so the export can be checked, and every
+frame of the video from the reveal on carries the same "Sample" mark, so a made-up week cannot
+be posted as a real one.
 
 ## Save Video
 
@@ -294,22 +359,22 @@ replays to your camera roll.").
 
 - **Same script, drawn to frames.** For each frame time, the replay's frame
   view is rendered with `ImageRenderer` at 3x into a pixel buffer and appended
-  with `AVAssetWriter`. Every frame is the Share still's frame
-  (`ReplayCard.sharedFrame`) at that `t`: the light scheme, `.large` type, a
-  story-safe top inset and the full-motion script, whatever the phone's own
-  text size or Reduce Motion setting. So the video's last frame is the still.
-  The video holds the close for 2s at the end so it does not cut off as the
-  count arrives.
+  with `AVAssetWriter`. Every frame is `ReplayCard.sharedFrame` at that `t`:
+  the light scheme, `.large` type, a story-safe top inset and the full-motion
+  script, whatever the phone's own text size or Reduce Motion setting. The
+  count rolls, the date arrives and the tower dances exactly as on screen;
+  the controls are not drawn. The video holds the finished tower for 2s at
+  the end.
 - **Photos must render synchronously.** `ImageRenderer` does not wait for
-  `CachedImageView`'s async decode, so the replay takes a `ReplayImages`
-  dictionary of decoded thumbnails, loaded before playback starts, and the
-  block view reads from it. Live and exported frames are drawn by the same
+  `CachedImageView`'s async decode, so the exporter takes a complete
+  `ReplayImages` dictionary of decoded thumbnails (`ReplayImageLoad.all()`),
+  and the block view reads from it. Live and exported frames are drawn by the same
   view from the same images, which is what makes them identical. Each
   photograph is decoded once, for the largest block that shows it: its
   longest side is 4/3 of that block's span in pixels (a 3:4 picture filling
   a square still meets it 1:1), capped at the two cells every photograph got
   before. The live replay decodes for the larger of its own cell and the
-  card's at 3x, so the Share still and video are as sharp as they were.
+  card's at 3x, so the video is as sharp as it was.
 - **Sound** is mixed offline: the script lists every landing's time and mass,
   `SoundEngine` renders each impact to PCM as it already does for playback,
   and they are summed into one AAC track. Same rate limit as live, by the
@@ -324,8 +389,14 @@ replays to your camera roll.").
   is being written to Photos lets that write finish, since the file is made
   and Save Video was pressed. A month takes roughly 25 to 40s on a recent
   iPhone; stated as an estimate until measured on device.
-- **Share** shares the still (the card image, always light). The video is
-  shared by saving it, since that is where people post stories from.
+- **Share shares the video.** The same export as Save Video, made once per
+  replay: whichever is pressed first starts it, the other waits on it or uses
+  the finished file. While it exports, Share shows the same progress ring as
+  Save Video; then the system share sheet opens with the file,
+  "Your week.mp4". Closing the replay cancels an export and deletes the file
+  (a write to Photos already in progress finishes first); leaving the app
+  cancels an export but keeps a finished file. The still image is gone from
+  the replay; the shelf's posters are the only stills.
 - **Privacy docs:** the privacy policy and `docs/privacy.html` gain one line
   that replays can be saved to the camera roll on request. Nothing leaves the
   device, so `PrivacyInfo.xcprivacy` does not change.
@@ -334,9 +405,9 @@ replays to your camera roll.").
 
 The build is visual, so with VoiceOver running the replay opens at the close,
 where the words and controls are reachable at once, and it announces the close
-once as it arrives: "Your week, 7 to 13 September. 31 wins. Thursday was your
-biggest day." (`Replay.announcement`). A double tap on the header or the close
-words skips to the close through an accessibility action, not the tap
+once per play as it arrives: "Your week, 7 to 13 September. 31 wins."
+(`Replay.announcement`); Replay says it again. A double tap on the count and
+title skips to the close through an accessibility action, not the tap
 gesture: an activation never passes through the hold gesture, so the tap's
 memory of an earlier physical hold could otherwise swallow it. Save Video
 reads "Saving…" and "Saved to Photos" as words, not buttons, with the export
@@ -346,19 +417,21 @@ percentage as its value.
 
 | Unit | Kind | Does |
 | --- | --- | --- |
-| `ReplayPeriod` | pure | A week or a month: its days, range string, running labels, window, notification date |
-| `Replay` | pure | Orders a period's wins by time, packs them with `GridPacker.firstFit`, per-day counts, the sentence |
-| `ReplayScript` | pure | For time `t`: block offsets and squash, camera offset and scale, label, phase, close opacity, landing events; the corridor camera and its repair pass; cap compression; the Reduce Motion variant; total duration |
+| `ReplayPeriod` | pure | A week or a month: its days, printed and spoken range, window, notification date |
+| `Replay` | pure | Orders a period's wins by time, packs them with `GridPacker.firstFit`, per-day counts, the announcement |
+| `ReplayScript` | pure | For time `t`: block offsets and squash, camera offset and scale, the count and its digit roll, the title's and controls' arrival, phase, landing events; the corridor camera and its repair pass; cap compression; the Reduce Motion variant; total duration |
 | `MonotoneCurve` | pure | The build camera's curve through its keys: no overshoot, never down |
 | `ReplaySample` | pure | The sample wins for the Settings preview, deterministic |
-| `ReplayImages` | service | Loads decoded thumbnails for a replay before it plays |
+| `ReplayImages` | service | Decoded thumbnails, per photograph at its block's size, in drop order |
+| `ReplayImageLoad` | model | The live replay's photographs arriving: when it may start, late photos' fades, the complete set for the video |
 | `BlockFace` | view | A block's face, shared by the tower and the replay |
-| `ReplayFrame` | view | Draws one moment of a script: blocks, label, close, or a poster's tower alone. No timers |
-| `ReplayView` | view | `TimelineView` around `ReplayFrame`; `ReplayClock` skip and pause, haptics and sound, controls, the photo viewer, VoiceOver |
+| `ReplayFrame` | view | Draws one moment of a script: count, title, blocks, controls, or a poster's tower alone. No timers |
+| `ReplayView` | view | `TimelineView` around `ReplayFrame`; `ReplayClock` skip, pause and restart, haptics and sound, the loading slot, controls, the photo viewer, VoiceOver |
+| `ReplayVideo` | model | One export per replay for Save Video and Share, its progress, cancel and cleanup; `ReplayShareSheet` presents the file |
 | `ReplayLoader` | service | The `FetchDescriptor`s: whether a period has a win, and its replay |
 | `ReplayAudioMix` | service | Which landings sound (live and in the video), and the video's mixed track |
 | `ReplayVideoExporter` | service | Frames plus mixed audio into an `.mp4`, progress, cancellation, then `PhotoLibrarySaver` |
-| `ReplayCard` | view | The 9:16 Share still and the frame the video draws; the shelf's tower-only posters |
+| `ReplayCard` | view | The frame the video draws; the shelf's tower-only posters |
 | `ReplayShelfModel` | model | The shelf's periods, the shared row scale, and the in-memory card cache |
 | `ReplayShelf` | view | The Memories section |
 | `ReplayReminder` | service | Schedules or cancels the week and month notifications |
@@ -374,12 +447,13 @@ Debug flags, because none of this is reachable by tap in the simulator:
 `-strataReplayWindow week|month` (force the pill), `-strataExportReplay`
 (write the video, the still and a timing report to Documents for checking),
 `-strataReplayProbe` (the clock as an accessibility label for UI tests),
+`-strataReplayHoldLoad <s>` (hold the start, to photograph the loading slot),
 `-strataSeedHistoryPerDay <n>` (a busy month to measure).
 
 ## Edge cases
 
 - **No wins in a period:** no pill, no notification, no card.
-- **One win:** it plays; one block, "1 win", "All on Thursday."
+- **One win:** it plays; one block, "1 win".
 - **A win edited or deleted during a replay:** the replay uses the snapshot it
   opened with.
 - **A thumbnail fails to load:** that block shows its colour, as blocks do.
@@ -388,8 +462,8 @@ Debug flags, because none of this is reachable by tap in the simulator:
   block opens nothing again.
 - **Midnight inside a window:** the period is fixed by the window, not today.
 - **Time zones and DST:** days come from `Calendar`, never 86,400s steps.
-- **Camera roll permission denied:** "Couldn't save the video", and the
-  control returns. No nagging.
+- **Camera roll permission denied:** "Couldn't save", and the control
+  returns. No nagging.
 - **Export interrupted by backgrounding or closing:** cancelled cleanly,
   partial file deleted, the control returns to "Save Video" with no error.
 
@@ -410,9 +484,10 @@ Each step ships something that works on its own.
 
 - `ReplayPeriodTests`: week across a month boundary and DST, month lengths,
   windows at their edges (Sunday 4:59pm closed, 5pm open, Tuesday closed; the
-  2nd 11:59pm open, the 3rd closed), range strings.
-- `ReplayTests`: order by time, packing matches the tower packer, the sentence
-  for one day, two tied, three tied and one-day-only, in both lengths.
+  2nd 11:59pm open, the 3rd closed), numeric ranges in two locales and across
+  New Year, spoken ranges, no long dashes.
+- `ReplayTests`: order by time, packing matches the tower packer, the
+  announcement.
 - `ReplayScriptTests`: every block at rest before the reveal; every fall starts
   above the frame; the camera never moves down during the build and the top
   block is never clipped at its landing; the reveal ends with the whole tower
@@ -422,15 +497,18 @@ Each step ships something that works on its own.
   and hard-heavy mixes; the camera starts rising no earlier than 0.75s ahead;
   no lurch over 12pt a frame unless the tower grows faster; the reveal never
   bulges; a compressed build that ends on empty days stays under the cap and
-  still shows the last day.
+  still gives the last day its moment; the count at every landing; the digit
+  roll's timing and which positions move; the date's and controls' arrival
+  order, easing and Reduce Motion's lack of slide.
 - `ReplaySampleTests`: deterministic, includes an empty day and a 2x2.
 - `ReplayShelfModelTests`: finished periods, short week names, signatures,
   the shared row scale, hit testing of blocks at the close, and the shelf's
   loaded state.
 - `ReplayAudioMixTests`, `ReplayClockTests`: the sounding rule and the mix;
-  pause, resume and skip.
+  pause, resume, skip and restart.
 - `ReplayGestureTests` (UI): tap skips, hold pauses, a short hold's release
-  is not a skip, the close button, Share and Save Video are not skips, a block
+  is not a skip, the close button, Share (exports, then the sheet) and Save
+  Video are not skips, Replay restarts the clock, a block
   opens its photo after the close, a deleted photo's block opens nothing,
   Save Video survives opening a photo, leaving the app cancels quietly.
 - `ReplayReminderTests`: scheduled with wins, cancelled without, month wins

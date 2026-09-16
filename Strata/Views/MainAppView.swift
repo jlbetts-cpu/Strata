@@ -1664,6 +1664,10 @@ struct MainAppView: View {
             // scheme lands, the replay rendered dark on a light simulator.
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
+                let fetchBegan = CACurrentMediaTime()
+                defer {
+                    ReplayOpenTiming().log(String(format: "[REPLAY-OPEN] %@ chosen in %.1fms", which, (CACurrentMediaTime() - fetchBegan) * 1000))
+                }
                 switch which {
                 case "sampleWeek":
                     debugReplayIsSample = true

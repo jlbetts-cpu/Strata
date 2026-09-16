@@ -41,6 +41,52 @@ struct ReplayImagesTests {
     }
 }
 
+@Suite("Replay photographs arriving")
+struct ReplayImageLoadTests {
+
+    /// Starts a load of the sample week with nothing required, so every
+    /// photograph lands after playback may start, at the clock `clock` gives.
+    @MainActor
+    private func loaded(clock: @escaping () -> (t: Double, running: Bool)) async -> (ReplayImageLoad, [ReplayPhoto]) {
+        let r = ReplaySample.replay(.week, now: Date(timeIntervalSince1970: 1_789_300_000))
+        let load = ReplayImageLoad()
+        load.clock = clock
+        load.start(r, cellPixels: 60, required: [])
+        _ = await load.all()
+        return (load, ReplayImages.photos(r).map(\.photo))
+    }
+
+    @Test("a photograph that lands mid-play fades in over its fade, on the replay's clock")
+    @MainActor func fadesOnTheReplaysClock() async {
+        let (load, photos) = await loaded { (8, true) }
+        #expect(!photos.isEmpty)
+        for photo in photos {
+            #expect(load.opacity(photo, at: 8) == 0)
+            #expect(abs(load.opacity(photo, at: 8 + ReplayImageLoad.fade / 2) - 0.5) < 1e-9)
+            #expect(load.opacity(photo, at: 8 + ReplayImageLoad.fade) == 1)
+        }
+    }
+
+    @Test("after Replay a photograph that landed in the first play shows whole, and never blinks out when the second play reaches its landing time")
+    @MainActor func replayForgetsTheFirstPlaysFades() async {
+        let (load, photos) = await loaded { (8, true) }
+        load.forgetArrivals()
+        for photo in photos {
+            for t in stride(from: 0.0, through: 9.0, by: 0.05) {
+                #expect(load.opacity(photo, at: t) == 1, "\(photo.key) at \(t) in the second play")
+            }
+        }
+    }
+
+    @Test("a photograph that lands while the replay is not running shows at once")
+    @MainActor func notRunningShowsAtOnce() async {
+        let (load, photos) = await loaded { (13.9, false) }
+        for photo in photos {
+            #expect(load.opacity(photo, at: 13.9) == 1)
+        }
+    }
+}
+
 @Suite("Replay video export failures")
 struct ReplayExportFailureTests {
     @Test("an encoder error after a cancel is reported as the cancel, not a failed save")

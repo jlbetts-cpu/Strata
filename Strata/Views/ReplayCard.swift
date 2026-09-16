@@ -1,15 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// A replay's finished tower as a still: the shelf's card and the Share image.
+/// The replay at story size: every frame of the saved video, and the shelf's
+/// posters. No watermark, for the reason `ShareTowerCard` gives.
 ///
-/// It is the last frame of the replay, drawn by the same view, at story size.
-/// No watermark, for the reason `ShareTowerCard` gives.
-///
-/// **The still is pinned, so it is one picture everywhere.** Light, because
+/// **The video is pinned, so it is one picture everywhere.** Light, because
 /// a story is posted to people whose phones are set either way. `.large`
-/// type, because a card rendered at a large accessibility size would be a
-/// different composition from the one everybody else sees, and its header
+/// type, because a video rendered at a large accessibility size would be a
+/// different composition from the one everybody else sees, and its count
 /// would crowd the tower.
 ///
 /// **The shelf does not show the still.** Side by side, stills each fitted
@@ -19,29 +17,35 @@ import UIKit
 /// scheme.
 enum ReplayCard {
     static let size = CGSize(width: 360, height: 640)
-    /// The Share still and every frame of the saved video are the card at
-    /// this scale: 1080x1920.
+    /// Every frame of the saved video is the card at this scale: 1080x1920.
     static let shareScale: CGFloat = 3
 
     /// Clear of a story's own top bar (progress segments, the account row),
     /// which sits over the top of a posted picture.
     static let topInset: CGFloat = 48
+    /// Clear of a story's reply bar, which sits over the bottom of a posted
+    /// picture. The video has no controls, so the tower stands on this.
+    static let bottomInset: CGFloat = 48
 
     /// The script every shared picture of `replay` is drawn from: the card's
     /// frame, full motion.
     static func script(_ replay: Replay) -> ReplayScript {
-        ReplayScript(replay: replay, metrics: .standard(frame: size), reduceMotion: false)
+        ReplayScript(replay: replay,
+                     metrics: .standard(frame: size, topInset: topInset, topCopy: ReplayFrame.topCopyHeight(.large),
+                                        bottomInset: bottomInset),
+                     reduceMotion: false)
     }
 
-    /// One moment of the replay as it is shared: the Share still at the end,
-    /// and every frame of the saved video. One function, so the two cannot
-    /// drift apart in scheme, type size or insets.
+    /// One moment of the replay as it is shared: every frame of the saved
+    /// video, and the DEBUG still an export is checked against. One
+    /// function, so the two cannot drift apart in scheme, type size or
+    /// insets.
     @MainActor
     static func sharedFrame(_ script: ReplayScript, images: ReplayImages, t: Double, now: Date,
                             isSample: Bool) -> some View {
         ReplayFrame(script: script, images: images, t: t, now: now,
                     showsSampleBadge: isSample,
-                    topInset: topInset, bottomInset: 0)
+                    topInset: topInset)
             .environment(\.colorScheme, .light)
             .dynamicTypeSize(.large)
     }

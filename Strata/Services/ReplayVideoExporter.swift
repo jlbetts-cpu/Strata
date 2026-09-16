@@ -8,10 +8,9 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Strata",
 /// A replay, written to an .mp4 the same way it plays: `ReplayFrame` at each
 /// frame's time. 1080x1920, 30fps, H.264, with the landings as AAC.
 ///
-/// **Every frame is `ReplayCard.sharedFrame`**, the function that draws the
-/// Share still, at the still's size and render scale. So the video's last
-/// frame is the still, and every frame before it is the replay at that `t`
-/// in the same light scheme, `.large` type and story-safe top inset.
+/// **Every frame is `ReplayCard.sharedFrame`**, at the card's size and render
+/// scale: the replay at that `t` in the light scheme, `.large` type and a
+/// story-safe top inset. Save Video and Share both use this one file.
 ///
 /// **On the main actor, in slices.** `ImageRenderer` is main-actor only, so
 /// the frames cannot be drawn anywhere else. Before each frame the loop hands
@@ -96,8 +95,19 @@ final class ReplayVideoExporter {
 
     func export(onProgress: @escaping (Double) -> Void = { _ in }) async throws -> URL {
         let started = CACurrentMediaTime()
-        let url = URL.temporaryDirectory.appending(path: "replay-\(UUID().uuidString).mp4")
-        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        // Named for what it is, since Share hands the file itself to another
+        // app: "Your week.mp4", in a folder of its own so two never collide.
+        let folder = URL.temporaryDirectory.appending(path: "replay-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appending(path: "\(replay.period.title).mp4")
+        let writer: AVAssetWriter
+        do {
+            writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        } catch {
+            // Nothing was written: the folder made for it goes too.
+            Self.remove(url)
+            throw error
+        }
         do {
             try await write(to: writer, onProgress: onProgress)
         } catch {
@@ -119,14 +129,19 @@ final class ReplayVideoExporter {
         cancelRequested ? Failure.cancelled : error
     }
 
-    /// Deletes a file this exporter wrote. A leftover temporary video is not
-    /// worth failing anything over, but it is logged rather than ignored.
+    /// Deletes a file this exporter wrote, and the folder it made for it. A
+    /// leftover temporary video is not worth failing anything over, but it
+    /// is logged rather than ignored.
     static func remove(_ url: URL) {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let folder = url.deletingLastPathComponent()
+        let ownFolder = folder.lastPathComponent.hasPrefix("replay-")
+            && folder.deletingLastPathComponent().standardizedFileURL == URL.temporaryDirectory.standardizedFileURL
+        let target = ownFolder ? folder : url
+        guard FileManager.default.fileExists(atPath: target.path) else { return }
         do {
-            try FileManager.default.removeItem(at: url)
+            try FileManager.default.removeItem(at: target)
         } catch {
-            logger.error("could not delete \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("could not delete \(target.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 

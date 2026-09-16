@@ -89,7 +89,7 @@ struct ReplayShelf: View {
             .animation(GridConstants.gentleReveal,
                        value: model.cards[ReplayShelfModel.key(replay, scheme: colorScheme)] != nil)
             // **The line is as tall as the name at full size**, whatever the
-            // name shrank to. "31 Aug to 6 Sep" scales down to fit a week's
+            // name shrank to. A long name scales down to fit a week's
             // card, and a shrunk line is a shorter line, so its count sat
             // higher than its neighbours'. A hidden full-size line sets the
             // height and the name sits on its baseline.
@@ -114,19 +114,15 @@ struct ReplayShelf: View {
         .contentShape(Rectangle())
     }
 
-    /// "Your week, 7 to 13 September, 31 wins": the range in full, since
-    /// VoiceOver has no narrow card to fit.
+    /// "Your week, 7 to 13 September, 31 wins": the range in words, since
+    /// VoiceOver reads "9/7-9/13" as numbers and slashes.
     static func accessibilityLabel(_ replay: Replay, now: Date) -> String {
-        "\(replay.period.title), \(replay.period.range(relativeTo: now)), \(replay.count) \(replay.count == 1 ? "win" : "wins")"
+        "\(replay.period.title), \(replay.period.spokenRange(relativeTo: now)), \(replay.count) \(replay.count == 1 ? "win" : "wins")"
     }
 
-    /// "September", "7 to 13 Sep": the week's card is narrow, so its months
-    /// are cut to three letters.
-    static func name(of period: ReplayPeriod, now: Date) -> String {
-        let full = period.range(relativeTo: now)
-        guard period.kind == .week else { return full }
-        let months = ["January", "February", "March", "April", "May", "June", "July",
-                      "August", "September", "October", "November", "December"]
-        return months.reduce(full) { $0.replacingOccurrences(of: $1, with: String($1.prefix(3))) }
+    /// "September", "9/7-9/13": the replay's own title, short enough for a
+    /// week's narrow card as it is.
+    static func name(of period: ReplayPeriod, now: Date, locale: Locale = .current) -> String {
+        period.range(relativeTo: now, locale: locale)
     }
 }

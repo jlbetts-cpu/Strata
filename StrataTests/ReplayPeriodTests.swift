@@ -72,32 +72,52 @@ struct ReplayPeriodTests {
         #expect(month.notificationDate == at(2026, 10, 1, 10))
     }
 
-    @Test("range strings")
+    @Test("a week's range is numbers and a hyphen, in the reader's order, with the year only when it is not this year's")
     func ranges() {
         let now = at(2026, 9, 13)
-        #expect(ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar).range(relativeTo: now) == "7 to 13 September")
-        #expect(ReplayPeriod.week(containing: at(2026, 10, 1), calendar: calendar).range(relativeTo: now) == "28 September to 4 October")
-        #expect(ReplayPeriod.week(containing: at(2025, 9, 10), calendar: calendar).range(relativeTo: now) == "8 to 14 September 2025")
-        #expect(ReplayPeriod.month(containing: at(2026, 9, 9), calendar: calendar).range(relativeTo: now) == "September")
-        #expect(ReplayPeriod.month(containing: at(2025, 9, 9), calendar: calendar).range(relativeTo: now) == "September 2025")
+        let us = Locale(identifier: "en_US")
+        #expect(ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar).range(relativeTo: now, locale: us) == "9/7-9/13")
+        #expect(ReplayPeriod.week(containing: at(2026, 10, 1), calendar: calendar).range(relativeTo: now, locale: us) == "9/28-10/4")
+        #expect(ReplayPeriod.week(containing: at(2025, 9, 10), calendar: calendar).range(relativeTo: now, locale: us) == "9/8/25-9/14/25")
+        // Across New Year, seen from the new year: both ends carry their year.
+        let newYear = ReplayPeriod.week(containing: at(2025, 12, 31), calendar: calendar)
+        #expect(newYear.range(relativeTo: at(2026, 1, 5), locale: us) == "12/29/25-1/4/26")
+        // Day before month where the reader writes it that way.
+        let gb = ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar)
+            .range(relativeTo: now, locale: Locale(identifier: "en_GB"))
+        #expect(gb == "07/09-13/09", "the UK reads \(gb)")
+        // A reader who writes dates with hyphens gets a spaced hyphen between
+        // the ends, never one run of numbers and never a long dash.
+        let nl = ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar)
+            .range(relativeTo: now, locale: Locale(identifier: "nl_NL"))
+        #expect(nl.contains(" - ") && !nl.contains("\u{2013}") && !nl.contains("\u{2014}"), "Dutch reads \(nl)")
+        #expect(nl.hasPrefix("7-9") && nl.hasSuffix("13-9"), "Dutch reads \(nl)")
+        #expect(ReplayPeriod.month(containing: at(2026, 9, 9), calendar: calendar).range(relativeTo: now, locale: us) == "September")
+        #expect(ReplayPeriod.month(containing: at(2025, 9, 9), calendar: calendar).range(relativeTo: now, locale: us) == "September 2025")
     }
 
-    @Test("labels: weekday names for a week, day numbers for a month; ordinals in sentences")
-    func labels() {
-        let week = ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar)
-        let month = ReplayPeriod.month(containing: at(2026, 9, 9), calendar: calendar)
-        #expect(week.label(forDay: 0) == "Monday")
-        #expect(week.label(forDay: 6) == "Sunday")
-        #expect(month.label(forDay: 13) == "14")
-        #expect(week.dayName(3, capitalised: false) == "Thursday")
-        #expect(month.dayName(0, capitalised: true) == "The 1st")
-        #expect(month.dayName(1, capitalised: false) == "the 2nd")
-        #expect(month.dayName(2, capitalised: false) == "the 3rd")
-        #expect(month.dayName(10, capitalised: false) == "the 11th")
-        #expect(month.dayName(11, capitalised: false) == "the 12th")
-        #expect(month.dayName(12, capitalised: false) == "the 13th")
-        #expect(month.dayName(20, capitalised: false) == "the 21st")
-        #expect(month.dayName(22, capitalised: false) == "the 23rd")
+    @Test("no long dash in any range, printed or spoken")
+    func noLongDashes() {
+        let now = at(2026, 9, 13)
+        for date in [at(2026, 9, 9), at(2026, 10, 1), at(2025, 12, 31), at(2025, 9, 10)] {
+            for p in [ReplayPeriod.week(containing: date, calendar: calendar), ReplayPeriod.month(containing: date, calendar: calendar)] {
+                for text in [p.range(relativeTo: now), p.range(relativeTo: now, locale: Locale(identifier: "en_US")), p.spokenRange(relativeTo: now)] {
+                    #expect(!text.contains("\u{2014}") && !text.contains("\u{2013}"), "\(text)")
+                }
+            }
+        }
+    }
+
+    @Test("the spoken range keeps the words, for VoiceOver")
+    func spokenRanges() {
+        let now = at(2026, 9, 13)
+        #expect(ReplayPeriod.week(containing: at(2026, 9, 9), calendar: calendar).spokenRange(relativeTo: now) == "7 to 13 September")
+        #expect(ReplayPeriod.week(containing: at(2026, 10, 1), calendar: calendar).spokenRange(relativeTo: now) == "28 September to 4 October")
+        #expect(ReplayPeriod.week(containing: at(2025, 9, 10), calendar: calendar).spokenRange(relativeTo: now) == "8 September 2025 to 14 September 2025")
+        // Across New Year, seen from the new year: the same rule as the printed range.
+        #expect(ReplayPeriod.week(containing: at(2025, 12, 31), calendar: calendar).spokenRange(relativeTo: at(2026, 1, 5))
+                == "29 December 2025 to 4 January 2026")
+        #expect(ReplayPeriod.month(containing: at(2025, 9, 9), calendar: calendar).spokenRange(relativeTo: now) == "September 2025")
     }
 
     @Test("finished periods are newest first and exclude the one still running")

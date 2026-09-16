@@ -29,21 +29,49 @@ struct ReplayScript {
         var followY: CGFloat
         /// After the reveal, the finished tower's top may come no higher.
         var fitTopY: CGFloat
+        /// Where the close's controls row starts, live. In the video, which
+        /// draws no controls, the frame's usable bottom.
+        var closeTop: CGFloat = 0
 
-        /// Same cell as the Wins tab at this width. The three lines were
-        /// set by photographing frozen frames at 402x874:
-        /// - `followY` 0.24 holds the tower's top a clear gap under the
-        ///   running label (label ink ends near 0.19).
-        /// - `baseY` 0.75 (was 0.72) and `fitTopY` 0.17 (was 0.22): the
-        ///   finished week sat at 0.43 scale with an empty band above it and
-        ///   below the close; now 0.50, top just under the header, and the
-        ///   close still hangs 40pt under the base with room for controls.
-        static func standard(frame: CGSize) -> Metrics {
+        /// The replay's lines for a frame.
+        ///
+        /// **Laid out from what is on the screen, not from fractions**
+        /// (the owner, 2026-09-15: "use the whole screen; right now the
+        /// buttons sit kinda high when there's a lot of space below"). When
+        /// the caller says how tall the count and title stand (`topCopy`):
+        /// - the controls row sits a fixed margin above the home indicator
+        ///   (`gapWide` over the bottom inset, never under `gapSection` from
+        ///   the edge), so no dead band opens under it on a tall phone;
+        /// - the tower's base stands `gapWide` above the controls, and the
+        ///   finished tower's top may rise to `gapWide` under the title, so
+        ///   it fills the space between them with the same air above and
+        ///   below;
+        /// - with no controls (the video) the base takes their room too.
+        ///
+        /// `followY` stays at 0.24 of the frame, a clear gap under the count
+        /// during the build, and never above where the finished top may go.
+        ///
+        /// Without `topCopy` (the script's tests, and anything that only
+        /// wants a cell) the lines are the fractions they were set to at
+        /// 402x874: base 0.79, fitted top 0.18.
+        static func standard(frame: CGSize, topInset: CGFloat = 0, topCopy: CGFloat = 0,
+                             bottomInset: CGFloat = 0, controlsHeight: CGFloat = 0) -> Metrics {
             let cell = GridConstants.cellSize(forGridWidth: frame.width - GridConstants.horizontalPadding * 2)
-            return Metrics(frame: frame, cell: cell,
-                           baseY: (frame.height * 0.75).rounded(),
-                           followY: (frame.height * 0.24).rounded(),
-                           fitTopY: (frame.height * 0.17).rounded())
+            guard topCopy > 0 else {
+                let baseY = (frame.height * 0.79).rounded()
+                return Metrics(frame: frame, cell: cell, baseY: baseY,
+                               followY: (frame.height * 0.24).rounded(),
+                               fitTopY: (frame.height * 0.18).rounded(),
+                               closeTop: baseY + GridConstants.gapWide)
+            }
+            let air = GridConstants.gapWide
+            let bottom = max(bottomInset + GridConstants.gapWide, GridConstants.gapSection)
+            let closeTop = (frame.height - bottom - controlsHeight).rounded()
+            let baseY = controlsHeight > 0 ? closeTop - air : closeTop
+            let fitTopY = (topInset + topCopy + air).rounded()
+            return Metrics(frame: frame, cell: cell, baseY: baseY,
+                           followY: max((frame.height * 0.24).rounded(), fitTopY),
+                           fitTopY: fitTopY, closeTop: closeTop)
         }
     }
 
@@ -79,14 +107,26 @@ struct ReplayScript {
         let cameraCeilingSlack = 2.0
         /// How many times the repair pass may add keys before it stops.
         let cameraRepairPasses = 12
-        let labelFade = 0.22
-        let labelSlide: CGFloat = 8
+        /// How far the title and the close's controls rise as they arrive.
+        let arriveSlide: CGFloat = 8
+        /// How long the title and the controls take to arrive. Longer
+        /// than the 0.3s linear fade they replaced, and eased out, so they
+        /// settle rather than switch on (the owner, 2026-09-15: "the text
+        /// needs a better animation").
+        let arrive = 0.45
         let danceWave = 0.6
+        /// Reduce Motion's blocks fade in over this.
         let closeFade = 0.3
+        /// Between the date arriving and a Settings preview's "Sample" after
+        /// it, and the step Reduce Motion's close adds to the replay's end.
         let closeStagger = 0.08
         let squashTime = 0.35
-        /// How long the header takes to fade in.
+        /// How long the count takes to fade in at the open.
         let headerFade = 0.5
+        /// The count's digit roll: at most this long, and never longer than
+        /// the time to the next landing, so a roll always finishes before
+        /// the next one starts.
+        let rollTime = 0.16
         /// The squash-and-stretch settle: an exponentially decaying cosine.
         let squashDecay = 0.08
         let squashPeriod = 0.22
@@ -116,13 +156,28 @@ struct ReplayScript {
         var scale: CGFloat
     }
 
-    struct LabelState: Equatable {
-        var current: Int?
-        var currentOpacity: Double
-        var currentSlide: CGFloat
-        var previous: Int?
-        var previousOpacity: Double
-        var previousSlide: CGFloat
+    /// The win count's roll at a moment: what it reads, what it read
+    /// before the latest landing, and how far through the change it is
+    /// (1 when settled).
+    struct CountRoll: Equatable {
+        var count: Int
+        var previous: Int
+        var progress: Double
+    }
+
+    /// One digit position of the count, right-aligned: the digit arriving,
+    /// the digit leaving, and whether this position changes at all. Only a
+    /// position that changes moves.
+    struct DigitSlot: Equatable {
+        var new: Character?
+        var old: Character?
+        var changes: Bool { new != old }
+    }
+
+    /// A line arriving: its opacity and how far below its place it still is.
+    struct Arrival: Equatable {
+        var opacity: Double
+        var offset: CGFloat
     }
 
     struct Landing: Equatable {
@@ -149,6 +204,8 @@ struct ReplayScript {
     let duration: Double
     let landings: [Landing]
 
+    /// Every landing's time, sorted: what the count is read from.
+    private let landingTimes: [Double]
     private let starts: [Double]
     private let fallTimes: [Double]
     private let fallDistances: [CGFloat]
@@ -191,6 +248,7 @@ struct ReplayScript {
                 Landing(time: startsLocal[$0], mass: replay.blocks[$0].win.size.massTier,
                         column: replay.blocks[$0].column, blockIndex: $0)
             }.sorted { $0.time < $1.time }
+            landingTimes = landings.map(\.time)
             cameraCurve = MonotoneCurve(points: [(0, 0)])
             finalRise = 0
             revealStart = pacing.open + pacing.reduceMotionSpan + pacing.closeFade
@@ -198,7 +256,7 @@ struct ReplayScript {
             danceStart = revealStart
             danceDelays = Array(repeating: 0, count: n)
             closeStart = revealStart
-            duration = closeStart + pacing.closeFade + 2 * pacing.closeStagger
+            duration = closeStart + Self.closeLength(pacing)
             return
         }
 
@@ -254,7 +312,7 @@ struct ReplayScript {
         let squeeze = travel > GridConstants.danceTravelCap ? GridConstants.danceTravelCap / travel : 1
         let delays = replay.blocks.map { Double($0.row) * rowDelay * squeeze }
         let afterBuild = revealLength + (delays.max() ?? 0) + pacing.danceWave
-            + pacing.closeFade + 2 * pacing.closeStagger
+            + Self.closeLength(pacing)
         let trailingEmpty = replay.countsByDay.last == 0
 
         // **The cap is hard.** The build's reveal starts at the latest of
@@ -293,6 +351,7 @@ struct ReplayScript {
             Landing(time: startList[$0] + times[$0], mass: replay.blocks[$0].win.size.massTier,
                     column: replay.blocks[$0].column, blockIndex: $0)
         }.sorted { $0.time < $1.time }
+        landingTimes = landings.map(\.time)
 
         // **The camera is a taut string through the space its two promises
         // leave it.**
@@ -463,7 +522,14 @@ struct ReplayScript {
         danceDelays = delays
         let danceEnd = danceStart + (danceDelays.max() ?? 0) + pacing.danceWave
         closeStart = danceEnd
-        duration = closeStart + pacing.closeFade + 2 * pacing.closeStagger
+        duration = closeStart + Self.closeLength(pacing)
+    }
+
+    /// From the close's start to the end: the controls arriving, and one
+    /// stagger more, so under Reduce Motion (where the title starts with the
+    /// close) the range has arrived too.
+    private static func closeLength(_ pacing: Pacing) -> Double {
+        pacing.closeStagger + pacing.arrive
     }
 
     // MARK: - Evaluating
@@ -554,31 +620,98 @@ struct ReplayScript {
         return metrics.baseY - c.scale * (f.minY + f.height - c.rise) + c.scale * (pose.fallOffset + pose.lift)
     }
 
-    func label(at t: Double) -> LabelState {
-        // In reduce motion there is no reveal to leave at, so the label
-        // instead leaves when the close arrives; otherwise it would sit at
-        // full opacity beside the count forever.
-        let leavingStart = reduceMotion ? closeStart : revealStart
-        let leaving = Self.clamp01((t - leavingStart) / pacing.labelFade)
-        guard let k = dayStarts.lastIndex(where: { $0 <= t }) else {
-            return LabelState(current: nil, currentOpacity: 0, currentSlide: 0, previous: nil, previousOpacity: 0, previousSlide: 0)
-        }
-        let p = Self.smooth((t - dayStarts[k]) / pacing.labelFade)
-        let slide = pacing.labelSlide
-        return LabelState(current: k,
-                          currentOpacity: p * (1 - leaving),
-                          currentSlide: slide * CGFloat(1 - p),
-                          previous: k > 0 && p < 1 ? k - 1 : nil,
-                          previousOpacity: (1 - p) * (1 - leaving),
-                          previousSlide: -slide * CGFloat(p))
+    /// When a block first appears: the start of its fall, or of its fade
+    /// under Reduce Motion. What the live replay waits on photographs for.
+    func appearTime(ofBlock index: Int) -> Double { starts[index] }
+
+    /// When a day starts in the build, compressed as the build is.
+    func dayStart(_ day: Int) -> Double { dayStarts[day] }
+
+    // MARK: The count, the title and the close
+
+    /// How many blocks have landed by `t`: the count during the build.
+    func count(at t: Double) -> Int {
+        Self.upperBound(landingTimes, t)
     }
 
-    func headerOpacity(at t: Double) -> Double { Self.smooth(t / pacing.headerFade) }
+    /// The count and its roll. A landing changes it at once, and the change
+    /// is drawn over `rollTime`, cut short to the gap before the NEXT change,
+    /// so a roll has always finished when the next one starts: in a busy
+    /// month, landings 50ms apart roll quickly rather than jumping mid-slide.
+    /// Landings at one instant (a day under Reduce Motion) are one change.
+    func countRoll(at t: Double) -> CountRoll {
+        let n = count(at: t)
+        guard n > 0 else { return CountRoll(count: 0, previous: 0, progress: 1) }
+        let changedAt = landingTimes[n - 1]
+        let before = Self.lowerBound(landingTimes, changedAt)
+        let nextChange = n < landingTimes.count ? landingTimes[n] : Double.infinity
+        let length = min(pacing.rollTime, nextChange - changedAt)
+        let progress = length > 1e-9 ? Self.clamp01((t - changedAt) / length) : 1
+        return CountRoll(count: n, previous: before, progress: progress)
+    }
 
-    func closeOpacity(_ item: Int, at t: Double) -> Double {
-        let start = closeStart + Double(item) * pacing.closeStagger
-        let p = Self.clamp01((t - start) / pacing.closeFade)
-        return 1 - (1 - p) * (1 - p) // ease out
+    /// The digit positions of a roll, right-aligned, most significant first.
+    /// 9 to 10 is `[1 arriving from nothing, 0 replacing 9]`; 12 to 13 moves
+    /// only the last position.
+    static func digitSlots(_ roll: CountRoll) -> [DigitSlot] {
+        let new = Array(String(roll.count))
+        let old = roll.progress < 1 ? Array(String(roll.previous)) : new
+        let width = max(new.count, old.count)
+        return (0..<width).map { i in
+            let n = i - (width - new.count)
+            let o = i - (width - old.count)
+            return DigitSlot(new: n >= 0 ? new[n] : nil, old: o >= 0 ? old[o] : nil)
+        }
+    }
+
+    /// How far through its travel a rolling digit is, eased out: the leaving
+    /// digit is this many line heights above its place, the arriving one
+    /// this many short of arriving from a line below.
+    func rollEase(_ progress: Double) -> Double {
+        let q = 1 - Self.clamp01(progress)
+        return 1 - q * q
+    }
+
+    /// How open a position gaining a digit is (9 to 10): fully by the middle
+    /// of the roll, while its digit is still in the lower half of its travel.
+    static func rollOpening(_ e: Double) -> Double { clamp01(e / 0.5) }
+
+    /// The count and its word at the open. Faded in, so the first frame is
+    /// the ground alone.
+    func countOpacity(at t: Double) -> Double { Self.smooth(t / pacing.headerFade) }
+
+    /// The date under the count (0), and a Settings preview's "Sample" after
+    /// it (1), arriving as the reveal starts.
+    func titleArrival(_ item: Int, at t: Double) -> Arrival {
+        arrival(from: revealStart + Double(item) * pacing.closeStagger, at: t)
+    }
+
+    /// The close: the controls arriving under the tower.
+    func closeArrival(at t: Double) -> Arrival {
+        arrival(from: closeStart, at: t)
+    }
+
+    /// Up `arriveSlide` with opacity over `arrive`, on an ease-out cubic: most
+    /// of the travel early, a long soft settle. Opacity only under Reduce
+    /// Motion.
+    private func arrival(from start: Double, at t: Double) -> Arrival {
+        let p = Self.clamp01((t - start) / pacing.arrive)
+        let e = 1 - pow(1 - p, 3)
+        return Arrival(opacity: e, offset: reduceMotion ? 0 : pacing.arriveSlide * CGFloat(1 - e))
+    }
+
+    /// The number of values `<= x` in a sorted array.
+    private static func upperBound(_ values: [Double], _ x: Double) -> Int {
+        var lo = 0, hi = values.count
+        while lo < hi { let mid = (lo + hi) / 2; if values[mid] <= x { lo = mid + 1 } else { hi = mid } }
+        return lo
+    }
+
+    /// The number of values `< x` in a sorted array.
+    private static func lowerBound(_ values: [Double], _ x: Double) -> Int {
+        var lo = 0, hi = values.count
+        while lo < hi { let mid = (lo + hi) / 2; if values[mid] < x { lo = mid + 1 } else { hi = mid } }
+        return lo
     }
 
     func phase(at t: Double) -> Phase {
