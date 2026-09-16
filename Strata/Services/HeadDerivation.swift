@@ -56,6 +56,9 @@ nonisolated enum HeadDerivation {
 
     // MARK: - Masks
 
+    /// One Core Image context for every mask: making one is the expensive part.
+    private static let blurContext = CIContext(options: [.cacheIntermediates: false])
+
     /// A soft grey mask the size of `side`: white where `draw` fills, feathered
     /// by `feather` pixels. Top-left origin, like the canvas.
     static func mask(side: Int, feather: Double, draw: (CGContext) -> Void) -> CGImage? {
@@ -75,29 +78,32 @@ nonisolated enum HeadDerivation {
         let blurred = input.clampedToExtent()
             .applyingGaussianBlur(sigma: feather)
             .cropped(to: input.extent)
-        let ci = CIContext(options: [.cacheIntermediates: false])
-        return ci.createCGImage(blurred, from: input.extent, format: .L8, colorSpace: CGColorSpaceCreateDeviceGray())
+        return blurContext.createCGImage(blurred, from: input.extent, format: .L8, colorSpace: CGColorSpaceCreateDeviceGray())
     }
 
-    /// Draws `top` over `base` through `mask` (white shows `top`).
+    /// Draws `top` over `base` through `gate` (white shows `top`).
     ///
-    /// `matchesLight`: `top` is first scaled, channel by channel, so that
-    /// where the feather blends the two they agree. A frame seconds later is
-    /// often lit a little differently, and without this a patch reads as a
-    /// pale or dark oval painted round the eye (seen on the fixture, whose
-    /// blink is relit 6%).
-    static func composite(base: CGImage, top: CGImage, mask: CGImage, matchesLight: Bool = false) -> CGImage? {
+    /// `ring`: pixels (by index) where the two pictures should already agree.
+    /// When given, `top` is first scaled channel by channel so that they agree
+    /// there on average (a frame seconds later is often lit a little
+    /// differently, and without this a patch read as a pale oval painted round
+    /// the eye), and the mean remaining difference over the ring is returned:
+    /// what is left once the light is matched is a picture that has MOVED.
+    static func composite(base: CGImage, top: CGImage, gate: [UInt8],
+                          ring: ((Int) -> Bool)? = nil,
+                          measuredOn: ((Int) -> Bool)? = nil,
+                          sectorLine: Int? = nil) -> (image: CGImage, ringDifference: Double?)? {
         let w = base.width, h = base.height
         guard var under = pixels(base), let over = pixels(top, width: w, height: h),
-              let gate = pixels(mask, width: w, height: h) else { return nil }
-        var gain = [1.0, 1.0, 1.0, 1.0]
-        if matchesLight {
+              gate.count == w * h else { return nil }
+        var gain = [1.0, 1.0, 1.0]
+        var difference: Double?
+        if let ring {
             var sumBase = [0.0, 0.0, 0.0], sumTop = [0.0, 0.0, 0.0]
-            for i in 0..<(w * h) {
-                let a = gate.bytes[i * 4]
-                // The outer edge of the feather: skin round the eye, not the lids
-                // themselves, which are meant to differ.
-                guard a > 8, a < 80, under.bytes[i * 4 + 3] > 240, over.bytes[i * 4 + 3] > 240 else { continue }
+            var sampled: [Int] = []
+            for i in 0..<(w * h) where ring(i) {
+                guard under.bytes[i * 4 + 3] > 240, over.bytes[i * 4 + 3] > 240 else { continue }
+                sampled.append(i)
                 for c in 0..<3 {
                     sumBase[c] += Double(under.bytes[i * 4 + c])
                     sumTop[c] += Double(over.bytes[i * 4 + c])
@@ -106,9 +112,44 @@ nonisolated enum HeadDerivation {
             for c in 0..<3 where sumTop[c] > 0 {
                 gain[c] = min(max(sumBase[c] / sumTop[c], 0.7), 1.4)
             }
+            if !sampled.isEmpty {
+                // Compared on local means (a box of `ringBlur` pixels each
+                // way), so skin texture a pixel off does not count as moving:
+                // what counts is the face having moved.
+                func table(_ value: (Int) -> Double) -> [Double] {
+                    var sums = [Double](repeating: 0, count: (w + 1) * (h + 1))
+                    for y in 0..<h {
+                        var row = 0.0
+                        for x in 0..<w {
+                            row += value(y * w + x)
+                            sums[(y + 1) * (w + 1) + x + 1] = sums[y * (w + 1) + x + 1] + row
+                        }
+                    }
+                    return sums
+                }
+                func luma(_ bytes: [UInt8], _ i: Int, _ g: [Double]) -> Double {
+                    (min(Double(bytes[i * 4]) * g[0], 255) * 3 + min(Double(bytes[i * 4 + 1]) * g[1], 255) * 6
+                        + min(Double(bytes[i * 4 + 2]) * g[2], 255)) / 10
+                }
+                let baseSums = table { luma(under.bytes, $0, [1, 1, 1]) }
+                let topSums = table { luma(over.bytes, $0, gain) }
+                let r = ringBlur
+                func mean(_ sums: [Double], _ i: Int) -> Double {
+                    let x = i % w, y = i / w
+                    let x0 = max(x - r, 0), x1 = min(x + r + 1, w), y0 = max(y - r, 0), y1 = min(y + r + 1, h)
+                    let total = sums[y1 * (w + 1) + x1] - sums[y0 * (w + 1) + x1] - sums[y1 * (w + 1) + x0] + sums[y0 * (w + 1) + x0]
+                    return total / Double((x1 - x0) * (y1 - y0))
+                }
+                let measured = measuredOn.map { test in
+                    (0..<(w * h)).filter { test($0) && under.bytes[$0 * 4 + 3] > 240 && over.bytes[$0 * 4 + 3] > 240 }
+                } ?? sampled
+                var total = 0.0
+                for i in measured { total += abs(mean(baseSums, i) - mean(topSums, i)) }
+                difference = measured.isEmpty ? nil : total / Double(measured.count)
+            }
         }
         for i in 0..<(w * h) {
-            let a = Double(gate.bytes[i * 4]) / 255
+            let a = Double(gate[i]) / 255
             guard a > 0 else { continue }
             let alpha = Double(over.bytes[i * 4 + 3])
             for c in 0..<4 {
@@ -118,7 +159,17 @@ nonisolated enum HeadDerivation {
                 under.bytes[j] = UInt8(min(max((Double(under.bytes[j]) * (1 - a) + lit * a).rounded(), 0), 255))
             }
         }
-        return image(under)
+        guard let made = image(under) else { return nil }
+        return (made, difference)
+    }
+
+    /// Half the box, in pixels, that a ring is compared over.
+    static let ringBlur = 1
+
+    /// A grey mask's samples, one per pixel.
+    static func grey(_ mask: CGImage, side: Int) -> [UInt8]? {
+        guard let p = pixels(mask, width: side, height: side) else { return nil }
+        return (0..<(side * side)).map { p.bytes[$0 * 4] }
     }
 
     static func image(_ pixels: Pixels) -> CGImage? {
@@ -139,14 +190,59 @@ nonisolated enum HeadDerivation {
     /// The patch's feather, as a share of the canvas.
     static let lidFeather: Double = 0.012
 
-    /// The eye regions of `shut`, feathered onto `open`.
-    static func lidPatch(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye]) -> CGImage? {
+    /// The patch never reaches higher than this many opening half-heights
+    /// above an eye's centre, so a raised brow is never pasted over with the
+    /// blink frame's resting one.
+    static let lidCapY: CGFloat = 1.9
+    /// The largest mean luminance difference (0...255, on 3px local means)
+    /// allowed over the patch's outer feather once the light is matched. Above
+    /// it the blink frame has moved (Vision's eye centres on shut eyes drift
+    /// toward the lash line, and a second blink comes ten seconds later), and
+    /// pasting its lids would put a seam round each eye. Measured on the
+    /// creator's faces, relit 6%: 4.1 in place, 4.1 to 5.6 moved 1px, 5.2 to
+    /// 7.9 moved 2px, 6.7 to 10.1 moved 3px. See
+    /// `HeadDerivationTests.aShiftedBlinkIsRefused`.
+    static let lidRingLimit: Double = 6.1
+
+    /// A lid patch and how well it fits.
+    struct LidPatch {
+        let image: CGImage
+        /// Mean difference over the feather ring after the light match.
+        let ringDifference: Double
+        var fits: Bool { ringDifference <= HeadDerivation.lidRingLimit }
+    }
+
+    /// **The eye regions of `shut`, feathered onto `open`**: a soft ellipse
+    /// round each eye, capped below the brows, joined with the hard opening so
+    /// no painted eye is left at a lid's corner. Lit to match on the cheek
+    /// just below the eyes, never on the brows, and measured there.
+    static func lidPatch(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye]) -> LidPatch? {
         guard !eyes.isEmpty else { return nil }
         let side = open.width
-        guard let gate = mask(side: side, feather: lidFeather * Double(side), draw: { context in
-            for eye in eyes { fillEye(eye, in: context, side: CGFloat(side)) }
-        }) else { return nil }
-        return composite(base: open, top: shut, mask: gate, matchesLight: true)
+        let s = CGFloat(side)
+        let cap = eyes.map { $0.y - $0.ry * lidCapY }.min() ?? 0
+        guard let softMask = mask(side: side, feather: lidFeather * Double(side), draw: { context in
+                  context.clip(to: CGRect(x: -s, y: cap * s, width: s * 3, height: s * 2))
+                  for eye in eyes { fillEye(eye, in: context, side: s) }
+              }),
+              let hardMask = mask(side: side, feather: 0, draw: { context in
+                  for eye in eyes { fillOpening(eye, in: context, side: s) }
+              }),
+              let soft = grey(softMask, side: side), let hard = grey(hardMask, side: side) else { return nil }
+        let gate = zip(soft, hard).map { max($0, $1) }
+        let centreLine = Int((eyes.map(\.y).max() ?? 0.5) * s)
+        let capLine = Int(cap * s)
+        guard let made = composite(base: open, top: shut, gate: gate, ring: { i in
+            // Lit to match on the outer feather over the cheek below the eyes,
+            // never on the brows.
+            soft[i] > 4 && soft[i] < 40 && hard[i] == 0 && i / side > centreLine
+        }, measuredOn: { i in
+            // Measured on the whole outer feather below the cap: a blink that
+            // slid down toward the lash line shows above the eyes as much as
+            // below them.
+            soft[i] > 4 && soft[i] < 60 && hard[i] == 0 && i / side > capLine
+        }, sectorLine: Int((eyes.map(\.y).reduce(0, +) / CGFloat(eyes.count)) * s)) else { return nil }
+        return LidPatch(image: made.image, ringDifference: made.ringDifference ?? .infinity)
     }
 
     private static func fillEye(_ eye: HeadRig.Eye, in context: CGContext, side: CGFloat) {
@@ -154,6 +250,27 @@ nonisolated enum HeadDerivation {
         context.saveGState()
         context.translateBy(x: eye.x * side, y: eye.y * side)
         context.rotate(by: CGFloat(eye.angle))
+        context.fillEllipse(in: CGRect(x: -rx, y: -ry, width: rx * 2, height: ry * 2))
+        context.restoreGState()
+    }
+
+    /// The opening itself, a touch larger: where the painted eye is.
+    private static func fillOpening(_ eye: HeadRig.Eye, in context: CGContext, side: CGFloat) {
+        let grow: CGFloat = 1.15
+        if let outline = eye.outline, outline.count >= 3 {
+            let path = CGMutablePath()
+            path.addLines(between: outline.map { point in
+                CGPoint(x: (eye.x + (point.x - eye.x) * grow) * side, y: (eye.y + (point.y - eye.y) * grow) * side)
+            })
+            path.closeSubpath()
+            context.addPath(path)
+            context.fillPath()
+            return
+        }
+        context.saveGState()
+        context.translateBy(x: eye.x * side, y: eye.y * side)
+        context.rotate(by: CGFloat(eye.angle))
+        let rx = eye.rx * side * grow, ry = eye.ry * side * grow
         context.fillEllipse(in: CGRect(x: -rx, y: -ry, width: rx * 2, height: ry * 2))
         context.restoreGState()
     }
@@ -176,8 +293,9 @@ nonisolated enum HeadDerivation {
         guard let gate = mask(side: side, feather: browFeather * Double(side), draw: { context in
             context.fill(CGRect(x: -CGFloat(side), y: -CGFloat(side), width: CGFloat(side) * 3,
                                 height: CGFloat(side) * (1 + line)))
-        }) else { return nil }
-        return composite(base: neutral, top: brows, mask: gate, matchesLight: true)
+        }), let soft = grey(gate, side: side) else { return nil }
+        // Lit to match where the band feathers into the face below it.
+        return composite(base: neutral, top: brows, gate: soft, ring: { soft[$0] > 25 && soft[$0] < 230 })?.image
     }
 
     // MARK: - Measures
@@ -235,6 +353,8 @@ nonisolated enum HeadDerivation {
         var popsIn: Set<HeadRig.Expression> = []
         /// Measured, for the record: seam difference and silhouette overlaps.
         var browSeam: Double?
+        /// The neutral lid patch's cheek difference; over `lidRingLimit` it was refused.
+        var lidRing: Double?
         var overlap: [HeadRig.Expression: Double] = [:]
     }
 
@@ -260,17 +380,24 @@ nonisolated enum HeadDerivation {
             }
         }
 
-        if let blink, let shut = cgImage(blink) {
-            if let patched = lidPatch(open: neutral, shut: shut, eyes: neutralFace.eyes), let png = pngData(patched) {
+        if let blink, let shut = cgImage(blink),
+           let neutralPatch = lidPatch(open: neutral, shut: shut, eyes: neutralFace.eyes) {
+            derived.lidRing = neutralPatch.ringDifference
+            // **Only a blink that fits is pasted.** One that has moved keeps
+            // its raw frame for neutral (as every head did before this) and
+            // gives the other faces no blink at all, rather than a seam.
+            if neutralPatch.fits, let png = pngData(neutralPatch.image) {
                 derived.shut[.neutral] = png
-            }
-            if let brows = browsImage, !browsEyes.isEmpty,
-               let patched = lidPatch(open: brows, shut: shut, eyes: browsEyes), let png = pngData(patched) {
-                derived.shut[.browsUp] = png
-            }
-            if let raw = faces[.surprised], !raw.eyes.isEmpty, let surprised = cgImage(raw.png),
-               let patched = lidPatch(open: surprised, shut: shut, eyes: raw.eyes), let png = pngData(patched) {
-                derived.shut[.surprised] = png
+                if let brows = browsImage, !browsEyes.isEmpty,
+                   let patched = lidPatch(open: brows, shut: shut, eyes: browsEyes), patched.fits,
+                   let png = pngData(patched.image) {
+                    derived.shut[.browsUp] = png
+                }
+                if let raw = faces[.surprised], !raw.eyes.isEmpty, let surprised = cgImage(raw.png),
+                   let patched = lidPatch(open: surprised, shut: shut, eyes: raw.eyes), patched.fits,
+                   let png = pngData(patched.image) {
+                    derived.shut[.surprised] = png
+                }
             }
         }
 

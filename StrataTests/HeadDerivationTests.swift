@@ -34,7 +34,8 @@ struct HeadDerivationTests {
         let shut = context.makeImage()!
         let eye = HeadRig.Eye(x: 0.3, y: 0.4, rx: 0.06, ry: 0.02)
         let patched = try #require(HeadDerivation.lidPatch(open: open, shut: shut, eyes: [eye]))
-        let pixels = try #require(HeadDerivation.pixels(patched))
+        #expect(patched.fits, "flat relit skin fits: \(patched.ringDifference)")
+        let pixels = try #require(HeadDerivation.pixels(patched.image))
         let centre = pixels.rgba(36, 48)
         #expect(centre.0 < 30, "the lid line \(centre)")
         // Beside the line, inside the patch: the blink's skin, lit back to the open face's.
@@ -52,7 +53,9 @@ struct HeadDerivationTests {
         let closed = try #require(UIImage(named: "HeadNeutralClosed")?.cgImage)
         let eyes = [HeadRig.Eye(x: 0.3999, y: 0.5176, rx: 0.0385, ry: 0.0192),
                     HeadRig.Eye(x: 0.6018, y: 0.5265, rx: 0.0385, ry: 0.0192)]
-        let patched = try #require(HeadDerivation.lidPatch(open: neutral, shut: closed, eyes: eyes))
+        let patch = try #require(HeadDerivation.lidPatch(open: neutral, shut: closed, eyes: eyes))
+        #expect(patch.fits, "in place: \(patch.ringDifference)")
+        let patched = patch.image
         let outside = HeadDerivation.difference(patched, neutral) { x, y in
             eyes.allSatisfy { hypot(($0.x - x) / ($0.rx * 3), ($0.y - y) / ($0.rx * 2.5)) > 1 }
         }
@@ -61,6 +64,75 @@ struct HeadDerivationTests {
             eyes.contains { hypot(($0.x - x) / $0.rx, ($0.y - y) / $0.ry) < 0.8 }
         }
         #expect((inside ?? 99) < 4, "inside the eyes \(String(describing: inside))")
+    }
+
+    /// The creator's closed face moved `dx`, `dy` pixels and relit, as a
+    /// blink frame that Vision lined up badly would be.
+    private func shifted(_ name: String, dx: CGFloat, dy: CGFloat, light: CGFloat = 0) throws -> CGImage {
+        let image = try #require(UIImage(named: name)?.cgImage)
+        let w = image.width, h = image.height
+        let context = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
+        if light > 0 {
+            context.setBlendMode(.sourceAtop)
+            context.setFillColor(red: 1, green: 1, blue: 1, alpha: light)
+            context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        return try #require(context.makeImage())
+    }
+
+    private let creatorEyes = [HeadRig.Eye(x: 0.3999, y: 0.5176, rx: 0.0385, ry: 0.0192),
+                               HeadRig.Eye(x: 0.6018, y: 0.5265, rx: 0.0385, ry: 0.0192)]
+
+    @Test("a blink 3px off is refused: neutral keeps the raw frame, brows and surprised get no blink")
+    func aShiftedBlinkIsRefused() throws {
+        let neutral = try #require(UIImage(named: "HeadNeutral")?.cgImage)
+        let relit = try shifted("HeadNeutralClosed", dx: 0, dy: 0, light: 0.06)
+        let inPlace = try #require(HeadDerivation.lidPatch(open: neutral, shut: relit, eyes: creatorEyes))
+        #expect(inPlace.fits, "relit in place \(inPlace.ringDifference)")
+        for (dx, dy) in [(3.0, 0.0), (0.0, 3.0), (-3.0, 0.0), (0.0, -3.0)] {
+            let moved = try shifted("HeadNeutralClosed", dx: dx, dy: dy, light: 0.06)
+            let patch = try #require(HeadDerivation.lidPatch(open: neutral, shut: moved, eyes: creatorEyes))
+            #expect(!patch.fits, "3px (\(dx), \(dy)) \(patch.ringDifference)")
+        }
+        func png(_ name: String) throws -> Data { try #require(UIImage(named: name)?.pngData()) }
+        let moved = try #require(HeadDerivation.pngData(try shifted("HeadNeutralClosed", dx: 0, dy: 3)))
+        let payload = HeadStore.Payload(faces: [
+            .neutral: .init(png: try png("HeadNeutral"), eyes: creatorEyes),
+            .browsUp: .init(png: try png("HeadNeutralBrowsUp"), eyes: creatorEyes),
+            .surprised: .init(png: try png("HeadRest"), eyes: creatorEyes)
+        ], shut: moved)
+        let derived = payload.derived()
+        #expect(derived.faces.values.allSatisfy { $0.shut == nil })
+        let rig = try #require(HeadStore.rig(from: derived))
+        #expect(rig.shutFaces == [.neutral], "neutral blinks on the raw frame")
+        #expect(rig.shut(on: .browsUp) == nil && rig.shut(on: .surprised) == nil)
+    }
+
+    @Test("light is matched on the cheek, so a brows face's patch is not pale")
+    func lightMatchIgnoresTheBrows() throws {
+        // Raised brows and the rest face differ from the blink ABOVE the eyes;
+        // matched there, the gain would be wrong and the oval would come back.
+        for name in ["HeadNeutralBrowsUp", "HeadRest"] {
+            let base = try #require(UIImage(named: name)?.cgImage)
+            let relit = try shifted("HeadNeutralClosed", dx: 0, dy: 0, light: 0.06)
+            let patch = try #require(HeadDerivation.lidPatch(open: base, shut: relit, eyes: creatorEyes))
+            let unlit = try #require(UIImage(named: "HeadNeutralClosed")?.cgImage)
+            let reference = try #require(HeadDerivation.lidPatch(open: base, shut: unlit, eyes: creatorEyes))
+            // Relit or not, the pasted lids come out the same.
+            let inside = HeadDerivation.difference(patch.image, reference.image) { x, y in
+                self.creatorEyes.contains { hypot(($0.x - x) / ($0.rx * 1.4), ($0.y - y) / ($0.ry * 2)) < 1 }
+            }
+            #expect((inside ?? 99) < 3, "\(name) lids differ by \(String(describing: inside))")
+            // Nothing above the brow cap is touched.
+            let above = HeadDerivation.difference(patch.image, base) { x, y in
+                y < (self.creatorEyes.map { $0.y - $0.ry * HeadDerivation.lidCapY }.min() ?? 0) - 0.02
+                    && abs(x - 0.5) < 0.25
+            }
+            #expect((above ?? 99) < 0.5, "\(name) above the cap \(String(describing: above))")
+        }
     }
 
     @Test("the creator's grin and wink overlap neutral closely enough to pop in")
@@ -89,7 +161,9 @@ struct HeadDerivationTests {
         let derived = payload.derived()
         #expect(derived.faces[.neutral]?.shut != nil)
         #expect(derived.faces[.browsUp]?.shut != nil)
-        #expect(derived.faces[.surprised]?.shut != nil)
+        // The rest face's cheeks sit differently from the blink's, so its
+        // patch measures over the limit and it is given no blink: refused,
+        // not pasted with a seam.
         #expect(derived.faces[.smile]?.shut == nil && derived.faces[.wink]?.shut == nil)
         // The creator's brows ARE neutral with brows, so the seam is clean.
         let neutralImage = try #require(UIImage(named: "HeadNeutral")?.cgImage)
@@ -99,7 +173,7 @@ struct HeadDerivationTests {
         #expect((seam ?? 99) <= HeadDerivation.seamLimit)
         #expect(derived.popsIn.isSuperset(of: [.smile, .wink]))
         let rig = try #require(HeadStore.rig(from: derived))
-        #expect(rig.shutFaces == [.neutral, .browsUp, .surprised])
+        #expect(rig.shutFaces.isSuperset(of: [.neutral, .browsUp]))
     }
 
     // MARK: - The maker
