@@ -251,6 +251,10 @@ enum DebugHarness {
     /// no head placement could ever be photographed here.
     static var seedsHead: Bool { argument("-strataSeedHead") != nil }
 
+    /// `-strataHeadParity`: opens the head parity page instead of the app
+    /// (`HeadParityView`). A bare flag.
+    static var headParity: Bool { ProcessInfo.processInfo.arguments.contains("-strataHeadParity") }
+
     /// Plays tap expressions on their own, from
     /// `-strataHeadTake cycle|grin|laugh|wink|winkGrin|surprised|doubleTake|eyebrow|sideEye|sleepy|thinking|nod|shake`,
     /// on every expressive head and on the review sticker, so each take can be

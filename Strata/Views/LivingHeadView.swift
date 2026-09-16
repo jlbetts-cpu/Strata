@@ -59,6 +59,8 @@ struct LivingHeadView: View {
     /// Keep the take's face when its hold ends, rather than going back to
     /// calm. The sticker: what is on the review is what is saved.
     var keepsTake = false
+    /// DEBUG: the name this head's lines carry under `-strataHeadTrace`.
+    var traceID: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expression: HeadRig.Expression = .neutral
@@ -162,6 +164,16 @@ struct LivingHeadView: View {
         .task(id: playing) { await play(playing) }
         #if DEBUG
         .task { await debugTakes() }
+        .onChange(of: gaze, initial: true) { _, g in
+            HeadTrace.log(traceID, "gaze \(HeadTrace.number(g.x)) \(HeadTrace.number(g.y))")
+        }
+        .onChange(of: [yaw, roll, Double(lean / max(side, 1)), Double(dip / max(side, 1))]) { _, p in
+            HeadTrace.log(traceID, "pose \(p.map(HeadTrace.number).joined(separator: " "))")
+        }
+        .onChange(of: [shut ? 1 : 0, Double(squash)]) { _, l in
+            HeadTrace.log(traceID, "lids \(Int(l[0])) \(HeadTrace.number(l[1]))")
+        }
+        .onChange(of: expression) { _, e in HeadTrace.log(traceID, "face \(e.rawValue)") }
         #endif
     }
 
@@ -392,6 +404,9 @@ struct LivingHeadView: View {
         let mine = generation
         busy = true
         lastBeat = beat
+        #if DEBUG
+        HeadTrace.log(traceID, "beat \(beat)")
+        #endif
         let dir: CGFloat = Bool.random() ? 1 : -1
         switch beat {
         case .glance:

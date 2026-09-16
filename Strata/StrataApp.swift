@@ -114,6 +114,19 @@ struct StrataApp: App {
         UserDefaults.standard.set(true, forKey: MainAppView.welcomeWinKey)
     }
 
+    private var mainApp: some View {
+        MainAppView()
+            .environment(focusFilterService)
+            .onAppear {
+                // **Not wrapped in a Task.** `reindex` spawns its own
+                // detached task and does all its work inside it, so the
+                // wrapper here bought nothing and cost a Swift 6 error in
+                // waiting: it captured the main-actor `SharedModelContainer
+                // .shared` inside a `@Sendable` closure.
+                SpotlightIndexer.reindex(container: SharedModelContainer.shared)
+            }
+    }
+
     var body: some Scene {
         WindowGroup {
             // **Onboarding INSTEAD of the app, not over it.**
@@ -130,6 +143,17 @@ struct StrataApp: App {
             // Swapping the two removes the inheritance rather than fighting
             // it, and it is the more honest structure anyway: until somebody
             // has been through this, it IS the app.
+            #if DEBUG
+            if DebugHarness.headParity {
+                HeadParityView()
+            } else if !storeOpening.savesToDisk {
+                StoreUnavailableView(onRetry: retryOpeningStore)
+            } else if showsOnboarding {
+                OnboardingView { finishOnboarding() }
+            } else {
+                mainApp
+            }
+            #else
             if !storeOpening.savesToDisk {
                 // **Before onboarding, and instead of everything.** An app
                 // that cannot write anything down must not take a win, and
@@ -138,17 +162,9 @@ struct StrataApp: App {
             } else if showsOnboarding {
                 OnboardingView { finishOnboarding() }
             } else {
-                MainAppView()
-                    .environment(focusFilterService)
-                    .onAppear {
-                    // **Not wrapped in a Task.** `reindex` spawns its own
-                    // detached task and does all its work inside it, so the
-                    // wrapper here bought nothing and cost a Swift 6 error in
-                    // waiting: it captured the main-actor `SharedModelContainer
-                    // .shared` inside a `@Sendable` closure.
-                    SpotlightIndexer.reindex(container: SharedModelContainer.shared)
-                    }
+                mainApp
             }
+            #endif
         }
         .modelContainer(SharedModelContainer.shared)
         .onChange(of: scenePhase) { _, newPhase in

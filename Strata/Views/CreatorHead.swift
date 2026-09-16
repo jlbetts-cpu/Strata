@@ -54,6 +54,8 @@ struct CreatorHead: View {
     /// (-1...1 each way, negative is left and up). It turns to look at it now
     /// and then — on the thank-you page, the photograph.
     var lookTarget: CGPoint = CGPoint(x: -1, y: -0.5)
+    /// DEBUG: the name this head's lines carry under `-strataHeadTrace`.
+    var traceID: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var face: HeadFace = .neutral
@@ -126,6 +128,18 @@ struct CreatorHead: View {
         #endif
         .task(id: reduceMotion) { await blinkWhileCalm() }
         .task(id: reduceMotion) { await beatWhileIdle() }
+        #if DEBUG
+        .onChange(of: gaze, initial: true) { _, g in
+            HeadTrace.log(traceID, "gaze \(HeadTrace.number(g.x)) \(HeadTrace.number(g.y))")
+        }
+        .onChange(of: [yaw, roll, Double(lean / max(side, 1)), Double(dip / max(side, 1))]) { _, p in
+            HeadTrace.log(traceID, "pose \(p.map(HeadTrace.number).joined(separator: " "))")
+        }
+        .onChange(of: [shut ? 1 : 0, Double(squash)]) { _, l in
+            HeadTrace.log(traceID, "lids \(Int(l[0])) \(HeadTrace.number(l[1]))")
+        }
+        .onChange(of: face.open + (browUp ? "+brows" : "")) { _, f in HeadTrace.log(traceID, "face \(f)") }
+        #endif
     }
 
     private var artwork: String {
@@ -407,6 +421,9 @@ struct CreatorHead: View {
 
     private func perform(_ beat: Beat) async {
         lastBeat = beat
+        #if DEBUG
+        HeadTrace.log(traceID, "beat \(beat.rawValue)")
+        #endif
         let dir: CGFloat = Bool.random() ? 1 : -1
         switch beat {
         case .turn:
