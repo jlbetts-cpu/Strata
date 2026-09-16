@@ -125,32 +125,85 @@ struct MemoriesReloadTests {
 }
 
 /// The date formatters are made once now. Made per call they followed a change
-/// of time zone for free; made once they must still follow it.
-@Suite("Album formats", .serialized)
+/// of zone, calendar or locale for free; cached they must be dropped when one
+/// changes, and made again from what the phone says then.
+///
+/// **It does not change `NSTimeZone.default`.** An earlier version did, which
+/// is process-wide and can flake any suite running beside it; this checks the
+/// two halves that can actually break — the cache is dropped on the
+/// notification, and a formatter is made with the zone in force.
+@Suite("Album formats")
 struct AlbumFormatsTests {
-    @Test("a cached formatter follows a change of time zone once the system says so")
-    func followsTimeZone() {
-        let original = NSTimeZone.default
-        defer {
-            NSTimeZone.default = original
-            NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
-        }
-        let instant = Date(timeIntervalSince1970: 1_789_000_000)
-        func fresh() -> String {
-            let f = DateFormatter()
-            f.dateFormat = "d MMMM HH:mm"
-            return f.string(from: instant)
-        }
-
-        NSTimeZone.default = TimeZone(identifier: "Pacific/Auckland")!
+    @Test("the cache is dropped when the system says the zone changed")
+    func dropsOnZoneChange() {
+        let before = Album.Formats.formatter("d MMMM HH:mm")
+        #expect(Album.Formats.formatter("d MMMM HH:mm") === before, "a formatter is made once")
         NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
-        let auckland = Album.Formats.formatter("d MMMM HH:mm").string(from: instant)
-        #expect(auckland == fresh())
+        let after = Album.Formats.formatter("d MMMM HH:mm")
+        #expect(after !== before, "the zone changed and the old formatter was handed back")
+    }
 
-        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
-        NotificationCenter.default.post(name: .NSSystemTimeZoneDidChange, object: nil)
-        let angeles = Album.Formats.formatter("d MMMM HH:mm").string(from: instant)
-        #expect(angeles == fresh())
-        #expect(auckland != angeles, "the zone change did not reach the cached formatter")
+    @Test("the cache is dropped when the locale or the day changes")
+    func dropsOnLocaleAndDay() {
+        let localeBefore = Album.Formats.formatter("EEEE")
+        NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
+        #expect(Album.Formats.formatter("EEEE") !== localeBefore)
+        let dayBefore = Album.Formats.formatter("EEEE")
+        NotificationCenter.default.post(name: .NSCalendarDayChanged, object: nil)
+        #expect(Album.Formats.formatter("EEEE") !== dayBefore)
+    }
+
+    @Test("a formatter is made with the zone, calendar and locale in force")
+    func madeFromWhatThePhoneSays() {
+        Album.Formats.refresh()
+        let display = Album.Formats.formatter("d MMMM")
+        #expect(display.timeZone == NSTimeZone.default)
+        #expect(display.calendar == NSCalendar.current)
+        #expect(display.locale == NSLocale.current)
+        let key = Album.Formats.formatter("yyyy-MM", posix: true)
+        #expect(key.locale?.identifier == "en_US_POSIX")
+        #expect(key.timeZone == NSTimeZone.default)
+    }
+}
+
+/// The Memories page builds its drawer off screen only once the map has come
+/// to rest, so the build never takes a frame out of a pan. The waiting rule is
+/// `MapMotion.waitUntilStill(for:)`; here it is driven by a camera that keeps
+/// moving, with the sleeping stubbed so the test is deterministic.
+@MainActor
+@Suite("MapMotion")
+struct MapMotionTests {
+    /// A camera moving every 100ms keeps the wait going; once it stops, the
+    /// wait ends after the delay and not before.
+    @Test("the wait restarts every time the camera moves")
+    func waitsForTheCameraToRest() async {
+        let motion = MapMotion()
+        let delay = Duration.milliseconds(500)
+        var slept = Duration.zero
+        var moves = 0
+        // A clock the test drives: sleeping moves it on, and the camera moves
+        // again for the first five hops.
+        await motion.waitUntilStill(for: delay) { asked in
+            slept += asked
+            if moves < 5 {
+                moves += 1
+                motion.movedAt = .now   // moved again: the wait must restart
+            }
+        }
+        #expect(moves == 5, "the wait gave up while the camera was still moving")
+        #expect(slept >= delay, "it returned without waiting out the delay")
+    }
+
+    @Test("a still camera is waited out once")
+    func stillCameraReturns() async {
+        let motion = MapMotion()
+        motion.movedAt = .now
+        var hops = 0
+        await motion.waitUntilStill(for: .milliseconds(50)) { asked in
+            hops += 1
+            try? await Task.sleep(for: asked)
+        }
+        #expect(hops == 1)
+        #expect(motion.stillFor >= .milliseconds(50))
     }
 }

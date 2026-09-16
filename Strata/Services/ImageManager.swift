@@ -193,7 +193,14 @@ final class ImageManager: @unchecked Sendable {
             }
         }
 
+        announceArrival(fileName)
         return fileName
+    }
+
+    /// A file now exists under this name, so anything that asked for it and
+    /// was told there was nothing can ask again. See `ThumbnailStore`.
+    private func announceArrival(_ fileName: String) {
+        Task { @MainActor in ThumbnailStore.shared.fileArrived(fileName) }
     }
 
     // MARK: - HEIC Encoding
@@ -400,6 +407,7 @@ final class ImageManager: @unchecked Sendable {
         let fileName = "\(logID.uuidString).jpg"
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         try data.write(to: fileURL, options: .atomic)
+        announceArrival(fileName)
         return fileName
     }
 }

@@ -55,13 +55,19 @@ struct MemoriesView: View {
     /// itself, the page's construction landed in the spring's first frames:
     /// filmed on a year of seeded history, the first raise held the screen
     /// for 1.8s and the drawer appeared already at the top, its page fading in
-    /// over the map. So it is built once the tab has been quiet for a moment
-    /// (`prebuildDelay`), off screen, with its slideshows paused
-    /// (`memoriesDrawerVisible`) and no poster redrawn; and a raise that comes
-    /// sooner builds first, then slides on the next turn of the run loop. Once
-    /// built it stays built, so lowering and raising again keeps its place.
+    /// over the map. So it is built once the page has its data AND the map's
+    /// camera has been still for `prebuildDelay`, off screen, with its
+    /// slideshows paused (`memoriesDrawerVisible`) and no poster redrawn; and a
+    /// raise that comes sooner builds first and waits for the built page to
+    /// appear before sliding. Once built it stays built, so lowering and
+    /// raising again keeps its place.
     @State private var drawerIsBuilt = false
     private static let prebuildDelay: Duration = .milliseconds(1500)
+    /// When the map's camera last moved, so the build waits for it to be
+    /// still. See `MapMotion`.
+    @State private var mapMotion = MapMotion()
+    /// A raise waiting for the page to exist. See `raiseDrawer`.
+    @State private var raiseWhenBuilt = false
     #if DEBUG
     @State private var debugFlingCounted = false
     #endif
@@ -100,7 +106,8 @@ struct MemoriesView: View {
             // now and everything the tab used to be is a drawer over it —
             // Apple Maps' own anatomy, and the only arrangement that gives the
             // map the whole screen without losing anything.
-            MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, style: mapStyle) { key in
+            MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, motion: mapMotion,
+                            style: mapStyle) { key in
                 path.append(.place(key))
             }
             .ignoresSafeArea()
@@ -154,7 +161,7 @@ struct MemoriesView: View {
                 }
             }
 
-            MemoriesDrawer(detent: $drawer) {
+            MemoriesDrawer(detent: $drawer, raise: { raiseDrawer() }) {
             if drawerIsBuilt {
             // **The header is above the scroll, and the scroll fades into
             // it.**
@@ -286,6 +293,8 @@ struct MemoriesView: View {
             // default would fade the page in while it slides: filmed on the
             // first raise, the page's title half-transparent over the map's.
             .transition(.identity)
+            // Built and laid out: a raise waiting on it can start now.
+            .onAppear { raiseNowThatItIsBuilt() }
             }
             }
             // Lowered, or covered by a photograph, a replay or a pushed page:
@@ -307,7 +316,7 @@ struct MemoriesView: View {
                             onDelete: { _ in
                                 Task { await vm.reload(context: modelContext) }
                                 // A card is mostly photographs.
-                                Task { await reloadReplays() }
+                                Task { await reloadReplays(redrawsStale: true) }
                             })
                     // Out of the thumbnail, not up from the bottom.
                     .navigationTransition(.zoom(sourceID: photo.id, in: photoTransition))
@@ -317,7 +326,7 @@ struct MemoriesView: View {
                 // from this page too: the gallery, the albums, and the card.
                 ReplayView(replay: replay, onPhotoDeleted: {
                     Task { await vm.reload(context: modelContext) }
-                    Task { await reloadReplays() }
+                    Task { await reloadReplays(redrawsStale: true) }
                 }) { playing = nil }
                     // Out of its card, the way a photograph opens.
                     .navigationTransition(.zoom(sourceID: replay.id, in: photoTransition))
@@ -353,13 +362,41 @@ struct MemoriesView: View {
         // drawer is up: a poster that is merely STALE is redrawn only when
         // the shelf can be seen, and the old one stays up until then.
         .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") {
-            // Raised: let the spring settle before any stale poster is
-            // redrawn on the main actor under it.
-            if drawer != .hidden {
-                try? await Task.sleep(for: .milliseconds(700))
-                guard !Task.isCancelled else { return }
-            }
-            await reloadReplays()
+            // A card that is MISSING is drawn straight away, whatever the
+            // drawer is doing: after a change of scheme its slot is empty
+            // until it is. Only a STALE one waits, first for the drawer and
+            // then for the spring to settle, so `ImageRenderer` is not on the
+            // main actor under a moving panel.
+            await reloadReplays(redrawsStale: false)
+            guard drawer != .hidden else { return }
+            try? await Task.sleep(for: Self.springSettle)
+            guard !Task.isCancelled else { return }
+            await reloadReplays(redrawsStale: true)
+        }
+        // **The off-screen build, and only while nothing is moving.** A
+        // `.task` so leaving the tab cancels it — an unstructured one built
+        // the page after the map had already gone, landing its frame on
+        // another tab — and it restarts its wait every time the map's camera
+        // moves, so the build never takes a frame out of a pan.
+        .task(id: "\(drawerIsBuilt)-\(vm.hasLoaded)") {
+            // Not before the page has anything to build from, and not while
+            // the map is moving: the store's read lands first, the map frames
+            // itself on the pins (a camera move), and the build waits for
+            // `prebuildDelay` of stillness after that.
+            #if DEBUG
+            defer { if Task.isCancelled { PerfProbe.emit("[PERF-MARK] drawer prebuild cancelled") } }
+            #endif
+            guard !drawerIsBuilt, vm.hasLoaded else { return }
+            await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+            guard !Task.isCancelled, !drawerIsBuilt else { return }
+            #if DEBUG
+            let buildStart = CACurrentMediaTime()
+            PerfProbe.mark("drawer prebuild")
+            #endif
+            buildDrawer()
+            #if DEBUG
+            PerfProbe.duration("MemoriesView.buildDrawer (state set)", since: buildStart)
+            #endif
         }
         .task {
             #if DEBUG
@@ -369,20 +406,6 @@ struct MemoriesView: View {
             #if DEBUG
             PerfProbe.duration("MemoriesViewModel.reload wall", since: reloadStart)
             #endif
-            if !drawerIsBuilt {
-                Task { @MainActor in
-                    try? await Task.sleep(for: Self.prebuildDelay)
-                    guard !drawerIsBuilt else { return }
-                    #if DEBUG
-                    let buildStart = CACurrentMediaTime()
-                    PerfProbe.mark("drawer prebuild")
-                    #endif
-                    buildDrawer()
-                    #if DEBUG
-                    PerfProbe.duration("MemoriesView.buildDrawer (state set)", since: buildStart)
-                    #endif
-                }
-            }
             #if DEBUG
             if let detent = DebugHarness.openDrawer { drawer = detent }
             if let after = DebugHarness.raiseDrawerAfter {
@@ -445,17 +468,31 @@ struct MemoriesView: View {
         !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
-    /// The Photographs button. See `drawerIsBuilt`.
+    /// The Photographs button, and the drawer's own accessibility action.
+    /// See `drawerIsBuilt`.
+    ///
+    /// **A raise before the page exists builds first and waits for it.** Not
+    /// for a run-loop turn — `DispatchQueue.main.async` can still land the
+    /// build and the spring in one update — but for the page's own
+    /// `onAppear`, which cannot run until it has been laid out.
     private func raiseDrawer() {
         guard drawerIsBuilt else {
+            raiseWhenBuilt = true
             buildDrawer()
-            DispatchQueue.main.async {
-                withAnimation(GridConstants.naturalSettle) { drawer = .full }
-            }
             return
         }
         withAnimation(GridConstants.naturalSettle) { drawer = .full }
     }
+
+    /// The page is on screen (off the bottom of it): now it can slide up.
+    private func raiseNowThatItIsBuilt() {
+        guard raiseWhenBuilt else { return }
+        raiseWhenBuilt = false
+        withAnimation(GridConstants.naturalSettle) { drawer = .full }
+    }
+
+    /// How long `naturalSettle` takes to come to rest, near enough.
+    private static let springSettle: Duration = .milliseconds(700)
 
     /// Builds the page, never inside an animation.
     private func buildDrawer() {
@@ -464,9 +501,9 @@ struct MemoriesView: View {
         withTransaction(quiet) { drawerIsBuilt = true }
     }
 
-    private func reloadReplays() async {
+    private func reloadReplays(redrawsStale: Bool) async {
         await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
-                             now: Date(), redrawsStale: drawer != .hidden)
+                             now: Date(), redrawsStale: redrawsStale && drawer != .hidden)
     }
 
     // MARK: - Title

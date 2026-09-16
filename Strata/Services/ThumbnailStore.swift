@@ -115,6 +115,7 @@ final class ThumbnailStore {
     private var reasked: [Key: ContinuousClock.Instant] = [:]
     private static let reaskGrace: Duration = .milliseconds(50)
     private var pumpPending = false
+    private var trimPending = false
     #if DEBUG
     /// `-strataPerfProbe`: when a photograph not in memory was first asked
     /// for, so its arrival in a view that is still asking can be timed. A
@@ -174,13 +175,46 @@ final class ThumbnailStore {
         nextSeq &+= 1
         deferredSeq[key] = nextSeq
         deferredOrder.append((key, nextSeq))
-        while deferredSeq.count > Self.maxDeferred, let oldest = popOldestDeferred() {
-            slot(oldest).generation &+= 1
+        // **Letting one go tells its view, so it happens after the pass, not
+        // during it.** Trimming inline bumped another key's slot while a body
+        // was running: a pass asking for more than `maxInFlight + maxDeferred`
+        // keys (a cold map comes close) made every extra ask invalidate an
+        // older view, and those views asked again on the next pass. Coalesced
+        // to the next turn, one trim covers the whole pass, and only asks made
+        // before it was scheduled can be let go.
+        if deferredSeq.count > Self.maxDeferred, !trimPending {
+            trimPending = true
+            let madeBeforeThisTurn = nextSeq
+            Task { @MainActor in
+                trimPending = false
+                trim(keeping: madeBeforeThisTurn)
+            }
         }
         if deferredHead > 256, deferredHead * 2 > deferredOrder.count {
             deferredOrder.removeFirst(deferredHead)
             deferredHead = 0
         }
+    }
+
+    /// Lets the oldest waiting asks go, down to `maxDeferred`, and tells each
+    /// one's views so anything still showing it asks again. Never touches an
+    /// ask made after `seq`, which is this pass's own.
+    private func trim(keeping seq: Int) {
+        while deferredSeq.count > Self.maxDeferred {
+            guard let entry = nextOldestDeferred(), entry.seq <= seq else { break }
+            _ = popOldestDeferred()
+            slot(entry.key).generation &+= 1
+        }
+    }
+
+    /// The oldest ask still waiting, without removing it.
+    private func nextOldestDeferred() -> (key: Key, seq: Int)? {
+        while deferredHead < deferredOrder.count {
+            let entry = deferredOrder[deferredHead]
+            if isCurrent(entry) { return entry }
+            deferredHead += 1
+        }
+        return nil
     }
 
     private func isCurrent(_ entry: (key: Key, seq: Int)) -> Bool {
@@ -242,6 +276,21 @@ final class ThumbnailStore {
         }
     }
 
+    /// A photograph has just been written to disk under this name: anything
+    /// that looked for it and found nothing may now find it.
+    ///
+    /// Without this, a file that arrives after its log — a restore, or a save
+    /// landing late — stayed "missing" for up to `missingRetry`, and even then
+    /// only if some unrelated redraw made a view ask again.
+    func fileArrived(_ fileName: String) {
+        let waiting = missing.keys.filter { $0.name == fileName }
+        guard !waiting.isEmpty else { return }
+        for key in waiting {
+            missing[key] = nil
+            slot(key).generation &+= 1
+        }
+    }
+
     /// Forgets what is in flight. For a reset, where the files themselves go.
     func forgetInFlight() {
         loading.removeAll()
@@ -260,5 +309,7 @@ final class ThumbnailStore {
     }
     var inFlightForTesting: Int { loading.count }
     var deferredForTesting: Int { deferredSeq.count }
+    /// The file names still waiting for a place.
+    var waitingNamesForTesting: Set<String> { Set(deferredSeq.keys.map(\.name)) }
     #endif
 }

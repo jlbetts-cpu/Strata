@@ -19,6 +19,11 @@ struct MemoriesMapView: View {
     /// pins is not an empty map, and every open of Memories flashed "Your map
     /// starts here" over a map about to fill with photographs.
     var hasLoaded: Bool = true
+    /// Where the map writes the moment its camera last moved, for the
+    /// Memories page's off-screen build. **A reference, not state**: it is
+    /// written on every frame of a pan, and observing it would redraw the map
+    /// and every annotation with the gesture.
+    var motion: MapMotion? = nil
     /// Whether the map takes gestures.
     var isInteractive: Bool = true
     /// **Imagery, chosen by measuring.**
@@ -311,10 +316,17 @@ struct MemoriesMapView: View {
             await sweep()
         }
         #endif
-        // `.onEnd`, not `.continuous`. Re-clustering every camera frame both
-        // costs CPU and looks wrong — blocks twitch between two cells while
-        // you pan, because the cell under a pin changes several times a
-        // second.
+        // **Continuous, and it writes nothing this view reads.** Noting the
+        // moment the camera moved costs one assignment a frame and invalidates
+        // nothing; the Memories page reads it to keep its off-screen build out
+        // of a gesture. See `MapMotion`.
+        .onMapCameraChange(frequency: .continuous) { _ in
+            motion?.movedAt = ContinuousClock.now
+        }
+        // Clustering is `.onEnd`, not `.continuous`. Re-clustering every camera
+        // frame both costs CPU and looks wrong — blocks twitch between two
+        // cells while you pan, because the cell under a pin changes several
+        // times a second.
         .onMapCameraChange(frequency: .onEnd) { context in
             lastCameraMove = Date()
             let span = context.region.span.longitudeDelta
@@ -1166,5 +1178,28 @@ private struct RecentreButton: View {
     private var locationGlyph: String {
         location.fix(maxAge: 600, maxAccuracy: 1000) == nil
             ? "location" : "location.fill"
+    }
+}
+
+/// The moment the map's camera last moved. See `MemoriesMapView.motion`.
+@MainActor
+final class MapMotion {
+    var movedAt: ContinuousClock.Instant = .now
+    /// How long the camera has been still.
+    var stillFor: Duration { ContinuousClock.now - movedAt }
+
+    /// Returns once the camera has been still for `delay`, restarting the wait
+    /// every time it moves again. Cancellation returns straight away.
+    ///
+    /// The Memories page waits on this before building its drawer off screen,
+    /// so the build never takes a frame out of a pan. `MapMotionTests` drives
+    /// it with a camera that keeps moving.
+    func waitUntilStill(for delay: Duration,
+                        sleep: (Duration) async -> Void = { try? await Task.sleep(for: $0) }) async {
+        while !Task.isCancelled {
+            let still = stillFor
+            guard still < delay else { return }
+            await sleep(delay - still)
+        }
     }
 }

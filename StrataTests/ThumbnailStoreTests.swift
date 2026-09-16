@@ -212,24 +212,60 @@ struct ThumbnailStoreTests {
         #expect(store.state(for: waiting.last!, width: 40).missing)
     }
 
-    /// Asks from cells that scrolled away must not pile up without limit.
-    @Test("at most maxDeferred asks wait, the oldest let go first")
+    /// Asks from cells that scrolled away must not pile up without limit, and
+    /// letting one go tells its view — which must happen AFTER the pass that
+    /// asked, never inside it.
+    @Test("the oldest asks are let go once the pass is over, and their views are told")
     func deferredIsCapped() async throws {
         let store = ThumbnailStore.shared
         store.forgetInFlight()
         await drain()
-        let names = (0..<(ThumbnailStore.maxInFlight + ThumbnailStore.maxDeferred + 40))
+        // Far more than the queue holds, so it is still over the cap when the
+        // trim runs even as the first reads land.
+        let names = (0..<(ThumbnailStore.maxInFlight + ThumbnailStore.maxDeferred + 400))
             .map { "no-such-deferred-\($0).jpg" }
+        // One pass, as a body would: nothing may be let go or invalidated.
         for name in names { _ = store.image(for: name, width: 40) }
         #expect(store.inFlightForTesting == ThumbnailStore.maxInFlight)
-        #expect(store.deferredForTesting == ThumbnailStore.maxDeferred)
-        // The 40 let go were the oldest waiting, and each was told, so a view
-        // still showing one asks again.
-        let firstWaiting = names[ThumbnailStore.maxInFlight]
-        #expect(store.generationForTesting(firstWaiting, width: 40) > 0)
-        let newest = names.last!
-        #expect(store.generationForTesting(newest, width: 40) == 0)
+        let waiting = names[ThumbnailStore.maxInFlight...]
+        #expect(waiting.allSatisfy { store.generationForTesting($0, width: 40) == 0 },
+                "an ask was let go, and its view invalidated, during the pass")
+
+        // The oldest go on the next turn. Only asks made before the overflow
+        // was noticed can go; the rest are this pass's own and are kept.
+        let oldest = names[ThumbnailStore.maxInFlight..<(ThumbnailStore.maxInFlight + 50)]
+        for _ in 0..<40 where oldest.contains(where: { store.waitingNamesForTesting.contains($0) }) {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        let stillWaiting = store.waitingNamesForTesting
+        #expect(oldest.allSatisfy { !stillWaiting.contains($0) }, "an old ask was kept over newer ones")
+        #expect(oldest.allSatisfy { store.generationForTesting($0, width: 40) > 0 },
+                "an ask was let go without telling the view that made it")
+        #expect(store.deferredForTesting < ThumbnailStore.maxInFlight + ThumbnailStore.maxDeferred + 400)
+        store.forgetInFlight()
         await drain()
+    }
+
+    /// A file that arrives after its log — a restore, or a save landing late —
+    /// must not stay missing until something unrelated redraws.
+    @Test("a photograph written after it was asked for wakes the views that asked")
+    func arrivalWakesTheViews() async throws {
+        let store = ThumbnailStore.shared
+        store.forgetInFlight()
+        await drain()
+        let name = "thumbnail-store-late.jpg"
+        for _ in 0..<40 where !store.state(for: name, width: 40).missing {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(store.state(for: name, width: 40).missing)
+        let settled = store.generationForTesting(name, width: 40)
+
+        _ = try write(name)
+        defer { ImageManager.shared.deleteImage(fileName: name) }
+        store.fileArrived(name)
+        #expect(store.generationForTesting(name, width: 40) > settled,
+                "the views that asked were never told the file arrived")
+        #expect(await waitForImage(name, width: 40) != nil)
     }
 
     /// The filmstrip dimmed and re-faded after a switch to dark mode because

@@ -50,6 +50,11 @@ enum DrawerDetent: CaseIterable {
 
 struct MemoriesDrawer<Content: View>: View {
     @Binding var detent: DrawerDetent
+    /// How the page is raised, when the screen has its own way of doing it:
+    /// `MemoriesView` builds the page first and raises it once it exists, and
+    /// this control must not be the one path that raises it before it is
+    /// there. Without one, it just sets the detent.
+    var raise: (() -> Void)? = nil
     @ViewBuilder var content: () -> Content
 
     @State private var drag: CGFloat = 0
@@ -140,7 +145,11 @@ struct MemoriesDrawer<Content: View>: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             HapticsEngine.lightTap()
-            detent = detent == .full ? .hidden : .full
+            if detent == .hidden, let raise {
+                raise()
+            } else {
+                detent = detent == .full ? .hidden : .full
+            }
         }
     }
 
