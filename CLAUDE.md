@@ -963,7 +963,9 @@ Video and Share export from `ReplayImageLoad.all()`, the complete set, or the
 video would come out with coloured blanks. The live replay starts as soon as
 the photographs of the blocks appearing in its first 2s are decoded
 (`ReplayImageLoad.required`), keeps decoding the rest in drop order, and
-fades a late photograph in over 0.25s on the wall clock (live only). A frozen
+fades a late photograph in over 0.25s on the replay's clock (live only), with
+the block drawn as a photograph from its first frame so only the picture
+changes (`ReplayFrame.expectsPhoto`). A frozen
 frame (`-strataReplayAt`) waits for all of them. Past 150ms without a start,
 the tower's dashed slot breathes where the tower will stand
 (`ReplayLoadingSlot`). Both draw from the same decoded images, which is what
@@ -993,11 +995,12 @@ count alone.
 **During the build only the count; the date arrives with the reveal; the
 close is the controls alone** (the owner, 2026-09-15). The count sits top
 left as the Wins tab's header and counts one landing at a time with a
-script-driven digit roll: only positions that change move, each clipped to
-its own line, a third of the type's size over 0.16s; the old digit is gone by
-the middle of the roll and the new one appears from there, so no frame draws
-two digits over each other; a new leading digit opens its width before it
-appears; each roll is cut short to the gap before the next landing.
+script-driven odometer roll: only positions that change move, old and new at
+full strength inside a window the height of the digits' ink (not the line
+box: the face's ink sits in the middle of a 1.2em line, and a line-high window
+showed "19" stacked over "20"), 0.16s, a small gap apart so they never
+overlap; a new leading digit opens its width in the first half; each roll is
+cut short to the gap before the next landing.
 **The date alone arrives under it** as the reveal starts: "9/7-9/13", or
 "September", in the quiet ink at the caption size. No "Your week" over it,
 which the owner called "a bit too much": four layouts were drawn and

@@ -145,13 +145,15 @@ fits at scale 1 still gets the reveal, easing the rise back to 0, because a
 jump is exactly what this must never do.
 
 **The count** is the number of landings at or before `t`. Each change rolls:
-only the digit positions that change move, each clipped to its own line, the
-old digit rising a third of the type's size out as the new one rises in from
-below, on an ease-out over 0.16s. They hand over rather than cross: the old
-is gone by the middle of the roll and the new appears from there, so no frame
-draws two digits over each other. A new leading digit (9 to 10) opens its
-width in the first half, before it appears, so "wins" slides rather than
-jumps. A roll is cut short to the time before the next
+only the digit positions that change move, like an odometer: the old digit
+rises out of a window the height of the digits' ink as the new one rises in
+from below it, both at full strength, a small gap apart, on an ease-out over
+0.16s. Nothing fades and no frame draws two digits over each other. (A fade
+hand-over made the number blink grey, and a window the height of the whole
+line showed "19" stacked over "20": the face sets its ink in the middle of a
+1.2em line.) A new leading digit (9 to 10) opens its width in the first half,
+so "wins" slides rather than jumps. Under Reduce Motion the digit changes in
+place. A roll is cut short to the time before the next
 landing, so in a busy month, where landings are 50ms apart, rolls are quick
 and always finish rather than jumping mid-slide. Landings at one instant (a
 day under Reduce Motion) are one change. It is computed by the script
@@ -230,7 +232,10 @@ was committed. Now:
   are decoded** (`ReplayImageLoad`). Those decode first, on their own; the
   rest follow in drop order. A block whose photograph is
   not in yet draws its colour, as blocks always do, and the picture fades in
-  over 0.25s when it arrives. That fade runs on the wall clock and is live
+  over 0.25s when it arrives. The block is drawn as a photograph (veil,
+  vignette, title shadow) from its first frame, so only the picture changes.
+  The fade runs on the replay's clock, so a hold pauses it, and a photograph
+  that lands while the replay is held or finished shows at once. It is live
   only.
 - **The video still waits for every photograph**: Save Video and Share
   export from the complete set, so no frame has a blank. A frozen frame
