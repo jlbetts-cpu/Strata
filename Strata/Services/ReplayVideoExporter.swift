@@ -100,7 +100,14 @@ final class ReplayVideoExporter {
         let folder = URL.temporaryDirectory.appending(path: "replay-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: "\(replay.period.title).mp4")
-        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        let writer: AVAssetWriter
+        do {
+            writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        } catch {
+            // Nothing was written: the folder made for it goes too.
+            Self.remove(url)
+            throw error
+        }
         do {
             try await write(to: writer, onProgress: onProgress)
         } catch {

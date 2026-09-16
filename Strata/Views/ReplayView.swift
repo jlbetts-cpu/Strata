@@ -344,7 +344,12 @@ struct ReplayView: View {
     ///
     /// **With VoiceOver, straight back to the close**, as the replay opens:
     /// played from 0 the controls went invisible and focus had nowhere to
-    /// go for the whole build. The announcement is said again.
+    /// go for the whole build. The announcement is posted here: restart and
+    /// skip land in one frame, so the close is never crossed for the
+    /// `onChange` that says it on a first play.
+    ///
+    /// Photographs already decoded show whole from the start of the second
+    /// play: their fade times belong to the first.
     ///
     /// Save Video's and Share's state survives on purpose: the video is the
     /// same video, so "Saved to Photos" stays and a finished file is reused.
@@ -353,8 +358,13 @@ struct ReplayView: View {
         announced = false
         press.held = false
         finished = false
+        load.forgetArrivals()
         clock.restart()
-        if UIAccessibility.isVoiceOverRunning { clock.skip(to: script.closeStart) }
+        if UIAccessibility.isVoiceOverRunning {
+            clock.skip(to: script.closeStart)
+            announced = true
+            AccessibilityNotification.Announcement(replay.announcement(now: now)).post()
+        }
     }
 
     private func prepare(script: ReplayScript) async {
@@ -379,10 +389,12 @@ struct ReplayView: View {
         // (a 402pt phone at 3x: a 267px cell against the card's 237px; an SE
         // at 2x: 164px, so the card's).
         // A photograph landing mid-play fades in on the replay's own clock;
-        // one landing while it is held, frozen or finished shows at once.
+        // one landing while it is held, frozen or finished shows at once, and
+        // so does one landing in the last fade's length: the clock stops at
+        // the end and would leave it half faded.
         let clock = clock
-        let duration = script.duration
-        load.clock = { (clock.lastRendered, !clock.isPaused && !clock.isFrozen && clock.lastRendered < duration) }
+        let lastFade = script.duration - ReplayImageLoad.fade
+        load.clock = { (clock.lastRendered, !clock.isPaused && !clock.isFrozen && clock.lastRendered < lastFade) }
         load.start(replay, cellPixels: max(script.metrics.cell * displayScale,
                                            ReplayCard.cell * ReplayCard.shareScale),
                    required: required)

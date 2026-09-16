@@ -56,9 +56,21 @@ struct ReplayFrame: View {
     private var m: ReplayScript.Metrics { script.metrics }
     private var replay: Replay { script.replay }
 
+    /// The type size around the frame, capped below as the frame caps its own
+    /// content: this view's environment is read outside its own
+    /// `.dynamicTypeSize(...xxLarge)`.
+    @Environment(\.dynamicTypeSize) private var outerTypeSize
+
     /// The count's size as the type is actually set, for the digit roll's
-    /// travel: a fraction of the digits, at any text size.
-    @ScaledMetric(relativeTo: .largeTitle) private var tallySize: CGFloat = Typography.screenTitleSize
+    /// window. Scaled from the CAPPED size: a `@ScaledMetric` here read the
+    /// uncapped one, so above xxLarge the window was sized for a bigger
+    /// digit than the one drawn and shaved the rolling digits.
+    private var tallySize: CGFloat {
+        let category = UIContentSizeCategory(min(outerTypeSize, .xxLarge))
+        return UIFontMetrics(forTextStyle: .largeTitle)
+            .scaledValue(for: Typography.screenTitleSize,
+                         compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -178,7 +190,7 @@ struct ReplayFrame: View {
         return HStack(alignment: .firstTextBaseline, spacing: 0) {
             ForEach(slots.indices, id: \.self) { i in
                 let slot = slots[i]
-                WidthReveal(fraction: slot.old == nil && slot.changes ? CGFloat(ReplayScript.rollOpening(Double(e))) : 1) {
+                WidthReveal(fraction: slot.old == nil && slot.changes && !still ? CGFloat(ReplayScript.rollOpening(Double(e))) : 1) {
                     if slot.changes, !still {
                         ZStack {
                             if let old = slot.old { digit(old).offset(y: -travel * e) }
@@ -190,7 +202,13 @@ struct ReplayFrame: View {
                                 .padding(.top, windowTop)
                         }
                     } else if slot.changes {
-                        if let shown = e < 0.5 ? slot.old : slot.new { digit(shown) } else { Color.clear }
+                        // Both laid out, one shown: a leading digit's width
+                        // is there from the roll's start, so "wins" does not
+                        // step sideways.
+                        ZStack {
+                            if let old = slot.old { digit(old).opacity(e < 0.5 ? 1 : 0) }
+                            if let new = slot.new { digit(new).opacity(e < 0.5 ? 0 : 1) }
+                        }
                     } else if let new = slot.new {
                         digit(new)
                     }

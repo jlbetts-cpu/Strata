@@ -242,6 +242,13 @@ final class ReplayImageLoad {
         allTask?.cancel()
     }
 
+    /// Replay restarted: every photograph already in shows whole, instead of
+    /// blinking out when the second play reaches the time it landed at in
+    /// the first and fading in again.
+    func forgetArrivals() {
+        arrivals = [:]
+    }
+
     /// Whether a block showing `photo` should be drawn as a photograph: its
     /// picture is in or on its way.
     func expects(_ photo: ReplayPhoto) -> Bool {
