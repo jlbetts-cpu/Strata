@@ -37,10 +37,18 @@ struct StrataApp: App {
             UserDefaults.standard.set(false, forKey: "hasOnboarded")
         }
         #endif
-        // Register ModelContainer for App Intents access (WWDC 2024 pattern).
-        // This is also the first thing to ask for the container, so the ladder
-        // climbs here and `opening` is settled before the first render.
-        AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
+        // **The container is asked for on its own line, and that is not
+        // tidiness.** `AppDependencyManager.add(dependency:)` takes an
+        // AUTOCLOSURE, so passing `SharedModelContainer.shared` to it directly
+        // does not open the store: it stores a closure that opens it later,
+        // whenever an App Intent first asks. Written that way, `opening` below
+        // was still its default when it was read, every launch reported the
+        // store fine, and a forced failure showed onboarding over a store that
+        // could not save. Photographed on the simulator, which is the only
+        // reason it was found: the log said `unavailable` and the screen said
+        // otherwise.
+        let container = SharedModelContainer.shared
+        AppDependencyManager.shared.add(dependency: container)
         _storeOpening = State(initialValue: SharedModelContainer.opening)
     }
 

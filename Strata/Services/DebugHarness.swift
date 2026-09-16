@@ -186,6 +186,16 @@ enum DebugHarness {
         argument("-strataSeedPlan").flatMap(Int.init)
     }
 
+    /// Seeds mood rows, from `-strataSeedMood <n>`.
+    ///
+    /// **Added because a schema check that cannot see `MoodLog` is not a
+    /// check.** Nothing else in the harness writes one, so the store the
+    /// migration report reads would always have said `moods=0` whether the
+    /// four defaults on that model were right or catastrophic.
+    static var seedMood: Int {
+        Int(argument("-strataSeedMood") ?? "0") ?? 0
+    }
+
     /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block`.
     /// These are modals with no other scriptable route in. `settings` opens
     /// Profile and pushes Settings, since Settings lives only inside Profile.
@@ -727,6 +737,7 @@ enum DebugHarness {
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
+            || argument("-strataSeedMood") != nil
             || argument("-strataFlipTabs") != nil
 
             || dumpsShareCard
@@ -885,6 +896,19 @@ enum DebugHarness {
                     on: day, context: context, tower: tower)
             }
             try? context.save()
+        }
+
+        if seedMood > 0 {
+            StoreReset.deleteEvery(MoodLog.self, context: context)
+            let notes = ["good day", "tired", nil, "steady", "long one"]
+            for i in 0..<seedMood {
+                let day = Calendar.current.date(byAdding: .day, value: -i, to: Date()) ?? Date()
+                context.insert(MoodLog(dateString: DateUtils.dateString(from: day),
+                                       mood: (i % 5) + 1,
+                                       motivation: ((i + 2) % 5) + 1,
+                                       note: notes[i % notes.count]))
+            }
+            do { try context.save() } catch { NSLog("[strata-seed] moods did not save: \(error)") }
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0
