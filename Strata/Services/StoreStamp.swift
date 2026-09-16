@@ -99,9 +99,12 @@ enum SocialFieldsBackfill {
             let habits = try context.fetch(FetchDescriptor<Habit>())
             let towers = try context.fetch(FetchDescriptor<Tower>())
 
+            // A habit with no wins has no marker either way. It is treated as
+            // old: a habit made by this build has an `updatedAt` from its own
+            // insert, and replacing that with its own `createdAt` loses at most
+            // the seconds between the two.
             func isOld(_ habit: Habit) -> Bool {
-                let logs = habit.logs ?? []
-                return !logs.isEmpty && logs.allSatisfy { $0.timeZoneIdentifier.isEmpty }
+                (habit.logs ?? []).allSatisfy { $0.timeZoneIdentifier.isEmpty }
             }
 
             try StoreStamp.withoutStamping {

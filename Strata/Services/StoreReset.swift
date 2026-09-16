@@ -101,6 +101,11 @@ enum StoreReset {
         var failure: String?
         do {
             try context.transaction {
+                #if DEBUG
+                // `-strataFailReset`: throw inside the transaction, so the real
+                // rollback path runs and nothing is deleted.
+                if DebugHarness.forcesResetFailure { throw StoreResetForcedFailure() }
+                #endif
                 // Logs before habits, though `Habit.logs` cascades and would
                 // take them anyway: deleting the dependent side first keeps
                 // the mandatory inverse satisfied at every step.
@@ -177,3 +182,9 @@ enum StoreReset {
         return out
     }
 }
+
+#if DEBUG
+struct StoreResetForcedFailure: Error, CustomStringConvertible {
+    var description: String { "forced by -strataFailReset" }
+}
+#endif

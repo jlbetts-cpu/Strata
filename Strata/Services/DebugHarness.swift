@@ -462,6 +462,12 @@ enum DebugHarness {
     /// `updatedAt` on its own.
     static var countsSaves: Bool { argument("-strataCountSaves") != nil }
 
+    /// Makes Reset All Data's transaction throw, from `-strataFailReset`.
+    static var forcesResetFailure: Bool { argument("-strataFailReset") != nil }
+
+    /// Runs Settings' reset action once it appears, from `-strataAutoReset`.
+    static var autoResets: Bool { argument("-strataAutoReset") != nil }
+
     /// Times the image pipeline, from `-strataBenchImages <n>`.
     ///
     /// **Because "photos load a bit slow" is a feeling until it is a number.**

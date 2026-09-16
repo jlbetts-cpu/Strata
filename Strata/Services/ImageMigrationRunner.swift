@@ -8,6 +8,7 @@ enum ImageMigrationRunner {
     /// Migrates existing imageData blobs to Documents/strata-images/ files.
     /// Idempotent — only processes logs that have imageData but no imageFileName.
     /// Guarded by AppStorage flag so the full scan runs at most once.
+    // Moves `updatedAt` on every log it migrates, once (StoreStamp).
     @MainActor
     static func migrateIfNeeded(context: ModelContext) async {
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }

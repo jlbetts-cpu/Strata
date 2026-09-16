@@ -367,7 +367,9 @@ struct MainAppView: View {
     @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var winSaveFailed = false
-    /// Reset All Data did not commit. Nothing was deleted.
+    /// Reset All Data did not commit. Nothing was deleted. Only for a reset
+    /// that does not run from a sheet (the harness); Settings shows its own,
+    /// because an alert here cannot appear over the Profile sheet.
     @State private var resetFailed = false
     /// Which tab's header opened Profile, if any. See `profileBinding(for:)`.
     @State private var profileOrigin: StrataTab?
@@ -1534,11 +1536,12 @@ struct MainAppView: View {
                     // Profile and head only if the record really went: a reset
                     // that deleted your face and kept your wins would be the
                     // original bug the other way round.
-                    guard resetTower() else { return }
+                    guard resetTower() else { return false }
                     // The policy says Reset All Data removes every photo; a
                     // profile photo is one, and a head is made of them.
                     ProfileStore.shared.reset()
                     HeadStore.shared.delete()
+                    return true
                 },
                 opensSettings: profileOpensSettings
             )
@@ -1563,7 +1566,8 @@ struct MainAppView: View {
         // Before anything is fetched or seeded: a test that asserts a first
         // run needs a store that has never been used. See
         // `DebugHarness.resetsStore`.
-        if DebugHarness.resetsStore { resetTower() }
+        // Not from a sheet, so the root's alert is the one a person sees.
+        if DebugHarness.resetsStore, !resetTower() { resetFailed = true }
         if let mode = DebugHarness.editBlock {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(20))
@@ -3151,7 +3155,6 @@ struct MainAppView: View {
             photoNames = try StoreReset.photographNames(context: modelContext)
         } catch {
             NSLog("[strata-reset] could not read the record, so the reset did not run: \(error)")
-            resetFailed = true
             return false
         }
 
@@ -3174,7 +3177,6 @@ struct MainAppView: View {
         // is not. Say so instead.
         guard remaining.failure == nil else {
             NSLog("[strata-reset] stopped: \(remaining.line)")
-            resetFailed = true
             return false
         }
 

@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
+import CoreData
 @testable import Strata
 
 /// **The fields added now so that a social version later is an addition, not
@@ -237,12 +238,34 @@ struct SocialFieldsTests {
     }
 
     @Test("reading the profile id for a report never creates one")
-    func storedProfileIDDoesNotWrite() {
-        let before = UserDefaults.standard.string(forKey: ProfileStore.profileIDKey)
-        UserDefaults.standard.removeObject(forKey: ProfileStore.profileIDKey)
-        defer { UserDefaults.standard.set(before, forKey: ProfileStore.profileIDKey) }
-        #expect(ProfileStore.storedProfileID == nil)
-        #expect(UserDefaults.standard.string(forKey: ProfileStore.profileIDKey) == nil)
+    func storedProfileIDDoesNotWrite() throws {
+        // Its own suite: the test host's real id is never removed or rewritten.
+        let suite = "profile-id-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(ProfileStore.storedProfileID(in: defaults) == nil)
+        #expect(defaults.string(forKey: ProfileStore.profileIDKey) == nil)
+
+        let made = ProfileStore.profileID(in: defaults)
+        #expect(ProfileStore.storedProfileID(in: defaults) == made)
+        #expect(ProfileStore.profileID(in: defaults) == made)
+    }
+
+    @Test("a habit with no wins is backfilled too, not left at launch time")
+    func backfillCoversHabitsWithoutWins() throws {
+        let context = try context()
+        let habit = Habit(title: "Planned", category: .work)
+        context.insert(habit)
+        let made = Date(timeIntervalSinceReferenceDate: 640_000_000)
+        try StoreStamp.withoutStamping {
+            try context.save()
+            habit.createdAt = made
+            try context.save()
+        }
+        let defaults = try #require(UserDefaults(suiteName: "no-wins-\(UUID().uuidString)"))
+        SocialFieldsBackfill.runIfNeeded(context: context, defaults: defaults)
+        #expect(habit.updatedAt == made)
     }
 
     @Test("the stored schedule default is the initialiser's: every day")
@@ -286,6 +309,35 @@ final class CloudKitRuleBreaker {
        .enabled(if: ProcessInfo.processInfo.environment["STRATA_CK_PROBE"] != nil))
 struct CloudKitValidatorProbe {
 
+    /// Loads the schema through `NSPersistentCloudKitContainer` directly and
+    /// returns the validator's own failure reason, or nil if it loaded.
+    ///
+    /// **Through Core Data, because SwiftData drops the reason.** Its error is
+    /// `loadIssueModelContainer` with no explanation, so a test on "it threw"
+    /// would pass for a missing entitlement or a bad path just as well as for
+    /// the rule. Core Data's error carries the sentence.
+    private func validatorReason(_ types: [any PersistentModel.Type]) throws -> String? {
+        let model = try #require(NSManagedObjectModel.makeManagedObjectModel(for: types))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ck-reason-\(UUID().uuidString).store")
+        defer {
+            for suffix in ["", "-shm", "-wal"] { try? FileManager.default.removeItem(atPath: url.path + suffix) }
+        }
+        let container = NSPersistentCloudKitContainer(name: "probe", managedObjectModel: model)
+        let description = NSPersistentStoreDescription(url: url)
+        description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+            containerIdentifier: "iCloud.JaydenBetts.Strata")
+        description.shouldAddStoreAsynchronously = false
+        container.persistentStoreDescriptions = [description]
+        var reason: String?
+        container.loadPersistentStores { _, error in
+            if let error = error as NSError? {
+                reason = (error.userInfo[NSLocalizedFailureReasonErrorKey] as? String) ?? error.localizedDescription
+            }
+        }
+        return reason
+    }
+
     private func open(_ schema: Schema) -> String {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ck-validate-\(UUID().uuidString).store")
@@ -305,16 +357,25 @@ struct CloudKitValidatorProbe {
     /// Must be refused. If this opens, the validator is not running in this
     /// environment and the app schema passing below proves nothing.
     @Test("probe: a schema that breaks the rule is refused")
-    func breaker() {
+    func breaker() throws {
         let result = open(Schema([CloudKitRuleBreaker.self]))
         NSLog("[ck-probe] breaker -> \(result)")
         #expect(result.hasPrefix("THREW"))
+        // The validator's own sentence, so an environment error cannot pass.
+        let reason = try validatorReason([CloudKitRuleBreaker.self])
+        NSLog("[ck-probe] breaker reason -> \(reason ?? "none")")
+        #expect(reason?.contains("have a default value") == true)
+        #expect(reason?.contains("CloudKitRuleBreaker: name") == true)
     }
 
     @Test("probe: the app's schema passes the validator")
-    func app() {
+    func app() throws {
         let result = open(SharedModelContainer.schema)
         NSLog("[ck-probe] app -> \(result)")
         #expect(result == "OPENED")
+        let reason = try validatorReason([Habit.self, HabitLog.self, MoodLog.self,
+                                           Tower.self, PlanFolder.self, PlanItem.self])
+        NSLog("[ck-probe] app reason -> \(reason ?? "none")")
+        #expect(reason == nil)
     }
 }

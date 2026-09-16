@@ -12,7 +12,8 @@ import SwiftUI
 /// to the other reads as one place. Plan and reasoning:
 /// `docs/profile-and-head-plan.md`.
 struct ProfileView: View {
-    var onResetAllData: () -> Void
+    /// Returns whether the record was actually emptied.
+    var onResetAllData: () -> Bool
     /// Push straight on to Settings — `-strataOpenSheet settings`, so every
     /// screenshot script written before Settings moved still reaches it.
     var opensSettings = false

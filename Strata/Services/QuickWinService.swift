@@ -38,6 +38,7 @@ enum QuickWinService {
     /// Every habit that matches the old shape was a win under the old rules —
     /// nothing else could create one — so this is exact rather than a guess.
     /// Runs before the first tower build, so no habit is ever seen unstamped.
+    // Moves `updatedAt` on every habit it marks, once (StoreStamp).
     static func migrateLegacyWins(context: ModelContext) {
         guard let all = try? context.fetch(FetchDescriptor<Habit>()) else { return }
         var changed = false

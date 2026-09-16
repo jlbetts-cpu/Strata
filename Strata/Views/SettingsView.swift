@@ -4,7 +4,8 @@ import UserNotifications
 import StoreKit
 
 struct SettingsView: View {
-    var onResetAllData: (() -> Void)?
+    /// Returns whether the record was actually emptied.
+    var onResetAllData: (() -> Bool)?
     /// Pushed from Profile, which is the only way in now. A pushed screen has
     /// a back button, and a Done that called `dismiss()` would only pop back
     /// to Profile — two controls that both mean "back".
@@ -65,6 +66,11 @@ struct SettingsView: View {
     // MARK: - Sheet State
 
     @State private var showResetConfirmation = false
+    /// Reset All Data did not commit. Shown HERE, not on `MainAppView`: this
+    /// screen is pushed inside the Profile sheet, and a view presenting a sheet
+    /// cannot put an alert on screen, so the message used to be raised where
+    /// nobody could see it.
+    @State private var resetFailed = false
     @State private var showExportShare = false
     @State private var exportURL: URL?
 
@@ -319,8 +325,7 @@ struct SettingsView: View {
                 ) {
                     Button("Delete Everything", role: .destructive) {
                         HapticsEngine.snap()
-                        onResetAllData?()
-                        dismiss()
+                        runReset()
                     }
                 } message: {
                     Text("This permanently deletes every win and photo, your name and profile photo, and your head. It cannot be undone.")
@@ -392,8 +397,7 @@ struct SettingsView: View {
             #if DEBUG
             Section("Debug") {
                 Button(role: .destructive) {
-                    onResetAllData?()
-                    dismiss()
+                    runReset()
                 } label: {
                     Label("Reset All Data", systemImage: "trash")
                 }
@@ -422,6 +426,33 @@ struct SettingsView: View {
             if let url = exportURL {
                 ShareSheet(activityItems: [url])
             }
+        }
+        .alert("Nothing was deleted", isPresented: $resetFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Strata could not reset your data, so every win and photo is still here. Try again.")
+        }
+        #if DEBUG
+        .task {
+            // `-strataAutoReset`: runs the same action the button does, so the
+            // failure message can be photographed where a person would see it.
+            // Nothing on this machine can tap the simulator.
+            guard DebugHarness.autoResets else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            runReset()
+        }
+        #endif
+    }
+
+    /// Resets, and stays on this screen with the reason if it did not happen.
+    /// Leaving would put the person back on a Profile that still shows
+    /// everything, with no word about why.
+    private func runReset() {
+        if onResetAllData?() == false {
+            HapticsEngine.warning()
+            resetFailed = true
+        } else {
+            dismiss()
         }
     }
 

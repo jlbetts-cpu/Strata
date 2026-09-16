@@ -37,17 +37,23 @@ final class ProfileStore {
     /// each make a different one and the second overwrite the first.
     /// Something that only wants to LOOK (a report, a probe) reads
     /// `storedProfileID`, which never writes.
-    nonisolated static var profileID: UUID {
+    nonisolated static var profileID: UUID { profileID(in: .standard) }
+
+    /// The id if one has been made, without making one.
+    nonisolated static var storedProfileID: UUID? { storedProfileID(in: .standard) }
+
+    /// `defaults` is a parameter so a test can use its own suite and never
+    /// touch the real id in the test host.
+    nonisolated static func profileID(in defaults: UserDefaults) -> UUID {
         profileIDLock.lock(); defer { profileIDLock.unlock() }
-        if let id = storedProfileID { return id }
+        if let id = storedProfileID(in: defaults) { return id }
         let id = UUID()
-        UserDefaults.standard.set(id.uuidString, forKey: profileIDKey)
+        defaults.set(id.uuidString, forKey: profileIDKey)
         return id
     }
 
-    /// The id if one has been made, without making one.
-    nonisolated static var storedProfileID: UUID? {
-        UserDefaults.standard.string(forKey: profileIDKey).flatMap(UUID.init(uuidString:))
+    nonisolated static func storedProfileID(in defaults: UserDefaults) -> UUID? {
+        defaults.string(forKey: profileIDKey).flatMap(UUID.init(uuidString:))
     }
 
     nonisolated static let profileIDKey = "profileID"
