@@ -387,6 +387,10 @@ struct MemoriesView: View {
             defer { if Task.isCancelled { PerfProbe.emit("[PERF-MARK] drawer prebuild cancelled") } }
             #endif
             guard !drawerIsBuilt, vm.hasLoaded else { return }
+            // The data landing counts as a move: the map is about to frame
+            // itself on the new pins, and the camera having been still while
+            // the store was read is not the quiet this is waiting for.
+            mapMotion.movedAt = .now
             await mapMotion.waitUntilStill(for: Self.prebuildDelay)
             guard !Task.isCancelled, !drawerIsBuilt else { return }
             #if DEBUG
