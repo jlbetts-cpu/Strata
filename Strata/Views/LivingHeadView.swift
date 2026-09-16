@@ -544,7 +544,6 @@ struct LivingHeadView: View {
         lastPlayed = played
         let take = HeadTake.take(played.id)
         generation &+= 1
-        let mine = generation
         taking = true
         busy = true
         gazeHeld = false
@@ -564,11 +563,11 @@ struct LivingHeadView: View {
             // Reduce Motion: the face, and nothing that moves.
             swap(to: rig.has(take.face) ? take.face : .neutral)
             do { try await Task.sleep(until: start + .seconds(take.hold), clock: .continuous) } catch {
-                finishTake(mine)
+                finishTake(played)
                 return
             }
             if !keepsTake { swap(to: .neutral) }
-            finishTake(mine)
+            finishTake(played)
             return
         }
         release()
@@ -588,7 +587,7 @@ struct LivingHeadView: View {
             do { try await Task.sleep(until: start + .seconds(moment.at), clock: .continuous) } catch {
                 // Cancelled: by a newer take, which owns everything now, or by
                 // the view going away, which must not leave `taking` set.
-                finishTake(mine)
+                finishTake(played)
                 return
             }
             switch moment.event {
@@ -599,10 +598,10 @@ struct LivingHeadView: View {
             }
         }
         guard !Task.isCancelled else {
-            finishTake(mine)
+            finishTake(played)
             return
         }
-        finishTake(mine)
+        finishTake(played)
     }
 
     /// The end of a take's hold: the head goes back to calm, and the face with
@@ -632,8 +631,12 @@ struct LivingHeadView: View {
         }
     }
 
-    private func finishTake(_ mine: Int) {
-        guard generation == mine else { return }
+    /// This take is over. **Keyed on the take, not on `generation`.** A second
+    /// tap sets `lastPlayed` and cancels this task before its own `play` has
+    /// bumped `generation`, so a generation check let the cancelled take clear
+    /// `taking` and `busy` for a hop, and an idle beat could start in the gap.
+    private func finishTake(_ played: HeadTake.Played) {
+        guard lastPlayed == played else { return }
         taking = false
         busy = false
     }
@@ -736,6 +739,10 @@ struct LivingHeadView: View {
             lean = 0
             dip = 0
             busy = false
+            // A kept take's gaze goes too, or the wander and the beats stay
+            // switched off for the life of a sticker whose take was
+            // interrupted by Reduce Motion changing.
+            gazeHeld = false
         }
     }
 

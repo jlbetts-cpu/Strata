@@ -332,6 +332,10 @@ struct CreatorHead: View {
             if let next { face = next }
             return
         }
+        // The turn beat starts a blink in a Task of its own, which outlives the
+        // beat: without this it could open the lids and clear the squash a
+        // third of a second into a tapped take.
+        let mine = takeGeneration
         blinking = true
         let deep = CGFloat.random(in: 0.905...0.935)
         shut = true
@@ -352,11 +356,12 @@ struct CreatorHead: View {
             try? await Task.sleep(for: Self.step)
         }
         // A cancelled blink still ends open, but must not overwrite the face a
-        // newer reaction has already put up.
+        // newer reaction has already put up, or the lids a take is holding.
+        blinking = false
+        guard takeGeneration == mine else { return }
         if let next, !Task.isCancelled { face = next }
         shut = false
         squash = 1
-        blinking = false
     }
 
     // MARK: - Idle beats

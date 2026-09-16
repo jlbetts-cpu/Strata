@@ -233,6 +233,10 @@ struct HeadStickerOverlay: View {
             .onEnded { _ in
                 widthBase = nil
                 angleBase = nil
+                // The head's own drag has one exit, and a pinch takes the
+                // fingers off it without one: clear the flag here too, or the
+                // crop stays dead for the rest of the review.
+                movingHead = false
             }
     }
 
