@@ -15,6 +15,18 @@ struct StrataApp: App {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @Environment(\.scenePhase) private var scenePhase
 
+    /// How the store opened, held in state so "Try Again" can put the app on
+    /// screen without a relaunch.
+    ///
+    /// Read into state rather than read on every render: `opening` is plain
+    /// static state and SwiftUI would not know when it moved.
+    ///
+    /// Seeded in `init`, not here. A property's default value is evaluated
+    /// before the initialiser's body, so it would have read `opening` before
+    /// anything had asked the ladder to climb, and every launch would have
+    /// reported the store fine.
+    @State private var storeOpening: StoreOpening
+
     init() {
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
@@ -25,8 +37,42 @@ struct StrataApp: App {
             UserDefaults.standard.set(false, forKey: "hasOnboarded")
         }
         #endif
-        // Register ModelContainer for App Intents access (WWDC 2024 pattern)
-        AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
+        // **The container is asked for on its own line, and that is not
+        // tidiness.** `AppDependencyManager.add(dependency:)` takes an
+        // AUTOCLOSURE, so passing `SharedModelContainer.shared` to it directly
+        // does not open the store: it stores a closure that opens it later,
+        // whenever an App Intent first asks. Written that way, `opening` below
+        // was still its default when it was read, every launch reported the
+        // store fine, and a forced failure showed onboarding over a store that
+        // could not save. Photographed on the simulator, which is the only
+        // reason it was found: the log said `unavailable` and the screen said
+        // otherwise.
+        let container = SharedModelContainer.shared
+        // **Only a store that saves is ever handed to the App Intents.** The
+        // holding rung's container is in memory and exists for SwiftUI alone.
+        // Registered, it became the store Siri logged wins into and read
+        // today's wins out of, and the intents run without opening the app, so
+        // nobody would ever have seen the blocking screen. Each intent also
+        // checks for itself (`StoreUnavailableIntentError.check()`) before
+        // touching its dependency, and `retryOpeningStore` registers the
+        // container once a retry opens it.
+        if SharedModelContainer.opening.savesToDisk {
+            AppDependencyManager.shared.add(dependency: container)
+        }
+        _storeOpening = State(initialValue: SharedModelContainer.opening)
+    }
+
+    /// Walks the ladder again from the blocking screen's button, and says
+    /// whether it opened.
+    private func retryOpeningStore() -> Bool {
+        let opening = SharedModelContainer.retry()
+        storeOpening = opening
+        guard opening.savesToDisk else { return false }
+        // Nothing was registered while the store was unavailable, so this is
+        // the first registration, and it is of the container that opened.
+        let container = SharedModelContainer.shared
+        AppDependencyManager.shared.add(dependency: container)
+        return true
     }
 
     /// Whether to put onboarding on screen.
@@ -84,7 +130,12 @@ struct StrataApp: App {
             // Swapping the two removes the inheritance rather than fighting
             // it, and it is the more honest structure anyway: until somebody
             // has been through this, it IS the app.
-            if showsOnboarding {
+            if !storeOpening.savesToDisk {
+                // **Before onboarding, and instead of everything.** An app
+                // that cannot write anything down must not take a win, and
+                // must not draw an empty tower that looks like the truth.
+                StoreUnavailableView(onRetry: retryOpeningStore)
+            } else if showsOnboarding {
                 OnboardingView { finishOnboarding() }
             } else {
                 MainAppView()

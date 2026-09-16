@@ -26,6 +26,28 @@ enum DebugHarness {
         return args[i + 1]
     }
 
+    /// Makes a rung of the store's ladder fail, from
+    /// `-strataFailStore primary|recovery|both`.
+    ///
+    /// **A ladder nobody has fallen down is a ladder nobody has tested.** The
+    /// old fallback was never exercised in this project's life, which is how
+    /// it could hand back an in-memory store for months without anybody
+    /// noticing what that meant. These force each branch on a real launch:
+    ///
+    ///     -strataFailStore primary   lands on the local, on-disk rung
+    ///     -strataFailStore both      lands on the blocking screen
+    ///
+    /// Read straight off `ProcessInfo`, because the ladder climbs in
+    /// `StrataApp.init` before any of the harness's other work runs.
+    static func forcesStoreFailure(_ rung: StoreRung) -> Bool {
+        guard let raw = argument("-strataFailStore")?.lowercased() else { return false }
+        switch rung {
+        case .primary: return raw == "primary" || raw == "both"
+        case .recovery: return raw == "recovery" || raw == "both"
+        case .holding: return false
+        }
+    }
+
     /// Tab to open on launch, from `-strataStartTab <raw value, lowercased>`.
     static var startTab: StrataTab? {
         guard let raw = argument("-strataStartTab") else { return nil }
@@ -162,6 +184,16 @@ enum DebugHarness {
     /// a button, so without this there is nothing to photograph.
     static var seedPlan: Int? {
         argument("-strataSeedPlan").flatMap(Int.init)
+    }
+
+    /// Seeds mood rows, from `-strataSeedMood <n>`.
+    ///
+    /// **Added because a schema check that cannot see `MoodLog` is not a
+    /// check.** Nothing else in the harness writes one, so the store the
+    /// migration report reads would always have said `moods=0` whether the
+    /// four defaults on that model were right or catastrophic.
+    static var seedMood: Int {
+        Int(argument("-strataSeedMood") ?? "0") ?? 0
     }
 
     /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block`.
@@ -390,16 +422,66 @@ enum DebugHarness {
         log.locationAccuracy = 25
     }
 
-    /// Says whether the store opened, from `-strataReportStore`.
+    /// Says whether the store opened, and on which rung, from
+    /// `-strataReportStore`.
     ///
-    /// `SharedModelContainer` falls back to an in-memory store when the
-    /// container cannot be created, which is the right thing to do and the
-    /// worst thing to debug: a failed migration presents as an app with no
-    /// data, not as a crash. After any schema change, launch with this on a
-    /// build that already has data and read the line.
+    /// A failed migration presents as an app with no data, not as a crash,
+    /// which is the worst thing to debug. After any schema change, launch with
+    /// this on a build that already has data and read the line: `onDisk` is
+    /// the ordinary case, `recovered(...)` means the primary rung failed and
+    /// says why, and `unavailable(...)` means the person is looking at
+    /// `StoreUnavailableView`.
     static func runStoreProbe() {
+        NSLog("[strata-probe] store opening=\(SharedModelContainer.opening.summary)")
         NSLog("[strata-probe] store inMemoryFallback=\(SharedModelContainer.isUsingInMemoryFallback)")
     }
+
+    /// Counts what survived a schema change, from `-strataReportMigration`.
+    ///
+    /// **Because "SwiftData migrates it in place" is a claim, not a
+    /// measurement.** Thirty one properties were given default values so the
+    /// schema fits CloudKit's rules, and the whole argument for that being
+    /// safe is that nothing is renamed, removed or retyped, so every existing
+    /// row keeps every value it had. This is how that gets checked against a
+    /// store written by a build from before the change: launch the old build
+    /// with a seed, launch the new one with this, and compare the lines.
+    ///
+    /// It counts rows and it counts the values that would go missing if a
+    /// default had quietly overwritten one: photographs still pointed at,
+    /// captions, places, tower positions.
+    static func runMigrationReport(context: ModelContext) {
+        let reading = StoreRecordDigest.read(context: context)
+        let logs = (try? context.fetch(FetchDescriptor<HabitLog>())) ?? []
+        let photos = logs.compactMap(\.imageFileName)
+        let present = photos.filter { ImageManager.shared.fileExists(fileName: $0) }
+        NSLog("[strata-migration] \(reading.line)")
+        NSLog("[strata-migration] photoRefs=\(photos.count) photoFilesPresent=\(present.count) "
+              + "captions=\(logs.filter { !$0.caption.isEmpty }.count) "
+              + "placed=\(logs.filter { $0.latitude != nil }.count) "
+              + "ordered=\(logs.filter { $0.towerOrder != nil }.count) "
+              + "completed=\(logs.filter(\.completed).count)")
+        NSLog("[strata-migration] added \(StoreAddedFieldsCheck.read(context: context).line)")
+    }
+
+    /// True when the run asked for the migration report.
+    static var reportsMigration: Bool { argument("-strataReportMigration") != nil }
+
+    /// Logs every save `StoreStamp` sees, and what it stamped, from
+    /// `-strataCountSaves`.
+    ///
+    /// **So "it does not keep saving" is a number.** A stamp that left the
+    /// row dirty would make autosave write again, stamp again, forever; that
+    /// shows up here as a line every few seconds on an app nobody is touching.
+    /// It also answers the audit question: a launch that stamps anything
+    /// before a person has edited something is a launch that moves
+    /// `updatedAt` on its own.
+    static var countsSaves: Bool { argument("-strataCountSaves") != nil }
+
+    /// Makes Reset All Data's transaction throw, from `-strataFailReset`.
+    static var forcesResetFailure: Bool { argument("-strataFailReset") != nil }
+
+    /// Runs Settings' reset action once it appears, from `-strataAutoReset`.
+    static var autoResets: Bool { argument("-strataAutoReset") != nil }
 
     /// Times the image pipeline, from `-strataBenchImages <n>`.
     ///
@@ -688,6 +770,7 @@ enum DebugHarness {
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
+            || argument("-strataSeedMood") != nil
             || argument("-strataFlipTabs") != nil
 
             || dumpsShareCard
@@ -709,19 +792,18 @@ enum DebugHarness {
         // Start from empty so a seeded run is reproducible across launches.
         // Deleted one at a time on purpose: `delete(model:)` issues a batch
         // delete, which CoreData refuses here because HabitLog.habit and
-        // Habit.tower are mandatory inverses it cannot nullify.
-        if let logs = try? context.fetch(FetchDescriptor<HabitLog>()) {
-            for log in logs { context.delete(log) }
+        // Habit.tower are mandatory inverses it cannot nullify. Through
+        // `StoreReset` so this path and Reset All Data cannot drift apart, and
+        // so a failure says so instead of being swallowed by a `try?`.
+        StoreReset.deleteEvery(HabitLog.self, context: context)
+        StoreReset.deleteEvery(Habit.self, context: context)
+        let left = StoreReset.remaining(context: context)
+        if (left.counts["HabitLog"] ?? 0) > 0 || (left.counts["Habit"] ?? 0) > 0 {
+            NSLog("[strata-seed] the wipe left rows behind: \(left.line)")
         }
-        if let habits = try? context.fetch(FetchDescriptor<Habit>()) {
-            for habit in habits { context.delete(habit) }
-        }
-        try? context.save()
 
         if let planned = seedPlan, planned > 0 {
-            if let old = try? context.fetch(FetchDescriptor<PlanItem>()) {
-                for item in old { context.delete(item) }
-            }
+            StoreReset.deleteEvery(PlanItem.self, context: context)
             let lines = ["Run the loop", "Send the invoice", "Call the landlord",
                          "Read a chapter", "Stretch for ten"]
             let colours = HabitCategory.selectable
@@ -819,7 +901,7 @@ enum DebugHarness {
                     let isInterest = Self.seededInterests.contains(title)
                     let photographed = isInterest || (i == 0 && back % 2 == 0)
                     if back > 0 || seedsTodayPhotos, photographed,
-                       let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                       let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
                             for: win.logID,
                             category: categories[n % categories.count]
@@ -847,6 +929,19 @@ enum DebugHarness {
                     on: day, context: context, tower: tower)
             }
             try? context.save()
+        }
+
+        if seedMood > 0 {
+            StoreReset.deleteEvery(MoodLog.self, context: context)
+            let notes = ["good day", "tired", nil, "steady", "long one"]
+            for i in 0..<seedMood {
+                let day = Calendar.current.date(byAdding: .day, value: -i, to: Date()) ?? Date()
+                context.insert(MoodLog(dateString: DateUtils.dateString(from: day),
+                                       mood: (i % 5) + 1,
+                                       motivation: ((i + 2) % 5) + 1,
+                                       note: notes[i % notes.count]))
+            }
+            do { try context.save() } catch { NSLog("[strata-seed] moods did not save: \(error)") }
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0

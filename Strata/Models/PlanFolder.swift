@@ -4,15 +4,21 @@ import SwiftData
 
 @Model
 final class PlanFolder {
-    var id: UUID
-    var name: String
-    var icon: String
-    var colorHex: String
-    var sortOrder: Int
-    var createdAt: Date
+    // Six of these carried no default. See the note at the top of `Habit`:
+    // CloudKit's mirroring refuses a non-optional attribute with nothing to
+    // fall back on, a default is not part of the version hash, and the
+    // initialiser still assigns all six, so nothing moves. Each default here
+    // is the initialiser's own default value.
+    var id: UUID = UUID()
+    var name: String = ""
+    var icon: String = "folder.fill"
+    var colorHex: String = "#8E8E93"
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
 
     @Relationship(deleteRule: .nullify, inverse: \Habit.planFolder)
-    var habits: [Habit] = []
+    /// Optional for CloudKit's rule on relationships. See `Habit.logs`.
+    var habits: [Habit]? = []
 
     init(name: String, icon: String = "folder.fill", colorHex: String = "#8E8E93", sortOrder: Int = 0) {
         self.id = UUID()

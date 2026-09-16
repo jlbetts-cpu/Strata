@@ -12,7 +12,7 @@ enum SpotlightIndexer {
             let todayStr = DateUtils.dateString(from: Date())
 
             let entities = habits.map { habit in
-                let completed = habit.logs.contains { $0.dateString == todayStr && $0.completed }
+                let completed = (habit.logs ?? []).contains { $0.dateString == todayStr && $0.completed }
                 return HabitEntity(id: habit.id, title: habit.title, category: habit.category.rawValue, isCompletedToday: completed)
             }
             try? await CSSearchableIndex.default().indexAppEntities(entities)

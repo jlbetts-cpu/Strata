@@ -141,19 +141,50 @@ nonisolated enum DayCode: String, Codable, CaseIterable {
 
 @Model
 final class Habit {
-    var id: UUID
-    var title: String
-    var category: HabitCategory
-    var blockSize: BlockSize
-    var frequencyRawValues: [String]
-    var createdAt: Date
+    // **Every attribute below is optional or carries a default, and that is a
+    // rule now rather than a habit.** CloudKit's mirroring refuses a schema in
+    // which a non-optional attribute has no default, because there is nothing
+    // for it to put in the field when a record arrives without one. Ten
+    // properties on this model broke that rule.
+    //
+    // Nothing changed type, changed name or went away, and the initialiser
+    // below still assigns every one of them, so no value anybody has is
+    // touched and no behaviour moves. A default is not part of Core Data's
+    // version hash, so the store opens in place with no migration plan, which
+    // is the same shape `planItemID`, `sortOrder` and `isQuickWin` already use
+    // further down this file. Each default is the value the initialiser would
+    // have produced anyway, so the two cannot disagree.
+    var id: UUID = UUID()
+    var title: String = ""
+    /// `.unlabeled` because that is this app's word for "nobody has chosen
+    /// one", which is the honest reading of a field with nothing in it.
+    var category: HabitCategory = HabitCategory.unlabeled
+    var blockSize: BlockSize = BlockSize.small
+    /// Every day, the same as the initialiser's own default
+    /// (`DayCode.allCases`). It was `[]`, which disagreed with the initialiser:
+    /// a synced record arriving without the field would have been scheduled on
+    /// no days at all. Written as a literal in `DayCode.allCases` order so the
+    /// default does not depend on evaluating an enum inside the model macro.
+    var frequencyRawValues: [String] = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    var createdAt: Date = Date()
     var scheduledTime: String?
-    var reminderEnabled: Bool
-    var isTodo: Bool
+    var reminderEnabled: Bool = false
+    var isTodo: Bool = false
     var scheduledDate: String?
     var todoOrder: Int?
-    var creationXP: Int
-    var graceDays: Int
+    var creationXP: Int = 0
+    /// 2, the same number the initialiser defaults to.
+    var graceDays: Int = 2
+    /// When this was last changed by an edit, as opposed to when it was made.
+    ///
+    /// **Added now because it can only be added now for free.** Once the
+    /// CloudKit schema is live it is add-only, and a shared copy of a win
+    /// (never the private row itself) has to know whether it is stale.
+    /// CloudKit's own modification date belongs to the record, not to the
+    /// edit, and SwiftData does not expose it. Stamped on every save by
+    /// `StoreStamp`, never by hand at a call site, so a new edit path cannot
+    /// forget it. Existing rows are backfilled once by `SocialFieldsBackfill`.
+    var updatedAt: Date = Date()
     var timeOfDay: TimeOfDay?
     var anchorHabitID: UUID?
 
@@ -199,8 +230,15 @@ final class Habit {
     var tower: Tower?
     var planFolder: PlanFolder?
 
+    /// **Optional, and that is CloudKit's rule, not a style.** Run against
+    /// this schema on 2026-09-16, the mirroring validator refused it with
+    /// "CloudKit integration requires that all relationships be optional, the
+    /// following are not: Habit: logs, PlanFolder: habits, Tower: habits".
+    /// The research audit had passed these because a Swift array with a
+    /// default looks optional; to Core Data a to-many that is not `?` is a
+    /// mandatory relationship. Read it as `logs ?? []`.
     @Relationship(deleteRule: .cascade, inverse: \HabitLog.habit)
-    var logs: [HabitLog] = []
+    var logs: [HabitLog]? = []
 
     var frequency: [DayCode] {
         get { frequencyRawValues.compactMap { DayCode(rawValue: $0) } }
@@ -229,7 +267,7 @@ final class Habit {
     /// #99: Shame-free consistency label — "Active"/"On fire"/"Legendary" (not streak count)
     /// Uses positive language without exposing raw numbers (Fhynix ADHD research)
     var currentConsistencyLabel: String? {
-        let recentLogs = logs.filter { $0.completed }.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        let recentLogs = (logs ?? []).filter { $0.completed }.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
         guard !recentLogs.isEmpty else { return nil }
 
         // Count consecutive days from today

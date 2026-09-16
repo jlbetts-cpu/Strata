@@ -103,13 +103,27 @@ final class PlanItem {
     static func untick(planItemID id: UUID?, context: ModelContext) {
         guard let id else { return }
         let descriptor = FetchDescriptor<PlanItem>(predicate: #Predicate { $0.id == id })
-        guard let item = (try? context.fetch(descriptor))?.first else { return }
-        item.completedAt = nil
+        let item: PlanItem?
+        do {
+            item = try context.fetch(descriptor).first
+        } catch {
+            // Logged, not swallowed: a failed fetch here leaves a plan line
+            // ticked for a block that no longer exists.
+            NSLog("[strata-plan] could not find the plan line to untick: \(error)")
+            return
+        }
+        item?.completedAt = nil
     }
 
     static func sweep(context: ModelContext, now: Date = Date(),
                       calendar: Calendar = .current) {
-        guard let items = try? context.fetch(FetchDescriptor<PlanItem>()) else { return }
+        let items: [PlanItem]
+        do {
+            items = try context.fetch(FetchDescriptor<PlanItem>())
+        } catch {
+            NSLog("[strata-plan] the overnight sweep could not read the plan: \(error)")
+            return
+        }
         var changed = false
         for item in items {
             guard let done = item.completedAt else { continue }
@@ -121,6 +135,6 @@ final class PlanItem {
             }
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { StoreReset.commitDelete("the overnight plan sweep", context: context) }
     }
 }

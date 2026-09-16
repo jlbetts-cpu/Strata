@@ -13,15 +13,26 @@ final class HabitLog {
     /// at a time with a range predicate on it. Without the index that page is
     /// a table scan of every log ever written. Additive: the store migrates in
     /// place.
+    ///
+    /// **Not a CloudKit index and not a blocker for one.** `#Index` is a local
+    /// SQLite index; CloudKit keeps its own indexes and does not inherit this
+    /// one. It stays exactly as it is.
     #Index<HabitLog>([\.dateString])
 
+    // Six of these carried no default. See the note at the top of `Habit`:
+    // CloudKit's mirroring refuses a non-optional attribute with nothing to
+    // fall back on, a default is not part of the version hash, and the
+    // initialiser still assigns all six, so nothing moves.
     var id: UUID = UUID()
     var habit: Habit?
-    var dateString: String // YYYY-MM-DD format for easy lookup
-    var completed: Bool
+    var dateString: String = "" // YYYY-MM-DD format for easy lookup
+    var completed: Bool = false
     var completedAt: Date?
     var note: String?
-    var caption: String
+    var caption: String = ""
+    /// Optional, so it already satisfies the rule. `.externalStorage` is also
+    /// the right shape for bytes under sync: they travel as an asset rather
+    /// than inline in the record. Kept exactly as it is.
     @Attribute(.externalStorage) var imageData: Data? // Retained temporarily for migration
     var imageFileName: String?
     var imageURL: String?       // Deprecated — retained for schema compatibility
@@ -37,10 +48,10 @@ final class HabitLog {
     /// than a third column meaning the same thing.
     var cropPositionX: Double?
     var cropPositionY: Double?
-    var surgeMode: Bool
+    var surgeMode: Bool = false
     var pendingXP: Int?
-    var xpCollected: Bool
-    var isBonusBlock: Bool
+    var xpCollected: Bool = false
+    var isBonusBlock: Bool = false
     var skipped: Bool = false
     var verifiedByHealthKit: Bool = false
     var subtasks: [SubTask] = []
@@ -85,6 +96,28 @@ final class HabitLog {
     /// neighbourhood.
     var locationAccuracy: Double? = nil
 
+    // MARK: - When, for anybody else
+
+    /// When the win was LOGGED, as opposed to `completedAt`, which is when it
+    /// happened. A seeded or back-dated win has the two far apart, and anything
+    /// that ever orders arrivals for someone else needs the first.
+    ///
+    /// These three are here now, before any social feature exists, because the
+    /// CloudKit schema is add-only once it is live and one migration with one
+    /// backfill is cheaper than two. Defaulted, so existing rows gain them in
+    /// place; `SocialFieldsBackfill` sets `createdAt` and `updatedAt` on those
+    /// rows from `completedAt` once.
+    var createdAt: Date = Date()
+    /// Stamped on every save by `StoreStamp`. See `Habit.updatedAt`.
+    var updatedAt: Date = Date()
+    /// The zone the win was logged in, as `TimeZone.identifier`.
+    ///
+    /// `dateString` is right for the person who logged it, but it is a local
+    /// day with no zone, so nobody else can recover which day a "Sunday" was.
+    /// Empty means unknown: every win logged before this shipped, which is the
+    /// truth about them.
+    var timeZoneIdentifier: String = ""
+
     var hasDrawerContent: Bool {
         (note != nil && !note!.isEmpty)
         || !caption.isEmpty
@@ -106,6 +139,7 @@ final class HabitLog {
         self.xpCollected = false
         self.isBonusBlock = false
         self.skipped = false
+        self.timeZoneIdentifier = TimeZone.current.identifier
     }
 
     func markCompleted() {

@@ -21,6 +21,44 @@ final class ProfileStore {
     /// the circle, so it has no background to colour.
     private(set) var background: HabitCategory?
 
+    /// A random id for the person this phone belongs to, made once and never
+    /// changed.
+    ///
+    /// **Nothing uses it yet, on purpose.** Every future system that has to
+    /// say "this person" (a shared week, a circle, a server row) keys by this,
+    /// and an iCloud user record id or a Sign in with Apple subject gets mapped
+    /// TO it rather than becoming it. It has to exist before any of those do,
+    /// or the first one to ship becomes the identity by accident.
+    ///
+    /// In UserDefaults because there is no identity model yet. Not cleared by
+    /// `reset()`: Reset All Data empties the record, not who you are.
+    ///
+    /// The first read creates it, under a lock, so two first readers cannot
+    /// each make a different one and the second overwrite the first.
+    /// Something that only wants to LOOK (a report, a probe) reads
+    /// `storedProfileID`, which never writes.
+    nonisolated static var profileID: UUID { profileID(in: .standard) }
+
+    /// The id if one has been made, without making one.
+    nonisolated static var storedProfileID: UUID? { storedProfileID(in: .standard) }
+
+    /// `defaults` is a parameter so a test can use its own suite and never
+    /// touch the real id in the test host.
+    nonisolated static func profileID(in defaults: UserDefaults) -> UUID {
+        profileIDLock.lock(); defer { profileIDLock.unlock() }
+        if let id = storedProfileID(in: defaults) { return id }
+        let id = UUID()
+        defaults.set(id.uuidString, forKey: profileIDKey)
+        return id
+    }
+
+    nonisolated static func storedProfileID(in defaults: UserDefaults) -> UUID? {
+        defaults.string(forKey: profileIDKey).flatMap(UUID.init(uuidString:))
+    }
+
+    nonisolated static let profileIDKey = "profileID"
+    nonisolated private static let profileIDLock = NSLock()
+
     private static let nameKey = "profileName"
     private static let backgroundKey = "profileBackground"
     /// The largest the picture is drawn is 88pt — 264px at 3x. 600 leaves

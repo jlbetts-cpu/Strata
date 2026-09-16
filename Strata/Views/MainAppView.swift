@@ -367,11 +367,20 @@ struct MainAppView: View {
     @State private var nextWinCategory: HabitCategory = .health
     @State private var awaitingDropIDs: Set<UUID> = []
     @State private var winSaveFailed = false
+    /// Reset All Data did not commit. Nothing was deleted. Only for a reset
+    /// that does not run from a sheet (the harness); Settings shows its own,
+    /// because an alert here cannot appear over the Profile sheet.
+    @State private var resetFailed = false
     /// Which tab's header opened Profile, if any. See `profileBinding(for:)`.
     @State private var profileOrigin: StrataTab?
     /// `-strataOpenSheet settings`: open Profile and push on to Settings.
     @State private var profileOpensSettings = false
-    @State private var showDataFallbackAlert = SharedModelContainer.isUsingInMemoryFallback
+    // `showDataFallbackAlert` was here. It was an alert over a working-looking
+    // tower saying nothing would be saved between sessions, and somebody who
+    // tapped OK could log four wins and lose all four. The store's third
+    // outcome is now a screen INSTEAD of the app (`StoreUnavailableView`, put
+    // up by `StrataApp`), so by the time this view exists the store is open and
+    // there is nothing for an alert to say.
 
     var body: some View {
         mainContent
@@ -465,15 +474,15 @@ struct MainAppView: View {
                 }
                 updateLiveReplay()
             }
+            .alert("Nothing was deleted", isPresented: $resetFailed) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Strata could not reset your data, so every win and photo is still here. Try again.")
+            }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Nothing was added. Try again.")
-            }
-            .alert("Data Could Not Be Loaded", isPresented: $showDataFallbackAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your tower couldn't be loaded from storage. You can still use the app, but nothing will be saved between sessions. Try restarting. If it keeps happening, use Profile › Settings › Back Up Everything to save what you have.")
             }
     }
 
@@ -1458,7 +1467,7 @@ struct MainAppView: View {
             rerollNextWinCategory()
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.
-            if let photo, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+            if let photo, let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                 let id = log.id
                 // Stored whole. The block crops to its own shape when it draws
                 // (`scaledToFill`), so cropping to disk as well only made a
@@ -1524,11 +1533,15 @@ struct MainAppView: View {
         NavigationStack {
             ProfileView(
                 onResetAllData: {
-                    resetTower()
+                    // Profile and head only if the record really went: a reset
+                    // that deleted your face and kept your wins would be the
+                    // original bug the other way round.
+                    guard resetTower() else { return false }
                     // The policy says Reset All Data removes every photo; a
                     // profile photo is one, and a head is made of them.
                     ProfileStore.shared.reset()
                     HeadStore.shared.delete()
+                    return true
                 },
                 opensSettings: profileOpensSettings
             )
@@ -1553,7 +1566,8 @@ struct MainAppView: View {
         // Before anything is fetched or seeded: a test that asserts a first
         // run needs a store that has never been used. See
         // `DebugHarness.resetsStore`.
-        if DebugHarness.resetsStore { resetTower() }
+        // Not from a sheet, so the root's alert is the one a person sees.
+        if DebugHarness.resetsStore, !resetTower() { resetFailed = true }
         if let mode = DebugHarness.editBlock {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(20))
@@ -1596,6 +1610,11 @@ struct MainAppView: View {
         //
         // Product behaviour does not belong behind a build flag. The harness
         // below still does.
+        //
+        // The backfill first: it gives rows from before `createdAt` and
+        // `updatedAt` existed their real dates, and every later save would
+        // otherwise stamp them with today.
+        SocialFieldsBackfill.runIfNeeded(context: modelContext)
         PlanItem.sweep(context: modelContext)
 
         // **After the tower exists, not before.** This was a `.task` on the
@@ -1623,6 +1642,9 @@ struct MainAppView: View {
         }
         if DebugHarness.reportsStore {
             DebugHarness.runStoreProbe()
+        }
+        if DebugHarness.reportsMigration {
+            DebugHarness.runMigrationReport(context: modelContext)
         }
         if DebugHarness.probesPhotos {
             DebugHarness.runPhotoPipelineProbe()
@@ -3123,48 +3145,56 @@ struct MainAppView: View {
     #endif
 
 
-    private func resetTower() {
-        // 1. Delete all image files from disk (must read file names before deleting entities)
-        let allLogs = (try? modelContext.fetch(FetchDescriptor<HabitLog>())) ?? []
-        for log in allLogs {
-            if let fileName = log.imageFileName {
-                ImageManager.shared.deleteImage(fileName: fileName)
-            }
+    /// - Returns: whether the record was actually emptied. When it was not,
+    ///   nothing after the delete runs and the person is told.
+    @discardableResult
+    private func resetTower() -> Bool {
+        // 1. Read the photograph names while there is still a record to read
+        //    them from. Read, NOT removed: the files go in step 3, after the
+        //    rows have committed. This used to delete the files first, which
+        //    is the shape of the 2026-09-11 bug: a delete that fails leaves
+        //    every win naming a photograph that is already gone.
+        let photoNames: [String]
+        do {
+            photoNames = try StoreReset.photographNames(context: modelContext)
+        } catch {
+            NSLog("[strata-reset] could not read the record, so the reset did not run: \(error)")
+            return false
         }
 
-        // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME.
+        // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME, in one
+        //    transaction.
         //
         // **This was a batch delete and it deleted nothing.** Measured on the
         // simulator, 2026-09-11: `delete(model: HabitLog.self)` fails with
         // "Constraint trigger violation: Batch delete failed due to mandatory
         // OTO nullify inverse on HabitLog/habit", and `Habit` the same on
-        // `Habit/tower`. A batch delete bypasses the relationship rules the
-        // object graph would apply, so the store refuses it. Every one of the
-        // calls was `try?`, so Reset All Data deleted the photograph files and
-        // left every win in place — while the privacy policy told people it
-        // removes everything. Deleting through the context applies the
-        // nullify rules, which is exactly what the batch path cannot do; it is
-        // also what `DebugHarness.seed` already did, which is why seeding
-        // always worked and reset never did.
-        func deleteEvery<Model: PersistentModel>(_ type: Model.Type) {
-            do {
-                for item in try modelContext.fetch(FetchDescriptor<Model>()) {
-                    modelContext.delete(item)
-                }
-            } catch {
-                NSLog("[strata-reset] could not fetch \(Model.self) to delete: \(error)")
-            }
+        // `Habit/tower`. The loop lives in `StoreReset` now, because the debug
+        // reset and the seed need the same one and a second copy is a second
+        // place for a batch delete to come back.
+        let remaining = StoreReset.deleteEverything(context: modelContext)
+
+        // **Stop here if it did not commit.** The transaction rolled back, so
+        // every win and every photograph is still there, and carrying on would
+        // clear the tower selection, make a fresh default tower beside the old
+        // ones and redraw, which is an app that looks reset over a record that
+        // is not. Say so instead.
+        guard remaining.failure == nil else {
+            NSLog("[strata-reset] stopped: \(remaining.line)")
+            return false
         }
-        for log in allLogs { modelContext.delete(log) }
-        deleteEvery(Habit.self)
-        deleteEvery(PlanFolder.self)
-        deleteEvery(MoodLog.self)
-        deleteEvery(Tower.self)
-        do { try modelContext.save() } catch { NSLog("[strata-reset] save failed: \(error)") }
+
+        // 3. Only now the files, and only the ones no surviving win names.
+        let removedPhotos = StoreReset.removePhotographs(photoNames, context: modelContext)
+        // Reset runs once, on purpose, so one line about it is worth having in
+        // a device log rather than only in DEBUG.
+        NSLog("[strata-reset] photographs removed: \(removedPhotos.count) of \(photoNames.count)")
         #if DEBUG
-        let remaining = (try? modelContext.fetchCount(FetchDescriptor<HabitLog>())) ?? -1
-        NSLog("[strata-reset] logs remaining after reset: \(remaining)")
+        NSLog("[strata-reset] remaining after reset: \(remaining.line)")
         #endif
+        if !remaining.isEmpty {
+            NSLog("[strata-reset] reset did not empty the store: \(remaining.line)")
+        }
 
         // 3. Reset UserDefaults (tower selection, first-drop, day boundary)
         //
@@ -3199,6 +3229,7 @@ struct MainAppView: View {
         // re-decided now rather than when the query next catches up.
         Task { await ReplayReminder.removePending() }
         updateLiveReplay()
+        return true
     }
 
 }

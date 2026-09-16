@@ -5,10 +5,12 @@ import Foundation
 /// **A file, not the SwiftData store.** A widget could be given the real
 /// container through an App Group, and that is the obvious design, but it is
 /// the wrong one here for two reasons. Moving an existing store into a group
-/// container is a migration of the user's real photographs and wins, and
-/// `SharedModelContainer` falls back to an in-memory store SILENTLY when a
-/// migration fails — which presents as an empty app rather than a crash.
-/// Second, a widget gets a few tens of megabytes and a few hundred
+/// container is a migration of the user's real photographs and wins, bought
+/// for nothing: the widget needs a few already-decided facts, not the record.
+/// (This comment used to add that `SharedModelContainer` falls back to an
+/// in-memory store silently when a migration fails. It no longer does: a store
+/// that will not open now puts up a blocking screen instead of the app. The
+/// decision stands without that reason.) Second, a widget gets a few tens of megabytes and a few hundred
 /// milliseconds; standing up SwiftData, fetching, and packing a tower inside
 /// that budget is a gamble taken every time the home screen redraws.
 ///

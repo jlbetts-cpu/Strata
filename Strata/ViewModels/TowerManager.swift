@@ -13,6 +13,7 @@ final class TowerManager {
     }
 
     /// On first launch, creates a default tower and assigns all orphaned habits to it.
+    // Moves `updatedAt` on any orphaned habit it re-parents, and on that tower (StoreStamp).
     func ensureDefaultTower(context: ModelContext) {
         let descriptor = FetchDescriptor<Tower>(sortBy: [SortDescriptor(\.order)])
         let towers = (try? context.fetch(descriptor)) ?? []
