@@ -23,18 +23,18 @@ struct StoreUnavailableView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Text("Strata could not open your wins")
+            Text(StoreUnavailableCopy.title)
                 .font(Typography.screenTitle)
                 .foregroundStyle(AppColors.inkPrimary)
                 .multilineTextAlignment(.center)
 
-            Text("Nothing has been deleted. Your wins are on this phone and Strata cannot read them right now, so it is showing you this instead of an empty tower.")
+            Text(StoreUnavailableCopy.body)
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
 
             if triedAgain {
-                Text("Still not opening. Close Strata from the app switcher, then open it again.")
+                Text(StoreUnavailableCopy.stillFailing)
                     .font(Typography.bodyMedium)
                     .foregroundStyle(AppColors.inkTertiary)
                     .multilineTextAlignment(.center)

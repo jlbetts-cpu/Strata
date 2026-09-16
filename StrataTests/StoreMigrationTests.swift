@@ -107,6 +107,8 @@ struct StoreMigrationTests {
         #expect(reread.towers == 1)
         #expect(reread.folders == 1)
         #expect(reread.planItems == 1)
+        #expect(written.isComplete)
+        #expect(reread.isComplete)
         #expect(reread.digest == written.digest)
         #expect(reread == written)
     }
@@ -195,6 +197,54 @@ struct StoreMigrationTests {
         try context.save()
 
         #expect(StoreRecordDigest.read(context: context).digest != before.digest)
+    }
+
+    /// The three `createdAt`s were missing from the reading, so any of them
+    /// could have been flattened to launch time with the check still passing.
+    @Test("flattening any defaulted createdAt to now changes the digest", arguments: ["habit", "tower", "folder"])
+    func createdAtIsRead(which: String) throws {
+        let url = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = ModelContext(try container(at: url))
+        try seedEverything(context)
+        let past = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        for habit in try context.fetch(FetchDescriptor<Habit>()) { habit.createdAt = past }
+        for tower in try context.fetch(FetchDescriptor<Tower>()) { tower.createdAt = past }
+        for folder in try context.fetch(FetchDescriptor<PlanFolder>()) { folder.createdAt = past }
+        try context.save()
+        let before = StoreRecordDigest.read(context: context)
+
+        switch which {
+        case "habit": try context.fetch(FetchDescriptor<Habit>()).first?.createdAt = Date()
+        case "tower": try context.fetch(FetchDescriptor<Tower>()).first?.createdAt = Date()
+        default: try context.fetch(FetchDescriptor<PlanFolder>()).first?.createdAt = Date()
+        }
+        try context.save()
+
+        #expect(StoreRecordDigest.read(context: context).digest != before.digest)
+    }
+
+    @Test("moving a habit to another tower with the same name changes the digest")
+    func towerIsReadByID() throws {
+        let url = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = ModelContext(try container(at: url))
+        try seedEverything(context)
+        let before = StoreRecordDigest.read(context: context)
+
+        let twin = Tower(name: "Home", emoji: "🧱", order: 3)
+        context.insert(twin)
+        let habit = try #require(try context.fetch(FetchDescriptor<Habit>()).first)
+        habit.tower = twin
+        try context.save()
+        let after = StoreRecordDigest.read(context: context)
+
+        // The twin is a new row, so the counts move too; the habit line is
+        // what this pins, by removing the twin row's own line from the reading.
+        let habitLine = { (r: StoreRecordDigest.Reading) in
+            r.body.split(separator: "\n").first { $0.hasPrefix(habit.id.uuidString) }.map(String.init)
+        }
+        #expect(habitLine(after) != habitLine(before))
     }
 
     @Test("the digest is the same number in a second process, not a seeded hash")

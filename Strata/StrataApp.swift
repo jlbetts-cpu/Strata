@@ -48,7 +48,17 @@ struct StrataApp: App {
         // reason it was found: the log said `unavailable` and the screen said
         // otherwise.
         let container = SharedModelContainer.shared
-        AppDependencyManager.shared.add(dependency: container)
+        // **Only a store that saves is ever handed to the App Intents.** The
+        // holding rung's container is in memory and exists for SwiftUI alone.
+        // Registered, it became the store Siri logged wins into and read
+        // today's wins out of, and the intents run without opening the app, so
+        // nobody would ever have seen the blocking screen. Each intent also
+        // checks for itself (`StoreUnavailableIntentError.check()`) before
+        // touching its dependency, and `retryOpeningStore` registers the
+        // container once a retry opens it.
+        if SharedModelContainer.opening.savesToDisk {
+            AppDependencyManager.shared.add(dependency: container)
+        }
         _storeOpening = State(initialValue: SharedModelContainer.opening)
     }
 
@@ -58,8 +68,10 @@ struct StrataApp: App {
         let opening = SharedModelContainer.retry()
         storeOpening = opening
         guard opening.savesToDisk else { return false }
-        // The dependency was registered against the container that failed.
-        AppDependencyManager.shared.add(dependency: SharedModelContainer.shared)
+        // Nothing was registered while the store was unavailable, so this is
+        // the first registration, and it is of the container that opened.
+        let container = SharedModelContainer.shared
+        AppDependencyManager.shared.add(dependency: container)
         return true
     }
 

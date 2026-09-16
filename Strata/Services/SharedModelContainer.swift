@@ -74,7 +74,12 @@ enum SharedModelContainer {
         Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self])
     }
 
-    private(set) static var opening: StoreOpening = .onDisk
+    /// How the store opened. Read under `lock`, like the container itself.
+    static var opening: StoreOpening {
+        lock.lock(); defer { lock.unlock() }
+        return _opening
+    }
+    private static var _opening: StoreOpening = .onDisk
 
     /// True only in the state where nothing a person does is written down.
     /// `DebugHarness.runStoreProbe` reads it and the name is kept for that.
@@ -82,13 +87,25 @@ enum SharedModelContainer {
 
     private static var made: ModelContainer?
 
+    /// **Once only, by a lock, not by luck.** This was a `static let`, which
+    /// Swift initialises exactly once. It became a cached computed property so
+    /// "Try Again" could replace a failed container, and a cache checked and
+    /// filled without a lock is two containers over one store file if two
+    /// callers ever arrive together. The enum is main-actor isolated today, so
+    /// that cannot happen yet; the lock makes it not depend on that.
+    private static let lock = NSRecursiveLock()
+
     static var shared: ModelContainer {
+        lock.lock(); defer { lock.unlock() }
         if let made { return made }
         let result = climb(open: realOpen)
         made = result.container
-        opening = result.opening
-        logger.log("store opened: \(result.opening.summary, privacy: .public)")
+        _opening = result.opening
+        if result.opening.savesToDisk { StoreStamp.observe() }
+        logger.log("store opened: \(result.opening.summary, privacy: .private)")
+        #if DEBUG
         NSLog("[strata-store] opened: \(result.opening.summary)")
+        #endif
         return result.container
     }
 
@@ -100,10 +117,11 @@ enum SharedModelContainer {
     /// for no reason at all. There is exactly one state this is for.
     @discardableResult
     static func retry() -> StoreOpening {
-        guard !opening.savesToDisk else { return opening }
+        lock.lock(); defer { lock.unlock() }
+        guard !_opening.savesToDisk else { return _opening }
         made = nil
         _ = shared
-        return opening
+        return _opening
     }
 
     // MARK: - The ladder
@@ -141,18 +159,27 @@ enum SharedModelContainer {
         do {
             return (try open(.primary, configuration(.primary, schema)), .onDisk)
         } catch {
-            logger.critical("the store did not open on the primary rung: \(String(describing: error), privacy: .public)")
+            // `.private`, and the NSLog only in DEBUG: an error from the store
+            // carries its file path, which has no business in a release
+            // console.
+            logger.critical("the store did not open on the primary rung: \(String(describing: error), privacy: .private)")
+            #if DEBUG
             NSLog("[strata-store] rung primary failed: \(error)")
+            #endif
 
             do {
                 let container = try open(.recovery, configuration(.recovery, schema))
                 let reason = shortReason(error)
-                logger.warning("the store opened local and on disk after the primary rung failed: \(reason, privacy: .public)")
+                logger.warning("the store opened local and on disk after the primary rung failed: \(reason, privacy: .private)")
+                #if DEBUG
                 NSLog("[strata-store] rung recovery opened after: \(reason)")
+                #endif
                 return (container, .recovered(reason: reason))
             } catch {
-                logger.critical("the store did not open on the recovery rung either: \(String(describing: error), privacy: .public)")
+                logger.critical("the store did not open on the recovery rung either: \(String(describing: error), privacy: .private)")
+                #if DEBUG
                 NSLog("[strata-store] rung recovery failed: \(error)")
+                #endif
                 return (holdingContainer(schema), .unavailable(reason: shortReason(error)))
             }
         }
@@ -209,5 +236,38 @@ enum SharedModelContainer {
     private static func shortReason(_ error: Error) -> String {
         let text = String(describing: error).replacingOccurrences(of: "\n", with: " ")
         return text.count > 160 ? String(text.prefix(160)) + "..." : text
+    }
+}
+
+/// The words the app uses when the store did not open, in one place, so the
+/// blocking screen and Siri cannot say different things.
+enum StoreUnavailableCopy {
+    static let title = "Strata could not open your wins"
+    static let body = "Nothing has been deleted. Your wins are on this phone and Strata cannot read them right now, so it is showing you this instead of an empty tower."
+    static let stillFailing = "Still not opening. Close Strata from the app switcher, then open it again."
+    /// What Siri and Shortcuts say. The screen's title and its first sentence,
+    /// because a spoken answer has no room for the rest.
+    static let spoken = "Strata could not open your wins. Nothing has been deleted."
+}
+
+/// Thrown by every App Intent that touches the store when the store did not
+/// open.
+///
+/// **Siri never sees the blocking screen.** `LogWinIntent`,
+/// `ShowTodaysWinsIntent` and `HabitEntityQuery` all run with
+/// `openAppWhenRun = false`, so without this Siri would answer "Logged. That's
+/// 1 today." into a container that evaporates, or "No wins yet today." over a
+/// real store full of them.
+struct StoreUnavailableIntentError: Error, CustomLocalizedStringResourceConvertible {
+    var localizedStringResource: LocalizedStringResource {
+        LocalizedStringResource(stringLiteral: StoreUnavailableCopy.spoken)
+    }
+
+    /// Opens the store if nothing has yet, and throws unless it saves to disk.
+    /// Call before touching the `@Dependency` container.
+    @MainActor
+    static func check() throws {
+        _ = SharedModelContainer.shared
+        guard SharedModelContainer.opening.savesToDisk else { throw StoreUnavailableIntentError() }
     }
 }

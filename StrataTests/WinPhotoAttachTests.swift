@@ -27,7 +27,7 @@ struct WinPhotoAttachTests {
         let context = try context()
         let win = try QuickWinService.logWin(title: "Ran", category: .health,
                                              context: context, tower: nil)
-        let found = win.habit.logs.first { $0.id == win.logID }
+        let found = (win.habit.logs ?? []).first { $0.id == win.logID }
         #expect(found != nil, "the log is not on the habit, so the photograph would be dropped")
     }
 

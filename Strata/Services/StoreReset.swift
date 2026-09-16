@@ -30,62 +30,101 @@ enum StoreReset {
     /// only passing reading.
     struct Remaining: Equatable {
         var counts: [String: Int] = [:]
+        /// Set when the sweep's transaction threw, in which case nothing was
+        /// deleted at all.
+        var failure: String?
 
         var total: Int { counts.values.reduce(0, +) }
-        var isEmpty: Bool { total == 0 }
+        /// Every count read and every count zero. A count that could not be
+        /// read is -1 and never passes, so two failures cannot add up to zero.
+        var isEmpty: Bool { failure == nil && !counts.isEmpty && counts.values.allSatisfy { $0 == 0 } }
 
         var line: String {
-            counts.keys.sorted().map { "\($0)=\(counts[$0] ?? -1)" }.joined(separator: " ")
+            let body = counts.keys.sorted().map { "\($0)=\(counts[$0] ?? -1)" }.joined(separator: " ")
+            return failure.map { "\(body) FAILED: \($0)" } ?? body
         }
     }
 
-    /// Removes every photograph the record points at, and returns the names.
+    /// The photograph file names the record points at.
     ///
-    /// **Call it before the rows go.** Once the logs are deleted there is
-    /// nothing left to read the file names from, which is how a reset can
-    /// leave hundreds of megabytes of photographs behind.
+    /// **Read, never removed, here.** Reset used to delete the files first and
+    /// the rows second, which is the exact shape of the bug that ran for months:
+    /// if the row delete fails, every photograph is already gone and every win
+    /// still names one. The names are read while there is still a record to
+    /// read them from; the files go in `removePhotographs`, after the rows have
+    /// committed.
     ///
-    /// It removes only what a win names. A file nothing points at is
-    /// `pruneOrphans`'s business, and that is the most dangerous function in
-    /// the app; a reset has no reason to borrow its risk.
+    /// Throws rather than returning an empty list, so a failed read can never
+    /// look like "no photographs".
+    static func photographNames(context: ModelContext) throws -> [String] {
+        try context.fetch(FetchDescriptor<HabitLog>()).compactMap(\.imageFileName)
+    }
+
+    /// Removes the files a reset read before the rows went, but only the ones
+    /// no remaining win still names.
+    ///
+    /// Asks the store again rather than trusting the caller, so a partial
+    /// delete can never take a photograph a surviving win points at. If that
+    /// question cannot be answered, nothing is removed. It only ever removes
+    /// names it is handed: a file nothing points at is `pruneOrphans`'s
+    /// business, and that is the most dangerous function in the app.
+    ///
+    /// - Returns: the names removed.
     @discardableResult
-    static func deleteEveryPhotograph(context: ModelContext) -> [String] {
-        let logs: [HabitLog]
+    static func removePhotographs(_ names: [String], context: ModelContext) -> [String] {
+        let stillNamed: Set<String>
         do {
-            logs = try context.fetch(FetchDescriptor<HabitLog>())
+            stillNamed = Set(try photographNames(context: context))
         } catch {
-            NSLog("[strata-reset] could not read the record, so no photographs were removed: \(error)")
+            NSLog("[strata-reset] could not check which photographs are still in use, so none were removed: \(error)")
             return []
         }
-        let names = logs.compactMap(\.imageFileName)
-        for name in names { ImageManager.shared.deleteImage(fileName: name) }
-        return names
+        let removable = names.filter { !stillNamed.contains($0) }
+        for name in removable { ImageManager.shared.deleteImage(fileName: name) }
+        return removable
     }
 
-    /// Deletes every model the store holds.
+    /// Deletes every model the store holds, in ONE transaction.
     ///
-    /// The caller is responsible for the photograph files, and must read the
-    /// file names BEFORE calling this: once the rows are gone there is nothing
-    /// left to read them from.
+    /// **One, not six.** Each model had its own transaction, so a failure on
+    /// `Tower` left the logs, habits, folders and moods already gone: a half
+    /// reset, which under sync is a half reset on every device. Now it is all
+    /// of it or none of it.
+    ///
+    /// The caller is responsible for the photograph files: read the names with
+    /// `photographNames` BEFORE this, remove them with `removePhotographs`
+    /// AFTER it.
     ///
     /// - Returns: what is left afterwards, which should be nothing.
     @discardableResult
     static func deleteEverything(context: ModelContext) -> Remaining {
-        // Logs before habits, though `Habit.logs` cascades and would take them
-        // anyway: deleting the dependent side first is what keeps the mandatory
-        // inverse satisfied at every step rather than only at the end.
-        //
-        // `PlanItem` was NOT in this list until now. A plan line survived Reset
-        // All Data, which was survivable while the store was local and is not
-        // once it syncs: a row that outlives a reset comes back to a fresh
-        // install and the reset is a lie.
-        deleteEvery(HabitLog.self, context: context)
-        deleteEvery(Habit.self, context: context)
-        deleteEvery(PlanFolder.self, context: context)
-        deleteEvery(MoodLog.self, context: context)
-        deleteEvery(Tower.self, context: context)
-        deleteEvery(PlanItem.self, context: context)
-        return remaining(context: context)
+        var failure: String?
+        do {
+            try context.transaction {
+                // Logs before habits, though `Habit.logs` cascades and would
+                // take them anyway: deleting the dependent side first keeps
+                // the mandatory inverse satisfied at every step.
+                //
+                // `PlanItem` was not in the original list. A plan line survived
+                // Reset All Data, which under sync is a row that outlives a
+                // reset and comes back to a fresh install.
+                for item in try context.fetch(FetchDescriptor<HabitLog>()) { context.delete(item) }
+                for item in try context.fetch(FetchDescriptor<Habit>()) { context.delete(item) }
+                for item in try context.fetch(FetchDescriptor<PlanFolder>()) { context.delete(item) }
+                for item in try context.fetch(FetchDescriptor<MoodLog>()) { context.delete(item) }
+                for item in try context.fetch(FetchDescriptor<Tower>()) { context.delete(item) }
+                for item in try context.fetch(FetchDescriptor<PlanItem>()) { context.delete(item) }
+            }
+        } catch {
+            NSLog("[strata-reset] the reset did not commit, so nothing was deleted: \(error)")
+            // A thrown transaction can leave the deletes pending in the
+            // context. Roll them back so a later autosave cannot commit half.
+            context.rollback()
+            failure = String(describing: error)
+        }
+        var out = remaining(context: context)
+        out.failure = failure
+        return out
     }
 
     /// Deletes every row of one model, one object at a time.

@@ -13,12 +13,15 @@ final class Tower {
     var emoji: String = "🏗️"
     var createdAt: Date = Date()
     var order: Int = 0
+    /// Stamped on every save by `StoreStamp`. See `Habit.updatedAt`.
+    var updatedAt: Date = Date()
 
     /// To-many, with an inverse, and `.nullify` rather than `.deny`. That is
     /// already what CloudKit requires of a relationship, so it does not
     /// change.
     @Relationship(deleteRule: .nullify, inverse: \Habit.tower)
-    var habits: [Habit] = []
+    /// Optional for CloudKit's rule on relationships. See `Habit.logs`.
+    var habits: [Habit]? = []
 
     init(name: String = "Untitled Tower", emoji: String = "🏗️", order: Int = 0) {
         self.id = UUID()

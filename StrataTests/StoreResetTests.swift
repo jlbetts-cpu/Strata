@@ -64,49 +64,92 @@ struct StoreResetTests {
         }
     }
 
-    @Test("the reset removes the photographs the record names, and nothing else")
-    func resetTakesItsOwnPhotographsOnly() throws {
-        let context = try context()
-        let directory = ImageManager.shared.imageDirectoryForTesting
-        let mine = "reset-test-mine-\(UUID().uuidString).heic"
-        let notMine = "reset-test-not-mine-\(UUID().uuidString).heic"
-        defer {
-            try? FileManager.default.removeItem(at: directory.appendingPathComponent(mine))
-            try? FileManager.default.removeItem(at: directory.appendingPathComponent(notMine))
-        }
-        try Data("a".utf8).write(to: directory.appendingPathComponent(mine))
-        try Data("b".utf8).write(to: directory.appendingPathComponent(notMine))
+    /// Writes a real file into the image directory and returns its name.
+    private func photoFile(_ tag: String) throws -> String {
+        let name = "reset-test-\(tag)-\(UUID().uuidString).heic"
+        try Data(tag.utf8).write(to: ImageManager.shared.imageDirectoryForTesting.appendingPathComponent(name))
+        return name
+    }
 
+    private func removeFile(_ name: String) {
+        try? FileManager.default.removeItem(
+            at: ImageManager.shared.imageDirectoryForTesting.appendingPathComponent(name))
+    }
+
+    private func photographedWin(_ file: String, _ context: ModelContext) throws {
         let habit = Habit(title: "Photographed", category: .health)
         context.insert(habit)
         let log = HabitLog(habit: habit, dateString: "2026-09-01", completed: true)
-        log.imageFileName = mine
+        log.imageFileName = file
         context.insert(log)
         try context.save()
+    }
 
-        let removed = StoreReset.deleteEveryPhotograph(context: context)
+    @Test("the reset removes the photographs the record named, and nothing else")
+    func resetTakesItsOwnPhotographsOnly() throws {
+        let context = try context()
+        let mine = try photoFile("mine")
+        let notMine = try photoFile("not-mine")
+        defer { removeFile(mine); removeFile(notMine) }
+        try photographedWin(mine, context)
+
+        let names = try StoreReset.photographNames(context: context)
+        StoreReset.deleteEverything(context: context)
+        let removed = StoreReset.removePhotographs(names, context: context)
 
         #expect(removed == [mine])
         #expect(ImageManager.shared.fileExists(fileName: mine) == false)
-        // A file no win points at is `pruneOrphans`'s business, and that is the
-        // most dangerous function in the app. A reset has no reason to borrow
-        // its risk, and a test that let it would be the one that finds out.
+        // A file no win points at is `pruneOrphans`'s business, and that is
+        // the most dangerous function in the app. A reset has no reason to
+        // borrow its risk.
         #expect(ImageManager.shared.fileExists(fileName: notMine))
     }
 
-    @Test("the photographs are read before the rows go")
-    func photographsAreReadWhileThereIsStillSomethingToReadThemFrom() throws {
+    /// **The order that was the bug, pinned the safe way round.** Reset used
+    /// to delete the files and then the rows; a row delete that failed left
+    /// every win naming a photograph that was already gone.
+    @Test("the files are still there after the names are read and until the rows have gone")
+    func filesOutliveTheRowsNotTheOtherWayRound() throws {
         let context = try context()
-        let habit = Habit(title: "Photographed", category: .health)
-        context.insert(habit)
-        let log = HabitLog(habit: habit, dateString: "2026-09-01", completed: true)
-        log.imageFileName = "gone-with-the-rows.heic"
-        context.insert(log)
-        try context.save()
+        let file = try photoFile("order")
+        defer { removeFile(file) }
+        try photographedWin(file, context)
 
-        // Rows first, on purpose: this is the order the bug had.
-        StoreReset.deleteEverything(context: context)
-        #expect(StoreReset.deleteEveryPhotograph(context: context).isEmpty)
+        let names = try StoreReset.photographNames(context: context)
+        #expect(names == [file])
+        // Reading the names touches nothing.
+        #expect(ImageManager.shared.fileExists(fileName: file))
+
+        let remaining = StoreReset.deleteEverything(context: context)
+        #expect(remaining.isEmpty)
+        // The rows are gone and the file is STILL there: nothing removes a
+        // photograph as a side effect of deleting rows.
+        #expect(ImageManager.shared.fileExists(fileName: file))
+
+        StoreReset.removePhotographs(names, context: context)
+        #expect(ImageManager.shared.fileExists(fileName: file) == false)
+    }
+
+    @Test("a photograph a surviving win still names is never removed")
+    func stillNamedPhotographsStay() throws {
+        let context = try context()
+        let file = try photoFile("kept")
+        defer { removeFile(file) }
+        try photographedWin(file, context)
+
+        // Handed the name, but no reset happened: the win still names it.
+        let removed = StoreReset.removePhotographs([file], context: context)
+        #expect(removed.isEmpty)
+        #expect(ImageManager.shared.fileExists(fileName: file))
+    }
+
+    @Test("a reading that could not count something is never empty")
+    func unreadCountsDoNotAddUpToZero() {
+        var remaining = StoreReset.Remaining(counts: ["Habit": -1, "Tower": 1])
+        #expect(remaining.total == 0)
+        #expect(remaining.isEmpty == false)
+        remaining = StoreReset.Remaining(counts: ["Habit": 0], failure: "boom")
+        #expect(remaining.isEmpty == false)
     }
 
     /// **The gate.** Not a style rule: `delete(model:)` fails outright on two

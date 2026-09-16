@@ -96,6 +96,28 @@ final class HabitLog {
     /// neighbourhood.
     var locationAccuracy: Double? = nil
 
+    // MARK: - When, for anybody else
+
+    /// When the win was LOGGED, as opposed to `completedAt`, which is when it
+    /// happened. A seeded or back-dated win has the two far apart, and anything
+    /// that ever orders arrivals for someone else needs the first.
+    ///
+    /// These three are here now, before any social feature exists, because the
+    /// CloudKit schema is add-only once it is live and one migration with one
+    /// backfill is cheaper than two. Defaulted, so existing rows gain them in
+    /// place; `SocialFieldsBackfill` sets `createdAt` and `updatedAt` on those
+    /// rows from `completedAt` once.
+    var createdAt: Date = Date()
+    /// Stamped on every save by `StoreStamp`. See `Habit.updatedAt`.
+    var updatedAt: Date = Date()
+    /// The zone the win was logged in, as `TimeZone.identifier`.
+    ///
+    /// `dateString` is right for the person who logged it, but it is a local
+    /// day with no zone, so nobody else can recover which day a "Sunday" was.
+    /// Empty means unknown: every win logged before this shipped, which is the
+    /// truth about them.
+    var timeZoneIdentifier: String = ""
+
     var hasDrawerContent: Bool {
         (note != nil && !note!.isEmpty)
         || !caption.isEmpty
@@ -117,6 +139,7 @@ final class HabitLog {
         self.xpCollected = false
         self.isBonusBlock = false
         self.skipped = false
+        self.timeZoneIdentifier = TimeZone.current.identifier
     }
 
     func markCompleted() {

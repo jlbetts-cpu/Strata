@@ -445,6 +445,7 @@ enum DebugHarness {
               + "placed=\(logs.filter { $0.latitude != nil }.count) "
               + "ordered=\(logs.filter { $0.towerOrder != nil }.count) "
               + "completed=\(logs.filter(\.completed).count)")
+        NSLog("[strata-migration] added \(StoreAddedFieldsCheck.read(context: context).line)")
     }
 
     /// True when the run asked for the migration report.
@@ -868,7 +869,7 @@ enum DebugHarness {
                     let isInterest = Self.seededInterests.contains(title)
                     let photographed = isInterest || (i == 0 && back % 2 == 0)
                     if back > 0 || seedsTodayPhotos, photographed,
-                       let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+                       let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                         log.imageFileName = seedPhoto(
                             for: win.logID,
                             category: categories[n % categories.count]

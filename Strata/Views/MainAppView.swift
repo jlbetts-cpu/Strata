@@ -1458,7 +1458,7 @@ struct MainAppView: View {
             rerollNextWinCategory()
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.
-            if let photo, let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+            if let photo, let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                 let id = log.id
                 // Stored whole. The block crops to its own shape when it draws
                 // (`scaledToFill`), so cropping to disk as well only made a
@@ -1596,6 +1596,11 @@ struct MainAppView: View {
         //
         // Product behaviour does not belong behind a build flag. The harness
         // below still does.
+        //
+        // The backfill first: it gives rows from before `createdAt` and
+        // `updatedAt` existed their real dates, and every later save would
+        // otherwise stamp them with today.
+        SocialFieldsBackfill.runIfNeeded(context: modelContext)
         PlanItem.sweep(context: modelContext)
 
         // **After the tower exists, not before.** This was a `.task` on the
@@ -3123,26 +3128,36 @@ struct MainAppView: View {
 
 
     private func resetTower() {
-        // 1. Delete all image files from disk (must read file names before
-        //    deleting entities). In `StoreReset` so the test can drive it and
-        //    prove which files go and which stay.
-        let removedPhotos = StoreReset.deleteEveryPhotograph(context: modelContext)
+        // 1. Read the photograph names while there is still a record to read
+        //    them from. Read, NOT removed: the files go in step 3, after the
+        //    rows have committed. This used to delete the files first, which
+        //    is the shape of the 2026-09-11 bug: a delete that fails leaves
+        //    every win naming a photograph that is already gone.
+        let photoNames: [String]
+        do {
+            photoNames = try StoreReset.photographNames(context: modelContext)
+        } catch {
+            NSLog("[strata-reset] could not read the record, so the reset did not run: \(error)")
+            return
+        }
 
-        // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME.
+        // 2. Delete every SwiftData entity, ONE OBJECT AT A TIME, in one
+        //    transaction.
         //
         // **This was a batch delete and it deleted nothing.** Measured on the
         // simulator, 2026-09-11: `delete(model: HabitLog.self)` fails with
         // "Constraint trigger violation: Batch delete failed due to mandatory
         // OTO nullify inverse on HabitLog/habit", and `Habit` the same on
-        // `Habit/tower`. The loop that replaced it lived here; it lives in
-        // `StoreReset` now, because the debug reset and the seed need the same
-        // one and a second copy is a second place for a batch delete to come
-        // back. `StoreReset` also adds `PlanItem`, which used to survive a
-        // reset, and does the whole sweep inside one transaction.
+        // `Habit/tower`. The loop lives in `StoreReset` now, because the debug
+        // reset and the seed need the same one and a second copy is a second
+        // place for a batch delete to come back.
         let remaining = StoreReset.deleteEverything(context: modelContext)
+
+        // 3. Only now the files, and only the ones no surviving win names.
+        let removedPhotos = StoreReset.removePhotographs(photoNames, context: modelContext)
         // Reset runs once, on purpose, so one line about it is worth having in
         // a device log rather than only in DEBUG.
-        NSLog("[strata-reset] photographs removed: \(removedPhotos.count)")
+        NSLog("[strata-reset] photographs removed: \(removedPhotos.count) of \(photoNames.count)")
         #if DEBUG
         NSLog("[strata-reset] remaining after reset: \(remaining.line)")
         #endif

@@ -17,7 +17,8 @@ final class PlanFolder {
     var createdAt: Date = Date()
 
     @Relationship(deleteRule: .nullify, inverse: \Habit.planFolder)
-    var habits: [Habit] = []
+    /// Optional for CloudKit's rule on relationships. See `Habit.logs`.
+    var habits: [Habit]? = []
 
     init(name: String, icon: String = "folder.fill", colorHex: String = "#8E8E93", sortOrder: Int = 0) {
         self.id = UUID()

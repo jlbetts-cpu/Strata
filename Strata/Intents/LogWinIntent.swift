@@ -27,6 +27,10 @@ struct LogWinIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ShowsSnippetView & ProvidesDialog {
+        // Before the dependency: a store that did not open is never
+        // registered, and a win logged into nothing must not be reported as
+        // logged.
+        try StoreUnavailableIntentError.check()
         let context = ModelContext(modelContainer)
         let tower = Self.activeTower(in: context)
         let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled,
@@ -66,6 +70,9 @@ struct ShowTodaysWinsIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ShowsSnippetView & ProvidesDialog {
+        // "No wins yet today" over a store that could not be read would be a
+        // lie about somebody's day.
+        try StoreUnavailableIntentError.check()
         let context = ModelContext(modelContainer)
         let wins = TodaysWins.list(in: context)
         guard !wins.isEmpty else {

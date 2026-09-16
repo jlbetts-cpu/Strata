@@ -671,7 +671,7 @@ struct AddWinSheet: View {
             // than looked up afterwards. Re-deriving it from `habit.logs` is
             // exactly the lookup that intermittently came back empty.
             if let photo,
-               let log = win.habit.logs.first(where: { $0.id == win.logID }) {
+               let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
                 await attach(photo, to: log)
             }
             HapticsEngine.success()
@@ -746,7 +746,7 @@ struct AddWinSheet: View {
         // files was one of three leaks that put 3127 images and 522MB on a
         // phone. Read the names BEFORE the entities go, or there is nothing
         // left to read them from.
-        let names = habit.logs.compactMap(\.imageFileName)
+        let names = (habit.logs ?? []).compactMap(\.imageFileName)
 
         // **Object by object, in one transaction, and never `try?`.** The rows
         // go first and the photographs only if they went: a delete that fails
@@ -754,7 +754,7 @@ struct AddWinSheet: View {
         // that left Reset All Data deleting pictures and keeping wins.
         do {
             try modelContext.transaction {
-                for log in habit.logs { modelContext.delete(log) }
+                for log in habit.logs ?? [] { modelContext.delete(log) }
                 PlanItem.untick(planItemID: habit.planItemID, context: modelContext)
                 modelContext.delete(habit)
             }

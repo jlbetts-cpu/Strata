@@ -21,6 +21,27 @@ final class ProfileStore {
     /// the circle, so it has no background to colour.
     private(set) var background: HabitCategory?
 
+    /// A random id for the person this phone belongs to, made once and never
+    /// changed.
+    ///
+    /// **Nothing uses it yet, on purpose.** Every future system that has to
+    /// say "this person" (a shared week, a circle, a server row) keys by this,
+    /// and an iCloud user record id or a Sign in with Apple subject gets mapped
+    /// TO it rather than becoming it. It has to exist before any of those do,
+    /// or the first one to ship becomes the identity by accident.
+    ///
+    /// In UserDefaults because there is no identity model yet. Not cleared by
+    /// `reset()`: Reset All Data empties the record, not who you are.
+    nonisolated static var profileID: UUID {
+        let key = "profileID"
+        if let raw = UserDefaults.standard.string(forKey: key), let id = UUID(uuidString: raw) {
+            return id
+        }
+        let id = UUID()
+        UserDefaults.standard.set(id.uuidString, forKey: key)
+        return id
+    }
+
     private static let nameKey = "profileName"
     private static let backgroundKey = "profileBackground"
     /// The largest the picture is drawn is 88pt — 264px at 3x. 600 leaves
