@@ -1,35 +1,34 @@
 import SwiftUI
 
 enum Typography {
-    // MARK: - Brand (SF Pro Rounded — unified single-font system)
-    // TWO WEIGHTS, EVERYWHERE: medium for anything that is a heading, a
-    // number or a control, regular for everything you read. Semibold, light
-    // and bold are not in the app's voice — a third weight is a third level of
-    // emphasis, and every screen here has at most two things to say.
-    static let brandLogo = Font.system(.title2, design: .rounded, weight: .medium)
-    static let brandHeader = Font.system(.title3, design: .rounded, weight: .medium)
-    static let brandSubheader = Font.system(.headline, design: .rounded, weight: .medium)
-    static let brandHeroDate = Font.system(.title, design: .rounded, weight: .medium)
-    static let brandCardTitle = Font.system(.title3, design: .rounded, weight: .medium)
-    static let brandLogoKerning: CGFloat = 1.5
+    // MARK: - The scale: five sizes, two weights
+    //
+    // 34, 17, 15, 13 and 11, at Regular and Medium (docs/research/font.md
+    // (c)). Semibold is gone from the app: the owner's face has one cut, and
+    // its heavy drawn stem already does the job a third weight did. Every
+    // token is a text STYLE, so Dynamic Type moves the lot together.
+    //
+    // Merged on 2026-09-16, each into the rung it was nearest: headerLarge
+    // (20) and blockTitle (16) into `headerMedium`, bodyMedium (16) into
+    // `bodyLarge`, caption (12) into `bodySmall`, photoCaption (12) into
+    // `sectionLabel`. Deleted with no call sites: brandLogo, brandHeader,
+    // brandSubheader, brandHeroDate, brandCardTitle, appTitle,
+    // miniBlockTitle, miniBlockIcon and the three kernings beside them.
+    //
+    // Outside the scale on purpose, because geometry solves them rather than
+    // a choice: the month block's `cell * 0.16` numeral, the camera
+    // countdown, the widget's counts, and symbol glyph sizes.
 
-    // MARK: - System (SF Pro Rounded — warm/humanist for body + detail)
-    static let appTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
-    static let headerLarge = Font.system(.title3, design: .rounded, weight: .medium)
+    /// 17 Medium. Headings, and a block's or a card's title.
     static let headerMedium = Font.system(.headline, design: .rounded, weight: .medium)
+    /// 15 Medium. Buttons.
     static let headerSmall = Font.system(.subheadline, design: .rounded, weight: .medium)
+    /// 17 Regular. What you read.
     static let bodyLarge = Font.system(.body, design: .rounded)
-    static let bodyMedium = Font.system(.callout, design: .rounded)
+    /// 13 Regular. Footnotes and captions.
     static let bodySmall = Font.system(.footnote, design: .rounded)
-    static let caption = Font.system(.caption, design: .rounded)
+    /// 11 Medium. Chart axes and the smallest labels.
     static let caption2 = Font.system(.caption2, design: .rounded, weight: .medium)
-    static let blockTitle = Font.system(.callout, design: .rounded, weight: .medium)
-    // Mini block preview (fixed size — too small for text styles)
-    static let miniBlockTitle = Font.system(size: 10, weight: .medium, design: .rounded)
-    static let miniBlockIcon = Font.system(size: 9, weight: .medium, design: .rounded)
-    // Kerning (SF Rounded has built-in optical kerning — no manual adjustment needed)
-    static let headerKerning: CGFloat = 0
-    static let titleKerning: CGFloat = 0
 
     // MARK: - The screen scale
     //
@@ -63,6 +62,14 @@ enum Typography {
     /// photographs and blocks.
     static let screenTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
 
+    /// The same title in the owner's face (`StrataFont`), for a title that
+    /// names the screen, through `DynamicScreenTitle` where the words are data.
+    static let screenTitleDrawn = StrataFont.relative(screenTitleSize, to: .largeTitle)
+
+    /// A sheet's title in the owner's face, 17 relative to `.headline`. See
+    /// `View.sheetTitle(_:drawn:)`.
+    static let sheetTitleDrawn = StrataFont.relative(17, to: .headline)
+
     /// The metric behind it, for layout that has to do arithmetic — the
     /// header's cap-height padding, and the tally numeral. Fixed, because a
     /// layout constant cannot be a font.
@@ -87,21 +94,18 @@ enum Typography {
     static let sectionLabel = Font.system(.footnote, design: .rounded, weight: .medium)
     static let sectionKerning: CGFloat = 0.8
 
-    /// A photograph's caption in the gallery.
-    static let photoCaption = Font.system(.caption, design: .rounded, weight: .medium)
-
     /// Any number the app states as a fact about your day: the win tally, a
     /// day's numeral on a month block, a photo count. The owner's own digits
-    /// — see `StrataNumerals`.
+    /// — see `StrataFont`.
     ///
     /// **Numbers, never words.** The face has ten glyphs and a space; a
     /// `Text` in it that contains a letter renders `.notdef`. Anything with a
     /// word in it stays on `screenTitle` / `screenSubtitle`.
-    static let tally = StrataNumerals.relative(screenTitleSize, to: .largeTitle)
+    static let tally = StrataFont.relative(screenTitleSize, to: .largeTitle)
 
     /// The same digits, at a size the caller solves for — a month block's
     /// numeral scales off its cell, not off the type scale.
-    static func numeral(_ points: CGFloat) -> Font { StrataNumerals.size(points) }
+    static func numeral(_ points: CGFloat) -> Font { StrataFont.size(points) }
 }
 
 // MARK: - Jaro
@@ -142,28 +146,3 @@ enum JaroFont {
         .custom(name, size: points, relativeTo: style)
     }
 }
-
-// MARK: - Strata Numerals
-
-/// The owner's own digits, as a real font.
-///
-/// They arrived as one Figma export — a 362x28 strip spelling `1234567890`.
-/// Shipping the strip would have meant writing a layout engine: measuring
-/// advances, positioning ten `Image`s, and hand-rolling the roll-up that
-/// `Text` gets for free from `.contentTransition(.numericText())`. So
-/// `tools/make_numeral_font.py` turns it into `StrataNumerals.otf` instead,
-/// which is what was asked for — "treat it like you would any other font".
-///
-/// **Metrically compatible with SF Pro Rounded**: 2048 upem, ascent 1980,
-/// descent -432, cap 1443, all copied from `SFNSRounded.ttf`'s own tables. A
-/// `Text` in this font therefore has the same layout box and the same cap
-/// position as a `Text` in the system face at the same point size, so the two
-/// mix on a line and `GridConstants.headerTopPadding(forTitleSize:)` works on
-/// both without a second constant.
-///
-/// **The digits are tabular** — one advance for all ten, each centred in it.
-/// A count that changes must not reflow the word beside it, and a numeral
-/// that animates its digits must not jitter its neighbours. It is also a wide
-/// face: the advance is 0.947 em against SF Pro's ~0.57, so three digits set
-/// about two and a half times a cap height.
-///

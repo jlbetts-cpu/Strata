@@ -63,8 +63,7 @@ struct ProfileView: View {
         }
         .scrollContentBackground(.hidden)
         .background { WarmBackground(lit: true).ignoresSafeArea() }
-        .navigationTitle("Profile")
-        .navigationBarTitleDisplayMode(.inline)
+        .sheetTitle("Profile", drawn: true)
         .toolbar { doneToolbar }
         // Profile's head sleeps under the maker and the photo library. Before
         // those modifiers, so the maker's own preview head stays awake.
@@ -119,7 +118,7 @@ struct ProfileView: View {
                 }
                 TextField("Your name", text: Binding(get: { store.name },
                                                      set: { store.setName($0) }))
-                    .font(Typography.headerLarge)
+                    .font(Typography.headerMedium)
                     .multilineTextAlignment(.center)
                     .textContentType(.name)
                     .submitLabel(.done)
@@ -264,16 +263,16 @@ struct ProfileView: View {
     private func streakFigure(_ value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
-                Text("\(value)")
-                    .font(StrataNumerals.relative(28, to: .title))
+                Text(verbatim: StrataFont.digits(value))
+                    .font(StrataFont.relative(28, to: .title))
                     .foregroundStyle(.primary.opacity(Self.barOpacity))
                     .contentTransition(.numericText())
                 Text(value == 1 ? "day" : "days")
-                    .font(Typography.bodyMedium)
+                    .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
             Text(label)
-                .font(Typography.caption)
+                .font(Typography.bodySmall)
                 .foregroundStyle(AppColors.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,7 +305,7 @@ struct ProfileView: View {
                         .foregroundStyle(.primary)
                         .contentTransition(.numericText())
                     Text(shownDetail(summary: summary, bars: bars))
-                        .font(Typography.caption)
+                        .font(Typography.bodySmall)
                         .foregroundStyle(AppColors.inkSecondary)
                 }
                 .fixedSize(horizontal: false, vertical: true)

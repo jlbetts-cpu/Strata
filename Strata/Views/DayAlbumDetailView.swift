@@ -128,16 +128,12 @@ struct DayAlbumDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                // The shared screen title, not a fraction of the tally
-                // numeral. Every page that names itself now uses one size.
-                .font(Typography.screenTitle)
+            // The shared screen title, on one line: "Saturday 5 September"
+            // wrapping to two puts the win count halfway down the screen and
+            // pushes the tower with it. In the owner's face when the whole
+            // date fits in it, SF otherwise (`DynamicScreenTitle`).
+            DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-                // One line. "Saturday 5 September" wrapping to two puts the
-                // win count halfway down the screen and pushes the tower with
-                // it; the date is a label, not a headline.
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
             Text("\(logs.count) \(logs.count == 1 ? "win" : "wins")")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)

@@ -58,7 +58,7 @@ struct HeadLookPicker: View {
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
                 Text(look.kind.name)
-                    .font(Typography.caption)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(isChosen ? AppColors.inkPrimary : AppColors.inkQuiet)
             }
             .contentShape(Rectangle())

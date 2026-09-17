@@ -70,7 +70,7 @@ struct FilmLookStrip: View {
                 .scaleEffect(isChosen ? 1 : 0.94)
 
                 Text(look.kind.name)
-                    .font(Typography.caption)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(isChosen ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
             }
             .contentShape(Rectangle())

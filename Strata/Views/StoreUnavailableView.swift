@@ -35,7 +35,7 @@ struct StoreUnavailableView: View {
 
             if triedAgain {
                 Text(StoreUnavailableCopy.stillFailing)
-                    .font(Typography.bodyMedium)
+                    .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkTertiary)
                     .multilineTextAlignment(.center)
                     .transition(.opacity)

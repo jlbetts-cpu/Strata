@@ -15,9 +15,9 @@ struct WinLoggedSnippet: View {
                 .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title ?? "A win")
-                    .font(.headline)
+                    .font(Typography.headerMedium)
                 Text(today == 1 ? "The first on today's tower" : "\(today) on today's tower")
-                    .font(.subheadline)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -38,13 +38,13 @@ struct TodaysWinsSnippet: View {
                         .fill(win.colour.style.baseColor)
                         .frame(width: 10, height: 10)
                     Text(win.title ?? "A win")
-                        .font(.subheadline)
+                        .font(Typography.screenSubtitle)
                         .foregroundStyle(win.title == nil ? .secondary : .primary)
                 }
             }
             if wins.count > 5 {
                 Text("and \(wins.count - 5) more")
-                    .font(.caption)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(.secondary)
             }
         }
@@ -56,6 +56,6 @@ struct TodaysWinsSnippet: View {
 struct IntentMessageSnippet: View {
     let message: String
     var body: some View {
-        Text(message).font(.subheadline).foregroundStyle(.secondary).padding()
+        Text(message).font(Typography.screenSubtitle).foregroundStyle(.secondary).padding()
     }
 }

@@ -140,8 +140,7 @@ struct AddWinSheet: View {
                 .padding(.top, GridConstants.gapTight)
                 .padding(.bottom, GridConstants.gapLabel)
             }
-            .navigationTitle(isEditing ? "Edit" : "Add a win")
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetTitle(isEditing ? "Edit" : "Add a win", drawn: true)
             .toolbar {
                 addWinToolbar
             }
