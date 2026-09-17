@@ -581,7 +581,7 @@ struct MemoriesMapView: View {
                 // all grounds, invisible chrome is the one thing that cannot
                 // work.
                 Text(denied ? "Open Settings" : "Turn On Places")
-                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+                    .font(Typography.headerSmall)
                     .foregroundStyle(AppColors.warmBlack)
                     .padding(.horizontal, 22)
                     .frame(height: 46)
@@ -1137,7 +1137,7 @@ extension PlaceBlock {
     /// How many wins are in this area.
     ///
     /// **The owner's own digits, on the app's own black.** `Typography.numeral`
-    /// is `StrataNumerals` — the same face the tower's tally and the month
+    /// is `StrataFont` — the same face the tower's tally and the month
     /// blocks' day numbers are set in — so a count on the map is the same kind
     /// of object as every other number the app states about you.
     ///
@@ -1151,7 +1151,39 @@ extension PlaceBlock {
     /// Not a rim, not a frosted band, no blur: CLAUDE.md is explicit that
     /// those are a block's claim, and a badge is not a block.
     var countBadge: some View {
-        Text("\(cluster.winCount)")
+        ClusterCountBadge(count: shownCount)
+            // Just off the corner, so it reads as attached to the block rather
+            // than as part of the photograph.
+            .offset(x: 8, y: -8)
+            .accessibilityHidden(true)
+    }
+
+    /// The count shown; `-strataBadgeCount` overrides it in DEBUG.
+    private var shownCount: Int {
+        #if DEBUG
+        if let forced = DebugHarness.badgeCount { return forced }
+        #endif
+        return cluster.winCount
+    }
+}
+
+/// The count on a map block, on its own light capsule.
+///
+/// **One line, whatever the count** (2026-09-16). It sits in the block's
+/// `.overlay`, which proposes the BLOCK's width, and a `Text` offered less
+/// than it needs wraps: 236 came out as "23" over "6". It keeps its own
+/// width now and the capsule grows leftward from the block's corner. And the
+/// count is `StrataFont.digits`, not `"\(count)"`, whose interpolation
+/// formats 1000 as "1,000" in a face with no comma.
+struct ClusterCountBadge: View {
+    let count: Int
+
+    /// The capsule's floor: round for one or two digits, wider past that.
+    static let minWidth: CGFloat = 24
+    static let height: CGFloat = 22
+
+    var body: some View {
+        Text(verbatim: StrataFont.digits(count))
             .font(Typography.numeral(13))
             // **Light disc, dark numeral** — the owner's call, and it is the
             // right way round. A dark badge on a saturated block is a second
@@ -1164,17 +1196,19 @@ extension PlaceBlock {
             // decides its contrast never flips, and neither should it. Made
             // adaptive it went dark-on-dark in dark mode, which is the badge
             // following a ground it is not actually standing on.
-            .foregroundStyle(Self.badgeInk)
-            .monospacedDigit()
+            .foregroundStyle(PlaceBlock.badgeInk)
+            // Tabular already, so no `.monospacedDigit()`: it does nothing
+            // to a custom face.
+            .lineLimit(1)
             .padding(.horizontal, GridConstants.gapTight)
-            .frame(minWidth: 24, minHeight: 22)
+            .frame(minWidth: Self.minWidth, minHeight: Self.height)
             .background {
-                Capsule().fill(Self.badgeDisc)
+                Capsule().fill(PlaceBlock.badgeDisc)
             }
-            // Just off the corner, so it reads as attached to the block rather
-            // than as part of the photograph.
-            .offset(x: 8, y: -8)
-            .accessibilityHidden(true)
+            // On the whole badge, not the text: a min-width frame clamps a
+            // narrow offer to its floor, so fixing only the text left three
+            // digits spilling out of a 24pt capsule (measured).
+            .fixedSize()
     }
 }
 
