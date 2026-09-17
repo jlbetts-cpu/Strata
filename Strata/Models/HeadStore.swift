@@ -292,6 +292,12 @@ final class HeadStore {
         let banded = manifest.version >= 3 && manifest.bandedBrows == true
         var faces: [HeadRig.Expression: Face] = [:]
         var bandedMissing = false
+        // Only the shut faces the manifest names, and none on a head whose
+        // blink was refused: a stray `<face>-shut.png` left in the folder must
+        // never give a face a blink it was not derived to have.
+        let shutFaces: Set<String> = manifest.version >= 3 && manifest.blinks != false
+            ? Set(manifest.shutFaces ?? [])
+            : []
         for expression in HeadRig.Expression.allCases {
             var png: Data?
             var eyes = manifest.eyes[expression.rawValue] ?? []
@@ -308,7 +314,7 @@ final class HeadStore {
             }
             guard let png else { continue }
             var face = Face(png: png, eyes: eyes)
-            if manifest.version >= 3 {
+            if shutFaces.contains(expression.rawValue) {
                 face.shut = try? Data(contentsOf: directory.appending(path: "\(expression.rawValue)-shut.png"))
             }
             faces[expression] = face
@@ -391,6 +397,13 @@ final class HeadStore {
         do {
             try? manager.removeItem(at: staging)
             try manager.copyItem(at: directory, to: staging)
+            // Only what a version 2 head wrote goes forward. Anything else in
+            // the folder (a stale `*-shut.png` or banded brows from some earlier
+            // run) is removed from the copy, so `addsOnly` cannot keep it.
+            let version2 = Set(HeadRig.Expression.allCases.map { "\($0.rawValue).png" } + ["shut.png", "head.json"])
+            for name in try manager.contentsOfDirectory(atPath: staging.path) where !version2.contains(name) {
+                try manager.removeItem(at: staging.appending(path: name))
+            }
             try write(prepared.derived, to: staging, contentHeight: prepared.manifest.contentHeight,
                       chin: prepared.manifest.chin, addsOnly: true)
             _ = try manager.replaceItemAt(directory, withItemAt: staging)

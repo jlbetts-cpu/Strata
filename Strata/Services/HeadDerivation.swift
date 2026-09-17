@@ -562,11 +562,18 @@ nonisolated enum HeadDerivation {
            let neutralPatch = lidPatch(open: neutral, shut: shut, eyes: neutralFace.eyes) {
             let registration = neutralPatch.registration
             derived.lidRegistration = registration
+            #if DEBUG
+            // Every derivation, so a head made on a phone can be checked
+            // against the limits these were tuned to on synthetic blinks.
+            NSLog("[strata-head] blink registered at (\(registration.dx), \(registration.dy)): difference \(String(format: "%.2f", registration.difference)), texture \(String(format: "%.2f", registration.texture)), ratio \(String(format: "%.3f", registration.ratio)) against \(lidRatioLimit), edge \(registration.onEdge), \(registration.fits ? "fits" : "refused")")
+            #endif
             if registration.onEdge {
                 // **Further off than a face moves between frames**, even after
                 // widening the search. No pasted lids and no moved frame: this
-                // head does not blink (the maker's one-more-blink should have
-                // caught it).
+                // head does not blink. The maker's one-more-blink does NOT
+                // prevent this: it fires only when no frame scored as a real
+                // blink on openness, and a blink that was caught can still
+                // register this far off.
                 derived.blinks = false
                 #if DEBUG
                 NSLog("[strata-head] blink refused on the search edge at (\(registration.dx), \(registration.dy)): this head will not blink")
