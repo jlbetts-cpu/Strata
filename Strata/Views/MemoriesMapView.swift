@@ -598,8 +598,15 @@ struct MemoriesMapView: View {
         .padding(GridConstants.gapSection)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Dark enough to read white type on, whatever the imagery underneath
-        // happens to be.
-        .background(AppColors.warmBlack.opacity(0.55))
+        // happens to be. Deeper behind the words themselves: at a flat 0.55
+        // the map's own city labels ("Chicago", "Houston") still read through
+        // the sentence and the button, two layers of type on top of each other.
+        .background {
+            RadialGradient(
+                colors: [AppColors.warmBlack.opacity(0.88), AppColors.warmBlack.opacity(0.55)],
+                center: .center, startRadius: 40, endRadius: 320
+            )
+        }
     }
 
     #if DEBUG
