@@ -374,7 +374,13 @@ struct MemoriesView: View {
             // until it is. Only a STALE one waits, first for the drawer and
             // then for the spring to settle, so `ImageRenderer` is not on the
             // main actor under a moving panel.
-            await reloadReplays(redrawsStale: false)
+            // **Nothing is drawn while the drawer is down** (fix round 1).
+            // A MISSING card used to be drawn straight away regardless, and at
+            // launch that put 1.27s of `ImageRenderer` on the main actor
+            // under the map's first frames, for a shelf nobody could see. The
+            // periods are still found; the cards wait for the drawer, which
+            // re-runs this task when it rises.
+            await reloadReplays(redrawsStale: false, drawsMissing: drawer != .hidden)
             guard drawer != .hidden else { return }
             try? await Task.sleep(for: Self.springSettle)
             guard !Task.isCancelled else { return }
@@ -399,6 +405,14 @@ struct MemoriesView: View {
             // the store was read is not the quiet this is waiting for.
             mapMotion.movedAt = .now
             await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+            // And not while the map's own pictures are still being read: the
+            // build is a long main-actor frame, and landing it in the middle
+            // of a cold map's first reads is what held the blocks' pictures
+            // back by seconds. Checked again after, in case the camera moved.
+            while !Task.isCancelled, ThumbnailStore.shared.hasVisibleWork {
+                try? await Task.sleep(for: .milliseconds(200))
+                await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+            }
             guard !Task.isCancelled, !drawerIsBuilt else { return }
             #if DEBUG
             let buildStart = CACurrentMediaTime()
@@ -512,9 +526,10 @@ struct MemoriesView: View {
         withTransaction(quiet) { drawerIsBuilt = true }
     }
 
-    private func reloadReplays(redrawsStale: Bool) async {
+    private func reloadReplays(redrawsStale: Bool, drawsMissing: Bool = true) async {
         await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
-                             now: Date(), redrawsStale: redrawsStale && drawer != .hidden)
+                             now: Date(), redrawsStale: redrawsStale && drawer != .hidden,
+                             drawsMissing: drawsMissing)
     }
 
     // MARK: - Title

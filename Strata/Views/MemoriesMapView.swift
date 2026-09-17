@@ -980,7 +980,14 @@ private struct PlaceBlock: View {
                 // same place that is not goes up instead, and the handover
                 // brings the asked-for one in once it lands.
                 if base == nil {
-                    let ready = cluster.photoFileNames.first(where: isDecoded)
+                    // Memory only. Asking the store here scheduled a visible
+                    // read for EVERY photograph in the place — a crowd of
+                    // forty asked for forty — just to find one already there.
+                    let width = CGFloat(ThumbnailStore.bucket(Self.decodeWidth * displayScale, exact: true))
+                    let ready = cluster.photoFileNames.first {
+                        $0.hasPrefix(Self.bundledPrefix)
+                            || ImageManager.shared.cachedThumbnail(fileName: $0, maxWidth: width) != nil
+                    }
                     base = showing.map { isDecoded($0) ? $0 : (ready ?? $0) }
                     if base != showing { handover(to: showing) }
                 }

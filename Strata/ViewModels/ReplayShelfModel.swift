@@ -97,7 +97,7 @@ final class ReplayShelfModel {
     /// them under a map where the shelf could not even be seen. The page asks
     /// again, with true, when the drawer is raised.
     func reload(context: ModelContext, colorScheme: ColorScheme, displayScale: CGFloat, now: Date,
-                redrawsStale: Bool = true) async {
+                redrawsStale: Bool = true, drawsMissing: Bool = true) async {
         generation += 1
         let mine = generation
         func superseded() -> Bool { mine != generation || Task.isCancelled }
@@ -172,6 +172,8 @@ final class ReplayShelfModel {
             guard drawn[key] != signature else { continue }
             // Stale, not missing, and nobody can see the shelf: keep the old one.
             guard redrawsStale || cards[key] == nil else { skippedStale = true; continue }
+            // Missing, and the caller says nobody can see it yet: not now.
+            guard drawsMissing || cards[key] != nil else { skippedStale = true; continue }
             #if DEBUG
             slices.append(CACurrentMediaTime() - slice)
             #endif
