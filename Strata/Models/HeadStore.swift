@@ -429,11 +429,15 @@ final class HeadStore {
             let w = image.width, h = image.height
             guard let context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                           space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let data = context.data else { return nil }
             context.draw(image, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
-            context.setBlendMode(.sourceAtop)
-            context.setFillColor(red: 1, green: 1, blue: 1, alpha: light)
-            context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            // Relit as an exposure change: every channel scaled.
+            let bytes = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+            for i in 0..<(w * h) {
+                let alpha = Double(bytes[i * 4 + 3])
+                for c in 0..<3 { bytes[i * 4 + c] = UInt8(min(Double(bytes[i * 4 + c]) * (1 + Double(light)), alpha).rounded()) }
+            }
             return context.makeImage().flatMap { UIImage(cgImage: $0).pngData() }
         }
         let neutralEyes = [eye(0.3999, 0.5176), eye(0.6018, 0.5265)]
@@ -446,7 +450,7 @@ final class HeadStore {
             }
             try put(UIImage(named: "HeadNeutral")?.pngData(), "neutral.png")
             eyes["neutral"] = neutralEyes
-            try put(shifted("HeadNeutralClosed", dx: 1, dy: 0, light: 0.06), "shut.png")
+            try put(shifted("HeadNeutralClosed", dx: 3, dy: 2, light: 0.06), "shut.png")
             try put(shifted("HeadNeutralBrowsUp", dx: 1, dy: 0, light: 0.03), "browsUp.png")
             eyes["browsUp"] = neutralEyes.map { var e = $0; e.x += 1.0 / 480; e.outline = outline(e.x, e.y, e.rx, e.ry); return e }
             try put(UIImage(named: "HeadSmile")?.pngData(), "smile.png")

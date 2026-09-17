@@ -34,7 +34,7 @@ struct HeadDerivationTests {
         let shut = context.makeImage()!
         let eye = HeadRig.Eye(x: 0.3, y: 0.4, rx: 0.06, ry: 0.02)
         let patched = try #require(HeadDerivation.lidPatch(open: open, shut: shut, eyes: [eye]))
-        #expect(patched.fits, "flat relit skin fits: \(patched.ringDifference)")
+        #expect(patched.fits, "flat relit skin fits: \(patched.registration)")
         let pixels = try #require(HeadDerivation.pixels(patched.image))
         let centre = pixels.rgba(36, 48)
         #expect(centre.0 < 30, "the lid line \(centre)")
@@ -54,7 +54,7 @@ struct HeadDerivationTests {
         let eyes = [HeadRig.Eye(x: 0.3999, y: 0.5176, rx: 0.0385, ry: 0.0192),
                     HeadRig.Eye(x: 0.6018, y: 0.5265, rx: 0.0385, ry: 0.0192)]
         let patch = try #require(HeadDerivation.lidPatch(open: neutral, shut: closed, eyes: eyes))
-        #expect(patch.fits, "in place: \(patch.ringDifference)")
+        #expect(patch.fits, "in place: \(patch.registration)")
         let patched = patch.image
         let outside = HeadDerivation.difference(patched, neutral) { x, y in
             eyes.allSatisfy { hypot(($0.x - x) / ($0.rx * 3), ($0.y - y) / ($0.rx * 2.5)) > 1 }
@@ -75,10 +75,13 @@ struct HeadDerivationTests {
                                              space: CGColorSpaceCreateDeviceRGB(),
                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         context.draw(image, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
-        if light > 0 {
-            context.setBlendMode(.sourceAtop)
-            context.setFillColor(red: 1, green: 1, blue: 1, alpha: light)
-            context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        if light != 0, let data = context.data {
+            // Relit as an exposure change: every channel scaled.
+            let bytes = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+            for i in 0..<(w * h) {
+                let alpha = Double(bytes[i * 4 + 3])
+                for c in 0..<3 { bytes[i * 4 + c] = UInt8(min(Double(bytes[i * 4 + c]) * (1 + light), alpha).rounded()) }
+            }
         }
         return try #require(context.makeImage())
     }
@@ -86,29 +89,109 @@ struct HeadDerivationTests {
     private let creatorEyes = [HeadRig.Eye(x: 0.3999, y: 0.5176, rx: 0.0385, ry: 0.0192),
                                HeadRig.Eye(x: 0.6018, y: 0.5265, rx: 0.0385, ry: 0.0192)]
 
-    @Test("a blink 3px off is refused: neutral keeps the raw frame, brows and surprised get no blink")
-    func aShiftedBlinkIsRefused() throws {
+    /// **A blink the way a real one differs from the open face**: the lower
+    /// lid risen, crow's feet creased at the outer corners, relit, moved
+    /// `dx`, `dy` and drawn at `side` pixels.
+    private func realBlink(side: Int, dx: Int, dy: Int, light: CGFloat = 0.06) throws -> (open: CGImage, shut: CGImage) {
         let neutral = try #require(UIImage(named: "HeadNeutral")?.cgImage)
-        let relit = try shifted("HeadNeutralClosed", dx: 0, dy: 0, light: 0.06)
-        let inPlace = try #require(HeadDerivation.lidPatch(open: neutral, shut: relit, eyes: creatorEyes))
-        #expect(inPlace.fits, "relit in place \(inPlace.ringDifference)")
-        for (dx, dy) in [(3.0, 0.0), (0.0, 3.0), (-3.0, 0.0), (0.0, -3.0)] {
-            let moved = try shifted("HeadNeutralClosed", dx: dx, dy: dy, light: 0.06)
-            let patch = try #require(HeadDerivation.lidPatch(open: neutral, shut: moved, eyes: creatorEyes))
-            #expect(!patch.fits, "3px (\(dx), \(dy)) \(patch.ringDifference)")
+        let closed = try #require(UIImage(named: "HeadNeutralClosed")?.cgImage)
+        func draw(_ image: CGImage, dx: Int = 0, dy: Int = 0) throws -> CGImage {
+            let context = try #require(CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+                                                 bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.interpolationQuality = .high
+            context.draw(image, in: CGRect(x: dx, y: -dy, width: side, height: side))
+            return try #require(context.makeImage())
         }
-        func png(_ name: String) throws -> Data { try #require(UIImage(named: name)?.pngData()) }
-        let moved = try #require(HeadDerivation.pngData(try shifted("HeadNeutralClosed", dx: 0, dy: 3)))
+        let open = try draw(neutral)
+        var pixels = try #require(HeadDerivation.pixels(try draw(closed)))
+        let s = Double(side), rise = max(1, Int((2.0 * s / 480).rounded()))
+        for eye in creatorEyes {
+            let ex = Double(eye.x) * s, ey = Double(eye.y) * s, rx = Double(eye.rx) * s, ry = Double(eye.ry) * s
+            // The lower lid rises: the band under the eye moves up.
+            for y in Int(ey + ry * 0.6)..<Int(ey + ry * 3) {
+                for x in Int(ex - rx * 1.5)..<Int(ex + rx * 1.5) {
+                    for c in 0..<4 { pixels.bytes[(y * side + x) * 4 + c] = pixels.bytes[((y + rise) * side + x) * 4 + c] }
+                }
+            }
+            // Crow's feet: three short creases out from the outer corner.
+            let outward = ex < s / 2 ? -1.0 : 1.0
+            for angle in [-0.35, 0.0, 0.35] {
+                for step in 0..<Int(0.03 * s) {
+                    let x = Int(ex + outward * (rx * 1.1 + Double(step) * cos(angle)))
+                    let y = Int(ey + Double(step) * sin(angle))
+                    for c in 0..<3 { pixels.bytes[(y * side + x) * 4 + c] = UInt8(Double(pixels.bytes[(y * side + x) * 4 + c]) * 0.85) }
+                }
+            }
+        }
+        // Relit: the camera's exposure a little different, a scale on every channel.
+        if light != 0 {
+            for i in 0..<(side * side) {
+                let alpha = Double(pixels.bytes[i * 4 + 3])
+                for c in 0..<3 {
+                    pixels.bytes[i * 4 + c] = UInt8(min(Double(pixels.bytes[i * 4 + c]) * (1 + light), alpha).rounded())
+                }
+            }
+        }
+        var shut = try #require(HeadDerivation.image(pixels))
+        shut = try draw(shut, dx: dx, dy: dy)
+        return (open, shut)
+    }
+
+    @Test("a real-blink-like pair moved 0 to 4px is registered back and accepted, at 480 and 600px")
+    func aRealBlinkIsRegistered() throws {
+        for side in [480, 600] {
+            for (dx, dy) in [(0, 0), (1, 0), (0, 2), (3, 0), (0, 3), (-4, 2), (2, -4), (4, 4)] {
+                let pair = try realBlink(side: side, dx: dx, dy: dy)
+                let patch = try #require(HeadDerivation.lidPatch(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+                let r = patch.registration
+                // Undone to within the pixel the risen lid pulls it by.
+                #expect(abs(r.dx + dx) <= 1 && abs(r.dy + dy) <= 1, "\(side) moved (\(dx), \(dy)) registered (\(r.dx), \(r.dy))")
+                #expect(patch.fits, "\(side) (\(dx), \(dy)) ratio \(r.ratio)")
+            }
+        }
+    }
+
+    @Test("a blink grossly out of line is refused, and its fallback frame is moved and lit to match")
+    func aGrossBlinkIsRefused() throws {
+        for side in [480, 600] {
+            for (dx, dy) in [(20, 0), (0, -18)] {
+                let pair = try realBlink(side: side, dx: dx, dy: dy)
+                let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+                #expect(!r.fits, "\(side) (\(dx), \(dy)) ratio \(r.ratio)")
+            }
+        }
+        // The fallback: the whole relit frame, lit back to the open face.
+        let pair = try realBlink(side: 600, dx: 0, dy: 3, light: 0.08)
+        let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+        let frame = try #require(HeadDerivation.blinkFrame(open: pair.open, shut: pair.shut, eyes: creatorEyes, registration: r))
+        func brightness(_ image: CGImage) throws -> Double {
+            let p = try #require(HeadDerivation.pixels(image))
+            var total = 0.0, count = 0
+            for y in stride(from: 0, to: p.height, by: 2) {
+                // Below the eyes: the cheeks and chin, where a blink does not change.
+                guard Double(y) / Double(p.height) > 0.58 else { continue }
+                for x in stride(from: 0, to: p.width, by: 2) {
+                    let c = p.rgba(x, y)
+                    guard c.3 > 250 else { continue }
+                    total += (c.0 * 3 + c.1 * 6 + c.2) / 10
+                    count += 1
+                }
+            }
+            return total / Double(max(count, 1))
+        }
+        let open = try brightness(pair.open), fallback = try brightness(frame), raw = try brightness(pair.shut)
+        #expect(abs(raw - open) > 8, "the raw frame really is relit: \(raw) vs \(open)")
+        #expect(abs(fallback - open) < 1.5, "fallback \(fallback) vs open \(open)")
+        // And a refused blink still gives neutral a blink, never the others.
+        func png(_ image: CGImage) throws -> Data { try #require(HeadDerivation.pngData(image)) }
+        let gross = try realBlink(side: 480, dx: 20, dy: 0)
         let payload = HeadStore.Payload(faces: [
-            .neutral: .init(png: try png("HeadNeutral"), eyes: creatorEyes),
-            .browsUp: .init(png: try png("HeadNeutralBrowsUp"), eyes: creatorEyes),
-            .surprised: .init(png: try png("HeadRest"), eyes: creatorEyes)
-        ], shut: moved)
-        let derived = payload.derived()
-        #expect(derived.faces.values.allSatisfy { $0.shut == nil })
-        let rig = try #require(HeadStore.rig(from: derived))
-        #expect(rig.shutFaces == [.neutral], "neutral blinks on the raw frame")
-        #expect(rig.shut(on: .browsUp) == nil && rig.shut(on: .surprised) == nil)
+            .neutral: .init(png: try png(gross.open), eyes: creatorEyes),
+            .browsUp: .init(png: try #require(UIImage(named: "HeadNeutralBrowsUp")?.pngData()), eyes: creatorEyes)
+        ], shut: try png(gross.shut))
+        let rig = try #require(HeadStore.rig(from: payload.derived()))
+        #expect(rig.shutFaces == [.neutral])
     }
 
     @Test("light is matched on the cheek, so a brows face's patch is not pale")
