@@ -510,7 +510,9 @@ final class ImageManager: @unchecked Sendable {
                                   tier: tier, in: directory)
         }
         let longest = max(tierImage.width, tierImage.height)
-        guard CGFloat(longest) > maxWidth.rounded(.up) else { return UIImage(cgImage: tierImage) }
+        guard CGFloat(longest) > maxWidth.rounded(.up) else {
+            return UIImage(cgImage: ImageDerivatives.prepared(tierImage))
+        }
         let scale = maxWidth / CGFloat(longest)
         guard let smaller = ImageDerivatives.eightBit(
             tierImage, width: max(1, Int((CGFloat(tierImage.width) * scale).rounded())),
@@ -612,7 +614,9 @@ final class ImageManager: @unchecked Sendable {
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0,
                                                                 decodeOptions as CFDictionary)
             else { return nil }
-            return UIImage(cgImage: cgImage)
+            // Drawn here, or the HEIF decode happens on the main thread at
+            // first draw. See `ImageDerivatives.prepared`.
+            return UIImage(cgImage: ImageDerivatives.prepared(cgImage))
         }
     }
 
@@ -696,7 +700,8 @@ final class ImageManager: @unchecked Sendable {
             return nil
         }
 
-        return UIImage(cgImage: cgImage)
+        // Pixels, not a promise of pixels. See `ImageDerivatives.prepared`.
+        return UIImage(cgImage: ImageDerivatives.prepared(cgImage))
     }
 
     // MARK: - Migration Support

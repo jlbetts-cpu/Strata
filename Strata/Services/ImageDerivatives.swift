@@ -221,6 +221,23 @@ nonisolated enum ImageDerivatives {
         return context.makeImage()
     }
 
+    /// **A picture that is really decoded, drawn off the main thread.**
+    ///
+    /// `kCGImageSourceShouldCacheImmediately` does not make a HEIF decode
+    /// happen at the call. Sampled on the iOS 26.3 simulator during viewer
+    /// page turns, 54% of the MAIN thread was inside Core Animation's commit
+    /// (`CA::Render::copy_image`) running `HEIFReadPlugin::decodeImageImp` —
+    /// the decode had been deferred to the first draw, which is on the main
+    /// thread, and it waited there on the HEVC decoder's semaphores. That is
+    /// also how the app froze outright on a HEIC library: the commit blocked
+    /// on an ImageIO mutex a background decode held. Drawing into a bitmap
+    /// context here forces the pixels into memory on the calling (background)
+    /// thread, so what reaches a view is pixels and nothing is left to decode.
+    /// For a 320px thumbnail the copy is a fraction of a millisecond.
+    static func prepared(_ image: CGImage) -> CGImage {
+        eightBit(image, width: image.width, height: image.height) ?? image
+    }
+
     /// Encodes and writes one derivative atomically: to a temporary name in
     /// `derived/`, then renamed into place, so a reader never sees half a
     /// file and a kill mid-write leaves only a temp file `pruneOrphans` sweeps.
