@@ -29,6 +29,8 @@ struct MemoriesView: View {
     /// 48pt, from the lowfi. Named because the header's top padding is solved
     /// from it — a title's cap sits further down its layout box the bigger it
     /// is, so the two cannot be set independently.
+    /// Whether a cover above this page has put its heads to sleep.
+    @Environment(\.headsAwake) private var coveringHeadsAwake
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
@@ -308,6 +310,10 @@ struct MemoriesView: View {
             }
             }
             .toolbar(.hidden, for: .navigationBar)
+            // The header's head and the map's sleep under a photograph or a
+            // replay, and under whatever already covers this page. Before the
+            // covers, so nothing inside them is put to sleep.
+            .environment(\.headsAwake, coveringHeadsAwake && viewing == nil && playing == nil)
             .fullScreenCover(item: $viewing) { photo in
                 // The whole roll, so the next photograph is a swipe away.
                 PhotoViewer(photos: vm.gallery.flatMap(\.photos),

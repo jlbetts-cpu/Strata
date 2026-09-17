@@ -18,6 +18,10 @@ struct ProfileView: View {
     /// screenshot script written before Settings moved still reaches it.
     var opensSettings = false
 
+    /// Whether a cover above Profile has put its heads to sleep.
+
+    @Environment(\.headsAwake) private var coveringHeadsAwake
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var vm = ProfileViewModel()
@@ -65,7 +69,8 @@ struct ProfileView: View {
         .toolbar { doneToolbar }
         // Profile's head sleeps under the maker and the photo library. Before
         // those modifiers, so the maker's own preview head stays awake.
-        .environment(\.headsAwake, !(showsMaker || showsLibrary))
+        // ANDed with what arrives, so a cover above Profile still pauses it.
+        .environment(\.headsAwake, coveringHeadsAwake && !(showsMaker || showsLibrary))
         .navigationDestination(isPresented: $showsSettings) {
             SettingsView(onResetAllData: onResetAllData, isPushed: true)
         }
