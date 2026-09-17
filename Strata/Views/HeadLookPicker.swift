@@ -71,7 +71,10 @@ struct HeadLookPicker: View {
     private func makePreviews() async {
         let source = head
         let made = await Task.detached(priority: .userInitiated) { () -> [FilmLook.Kind: HeadRig] in
-            guard let neutralOnly = HeadRig(faces: [.neutral: source.face(.neutral)], shut: nil,
+            // Neutral's picture and eyes only: its blink would be dressed five
+            // times for a preview that never blinks.
+            let neutral = source.face(.neutral)
+            guard let neutralOnly = HeadRig(faces: [.neutral: HeadRig.Face(image: neutral.image, eyes: neutral.eyes)],
                                             contentHeight: source.contentHeight, chin: source.chin)
             else { return [:] }
             var out: [FilmLook.Kind: HeadRig] = [:]

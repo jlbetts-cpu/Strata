@@ -184,7 +184,7 @@ struct HeadMakerView: View {
     private var isLinedUp: Bool {
         switch model.step {
         case .lining: return model.hint == nil
-        case .blink, .smile, .brows, .surprised, .wink, .making: return true
+        case .blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making: return true
         default: return false
         }
     }
@@ -246,7 +246,11 @@ struct HeadMakerView: View {
         case .smile:       return model.caught ? "Got it" : "Now a big smile"
         case .brows:       return model.caught ? "Got it" : "Raise your eyebrows"
         case .surprised:   return model.caught ? "Got it" : "Now look surprised"
-        case .wink:        return model.caught ? "Got it" : "Last one, a wink"
+        // "Last" only when it is: a missed blink is asked for again after it.
+        case .wink:        return model.caught ? "Got it" : (model.landed.contains(.blink) ? "Last one, a wink" : "Now a wink")
+        // Only when the first blink was missed. Without one the head can
+        // never blink, so it is worth one more second.
+        case .blinkAgain:  return model.caught ? "Got it" : "One more quick blink"
         case .making:      return "Making your head…"
         case .preview:     return " "
         case .failed:      return model.failure
@@ -273,7 +277,7 @@ struct HeadMakerView: View {
                     // The one being asked for now, so the row says WHERE you
                     // are and not only how far along.
                     .overlay {
-                        if model.step == step, !done {
+                        if HeadMakerModel.pip(for: model.step) == step, !done {
                             RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
                                 .strokeBorder(.white, lineWidth: 1)
                         }
@@ -290,7 +294,7 @@ struct HeadMakerView: View {
 
     private var showsPips: Bool {
         switch model.step {
-        case .lining, .blink, .smile, .brows, .surprised, .wink, .making: return true
+        case .lining, .blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making: return true
         default: return false
         }
     }
@@ -368,7 +372,7 @@ struct HeadMakerView: View {
         let outerRadius = outer.width * 0.147
         let innerRadius = inner.width * 0.147
         let ready = model.canCapture
-        let watching: Bool = [.blink, .smile, .brows, .surprised, .wink, .making].contains(model.step)
+        let watching: Bool = [.blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making].contains(model.step)
         let lit = ready || watching
 
         return Button {
@@ -490,7 +494,7 @@ struct HeadMakerView: View {
         switch step {
         case .lining:
             withAnimation(reduceMotion ? nil : GridConstants.layoutReflow) { outlineDrawn = 1 }
-        case .blink, .smile, .brows, .surprised, .wink:
+        case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             outlineDrawn = 1
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.

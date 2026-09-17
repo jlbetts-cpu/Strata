@@ -355,7 +355,7 @@ struct OnboardingView: View {
         ZStack {
             Circle()
                 .fill(HabitCategory.creativity.style.baseColor)
-            if let rig = heads.head ?? HeadRig.creator() {
+            if let rig = heads.head ?? HeadRig.creatorRig {
                 TappableHead(rig: rig, side: Self.headCircle * ProfileAvatar.headShare, greets: true)
             }
         }

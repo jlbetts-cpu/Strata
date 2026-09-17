@@ -26,12 +26,11 @@ import SwiftData
 /// the whole record, which is the only place searching is worth doing. A shelf
 /// of two dozen cards is scrolled, not queried.
 struct MemoriesView: View {
-    /// 48pt, from the lowfi. Named because the header's top padding is solved
-    /// from it — a title's cap sits further down its layout box the bigger it
-    /// is, so the two cannot be set independently.
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
+    /// Whether a cover above this page has put its heads to sleep.
+    @Environment(\.headsAwake) private var coveringHeadsAwake
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
@@ -308,6 +307,10 @@ struct MemoriesView: View {
             }
             }
             .toolbar(.hidden, for: .navigationBar)
+            // The header's head and the map's sleep under a photograph or a
+            // replay, and under whatever already covers this page. Before the
+            // covers, so nothing inside them is put to sleep.
+            .environment(\.headsAwake, coveringHeadsAwake && viewing == nil && playing == nil)
             .fullScreenCover(item: $viewing) { photo in
                 // The whole roll, so the next photograph is a swipe away.
                 PhotoViewer(photos: vm.gallery.flatMap(\.photos),

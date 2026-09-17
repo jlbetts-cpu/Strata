@@ -251,6 +251,32 @@ enum DebugHarness {
     /// no head placement could ever be photographed here.
     static var seedsHead: Bool { argument("-strataSeedHead") != nil }
 
+    /// `-strataSeedMadeHead`: writes a version 2 made head to disk from the
+    /// creator's faces, with its blink and brows as separate, shifted frames,
+    /// so the migration and a made head's own path can run here. A bare flag.
+    static var seedsMadeHead: Bool { ProcessInfo.processInfo.arguments.contains("-strataSeedMadeHead") }
+
+    /// `-strataSeedMadeHeadShift <dx,dy>`: how far off the fixture's blink
+    /// frame is, in pixels (default 3,2). `0,40` puts it past the widened
+    /// registration search, the case where a head does not blink at all.
+    static var madeHeadBlinkShift: (dx: CGFloat, dy: CGFloat) {
+        let parts = (argument("-strataSeedMadeHeadShift") ?? "3,2").split(separator: ",").compactMap { Double($0) }
+        return parts.count == 2 ? (CGFloat(parts[0]), CGFloat(parts[1])) : (3, 2)
+    }
+
+    /// `-strataHeadParity`: opens the head parity page instead of the app
+    /// (`HeadParityView`). A bare flag.
+    static var headParity: Bool { ProcessInfo.processInfo.arguments.contains("-strataHeadParity") }
+
+    /// `-strataHeadSeed <n>`: every head's director draws from this seed, so
+    /// the creator and a made head on one page live the same life.
+    static var headSeed: UInt64? { argument("-strataHeadSeed").flatMap(UInt64.init) }
+
+    /// `-strataHeadBeat turn|glance|tilt|down|brow|smile|...`: every head plays
+    /// this beat after a 1.5s rest, so it can be photographed rather than
+    /// waited for. Any `HeadBeat.ID`.
+    static var headBeat: HeadBeat.ID? { argument("-strataHeadBeat").flatMap(HeadBeat.ID.init(rawValue:)) }
+
     /// Plays tap expressions on their own, from
     /// `-strataHeadTake cycle|grin|laugh|wink|winkGrin|surprised|doubleTake|eyebrow|sideEye|sleepy|thinking|nod|shake`,
     /// on every expressive head and on the review sticker, so each take can be

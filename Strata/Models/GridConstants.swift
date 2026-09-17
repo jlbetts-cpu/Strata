@@ -332,7 +332,86 @@ enum GridConstants {
     /// Reduced motion fallback
     static let motionReduced = Animation.easeOut(duration: 0.05)
 
-    // MARK: - The owner's head (onboarding thank-you page)
+    // MARK: - Heads
+
+    // One engine plays every head (`LivingHeadView`, `HeadDirector`); the
+    // owner's black-and-white head is the standard the numbers come from
+    // (`research-head-parity.md`, 2026-09-16). What differs between a head in
+    // chrome and a head that is the subject of its page is `HeadLife`, and
+    // every number it holds is one of these.
+
+    /// The blink's clock. A posterised snap reads as a blink; a fade reads
+    /// as eyes slowly closing.
+    nonisolated static let headStep: TimeInterval = 0.125
+    /// How far a head turns. Past about 20° a flat photograph stops reading
+    /// as a head and starts reading as a card. The creator's number.
+    nonisolated static let headMaxYaw: Double = 16
+    /// A glance turns the head this much with the eyes.
+    nonisolated static let headGlanceYaw: Double = 5
+    /// Rest between idle beats, seconds: where the head is the subject, and
+    /// in chrome.
+    nonisolated static let headBeatRestExpressive: ClosedRange<Double> = 3.5...8.0
+    nonisolated static let headBeatRestCalm: ClosedRange<Double> = 7.0...14.0
+    /// The first beat after a head appears, and after its hello.
+    nonisolated static let headFirstBeat: Double = 1.5
+    nonisolated static let headFirstBeatAfterHello: Double = 3.4
+    /// People blink every three to five seconds, irregularly.
+    nonisolated static let headBlinkGap: ClosedRange<Double> = 2.6...5.8
+    /// The blink's crunch: the head squashes this far as the lids close...
+    nonisolated static let headBlinkDepth: ClosedRange<Double> = 0.905...0.935
+    /// ...and gives this much back one step later, before the lids open.
+    nonisolated static let headBlinkRelease: Double = 0.045
+    /// About one blink in four is followed straight away by another.
+    nonisolated static let headDoubleBlinkShare: Double = 0.24
+    /// How long the eyes rest on a point that is not you, seconds.
+    nonisolated static let headWanderExpressive: ClosedRange<Double> = 1.2...2.6
+    nonisolated static let headWanderCalm: ClosedRange<Double> = 1.5...4.0
+    /// **Eye contact, bounded** (owner, 2026-09-16: yes where the head is the
+    /// subject; never in chrome). After looking away, the chance the eyes
+    /// come back to you. After contact they always look away on purpose.
+    nonisolated static let headContactShare: Double = 0.6
+    /// How long they rest on you, and the hard ceiling. People prefer mutual
+    /// gaze of about three seconds (Binetti et al., 2016); longer is a stare.
+    nonisolated static let headContactHold: ClosedRange<Double> = 1.2...2.6
+    nonisolated static let headContactMax: Double = 3.0
+    /// Anything that is not contact rests at least this far out from the
+    /// middle (-1...1 each way).
+    nonisolated static let headStareFloor: Double = 0.45
+    /// Fixational micro-saccades on an expressive head: how far, and how often.
+    nonisolated static let headMicroX: Double = 0.03
+    nonisolated static let headMicroY: Double = 0.02
+    nonisolated static let headMicroEvery: ClosedRange<Double> = 1.2...2.8
+    /// Eyes land before the head moves: a turn, and a glance or a look down.
+    nonisolated static let headEyesLead: Double = 0.09
+    nonisolated static let headEyesLeadGlance: Double = 0.08
+    /// The pupil as a share of the iris: the portfolio's calibrated ellipse,
+    /// and a measured outline's disc.
+    nonisolated static let headPupilCalibrated: Double = 0.55
+    nonisolated static let headPupilMeasured: Double = 0.46
+    /// Squashes: a lid cue in a take, a face popping or morphing in, a double
+    /// blink's second close and its release, and a settle's close and release.
+    nonisolated static let headSquashLids: Double = 0.94
+    nonisolated static let headSquashFace: Double = 0.975
+    nonisolated static let headSquashDoubleBlink: Double = 0.92
+    nonisolated static let headSquashDoubleBlinkRelease: Double = 0.95
+    nonisolated static let headSquashSettle: Double = 0.92
+    nonisolated static let headSquashSettleRelease: Double = 0.965
+    /// How long a face's squash, and a morph's old layer, are given to land.
+    nonisolated static let headMorphLands: Double = 0.16
+    /// Holds inside the creator's beats, seconds: a turn looking at something,
+    /// a look down at the words, an idle smile, an idle surprise.
+    nonisolated static let headTurnHold: ClosedRange<Double> = 1.2...2.2
+    nonisolated static let headDownHold: ClosedRange<Double> = 0.9...1.5
+    nonisolated static let headSmileHold: ClosedRange<Double> = 1.3...2.0
+    nonisolated static let headSurpriseHold: ClosedRange<Double> = 0.7...1.0
+    /// The hello: when it starts, how long the brows are up, how long the wink.
+    nonisolated static let headHelloDelay: Double = 0.7
+    nonisolated static let headHelloBrows: Double = 0.24
+    nonisolated static let headHelloWink: Double = 1.6
+    /// A made face pops in, like the creator's grin, only when its silhouette
+    /// overlaps neutral's this much; otherwise it morphs.
+    nonisolated static let headPopIoU: Double = 0.94
+
 
     /// A head turning. Critically damped: a head arrives at what it is looking
     /// at, it does not overshoot and correct. About half a second, a relaxed

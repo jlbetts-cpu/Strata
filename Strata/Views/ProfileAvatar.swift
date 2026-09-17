@@ -21,7 +21,7 @@ struct ProfileAvatar: View {
             ZStack {
                 Circle().fill(store.backgroundStyle)
                 // Expressive: on Profile the head is the subject of the page.
-                LivingHeadView(rig: head, side: side * Self.headShare, liveliness: .expressive)
+                LivingHeadView(rig: head, side: side * Self.headShare, liveliness: .expressive, traceID: "profile")
             }
             .frame(width: side, height: side)
             .clipShape(Circle())
@@ -96,7 +96,7 @@ struct ProfileButton: View {
             // pulls the eye from the page it sits on.
             let face = glyph
                 .overlay {
-                    LivingHeadView(rig: head, side: side * ProfileAvatar.headShare, liveliness: .calm)
+                    LivingHeadView(rig: head, side: side * ProfileAvatar.headShare, liveliness: .calm, traceID: "header")
                         .frame(width: side, height: side)
                         .clipShape(Circle())
                 }

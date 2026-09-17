@@ -947,10 +947,77 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   header only. Settings lives only inside it.
 - **The head is 100% optional.** `HeadStore` holds it and every switch; all
   start off. Ask `headForPicture` / `headForMap`, never the raw switch.
-- **One head, one view.** `HeadRig` is the faces and where the eyes are on
-  each; `LivingHeadView` draws it everywhere, `.calm` in chrome and
-  `.expressive` where the head is the subject. `CreatorHead` (thank-you page)
-  is separate and untouched.
+- **One head, one engine** (2026-09-16, owner: a made head must be "as
+  expressive as the head we added of me with the black and white"). `HeadRig`
+  is the faces, each face's shut eyes and where the eyes are; `LivingHeadView`
+  plays every head, `.calm` in chrome and `.expressive` where the head is the
+  subject. `CreatorHead` is `TappableHead` on `HeadRig.creatorRig`, nothing
+  more, and **its behaviour is the standard**: never give a made head a
+  different number from the creator's. Idle beats are data (`HeadBeat`,
+  resolved by `HeadDirector`, seeded) played through the same `apply` as a
+  tap's `HeadTake`; `HeadLife.calm`/`.expressive` hold every difference, and
+  every tunable is a `GridConstants` head token (a beat's cue timings are
+  authored data, like `HeadTake`'s catalogue). Plan and baseline:
+  `research-head-parity.md`, report `head-parity-report.md` (StrataWork).
+- **Eye contact is bounded, not forbidden.** Expressive heads rest their
+  eyes on you 1.2 to 2.6s, never more than `headContactMax` (3s), and the next
+  fixation after contact is ALWAYS away (at least `headStareFloor`, 0.45).
+  Calm heads, takes, a kept sticker gaze and Reduce Motion never make contact
+  (`HeadDirectorTests.contactIsBounded`, `calmNeverMovesOrStares`). The old
+  rule "it never looks straight at you" is gone; the old creator engine stared
+  for 34s at a time, which is also gone.
+- **Faces a made head blinks on are derived, never drawn**
+  (`HeadDerivation`): the blink frame's eye regions feathered onto neutral,
+  raised brows and surprised, lit to match (without the gain match a relit
+  frame read as a pale oval round each eye), so a blink moves the lids and
+  nothing else. Raised brows are banded onto neutral only when the seam
+  measures clean, else the raw capture stays. A face pops in (hard swap) only
+  when its silhouette IoU with neutral is at least `headPopIoU`. Heads saved
+  before this are migrated once (manifest v2 to v3), and every image they
+  wrote stays byte for byte (only `head.json` is replaced). **Only the derive
+  is off the main actor**: the copy of the folder, the writes into it, the
+  re-read that the head is still v2 and the swap all run ON the main actor,
+  once, at launch, and only if no save or delete bumped `HeadStore.epoch`.
+- **A blink is REGISTERED, not refused for having moved.** Real blink frames
+  drift (Vision's centres on shut eyes slide toward the lashes, the lower lid
+  rises, crow's feet crease). `HeadDerivation.register` searches whole-pixel
+  offsets: horizontally 0.15 of an eye's width, vertically at least one
+  opening half-height (the drift is vertical). A best offset on the edge
+  widens the search once (coarse, then refined); still on the edge, the blink
+  is not used AT ALL (`Payload.blinks` false: no lids, no moved frame, no raw
+  frame; the head does not blink, logged in DEBUG). What is left is judged
+  relative to the face's own texture (the open face moved a tenth of an eye):
+  ratio over `lidRatioLimit` 0.57 is refused, which refuses lids left more
+  than 2px off (measured: registered 0.31 to 0.40, 2px off 0.49 to 0.73, 3px
+  off 0.61 to 0.97, at 480 and 600px). A refused blink in reach gives neutral
+  its WHOLE frame moved to the best offset and lit to match (`blinkFrame`).
+  Raised brows and surprised reuse neutral's offset but are each checked on
+  their own face there and dropped if they do not fit. Do not go back to an
+  absolute pixel limit: it was tuned on a hand-painted photo whose skin never
+  changes. `-strataSeedMadeHead` writes a v2 fixture head whose blink is off
+  by `-strataSeedMadeHeadShift <dx,dy>` (default 3,2; `0,40` is past the
+  widened search).
+- **A head sleeps when it cannot be seen**: scene not active, or less than a
+  fifth of its frame on screen. The loops cancel, the float stops, and on
+  waking the first beat waits a full rest. Measured: zero trace events over
+  39s backgrounded. A sheet does not make the page under it disappear, so a
+  cover sets `\.headsAwake` false BEFORE its `.sheet`/`.fullScreenCover`
+  modifier (Memories under Profile, a photograph or a replay; Profile under
+  the maker and the photo library); after it, the sheet's own head would
+  sleep too. A page that sets it ANDs with the value it inherits, so a cover
+  above that page still counts.
+- **Eyes never compose near the middle unless resting on you**
+  (`HeadDirector.composedGaze`): a take's look that keeps the rest (sleepy,
+  nod) used to cancel an away point to |gaze| 0.13.
+- **A face that morphed in morphs out.** `settleThroughBlink` swaps behind
+  the lids only for brows and `rig.popsIn` faces; anything else morphs back
+  and then blinks.
+- **The maker asks for one more quick blink** (`.blinkAgain`) only when the
+  blink stage did not catch a real one; it keeps the open frame and looks for
+  a shut one only.
+- `-strataHeadParity` (creator, made, neutral-and-shut, calm on key-green),
+  `-strataHeadTrace` (every gaze, pose, lids and face target),
+  `-strataHeadSeed <n>`, `-strataHeadBeat <id>`.
 - **The maker** (`HeadMakerView`, `HeadMakerModel`, `HeadCaptureEngine`,
   `HeadFraming`) uses Strata's camera, never the system one. Capture and
   subject lifting **do not run in the simulator**; every state can be
@@ -969,9 +1036,8 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   allow (neutral only: sideEye, thinking, nod, shake). Reduce Motion is a
   face swap only, one take per face. Taps: the review sticker (motion eases
   back, **the face is kept**, so what is on the review when Use Photo is
-  pressed is what is saved), the maker preview and onboarding head page
-  (`TappableHead`), and `CreatorHead` (its own interpreter of the same
-  catalogue). Photograph them with `-strataHeadTake cycle|<id>`.
+  pressed is what is saved), the maker preview, onboarding head page and
+  thank-you page (`TappableHead`). Photograph them with `-strataHeadTake cycle|<id>`.
 - **Three bugs the takes flushed out of `LivingHeadView`**, each seen in a
   simulator burst, not in code: (1) the idle loops read `held`, a view
   property, inside long-running tasks, so they always saw nil and the

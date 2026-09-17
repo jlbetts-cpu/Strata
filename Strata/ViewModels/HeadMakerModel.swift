@@ -11,7 +11,7 @@ import UIKit
 final class HeadMakerModel {
     // Hashable, not merely Equatable: `landed` is a set of them and the
     // screen's pip row is a `ForEach` over them.
-    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, wink, making, preview, failed }
+    enum Step: Hashable { case starting, unavailable, lining, blink, smile, brows, surprised, wink, blinkAgain, making, preview, failed }
 
     struct Result {
         let rig: HeadRig
@@ -129,13 +129,13 @@ final class HeadMakerModel {
                 linedUpSince = Date()
                 HapticsEngine.tick()
             }
-        case .blink, .smile, .brows, .surprised, .wink:
+        case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             // The same tick, for the same reason: it landed, and you felt it
             // without having to look away from your own face.
             guard update.phase == Self.phase(for: step) else { return }
             guard update.caught, !caught else { return }
             caught = true
-            landed.insert(step)
+            landed.insert(Self.pip(for: step))
             HapticsEngine.tick()
         default:
             break
@@ -143,8 +143,25 @@ final class HeadMakerModel {
     }
 
     static func phase(for step: Step) -> HeadCaptureEngine.Phase {
-        sequence.first { $0.step == step }?.phase ?? .idle
+        if step == .blinkAgain { return .blinkAgain }
+        return sequence.first { $0.step == step }?.phase ?? .idle
     }
+
+    /// The pip a step fills: asking again for the blink is still the blink.
+    static func pip(for step: Step) -> Step {
+        step == .blinkAgain ? .blink : step
+    }
+
+    /// **One more blink, only when the first was missed** (owner,
+    /// 2026-09-16). A head without a real blink can never blink, and a head
+    /// that never blinks is the one thing the creator's head never is. Asked
+    /// once, at the end, when everything else is already in hand; if it is
+    /// missed again the head is made without one, as before.
+    static func asksBlinkAgain(blinkCaught: Bool) -> Bool { !blinkCaught }
+
+    /// A quick blink lands in well under a second once it is understood; this
+    /// leaves room to read four words and try twice.
+    static let blinkAgainWindow: Duration = .milliseconds(2600)
 
     /// Whether the face is where the outline asks for it.
     var isLinedUp: Bool { step == .lining && hint == nil }
@@ -195,20 +212,46 @@ final class HeadMakerModel {
     private func run(from start: Step) {
         flow?.cancel()
         linedUpSince = nil
-        guard let first = Self.sequence.firstIndex(where: { $0.step == start }) else { return }
+        guard Self.sequence.contains(where: { $0.step == start }) else { return }
         landed = []
         flow = Task { @MainActor in
-            for stage in Self.sequence[first...] {
+            let finished = await Self.askAll(from: start, ask: { stage in
                 caught = false
                 step = stage.step
                 engine.begin(stage.phase)
                 if stage.step != .blink { HapticsEngine.tick() }
-                await watch(for: stage.window,
-                            atLeast: stage.step == .blink ? Self.leastBlink : .zero)
-                guard !Task.isCancelled else { return }
-            }
+                await watch(for: stage.window, atLeast: stage.least)
+            }, blinkCaught: { engine.caught(.shut) }, isCancelled: { Task.isCancelled })
+            guard finished else { return }
             await make()
         }
+    }
+
+    /// One ask: the step on screen, the engine's phase, its ceiling and floor.
+    struct Ask: Equatable {
+        let step: Step
+        let phase: HeadCaptureEngine.Phase
+        let window: Duration
+        let least: Duration
+    }
+
+    /// **Every ask, in order, then one more blink only if the blink was
+    /// missed.** Each ask runs once; the second blink is asked at most once,
+    /// never in a loop, and never after a cancel. True when the head should be
+    /// made. Pure over its closures, so `HeadMakerFlowTests` can run it.
+    static func askAll(from start: Step, ask: (Ask) async -> Void, blinkCaught: () -> Bool,
+                       isCancelled: () -> Bool) async -> Bool {
+        guard let first = sequence.firstIndex(where: { $0.step == start }) else { return false }
+        for stage in sequence[first...] {
+            await ask(Ask(step: stage.step, phase: stage.phase, window: stage.window,
+                          least: stage.step == .blink ? leastBlink : .zero))
+            if isCancelled() { return false }
+        }
+        if asksBlinkAgain(blinkCaught: blinkCaught()) {
+            await ask(Ask(step: .blinkAgain, phase: .blinkAgain, window: blinkAgainWindow, least: .zero))
+            if isCancelled() { return false }
+        }
+        return true
     }
 
     /// Waits until the expression lands or the ceiling is reached, then keeps
@@ -306,7 +349,9 @@ final class HeadMakerModel {
             if let shut, let shutCrop {
                 shutPNG = HeadCaptureEngine.cutOut(shut, crop: shutCrop, side: side, chin: chin, paintsEyes: false)?.png
             }
-            return HeadStore.Payload(faces: faces, shut: shutPNG)
+            // The creator's kind of face from these captures: shut eyes on
+            // every face that can blink, brows that change only the brows.
+            return HeadStore.Payload(faces: faces, shut: shutPNG).derived()
         }.value
 
         guard !Task.isCancelled else { return }
@@ -364,6 +409,9 @@ final class HeadMakerModel {
         case "surprised":
             step = .surprised
             landed = [.blink, .smile, .brows]
+        case "blinkagain":
+            step = .blinkAgain
+            landed = [.smile, .brows, .surprised, .wink]
         case "wink":
             step = .wink
             landed = [.blink, .smile, .brows, .surprised]

@@ -17,7 +17,9 @@ import Vision
 /// actor, and none of this may run there.
 nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
 
-    nonisolated enum Phase: Sendable { case idle, lining, blink, smile, brows, surprised, wink }
+    /// `blinkAgain`: the maker's second ask when the blink was missed. It keeps
+    /// the open frame and only looks for a shut one.
+    nonisolated enum Phase: Sendable { case idle, lining, blink, blinkAgain, smile, brows, surprised, wink }
     nonisolated enum Slot: Sendable { case open, shut, smile, brows, surprised, wink }
 
     nonisolated struct Update: Sendable {
@@ -108,6 +110,9 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         lastCaught = false
         switch next {
         case .blink: kept[.open] = nil; kept[.shut] = nil
+        // The open frame is the head and was already caught; a shut frame
+        // that did not count is only ever replaced by a more shut one.
+        case .blinkAgain: break
         case .smile: kept[.smile] = nil
         case .brows: kept[.brows] = nil
         case .surprised: kept[.surprised] = nil
@@ -175,7 +180,7 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
     /// none.
     static func slot(for phase: Phase) -> Slot? {
         switch phase {
-        case .blink:     return .shut
+        case .blink, .blinkAgain: return .shut
         case .smile:     return .smile
         case .brows:     return .brows
         case .surprised: return .surprised
@@ -265,6 +270,9 @@ nonisolated final class HeadCaptureEngine: NSObject, AVCaptureVideoDataOutputSam
         case .blink:
             guard let openness = HeadFraming.openness(left: left, right: right) else { return }
             offer(openness, to: .open, higherIsBetter: true, buffer: buffer, measured: measured)
+            offer(openness, to: .shut, higherIsBetter: false, buffer: buffer, measured: measured)
+        case .blinkAgain:
+            guard let openness = HeadFraming.openness(left: left, right: right) else { return }
             offer(openness, to: .shut, higherIsBetter: false, buffer: buffer, measured: measured)
         case .smile:
             guard let smile else { return }
