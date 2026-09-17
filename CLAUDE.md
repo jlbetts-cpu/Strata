@@ -981,18 +981,22 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
 - **A blink is REGISTERED, not refused for having moved.** Real blink frames
   drift (Vision's centres on shut eyes slide toward the lashes, the lower lid
   rises, crow's feet crease). `HeadDerivation.register` searches whole-pixel
-  offsets within 0.15 of an eye's width for the best ring agreement, and
-  judges what is left RELATIVE to the face's own texture (the open face
-  against itself moved a tenth of an eye): ratio over `lidRatioLimit` 1.0 is
-  refused. Measured: a real-blink-like pair moved 0 to 4px registers back to
-  within 1px at ratio 0.39 to 0.40, at 480 and 600px; moved 18 to 20px, 1.32
-  to 2.50. A refused blink's WHOLE frame is moved to the best offset and lit
-  to match (`blinkFrame`), for neutral only, so it never shifts or flashes
-  the head; brows and surprised then get no blink. Do not go back to an
+  offsets: horizontally 0.15 of an eye's width, vertically at least one
+  opening half-height (the drift is vertical). A best offset on the edge
+  widens the search once (coarse, then refined); still on the edge, the blink
+  is not used AT ALL (`Payload.blinks` false: no lids, no moved frame, no raw
+  frame; the head does not blink, logged in DEBUG). What is left is judged
+  relative to the face's own texture (the open face moved a tenth of an eye):
+  ratio over `lidRatioLimit` 0.57 is refused, which refuses lids left more
+  than 2px off (measured: registered 0.31 to 0.40, 2px off 0.49 to 0.73, 3px
+  off 0.61 to 0.97, at 480 and 600px). A refused blink in reach gives neutral
+  its WHOLE frame moved to the best offset and lit to match (`blinkFrame`).
+  Raised brows and surprised reuse neutral's offset but are each checked on
+  their own face there and dropped if they do not fit. Do not go back to an
   absolute pixel limit: it was tuned on a hand-painted photo whose skin never
-  changes and would have refused most real blinks.
-  `-strataSeedMadeHead` writes a v2 fixture head whose blink is moved 3px
-  and relit, so registration and migration can be run and looked at.
+  changes. `-strataSeedMadeHead` writes a v2 fixture head whose blink is off
+  by `-strataSeedMadeHeadShift <dx,dy>` (default 3,2; `0,40` is past the
+  widened search).
 - **A head sleeps when it cannot be seen**: scene not active, or less than a
   fifth of its frame on screen. The loops cancel, the float stops, and on
   waking the first beat waits a full rest. Measured: zero trace events over
