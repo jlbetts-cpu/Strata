@@ -152,15 +152,75 @@ struct HeadDerivationTests {
         }
     }
 
-    @Test("a blink grossly out of line is refused, and its fallback frame is moved and lit to match")
-    func aGrossBlinkIsRefused() throws {
+    @Test("lids left more than 2px off are refused, either way, at 480 and 600px")
+    func leftoverOverTwoPixelsIsRefused() throws {
         for side in [480, 600] {
-            for (dx, dy) in [(20, 0), (0, -18)] {
-                let pair = try realBlink(side: side, dx: dx, dy: dy)
-                let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
-                #expect(!r.fits, "\(side) (\(dx), \(dy)) ratio \(r.ratio)")
+            let pair = try realBlink(side: side, dx: 0, dy: 0)
+            let best = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+            #expect(best.fits, "\(side) registered \(best.ratio)")
+            for k in 3...8 {
+                for (dx, dy) in [(0, k), (0, -k), (k, 0), (-k, 0)] {
+                    let off = try #require(HeadDerivation.evaluate(open: pair.open, shut: pair.shut, eyes: creatorEyes,
+                                                                   dx: best.dx + dx, dy: best.dy + dy))
+                    #expect(!off.fits, "\(side) left (\(dx), \(dy)) off: \(off.ratio)")
+                }
             }
         }
+    }
+
+    @Test("true shifts from the search edge +1 to +6px are found by the widened search, never pasted over 2px off")
+    func pastTheSearchEdge() throws {
+        for side in [480, 600] {
+            // The first search reaches one opening half-height vertically.
+            let reachY = Int((0.0192 * Double(side)).rounded())
+            let reachX = max(1, Int((0.077 * Double(side) * 0.15).rounded()))
+            for extra in 1...6 {
+                for (dx, dy) in [(0, reachY + extra), (reachX + extra, 0)] {
+                    let pair = try realBlink(side: side, dx: dx, dy: dy)
+                    let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+                    let leftover = max(abs(r.dx + dx), abs(r.dy + dy))
+                    if leftover > 2 { #expect(!r.fits, "\(side) true (\(dx), \(dy)) left \(leftover) off, ratio \(r.ratio)") }
+                    // Found to within a pixel. Accepted, unless it sits exactly on the
+                    // widened search's edge, where it is not used at all.
+                    #expect(leftover <= 1 && (r.fits || r.onEdge),
+                            "\(side) true (\(dx), \(dy)) found (\(r.dx), \(r.dy)) ratio \(r.ratio) edge \(r.onEdge)")
+                }
+            }
+        }
+    }
+
+    @Test("a blink past even the widened search is not used at all: no lids, no moved frame, no raw frame")
+    func pastTheWidenedSearchDoesNotBlink() throws {
+        for side in [480, 600] {
+            let pair = try realBlink(side: side, dx: 0, dy: 60)
+            let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+            #expect(r.onEdge && !r.fits, "\(side) found (\(r.dx), \(r.dy)) edge \(r.onEdge)")
+        }
+        func png(_ image: CGImage) throws -> Data { try #require(HeadDerivation.pngData(image)) }
+        let gross = try realBlink(side: 480, dx: 0, dy: 60)
+        let payload = HeadStore.Payload(faces: [.neutral: .init(png: try png(gross.open), eyes: creatorEyes)],
+                                        shut: try png(gross.shut))
+        let derived = payload.derived()
+        #expect(!derived.blinks)
+        let rig = try #require(HeadStore.rig(from: derived))
+        #expect(rig.shut == nil && rig.shutFaces.isEmpty)
+    }
+
+    @Test("raised brows and surprised are checked at neutral's offset on their own faces")
+    func sharedRegistrationIsCheckedPerFace() throws {
+        let pair = try realBlink(side: 480, dx: 2, dy: 3)
+        let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
+        let brows = try #require(UIImage(named: "HeadNeutralBrowsUp")?.cgImage)
+        let onBrows = try #require(HeadDerivation.evaluate(open: brows, shut: pair.shut, eyes: creatorEyes, dx: r.dx, dy: r.dy))
+        #expect(onBrows.fits, "brows at the shared offset \(onBrows.ratio)")
+        // A face whose skin round the eyes does not match the blink is dropped.
+        let smile = try #require(UIImage(named: "HeadSmile")?.cgImage)
+        let onSmile = try #require(HeadDerivation.evaluate(open: smile, shut: pair.shut, eyes: creatorEyes, dx: r.dx, dy: r.dy))
+        #expect(!onSmile.fits, "a grin's cheeks at the shared offset \(onSmile.ratio)")
+    }
+
+    @Test("a refused blink's fallback frame is moved and lit to match")
+    func aRefusedBlinksFallback() throws {
         // The fallback: the whole relit frame, lit back to the open face.
         let pair = try realBlink(side: 600, dx: 0, dy: 3, light: 0.08)
         let r = try #require(HeadDerivation.register(open: pair.open, shut: pair.shut, eyes: creatorEyes))
@@ -183,15 +243,6 @@ struct HeadDerivationTests {
         let open = try brightness(pair.open), fallback = try brightness(frame), raw = try brightness(pair.shut)
         #expect(abs(raw - open) > 8, "the raw frame really is relit: \(raw) vs \(open)")
         #expect(abs(fallback - open) < 1.5, "fallback \(fallback) vs open \(open)")
-        // And a refused blink still gives neutral a blink, never the others.
-        func png(_ image: CGImage) throws -> Data { try #require(HeadDerivation.pngData(image)) }
-        let gross = try realBlink(side: 480, dx: 20, dy: 0)
-        let payload = HeadStore.Payload(faces: [
-            .neutral: .init(png: try png(gross.open), eyes: creatorEyes),
-            .browsUp: .init(png: try #require(UIImage(named: "HeadNeutralBrowsUp")?.pngData()), eyes: creatorEyes)
-        ], shut: try png(gross.shut))
-        let rig = try #require(HeadStore.rig(from: payload.derived()))
-        #expect(rig.shutFaces == [.neutral])
     }
 
     @Test("light is matched on the cheek, so a brows face's patch is not pale")

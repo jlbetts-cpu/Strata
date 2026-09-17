@@ -185,12 +185,12 @@ nonisolated enum HeadDerivation {
     /// The open face moved this share of an eye's width: its own texture.
     static let lidTextureShift: CGFloat = 0.1
     /// The best-registered blink may differ this many times the face's own
-    /// texture before it is refused: no more than the open face differs from
-    /// itself moved a tenth of an eye. Measured on a real-blink-like pair
-    /// (lower lid risen, crow's feet, relit 6%, moved up to 4px) at 480 and
-    /// 600px: 0.39 to 0.40 once registered. Moved 18 to 20px, past the search:
-    /// 1.32 to 2.50. See `HeadDerivationTests.aRealBlinkIsRegistered`.
-    static let lidRatioLimit: Double = 1.0
+    /// texture (the open face moved a tenth of an eye) before it is refused.
+    /// Set so that lids left more than 2px off are refused: on a
+    /// real-blink-like pair (lower lid risen, crow's feet, relit), registered
+    /// 0.31 to 0.40; left 2px off 0.49 to 0.73; 3px off 0.61 to 0.97, the
+    /// lowest being vertical at 600px. See `HeadDerivationTests`.
+    static let lidRatioLimit: Double = 0.57
     /// Half the box, in pixels, rings are compared over.
     static let ringBlur = 1
 
@@ -203,8 +203,11 @@ nonisolated enum HeadDerivation {
         let difference: Double
         /// The open face against itself, moved `lidTextureShift`.
         let texture: Double
+        /// The best offset sat on the edge of the widened search: the blink
+        /// is further off than any face moves between frames, and is not used.
+        let onEdge: Bool
         var ratio: Double { difference / max(texture, 0.5) }
-        var fits: Bool { ratio <= HeadDerivation.lidRatioLimit }
+        var fits: Bool { !onEdge && ratio <= HeadDerivation.lidRatioLimit }
     }
 
     /// A lid patch and its registration.
@@ -247,17 +250,51 @@ nonisolated enum HeadDerivation {
 
     /// **Finds where `shut` lines up with `open` round the eyes.**
     static func register(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye]) -> Registration? {
-        guard !eyes.isEmpty, let masks = lidMasks(eyes: eyes, side: open.width) else { return nil }
-        return register(open: open, shut: shut, eyes: eyes, masks: masks)
+        guard !eyes.isEmpty, let masks = lidMasks(eyes: eyes, side: open.width),
+              let registrar = Registrar(open: open, shut: shut, eyes: eyes, masks: masks) else { return nil }
+        return registrar.search()
     }
 
-    private static func register(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye], masks: LidMasks) -> Registration? {
-        let w = open.width, h = open.height
-        guard let a = pixels(open), let b = pixels(shut, width: w, height: h) else { return nil }
-        func luma(_ p: Pixels, _ i: Int) -> Double {
+    /// How well `shut` fits `open` at one given offset: a shared registration
+    /// checked on another face, or a known leftover in a test.
+    static func evaluate(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye], dx: Int, dy: Int) -> Registration? {
+        guard !eyes.isEmpty, let masks = lidMasks(eyes: eyes, side: open.width),
+              let registrar = Registrar(open: open, shut: shut, eyes: eyes, masks: masks),
+              let difference = registrar.compare(dx, dy) else { return nil }
+        return Registration(dx: dx, dy: dy, difference: difference, texture: registrar.texture, onEdge: false)
+    }
+
+    /// The pictures, tables and rings one registration compares.
+    private struct Registrar {
+        let a: Pixels
+        let b: Pixels
+        let sa: [Double]
+        let sb: [Double]
+        let masks: LidMasks
+        let w: Int
+        let h: Int
+        /// Mean eye width and opening half-height, in pixels.
+        let span: CGFloat
+        let halfHeight: CGFloat
+
+        init?(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye], masks: LidMasks) {
+            w = open.width
+            h = open.height
+            guard let a = HeadDerivation.pixels(open), let b = HeadDerivation.pixels(shut, width: w, height: h) else { return nil }
+            self.a = a
+            self.b = b
+            self.masks = masks
+            span = eyes.map { $0.rx * 2 }.reduce(0, +) / CGFloat(eyes.count) * CGFloat(w)
+            halfHeight = eyes.map(\.ry).reduce(0, +) / CGFloat(eyes.count) * CGFloat(w)
+            sa = Self.table(a, w, h)
+            sb = Self.table(b, w, h)
+        }
+
+        static func luma(_ p: Pixels, _ i: Int) -> Double {
             (Double(p.bytes[i * 4]) * 3 + Double(p.bytes[i * 4 + 1]) * 6 + Double(p.bytes[i * 4 + 2])) / 10
         }
-        func table(_ p: Pixels) -> [Double] {
+
+        static func table(_ p: Pixels, _ w: Int, _ h: Int) -> [Double] {
             var sums = [Double](repeating: 0, count: (w + 1) * (h + 1))
             for y in 0..<h {
                 var row = 0.0
@@ -268,25 +305,29 @@ nonisolated enum HeadDerivation {
             }
             return sums
         }
-        let sa = table(a), sb = table(b)
-        let r = ringBlur
+
         func mean(_ sums: [Double], _ x: Int, _ y: Int) -> Double? {
+            let r = HeadDerivation.ringBlur
             guard x - r >= 0, y - r >= 0, x + r < w, y + r < h else { return nil }
             let x0 = x - r, x1 = x + r + 1, y0 = y - r, y1 = y + r + 1
             return (sums[y1 * (w + 1) + x1] - sums[y0 * (w + 1) + x1] - sums[y1 * (w + 1) + x0]
                     + sums[y0 * (w + 1) + x0]) / Double((x1 - x0) * (y1 - y0))
         }
+
         func opaque(_ p: Pixels, _ x: Int, _ y: Int) -> Bool {
             x >= 0 && y >= 0 && x < w && y < h && p.bytes[(y * w + x) * 4 + 3] > 240
         }
-        /// `other` moved by (dx, dy) against `a`: the light-matched mean difference.
-        func compare(_ other: Pixels, _ sums: [Double], _ dx: Int, _ dy: Int) -> Double? {
+
+        /// `other` moved by (dx, dy) against the open face: the light-matched
+        /// mean difference of local means over the ring.
+        func compare(_ dx: Int, _ dy: Int, against other: Pixels? = nil, sums: [Double]? = nil) -> Double? {
+            let other = other ?? b, sums = sums ?? sb
             var sumA = 0.0, sumB = 0.0
             for i in masks.gainRing {
                 let x = i % w, y = i / w
                 guard opaque(a, x, y), opaque(other, x - dx, y - dy) else { continue }
-                sumA += luma(a, i)
-                sumB += luma(other, (y - dy) * w + x - dx)
+                sumA += Self.luma(a, i)
+                sumB += Self.luma(other, (y - dy) * w + x - dx)
             }
             let gain = sumB > 0 ? min(max(sumA / sumB, 0.7), 1.4) : 1
             var total = 0.0, count = 0
@@ -299,29 +340,58 @@ nonisolated enum HeadDerivation {
             }
             return count < 50 ? nil : total / Double(count)
         }
-        let span = eyes.map { $0.rx * 2 }.reduce(0, +) / CGFloat(eyes.count) * CGFloat(w)
-        let reach = max(1, Int((span * lidSearch).rounded()))
-        var best: (dx: Int, dy: Int, difference: Double)?
-        // Nearest first, and a farther offset has to be clearly better: on a
-        // face with no texture to go by, the blink stays where it was.
-        var offsets: [(Int, Int)] = []
-        for dy in -reach...reach {
-            for dx in -reach...reach { offsets.append((dx, dy)) }
+
+        /// The open face against itself, moved `lidTextureShift` of an eye.
+        var texture: Double {
+            let move = max(1, Int((span * HeadDerivation.lidTextureShift).rounded()))
+            let both = [compare(move, 0, against: a, sums: sa), compare(0, move, against: a, sums: sa)].compactMap { $0 }
+            return both.isEmpty ? 1 : both.reduce(0, +) / Double(both.count)
         }
-        offsets.sort { a, b in
-            let da: Int = a.0 * a.0 + a.1 * a.1
-            let db: Int = b.0 * b.0 + b.1 * b.1
-            return da < db
+
+        /// **The best offset.** Horizontally within `lidSearch` of an eye's
+        /// width; vertically at least one opening half-height, because the
+        /// drift is vertical (Vision's centres on shut eyes slide toward the
+        /// lashes). A best offset on the edge of that box widens it once
+        /// (coarse, then refined); still on the edge, the registration says
+        /// so and the blink is not used at all.
+        func search() -> Registration? {
+            let reachX = max(1, Int((span * HeadDerivation.lidSearch).rounded()))
+            let reachY = max(reachX, Int(halfHeight.rounded()))
+            guard var best = best(in: -reachX...reachX, -reachY...reachY, step: 1) else { return nil }
+            var edgeX = reachX, edgeY = reachY
+            if abs(best.dx) == edgeX || abs(best.dy) == edgeY {
+                edgeX *= 2
+                edgeY *= 2
+                if let coarse = self.best(in: -edgeX...edgeX, -edgeY...edgeY, step: 2),
+                   let fine = self.best(in: max(coarse.dx - 2, -edgeX)...min(coarse.dx + 2, edgeX),
+                                        max(coarse.dy - 2, -edgeY)...min(coarse.dy + 2, edgeY), step: 1),
+                   fine.difference < best.difference {
+                    best = fine
+                }
+            }
+            let onEdge = abs(best.dx) >= edgeX || abs(best.dy) >= edgeY
+            return Registration(dx: best.dx, dy: best.dy, difference: best.difference, texture: texture, onEdge: onEdge)
         }
-        for (dx, dy) in offsets {
-            guard let d = compare(b, sb, dx, dy) else { continue }
-            if best == nil || d < best!.difference - 0.05 { best = (dx, dy, d) }
+
+        /// Nearest first, and a farther offset has to be clearly better: on a
+        /// face with no texture to go by, the blink stays where it was.
+        private func best(in xs: ClosedRange<Int>, _ ys: ClosedRange<Int>, step: Int) -> (dx: Int, dy: Int, difference: Double)? {
+            var offsets: [(Int, Int)] = []
+            for dy in stride(from: ys.lowerBound, through: ys.upperBound, by: step) {
+                for dx in stride(from: xs.lowerBound, through: xs.upperBound, by: step) { offsets.append((dx, dy)) }
+            }
+            offsets.sort { p, q in
+                let dp: Int = p.0 * p.0 + p.1 * p.1
+                let dq: Int = q.0 * q.0 + q.1 * q.1
+                return dp < dq
+            }
+            var best: (dx: Int, dy: Int, difference: Double)?
+            for (dx, dy) in offsets {
+                guard let d = compare(dx, dy) else { continue }
+                if best == nil || d < best!.difference - 0.05 { best = (dx, dy, d) }
+            }
+            return best
         }
-        let move = max(1, Int((span * lidTextureShift).rounded()))
-        let texture = [compare(a, sa, move, 0), compare(a, sa, 0, move)].compactMap { $0 }
-        guard let best, !texture.isEmpty else { return nil }
-        return Registration(dx: best.dx, dy: best.dy, difference: best.difference,
-                            texture: texture.reduce(0, +) / Double(texture.count))
     }
 
     /// **The eye regions of `shut`, registered and feathered onto `open`**: a
@@ -331,7 +401,7 @@ nonisolated enum HeadDerivation {
     static func lidPatch(open: CGImage, shut: CGImage, eyes: [HeadRig.Eye],
                          registration known: Registration? = nil) -> LidPatch? {
         guard !eyes.isEmpty, let masks = lidMasks(eyes: eyes, side: open.width),
-              let registration = known ?? register(open: open, shut: shut, eyes: eyes, masks: masks),
+              let registration = known ?? Registrar(open: open, shut: shut, eyes: eyes, masks: masks)?.search(),
               let moved = shifted(shut, dx: registration.dx, dy: registration.dy) else { return nil }
         let ring = Set(masks.gainRing)
         guard let made = composite(base: open, top: moved, gate: masks.gate, ring: { ring.contains($0) }) else {
@@ -461,6 +531,8 @@ nonisolated enum HeadDerivation {
         var browSeam: Double?
         /// Where the blink landed on neutral, and whether it fitted.
         var lidRegistration: Registration?
+        /// False: the blink was too far off to use at all, raw frame included.
+        var blinks = true
         var overlap: [HeadRig.Expression: Double] = [:]
     }
 
@@ -490,16 +562,28 @@ nonisolated enum HeadDerivation {
            let neutralPatch = lidPatch(open: neutral, shut: shut, eyes: neutralFace.eyes) {
             let registration = neutralPatch.registration
             derived.lidRegistration = registration
-            if neutralPatch.fits, let png = pngData(neutralPatch.image) {
+            if registration.onEdge {
+                // **Further off than a face moves between frames**, even after
+                // widening the search. No pasted lids and no moved frame: this
+                // head does not blink (the maker's one-more-blink should have
+                // caught it).
+                derived.blinks = false
+                #if DEBUG
+                NSLog("[strata-head] blink refused on the search edge at (\(registration.dx), \(registration.dy)): this head will not blink")
+                #endif
+            } else if neutralPatch.fits, let png = pngData(neutralPatch.image) {
                 derived.shut[.neutral] = png
                 // The same blink, registered for neutral, on the other faces
-                // that draw their eyes (they share neutral's eye alignment).
+                // that draw their eyes, each checked at that offset on its own
+                // face: one that does not fit gets no blink.
                 if let brows = browsImage, !browsEyes.isEmpty,
+                   evaluate(open: brows, shut: shut, eyes: browsEyes, dx: registration.dx, dy: registration.dy)?.fits == true,
                    let patched = lidPatch(open: brows, shut: shut, eyes: browsEyes, registration: registration),
                    let png = pngData(patched.image) {
                     derived.shut[.browsUp] = png
                 }
                 if let raw = faces[.surprised], !raw.eyes.isEmpty, let surprised = cgImage(raw.png),
+                   evaluate(open: surprised, shut: shut, eyes: raw.eyes, dx: registration.dx, dy: registration.dy)?.fits == true,
                    let patched = lidPatch(open: surprised, shut: shut, eyes: raw.eyes, registration: registration),
                    let png = pngData(patched.image) {
                     derived.shut[.surprised] = png
@@ -507,9 +591,9 @@ nonisolated enum HeadDerivation {
             } else if let frame = blinkFrame(open: neutral, shut: shut, eyes: neutralFace.eyes,
                                              registration: registration),
                       let png = pngData(frame) {
-                // **Refused**: the whole blink frame, moved and lit to match,
-                // for neutral only. The other faces get no blink rather than a
-                // seam.
+                // **Refused, but in reach**: the whole blink frame, moved to its
+                // best offset and lit to match, for neutral only. The other
+                // faces get no blink rather than a seam.
                 derived.shut[.neutral] = png
             }
         }

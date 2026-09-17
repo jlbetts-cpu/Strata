@@ -31,6 +31,12 @@ final class HeadStore {
         /// The raised-brows capture as it came, when `faces[.browsUp]` is the
         /// banded one (`HeadDerivation.browBand`).
         var rawBrows: (png: Data, eyes: [HeadRig.Eye])? = nil
+        /// False: the blink frame was too far off to use (`HeadDerivation`),
+        /// so this head does not blink, not even on the raw frame.
+        var blinks = true
+
+        /// The raw blink, when this head may use it.
+        var usableShut: Data? { blinks ? shut : nil }
 
         /// **The creator's kind of face, from these captures**: a shut face
         /// for neutral, raised brows and surprised; brows that change only
@@ -46,6 +52,7 @@ final class HeadStore {
                 next.faces[expression]?.shut = png
             }
             next.popsIn = made.popsIn
+            next.blinks = made.blinks
             return next
         }
     }
@@ -62,6 +69,8 @@ final class HeadStore {
         var popsIn: [String]? = nil
         var shutFaces: [String]? = nil
         var bandedBrows: Bool? = nil
+        /// False when the blink frame was refused outright.
+        var blinks: Bool? = nil
     }
 
     /// How much of the square canvas, crown to chin, a made head fills. The
@@ -235,7 +244,7 @@ final class HeadStore {
             }
         }
         // A head not yet derived still blinks on neutral with the raw frame.
-        return HeadRig(faces: faces, shut: payload.shut.flatMap(UIImage.init(data:)), popsIn: payload.popsIn,
+        return HeadRig(faces: faces, shut: payload.usableShut.flatMap(UIImage.init(data:)), popsIn: payload.popsIn,
                        contentHeight: contentHeight, chin: chin)
     }
 
@@ -272,7 +281,7 @@ final class HeadStore {
         let manifest = Manifest(contentHeight: contentHeight, chin: chin, eyes: eyes,
                                 popsIn: payload.popsIn.map(\.rawValue).sorted(),
                                 shutFaces: payload.faces.compactMap { $0.value.shut == nil ? nil : $0.key.rawValue }.sorted(),
-                                bandedBrows: payload.rawBrows != nil)
+                                bandedBrows: payload.rawBrows != nil, blinks: payload.blinks)
         try JSONEncoder().encode(manifest).write(to: directory.appending(path: "head.json"), options: .atomic)
     }
 
@@ -307,6 +316,7 @@ final class HeadStore {
         var payload = Payload(faces: faces, shut: try? Data(contentsOf: directory.appending(path: "shut.png")))
         if manifest.version >= 3 {
             payload.popsIn = Set((manifest.popsIn ?? []).compactMap(HeadRig.Expression.init(rawValue:)))
+            payload.blinks = manifest.blinks ?? true
             if banded, !bandedMissing, let raw = try? Data(contentsOf: directory.appending(path: "browsUp.png")) {
                 payload.rawBrows = (raw, manifest.eyes["browsUp-raw"] ?? [])
             }
@@ -316,7 +326,7 @@ final class HeadStore {
 
     private static func load() -> (rig: HeadRig?, needsMigration: Bool)? {
         guard let directory, let (payload, manifest) = read(from: directory) else { return nil }
-        return (HeadRig(faces: rigFaces(payload), shut: payload.shut.flatMap(UIImage.init(data:)),
+        return (HeadRig(faces: rigFaces(payload), shut: payload.usableShut.flatMap(UIImage.init(data:)),
                         popsIn: payload.popsIn, contentHeight: manifest.contentHeight, chin: manifest.chin),
                 manifest.version < 3)
     }
@@ -389,7 +399,7 @@ final class HeadStore {
             return nil
         }
         let derived = prepared.derived
-        return HeadRig(faces: rigFaces(derived), shut: derived.shut.flatMap(UIImage.init(data:)),
+        return HeadRig(faces: rigFaces(derived), shut: derived.usableShut.flatMap(UIImage.init(data:)),
                        popsIn: derived.popsIn, contentHeight: prepared.manifest.contentHeight,
                        chin: prepared.manifest.chin)
     }
@@ -450,7 +460,8 @@ final class HeadStore {
             }
             try put(UIImage(named: "HeadNeutral")?.pngData(), "neutral.png")
             eyes["neutral"] = neutralEyes
-            try put(shifted("HeadNeutralClosed", dx: 3, dy: 2, light: 0.06), "shut.png")
+            let blinkShift = DebugHarness.madeHeadBlinkShift
+            try put(shifted("HeadNeutralClosed", dx: blinkShift.dx, dy: blinkShift.dy, light: 0.06), "shut.png")
             try put(shifted("HeadNeutralBrowsUp", dx: 1, dy: 0, light: 0.03), "browsUp.png")
             eyes["browsUp"] = neutralEyes.map { var e = $0; e.x += 1.0 / 480; e.outline = outline(e.x, e.y, e.rx, e.ry); return e }
             try put(UIImage(named: "HeadSmile")?.pngData(), "smile.png")

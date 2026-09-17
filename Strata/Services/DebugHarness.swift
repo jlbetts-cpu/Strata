@@ -256,6 +256,14 @@ enum DebugHarness {
     /// so the migration and a made head's own path can run here. A bare flag.
     static var seedsMadeHead: Bool { ProcessInfo.processInfo.arguments.contains("-strataSeedMadeHead") }
 
+    /// `-strataSeedMadeHeadShift <dx,dy>`: how far off the fixture's blink
+    /// frame is, in pixels (default 3,2). `0,40` puts it past the widened
+    /// registration search, the case where a head does not blink at all.
+    static var madeHeadBlinkShift: (dx: CGFloat, dy: CGFloat) {
+        let parts = (argument("-strataSeedMadeHeadShift") ?? "3,2").split(separator: ",").compactMap { Double($0) }
+        return parts.count == 2 ? (CGFloat(parts[0]), CGFloat(parts[1])) : (3, 2)
+    }
+
     /// `-strataHeadParity`: opens the head parity page instead of the app
     /// (`HeadParityView`). A bare flag.
     static var headParity: Bool { ProcessInfo.processInfo.arguments.contains("-strataHeadParity") }
