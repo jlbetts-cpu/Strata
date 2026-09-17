@@ -408,10 +408,18 @@ struct MemoriesView: View {
             // And not while the map's own pictures are still being read: the
             // build is a long main-actor frame, and landing it in the middle
             // of a cold map's first reads is what held the blocks' pictures
-            // back by seconds. Checked again after, in case the camera moved.
-            while !Task.isCancelled, ThumbnailStore.shared.hasVisibleWork {
-                try? await Task.sleep(for: .milliseconds(200))
-                await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+            // back by seconds. **Quiet for half a second, not quiet for an
+            // instant**: reading 320px derivatives, the store empties between
+            // landings, and a single check found it empty mid-load (measured:
+            // the build still landed a 390ms frame among 86 landings).
+            var quietSince = ContinuousClock.now
+            while !Task.isCancelled, ContinuousClock.now - quietSince < .milliseconds(500) {
+                if ThumbnailStore.shared.hasVisibleWork { quietSince = .now }
+                try? await Task.sleep(for: .milliseconds(100))
+                if mapMotion.stillFor < Self.prebuildDelay {
+                    await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+                    quietSince = .now
+                }
             }
             guard !Task.isCancelled, !drawerIsBuilt else { return }
             #if DEBUG
