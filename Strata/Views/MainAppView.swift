@@ -581,24 +581,6 @@ struct MainAppView: View {
         try? modelContext.save()
     }
 
-    /// A tab's glyph: hollow when it is not the page you are on, filled when
-    /// it is. The tab bar fills every symbol on its own, which is why naming
-    /// the hollow one was not enough and all three read as selected. Clearing
-    /// the symbol variants hands the choice back to the name.
-    private func tabLabel(_ tab: StrataTab) -> some View {
-        Label {
-            Text(tab.rawValue)
-        } icon: {
-            // The bar's own weight, deliberately. Light through Bold were
-            // photographed in place: the system weight already matches the
-            // label under it, and heavier strokes close the hollow glyphs up
-            // until they read as filled, which is the one thing this change
-            // exists to say.
-            Image(systemName: selectedTab == tab ? tab.selectedIcon : tab.icon)
-                .environment(\.symbolVariants, .none)
-        }
-    }
-
     private var mainContent: some View {
         TabView(selection: $selectedTab) {
             // Hollow when it is not the page you are on, filled when it
@@ -608,7 +590,7 @@ struct MainAppView: View {
             Tab(value: StrataTab.tower) {
                 towerTabRoot
                         } label: {
-                tabLabel(.tower)
+                Label("Wins", systemImage: selectedTab == .tower ? "square.stack.fill" : "square.stack")
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -631,12 +613,12 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                tabLabel(.camera)
+                Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
-                tabLabel(.memories)
+                Label("Memories", systemImage: StrataTab.memories.icon)
             }
         }
         // The window's appearance, changed without an animation.
