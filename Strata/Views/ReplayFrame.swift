@@ -336,7 +336,7 @@ struct ReplayFrame: View {
     ///
     /// Photographed at a month's fitted scale (0.11) every title rendered as a
     /// 2pt grey speck, so a finished month read as a ribbon covered in dust.
-    /// At 0.45 `Typography.blockTitle` draws at about 7pt, which is where it
+    /// At 0.45 `Typography.headerMedium` draws at about 8pt, which is where it
     /// stops being words.
     ///
     /// **Faded, not cut:** across scale 0.55 to 0.45, so the saved video has

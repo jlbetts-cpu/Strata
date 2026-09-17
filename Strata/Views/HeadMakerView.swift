@@ -431,7 +431,7 @@ struct HeadMakerView: View {
                 TappableHead(rig: rig, side: Self.previewSide, greets: true)
                 VStack(spacing: GridConstants.gapTight) {
                     Text("Looking good")
-                        .font(Typography.headerLarge)
+                        .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                     Text(previewCaption(rig))
                         .font(Typography.bodySmall)

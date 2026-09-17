@@ -176,6 +176,14 @@ struct StrataWordmark: View {
 /// this is the one word the screen is named after, and the owner drew the
 /// face. Everything else on the page stays on SF Pro Rounded — a section
 /// label or a month name set in a display face stops being a label.
+///
+/// **Still the drawing, not `StrataFont`** (2026-09-16). The same word was set
+/// in the owner's font in the same place and photographed beside this, light,
+/// dark and xxLarge, on the drawer and over the map. The letterforms match
+/// but the font's stroke is about a fifth lighter than this drawing's, its
+/// M is narrower, and its left bearing puts the ink 3pt in from the margin.
+/// Over the map's labels it lost; this held. Shots in
+/// `StrataWork/type-shots/compare/memories-zoom.png` and `map.png`.
 struct MemoriesTitle: View {
     /// Cap height, matched to what the screen-title font actually sets — see
     /// `Typography.screenTitleCap`. Not `screenTitleSize`: that is an em, and

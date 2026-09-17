@@ -88,11 +88,10 @@ struct PhotoCollectionView: View {
     /// under it.
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(Typography.screenTitle)
+            // A place name: the owner's face only when it covers every
+            // letter and fits (`DynamicScreenTitle`), SF otherwise.
+            DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
             Text("\(photoCount) \(photoCount == 1 ? "photo" : "photos")")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)

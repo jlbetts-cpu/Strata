@@ -101,7 +101,7 @@ struct SettingsView: View {
                     StrataWordmark(size: 30)
 
                     Text("Version \(appVersion)")
-                        .font(Typography.caption)
+                        .font(Typography.bodySmall)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
                 .frame(maxWidth: .infinity)
@@ -414,8 +414,7 @@ struct SettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .sheetTitle("Settings", drawn: false)
         .toolbar {
             settingsToolbar
         }

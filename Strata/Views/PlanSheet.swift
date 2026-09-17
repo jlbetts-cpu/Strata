@@ -46,8 +46,7 @@ struct PlanSheet: View {
                 WarmBackground().ignoresSafeArea()
                 content
             }
-            .navigationTitle("Plan")
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetTitle("Plan", drawn: true)
             .toolbar { planToolbar }
             .sheet(item: $detail) { item in
                 PlanItemDetailSheet(item: item)

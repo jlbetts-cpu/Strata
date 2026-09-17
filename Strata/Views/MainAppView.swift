@@ -839,7 +839,7 @@ struct MainAppView: View {
     /// accessibility sizes beside the replay pill, "12" broke onto two lines.
     @ViewBuilder
     private var headerCount: some View {
-        Text("\(towerVM.placedBlocks.count)")
+        Text(verbatim: StrataFont.digits(towerVM.placedBlocks.count))
             // The owner's own digits, at the screen-title size — see
             // `Typography.tally`. Metrically compatible with the system
             // face, so it still scales with Dynamic Type and its cap
@@ -1740,6 +1740,8 @@ struct MainAppView: View {
         case "profile":  selectedTab = .memories; profileOrigin = .memories
         case "add":      selectedTab = .tower; winDraft = WinDraft()
         case "block":    selectedTab = .tower; wantsDebugExpand = true
+        // The edit sheet's title, which is otherwise behind a long press.
+        case "edit":     selectedTab = .tower; editingHabit = habits.first
         default:         break
         }
         #endif

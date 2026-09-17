@@ -61,8 +61,7 @@ struct PlanItemDetailSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background { WarmBackground().ignoresSafeArea() }
-            .navigationTitle("Line")
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetTitle("Line", drawn: false)
             .toolbar { detailToolbar }
         }
         .presentationDetents([.medium, .large])
