@@ -1,6 +1,7 @@
 import UIKit
 import ImageIO
 import QuartzCore
+import os
 
 final class ImageManager: @unchecked Sendable {
     static let shared = ImageManager()
@@ -104,17 +105,70 @@ final class ImageManager: @unchecked Sendable {
     }()
     static let maxOriginalDecodes = 3
 
-    /// Runs `work` on the originals queue at the lane's priority.
-    private func decodeOriginal<T>(_ lane: Lane, _ work: @escaping @Sendable () -> T) async -> T {
-        await withCheckedContinuation { continuation in
-            let op = BlockOperation { continuation.resume(returning: work()) }
-            switch lane {
-            case .visible: op.qualityOfService = .userInitiated; op.queuePriority = .high
-            case .prefetch: op.qualityOfService = .utility; op.queuePriority = .low
-            case .bake: op.qualityOfService = .background; op.queuePriority = .veryLow
+    /// Runs `work` on the originals queue at the lane's priority, or not at
+    /// all if the calling task is cancelled first.
+    ///
+    /// **Cancellation reaches the queue** (fix round 1). The viewer's
+    /// `.task(id: currentID)` is cancelled on every page turn, and without
+    /// this each cancelled turn still queued a 2560px decode at high priority
+    /// in front of the page now showing. A cancelled operation that has not
+    /// started never runs its block; its completion block resumes the caller
+    /// with nil instead. Exactly one of the two resumes, guarded by `Once`.
+    private func decodeOriginal<T>(_ lane: Lane, _ work: @escaping @Sendable () -> T?) async -> T? {
+        let box = OperationBox()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+                let once = Once()
+                let op = BlockOperation {
+                    let result = work()
+                    if once.claim() { continuation.resume(returning: result) }
+                }
+                op.completionBlock = {
+                    if once.claim() { continuation.resume(returning: nil) }
+                }
+                switch lane {
+                case .visible: op.qualityOfService = .userInitiated; op.queuePriority = .high
+                case .prefetch: op.qualityOfService = .utility; op.queuePriority = .low
+                case .bake: op.qualityOfService = .background; op.queuePriority = .veryLow
+                }
+                box.set(op)
+                if Task.isCancelled { op.cancel() }
+                originalDecodes.addOperation(op)
             }
-            originalDecodes.addOperation(op)
+        } onCancel: {
+            box.cancel()
         }
+    }
+
+    private final class OperationBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var op: Operation?
+        private var cancelled = false
+        func set(_ op: Operation) {
+            lock.withLock { self.op = op; if cancelled { op.cancel() } }
+        }
+        func cancel() { lock.withLock { cancelled = true; op?.cancel() } }
+    }
+
+    private final class Once: @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        func claim() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
+    }
+
+    /// How many reads a person is waiting on right now — visible and
+    /// prefetch thumbnails, the viewer's full decodes, replay loads — counted
+    /// where they happen, off the main actor. The migration yields to any.
+    private let foregroundLock = NSLock()
+    private var foregroundReads = 0
+    var hasForegroundReads: Bool { foregroundLock.withLock { foregroundReads > 0 } }
+    private func beginForeground(_ lane: Lane) {
+        guard lane != .bake else { return }
+        foregroundLock.withLock { foregroundReads += 1 }
+    }
+    private func endForeground(_ lane: Lane) {
+        guard lane != .bake else { return }
+        foregroundLock.withLock { foregroundReads -= 1 }
     }
 
     private func queue(_ lane: Lane) -> DispatchQueue {
@@ -180,25 +234,35 @@ final class ImageManager: @unchecked Sendable {
     /// when its original is no longer on disk.
     @discardableResult
     func pruneOrphans(referenced: Set<String>) -> Int {
-        guard let items = try? FileManager.default.contentsOfDirectory(
-            at: imageDirectory, includingPropertiesForKeys: [.isDirectoryKey]) else { return 0 }
-        var removed = 0
-        var removedNames: [String] = []
+        let result = Self.pruneOrphans(referenced: referenced, in: imageDirectory)
+        forgetThumbnails(of: result.removed + result.derivedGone)
+        return result.removed.count
+    }
+
+    /// The sweep itself, on any directory, so the tests never point it at
+    /// the host's real photographs.
+    nonisolated static func pruneOrphans(referenced: Set<String>, in imageDirectory: URL)
+        -> (removed: [String], derivedGone: [String]) {
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(
+            at: imageDirectory, includingPropertiesForKeys: [.isDirectoryKey]) else { return ([], []) }
+        var removed: [String] = []
         var survivors = Set<String>()
-        for url in items where ImageDerivatives.isOriginal(url) {
+        for url in items {
             let name = url.lastPathComponent
+            // An evicted iCloud photograph is still a photograph: its copies stay.
+            if let evicted = ImageDerivatives.placeholderOriginal(name) { survivors.insert(evicted); continue }
+            guard ImageDerivatives.isOriginal(url) else { continue }
             guard !referenced.contains(name) else { survivors.insert(name); continue }
             do {
-                try FileManager.default.removeItem(at: url)
-                removed += 1
-                removedNames.append(name)
+                try fm.removeItem(at: url)
+                removed.append(name)
             } catch {
                 survivors.insert(name)
             }
         }
         let derivedGone = ImageDerivatives.pruneOrphans(originals: survivors, in: imageDirectory)
-        forgetThumbnails(of: removedNames + derivedGone)
-        return removed
+        return (removed, derivedGone)
     }
 
     private init() {
@@ -222,6 +286,11 @@ final class ImageManager: @unchecked Sendable {
         // map picture from a 320px derivative costs about half what one from
         // the original did, so 600 fit where 300 used to.
         thumbnailCache.countLimit = 600
+        let background = appInBackground
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                               object: nil, queue: nil) { _ in background.withLock { $0 = true } }
+        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification,
+                                               object: nil, queue: nil) { _ in background.withLock { $0 = false } }
         thumbnailCache.totalCostLimit = Self.cacheCostLimit(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     }
 
@@ -291,14 +360,12 @@ final class ImageManager: @unchecked Sendable {
                 }
                 do {
                     try imageData.write(to: fileURL, options: .atomic)
-                    // Both tiers from the picture already in hand: two small
-                    // encodes and no decode. After the original is safely on
+                    // Both tiers from the picture already in hand: M from it,
+                    // S from M, two small encodes and no decode. After the original is safely on
                     // disk, and a failure here costs nothing but a lazy bake
                     // on first read. See `ImageDerivatives`.
-                    for tier in ImageDerivatives.tiers {
-                        ImageDerivatives.bake(from: resized, original: fileName,
-                                              tier: tier, in: self.imageDirectory)
-                    }
+                    ImageDerivatives.bakeTiers(from: resized, original: fileName,
+                                               in: self.imageDirectory)
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
@@ -434,40 +501,47 @@ final class ImageManager: @unchecked Sendable {
             return cached
         }
 
-        // Cache miss — downsample from disk
+        // Cache miss. **Nothing touches the disk on the caller's thread**: the
+        // file checks run on the lane's queue with the decode, and only a
+        // photograph with no derivative goes on to the bounded originals queue.
         let fileURL = imageDirectory.appendingPathComponent(fileName)
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
         let directory = imageDirectory
+        beginForeground(lane)
+        defer { endForeground(lane) }
 
-        // Decoded on a concurrent GCD queue with nothing blocking on it — see
-        // `ioQueue` for the measurement (5.12x against serial; the cooperative
-        // pool was 1.53x). How many are asked for at once is bounded one level
-        // up, in `ThumbnailStore`.
-        // Which file answers this is decided here, before any queue: a
-        // derivative goes to its lane's concurrent queue, an original to the
-        // bounded `originalDecodes`. Two `stat`s, microseconds.
-        let derived = ImageDerivatives.existing(for: fileName, pixels: maxWidth, in: directory)
-        let thumbnail: UIImage?
-        if let derived {
-            thumbnail = await withCheckedContinuation { continuation in
-                queue(lane).async {
-                    // **Cancelled before it started, not during.** A decode
-                    // cannot be interrupted, so the only useful moment to drop
-                    // one whose cell has scrolled away is before it begins.
-                    if cancelled?.isSet == true { continuation.resume(returning: nil); return }
+        enum First { case decoded(UIImage?), needsOriginal, missing }
+        let first: First = await withCheckedContinuation { continuation in
+            queue(lane).async {
+                // **Cancelled before it started, not during.** A decode
+                // cannot be interrupted, so the only useful moment to drop
+                // one whose cell has scrolled away is before it begins.
+                if cancelled?.isSet == true { continuation.resume(returning: .decoded(nil)); return }
+                if let derived = ImageDerivatives.existing(for: fileName, pixels: maxWidth, in: directory) {
+                    guard cancelled?.tryStart() ?? true else { continuation.resume(returning: .decoded(nil)); return }
                     #if DEBUG
                     Self.countSource("derived")
                     #endif
-                    continuation.resume(returning: Self.downsample(url: derived, maxPixelWidth: maxWidth))
+                    continuation.resume(returning: .decoded(Self.downsample(url: derived, maxPixelWidth: maxWidth)))
+                } else if FileManager.default.fileExists(atPath: fileURL.path) {
+                    continuation.resume(returning: .needsOriginal)
+                } else {
+                    continuation.resume(returning: .missing)
                 }
             }
-        } else {
+        }
+        let thumbnail: UIImage?
+        switch first {
+        case .missing:
+            return nil
+        case .decoded(let image):
+            thumbnail = image
+        case .needsOriginal:
             let bakeQueue = self.bakeQueue
             thumbnail = await decodeOriginal(lane) {
-                if cancelled?.isSet == true { return nil }
+                guard cancelled?.tryStart() ?? true else { return nil }
                 return Self.readThumbnail(fileName: fileName, url: fileURL, maxWidth: maxWidth,
                                           directory: directory, bakeQueue: bakeQueue)
-            }
+            } ?? nil
         }
         guard let thumbnail else { return nil }
         thumbnailCache.setObject(thumbnail, forKey: cacheKey, cost: Self.cost(of: thumbnail))
@@ -478,13 +552,23 @@ final class ImageManager: @unchecked Sendable {
         return thumbnail
     }
 
-    /// A flag a caller sets to drop a read that has not started. Checked once,
-    /// at the top of the queue block.
+    /// Drops a read that has not started DECODING. The read claims it with
+    /// `tryStart` at the moment the decode begins — not when it is queued, so
+    /// a prefetch still waiting behind visible work can be taken over or
+    /// dropped — and a canceller wins only if it gets there first.
     final class CancelFlag: @unchecked Sendable {
         private let lock = NSLock()
-        private var value = false
-        var isSet: Bool { lock.withLock { value } }
-        func set() { lock.withLock { value = true } }
+        private var cancelled = false
+        private var started = false
+        var isSet: Bool { lock.withLock { cancelled } }
+        var hasStarted: Bool { lock.withLock { started } }
+        func set() { lock.withLock { cancelled = true } }
+        /// True if the decode may begin; false if it was cancelled first.
+        func tryStart() -> Bool { lock.withLock { if cancelled { return false }; started = true; return true } }
+        /// True if this cancelled a read that had not begun decoding.
+        func cancelIfNotStarted() -> Bool {
+            lock.withLock { if started || cancelled { return false }; cancelled = true; return true }
+        }
     }
 
     /// A read with no derivative, off the main thread. See `loadThumbnail`.
@@ -500,18 +584,24 @@ final class ImageManager: @unchecked Sendable {
         #if DEBUG
         countSource("bakedOnRead")
         #endif
-        guard let tierImage = ImageDerivatives.decode(url, maxPixels: tier) else { return nil }
-        bakeQueue.async {
+        // Drawn into a bitmap HERE, on this capped queue, before anything else
+        // touches it: handed on undrawn, the bake queue would do the lazy
+        // HEIF decode a second time, uncapped. See `prepared`.
+        guard let decoded = ImageDerivatives.decode(url, maxPixels: tier) else { return nil }
+        let tierImage = ImageDerivatives.prepared(decoded)
+        let keepsCopy = tier != ImageDerivatives.medium
+            || ImageDerivatives.admitsMedium(fileName, in: directory)
+        if keepsCopy { bakeQueue.async {
             // `bake(from:)` writes only under `derived/`; the original is
             // not touched. It is re-checked there, so a file deleted in the
             // meantime is simply not baked.
             guard FileManager.default.fileExists(atPath: url.path) else { return }
             ImageDerivatives.bake(from: UIImage(cgImage: tierImage), original: fileName,
                                   tier: tier, in: directory)
-        }
+        } }
         let longest = max(tierImage.width, tierImage.height)
         guard CGFloat(longest) > maxWidth.rounded(.up) else {
-            return UIImage(cgImage: ImageDerivatives.prepared(tierImage))
+            return UIImage(cgImage: tierImage)
         }
         let scale = maxWidth / CGFloat(longest)
         guard let smaller = ImageDerivatives.eightBit(
@@ -552,16 +642,27 @@ final class ImageManager: @unchecked Sendable {
         let directory = imageDirectory
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
             bakeQueue.async {
+                // Existing installs made `derived/` before it was excluded.
+                ImageDerivatives.ensureFolder(in: directory)
                 ImageDerivatives.trimMedium(in: directory)
                 done.resume()
             }
         }
         // Tier S for every photograph first — the map and the tower have no
-        // other source — then tier M for the newest, up to its cap.
+        // other source — then tier M for the newest, up to its cap. Tier M
+        // is skipped outright when the disk is getting full.
+        guard let free = Self.freeBytes(at: directory), free >= Self.migrationStopBytes else {
+            #if DEBUG
+            PerfProbe.emit("[PERF-MIGRATE] skipped: disk nearly full")
+            #endif
+            return 0
+        }
+        let withMedium = free >= Self.migrationMediumBytes
         let work = await withCheckedContinuation { (found: CheckedContinuation<[(String, Int)], Never>) in
             bakeQueue.async {
                 let small = ImageDerivatives.unbaked(in: directory).map { ($0, ImageDerivatives.small) }
-                let medium = ImageDerivatives.unbakedMedium(in: directory).map { ($0, ImageDerivatives.medium) }
+                let medium = withMedium
+                    ? ImageDerivatives.unbakedMedium(in: directory).map { ($0, ImageDerivatives.medium) } : []
                 found.resume(returning: small + medium)
             }
         }
@@ -569,28 +670,71 @@ final class ImageManager: @unchecked Sendable {
         #if DEBUG
         let started = CACurrentMediaTime()
         PerfProbe.emit("[PERF-MIGRATE] start unbaked=\(work.count)")
+        var paused = 0.0
         #endif
         var baked = 0
-        for (name, tier) in work {
+        for (index, (name, tier)) in work.enumerated() {
             if Task.isCancelled { break }
-            // Visible work outranks this absolutely: wait until nothing on
-            // screen is being read or waiting to be.
-            while await MainActor.run(body: { ThumbnailStore.shared.hasVisibleWork }) {
-                try? await Task.sleep(for: .milliseconds(250))
-                if Task.isCancelled { break }
+            #if DEBUG
+            let waitStart = CACurrentMediaTime()
+            #endif
+            while !Task.isCancelled, let reason = migrationPauseReason() {
+                _ = reason
+                try? await Task.sleep(for: .milliseconds(reason == .busy ? 250 : 2000))
             }
-            let ok = await decodeOriginal(.bake) {
-                ImageDerivatives.bake(name, tier: tier, in: directory) != nil
+            #if DEBUG
+            paused += CACurrentMediaTime() - waitStart
+            #endif
+            if index > 0, index % 25 == 0 {
+                guard let free = Self.freeBytes(at: directory), free >= Self.migrationStopBytes else { break }
+                if tier == ImageDerivatives.medium, free < Self.migrationMediumBytes { break }
             }
-            if ok { baked += 1 }
+            let outcome = await decodeOriginal(.bake) {
+                ImageDerivatives.bakeReporting(name, tier: tier, in: directory)
+            }
+            if outcome == .outOfSpace { break }
+            if outcome?.url != nil { baked += 1 }
+            #if DEBUG
+            if index > 0, index % 100 == 0 {
+                PerfProbe.emit(String(format: "[PERF-MIGRATE] progress %d of %d at %.1fs",
+                                      index, work.count, CACurrentMediaTime() - started))
+            }
+            #endif
             await Task.yield()
         }
         #if DEBUG
-        PerfProbe.emit(String(format: "[PERF-MIGRATE] done baked=%d of %d in %.1fs",
-                              baked, work.count, CACurrentMediaTime() - started))
+        PerfProbe.emit(String(format: "[PERF-MIGRATE] done baked=%d of %d in %.1fs (paused %.1fs)",
+                              baked, work.count, CACurrentMediaTime() - started, paused))
         #endif
         return baked
     }
+
+    /// Stop the migration below this much free space; skip tier M below the
+    /// second. A full disk used to mean decoding every photograph each launch
+    /// only for every write to fail.
+    static let migrationStopBytes: Int64 = 300 << 20
+    static let migrationMediumBytes: Int64 = 2 << 30
+
+    nonisolated static func freeBytes(at url: URL) -> Int64? {
+        (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage
+    }
+
+    enum MigrationPause: Equatable { case busy, hot, lowPower, background }
+
+    /// Why the migration should not bake the next file right now, or nil.
+    /// Every check is a lock or a property read: no hop to the main actor.
+    func migrationPauseReason() -> MigrationPause? {
+        if appInBackground.withLock({ $0 }) { return .background }
+        if hasForegroundReads { return .busy }
+        let info = ProcessInfo.processInfo
+        if info.isLowPowerModeEnabled { return .lowPower }
+        if info.thermalState == .serious || info.thermalState == .critical { return .hot }
+        return nil
+    }
+
+    /// Set from the application's background/foreground notifications.
+    private let appInBackground = OSAllocatedUnfairLock(initialState: false)
 
     // MARK: - Load Full Image
 
@@ -602,6 +746,8 @@ final class ImageManager: @unchecked Sendable {
 
         // Through the bounded originals queue: a full HEIC decode is exactly
         // the work that froze the app when too many ran at once.
+        beginForeground(.visible)
+        defer { endForeground(.visible) }
         return await decodeOriginal(.visible) {
             let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
             guard let source = CGImageSourceCreateWithURL(fileURL as CFURL,
@@ -614,10 +760,10 @@ final class ImageManager: @unchecked Sendable {
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0,
                                                                 decodeOptions as CFDictionary)
             else { return nil }
-            // Drawn here, or the HEIF decode happens on the main thread at
+            // Decoded here, or the HEIF decode happens on the main thread at
             // first draw. See `ImageDerivatives.prepared`.
-            return UIImage(cgImage: ImageDerivatives.prepared(cgImage))
-        }
+            return ImageDerivatives.preparedForDisplay(cgImage)
+        } ?? nil
     }
 
     // MARK: - Delete
@@ -667,15 +813,21 @@ final class ImageManager: @unchecked Sendable {
 
     // MARK: - Resize
 
-    nonisolated private static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let size = image.size
-        let longestEdge = max(size.width, size.height)
-        guard longestEdge > maxDimension else { return image }
+    nonisolated static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        // **In pixels, drawn at scale 1** (fix round 1). This compared POINTS
+        // and drew with the renderer's default format, whose scale is the
+        // screen's: a library photograph was stored at 5760x7680 — measured
+        // on a photo added through the picker in `RealPhotoTests` — three
+        // times the 2560 `storedMaxDimension` promises, nine times the pixels.
+        let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        let longestEdge = max(pixels.width, pixels.height)
+        guard longestEdge > maxDimension || image.scale != 1 || image.imageOrientation != .up else { return image }
 
-        let scale = maxDimension / longestEdge
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let fit = min(1, maxDimension / longestEdge)
+        let newSize = CGSize(width: (pixels.width * fit).rounded(), height: (pixels.height * fit).rounded())
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }

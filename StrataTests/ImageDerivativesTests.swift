@@ -186,21 +186,96 @@ struct ImageDerivativesTests {
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("K.jpg").path))
     }
 
-    @Test("tier M is trimmed oldest-read first under its cap; tier S never")
-    func trimMedium() throws {
+    private func setDate(_ url: URL, _ date: Date) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+    }
+
+    /// Fix round 1: tier M was trimmed by the DERIVATIVE's date, which threw
+    /// away the copies just baked for the newest photographs.
+    @Test("tier M keeps the newest photographs, whatever order the copies were made in; tier S is never trimmed")
+    func trimMediumKeepsNewest() throws {
         let dir = try tempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
-        for i in 0..<3 {
-            try writeOriginal("T_\(i).jpg", in: dir)
-            ImageDerivatives.bake("T_\(i).jpg", tier: 320, in: dir)
-            let m = try #require(ImageDerivatives.bake("T_\(i).jpg", tier: 640, in: dir))
-            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(Double(i - 10))],
-                                                  ofItemAtPath: m.path)
+        var sizes: [String: Int64] = [:]
+        // Baked newest photograph FIRST, so its copy is the oldest file.
+        for (i, age) in [(2, 0.0), (1, 86_400.0), (0, 2 * 86_400.0)] {
+            let name = "T_\(i).jpg"
+            let original = try writeOriginal(name, in: dir)
+            try setDate(original, Date().addingTimeInterval(-age))
+            ImageDerivatives.bake(name, tier: 320, in: dir)
+            let m = try #require(ImageDerivatives.bake(name, tier: 640, in: dir))
+            sizes[name] = Int64(try m.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
         }
-        ImageDerivatives.trimMedium(in: dir, cap: 1)
+        // Room for exactly the two newest.
+        ImageDerivatives.trimMedium(in: dir, cap: sizes["T_2.jpg"]! + sizes["T_1.jpg"]!)
         let left = Set(try FileManager.default.contentsOfDirectory(atPath: ImageDerivatives.folder(in: dir).path))
+        #expect(left.contains("T_2.jpg@640.jpg"), "the newest photograph lost its copy")
+        #expect(left.contains("T_1.jpg@640.jpg"))
+        #expect(!left.contains("T_0.jpg@640.jpg"), "the oldest photograph kept its copy")
         #expect(left.isSuperset(of: ["T_0.jpg@320.jpg", "T_1.jpg@320.jpg", "T_2.jpg@320.jpg"]))
-        #expect(left.filter { $0.hasSuffix("@640.jpg") }.count <= 1)
+    }
+
+    @Test("with the cap full, an older photograph is not admitted to tier M and a newer one is")
+    func admission() throws {
+        let dir = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let mid = try writeOriginal("mid.jpg", in: dir)
+        try setDate(mid, Date().addingTimeInterval(-86_400))
+        let m = try #require(ImageDerivatives.bake("mid.jpg", tier: 640, in: dir))
+        let size = Int64(try m.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+        let old = try writeOriginal("old.jpg", in: dir)
+        try setDate(old, Date().addingTimeInterval(-10 * 86_400))
+        try writeOriginal("new.jpg", in: dir)
+        #expect(!ImageDerivatives.admitsMedium("old.jpg", in: dir, cap: size))
+        #expect(ImageDerivatives.admitsMedium("new.jpg", in: dir, cap: size))
+        #expect(ImageDerivatives.admitsMedium("mid.jpg", in: dir, cap: size), "a photograph already kept")
+    }
+
+    @Test("derived/ is excluded from the device backup")
+    func excludedFromBackup() throws {
+        let dir = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeOriginal("B.jpg", in: dir)
+        ImageDerivatives.bake("B.jpg", tier: 320, in: dir)
+        let values = try ImageDerivatives.folder(in: dir).resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(values.isExcludedFromBackup == true)
+    }
+
+    @Test("out of space is recognised however the error arrives")
+    func outOfSpace() {
+        #expect(ImageDerivatives.isOutOfSpace(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)))
+        #expect(ImageDerivatives.isOutOfSpace(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))))
+        let wrapped = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError,
+                              userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))])
+        #expect(ImageDerivatives.isOutOfSpace(wrapped))
+        #expect(!ImageDerivatives.isOutOfSpace(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)))
+    }
+
+    @Test("a directory entry the file system cannot describe is not treated as a photograph")
+    func isOriginalFailsClosed() throws {
+        let dir = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(!ImageDerivatives.isOriginal(dir.appendingPathComponent("vanished.heic")))
+        #expect(!ImageDerivatives.isOriginal(dir))
+        #expect(ImageDerivatives.isOriginal(try writeOriginal("real.jpg", in: dir)))
+        #expect(ImageDerivatives.placeholderOriginal(".A_1.heic.icloud") == "A_1.heic")
+        #expect(ImageDerivatives.placeholderOriginal("A_1.heic") == nil)
+        #expect(ImageDerivatives.placeholderOriginal(".icloud") == nil)
+    }
+
+    /// Measured on a photograph added through the picker: stored 5760x7680.
+    @Test("a saved photograph is resized in pixels and drawn at scale 1")
+    func resizeInPixels() {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let big = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 1600), format: format).image { ctx in
+            UIColor.red.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 1200, height: 1600))
+        }
+        let out = ImageManager.resizeIfNeeded(big, maxDimension: 2560)
+        #expect(out.scale == 1)
+        #expect(out.cgImage.map { max($0.width, $0.height) } == 2560)
+        let small = photo(CGSize(width: 900, height: 1200))
+        #expect(ImageManager.resizeIfNeeded(small, maxDimension: 2560) === small)
     }
 
     // MARK: - The real directory
@@ -210,33 +285,44 @@ struct ImageDerivativesTests {
     /// is a folder no log names, and `removeItem` on a folder is recursive.
     @Test("pruneOrphans never removes derived/, and takes an orphan's derivatives with it")
     func pruneKeepsDerivedFolder() throws {
-        let manager = ImageManager.shared
-        let dir = manager.imageDirectoryForTesting
-        let keep = "prune-derived-keep-\(UUID().uuidString).jpg"
-        let drop = "prune-derived-drop-\(UUID().uuidString).jpg"
-        try writeOriginal(keep, in: dir)
-        try writeOriginal(drop, in: dir)
-        defer {
-            for name in [keep, drop] {
-                try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
-                ImageDerivatives.removeDerivatives(of: name, in: dir)
-            }
-        }
-        let keepS = try #require(ImageDerivatives.bake(keep, tier: 320, in: dir))
-        let dropS = try #require(ImageDerivatives.bake(drop, tier: 320, in: dir))
+        // A temp directory, never the test host's real photographs.
+        let dir = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeOriginal("keep.jpg", in: dir)
+        try writeOriginal("drop.jpg", in: dir)
+        try writeOriginal("evicted.heic", in: dir)
+        let keepS = try #require(ImageDerivatives.bake("keep.jpg", tier: 320, in: dir))
+        let dropS = try #require(ImageDerivatives.bake("drop.jpg", tier: 320, in: dir))
+        let evictedS = try #require(ImageDerivatives.bake("evicted.heic", tier: 320, in: dir))
+        // iCloud evicts it: the file becomes a hidden placeholder.
+        try FileManager.default.moveItem(at: dir.appendingPathComponent("evicted.heic"),
+                                         to: dir.appendingPathComponent(".evicted.heic.icloud"))
 
-        var referenced = Set(manager.allStoredFileNamesForBenchmark())
-        #expect(!referenced.contains(ImageDerivatives.folderName), "the benchmark listing counts the folder as a photo")
-        referenced.remove(drop)
-        let removed = manager.pruneOrphans(referenced: referenced)
+        let result = ImageManager.pruneOrphans(referenced: ["keep.jpg", "evicted.heic"], in: dir)
 
-        #expect(removed == 1)
+        #expect(result.removed == ["drop.jpg"])
         var isDirectory: ObjCBool = false
         #expect(FileManager.default.fileExists(atPath: ImageDerivatives.folder(in: dir).path, isDirectory: &isDirectory))
         #expect(isDirectory.boolValue)
         #expect(FileManager.default.fileExists(atPath: keepS.path), "a live photograph's derivative was swept")
+        #expect(FileManager.default.fileExists(atPath: evictedS.path), "an evicted photograph's derivative was swept")
         #expect(!FileManager.default.fileExists(atPath: dropS.path), "an orphan's derivative survived")
-        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent(keep).path))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent(".evicted.heic.icloud").path))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("keep.jpg").path))
+    }
+
+    @Test("a full decode asked for by a task already cancelled never runs")
+    func cancelledFullDecode() async throws {
+        let manager = ImageManager.shared
+        let name = "cancelled-full-\(UUID().uuidString).jpg"
+        try writeOriginal(name, in: manager.imageDirectoryForTesting)
+        defer { manager.deleteImage(fileName: name) }
+        let task = Task { () -> UIImage? in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await manager.loadFullImage(fileName: name)
+        }
+        #expect(await task.value == nil)
+        #expect(await manager.loadFullImage(fileName: name) != nil)
     }
 
     @Test("deleting one photograph removes its derivatives and forgets only its own pictures")
