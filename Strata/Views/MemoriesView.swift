@@ -257,9 +257,16 @@ struct MemoriesView: View {
             // `-strataPerfProbe`: the first finger on the page opens a 10s
             // window, so a UI test's flings are counted from their start.
             .onScrollPhaseChange { _, phase in
+                // One window per burst of flings, not one per launch: a
+                // second pass back over the same cells is the warm re-entry
+                // figure, and it needs its own line.
                 guard PerfProbe.isOn, phase == .interacting, !debugFlingCounted else { return }
                 debugFlingCounted = true
                 PerfProbe.window("Gallery fling", seconds: 10)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(10.5))
+                    debugFlingCounted = false
+                }
             }
             .task {
                 guard DebugHarness.scrollsMemories else { return }

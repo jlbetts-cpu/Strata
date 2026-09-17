@@ -112,6 +112,13 @@ struct CachedImageView: View {
         }
         .animation(reduceMotion ? nil : GridConstants.imageFadeIn, value: image != nil)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        #if DEBUG
+        .onDisappear {
+            guard PerfProbe.isOn, !fullResolution, let fileName else { return }
+            ThumbnailStore.shared.debugViewLeft(fileName, width: (decodeWidth ?? width) * displayScale,
+                                                exact: decodeWidth != nil)
+        }
+        #endif
         // Only the viewer's full-resolution read needs a lifecycle: it is one
         // picture, on a screen that has certainly appeared.
         .task(id: fullResolution ? fileName : nil) {

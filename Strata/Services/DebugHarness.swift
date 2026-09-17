@@ -497,6 +497,7 @@ enum DebugHarness {
             let names = Array(manager.allStoredFileNamesForBenchmark().prefix(count))
             guard !names.isEmpty else {
                 NSLog("[strata-bench] no photographs on disk; seed first")
+                PerfProbe.emit("[strata-bench] no photographs on disk; seed first")
                 return
             }
 
@@ -511,37 +512,46 @@ enum DebugHarness {
                       + " show a pool stalling. Seed more and pass 80+.")
             }
 
+            // **Per tier, at the widths the tiers exist for** (2026-09-16).
+            // 320 is what the map, the tower and the filmstrip read; 640 is
+            // the gallery and the 2x2s. The same asks before and after the
+            // derivatives, so the figure moves only because the FILE did.
+            var line = "[strata-bench] n=\(names.count)"
+            for width: CGFloat in [320, 640] {
+                manager.emptyThumbnailCacheForBenchmark()
+                var start = Date()
+                for name in names {
+                    _ = await manager.loadThumbnail(fileName: name, maxWidth: width)
+                }
+                let serial = Date().timeIntervalSince(start)
+
+                manager.emptyThumbnailCacheForBenchmark()
+                start = Date()
+                await withTaskGroup(of: Void.self) { group in
+                    for name in names {
+                        group.addTask { _ = await manager.loadThumbnail(fileName: name, maxWidth: width) }
+                    }
+                }
+                let concurrent = Date().timeIntervalSince(start)
+                let w = Int(width)
+                line += " | w\(w): serial=\(Int(serial * 1000))ms"
+                    + " perDecode=\(String(format: "%.1f", serial * 1000 / Double(names.count)))ms"
+                    + " concurrent=\(Int(concurrent * 1000))ms"
+                    + " speedup=\(String(format: "%.2f", serial / max(concurrent, 0.0001)))x"
+                    + " decodesPerSec=\(Int(Double(names.count) / max(concurrent, 0.0001)))"
+            }
+
             manager.emptyThumbnailCacheForBenchmark()
             var start = Date()
-            for name in names {
-                _ = await manager.loadThumbnail(fileName: name, maxWidth: 180)
-            }
-            let serial = Date().timeIntervalSince(start)
-
-            manager.emptyThumbnailCacheForBenchmark()
-            start = Date()
-            await withTaskGroup(of: Void.self) { group in
-                for name in names {
-                    group.addTask { _ = await manager.loadThumbnail(fileName: name, maxWidth: 180) }
-                }
-            }
-            let concurrent = Date().timeIntervalSince(start)
-
-            manager.emptyThumbnailCacheForBenchmark()
-            start = Date()
             _ = await manager.loadThumbnail(fileName: names[0], maxWidth: 180)
             let single = Date().timeIntervalSince(start)
 
             start = Date()
             _ = await manager.loadFullImage(fileName: names[0])
             let full = Date().timeIntervalSince(start)
-
-            NSLog("[strata-bench] n=\(names.count) "
-                  + "serial=\(Int(serial * 1000))ms "
-                  + "concurrent=\(Int(concurrent * 1000))ms "
-                  + "speedup=\(String(format: "%.2f", serial / max(concurrent, 0.0001)))x "
-                  + "oneThumbnail=\(Int(single * 1000))ms "
-                  + "oneFullDecode=\(Int(full * 1000))ms")
+            line += " | oneThumbnail=\(Int(single * 1000))ms oneFullDecode=\(Int(full * 1000))ms"
+            NSLog("%@", line)
+            PerfProbe.emit(line)
         }
     }
 
@@ -686,7 +696,90 @@ enum DebugHarness {
         }
     }
 
+    /// `-strataSeedRealPhotos`: seed photographs shaped like the owner's, not
+    /// like a fixture.
+    ///
+    /// **The fixture cannot measure the image pipeline.** A seeded photograph
+    /// is a 900x1200 gradient JPEG that compresses to a few kilobytes and
+    /// decodes almost for free; a real one is a 2560px HEIC of a textured
+    /// scene. Every "photos are slow" measurement taken against the fixture is
+    /// a measurement of the wrong file, and the derivative work would have
+    /// reported a win it had not earned. With this flag on, the seeder writes
+    /// files the same shape as `ImageManager.save` produces: 2560 on the
+    /// longest side, HEIC, with enough fine detail that the encoder cannot
+    /// throw the cost away.
+    static var seedsRealPhotos: Bool { ProcessInfo.processInfo.arguments.contains("-strataSeedRealPhotos") }
+
+    /// One encoded blob per category, made once and written under many names.
+    ///
+    /// Encoding 1,800 of these would take minutes at seed time. The decode
+    /// cost — which is what is being measured — depends on the bytes, not on
+    /// how many distinct pictures there are, so a handful reused is honest for
+    /// this purpose and says so here rather than pretending otherwise.
+    nonisolated(unsafe) private static var realPhotoBlobs: [String: Data] = [:]
+
+    private static func realPhotoData(_ category: HabitCategory) -> Data? {
+        let key = category.rawValue
+        if let cached = realPhotoBlobs[key] { return cached }
+        let size = CGSize(width: 1920, height: 2560)
+        let base = UIColor(category.style.baseColor)
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        base.getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        var generator = SystemRandomNumberGenerator()
+        // Scale 1: the renderer's default is the screen's, which made these
+        // 5760x7680 rather than the 1920x2560 a saved photograph is.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            let space = CGColorSpaceCreateDeviceRGB()
+            let top = UIColor(hue: h, saturation: max(sat - 0.2, 0), brightness: min(b + 0.2, 1), alpha: 1)
+            let bottom = UIColor(hue: h, saturation: min(sat + 0.12, 1), brightness: max(b - 0.24, 0), alpha: 1)
+            if let gradient = CGGradient(colorsSpace: space,
+                                         colors: [top.cgColor, bottom.cgColor] as CFArray,
+                                         locations: [0, 1]) {
+                ctx.cgContext.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: 0), end: CGPoint(x: size.width, y: size.height),
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            }
+            // Fine detail, so the encoder cannot compress the picture away and
+            // the decode costs what a photograph costs.
+            // Tuned so a file lands near the 160-400KB `storedMaxDimension`
+            // records for a real photograph, not the 3.4MB pure noise made.
+            for _ in 0..<5_000 {
+                let x = CGFloat(UInt32.random(in: 0..<UInt32(size.width), using: &generator))
+                let y = CGFloat(UInt32.random(in: 0..<UInt32(size.height), using: &generator))
+                UIColor(hue: h, saturation: sat * CGFloat.random(in: 0.6...1.2, using: &generator),
+                        brightness: b * CGFloat.random(in: 0.6...1.2, using: &generator),
+                        alpha: 0.35).setFill()
+                ctx.fill(CGRect(x: x, y: y, width: CGFloat.random(in: 8...70, using: &generator),
+                                height: CGFloat.random(in: 8...70, using: &generator)))
+            }
+        }
+        // `-strataSeedRealPhotos jpeg`: the same pictures as 2560px JPEGs, for
+        // a before/after of the decode SIZE on a store the old pipeline can
+        // open at all (the HEIC one froze it; see `ImageManager.originalDecodes`).
+        let data = argument("-strataSeedRealPhotos") == "jpeg"
+            ? image.jpegData(compressionQuality: 0.85)
+            : ImageManager.encodeHEICForSeeding(image: image, quality: 0.85) ?? image.jpegData(compressionQuality: 0.85)
+        realPhotoBlobs[key] = data
+        return data
+    }
+
     private static func seedPhoto(for logID: UUID, category: HabitCategory) -> String? {
+        if seedsRealPhotos {
+            guard let data = realPhotoData(category) else { return nil }
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dir = docs.appendingPathComponent("strata-images", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let name = "\(logID.uuidString)_seed.\(argument("-strataSeedRealPhotos") == "jpeg" ? "jpg" : "heic")"
+            do {
+                try data.write(to: dir.appendingPathComponent(name))
+                return name
+            } catch {
+                return nil
+            }
+        }
         // A soft vertical wash, and no hard edges anywhere.
         //
         // This used to be a flat field with a white bar across it, to make the
@@ -702,6 +795,11 @@ enum DebugHarness {
         let name = "\(logID.uuidString)_seed.jpg"
         do {
             try data.write(to: dir.appendingPathComponent(name))
+            // The seeder bypasses `ImageManager.save`, so it bakes tier S
+            // itself, or every fixture would only ever test the fallback.
+            // (`-strataSeedRealPhotos` deliberately does not: those are left
+            // for the launch migration, so its cost can be measured.)
+            ImageDerivatives.bake(from: image, original: name, tier: ImageDerivatives.small, in: dir)
             return name
         } catch {
             return nil
