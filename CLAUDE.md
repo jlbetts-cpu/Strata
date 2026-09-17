@@ -486,8 +486,24 @@ method, every bug and what made it invisible, and the before/after numbers.
   from the directory, so it is idempotent and resumes after a kill.
   `ImageDerivatives` only ever CREATES files under `derived/` and never writes,
   moves or deletes an original. `storageUsed` counts photographs and includes
-  the derivatives' bytes; the backup copies originals only.
-- **`pruneOrphans` never removes a directory.** `removeItem` on a folder is
+  the derivatives' bytes; the backup copies originals only. **Tier M keeps the
+  newest photographs**: evicted oldest ORIGINAL first (never by the copy's own
+  date, which threw away the newest copies), capped on every write through an
+  in-memory ledger, and an older photograph is not admitted when the cap is
+  full. `derived/` is `isExcludedFromBackup`. The migration pauses for any
+  foreground read (`ImageManager.hasForegroundReads`, counted off main), Low
+  Power Mode, `.serious` thermal state and the app in background, and stops
+  below 300MB free (tier M below 2GB) or on the first out-of-space write.
+- **iCloud (for the sync phase):** sync must skip `strata-images/derived/`; it
+  is a local cache and is remade from the originals. An evicted file appears
+  as `.<name>.icloud`, which `isOriginal` rejects (hidden), so the prune treats
+  those placeholders as present (`ImageDerivatives.placeholderOriginal`) or it
+  would delete and re-bake an evicted photograph's copies on every launch.
+- **A saved photograph is resized in PIXELS at scale 1.** `resizeIfNeeded`
+  compared points and drew at the screen's scale, so a picker photograph was
+  stored 5760x7680 (measured), not 2560.
+- **`pruneOrphans` never removes a directory**, and fails closed: an entry
+  whose type cannot be read is treated as a folder and left alone. `removeItem` on a folder is
   recursive and no log names `derived`, so the old sweep deleted every
   derivative on its first run (reproduced: the pre-change build removed all of
   them on launch). Only plain files are candidates; derivatives get their own
@@ -508,12 +524,19 @@ method, every bug and what made it invisible, and the before/after numbers.
 - **Prefetch is an extra ask, never a replacement.** `ThumbnailStore.prefetch`
   reads on the prefetch lane, at most 8 at once; a visible ask for a key being
   prefetched waits for it rather than decoding twice, and takes over one still
-  pending. `cancelPrefetch` drops what has not started (a `CancelFlag` checked
-  at the top of the queue block; a running decode cannot be interrupted). The
+  pending. **A prefetch that has not begun DECODING belongs to nobody**: a
+  visible ask takes it over and schedules its own read, and `cancelPrefetch`
+  frees its place and bumps its slot, or a cell that asked while it was queued
+  stays blank until the dropped read limps through (`CancelFlag.tryStart` is
+  claimed at the decode, not at the queue). Original decodes honour task
+  cancellation (`decodeOriginal` cancels the queued operation), so the
+  viewer's page turns do not pile up stale 2560px decodes. The
   camera roll's lookahead is `GalleryPrefetcher`: three rows ahead in the
   direction of travel, worked out from which cells APPEAR (so it needs no
   scroll modifier and costs no bodies), cancelled behind, and suspended above
-  2,000pt/s. Views still ask while drawing.
+  2,000pt/s and resumed ~250ms after the last cell appears; a single cell
+  appearing more than 12 rows away is ignored unless a second confirms it.
+  Views still ask while drawing.
 - **`WinRecord.place` is `var`, not `let`.** Every other property there is
   `let`, and a `let` with a default value is omitted from the synthesized
   memberwise initializer entirely — it would compile and then be unsettable
