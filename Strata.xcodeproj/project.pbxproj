@@ -379,7 +379,7 @@
 				DEVELOPMENT_TEAM = W34J6358L7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetSupport/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Strata;
+				INFOPLIST_KEY_CFBundleDisplayName = "Strata Wins";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -409,7 +409,7 @@
 				DEVELOPMENT_TEAM = W34J6358L7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetSupport/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Strata;
+				INFOPLIST_KEY_CFBundleDisplayName = "Strata Wins";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
