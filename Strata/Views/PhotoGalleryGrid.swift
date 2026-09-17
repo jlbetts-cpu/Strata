@@ -49,6 +49,11 @@ struct PhotoGalleryGrid: View {
     /// The grid's own width, measured once rather than by a `GeometryReader`
     /// in every cell. See `cell`.
     @State private var gridWidth: CGFloat = 0
+    /// Reads the next rows ahead of the scroll. A plain reference, not
+    /// observed: it changes on every cell that appears and must never cost a
+    /// body. See `GalleryPrefetcher`.
+    @State private var prefetcher = GalleryPrefetcher()
+    @Environment(\.displayScale) private var displayScale
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: Self.gutter), count: 3)
@@ -85,6 +90,21 @@ struct PhotoGalleryGrid: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+        .onChange(of: sections, initial: true) { _, now in
+            prefetcher.update(now.flatMap { $0.photos.map(\.fileName) })
+        }
+    }
+
+    /// Asks for the rows past this cell, and drops what is no longer ahead.
+    /// Asked at the width the cell itself asks at, so a prefetched picture is
+    /// the one the cell finds.
+    private func prefetchAhead(of photo: GalleryPhoto) {
+        guard gridWidth > 0 else { return }
+        let side = (gridWidth - Self.gutter * 2) / 3
+        let result = prefetcher.appeared(photo.fileName, rowHeight: Double(side + Self.gutter))
+        let pixels = side * displayScale
+        if !result.cancel.isEmpty { ThumbnailStore.shared.cancelPrefetch(result.cancel, width: pixels) }
+        if !result.ask.isEmpty { ThumbnailStore.shared.prefetch(result.ask, width: pixels) }
     }
 
     /// Pinned, like Photos. The month you are inside stays named while you
@@ -123,6 +143,7 @@ struct PhotoGalleryGrid: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onAppear { prefetchAhead(of: photo) }
         .accessibilityLabel(photo.title ?? "Photo")
         .matchedTransitionSource(id: photo.id, in: transitionNamespace)
     }

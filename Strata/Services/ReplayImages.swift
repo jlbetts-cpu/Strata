@@ -91,7 +91,7 @@ struct ReplayImages {
                 case .bundled(let name):
                     group.addTask { (photo, await decodeBundled(name, width: width)) }
                 case .stored(let name):
-                    group.addTask { (photo, await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: width)) }
+                    group.addTask { (photo, await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: width, lane: .prefetch)) }
                 }
             }
             for _ in 0..<concurrentDecodes { addNext() }
