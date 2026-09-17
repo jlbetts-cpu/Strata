@@ -1,5 +1,6 @@
 import UIKit
 import ImageIO
+import QuartzCore
 
 final class ImageManager: @unchecked Sendable {
     static let shared = ImageManager()
@@ -55,21 +56,99 @@ final class ImageManager: @unchecked Sendable {
     private let ioQueue = DispatchQueue(label: "com.strata.imagemanager.io",
                                         qos: .userInitiated, attributes: .concurrent)
 
+    /// **Three lanes, one shape** (2026-09-16). Each is the same concurrent,
+    /// non-blocking queue measured above, at a different QoS, so the system
+    /// runs what a person is looking at first:
+    ///
+    ///     visible    .userInitiated   a view drawing now asked for it (`ioQueue`)
+    ///     prefetch   .utility         ahead of a scroll, a slideshow's next
+    ///                                 frame, a replay warming up, the widget
+    ///     bake       .background      the derivative migration
+    ///
+    /// No semaphore on any of them — see `ioQueue`. How many run at once is
+    /// bounded one level up: `ThumbnailStore` caps the visible and prefetch
+    /// lanes, and the migration bakes one file at a time and waits whenever
+    /// the store has visible work.
+    enum Lane: Sendable { case visible, prefetch, bake }
+
+    private let prefetchQueue = DispatchQueue(label: "com.strata.imagemanager.prefetch",
+                                              qos: .utility, attributes: .concurrent)
+    private let bakeQueue = DispatchQueue(label: "com.strata.imagemanager.bake",
+                                          qos: .background, attributes: .concurrent)
+
+    /// **Decodes of an ORIGINAL, bounded without blocking anything**
+    /// (2026-09-16).
+    ///
+    /// Measured on the iOS 26.3 simulator against a library of 2560px HEIC
+    /// originals (`-strataSeedRealPhotos`), the queue above FROZE THE APP.
+    /// `-strataBenchImages 200` put 64 GCD workers inside VideoToolbox's HEVC
+    /// decoder, every one parked on a semaphore waiting for work that needed
+    /// a thread, for 20+ minutes. Opening the map did the same with the 48
+    /// reads `ThumbnailStore` allows — and then the main thread blocked too,
+    /// in Core Animation's commit, on an ImageIO mutex one of those decodes
+    /// held. Every earlier measurement of this pipeline was taken against the
+    /// JPEG fixture, which never enters VideoToolbox, so none of them could
+    /// see it. (Simulator only, as far as this machine can tell; the device
+    /// decodes HEVC in hardware, and that is unverified.)
+    ///
+    /// An `OperationQueue` with a concurrency limit is the non-blocking bound
+    /// the semaphore was not: it does not START more than this many, so no
+    /// thread ever waits. With derivatives in place almost nothing comes
+    /// here — only a photograph not yet migrated, the viewer's full decode,
+    /// and the migration itself.
+    private let originalDecodes: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.strata.imagemanager.originals"
+        queue.maxConcurrentOperationCount = ImageManager.maxOriginalDecodes
+        return queue
+    }()
+    static let maxOriginalDecodes = 3
+
+    /// Runs `work` on the originals queue at the lane's priority.
+    private func decodeOriginal<T>(_ lane: Lane, _ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            let op = BlockOperation { continuation.resume(returning: work()) }
+            switch lane {
+            case .visible: op.qualityOfService = .userInitiated; op.queuePriority = .high
+            case .prefetch: op.qualityOfService = .utility; op.queuePriority = .low
+            case .bake: op.qualityOfService = .background; op.queuePriority = .veryLow
+            }
+            originalDecodes.addOperation(op)
+        }
+    }
+
+    private func queue(_ lane: Lane) -> DispatchQueue {
+        switch lane {
+        case .visible: ioQueue
+        case .prefetch: prefetchQueue
+        case .bake: bakeQueue
+        }
+    }
+
     /// How much room the photographs take, in bytes, and how many there are.
     ///
     /// Walked rather than summed from a counter: a counter drifts the first
     /// time anything writes a file without telling it, and the number people
     /// check is the one that has to be true.
     func storageUsed() -> (count: Int, bytes: Int64) {
-        let keys: [URLResourceKey] = [.fileSizeKey]
+        let keys: [URLResourceKey] = [.fileSizeKey, .isDirectoryKey]
         guard let items = try? FileManager.default.contentsOfDirectory(
             at: imageDirectory, includingPropertiesForKeys: keys) else { return (0, 0) }
         var bytes: Int64 = 0
-        for url in items {
-            let size = (try? url.resourceValues(forKeys: Set(keys)).fileSize) ?? 0
-            bytes += Int64(size)
+        var count = 0
+        for url in items where ImageDerivatives.isOriginal(url) {
+            count += 1
+            bytes += Int64((try? url.resourceValues(forKeys: Set(keys)).fileSize) ?? 0)
         }
-        return (items.count, bytes)
+        // **The derivatives count too.** They are this app's bytes on this
+        // phone, and a figure that left out `derived/` would stop being true
+        // the day it shipped. The count stays photographs, not files.
+        let derived = ImageDerivatives.folder(in: imageDirectory)
+        for url in (try? FileManager.default.contentsOfDirectory(
+            at: derived, includingPropertiesForKeys: keys)) ?? [] {
+            bytes += Int64((try? url.resourceValues(forKeys: Set(keys)).fileSize) ?? 0)
+        }
+        return (count, bytes)
     }
 
     /// Delete image files that no win refers to any more.
@@ -92,18 +171,33 @@ final class ImageManager: @unchecked Sendable {
     ///
     /// - Parameter referenced: every file name any log points at, complete.
     /// - Returns: how many files were removed, for the log.
+    ///
+    /// **It never touches a directory** (2026-09-16). `removeItem` on a folder
+    /// is recursive, and `derived/` — every derivative in the app — is a
+    /// folder whose name no log refers to, so the first sweep after the
+    /// derivatives shipped would have deleted all of them. Only plain files
+    /// are candidates; derivatives get their own pass, which removes one only
+    /// when its original is no longer on disk.
     @discardableResult
     func pruneOrphans(referenced: Set<String>) -> Int {
         guard let items = try? FileManager.default.contentsOfDirectory(
-            at: imageDirectory, includingPropertiesForKeys: nil) else { return 0 }
+            at: imageDirectory, includingPropertiesForKeys: [.isDirectoryKey]) else { return 0 }
         var removed = 0
-        for url in items {
+        var removedNames: [String] = []
+        var survivors = Set<String>()
+        for url in items where ImageDerivatives.isOriginal(url) {
             let name = url.lastPathComponent
-            guard !name.hasPrefix("."), !referenced.contains(name) else { continue }
-            try? FileManager.default.removeItem(at: url)
-            removed += 1
+            guard !referenced.contains(name) else { survivors.insert(name); continue }
+            do {
+                try FileManager.default.removeItem(at: url)
+                removed += 1
+                removedNames.append(name)
+            } catch {
+                survivors.insert(name)
+            }
         }
-        if removed > 0 { forgetAllThumbnails() }
+        let derivedGone = ImageDerivatives.pruneOrphans(originals: survivors, in: imageDirectory)
+        forgetThumbnails(of: removedNames + derivedGone)
         return removed
     }
 
@@ -121,8 +215,19 @@ final class ImageManager: @unchecked Sendable {
         // and not much else — every visit back re-decoded. Three hundred is
         // no longer the binding limit; 150MB is (about 300 map-sized
         // pictures), and NSCache still empties itself under memory pressure.
-        thumbnailCache.countLimit = 300
-        thumbnailCache.totalCostLimit = 150 * 1024 * 1024
+        //
+        // **A fraction of the phone, not a constant** (2026-09-16): 192MB on
+        // a 6GB phone, 96MB on a 3GB one, so a small phone is not carrying a
+        // large phone's ceiling. Raised only once the entries got cheap: a
+        // map picture from a 320px derivative costs about half what one from
+        // the original did, so 600 fit where 300 used to.
+        thumbnailCache.countLimit = 600
+        thumbnailCache.totalCostLimit = Self.cacheCostLimit(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+    }
+
+    /// `min(192MB, physicalMemory / 32)`.
+    static func cacheCostLimit(physicalMemory: UInt64) -> Int {
+        Int(min(UInt64(192 << 20), physicalMemory / 32))
     }
 
     // MARK: - Save
@@ -186,6 +291,14 @@ final class ImageManager: @unchecked Sendable {
                 }
                 do {
                     try imageData.write(to: fileURL, options: .atomic)
+                    // Both tiers from the picture already in hand: two small
+                    // encodes and no decode. After the original is safely on
+                    // disk, and a failure here costs nothing but a lazy bake
+                    // on first read. See `ImageDerivatives`.
+                    for tier in ImageDerivatives.tiers {
+                        ImageDerivatives.bake(from: resized, original: fileName,
+                                              tier: tier, in: self.imageDirectory)
+                    }
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
@@ -210,7 +323,15 @@ final class ImageManager: @unchecked Sendable {
         return types.contains("public.heic")
     }
 
-    private static func encodeHEIC(image: UIImage, quality: CGFloat) -> Data? {
+    #if DEBUG
+    /// The save path's own encoder, for `-strataSeedRealPhotos`, so a seeded
+    /// photograph is the same kind of file a saved one is.
+    static func encodeHEICForSeeding(image: UIImage, quality: CGFloat) -> Data? {
+        encodeHEIC(image: image, quality: quality)
+    }
+    #endif
+
+    nonisolated private static func encodeHEIC(image: UIImage, quality: CGFloat) -> Data? {
         guard let cgImage = image.cgImage else { return nil }
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
@@ -251,7 +372,7 @@ final class ImageManager: @unchecked Sendable {
         return alive
     }
 
-    private static func cost(of image: UIImage) -> Int {
+    nonisolated private static func cost(of image: UIImage) -> Int {
         Int(image.size.width * image.size.height * image.scale * image.scale * 4)
     }
 
@@ -259,11 +380,53 @@ final class ImageManager: @unchecked Sendable {
         thumbnailCache.removeAllObjects()
         liveLock.lock()
         liveThumbnails.removeAllObjects()
+        keysByName.removeAll()
         liveLock.unlock()
     }
 
+    /// Every cache key a file has been decoded under, so ONE photograph can be
+    /// forgotten. Keys only — never an image — so this keeps nothing alive.
+    /// Guarded by `liveLock`.
+    ///
+    /// Deleting one photograph in the viewer used to empty the whole cache,
+    /// "because NSCache can't enumerate by prefix", and the gallery underneath
+    /// re-decoded every picture it had.
+    private var keysByName: [String: Set<NSString>] = [:]
+
+    private func remember(_ key: NSString, for fileName: String) {
+        liveLock.lock()
+        keysByName[fileName, default: []].insert(key)
+        liveLock.unlock()
+    }
+
+    /// Forgets these photographs' pictures and nobody else's.
+    private func forgetThumbnails(of fileNames: [String]) {
+        guard !fileNames.isEmpty else { return }
+        liveLock.lock()
+        var keys: [NSString] = []
+        for name in fileNames { keys += keysByName.removeValue(forKey: name) ?? [] }
+        for key in keys { liveThumbnails.removeObject(forKey: key) }
+        liveLock.unlock()
+        for key in keys { thumbnailCache.removeObject(forKey: key) }
+    }
+
+    #if DEBUG
+    /// Whether a picture is in memory for this file at this width, for the
+    /// eviction tests.
+    func isCachedForTesting(_ fileName: String, maxWidth: CGFloat) -> Bool {
+        thumbnailCache.object(forKey: "\(fileName)_\(Int(maxWidth))" as NSString) != nil
+    }
+    #endif
+
     /// Returns a downsampled thumbnail from cache or disk. Thread-safe.
-    func loadThumbnail(fileName: String, maxWidth: CGFloat) async -> UIImage? {
+    ///
+    /// **Read from the smallest derivative that covers the width**, and from
+    /// the original only above tier M. A photograph with no derivative yet is
+    /// decoded from its original ONCE at the tier's size, which both answers
+    /// this read and becomes the derivative (written on the bake lane, so the
+    /// encode never sits in front of a visible picture).
+    func loadThumbnail(fileName: String, maxWidth: CGFloat, lane: Lane = .visible,
+                       cancelled: CancelFlag? = nil) async -> UIImage? {
         let cacheKey = "\(fileName)_\(Int(maxWidth))" as NSString
 
         // Cache hit, or a picture still alive after the cache let it go
@@ -274,15 +437,36 @@ final class ImageManager: @unchecked Sendable {
         // Cache miss — downsample from disk
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let directory = imageDirectory
 
-        // Decoded on `ioQueue`, the concurrent GCD queue, with nothing
-        // blocking on it — see that property for the measurement (5.12x
-        // against serial; the cooperative pool was 1.53x). How many are asked
-        // for at once is bounded one level up, in `ThumbnailStore`.
-        let thumbnail: UIImage? = await withCheckedContinuation { continuation in
-            ioQueue.async {
-                continuation.resume(returning:
-                    Self.downsample(url: fileURL, maxPixelWidth: maxWidth))
+        // Decoded on a concurrent GCD queue with nothing blocking on it — see
+        // `ioQueue` for the measurement (5.12x against serial; the cooperative
+        // pool was 1.53x). How many are asked for at once is bounded one level
+        // up, in `ThumbnailStore`.
+        // Which file answers this is decided here, before any queue: a
+        // derivative goes to its lane's concurrent queue, an original to the
+        // bounded `originalDecodes`. Two `stat`s, microseconds.
+        let derived = ImageDerivatives.existing(for: fileName, pixels: maxWidth, in: directory)
+        let thumbnail: UIImage?
+        if let derived {
+            thumbnail = await withCheckedContinuation { continuation in
+                queue(lane).async {
+                    // **Cancelled before it started, not during.** A decode
+                    // cannot be interrupted, so the only useful moment to drop
+                    // one whose cell has scrolled away is before it begins.
+                    if cancelled?.isSet == true { continuation.resume(returning: nil); return }
+                    #if DEBUG
+                    Self.countSource("derived")
+                    #endif
+                    continuation.resume(returning: Self.downsample(url: derived, maxPixelWidth: maxWidth))
+                }
+            }
+        } else {
+            let bakeQueue = self.bakeQueue
+            thumbnail = await decodeOriginal(lane) {
+                if cancelled?.isSet == true { return nil }
+                return Self.readThumbnail(fileName: fileName, url: fileURL, maxWidth: maxWidth,
+                                          directory: directory, bakeQueue: bakeQueue)
             }
         }
         guard let thumbnail else { return nil }
@@ -290,7 +474,120 @@ final class ImageManager: @unchecked Sendable {
         liveLock.lock()
         liveThumbnails.setObject(thumbnail, forKey: cacheKey)
         liveLock.unlock()
+        remember(cacheKey, for: fileName)
         return thumbnail
+    }
+
+    /// A flag a caller sets to drop a read that has not started. Checked once,
+    /// at the top of the queue block.
+    final class CancelFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        var isSet: Bool { lock.withLock { value } }
+        func set() { lock.withLock { value = true } }
+    }
+
+    /// A read with no derivative, off the main thread. See `loadThumbnail`.
+    nonisolated private static func readThumbnail(fileName: String, url: URL, maxWidth: CGFloat,
+                                      directory: URL, bakeQueue: DispatchQueue) -> UIImage? {
+        guard let tier = ImageDerivatives.tier(forPixels: maxWidth) else {
+            #if DEBUG
+            countSource("original")
+            #endif
+            return downsample(url: url, maxPixelWidth: maxWidth)
+        }
+        // No derivative yet: one decode of the original at the tier's size.
+        #if DEBUG
+        countSource("bakedOnRead")
+        #endif
+        guard let tierImage = ImageDerivatives.decode(url, maxPixels: tier) else { return nil }
+        bakeQueue.async {
+            // `bake(from:)` writes only under `derived/`; the original is
+            // not touched. It is re-checked there, so a file deleted in the
+            // meantime is simply not baked.
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            ImageDerivatives.bake(from: UIImage(cgImage: tierImage), original: fileName,
+                                  tier: tier, in: directory)
+        }
+        let longest = max(tierImage.width, tierImage.height)
+        guard CGFloat(longest) > maxWidth.rounded(.up) else { return UIImage(cgImage: tierImage) }
+        let scale = maxWidth / CGFloat(longest)
+        guard let smaller = ImageDerivatives.eightBit(
+            tierImage, width: max(1, Int((CGFloat(tierImage.width) * scale).rounded())),
+            height: max(1, Int((CGFloat(tierImage.height) * scale).rounded()))) else {
+            return UIImage(cgImage: tierImage)
+        }
+        return UIImage(cgImage: smaller)
+    }
+
+    #if DEBUG
+    /// Where each cold read came from, for `-strataPerfProbe`: after the
+    /// migration nearly every read should say `derived`.
+    nonisolated private static func countSource(_ source: String) {
+        guard PerfProbe.isOn else { return }
+        Task { @MainActor in PerfProbe.count("ThumbFrom-\(source)") }
+    }
+    #endif
+
+    // MARK: - Migration
+
+    /// Bakes tier S for every photograph that does not have one yet, at
+    /// background priority, one file at a time, and never while a person is
+    /// waiting on a picture. Trims tier M under its cap first.
+    ///
+    /// **Idempotent and resumable by construction**: the work list is
+    /// `ImageDerivatives.unbaked`, recomputed from the directory, so there is
+    /// no cursor to persist or corrupt, a second run finds nothing to do, and
+    /// a run killed half way loses at most the one file it was writing.
+    ///
+    /// **It only creates files under `derived/`.** See `ImageDerivatives`:
+    /// no original is written, moved or deleted by anything reachable from
+    /// here.
+    ///
+    /// - Returns: how many were baked.
+    @discardableResult
+    func migrateDerivatives() async -> Int {
+        let directory = imageDirectory
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            bakeQueue.async {
+                ImageDerivatives.trimMedium(in: directory)
+                done.resume()
+            }
+        }
+        // Tier S for every photograph first — the map and the tower have no
+        // other source — then tier M for the newest, up to its cap.
+        let work = await withCheckedContinuation { (found: CheckedContinuation<[(String, Int)], Never>) in
+            bakeQueue.async {
+                let small = ImageDerivatives.unbaked(in: directory).map { ($0, ImageDerivatives.small) }
+                let medium = ImageDerivatives.unbakedMedium(in: directory).map { ($0, ImageDerivatives.medium) }
+                found.resume(returning: small + medium)
+            }
+        }
+        guard !work.isEmpty else { return 0 }
+        #if DEBUG
+        let started = CACurrentMediaTime()
+        PerfProbe.emit("[PERF-MIGRATE] start unbaked=\(work.count)")
+        #endif
+        var baked = 0
+        for (name, tier) in work {
+            if Task.isCancelled { break }
+            // Visible work outranks this absolutely: wait until nothing on
+            // screen is being read or waiting to be.
+            while await MainActor.run(body: { ThumbnailStore.shared.hasVisibleWork }) {
+                try? await Task.sleep(for: .milliseconds(250))
+                if Task.isCancelled { break }
+            }
+            let ok = await decodeOriginal(.bake) {
+                ImageDerivatives.bake(name, tier: tier, in: directory) != nil
+            }
+            if ok { baked += 1 }
+            await Task.yield()
+        }
+        #if DEBUG
+        PerfProbe.emit(String(format: "[PERF-MIGRATE] done baked=%d of %d in %.1fs",
+                              baked, work.count, CACurrentMediaTime() - started))
+        #endif
+        return baked
     }
 
     // MARK: - Load Full Image
@@ -301,21 +598,21 @@ final class ImageManager: @unchecked Sendable {
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
 
-        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
-            ioQueue.async {
+        // Through the bounded originals queue: a full HEIC decode is exactly
+        // the work that froze the app when too many ran at once.
+        return await decodeOriginal(.visible) {
             let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
             guard let source = CGImageSourceCreateWithURL(fileURL as CFURL,
                                                           sourceOptions as CFDictionary)
-            else { continuation.resume(returning: nil); return }
+            else { return nil }
             let decodeOptions: [CFString: Any] = [
                 kCGImageSourceShouldCacheImmediately: true,
                 kCGImageSourceCreateThumbnailWithTransform: true
             ]
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0,
                                                                 decodeOptions as CFDictionary)
-            else { continuation.resume(returning: nil); return }
-            continuation.resume(returning: UIImage(cgImage: cgImage))
-            }
+            else { return nil }
+            return UIImage(cgImage: cgImage)
         }
     }
 
@@ -325,11 +622,11 @@ final class ImageManager: @unchecked Sendable {
     func deleteImage(fileName: String) {
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: fileURL)
-        // Nuke all cached thumbnails — NSCache can't enumerate by prefix,
-        // and hardcoded widths miss actual display sizes. Regeneration is cheap.
-        // The live table goes too, or a deleted photograph could be handed
-        // back to a view still asking for it.
-        forgetAllThumbnails()
+        ImageDerivatives.removeDerivatives(of: fileName, in: imageDirectory)
+        // This photograph's pictures, and no one else's — see `keysByName`.
+        // The live table entries go too, or a deleted photograph could be
+        // handed back to a view still asking for it.
+        forgetThumbnails(of: [fileName])
     }
 
     /// The directory, for the prune tests. They need real files on disk —
@@ -350,8 +647,10 @@ final class ImageManager: @unchecked Sendable {
 
     /// Every photograph on disk, for the same reason.
     func allStoredFileNamesForBenchmark() -> [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: imageDirectory.path)) ?? [])
-            .filter { !$0.hasPrefix(".") }
+        ((try? FileManager.default.contentsOfDirectory(
+            at: imageDirectory, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
+            .filter(ImageDerivatives.isOriginal)
+            .map(\.lastPathComponent)
             .sorted()
     }
 
@@ -364,7 +663,7 @@ final class ImageManager: @unchecked Sendable {
 
     // MARK: - Resize
 
-    private static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+    nonisolated private static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
         let size = image.size
         let longestEdge = max(size.width, size.height)
         guard longestEdge > maxDimension else { return image }
@@ -380,7 +679,7 @@ final class ImageManager: @unchecked Sendable {
 
     // MARK: - ImageIO Downsample
 
-    private static func downsample(url: URL, maxPixelWidth: CGFloat) -> UIImage? {
+    nonisolated private static func downsample(url: URL, maxPixelWidth: CGFloat) -> UIImage? {
         let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions as CFDictionary) else {
             return nil

@@ -1965,6 +1965,14 @@ struct MainAppView: View {
         if removed > 0 {
             NSLog("[strata] orphan sweep removed \(removed) unreferenced photographs")
         }
+        // **The derivative migration, after the sweep** so it never bakes a
+        // photograph the sweep was about to remove. Detached at background
+        // priority and a few seconds late, so a launch never waits on it; it
+        // waits on visible work itself. See `ImageManager.migrateDerivatives`.
+        Task.detached(priority: .background) {
+            try? await Task.sleep(for: .seconds(4))
+            await ImageManager.shared.migrateDerivatives()
+        }
     }
 
     /// Hand the home screen a few hundred bytes of already-decided facts.
@@ -2135,7 +2143,7 @@ struct MainAppView: View {
                 // Already exported and the source has not changed.
                 if FileManager.default.fileExists(atPath: destination.path) { continue }
                 guard let image = await ImageManager.shared.loadThumbnail(
-                    fileName: name, maxWidth: WidgetSnapshot.photoPixels),
+                    fileName: name, maxWidth: WidgetSnapshot.photoPixels, lane: .prefetch),
                       let data = image.jpegData(compressionQuality: 0.8) else { continue }
                 try? data.write(to: destination, options: .atomic)
             }
