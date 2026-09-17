@@ -24,8 +24,8 @@ struct PlanSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     /// Called with the line when its block is pressed. The caller opens the
-    /// add sheet; the line is marked done only once a win is actually saved,
-    /// so backing out of that sheet does not spend it.
+    /// add sheet; the line is ticked at once, and the tick is kept only once
+    /// a win is actually saved, so backing out of that sheet does not spend it.
     var onComplete: (PlanItem) -> Void
 
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
@@ -307,14 +307,11 @@ struct PlanSheet: View {
             HapticsEngine.lightTap()
             return
         }
-        // Checked NOW, not when the win saves. Pressing the block is the act
-        // of finishing the line; the add sheet that follows is an offer to
-        // also put it on the tower, and it has a Cancel button for a reason.
-        // Making the tick wait on that would leave the commonest gesture in
-        // the sheet with no visible result until two screens later.
-        //
-        // Nothing is lost by being wrong: pressing a finished line unchecks
-        // it again.
+        // Checked NOW, not when the win saves: making the tick wait would
+        // leave the commonest gesture in the sheet with no visible result
+        // until two screens later. It is optimistic, though. Closing the add
+        // sheet without saving takes it back (`MainAppView.tickAwaitingWin`),
+        // so the plan never claims a block the tower does not have.
         item.completedAt = Date()
         try? modelContext.save()
         HapticsEngine.success()
