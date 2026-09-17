@@ -62,7 +62,7 @@ struct ProfileView: View {
             settingsLink
         }
         .scrollContentBackground(.hidden)
-        .background { WarmBackground(lit: true).ignoresSafeArea() }
+        .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)
         .toolbar { doneToolbar }
         // Profile's head sleeps under the maker and the photo library. Before

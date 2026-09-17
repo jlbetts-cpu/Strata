@@ -85,7 +85,7 @@ struct MemoriesDrawer<Content: View>: View {
                 )
                 .fill(Color.clear)
                 .background {
-                    WarmBackground(lit: true)
+                    WarmBackground()
                         .clipShape(UnevenRoundedRectangle(
                             topLeadingRadius: GridConstants.radiusSurface,
                             topTrailingRadius: GridConstants.radiusSurface,
