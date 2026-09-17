@@ -290,8 +290,7 @@ final class TowerGestureTests: XCTestCase {
         XCTAssertEqual(field.value as? String, "Send the invoice",
                        "the title was not pre-filled from the plan line")
 
-        // Back out. The line must still be there — checked, because pressing
-        // the block is what finishes it, but not gone.
+        // Back out. The line must still be there, not thrown away.
         app.swipeDown(velocity: .fast)
         Thread.sleep(forTimeInterval: 3)
         let plan = app.buttons["Plan"]
@@ -306,12 +305,20 @@ final class TowerGestureTests: XCTestCase {
             return
         }
 
-        // And it is CHECKED. Pressing the block is what finishes a line — the
-        // add sheet that follows is an offer to also put it on the tower, so
-        // cancelling that must not un-finish it. The bullet's label carries
-        // the state.
-        XCTAssertTrue(back.label.contains("done"),
-                      "the line came back unchecked: \(back.label)")
+        // And it is UNCHECKED again. This assertion used to demand the
+        // opposite, and it encoded a decision the owner reversed: pressing a
+        // line ticks it at once, but c90f552 (2026-09-10, from a phone: "you
+        // can make a point and then drop it and then remove it and its still
+        // checked off") made closing the add sheet without saving take that
+        // tick back (`MainAppView.tickAwaitingWin`), so the plan never claims
+        // a block the tower does not have. The test was written the day
+        // before and never followed. It still pins both halves: the line
+        // survives, and the tick does not outlive the unsaved win. The
+        // bullet's label carries the state ("<text>, done" when ticked).
+        XCTAssertFalse(back.label.contains("done"),
+                       "cancelling the add sheet left the line ticked with no win: \(back.label)")
+        XCTAssertEqual(back.label, "Log Send the invoice as a win",
+                       "the line did not come back as an unfinished line")
     }
 
     // MARK: - Memories

@@ -66,7 +66,7 @@ private struct AlbumCard: View {
             // `blockTitle` is what the app already uses for the name of one
             // object, which is exactly what this is.
             Text(album.title)
-                .font(Typography.blockTitle)
+                .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
                 .lineLimit(1)
                 .padding(.top, GridConstants.gapTight)
@@ -75,7 +75,7 @@ private struct AlbumCard: View {
             // heading token for it is how the heading token stopped meaning
             // anything.
             Text(album.subtitle)
-                .font(Typography.photoCaption)
+                .font(Typography.sectionLabel)
                 .kerning(Typography.sectionKerning)
                 .textCase(.uppercase)
                 .foregroundStyle(AppColors.inkTertiary)

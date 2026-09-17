@@ -400,7 +400,7 @@ struct OnboardingView: View {
 
             VStack(spacing: 2) {
                 Text("Jayden")
-                    .font(Typography.headerLarge)
+                    .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
                 Text("Founder, developer and product designer")
                     .font(Typography.bodySmall)
@@ -418,7 +418,7 @@ struct OnboardingView: View {
             if let url = URL(string: Self.linkedIn) { openURL(url) }
         } label: {
             Text("Connect on LinkedIn")
-                .font(.system(.body, design: .rounded, weight: .medium))
+                .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.slotInk)
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
@@ -433,11 +433,11 @@ struct OnboardingView: View {
     private var words: some View {
         VStack(spacing: GridConstants.gapTight) {
             Text(title)
-                .font(Typography.headerLarge)
+                .font(Typography.headerMedium)
                 .foregroundStyle(onDark ? Color.white : AppColors.inkPrimary)
                 .multilineTextAlignment(.center)
             Text(subtitle)
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyLarge)
                 .foregroundStyle(onDark ? Color.white.opacity(0.82) : AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -512,7 +512,7 @@ struct OnboardingView: View {
                 advance()
             } label: {
                 Text(actionTitle)
-                    .font(.system(.body, design: .rounded, weight: .medium))
+                    .font(Typography.headerMedium)
                     // **Disabled is a different pill, not a faded one.**
                     //
                     // Fading the whole control took the LABEL down with it:

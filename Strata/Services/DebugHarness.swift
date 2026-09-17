@@ -196,7 +196,7 @@ enum DebugHarness {
         Int(argument("-strataSeedMood") ?? "0") ?? 0
     }
 
-    /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block`.
+    /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block|edit`.
     /// These are modals with no other scriptable route in. `settings` opens
     /// Profile and pushes Settings, since Settings lives only inside Profile.
     static var openSheet: String? {
@@ -366,6 +366,11 @@ enum DebugHarness {
     /// Whether a ground was asked for explicitly, so the app's own rule (dark
     /// map in dark mode) is not silently replaced by a default.
     static var hasMapStyleOverride: Bool { argument("-strataMapStyle") != nil }
+
+    /// Every map badge shows this count, from `-strataBadgeCount <n>`. A
+    /// fixture that clusters 236 or 1000 wins in one place would take minutes
+    /// to seed; the badge's layout is what is being photographed.
+    static var badgeCount: Int? { argument("-strataBadgeCount").flatMap(Int.init) }
 
     static var mapStyle: MemoriesMapView.Style {
         switch argument("-strataMapStyle") {

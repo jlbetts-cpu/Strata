@@ -26,7 +26,7 @@ struct PrivacyPolicyView: View {
                 }
 
                 Text("Last updated 14 September 2026")
-                    .font(Typography.caption)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkQuiet)
                     .padding(.top, 8)
             }
@@ -34,8 +34,7 @@ struct PrivacyPolicyView: View {
             .padding(GridConstants.horizontalPadding)
         }
         .background { WarmBackground().ignoresSafeArea() }
-        .navigationTitle("Privacy")
-        .navigationBarTitleDisplayMode(.inline)
+        .sheetTitle("Privacy", drawn: false)
     }
 
     private static let sections: [(title: String, body: String)] = [

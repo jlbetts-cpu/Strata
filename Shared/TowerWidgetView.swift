@@ -126,11 +126,11 @@ struct TowerWidgetView: View {
     /// Today's number, in the owner's own digits.
     private var count: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(StrataNumerals.digits(snapshot.today))
-                .font(StrataNumerals.size(30))
+            Text(StrataFont.digits(snapshot.today))
+                .font(StrataFont.size(30))
                 .foregroundStyle(.white)
             Text(snapshot.today == 1 ? "win" : "wins")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.85))
         }
         .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
@@ -163,13 +163,13 @@ struct TowerWidgetView: View {
     private var lockScreen: some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(StrataNumerals.digits(snapshot.today))
-                    .font(StrataNumerals.size(16))
+                Text(StrataFont.digits(snapshot.today))
+                    .font(StrataFont.size(16))
                 Text("today")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
             }
             Text(secondLine)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

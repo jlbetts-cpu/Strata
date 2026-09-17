@@ -123,13 +123,13 @@ enum GridConstants {
     /// colour started at 16pt. Type is aligned optically or it is not
     /// aligned.
     ///
-    /// The number is no longer measured off a screenshot. `StrataNumerals`
+    /// The number is no longer measured off a screenshot. `StrataFont`
     /// sets its digits tabular — one advance for all ten, ink centred in it —
     /// so the sidebearing is a fact in the font's `hmtx` table and the
     /// generator reads it out. It is the MEAN of the ten: the widest digit
     /// carries 0.078 em of air and the narrowest 0.118, and no single
     /// correction can be right for both.
-    static let tallyOpticalInset: CGFloat = StrataNumerals.opticalInset * tallyNumeral
+    static let tallyOpticalInset: CGFloat = StrataFont.opticalInset * tallyNumeral
 
     // MARK: - Header alignment
 

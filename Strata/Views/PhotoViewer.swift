@@ -360,7 +360,7 @@ struct PhotoViewer: View {
                 .foregroundStyle(AppColors.onDarkQuiet)
             if let place = placeLine {
                 Label(place, systemImage: "mappin.and.ellipse")
-                    .font(Typography.photoCaption)
+                    .font(Typography.sectionLabel)
                     .foregroundStyle(AppColors.onDarkQuiet)
                     .labelStyle(.titleAndIcon)
             }
