@@ -41,6 +41,9 @@ struct PhotoViewer: View {
     /// have no shared idea of how many full-size images are in memory at
     /// once; a window of three, pruned on every move, does.
     @State private var images: [String: UIImage] = [:]
+    /// Pages showing the tier-M preview while their full-resolution picture
+    /// decodes. See `loadWindow`. Share waits for the real one.
+    @State private var previewOnly: Set<String> = []
     /// The deck's position as a FRACTIONAL index, republished every frame it
     /// moves, and the strip's scrub. This is what lets the strip below track a
     /// finger that is still on the photograph above, rather than jumping once
@@ -398,7 +401,8 @@ struct PhotoViewer: View {
     /// The picture the share sheet sends — the one already on screen, not a
     /// second decode of it.
     private var shareImage: Image? {
-        guard let current, let ui = images[current.fileName] else { return nil }
+        guard let current, !previewOnly.contains(current.fileName),
+              let ui = images[current.fileName] else { return nil }
         return Image(uiImage: ui)
     }
 
@@ -427,9 +431,25 @@ struct PhotoViewer: View {
             .filter { photos.indices.contains($0) }
         let window = order.map { photos[$0].fileName }
         images = images.filter { window.contains($0.key) }
-        for name in window where images[name] == nil {
+        previewOnly = previewOnly.filter { window.contains($0) }
+        // **A preview first, then the full picture** (2026-09-16). The one in
+        // front of you comes up from its 640px derivative — a few
+        // milliseconds, and usually already in memory from the gallery — and
+        // the 2560px decode replaces it in place when it lands. Same page, same
+        // aspect, so the swap is not a second arrival: the fade is keyed on
+        // `image != nil`, which the swap does not change.
+        if let first = window.first, images[first] == nil,
+           let preview = await ImageManager.shared.loadThumbnail(
+               fileName: first, maxWidth: CGFloat(ImageDerivatives.medium)),
+           images[first] == nil {
+            images[first] = preview
+            previewOnly.insert(first)
+            await Task.yield()
+        }
+        for name in window where images[name] == nil || previewOnly.contains(name) {
             if let ui = await ImageManager.shared.loadFullImage(fileName: name) {
                 images[name] = ui
+                previewOnly.remove(name)
             }
             // Yield between decodes so the first one can be drawn before the
             // neighbours are fetched. Without this the three awaits run back
