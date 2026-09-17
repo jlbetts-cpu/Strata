@@ -1951,6 +1951,11 @@ struct MainAppView: View {
     private func pruneOrphanedImages() {
         guard !hasPrunedImages else { return }
         hasPrunedImages = true
+        // Before anything that can bail out below: `derived/` is excluded from
+        // the device backup on every launch, not only when the migration
+        // gets to start.
+        let imageDirectory = ImageManager.shared.imageDirectory
+        Task.detached(priority: .utility) { ImageDerivatives.ensureFolder(in: imageDirectory) }
         let referenced: Set<String>
         do {
             let logs = try modelContext.fetch(FetchDescriptor<HabitLog>())

@@ -492,8 +492,13 @@ final class ImageManager: @unchecked Sendable {
     /// decoded from its original ONCE at the tier's size, which both answers
     /// this read and becomes the derivative (written on the bake lane, so the
     /// encode never sits in front of a visible picture).
+    ///
+    /// - Parameter countsAsForeground: false for a read nobody is waiting on
+    ///   in any real sense — the map slideshow's next frame — so it does not
+    ///   hold the migration off. On an unmigrated library the slideshow keeps
+    ///   one of those live almost all the time.
     func loadThumbnail(fileName: String, maxWidth: CGFloat, lane: Lane = .visible,
-                       cancelled: CancelFlag? = nil) async -> UIImage? {
+                       cancelled: CancelFlag? = nil, countsAsForeground: Bool = true) async -> UIImage? {
         let cacheKey = "\(fileName)_\(Int(maxWidth))" as NSString
 
         // Cache hit, or a picture still alive after the cache let it go
@@ -506,8 +511,9 @@ final class ImageManager: @unchecked Sendable {
         // photograph with no derivative goes on to the bounded originals queue.
         let fileURL = imageDirectory.appendingPathComponent(fileName)
         let directory = imageDirectory
-        beginForeground(lane)
-        defer { endForeground(lane) }
+        let foreground: Lane = countsAsForeground ? lane : .bake
+        beginForeground(foreground)
+        defer { endForeground(foreground) }
 
         enum First { case decoded(UIImage?), needsOriginal, missing }
         let first: First = await withCheckedContinuation { continuation in
@@ -521,7 +527,17 @@ final class ImageManager: @unchecked Sendable {
                     #if DEBUG
                     Self.countSource("derived")
                     #endif
-                    continuation.resume(returning: .decoded(Self.downsample(url: derived, maxPixelWidth: maxWidth)))
+                    if let image = Self.downsample(url: derived, maxPixelWidth: maxWidth) {
+                        continuation.resume(returning: .decoded(image))
+                    } else if FileManager.default.fileExists(atPath: fileURL.path) {
+                        // The copy vanished or would not decode between the
+                        // check and the read (tier M evicted mid-read): the
+                        // original is still there, so read that rather than
+                        // calling the photograph missing for `missingRetry`.
+                        continuation.resume(returning: .needsOriginal)
+                    } else {
+                        continuation.resume(returning: .missing)
+                    }
                 } else if FileManager.default.fileExists(atPath: fileURL.path) {
                     continuation.resume(returning: .needsOriginal)
                 } else {

@@ -1000,7 +1000,12 @@ private struct PlaceBlock: View {
             // front of a picture that is on screen.
             .task(id: upcoming) {
                 guard let upcoming, !upcoming.hasPrefix(Self.bundledPrefix) else { return }
-                ThumbnailStore.shared.prefetch([upcoming], width: Self.decodeWidth * displayScale, exact: true)
+                // Ambient: every block does this every beat, so on an
+                // unmigrated library it would keep a "foreground" read live
+                // almost all the time and starve the migration and the
+                // drawer's quiet gate.
+                ThumbnailStore.shared.prefetch([upcoming], width: Self.decodeWidth * displayScale,
+                                               exact: true, ambient: true)
             }
             .onChange(of: showing) { _, arriving in handover(to: arriving) }
             // **It arrives, gently.** Twenty blocks switching on at once is a

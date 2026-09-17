@@ -130,6 +130,10 @@ final class ThumbnailStore {
     /// Prefetch reads running, each with the flag that drops it if it has not
     /// started by the time its cell has gone.
     private var prefetchFlags: [Key: ImageManager.CancelFlag] = [:]
+    /// Prefetch asks that are nobody's foreground: the map slideshow's next
+    /// frame. Read on the same lane, but they neither hold the migration off
+    /// nor count as visible work for the drawer's quiet gate.
+    private var ambient: Set<Key> = []
     #if DEBUG
     /// Keys a prefetch put in memory that no view has shown yet. A view that
     /// then finds its picture already there is a prefetch that was AHEAD,
@@ -350,9 +354,10 @@ final class ThumbnailStore {
     /// drawing (CLAUDE.md), and this only means the answer is usually already
     /// there. Nothing is observed here, so a prefetch invalidates no view
     /// until its picture lands, and then only the views that asked for it.
-    func prefetch(_ fileNames: [String], width: CGFloat, exact: Bool = false) {
+    func prefetch(_ fileNames: [String], width: CGFloat, exact: Bool = false, ambient isAmbient: Bool = false) {
         for name in fileNames where !name.isEmpty {
             let key = Key(name: name, width: Self.bucket(width, exact: exact))
+            if isAmbient { ambient.insert(key) } else { ambient.remove(key) }
             guard !loading.contains(key), prefetchFlags[key] == nil, !prefetchQueued.contains(key),
                   missing[key] == nil, deferredSeq[key] == nil,
                   ImageManager.shared.cachedThumbnail(fileName: name, maxWidth: CGFloat(key.width)) == nil
@@ -398,10 +403,14 @@ final class ThumbnailStore {
             prefetchFlags[key] = flag
             Task { @MainActor in
                 let found = await ImageManager.shared.loadThumbnail(
-                    fileName: key.name, maxWidth: CGFloat(key.width), lane: .prefetch, cancelled: flag)
+                    fileName: key.name, maxWidth: CGFloat(key.width), lane: .prefetch, cancelled: flag,
+                    countsAsForeground: !ambient.contains(key))
                 // Only this read's own entry: a cancelled one may already have
                 // been replaced by a new prefetch of the same key.
-                if prefetchFlags[key] === flag { prefetchFlags[key] = nil }
+                if prefetchFlags[key] === flag {
+                    prefetchFlags[key] = nil
+                    ambient.remove(key)
+                }
                 if found != nil {
                     #if DEBUG
                     PerfProbe.count("PrefetchLanded")
@@ -423,7 +432,9 @@ final class ThumbnailStore {
     /// migration checks `ImageManager.hasForegroundReads` directly, off the
     /// main actor.)
     var hasVisibleWork: Bool {
-        !loading.isEmpty || !deferredSeq.isEmpty || !prefetchFlags.isEmpty || ImageManager.shared.hasForegroundReads
+        !loading.isEmpty || !deferredSeq.isEmpty
+            || prefetchFlags.keys.contains { !ambient.contains($0) }
+            || ImageManager.shared.hasForegroundReads
     }
 
     /// A photograph has just been written to disk under this name: anything
@@ -453,6 +464,7 @@ final class ThumbnailStore {
         prefetchFlags.removeAll()
         prefetchPending.removeAll()
         prefetchQueued.removeAll()
+        ambient.removeAll()
         for slot in slots.values { slot.generation &+= 1 }
     }
 

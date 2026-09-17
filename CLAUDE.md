@@ -494,6 +494,15 @@ method, every bug and what made it invisible, and the before/after numbers.
   foreground read (`ImageManager.hasForegroundReads`, counted off main), Low
   Power Mode, `.serious` thermal state and the app in background, and stops
   below 300MB free (tier M below 2GB) or on the first out-of-space write.
+  **A phone in Low Power Mode never migrates**: its reads bake on demand, one
+  photograph at a time, through the capped originals queue. The map
+  slideshow's next-frame prefetch is `ambient`: it does not count as a
+  foreground read or as visible work, or it would starve the migration.
+- **Replay cards are drawn while the drawer is down, behind the quiet gate**
+  (`MemoriesView.waitForQuietMap`: camera still, image store idle for 500ms,
+  page built). Not straight away (1.27s of `ImageRenderer` under the map's
+  first frames) and not on the raise (the same 1.3s under the moving panel,
+  slots filling one by one); the raise draws only what is still missing.
 - **iCloud (for the sync phase):** sync must skip `strata-images/derived/`; it
   is a local cache and is remade from the originals. An evicted file appears
   as `.<name>.icloud`, which `isOriginal` rejects (hidden), so the prune treats
