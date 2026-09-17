@@ -369,19 +369,28 @@ struct MemoriesView: View {
         // drawer is up: a poster that is merely STALE is redrawn only when
         // the shelf can be seen, and the old one stays up until then.
         .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") {
-            // A card that is MISSING is drawn straight away, whatever the
-            // drawer is doing: after a change of scheme its slot is empty
-            // until it is. Only a STALE one waits, first for the drawer and
-            // then for the spring to settle, so `ImageRenderer` is not on the
-            // main actor under a moving panel.
-            // **Nothing is drawn while the drawer is down** (fix round 1).
-            // A MISSING card used to be drawn straight away regardless, and at
-            // launch that put 1.27s of `ImageRenderer` on the main actor
-            // under the map's first frames, for a shelf nobody could see. The
-            // periods are still found; the cards wait for the drawer, which
-            // re-runs this task when it rises.
-            await reloadReplays(redrawsStale: false, drawsMissing: drawer != .hidden)
-            guard drawer != .hidden else { return }
+            // **A MISSING card is drawn while the drawer is down, but only
+            // once the map is quiet** (fix round 2). Drawn straight away, it
+            // put 1.27s of `ImageRenderer` on the main actor under the map's
+            // first frames. Drawn only when the drawer rose (round 1), that
+            // same 1.3s landed under the moving panel on the first raise and
+            // the slots filled in one by one. So: find the periods now, draw
+            // the missing cards behind the same gate as the drawer's
+            // prebuild (the camera still, the image store quiet for 500ms,
+            // the page built first), and keep drawing on the raise only as a
+            // fallback for anything still missing. A STALE card still waits
+            // for the drawer and the spring, as before.
+            if drawer == .hidden {
+                await reloadReplays(redrawsStale: false, drawsMissing: false)
+                while !Task.isCancelled, !vm.hasLoaded || !drawerIsBuilt {
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+                await waitForQuietMap()
+                guard !Task.isCancelled, drawer == .hidden else { return }
+                await reloadReplays(redrawsStale: false, drawsMissing: true)
+                return
+            }
+            await reloadReplays(redrawsStale: false, drawsMissing: true)
             try? await Task.sleep(for: Self.springSettle)
             guard !Task.isCancelled else { return }
             await reloadReplays(redrawsStale: true)
@@ -404,23 +413,7 @@ struct MemoriesView: View {
             // itself on the new pins, and the camera having been still while
             // the store was read is not the quiet this is waiting for.
             mapMotion.movedAt = .now
-            await mapMotion.waitUntilStill(for: Self.prebuildDelay)
-            // And not while the map's own pictures are still being read: the
-            // build is a long main-actor frame, and landing it in the middle
-            // of a cold map's first reads is what held the blocks' pictures
-            // back by seconds. **Quiet for half a second, not quiet for an
-            // instant**: reading 320px derivatives, the store empties between
-            // landings, and a single check found it empty mid-load (measured:
-            // the build still landed a 390ms frame among 86 landings).
-            var quietSince = ContinuousClock.now
-            while !Task.isCancelled, ContinuousClock.now - quietSince < .milliseconds(500) {
-                if ThumbnailStore.shared.hasVisibleWork { quietSince = .now }
-                try? await Task.sleep(for: .milliseconds(100))
-                if mapMotion.stillFor < Self.prebuildDelay {
-                    await mapMotion.waitUntilStill(for: Self.prebuildDelay)
-                    quietSince = .now
-                }
-            }
+            await waitForQuietMap()
             guard !Task.isCancelled, !drawerIsBuilt else { return }
             #if DEBUG
             let buildStart = CACurrentMediaTime()
@@ -526,6 +519,31 @@ struct MemoriesView: View {
 
     /// How long `naturalSettle` takes to come to rest, near enough.
     private static let springSettle: Duration = .milliseconds(700)
+
+    /// Returns once the map's camera has been still for `prebuildDelay` AND
+    /// the image store has had no visible work for 500ms, restarting either
+    /// wait when it is broken. The gate for long main-actor work the person
+    /// cannot see yet: the drawer's prebuild and the replay cards.
+    ///
+    /// Not while the map's own pictures are still being read: that work is a
+    /// long main-actor frame, and landing it in the middle of a cold map's
+    /// first reads is what held the blocks' pictures back by seconds. **Quiet
+    /// for half a second, not quiet for an instant**: reading 320px
+    /// derivatives, the store empties between landings, and a single check
+    /// found it empty mid-load (measured: the build still landed a 390ms frame
+    /// among 86 landings).
+    private func waitForQuietMap() async {
+        await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+        var quietSince = ContinuousClock.now
+        while !Task.isCancelled, ContinuousClock.now - quietSince < .milliseconds(500) {
+            if ThumbnailStore.shared.hasVisibleWork { quietSince = .now }
+            try? await Task.sleep(for: .milliseconds(100))
+            if mapMotion.stillFor < Self.prebuildDelay {
+                await mapMotion.waitUntilStill(for: Self.prebuildDelay)
+                quietSince = .now
+            }
+        }
+    }
 
     /// Builds the page, never inside an animation.
     private func buildDrawer() {
