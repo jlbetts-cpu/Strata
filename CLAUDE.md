@@ -973,21 +973,35 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
   nothing else. Raised brows are banded onto neutral only when the seam
   measures clean, else the raw capture stays. A face pops in (hard swap) only
   when its silhouette IoU with neutral is at least `headPopIoU`. Heads saved
-  before this are migrated once off the main actor (manifest v2 to v3), and
-  every image it wrote stays byte for byte (only `head.json` is replaced).
-  The derive runs off the main actor; the write happens on it, into a copy of
-  the folder that then replaces it, and only if no save or delete bumped
-  `HeadStore.epoch` meanwhile. A blink whose cheek ring still differs after
-  the light match (`lidRingLimit` 6.1, measured 4.1 in place, 6.7 to 10.1 moved 3px) is
-  refused: neutral keeps the raw frame, brows and surprised get no blink. `-strataSeedMadeHead` writes a v2 fixture head
-  with a relit blink so the migration can be run and looked at.
+  before this are migrated once (manifest v2 to v3), and every image they
+  wrote stays byte for byte (only `head.json` is replaced). **Only the derive
+  is off the main actor**: the copy of the folder, the writes into it, the
+  re-read that the head is still v2 and the swap all run ON the main actor,
+  once, at launch, and only if no save or delete bumped `HeadStore.epoch`.
+- **A blink is REGISTERED, not refused for having moved.** Real blink frames
+  drift (Vision's centres on shut eyes slide toward the lashes, the lower lid
+  rises, crow's feet crease). `HeadDerivation.register` searches whole-pixel
+  offsets within 0.15 of an eye's width for the best ring agreement, and
+  judges what is left RELATIVE to the face's own texture (the open face
+  against itself moved a tenth of an eye): ratio over `lidRatioLimit` 1.0 is
+  refused. Measured: a real-blink-like pair moved 0 to 4px registers back to
+  within 1px at ratio 0.39 to 0.40, at 480 and 600px; moved 18 to 20px, 1.32
+  to 2.50. A refused blink's WHOLE frame is moved to the best offset and lit
+  to match (`blinkFrame`), for neutral only, so it never shifts or flashes
+  the head; brows and surprised then get no blink. Do not go back to an
+  absolute pixel limit: it was tuned on a hand-painted photo whose skin never
+  changes and would have refused most real blinks.
+  `-strataSeedMadeHead` writes a v2 fixture head whose blink is moved 3px
+  and relit, so registration and migration can be run and looked at.
 - **A head sleeps when it cannot be seen**: scene not active, or less than a
   fifth of its frame on screen. The loops cancel, the float stops, and on
   waking the first beat waits a full rest. Measured: zero trace events over
   39s backgrounded. A sheet does not make the page under it disappear, so a
   cover sets `\.headsAwake` false BEFORE its `.sheet`/`.fullScreenCover`
-  modifier (Memories under Profile, Profile under the maker and the photo
-  library); after it, the sheet's own head would sleep too.
+  modifier (Memories under Profile, a photograph or a replay; Profile under
+  the maker and the photo library); after it, the sheet's own head would
+  sleep too. A page that sets it ANDs with the value it inherits, so a cover
+  above that page still counts.
 - **Eyes never compose near the middle unless resting on you**
   (`HeadDirector.composedGaze`): a take's look that keeps the rest (sleepy,
   nod) used to cancel an away point to |gaze| 0.13.
