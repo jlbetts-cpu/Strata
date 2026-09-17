@@ -1,6 +1,7 @@
 #if DEBUG
 import QuartzCore
 import Foundation
+import UIKit
 
 /// Counts and frame gaps for smoothness work, from `-strataPerfProbe`.
 ///
@@ -32,6 +33,12 @@ enum PerfProbe {
     /// Timed values (`sample`) and every display-link gap, for `window`.
     private static var samples: [(name: String, at: CFTimeInterval, value: Double)] = []
     private static var gaps: [(at: CFTimeInterval, ms: Double)] = []
+    /// The app's physical footprint, in MB, sampled twice a second. Reported
+    /// by `window` as the high-water mark inside the window: a cache ceiling
+    /// is a claim about memory, and the only honest way to check it is to
+    /// watch the number the system charges us.
+    private static var footprints: [(at: CFTimeInterval, mb: Double)] = []
+    private static var lastFootprint: CFTimeInterval = 0
 
     /// One timed value, in milliseconds, reported by `window` as count, p50,
     /// p95 and max.
@@ -66,8 +73,12 @@ enum PerfProbe {
             }.sorted().joined(separator: " ")
             let inWindow = gaps.filter { $0.at >= opened }.map(\.ms)
             if let worst = inWindow.max() {
-                line += String(format: " frames=%d gaps>25ms=%d maxGap=%.0fms",
-                               inWindow.count, inWindow.filter { $0 > 25 }.count, worst)
+                line += String(format: " frames=%d gaps>25ms=%d gaps>50ms=%d maxGap=%.0fms",
+                               inWindow.count, inWindow.filter { $0 > 25 }.count,
+                               inWindow.filter { $0 > 50 }.count, worst)
+            }
+            if let peak = footprints.filter({ $0.at >= opened }).map(\.mb).max() {
+                line += String(format: " memHighMB=%.0f", peak)
             }
             let named = Dictionary(grouping: samples.filter { $0.at >= opened }, by: \.name)
             for (name, values) in named.sorted(by: { $0.key < $1.key }) {
@@ -114,6 +125,32 @@ enum PerfProbe {
         fileQueue.async { handle?.write(Data(stamped.utf8)) }
     }
 
+    /// What the system says this process is holding, in MB. `phys_footprint`
+    /// is the figure the jetsam limit is applied to, which is the one a cache
+    /// ceiling has to be judged against — `resident_size` counts pages the
+    /// kernel may reclaim for free and reads high for no reason.
+    nonisolated static func footprintMB() -> Double? {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return Double(info.phys_footprint) / (1024 * 1024)
+    }
+
+    /// How many memory warnings this run has seen. Zero is a target in the
+    /// image work's budget, and nothing else in the app counts them.
+    nonisolated(unsafe) static var memoryWarnings = 0
+
+    static func noteMemoryWarning() {
+        guard isOn else { return }
+        memoryWarnings += 1
+        emit("[PERF-MEMWARN] count=\(memoryWarnings)")
+    }
+
     static func start() {
         guard isOn, link == nil else { return }
         let t = LinkTarget()
@@ -122,6 +159,11 @@ enum PerfProbe {
         target = t
         link = l
         lastFlush = CACurrentMediaTime()
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { noteMemoryWarning() }
+        }
     }
 
     fileprivate static func tick(_ link: CADisplayLink) {
@@ -134,6 +176,13 @@ enum PerfProbe {
             emit(String(format: "[PERF-HITCH] gap=%.0fms at=%.3f", (now - lastFrame) * 1000, now))
         }
         lastFrame = now
+        if now - lastFootprint >= 0.5 {
+            lastFootprint = now
+            if let mb = footprintMB() {
+                footprints.append((now, mb))
+                if footprints.count > 8_000 { footprints.removeFirst(4_000) }
+            }
+        }
         if let mark = pendingMark {
             emit(String(format: "[PERF-MARK] %@ → next frame %.1fms", mark.name, (now - mark.at) * 1000))
             pendingMark = nil

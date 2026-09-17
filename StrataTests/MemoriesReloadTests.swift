@@ -122,6 +122,25 @@ struct MemoriesReloadTests {
         await shelf.reload(context: context, colorScheme: .light, displayScale: 1, now: Date(), redrawsStale: false)
         #expect(!shelf.weeks.isEmpty, "a new win was hidden by a skipped reload")
     }
+
+    /// Fix round 2: the cards are drawn behind the map's quiet gate while the
+    /// drawer is down, which is a reload that finds the periods first and
+    /// draws nothing, then one that draws what is missing. The second must not
+    /// be skipped as "unchanged" just because the first saw the same store.
+    @Test("a reload that draws nothing still leaves the missing cards for the next one to draw")
+    func missingCardsDrawnLater() async throws {
+        let context = try context()
+        let lastWeek = try #require(Calendar.current.date(byAdding: .day, value: -7, to: Date()))
+        _ = try QuickWinService.logWin(title: "Walk", category: .health, on: lastWeek, context: context, tower: nil)
+        let shelf = ReplayShelfModel()
+        await shelf.reload(context: context, colorScheme: .light, displayScale: 1, now: Date(),
+                           redrawsStale: false, drawsMissing: false)
+        #expect(!shelf.weeks.isEmpty, "the periods were not found")
+        #expect(shelf.cards.isEmpty, "a card was drawn by a reload told not to")
+        await shelf.reload(context: context, colorScheme: .light, displayScale: 1, now: Date(),
+                           redrawsStale: false, drawsMissing: true)
+        #expect(!shelf.cards.isEmpty, "the missing card was never drawn")
+    }
 }
 
 /// The date formatters are made once now. Made per call they followed a change

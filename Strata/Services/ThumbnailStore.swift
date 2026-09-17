@@ -115,12 +115,38 @@ final class ThumbnailStore {
     private var reasked: [Key: ContinuousClock.Instant] = [:]
     private static let reaskGrace: Duration = .milliseconds(50)
     private var pumpPending = false
+
+    // MARK: Prefetch lane
+
+    /// **At most this many prefetch reads at once** (2026-09-16), on
+    /// `ImageManager`'s utility-QoS lane. Small on purpose: prefetch is a
+    /// guess about what comes next, and a guess must never crowd out what is
+    /// on screen now. Visible reads keep their own `maxInFlight`.
+    static let maxPrefetchInFlight = 8
+    /// Prefetch asks not yet started, oldest first. A visible ask for the same
+    /// key takes it over; `cancelPrefetch` drops it.
+    private var prefetchPending: [Key] = []
+    private var prefetchQueued: Set<Key> = []
+    /// Prefetch reads running, each with the flag that drops it if it has not
+    /// started by the time its cell has gone.
+    private var prefetchFlags: [Key: ImageManager.CancelFlag] = [:]
+    /// Prefetch asks that are nobody's foreground: the map slideshow's next
+    /// frame. Read on the same lane, but they neither hold the migration off
+    /// nor count as visible work for the drawer's quiet gate.
+    private var ambient: Set<Key> = []
+    #if DEBUG
+    /// Keys a prefetch put in memory that no view has shown yet. A view that
+    /// then finds its picture already there is a prefetch that was AHEAD,
+    /// counted as `PrefetchUsed`; the measure the spec asks for.
+    private var prefetched: Set<Key> = []
+    #endif
     private var trimPending = false
     #if DEBUG
     /// `-strataPerfProbe`: when a photograph not in memory was first asked
     /// for, so its arrival in a view that is still asking can be timed. A
     /// view that has gone never asks again and is never counted.
     private var askedAt: [Key: CFTimeInterval] = [:]
+    private var askedFresh: [Key: CFTimeInterval] = [:]
     #endif
 
     private func slot(_ key: Key) -> Slot {
@@ -144,19 +170,66 @@ final class ThumbnailStore {
         let key = Key(name: fileName, width: Self.bucket(width, exact: exact))
         // Observed, so a view that asks is redrawn when THIS photograph lands.
         _ = slot(key).generation
+        #if DEBUG
+        let lookupStart = PerfProbe.isOn ? CACurrentMediaTime() : 0
+        #endif
         if let cached = ImageManager.shared.cachedThumbnail(fileName: fileName,
                                                             maxWidth: CGFloat(key.width)) {
             #if DEBUG
-            if PerfProbe.isOn, let asked = askedAt.removeValue(forKey: key) {
-                PerfProbe.sample("ThumbAskToShown", ms: (CACurrentMediaTime() - asked) * 1000)
+            if PerfProbe.isOn {
+                if prefetched.remove(key) != nil { PerfProbe.count("PrefetchUsed") }
+                if let asked = askedAt.removeValue(forKey: key) {
+                    let ms = (CACurrentMediaTime() - asked) * 1000
+                    PerfProbe.sample("ThumbAskToShown", ms: ms)
+                    // `ThumbAskToShown` keeps the first ask for as long as the
+                    // picture is not shown, so a cell that scrolled away and
+                    // came back a minute later reports a minute. Kept as it was
+                    // so the before and after compare like for like; this one
+                    // is forgotten when the asking view leaves the screen
+                    // (`debugViewLeft`), so it is the wait a person sat through.
+                    if let fresh = askedFresh.removeValue(forKey: key) {
+                        PerfProbe.sample("ThumbFreshAskToShown", ms: (CACurrentMediaTime() - fresh) * 1000)
+                    }
+                } else {
+                    // **The warm number, measured rather than asserted.** A
+                    // picture already in memory is handed back inside the
+                    // asking view's own body, so its cost is this lookup and
+                    // nothing else. Sampling it is the only way to say "warm
+                    // is same-frame" with a figure behind it.
+                    PerfProbe.sample("ThumbWarm", ms: (CACurrentMediaTime() - lookupStart) * 1000)
+                }
             }
             #endif
             return cached
         }
         #if DEBUG
-        if PerfProbe.isOn, askedAt[key] == nil { askedAt[key] = CACurrentMediaTime() }
+        if PerfProbe.isOn {
+            let now = CACurrentMediaTime()
+            if askedAt[key] == nil { askedAt[key] = now }
+            if askedFresh[key] == nil { askedFresh[key] = now }
+        }
         #endif
         guard !loading.contains(key) else { return nil }
+        // On the prefetch lane already. **Decoding: wait for it** — its
+        // landing bumps this slot like any other. **Not yet decoding: take it
+        // over** (fix round 1): a prefetch queued behind every visible read on
+        // an unmigrated library used to hold an on-screen cell blank until it
+        // reached the front at utility priority. Cancelled here, its slot is
+        // freed at once and this ask is scheduled on the visible lane.
+        if let flag = prefetchFlags[key] {
+            if flag.cancelIfNotStarted() {
+                prefetchFlags[key] = nil
+                #if DEBUG
+                PerfProbe.count("PrefetchTakenOver")
+                #endif
+                pumpPrefetch()
+            } else if !flag.isSet {
+                return nil
+            }
+        }
+        if prefetchQueued.remove(key) != nil {
+            prefetchPending.removeAll { $0 == key }
+        }
         if let found = missing[key] {
             guard ContinuousClock.now - found >= Self.missingRetry else { return nil }
             missing[key] = nil
@@ -276,6 +349,94 @@ final class ThumbnailStore {
         }
     }
 
+    /// Reads these photographs ahead of anybody drawing them, on the prefetch
+    /// lane. **An extra ask, never a replacement**: a view still asks while
+    /// drawing (CLAUDE.md), and this only means the answer is usually already
+    /// there. Nothing is observed here, so a prefetch invalidates no view
+    /// until its picture lands, and then only the views that asked for it.
+    func prefetch(_ fileNames: [String], width: CGFloat, exact: Bool = false, ambient isAmbient: Bool = false) {
+        for name in fileNames where !name.isEmpty {
+            let key = Key(name: name, width: Self.bucket(width, exact: exact))
+            if isAmbient { ambient.insert(key) } else { ambient.remove(key) }
+            guard !loading.contains(key), prefetchFlags[key] == nil, !prefetchQueued.contains(key),
+                  missing[key] == nil, deferredSeq[key] == nil,
+                  ImageManager.shared.cachedThumbnail(fileName: name, maxWidth: CGFloat(key.width)) == nil
+            else { continue }
+            prefetchQueued.insert(key)
+            prefetchPending.append(key)
+        }
+        pumpPrefetch()
+    }
+
+    /// Drops prefetch asks for photographs that are no longer coming: not
+    /// started, they never start; started, they are dropped if their decode
+    /// has not begun. A decode already running finishes — it cannot be
+    /// interrupted, and from a 320px derivative it is a few milliseconds.
+    func cancelPrefetch(_ fileNames: [String], width: CGFloat, exact: Bool = false) {
+        let keys = Set(fileNames.map { Key(name: $0, width: Self.bucket(width, exact: exact)) })
+        guard !keys.isEmpty else { return }
+        let before = prefetchPending.count
+        prefetchPending.removeAll { keys.contains($0) }
+        prefetchQueued.subtract(keys)
+        var dropped = before - prefetchPending.count
+        for key in keys {
+            guard let flag = prefetchFlags[key], flag.cancelIfNotStarted() else { continue }
+            // **Its place is free now, and anyone waiting on it is told**
+            // (fix round 1). A view that asked while this was queued got nil
+            // and is waiting on this slot; without the bump it waited until
+            // the dropped read limped through the queue and exited.
+            prefetchFlags[key] = nil
+            slot(key).generation &+= 1
+            dropped += 1
+        }
+        #if DEBUG
+        if dropped > 0 { PerfProbe.count("PrefetchCancelled") }
+        #endif
+        if dropped > 0 { pumpPrefetch() }
+    }
+
+    private func pumpPrefetch() {
+        while prefetchFlags.count < Self.maxPrefetchInFlight, !prefetchPending.isEmpty {
+            let key = prefetchPending.removeFirst()
+            prefetchQueued.remove(key)
+            let flag = ImageManager.CancelFlag()
+            prefetchFlags[key] = flag
+            Task { @MainActor in
+                let found = await ImageManager.shared.loadThumbnail(
+                    fileName: key.name, maxWidth: CGFloat(key.width), lane: .prefetch, cancelled: flag,
+                    countsAsForeground: !ambient.contains(key))
+                // Only this read's own entry: a cancelled one may already have
+                // been replaced by a new prefetch of the same key.
+                if prefetchFlags[key] === flag {
+                    prefetchFlags[key] = nil
+                    ambient.remove(key)
+                }
+                if found != nil {
+                    #if DEBUG
+                    PerfProbe.count("PrefetchLanded")
+                    if PerfProbe.isOn { prefetched.insert(key) }
+                    #endif
+                }
+                // Landed or dropped, a view waiting on it asks again: it gets
+                // the picture, or schedules its own visible read. A dropped
+                // or failed prefetch is never recorded as missing — only a
+                // visible read decides that.
+                slot(key).generation &+= 1
+                pumpPrefetch()
+            }
+        }
+    }
+
+    /// Whether anything a person is looking at is being read or waiting to
+    /// be, on any lane: what the drawer's off-screen build waits out. (The
+    /// migration checks `ImageManager.hasForegroundReads` directly, off the
+    /// main actor.)
+    var hasVisibleWork: Bool {
+        !loading.isEmpty || !deferredSeq.isEmpty
+            || prefetchFlags.keys.contains { !ambient.contains($0) }
+            || ImageManager.shared.hasForegroundReads
+    }
+
     /// A photograph has just been written to disk under this name: anything
     /// that looked for it and found nothing may now find it.
     ///
@@ -299,15 +460,29 @@ final class ThumbnailStore {
         deferredOrder.removeAll()
         deferredHead = 0
         reasked.removeAll()
+        for flag in prefetchFlags.values { flag.set() }
+        prefetchFlags.removeAll()
+        prefetchPending.removeAll()
+        prefetchQueued.removeAll()
+        ambient.removeAll()
         for slot in slots.values { slot.generation &+= 1 }
     }
 
     #if DEBUG
+    /// A view showing this photograph has left the screen: its wait, if it
+    /// was still waiting, did not end in a picture anybody saw.
+    func debugViewLeft(_ fileName: String, width: CGFloat, exact: Bool) {
+        guard PerfProbe.isOn else { return }
+        askedFresh[Key(name: fileName, width: Self.bucket(width, exact: exact))] = nil
+    }
+
     /// For the tests: a slot's generation, read WITHOUT observing it.
     func generationForTesting(_ fileName: String, width: CGFloat) -> Int {
         slots[Key(name: fileName, width: Self.bucket(width))]?.generation ?? 0
     }
     var inFlightForTesting: Int { loading.count }
+    var prefetchInFlightForTesting: Int { prefetchFlags.count }
+    var prefetchPendingForTesting: Int { prefetchPending.count }
     var deferredForTesting: Int { deferredSeq.count }
     /// The file names still waiting for a place.
     var waitingNamesForTesting: Set<String> { Set(deferredSeq.keys.map(\.name)) }

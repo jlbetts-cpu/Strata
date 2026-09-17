@@ -582,7 +582,10 @@ struct SettingsView: View {
         let photos = folder.appendingPathComponent("photos", isDirectory: true)
         try? fm.createDirectory(at: photos, withIntermediateDirectories: true)
         let source = ImageManager.shared.imageDirectory
-        for file in (try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)) ?? [] {
+        // Originals only: `derived/` is a cache of copies the app remakes
+        // itself, and a backup of it is dead weight in somebody's mail.
+        for file in (try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        where ImageDerivatives.isOriginal(file) {
             try? fm.copyItem(at: file, to: photos.appendingPathComponent(file.lastPathComponent))
         }
 

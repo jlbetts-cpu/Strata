@@ -122,6 +122,14 @@ here as a shader. The water is a `Canvas` for exactly this reason. (Metal
 itself works, and the toolchain is installed — it is a 688 MB Xcode component,
 `xcodebuild -downloadComponent MetalToolchain`.)
 
+**A CGImage from ImageIO is not necessarily decoded.** Even with
+`kCGImageSourceShouldCacheImmediately`, a HEIF image was decoded by Core
+Animation at first draw, ON THE MAIN THREAD (`CA::Render::copy_image` ->
+`HEIFReadPlugin::decodeImageImp`, 54% of main during viewer page turns), where
+it waited on VideoToolbox. Anything handed to a view goes through
+`ImageDerivatives.prepared`, which draws it into a bitmap on the background
+thread. Check with `sample <pid>`, not by reading the options.
+
 **An `Equatable` View will silently stop updating from `@Observable` state.**
 This has now broken three separate features and it never errors, warns or
 crashes — the animation runs to completion and nothing moves.
@@ -446,13 +454,98 @@ method, every bug and what made it invisible, and the before/after numbers.
   version** (2026-09-15). A view still asks while drawing, never on appear.
   Every landing used to invalidate every image view in the app; with a year of
   photographs the viewer ran ~4,000 image bodies a second and the idle map
-  ~1,000, and neither ever settled. Reads are capped at 48 in flight (extra
+  ~1,000, and neither ever settled. Visible reads are capped at 48 in flight (extra
   asks wait, newest first, at most 96, and are asked again). A missing file is
   not read again for 10s: every nil landing bumps its slot, and re-reading on
   the re-ask was a read and a body per frame for ever. `ImageManager` hands back a thumbnail the
   cache evicted if something still holds it, so a picture on screen can never
   be evicted out from under itself: that was the filmstrip dimming and
   re-fading after a switch to dark mode.
+- **A map block arrives at once; its photograph follows** (2026-09-16). It
+  was "a block arrives with its photograph, not before it": `PlaceBlock` hid a
+  block until its picture decoded and gave up after 600ms and showed it grey
+  anyway, so the map paid the wait and showed the grey square, and a block not
+  drawn cannot be found or tapped ("hard to find things on the map because
+  they won't load"). Now it arrives on its own opaque fill (`waitingFill`, or
+  the category colour for a place with no photograph) and the picture fades
+  in on top. Measured: block-to-drawn p50 1,162ms before, 0ms after. Still
+  true: a picture already on a block is never cleared while zooming (`carry`,
+  one `decodeWidth`), and handovers stay two-slot. `upcoming` is read on the
+  prefetch lane.
+- **No thumbnail decodes an original** (2026-09-16). Every photograph has two
+  JPEG derivatives in `strata-images/derived/`: `<name>@320.jpg` (the map, the
+  tower, month blocks, the filmstrip) and `<name>@640.jpg` (the gallery, 2x2s,
+  album covers), named after the WHOLE original file name. `ImageManager.save`
+  bakes both from the picture it already holds; a read with no derivative
+  decodes the original once at the tier size and writes one on the bake lane;
+  above 640 (the viewer, sharing, a replay's largest block) the original is
+  read. `ImageManager.migrateDerivatives` bakes existing libraries after the
+  launch prune: tier S for everything, then tier M newest first under a 96MB
+  cap, one file at a time at background QoS, waiting whenever
+  `ThumbnailStore.hasVisibleWork`. **No cursor**: the work list is recomputed
+  from the directory, so it is idempotent and resumes after a kill.
+  `ImageDerivatives` only ever CREATES files under `derived/` and never writes,
+  moves or deletes an original. `storageUsed` counts photographs and includes
+  the derivatives' bytes; the backup copies originals only. **Tier M keeps the
+  newest photographs**: evicted oldest ORIGINAL first (never by the copy's own
+  date, which threw away the newest copies), capped on every write through an
+  in-memory ledger, and an older photograph is not admitted when the cap is
+  full. `derived/` is `isExcludedFromBackup`. The migration pauses for any
+  foreground read (`ImageManager.hasForegroundReads`, counted off main), Low
+  Power Mode, `.serious` thermal state and the app in background, and stops
+  below 300MB free (tier M below 2GB) or on the first out-of-space write.
+  **A phone in Low Power Mode never migrates**: its reads bake on demand, one
+  photograph at a time, through the capped originals queue. The map
+  slideshow's next-frame prefetch is `ambient`: it does not count as a
+  foreground read or as visible work, or it would starve the migration.
+- **Replay cards are drawn while the drawer is down, behind the quiet gate**
+  (`MemoriesView.waitForQuietMap`: camera still, image store idle for 500ms,
+  page built). Not straight away (1.27s of `ImageRenderer` under the map's
+  first frames) and not on the raise (the same 1.3s under the moving panel,
+  slots filling one by one); the raise draws only what is still missing.
+- **iCloud (for the sync phase):** sync must skip `strata-images/derived/`; it
+  is a local cache and is remade from the originals. An evicted file appears
+  as `.<name>.icloud`, which `isOriginal` rejects (hidden), so the prune treats
+  those placeholders as present (`ImageDerivatives.placeholderOriginal`) or it
+  would delete and re-bake an evicted photograph's copies on every launch.
+- **A saved photograph is resized in PIXELS at scale 1.** `resizeIfNeeded`
+  compared points and drew at the screen's scale, so a picker photograph was
+  stored 5760x7680 (measured), not 2560.
+- **`pruneOrphans` never removes a directory**, and fails closed: an entry
+  whose type cannot be read is treated as a folder and left alone. `removeItem` on a folder is
+  recursive and no log names `derived`, so the old sweep deleted every
+  derivative on its first run (reproduced: the pre-change build removed all of
+  them on launch). Only plain files are candidates; derivatives get their own
+  pass (`ImageDerivatives.pruneOrphans`), keyed on the original still being on
+  disk. `deleteImage` removes a photograph's derivatives and forgets only that
+  photograph's cached pictures (`keysByName`), not the whole cache.
+- **Three decode lanes, no semaphores.** `ImageManager.Lane`: visible
+  (`.userInitiated`, the measured concurrent `ioQueue`), prefetch (`.utility`:
+  `ThumbnailStore.prefetch`, the map's next slideshow frame, replays, the
+  widget export) and bake (`.background`). **Decodes of an ORIGINAL go through
+  `originalDecodes`, an `OperationQueue` of 3**, because on the iOS 26.3
+  simulator a library of real 2560px HEICs FROZE the app: 48+ concurrent
+  decodes parked every GCD worker on a semaphore inside VideoToolbox's HEVC
+  decoder, and the main thread then blocked in Core Animation's commit on an
+  ImageIO mutex. The JPEG fixture never enters VideoToolbox, which is why no
+  earlier measurement saw it. The device decodes HEVC in hardware; unverified
+  there.
+- **Prefetch is an extra ask, never a replacement.** `ThumbnailStore.prefetch`
+  reads on the prefetch lane, at most 8 at once; a visible ask for a key being
+  prefetched waits for it rather than decoding twice, and takes over one still
+  pending. **A prefetch that has not begun DECODING belongs to nobody**: a
+  visible ask takes it over and schedules its own read, and `cancelPrefetch`
+  frees its place and bumps its slot, or a cell that asked while it was queued
+  stays blank until the dropped read limps through (`CancelFlag.tryStart` is
+  claimed at the decode, not at the queue). Original decodes honour task
+  cancellation (`decodeOriginal` cancels the queued operation), so the
+  viewer's page turns do not pile up stale 2560px decodes. The
+  camera roll's lookahead is `GalleryPrefetcher`: three rows ahead in the
+  direction of travel, worked out from which cells APPEAR (so it needs no
+  scroll modifier and costs no bodies), cancelled behind, and suspended above
+  2,000pt/s and resumed ~250ms after the last cell appears; a single cell
+  appearing more than 12 rows away is ignored unless a second confirms it.
+  Views still ask while drawing.
 - **`WinRecord.place` is `var`, not `let`.** Every other property there is
   `let`, and a `let` with a default value is omitted from the synthesized
   memberwise initializer entirely — it would compile and then be unsettable
@@ -739,6 +832,24 @@ memories -strataFlipEvery s` hops tabs.
 the screen or the fact is otherwise unreachable here. `-strataSeedPlaces` puts
 60% of seeded wins into three tight clusters and spreads the rest, because an
 even scatter never merges and would make a broken clusterer look fine.
+
+**Image-loading measurements** (2026-09-16, `research-image-loading.md`).
+`-strataSeedRealPhotos [heic|jpeg]` seeds 1920x2560 textured photographs
+(~400KB HEIC, the shape `save` writes) instead of the gradient fixture, which
+decodes almost free and cannot measure anything about images; they are left
+unbaked so the launch migration's cost shows as `[PERF-MIGRATE]`.
+`-strataBenchImages n` reports serial and concurrent decodes at 320 and 640.
+`PerfProbe.window` lines now carry `memHighMB` (phys_footprint high-water),
+`gaps>50ms`, and the samples `ThumbAskToShown`, `ThumbFreshAskToShown`
+(forgotten when the asking view disappears), `ThumbWarm` (the in-memory
+lookup), `MapBlockToArrive`, plus counts `ThumbFrom-derived|original|bakedOnRead`
+and `PrefetchLanded|Used|Cancelled|SuspendedFling`. Windows: `Map sweep`
+(`-strataMapSweep 1`, add `-strataMapSweepAfter s` to start once launch has
+settled with the cache emptied), `Map open`, `Gallery fling` (one per burst).
+`StrataUITests/ImageLoadingPerfTests` makes real flings and is skipped unless
+`TEST_RUNNER_STRATA_PERF=1` is on the xcodebuild line. **Give every flag a
+value**: `DebugHarness.argument` reads the NEXT token, so `-strataMapSweep` as
+the last argument reads as absent and the sweep silently never ran.
 
 `-strataOpenPhoto <i>` opens the photo viewer on the i-th gallery photograph.
 Anything behind a tap needs a flag like this: photographing the viewer by
@@ -1228,5 +1339,8 @@ user-facing strings for — and – before shipping copy.
 
 - `HabitLog.imageFileName` points at real user photos. Never delete or rewrite
   image files on a code path that only meant to read them.
+- `strata-images/derived/` is a regenerable cache of copies, and the ONLY place
+  image code may create files on a read path. Nothing that touches it may
+  touch an original; `pruneOrphans` must never remove a directory.
 - Adding a case to `HabitCategory` is safe for SwiftData, but it must be kept out
   of pickers — use `HabitCategory.selectable`, not `allCases`.
