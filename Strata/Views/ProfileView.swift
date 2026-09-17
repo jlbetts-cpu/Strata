@@ -19,7 +19,6 @@ struct ProfileView: View {
     var opensSettings = false
 
     /// Whether a cover above Profile has put its heads to sleep.
-
     @Environment(\.headsAwake) private var coveringHeadsAwake
 
     @Environment(\.modelContext) private var modelContext

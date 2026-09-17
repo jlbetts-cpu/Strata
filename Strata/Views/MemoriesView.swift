@@ -26,14 +26,11 @@ import SwiftData
 /// the whole record, which is the only place searching is worth doing. A shelf
 /// of two dozen cards is scrolled, not queried.
 struct MemoriesView: View {
-    /// 48pt, from the lowfi. Named because the header's top padding is solved
-    /// from it — a title's cap sits further down its layout box the bigger it
-    /// is, so the two cannot be set independently.
-    /// Whether a cover above this page has put its heads to sleep.
-    @Environment(\.headsAwake) private var coveringHeadsAwake
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
+    /// Whether a cover above this page has put its heads to sleep.
+    @Environment(\.headsAwake) private var coveringHeadsAwake
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
