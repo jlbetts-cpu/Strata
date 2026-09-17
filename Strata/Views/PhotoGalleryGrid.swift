@@ -91,7 +91,10 @@ struct PhotoGalleryGrid: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
         .onChange(of: sections, initial: true) { _, now in
-            prefetcher.update(now.flatMap { $0.photos.map(\.fileName) })
+            let dropped = prefetcher.update(now.flatMap { $0.photos.map(\.fileName) })
+            if !dropped.isEmpty, gridWidth > 0 {
+                ThumbnailStore.shared.cancelPrefetch(dropped, width: (gridWidth - Self.gutter * 2) / 3 * displayScale)
+            }
         }
     }
 
@@ -105,6 +108,14 @@ struct PhotoGalleryGrid: View {
         let pixels = side * displayScale
         if !result.cancel.isEmpty { ThumbnailStore.shared.cancelPrefetch(result.cancel, width: pixels) }
         if !result.ask.isEmpty { ThumbnailStore.shared.prefetch(result.ask, width: pixels) }
+        // A fling that stops sends no more appearances; look again shortly.
+        if prefetcher.isSuspended {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                let resumed = prefetcher.resumeIfSettled()
+                if !resumed.isEmpty { ThumbnailStore.shared.prefetch(resumed, width: pixels) }
+            }
+        }
     }
 
     /// Pinned, like Photos. The month you are inside stays named while you

@@ -206,9 +206,23 @@ final class ThumbnailStore {
         }
         #endif
         guard !loading.contains(key) else { return nil }
-        // Already being read on the prefetch lane: wait for it rather than
-        // decode it twice. Its landing bumps this slot like any other.
-        if let flag = prefetchFlags[key], !flag.isSet { return nil }
+        // On the prefetch lane already. **Decoding: wait for it** — its
+        // landing bumps this slot like any other. **Not yet decoding: take it
+        // over** (fix round 1): a prefetch queued behind every visible read on
+        // an unmigrated library used to hold an on-screen cell blank until it
+        // reached the front at utility priority. Cancelled here, its slot is
+        // freed at once and this ask is scheduled on the visible lane.
+        if let flag = prefetchFlags[key] {
+            if flag.cancelIfNotStarted() {
+                prefetchFlags[key] = nil
+                #if DEBUG
+                PerfProbe.count("PrefetchTakenOver")
+                #endif
+                pumpPrefetch()
+            } else if !flag.isSet {
+                return nil
+            }
+        }
         if prefetchQueued.remove(key) != nil {
             prefetchPending.removeAll { $0 == key }
         }
@@ -360,10 +374,20 @@ final class ThumbnailStore {
         prefetchPending.removeAll { keys.contains($0) }
         prefetchQueued.subtract(keys)
         var dropped = before - prefetchPending.count
-        for key in keys { if let flag = prefetchFlags[key], !flag.isSet { flag.set(); dropped += 1 } }
+        for key in keys {
+            guard let flag = prefetchFlags[key], flag.cancelIfNotStarted() else { continue }
+            // **Its place is free now, and anyone waiting on it is told**
+            // (fix round 1). A view that asked while this was queued got nil
+            // and is waiting on this slot; without the bump it waited until
+            // the dropped read limped through the queue and exited.
+            prefetchFlags[key] = nil
+            slot(key).generation &+= 1
+            dropped += 1
+        }
         #if DEBUG
         if dropped > 0 { PerfProbe.count("PrefetchCancelled") }
         #endif
+        if dropped > 0 { pumpPrefetch() }
     }
 
     private func pumpPrefetch() {
@@ -375,7 +399,9 @@ final class ThumbnailStore {
             Task { @MainActor in
                 let found = await ImageManager.shared.loadThumbnail(
                     fileName: key.name, maxWidth: CGFloat(key.width), lane: .prefetch, cancelled: flag)
-                prefetchFlags[key] = nil
+                // Only this read's own entry: a cancelled one may already have
+                // been replaced by a new prefetch of the same key.
+                if prefetchFlags[key] === flag { prefetchFlags[key] = nil }
                 if found != nil {
                     #if DEBUG
                     PerfProbe.count("PrefetchLanded")
@@ -393,8 +419,12 @@ final class ThumbnailStore {
     }
 
     /// Whether anything a person is looking at is being read or waiting to
-    /// be. The derivative migration yields to this absolutely.
-    var hasVisibleWork: Bool { !loading.isEmpty || !deferredSeq.isEmpty }
+    /// be, on any lane: what the drawer's off-screen build waits out. (The
+    /// migration checks `ImageManager.hasForegroundReads` directly, off the
+    /// main actor.)
+    var hasVisibleWork: Bool {
+        !loading.isEmpty || !deferredSeq.isEmpty || !prefetchFlags.isEmpty || ImageManager.shared.hasForegroundReads
+    }
 
     /// A photograph has just been written to disk under this name: anything
     /// that looked for it and found nothing may now find it.
@@ -420,6 +450,7 @@ final class ThumbnailStore {
         deferredHead = 0
         reasked.removeAll()
         for flag in prefetchFlags.values { flag.set() }
+        prefetchFlags.removeAll()
         prefetchPending.removeAll()
         prefetchQueued.removeAll()
         for slot in slots.values { slot.generation &+= 1 }

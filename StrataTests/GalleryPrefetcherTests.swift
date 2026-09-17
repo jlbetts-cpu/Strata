@@ -86,4 +86,46 @@ struct GalleryPrefetcherTests {
         let b = p.appeared("p4", rowHeight: 134, now: 1.01)
         #expect(b.ask.isEmpty && b.cancel.isEmpty)
     }
+
+    @Test("a single stray far-away appearance is ignored; a second one near it is a real jump")
+    func strayIgnored() {
+        let p = GalleryPrefetcher()
+        p.update((0..<600).map { "p\($0)" })
+        _ = p.appeared("p300", rowHeight: 134, now: 1)
+        _ = p.appeared("p303", rowHeight: 134, now: 2)
+        let stray = p.appeared("p0", rowHeight: 134, now: 3)
+        #expect(stray.ask.isEmpty && stray.cancel.isEmpty, "a stray top cell cancelled the lead")
+        #expect(p.direction == .down)
+        let next = p.appeared("p306", rowHeight: 134, now: 4)
+        #expect(next.ask == ["p315", "p316", "p317"])
+        _ = p.appeared("p30", rowHeight: 134, now: 5)
+        let jump = p.appeared("p33", rowHeight: 134, now: 6)
+        #expect(!jump.ask.isEmpty, "a real jump was never followed")
+    }
+
+    @Test("after a fling stops, the lookahead resumes from where it stopped")
+    func resumesAfterFling() {
+        let p = GalleryPrefetcher()
+        p.update((0..<300).map { "p\($0)" })
+        var t = 1.0
+        for row in 0..<12 { _ = p.appeared("p\(row * 3)", rowHeight: 134, now: t); t += 0.02 }
+        #expect(p.isSuspended)
+        #expect(p.resumeIfSettled(now: t + 0.05).isEmpty, "resumed while still moving")
+        let resumed = p.resumeIfSettled(now: t + 0.5)
+        #expect(resumed == (36..<45).map { "p\($0)" })
+        #expect(!p.isSuspended)
+    }
+
+    @Test("new sections forget the old indices and hand back what to cancel")
+    func updateResets() {
+        let p = GalleryPrefetcher()
+        p.update((0..<30).map { "p\($0)" })
+        _ = p.appeared("p3", rowHeight: 134, now: 1)
+        let dropped = p.update(["new"] + (0..<30).map { "p\($0)" })
+        #expect(dropped.sorted() == (6..<15).map { "p\($0)" }.sorted())
+        let after = p.appeared("p4", rowHeight: 134, now: 2)
+        #expect(after.cancel.isEmpty)
+        // "p4" is index 5 in the new order: the lead is the next three rows.
+        #expect(after.ask == (5..<14).map { "p\($0)" })
+    }
 }

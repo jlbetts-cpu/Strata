@@ -285,6 +285,47 @@ struct ThumbnailStoreTests {
         #expect(store.inFlightForTesting == 0, "an on-screen picture was read again")
         _ = shown
     }
+    /// Fix round 1: a cancelled prefetch left an on-screen cell blank. A
+    /// view that asked while its photograph was a queued prefetch got nil and
+    /// waited on the slot, and the cancel neither told it nor gave the place
+    /// back.
+    @Test("cancelling a prefetch that has not started frees its place and wakes its views")
+    func cancelledPrefetchFreesAndWakes() async throws {
+        let store = ThumbnailStore.shared
+        store.forgetInFlight()
+        await drain()
+        let names = (0..<(ThumbnailStore.maxPrefetchInFlight + 4)).map { "prefetch-cancel-\($0)-\(UUID().uuidString).jpg" }
+        // Same main-actor turn: nothing below can start before the cancel.
+        store.prefetch(names, width: 256)
+        #expect(store.prefetchInFlightForTesting == ThumbnailStore.maxPrefetchInFlight)
+        #expect(store.prefetchPendingForTesting == 4)
+        let target = names[0]
+        let before = store.generationForTesting(target, width: 256)
+        store.cancelPrefetch([target], width: 256)
+        #expect(store.generationForTesting(target, width: 256) == before + 1, "a view waiting on it was not told")
+        // Its place went to the next pending ask.
+        #expect(store.prefetchInFlightForTesting == ThumbnailStore.maxPrefetchInFlight)
+        #expect(store.prefetchPendingForTesting == 3)
+        store.cancelPrefetch(names, width: 256)
+        #expect(store.prefetchPendingForTesting == 0)
+        store.forgetInFlight()
+    }
+
+    @Test("a visible ask takes over a prefetch that has not started, instead of waiting behind it")
+    func visibleTakesOverPrefetch() async throws {
+        let store = ThumbnailStore.shared
+        store.forgetInFlight()
+        await drain()
+        let name = try write("takeover-\(UUID().uuidString).jpg")
+        defer { ImageManager.shared.deleteImage(fileName: name) }
+        store.prefetch([name], width: 256)
+        #expect(store.prefetchInFlightForTesting == 1)
+        _ = store.image(for: name, width: 256)
+        #expect(store.prefetchInFlightForTesting == 0, "the prefetch kept its place")
+        #expect(store.inFlightForTesting == 1, "the visible ask did not schedule its own read")
+        let image = await waitForImage(name, width: 256)
+        #expect(image != nil)
+    }
 }
 
 /// The photo viewer's strip draws only the cards near its middle. On a
@@ -319,4 +360,5 @@ struct FilmstripWindowTests {
         }
         #expect(undrawn.isEmpty, "\(undrawn.count) on screen but not drawn, first: \(undrawn.first ?? "")")
     }
+
 }

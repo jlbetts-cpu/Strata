@@ -42,14 +42,36 @@ final class GalleryPrefetcher {
     private(set) var direction: Direction = .down
     private var lead: Set<Int> = []
     private var recent: [(index: Int, at: CFTimeInterval)] = []
+    /// Suspended by a fling, and when the last cell appeared: a fling that
+    /// stops appears as nothing at all, so the grid asks `resumeIfSettled`
+    /// a moment later to pick the lookahead back up.
+    private(set) var isSuspended = false
+    private var lastAppearAt: CFTimeInterval = 0
+    /// A cell far from where the grid was, seen once. See `strayRows`.
+    private var pendingJump: Int?
 
-    /// Keeps the flat order in step with the sections. O(n) only when they
-    /// actually changed.
-    func update(_ names: [String]) {
-        guard names != order else { return }
+    /// Rows from the last cell past which an appearance is not believed on
+    /// its own. SwiftUI occasionally re-appears a cell far away (the top of
+    /// the roll while you are deep in it); taken at face value that reversed
+    /// the direction and cancelled the whole lead. A second appearance near
+    /// the first is a real jump (a scroll-to) and is followed.
+    static let strayRows = 12
+
+    /// Keeps the flat order in step with the sections, and forgets every
+    /// index it held: they pointed into the old order. Returns the names it
+    /// had asked for, for the caller to cancel.
+    @discardableResult
+    func update(_ names: [String]) -> [String] {
+        guard names != order else { return [] }
+        let dropped = lead.compactMap { $0 < order.count ? order[$0] : nil }
         order = names
         index = Dictionary(names.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        lead = lead.filter { $0 < names.count }
+        lead = []
+        lastIndex = nil
+        recent = []
+        isSuspended = false
+        pendingJump = nil
+        return dropped
     }
 
     /// How fast the grid is moving, in points per second, from the cells that
@@ -97,6 +119,15 @@ final class GalleryPrefetcher {
         // A jump back to where it was is a cell re-appearing at the edge, not
         // a change of direction; only a move of a whole row counts.
         if let last = lastIndex, abs(i / Self.columns - last / Self.columns) == 0 { return ([], []) }
+        if let last = lastIndex, abs(i / Self.columns - last / Self.columns) > Self.strayRows {
+            let confirmed = pendingJump.map { abs($0 / Self.columns - i / Self.columns) <= 1 } ?? false
+            guard confirmed else { pendingJump = i; return ([], []) }
+            // A real jump: start over from here, without a speed estimate
+            // that spans the jump.
+            recent = []
+        }
+        pendingJump = nil
+        lastAppearAt = now
         recent.append((i, now))
         recent.removeAll { now - $0.at > 0.5 }
         let fast = Self.speed(recent, rowHeight: rowHeight, now: now) > Self.flingSpeed
@@ -104,9 +135,23 @@ final class GalleryPrefetcher {
         lastIndex = i
         direction = result.direction
         lead = result.lead
+        isSuspended = fast
         #if DEBUG
         if fast { Task { @MainActor in PerfProbe.count("PrefetchSuspendedFling") } }
         #endif
         return (result.plan.ask.map { order[$0] }, result.plan.cancel.map { order[$0] })
+    }
+
+    /// After a fling: if no cell has appeared for `settle`, the grid has
+    /// stopped, so ask for the lead from where it stopped.
+    func resumeIfSettled(now: CFTimeInterval = CACurrentMediaTime(),
+                         settle: CFTimeInterval = 0.25) -> [String] {
+        guard isSuspended, let last = lastIndex, now - lastAppearAt >= settle else { return [] }
+        isSuspended = false
+        recent = []
+        let previous = direction == .up ? last + Self.columns : max(0, last - Self.columns)
+        let result = Self.plan(appeared: last, previous: previous, count: order.count, lead: lead, fast: false)
+        lead = result.lead
+        return result.plan.ask.map { order[$0] }
     }
 }
