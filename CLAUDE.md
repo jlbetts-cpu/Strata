@@ -122,6 +122,14 @@ here as a shader. The water is a `Canvas` for exactly this reason. (Metal
 itself works, and the toolchain is installed — it is a 688 MB Xcode component,
 `xcodebuild -downloadComponent MetalToolchain`.)
 
+**A CGImage from ImageIO is not necessarily decoded.** Even with
+`kCGImageSourceShouldCacheImmediately`, a HEIF image was decoded by Core
+Animation at first draw, ON THE MAIN THREAD (`CA::Render::copy_image` ->
+`HEIFReadPlugin::decodeImageImp`, 54% of main during viewer page turns), where
+it waited on VideoToolbox. Anything handed to a view goes through
+`ImageDerivatives.prepared`, which draws it into a bitmap on the background
+thread. Check with `sample <pid>`, not by reading the options.
+
 **An `Equatable` View will silently stop updating from `@Observable` state.**
 This has now broken three separate features and it never errors, warns or
 crashes — the animation runs to completion and nothing moves.
