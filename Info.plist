@@ -11,8 +11,6 @@
 	<dict>
 		<key>UIColorName</key>
 		<string>LaunchBlack</string>
-		<key>UIImageName</key>
-		<string>LaunchS</string>
 	</dict>
 	<key>UTExportedTypeDeclarations</key>
 	<array>

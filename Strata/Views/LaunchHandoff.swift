@@ -1,71 +1,129 @@
 import SwiftUI
 
-/// The launch screen, held for the first frame and then let go.
+/// The launch: the icon's S tumbles in, lands white in the centre, and lets go.
 ///
-/// The launch screen is `UILaunchScreen` in Info.plist: `LaunchBlack` (the
-/// camera's own ground, 0.031 in both appearances, because the app opens on
-/// the camera and the camera is dark whatever the phone is set to) with the
-/// icon's diagonal S centred on it. iOS removes that snapshot the instant the
-/// first frame draws, so on its own the S would pop off.
+/// The static launch screen is only `LaunchBlack` (Info.plist
+/// `UILaunchScreen`), the camera's own ground at 0.031 in both appearances,
+/// because the app opens on the camera and the camera is dark whatever the
+/// phone is set to. There is no image on it: a static S would have to vanish
+/// before it could roll in.
 ///
-/// This is the same S, at the same size (the same asset, so the same points),
-/// centred in the same full-screen bounds, on the same black. Once the first
-/// frame is up it lets go in two steps, with no hold between them: the S
-/// fades out on the black while the black stays fully opaque, then the black
-/// fades to reveal the camera (or onboarding, on the first launch ever). The
-/// owner's order: the mark leaves before the app arrives, so the S never sits
-/// half transparent over the camera's grid.
+/// Over the first frame this draws the S rolling in from the left like a
+/// rigid square, in a block's material, cutting to the next block colour on
+/// each landing and resolving to the flat white icon S, at the icon's own
+/// angle, on the last. Then the S fades on the black
+/// and the black fades to reveal the camera (or onboarding, on the first
+/// launch ever). The timing is `LaunchRoll`, a pure function of time, which
+/// the offline preview in `ground-shots/scripts/roll/` also draws from.
 ///
-/// The S step eases in and the black step eases out, so the fade is fastest
-/// at the handover and the join does not read as a pause.
+/// **Cheap.** One small view: a transform, a colour and two opacities, driven
+/// by a `TimelineView` for about 1.2s of frames. Nothing under it re-renders, the
+/// camera session starts on its own `.task` underneath, taps pass through
+/// the whole time, and VoiceOver never sees it. It removes itself when the
+/// black has gone. It lives in the `App`'s own state, so returning from the
+/// background never plays it again.
 ///
-/// It never delays anything: the app underneath is built and running from the
-/// first frame, the camera starts on its own `.task`, and the overlay takes no
-/// touches and is invisible to VoiceOver. It removes itself from the hierarchy
-/// once the second fade completes, so it costs nothing afterwards.
-///
-/// Reduce Motion: both steps are opacity only and nothing moves or scales, so
-/// it keeps the same order with shorter fades.
+/// Reduce Motion: no rolling. The white S stands in the centre, then the
+/// same two fades, shorter.
 struct LaunchHandoff: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var markVisible = true
-    @State private var groundVisible = true
+    @State private var clock = RollClock()
+    @State private var running = false
     @State private var finished = false
 
-    /// About 0.55s in total; about 0.3s under Reduce Motion.
-    private var markFade: Animation { .easeIn(duration: reduceMotion ? 0.12 : 0.25) }
-    private var groundFade: Animation { .easeOut(duration: reduceMotion ? 0.18 : 0.30) }
+    /// The block palette in the owner's order: green, orange, blue, pink,
+    /// purple, coral.
+    private static let palette: [Color] = [HabitCategory.health, .focus, .work,
+                                           .mindfulness, .creativity, .social]
+        .map { $0.style.baseColor }
 
     var body: some View {
         if !finished {
-            ZStack {
-                Color("LaunchBlack")
-                Image("LaunchS")
-                    .opacity(markVisible ? 1 : 0)
+            TimelineView(.animation(paused: !running)) { context in
+                let frame = LaunchRoll.frame(at: running ? clock.advance(to: context.date) : 0,
+                                             reduceMotion: reduceMotion)
+                stage(frame)
+                    .onChange(of: frame.finished) { _, done in
+                        if done { finished = true }
+                    }
             }
             .ignoresSafeArea()
-            .opacity(groundVisible ? 1 : 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onAppear(perform: letGo)
+            .onAppear {
+                // `onAppear` runs while the first frame is being built.
+                // Hopping the main queue once starts the clock after that
+                // frame is committed.
+                DispatchQueue.main.async { running = true }
+            }
         }
     }
 
-    private func letGo() {
-        // `onAppear` runs while the first frame is being built. Hopping the
-        // main queue once starts the sequence after that frame is committed,
-        // so the first thing on screen is the S exactly where the snapshot
-        // had it.
-        DispatchQueue.main.async {
-            withAnimation(markFade) {
-                markVisible = false
-            } completion: {
-                withAnimation(groundFade) {
-                    groundVisible = false
-                } completion: {
-                    finished = true
-                }
+    private func stage(_ f: LaunchRoll.Frame) -> some View {
+        ZStack {
+            Color("LaunchBlack")
+            mark(f.fill)
+                .rotationEffect(.degrees(f.restAngle))
+                .frame(width: LaunchRoll.side, height: LaunchRoll.side)
+                .rotationEffect(.degrees(f.tilt), anchor: .bottomTrailing)
+                .offset(x: f.offset)
+                .opacity(f.markOpacity)
+        }
+        .opacity(f.groundOpacity)
+    }
+
+    /// Rolling, the S wears a block: its colour, the wash over its lower
+    /// quarter, and the rim lit along its top edge, at `BlockSurface`'s own
+    /// weights for a dark ground. Landed in the centre, it is the icon: flat
+    /// white.
+    @ViewBuilder
+    private func mark(_ fill: Int) -> some View {
+        if fill >= LaunchRoll.rolls {
+            Image("LaunchS").renderingMode(.template).foregroundStyle(.white)
+        } else {
+            ZStack {
+                Image("LaunchS").renderingMode(.template)
+                    .foregroundStyle(Self.palette[fill % Self.palette.count])
+                Image("LaunchS").renderingMode(.template)
+                    .foregroundStyle(Self.wash)
+                Image("LaunchSRim").renderingMode(.template)
+                    .foregroundStyle(Self.rim)
             }
         }
+    }
+
+    private static let wash = LinearGradient(
+        stops: [.init(color: .clear, location: GridConstants.blockBandStart),
+                .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1)],
+        startPoint: .top, endPoint: .bottom)
+
+    /// `BlockSurface.rim` as it is drawn on the dark ground.
+    private static let rim = LinearGradient(
+        stops: [.init(color: .white.opacity(0.85), location: 0),
+                .init(color: .white.opacity(GridConstants.blockRimFalloff * 0.7), location: 0.55),
+                .init(color: .white.opacity(GridConstants.blockRimFalloff * 0.7), location: 1)],
+        startPoint: .top, endPoint: .bottom)
+}
+
+/// The roll's clock: frames, not the wall.
+///
+/// A cold launch can hold the main thread for most of a second (measured on
+/// the first launch after install: one frame of the roll drawn, the next
+/// 0.59s later, already fading). On a wall clock the roll is simply skipped.
+/// Here each frame advances at most a thirtieth of a second, so a hitch
+/// pauses the roll where it is and it carries on when the thread is back.
+/// The camera under it is not waiting on this; nothing on screen could have
+/// moved during the hitch anyway.
+///
+/// A plain reference, not observed: `TimelineView` already redraws every
+/// frame, and a body that runs twice for one date advances it by zero.
+private final class RollClock {
+    private var last: Date?
+    private(set) var elapsed: Double = 0
+
+    func advance(to now: Date) -> Double {
+        if let last { elapsed += min(max(now.timeIntervalSince(last), 0), 1.0 / 30) }
+        last = now
+        return elapsed
     }
 }
