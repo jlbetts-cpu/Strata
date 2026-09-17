@@ -1,3 +1,4 @@
+import QuartzCore
 import MapKit
 import SwiftUI
 
@@ -123,6 +124,10 @@ struct MemoriesMapView: View {
     /// the per-frame work the rest of this file is careful to avoid. It is
     /// only read at the moment a zoom is applied.
     final class DrawnBlocks { var ids: Set<String> = [] }
+    #if DEBUG
+    @State private var debugOpenWindowed = false
+    @State private var debugSweepStarted = false
+    #endif
     @State private var drawn = DrawnBlocks()
     /// Observed, so the empty state follows the answer to its own prompt
     /// rather than waiting for the screen to be opened again.
@@ -313,7 +318,26 @@ struct MemoriesMapView: View {
         // result. Keyed on the count, it re-runs with a fresh `self`.
         .task(id: pins.count) {
             guard DebugHarness.sweepsMap, !pins.isEmpty else { return }
+            // `-strataMapSweepAfter s`: start the sweep once launch has
+            // settled, with every picture dropped from memory, so the
+            // figure is the image pipeline's and not the launch's main-thread
+            // work (the replay shelf's reload and the drawer's prebuild held
+            // the main thread for seconds in the plain sweep).
+            if let after = DebugHarness.argument("-strataMapSweepAfter").flatMap(Double.init) {
+                guard !debugSweepStarted else { return }
+                debugSweepStarted = true
+                try? await Task.sleep(for: .seconds(after))
+                ImageManager.shared.emptyThumbnailCacheForBenchmark()
+            }
             await sweep()
+        }
+        // `-strataPerfProbe`: the map's first eight seconds with nobody
+        // moving it, so a cold block-to-picture figure is not also a
+        // measurement of the sweep's own clustering on the main thread.
+        .task(id: pins.isEmpty) {
+            guard PerfProbe.isOn, !pins.isEmpty, !DebugHarness.sweepsMap, !debugOpenWindowed else { return }
+            debugOpenWindowed = true
+            PerfProbe.window("Map open", seconds: 8)
         }
         #endif
         // **Continuous, and it writes nothing this view reads.** Noting the
@@ -587,6 +611,10 @@ struct MemoriesMapView: View {
     /// reach zero — a map that blanks as you zoom was a real bug the unit
     /// tests caught, and this is the same claim checked on the live view.
     private func sweep() async {
+        // One window over the whole sweep: how long a block waited for its
+        // picture, how many decodes landed, the worst frame gap, and the
+        // memory high-water. This is the map's before/after line.
+        PerfProbe.window("Map sweep", seconds: 11)
         let centre = CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278)
         // Out and then back in, so a MERGE is exercised and not just a split.
         for span in [0.004, 0.015, 0.06, 0.25, 1.0, 4.0, 1.0, 0.25, 0.06, 0.015, 0.004] {
@@ -898,6 +926,11 @@ private struct PlaceBlock: View {
         )
     }
 
+    #if DEBUG
+    /// When MapKit brought this block on screen, for `MapBlockToArrive`.
+    @State private var appearedAt: CFTimeInterval = 0
+    #endif
+
     @State private var arrived: Bool
     /// **Two slots, not one.** The picture underneath is always fully opaque
     /// and the incoming one fades in on top of it. A single slot with
@@ -955,8 +988,13 @@ private struct PlaceBlock: View {
             .onChange(of: waitingIsReady) { _, ready in
                 if ready, let name = waitingFor { handover(to: name) }
             }
-            // Read the next beat's photograph ahead of time.
-            .task(id: upcoming) { if let upcoming { _ = isDecoded(upcoming) } }
+            // Read the next beat's photograph ahead of time, on the prefetch
+            // lane: nobody is looking at it yet, so it must not queue in
+            // front of a picture that is on screen.
+            .task(id: upcoming) {
+                guard let upcoming, !upcoming.hasPrefix(Self.bundledPrefix) else { return }
+                ThumbnailStore.shared.prefetch([upcoming], width: Self.decodeWidth * displayScale, exact: true)
+            }
             .onChange(of: showing) { _, arriving in handover(to: arriving) }
             // **It arrives, gently.** Twenty blocks switching on at once is a
             // map being drawn; twenty blocks landing is a map filling in. A
@@ -967,29 +1005,20 @@ private struct PlaceBlock: View {
             .opacity(arrived || reduceMotion ? 1 : 0)
             .onAppear {
                 drawn?.ids.insert(cluster.id)
+                #if DEBUG
+                if PerfProbe.isOn, appearedAt == 0 { appearedAt = CACurrentMediaTime() }
+                #endif
                 guard !arrived else { return }
                 guard !reduceMotion else { arrived = true; return }
-                if pictureReady { arrive() } else { waitForPicture() }
+                arrive()
             }
             .onDisappear { drawn?.ids.remove(cluster.id) }
-            .onChange(of: pictureReady) { _, ready in
-                if ready, !arrived, !reduceMotion { arrive() }
-            }
     }
 
     @Environment(\.displayScale) private var displayScale
 
-    /// **A block arrives with its photograph, not before it.** A block that
-    /// faded in ahead of its picture faded in as a grey square and then
-    /// changed into a photograph, which is two arrivals. Filmed on a zoom out:
-    /// two grey squares for a sixth of a second each.
-    private var pictureReady: Bool {
-        guard let name = base ?? showing else { return true }
-        return isDecoded(name)
-    }
-
     /// Whether a photograph is in memory at the map's size. Asking also starts
-    /// reading it if it is not, which is what makes this a preload.
+    /// reading it if it is not, on the visible lane.
     private func isDecoded(_ name: String) -> Bool {
         guard !name.hasPrefix(Self.bundledPrefix) else { return true }
         return ThumbnailStore.shared.state(for: name, width: Self.decodeWidth * displayScale, exact: true).image != nil
@@ -1002,17 +1031,33 @@ private struct PlaceBlock: View {
     /// Whether the photograph a handover is waiting on has now been read.
     private var waitingIsReady: Bool { waitingFor.map(isDecoded) ?? false }
 
+    /// **A block arrives at once; its photograph follows** (2026-09-16).
+    ///
+    /// It used to be the other way round: "a block arrives with its
+    /// photograph, not before it", written after a zoom out filmed two grey
+    /// squares for a sixth of a second each. The gate held a block invisible
+    /// until its picture decoded, and gave up after 600ms and showed the grey
+    /// square anyway — so the map paid the wait AND showed the thing the wait
+    /// was for, and a block that is not drawn cannot be seen, tapped or
+    /// found. The owner: "hard to find things on the map because they won't
+    /// load". Now the block comes up on its own opaque fill and the picture
+    /// fades in on top of it when it lands, which is what a block is: a
+    /// coloured block that becomes a photograph. Reading from a 320px
+    /// derivative, that second step is tens of milliseconds, and a picture
+    /// already on a block is still never cleared while zooming (`carry`,
+    /// `decodeWidth`).
     private func arrive() {
-        withAnimation(GridConstants.mapFade.delay(delay)) { arrived = true }
-    }
-
-    /// A picture that cannot be read still needs its block, so the wait has
-    /// a limit.
-    private func waitForPicture() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(600))
-            if !arrived { arrive() }
+        #if DEBUG
+        // **How long MapKit drew nothing where a block belongs.** The gate
+        // this used to sit behind is the map half of "hard to find things on
+        // the map because they won't load", so it is the number that says
+        // whether removing it worked.
+        if PerfProbe.isOn, appearedAt > 0 {
+            PerfProbe.sample("MapBlockToArrive", ms: (CACurrentMediaTime() - appearedAt) * 1000)
+            appearedAt = -1
         }
+        #endif
+        withAnimation(GridConstants.mapFade.delay(delay)) { arrived = true }
     }
 
     private var block: some View {
