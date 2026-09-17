@@ -33,10 +33,10 @@ struct WarmBackground: View {
     /// see and cannot stop seeing.
     /// **Dynamic**, so every consumer adapts without knowing it did.
     ///
-    /// Making these two adaptive is what gives the whole app dark mode: the
-    /// page, the drawer, the pinned headings, the badge on a map block and
-    /// every scroll-edge wash all fade into one of these, so they follow the
-    /// system together or not at all.
+    /// Making it adaptive is what gives the whole app dark mode: the page,
+    /// the drawer, the pinned headings, the badge on a map block and every
+    /// scroll-edge wash all fade into it, so they follow the system together
+    /// or not at all.
     ///
     /// The dark values are a warm charcoal, not black. `AppColors.warmBlack`
     /// is 0x403D39 — the app's black has always had brown in it — and the
@@ -46,27 +46,20 @@ struct WarmBackground: View {
     /// on, only an absence behind it.
     static let top = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.129, green: 0.125, blue: 0.118, alpha: 1)
-            : UIColor(red: 0.965, green: 0.970, blue: 0.978, alpha: 1)
-    })
-    /// And at the bottom. The gradient runs the same direction in both: the
-    /// light ground gets very slightly cooler and darker downwards, the dark
-    /// ground very slightly deeper, so "lit from above" survives the flip.
-    static let bottom = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.094, green: 0.090, blue: 0.086, alpha: 1)
-            : UIColor(red: 0.947, green: 0.955, blue: 0.965, alpha: 1)
+            ? UIColor(red: 0.112, green: 0.108, blue: 0.102, alpha: 1)
+            : UIColor(red: 0.956, green: 0.962, blue: 0.972, alpha: 1)
     })
 
+    /// **One colour, not a gradient.** It was a top-to-bottom gradient
+    /// (light 0.965 to 0.947, dark 0.129 to 0.094), which is two to nine
+    /// 8-bit levels spread over the whole screen: too shallow to read as
+    /// light from above and exactly shallow enough to show as faint
+    /// horizontal steps. The owner saw lines. The value here is the old
+    /// gradient's midpoint, so the page is the same brightness to the eye,
+    /// and because it is `top` everywhere, every wash that fades into `top`
+    /// meets the ground at every height.
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: Self.top, location: 0.0),
-                .init(color: Self.bottom, location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .accessibilityHidden(true)
+        Self.top
+            .accessibilityHidden(true)
     }
 }

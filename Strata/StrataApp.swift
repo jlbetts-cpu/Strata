@@ -157,15 +157,19 @@ struct StrataApp: App {
             // Swapping the two removes the inheritance rather than fighting
             // it, and it is the more honest structure anyway: until somebody
             // has been through this, it IS the app.
-            #if DEBUG
-            if DebugHarness.headParity {
-                HeadParityView()
-            } else {
+            Group {
+                #if DEBUG
+                if DebugHarness.headParity {
+                    HeadParityView()
+                } else {
+                    appRoot
+                }
+                #else
                 appRoot
+                #endif
             }
-            #else
-            appRoot
-            #endif
+            // The launch screen's S, held over the first frame and faded.
+            .overlay { LaunchHandoff() }
         }
         .modelContainer(SharedModelContainer.shared)
         .onChange(of: scenePhase) { _, newPhase in
