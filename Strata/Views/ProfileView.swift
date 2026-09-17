@@ -62,7 +62,7 @@ struct ProfileView: View {
             settingsLink
         }
         .scrollContentBackground(.hidden)
-        .background { WarmBackground().ignoresSafeArea() }
+        .background { WarmBackground(lit: true).ignoresSafeArea() }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { doneToolbar }

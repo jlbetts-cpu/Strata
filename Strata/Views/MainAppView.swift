@@ -1145,7 +1145,7 @@ struct MainAppView: View {
             // which is the frosted band that belongs to blocks and to nothing
             // else. The tower stands on the page's own ground with the tab
             // bar directly beneath it, and that is the whole page.
-            .background { WarmBackground().ignoresSafeArea() }
+            .background { WarmBackground(lit: true).ignoresSafeArea() }
             // Tapping a block opens the same sheet that made it.
             //
             // It used to expand into `BlockExpansionCard` — a floating card

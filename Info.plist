@@ -7,6 +7,13 @@
 		<string>Jaro.ttf</string>
 		<string>StrataNumerals.ttf</string>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBlack</string>
+		<key>UIImageName</key>
+		<string>LaunchS</string>
+	</dict>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
