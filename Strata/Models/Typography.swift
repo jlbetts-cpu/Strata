@@ -98,9 +98,23 @@ enum Typography {
     /// day's numeral on a month block, a photo count. The owner's own digits
     /// — see `StrataFont`.
     ///
-    /// **Numbers, never words.** The face has ten glyphs and a space; a
-    /// `Text` in it that contains a letter renders `.notdef`. Anything with a
-    /// word in it stays on `screenTitle` / `screenSubtitle`.
+    /// **Numbers, never words** — but NOT for the reason this comment used to
+    /// give, and the old reason was load bearing enough to correct.
+    ///
+    /// It said the face "has ten glyphs and a space" and that a `Text`
+    /// containing a letter "renders `.notdef`". Measured against the shipped
+    /// `Strata-Regular.ttf`: `StrataFont.covers` returns **true** for "Add a
+    /// win", "Edit", "Profile", "Plan" and every other sheet title in the
+    /// app. The face has letterforms, so nothing falls back and nothing
+    /// renders `.notdef`.
+    ///
+    /// The rule stands on taste instead: it is a NUMERAL face, drawn for the
+    /// tally, and words set in it read as a display face rather than as the
+    /// app's voice. Anything with a word in it stays on `screenTitle` /
+    /// `screenSubtitle` because it should, not because it must.
+    ///
+    /// Worth knowing because the old comment made `covers()` look like a
+    /// safety net. It is not one — it passes.
     static let tally = StrataFont.relative(screenTitleSize, to: .largeTitle)
 
     /// The same digits, at a size the caller solves for — a month block's
