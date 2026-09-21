@@ -148,27 +148,63 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// exactly when a picture really is mostly one colour — a lawn, a sunset,
     /// a team in blue — so the correction is capped at a few percent and
     /// scaled by how neutral the picture already looks.
-    private func neutralised(_ image: CIImage, strength: Double) -> CIImage {
+    /// **The measurement is separable from the correction, and on a live
+    /// viewfinder it has to be.**
+    ///
+    /// `measureMeans` does a `context.render(toBitmap:)`, which is a
+    /// synchronous GPU to CPU readback: the CPU blocks until the GPU has
+    /// finished, which drains the pipeline. Once per photograph that is
+    /// nothing. Once per frame at 30 or 60Hz it is a stall every frame, and
+    /// because the reading changes slightly frame to frame the white balance
+    /// would visibly breathe while the camera sat still.
+    ///
+    /// So a live path measures at its own cadence — a few times a second is
+    /// ample for white balance — and hands the result in. Passing `means`
+    /// skips the readback entirely.
+    ///
+    /// Stills pass nothing and measure every time, which is correct: each
+    /// photograph is a different scene, and a cache keyed on time rather than
+    /// on the image would hand one photograph another's white balance.
+    func measureMeans(_ image: CIImage) -> [Double]? {
         let average = CIFilter.areaAverage()
         average.inputImage = image
         average.extent = image.extent
-        guard let averaged = average.outputImage else { return image }
+        guard let averaged = average.outputImage else { return nil }
         var pixel = [Float](repeating: 0, count: 4)
         context.render(averaged, toBitmap: &pixel, rowBytes: 16,
                        bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
                        format: .RGBAf, colorSpace: outputSpace)
-        let means = [Double(pixel[0]), Double(pixel[1]), Double(pixel[2])]
+        return [Double(pixel[0]), Double(pixel[1]), Double(pixel[2])]
+    }
+
+    /// The gains themselves, as arithmetic with no Core Image in it.
+    ///
+    /// Pure so it can be tested: the grey-world assumption fails exactly when
+    /// a picture really is mostly one colour — a lawn, a sunset, a team in
+    /// blue — so the correction is capped at a few percent AND scaled by how
+    /// neutral the picture already looks. Both of those are worth an
+    /// assertion, and neither was reachable while this was welded to a GPU
+    /// readback.
+    static func neutralisingGains(means: [Double], strength: Double) -> [Double]? {
+        guard means.count == 3 else { return nil }
         let grey = (means[0] + means[1] + means[2]) / 3
-        guard grey > 0.01 else { return image }
+        guard grey > 0.01 else { return nil }
         let spread = (means.max() ?? 0) - (means.min() ?? 0)
         // A strongly coloured scene scores low and keeps its colour.
         let confidence = max(0, 1 - spread / 0.16)
         let cap = 0.07
-        let gains = means.map { mean -> Double in
+        return means.map { mean -> Double in
             let raw = grey / max(mean, 0.0001)
             let capped = min(max(raw, 1 - cap), 1 + cap)
             return 1 + (capped - 1) * strength * confidence
         }
+    }
+
+    private func neutralised(_ image: CIImage, strength: Double,
+                             means: [Double]? = nil) -> CIImage {
+        guard let means = means ?? measureMeans(image),
+              let gains = Self.neutralisingGains(means: means, strength: strength)
+        else { return image }
         let filter = CIFilter.colorMatrix()
         filter.inputImage = image
         filter.rVector = CIVector(x: CGFloat(gains[0]), y: 0, z: 0, w: 0)
@@ -281,6 +317,7 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// is densest in the midtones and gone in the highlights, which is how an
     /// emulsion behaves.
     private func grained(_ image: CIImage, _ grain: FilmLook.Grain,
+                         phase: CGPoint = .zero,
                          look: FilmLook, scale: CGFloat) -> CIImage {
         // **A preview must not lie about grain.** Grain is quoted for a
         // 2560px photograph; on a 180pt swatch one grain would be a fifth of a
@@ -289,7 +326,24 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         // negative does anyway.
         let cell = max(1, grain.cell * Double(scale))
         let strength = grain.amount * min(1, max(Double(scale), 0.1))
+        // **The noise field is moved, and on a live path it must be.**
+        //
+        // `CIRandomGenerator` takes no seed. It is a deterministic function of
+        // position with infinite extent, so every call produces the SAME field
+        // anchored to the same coordinates. On a still that is fine, and it is
+        // why re-rendering one photograph gives identical grain.
+        //
+        // On a viewfinder it is wrong in a way that is immediately obvious:
+        // every frame would carry an identical noise field pinned to the
+        // screen, so the grain would sit still while the scene moved behind it
+        // — dirt on the glass rather than grain in the emulsion.
+        //
+        // Translating the field before scaling samples a different region of
+        // the same infinite function, which is how you seed this filter. A
+        // still passes `.zero` and stays reproducible; a live path passes a
+        // new phase per frame.
         let noise = CIFilter.randomGenerator().outputImage?
+            .transformed(by: CGAffineTransform(translationX: phase.x, y: phase.y))
             .transformed(by: CGAffineTransform(scaleX: CGFloat(cell), y: CGFloat(cell)))
             .cropped(to: image.extent)
         guard let noise else { return image }
