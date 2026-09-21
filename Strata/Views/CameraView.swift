@@ -112,7 +112,31 @@ struct CameraView: View {
         /// and visibly different weights. A full point is exact at every
         /// scale, and white matches the icons and the count rather than being
         /// a fourth grey nobody chose.
-        static let colour = AppColors.onDarkQuiet
+        /// **Glass, not paint, and the value is his.**
+        ///
+        /// Sampled from node 14172:8010's own vectors rather than from a
+        /// screenshot: every line is `stroke="#98A184"` at
+        /// `stroke-opacity="0.5"`, 1pt.
+        ///
+        /// `#98A184` is a desaturated sage. It is not a colour from the
+        /// palette — it is **the grass in the photograph behind it**, lifted
+        /// and drained. The owner: "I took the colour from the background kind
+        /// of and then turned the transparency down, though it is still very
+        /// visible... they are like glass themselves."
+        ///
+        /// **So the exact colour cannot be shipped, and that is the point.**
+        /// A fixed sage line is right over grass and wrong over everything
+        /// else; it would read as a green tint on a kitchen counter. What
+        /// generalises is the RELATIONSHIP — a line that takes its colour from
+        /// what is behind it, lightened and desaturated — which is what a
+        /// material does. `.ultraThinMaterial` samples the live preview, so
+        /// the line is sage over his grass and warm over a wooden table, by
+        /// construction rather than by a constant.
+        ///
+        /// It was `onDarkQuiet`, pure white at 0.30. Two things were wrong
+        /// with that against his: it is paint rather than glass, and at 0.30
+        /// it is fainter than the 0.5 he describes as "still very visible".
+        static let material: Material = .ultraThinMaterial
         static let width: CGFloat = 1
         /// How much of the frame the bottom fade occupies.
         static let fadeHeight: CGFloat = 0.20
@@ -175,11 +199,46 @@ struct CameraView: View {
     /// stops above the tab bar, so the curve is a real edge you look at rather
     /// than a corner tucked into the phone's own — and at 20 it read as a
     /// square that had been slightly softened rather than as a shape.
-    private let cornerRadius: CGFloat = 34
-    /// Air between the bottom of the viewfinder and the tab bar.
-    private let tabGap: CGFloat = 14
+    /// **40, from his frame** (node 14172:8010), not 34.
+    ///
+    /// The node draws the viewfinder 402 x 799 with `rounded-bl-[40px]` and
+    /// `rounded-br-[40px]`. 34 was a value chosen here when the curve was
+    /// being judged against a bezel; this is his.
+    private let cornerRadius: CGFloat = 40
+
+    /// **This screen's margin is 20, and the rest of the app's is 16.**
+    ///
+    /// His call, and it is recorded rather than generalised: in node
+    /// 14172:8010 the wordmark's box starts at x=20 and the close control ends
+    /// 20 from the right. The camera is full bleed and has no text column for
+    /// anything to align to, so it does not owe the page grid the 16 that
+    /// every other screen uses. Nothing else moves to 20.
+    private let sideMargin: CGFloat = 20
+
+    /// **Air between the viewfinder's rounded bottom and the tab bar.**
+    ///
+    /// The owner: "The bottom tabs need more breathing room."
+    ///
+    /// Measured before this: the viewfinder's bottom edge landed at 790 and
+    /// the bar's top at 791 — **1pt** — so the bar was jammed against the
+    /// curve with nothing between them. The strip was 84pt holding a 60pt bar
+    /// with 1 above and 23 below.
+    ///
+    /// 20 gives the bar a band of its own: the strip becomes 104, with 20
+    /// above the bar and the system's own 23 below it.
+    ///
+    /// **The 23 below is not ours to change.** A floating tab bar's distance
+    /// from the bottom edge is the platform's, set by the home indicator's
+    /// safe area; the only gap this screen owns is the one above it.
+    private let stripBreathing: CGFloat = 20
     /// Air between the shutter and the bottom edge of the viewfinder.
     private let shutterBottomGap: CGFloat = 40
+
+    /// The shutter, from node 14172:8010: an 80pt ring and a 66pt fill, both
+    /// `#E6E6E6`.
+    private static let shutterRing: CGFloat = 80
+    private static let shutterFill: CGFloat = 66
+    private static let shutterInk = Color(red: 0.902, green: 0.902, blue: 0.902)
 
 
     var body: some View {
@@ -205,7 +264,19 @@ struct CameraView: View {
             // about the add sheet's camera.
             let bottomInset = fillsScreen ? geo.safeAreaInsets.bottom : 0
             let w = geo.size.width
-            let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
+            // **The black strip below the viewfinder is where the tabs
+            // live.** The owner: "the area at the bottom to hold the tabs."
+            //
+            // In a tab, `geo.size.height` already stops at the top of the
+            // bottom safe area, and on iOS 26 that inset IS the floating tab
+            // bar. So ending the viewfinder there makes the strip exactly the
+            // bar's own band, on any device, rather than a number.
+            //
+            // It used to subtract a further `tabGap` of 14, which floated the
+            // picture 14pt clear of the bar and left the bar sitting on the
+            // ground rather than in a strip belonging to the camera.
+            let h = geo.size.height + topInset + bottomInset
+                - (fillsScreen ? 0 : stripBreathing)
 
             ZStack {
                 CameraPreview(session: camera.session, box: previewBox)
@@ -697,23 +768,23 @@ struct CameraView: View {
             // "the middle one looks longer".
             let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
             Rectangle()
-                .fill(Guide.colour)
+                .fill(Guide.material)
                 .frame(width: Guide.width, height: max(gapTop, 0))
                 .offset(x: x0, y: 0)
 
             Rectangle()
-                .fill(Guide.colour)
+                .fill(Guide.material)
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
-                .fill(Guide.colour)
+                .fill(Guide.material)
                 .frame(width: Guide.width, height: h)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
-                    .fill(Guide.colour)
+                    .fill(Guide.material)
                     .frame(width: w, height: Guide.width)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
@@ -760,13 +831,34 @@ struct CameraView: View {
                 .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
 
             Spacer(minLength: 0)
+
+            // **His glass button, drawn in place and deliberately inert.**
+            //
+            // The owner: "The thing I do want to add is the glass button I
+            // built. I think it looks so clean, but I don't know what it would
+            // do, because before it was to close the screen and that doesn't
+            // make sense any more."
+            //
+            // So it is built exactly as node 14172:8010 draws it — a 40pt
+            // glass circle at the screen's 20pt margin, on the wordmark's row
+            // — and it does NOTHING. Giving it an action would be inventing a
+            // decision he has explicitly reserved, and a control that does
+            // the wrong thing is worse than one that does nothing while he
+            // looks at it.
+            //
+            // It is hidden from VoiceOver for the same reason: announcing a
+            // button that cannot be used is a promise the screen does not
+            // keep. Both go the moment it has a job.
+            if !fillsScreen {
+                CameraGlassButton()
+            }
         }
         // Top-aligned, and now the box is the wordmark's own height, so
         // top-aligned and centred are the same placement — which is the
         // point: the break holds the word and nothing else, so the word
         // cannot drift inside it.
         .frame(height: Header.height, alignment: .top)
-        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.horizontal, sideMargin)
         // The preview starts at the very top of the screen now, so the header
         // has to clear the notch itself.
         .padding(.top, topInset + Header.topPadding)
@@ -888,7 +980,7 @@ struct CameraView: View {
                     action: onClose
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.trailing, GridConstants.horizontalPadding)
+                .padding(.trailing, sideMargin)
                 // Below the status bar, not under it: at y=34 in screen
                 // coordinates this landed beside the Dynamic Island, drawn but
                 // with the system's touch areas over most of it.
@@ -1051,28 +1143,37 @@ struct CameraView: View {
         )
     }
 
+    /// **A circle, from his frame.** The owner: "rounded button".
+    ///
+    /// Node 14172:8010 draws it as a ring and a fill, both `#E6E6E6`, both at
+    /// radius 100 on an 80 and a 66pt square — which is to say two circles,
+    /// centred at (201, 713) on his 402 x 874 page.
+    ///
+    /// **What this replaces, and what it costs.** It was a rounded SQUARE
+    /// that drew the block it was about to make: 80x80 for a small win,
+    /// 149.05x80 for a medium, 149.05x149.05 for a large, with a 14pt rim and
+    /// a radius of `min(w, h) * 0.147`, growing under the finger as you drew a
+    /// size. The circle cannot show a size, so the shutter no longer previews
+    /// the block.
+    ///
+    /// **The draw gesture is untouched** — `.gesture(draw)` is still attached
+    /// and `drawnSize` still changes, so drawing still works and still logs
+    /// the size you drew. What is lost is only the preview of it in the
+    /// control itself. He asked for the rounded button and has not said what
+    /// should show the size instead, so nothing is invented here.
     private var shutter: some View {
-        let bounds = Self.shutterBounds(drawnSize)
-        let inner = CGSize(width: bounds.width - 14, height: bounds.height - 14)
-        let outerRadius = min(bounds.width, bounds.height) * 0.147
-        return ZStack {
-            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                .strokeBorder(.white, lineWidth: 1)
-                .frame(width: bounds.width, height: bounds.height)
+        ZStack {
+            Circle()
+                .strokeBorder(Self.shutterInk, lineWidth: 1)
+                .frame(width: Self.shutterRing, height: Self.shutterRing)
 
-            // ONE block, in the shape you are drawing.
-            //
-            // It was a grid of cells — two squares for a 2x1, four for a 2x2 —
-            // which was wrong twice over: it read as a keypad, and a 2x1 in
-            // this app is not two blocks, it is one block two cells wide.
-            RoundedRectangle(cornerRadius: min(inner.width, inner.height) * 0.147,
-                             style: .continuous)
-                .fill(.white)
-                .frame(width: inner.width, height: inner.height)
+            Circle()
+                .fill(Self.shutterInk)
+                .frame(width: Self.shutterFill, height: Self.shutterFill)
                 .scaleEffect(shutterScale)
         }
+        .contentShape(Circle())
         .animation(GridConstants.slotSnap, value: drawnSize)
-        .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
         .gesture(draw)
         .accessibilityLabel("Take photo")
         .accessibilityValue(drawnSize.effortLabel)
@@ -1394,5 +1495,75 @@ private extension View {
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
         }
+    }
+}
+
+// MARK: - His glass button
+
+/// The button in the camera's top right corner, from node 14190:9740.
+///
+/// **His own component, not a system shape**, and the owner was explicit:
+/// "The glass button in the corner has to be like the squarish design I made,
+/// and mine was very custom."
+///
+/// Every value below is sampled from the node's own SVG rather than eyeballed
+/// from a screenshot:
+///
+/// | | his node | built |
+/// |---|---|---|
+/// | size | 40 x 40 | 40 x 40 |
+/// | corner radius | **9.9** | 9.9 |
+/// | fill | `#080808` at **0.01** | the same |
+/// | backdrop | `backdrop-filter: blur(8px)` | `.ultraThinMaterial` |
+/// | stroke | `#CECECE` at **0.2pt** | the same |
+/// | chevron | `M14 17 L20 23 L26 17`, 2pt, round caps | the same path |
+/// | chevron ink | `#E6E6E6` | the same |
+///
+/// **Two things make it read as his rather than as a system control**, and
+/// both are in those numbers. The radius is **9.9 on a 40pt square**, which is
+/// squarish — a quarter of the side — where a system glass control of this
+/// size is a circle. And the fill is **1% of the ground**, which is to say
+/// nothing: the glassiness is entirely the backdrop blur, so whatever is
+/// behind it tints it.
+///
+/// **There is no olive in the fill.** It reads olive in his frame because the
+/// grass is behind it, exactly as the thirds lines do. That is why this uses a
+/// material rather than a tinted colour: a baked olive would be right over his
+/// lawn and wrong over everything else.
+///
+/// **It has no action, deliberately.** The owner: "I don't know what it would
+/// do, because before it was to close the screen and that doesn't make sense
+/// any more." It is inert and hidden from VoiceOver until he gives it a job;
+/// announcing a button that cannot be used is a promise the screen does not
+/// keep.
+private struct CameraGlassButton: View {
+    private static let side: CGFloat = 40
+    private static let radius: CGFloat = 9.9
+    private static let strokeInk = Color(red: 0.808, green: 0.808, blue: 0.808)
+    private static let chevronInk = Color(red: 0.902, green: 0.902, blue: 0.902)
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+        return ZStack {
+            shape
+                .fill(Color(red: 0.031, green: 0.031, blue: 0.031).opacity(0.01))
+                .background(.ultraThinMaterial, in: shape)
+
+            // His path, at his scale: a 12 x 6 chevron centred in the 40pt
+            // box, 2pt with round caps and joins.
+            Path { p in
+                p.move(to: CGPoint(x: 14, y: 17))
+                p.addLine(to: CGPoint(x: 20, y: 23))
+                p.addLine(to: CGPoint(x: 26, y: 17))
+            }
+            .stroke(Self.chevronInk,
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .frame(width: Self.side, height: Self.side)
+
+            shape.strokeBorder(Self.strokeInk, lineWidth: 0.2)
+        }
+        .frame(width: Self.side, height: Self.side)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

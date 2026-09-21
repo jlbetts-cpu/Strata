@@ -3299,7 +3299,19 @@ private struct StableCameraTab: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 
     var body: some View {
-        CameraView(onCaptured: onCaptured, fillsScreen: true)
+        // **`false`, so the viewfinder stops above the tab strip.**
+        //
+        // The owner: "the area at the bottom to hold the tabs", and the
+        // rounded bottom he has asked for twice. `fillsScreen` drives three
+        // things at once — the bottom inset, the viewfinder's height, and
+        // whether the bottom corners round — and `true` turned the corners
+        // OFF (`fillsScreen ? 0 : cornerRadius`). That is why the tab's
+        // viewfinder has never been rounded: it was never asked to be.
+        //
+        // The modal camera in the add sheet keeps `true`. It has no tab bar
+        // under it, so a strip there would be a light band under a floating
+        // rounded rectangle, which is the fault that comment records.
+        CameraView(onCaptured: onCaptured, fillsScreen: false)
     }
 }
 
