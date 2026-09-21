@@ -87,6 +87,12 @@ struct FilmLookTray: View {
             + pad
     }
 
+    /// His `#E6E6E6`, white, exactly as node 14190:9740 draws it.
+    ///
+    /// The owner: "the chevron should still be white just like mine, like a
+    /// premium blur more than a distinct object." It was dark for one build
+    /// and that was wrong of me — see the note on the light appearance below,
+    /// which records the one case where this costs contrast.
     private static let chevronInk = Color(red: 0.902, green: 0.902, blue: 0.902)
 
     @State private var swatches: [FilmLook.Kind: UIImage] = [:]
@@ -134,6 +140,31 @@ struct FilmLookTray: View {
         // the same glass as the rest of the app's chrome rather than a
         // fourth interpretation of it.
         .glassRoundedRect(cornerRadius: Self.radius)
+        // **Light glass, over a dark-only app, and this is the whole reason
+        // it was reading as a grey panel.**
+        //
+        // The owner: "The glass button in the corner looks too dark. It should
+        // remain light, just using the colours of the background, not a muddy
+        // dark colour."
+        //
+        // Measured over the valley scene: the interior averaged RGB
+        // (95.9, 111.2, 133.9) against (142.0, 181.0, 239.8) just outside it —
+        // **61% of the background**, so the glass was taking 39% OUT of the
+        // picture rather than lightening it.
+        //
+        // The cause is not the glass, it is the room it is in. The camera
+        // declares the dark appearance, for good reasons that have nothing to
+        // do with this control — the tab bar's icons have to go white over a
+        // viewfinder. `glassEffect` follows the environment, so in a dark room
+        // it renders its dark variant and dims whatever is behind it.
+        //
+        // Over a PHOTOGRAPH the glass should take its cue from the picture
+        // rather than from the app's scheme, so this control declares the
+        // light appearance for itself. Everything inside it sets its own ink
+        // explicitly, so nothing else changes. On a dark scene it still goes
+        // dark, because it is sampling the scene, which is exactly his rule:
+        // "just using the colours of the background".
+        .environment(\.colorScheme, .light)
         .animation(reduceMotion ? nil : GridConstants.slotSnap, value: isOpen)
         .task(id: source) { await makeSwatches() }
     }
@@ -193,6 +224,8 @@ struct FilmLookTray: View {
 
                 Text(kind.name)
                     .font(Typography.bodySmall)
+                    // Dark ink on light glass — see `chevronInk`. It needs no
+                    // halo, because the glass it sits on is its own ground.
                     .foregroundStyle(chosen ? .white : .white.opacity(0.65))
                     .lineLimit(1)
 

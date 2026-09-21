@@ -126,3 +126,54 @@ extension View {
         }
     }
 }
+
+extension View {
+    /// **Legible over a photograph, without a panel, a box or a scrim.**
+    ///
+    /// The owner, once the simulator started showing a real scene: "the white
+    /// UI has some trouble being visible against the bright image... I want it
+    /// to be semi invisible."
+    ///
+    /// Measured on the valley scene now behind the viewfinder: the sky is
+    /// **L 0.4681**, so white sits on it at **2.03:1** — under the 4.5:1 floor
+    /// for text and under even the 3:1 one for a glyph. The thirds lines
+    /// scored worse: over the same sky the line region reads as a smooth
+    /// 189 to 216 gradient with no distinguishable line in it at all.
+    ///
+    /// **A soft dark halo, and it is self-adapting, which is why it is the
+    /// smallest thing that works.** Over a bright scene the dark carries the
+    /// contrast the white cannot. Over a dark scene the halo is dark on dark
+    /// and effectively absent, so the controls that were already fine do not
+    /// go muddy. Nothing samples the scene, nothing switches mode, and there
+    /// is no threshold to flicker across.
+    ///
+    /// **No offset**, so it is a halo rather than a drop shadow: an offset
+    /// shadow reads as an object floating above the picture, which is the
+    /// thing the app's shadow rule exists to forbid.
+    ///
+    /// **On that rule.** "The companion heads cast contact shadows, nothing
+    /// else" is about CHROME ON A FLAT GROUND, where a shadow is a false claim
+    /// that a flat interface has depth. This is white ink on a photograph,
+    /// where the only alternative to a halo is a panel or a scrim — both of
+    /// which put a new opaque object on the picture, and both of which the
+    /// owner has asked not to have. The exception is the viewfinder and
+    /// nothing else.
+    func legibleOverPhoto() -> some View {
+        // **0.22 at radius 2, which is half what it was.** The owner: "the
+        // drop shadow has to be more subtle if it's there at all, right now it
+        // looks too stark." At 0.45 and radius 3 it read as a dark glow around
+        // the wordmark — a visible effect rather than a reason the white
+        // stayed legible, which is the opposite of "semi invisible".
+        //
+        // It does NOT go on the glass. The button and the tray get their
+        // separation from the blur and their own refractive edge, and a shadow
+        // there turns them into an object sitting on the picture rather than
+        // part of it. This is for white ink with nothing behind it: the five
+        // controls, the shutter's ring and the wordmark.
+        //
+        // The thirds lines do not take it either — they are scene tinted, and
+        // a shadow under a tinted line is the "pure white with a shadow" he
+        // called the opposite of what he wanted.
+        shadow(color: .black.opacity(0.22), radius: 2, x: 0, y: 0)
+    }
+}

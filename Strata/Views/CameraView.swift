@@ -139,6 +139,31 @@ struct CameraView: View {
         /// It was `onDarkQuiet`, pure white at 0.30. Two things were wrong
         /// with that against his: it is paint rather than glass, and at 0.30
         /// it is fainter than the 0.5 he describes as "still very visible".
+        /// **Scene tinted, and lightened, which is his design and not the
+        /// platform's.**
+        ///
+        /// The owner: "The rule of thirds lines need to pick up on the light
+        /// and colour from the background a little... Think of my Figma design
+        /// over the Apple iOS look for these components, because I made them
+        /// very intentionally."
+        ///
+        /// His node draws them `#98A184` at 0.5 — the grass in his photograph,
+        /// desaturated — so they sit IN the picture rather than on it. A
+        /// material reproduces that relationship over any scene: sage over
+        /// grass, pale blue over sky, dim over a dark street, by sampling
+        /// rather than by a constant.
+        ///
+        /// **It was a material once and it vanished, and the reason was not
+        /// the material.** The camera declares the dark appearance, so a
+        /// material in it renders its DARK variant and darkens what is behind
+        /// it — over a bright sky that is almost no change, which is why the
+        /// line measured as a smooth 189 to 216 gradient with no line in it.
+        /// The same fault as the glass button, found the same way.
+        ///
+        /// Declaring the light appearance for the guides alone makes the
+        /// material LIFT the scene instead, which is what "pick up on the
+        /// light and colour" means and what makes it readable over bright and
+        /// dark alike.
         static let material: Material = .ultraThinMaterial
         static let width: CGFloat = 1
         /// How much of the frame the bottom fade occupies.
@@ -791,22 +816,26 @@ struct CameraView: View {
             let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
             Rectangle()
                 .fill(Guide.material)
+                .environment(\.colorScheme, .light)
                 .frame(width: Guide.width, height: max(gapTop, 0))
                 .offset(x: x0, y: 0)
 
             Rectangle()
                 .fill(Guide.material)
+                .environment(\.colorScheme, .light)
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
                 .fill(Guide.material)
+                .environment(\.colorScheme, .light)
                 .frame(width: Guide.width, height: h)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
                     .fill(Guide.material)
+                .environment(\.colorScheme, .light)
                     .frame(width: w, height: Guide.width)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
@@ -849,8 +878,9 @@ struct CameraView: View {
             // Sized to the grid rather than to the page — see
             // `Header.wordmarkSize`.
             ApolloWordmark(height: ApolloWordmark.boxHeight, color: .white)
-                // Legible over whatever the lens is pointing at.
-                .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
+                // Legible over whatever the lens is pointing at — the same
+                // halo every other white thing on this screen uses.
+                .legibleOverPhoto()
 
             Spacer(minLength: 0)
 
@@ -987,6 +1017,8 @@ struct CameraView: View {
             shutter
             }
             }
+            // Every white thing on the viewfinder carries the same halo.
+            .legibleOverPhoto()
             .padding(.horizontal, 44)
             .padding(.bottom, bottomInset + shutterBottomGap)
 
