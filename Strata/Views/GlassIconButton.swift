@@ -97,6 +97,25 @@ extension View {
     /// `.interactive()` is included because this is genuinely a button — the
     /// effect reacts to the press, which is the affordance being bought here.
     /// The deployment target is 18.0, so the fallback is not optional.
+    /// Liquid Glass in a rounded rectangle, for a control whose shape is
+    /// neither a circle nor a capsule — the camera's film-look container at
+    /// the owner's radius 9.9.
+    ///
+    /// The third and last shape, beside this file's other two, for the reason
+    /// it already records: a glass treatment redefined per screen drifts per
+    /// screen.
+    @ViewBuilder
+    func glassRoundedRect(cornerRadius r: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(),
+                             in: .rect(cornerRadius: r, style: .continuous))
+        } else {
+            let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+            self.background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+        }
+    }
+
     @ViewBuilder
     func glassCircle() -> some View {
         if #available(iOS 26.0, *) {

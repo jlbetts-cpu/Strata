@@ -70,6 +70,9 @@ struct CameraView: View {
     /// setting that follows you: a remembered one means the picture you take
     /// tomorrow is graded by something you chose today and forgot.
     @State private var lookRaw = FilmLook.Kind.none.rawValue
+    /// Whether the film looks are pulled down. Closed on every appearance,
+    /// like the look itself — see `lookRaw`.
+    @State private var showLookTray = false
     /// The review photograph with the chosen look on it, at screen size. The
     /// real one is rendered full size only when the photograph is kept.
     @State private var looked: UIImage?
@@ -292,6 +295,25 @@ struct CameraView: View {
                 }
 
                 header(topInset: topInset)
+
+                // **The button lives here, not in the header, because it and
+                // the tray are one shape.** A tray placed under a separate
+                // button is two pieces of glass with a gap; the owner asked
+                // for them to merge "kind of like how the same colour blocks
+                // merge". So `FilmLookTray` owns the button and grows out of
+                // it, and it is placed once, on the same 20pt margin and the
+                // same top line the header uses.
+                if !fillsScreen {
+                    FilmLookTray(
+                        selection: Binding(
+                            get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                            set: { lookRaw = $0.rawValue }),
+                        isOpen: $showLookTray)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .topTrailing)
+                        .padding(.trailing, sideMargin)
+                        .padding(.top, topInset + Header.topPadding)
+                }
 
                 // The count, over the frame. Big and central because you are
                 // standing in the shot looking at the lens, not at a corner.
@@ -849,9 +871,6 @@ struct CameraView: View {
             // It is hidden from VoiceOver for the same reason: announcing a
             // button that cannot be used is a promise the screen does not
             // keep. Both go the moment it has a job.
-            if !fillsScreen {
-                CameraGlassButton()
-            }
         }
         // Top-aligned, and now the box is the wordmark's own height, so
         // top-aligned and centred are the same placement — which is the
@@ -1452,6 +1471,28 @@ struct CameraPreview: UIViewRepresentable {
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.backgroundColor = .black
+        #if targetEnvironment(simulator)
+        // **A stand-in scene, simulator only.**
+        //
+        // There is no camera here, so the viewfinder is a black rectangle and
+        // nothing drawn over it can be judged: the thirds lines, the glass
+        // button and the film-look container all exist to sit on a
+        // photograph, and over black the button's blur has nothing to blur.
+        // The owner's exact words about it were "I don't see it there in the
+        // glass" — because there was nothing behind it.
+        //
+        // A bundled photograph behind the preview layer makes every one of
+        // those judgeable on a screenshot. It can never reach a device:
+        // `targetEnvironment(simulator)` is resolved at compile time, and on
+        // hardware this block does not exist.
+        if let scene = UIImage(named: "DemoPhoto1") {
+            let backing = UIImageView(image: scene)
+            backing.contentMode = .scaleAspectFill
+            backing.frame = view.bounds
+            backing.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(backing)
+        }
+        #endif
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         box.layer = view.previewLayer
@@ -1571,6 +1612,10 @@ private extension View {
 /// announcing a button that cannot be used is a promise the screen does not
 /// keep.
 private struct CameraGlassButton: View {
+    /// Which way the chevron points. Down invites the tray open; up closes it.
+    var isOpen: Bool = false
+    var action: (() -> Void)? = nil
+
     /// **The stroke is one physical pixel, not his 0.2pt, and that is why it
     /// was blurry.**
     ///
@@ -1597,7 +1642,7 @@ private struct CameraGlassButton: View {
     /// whole device pixel, so there is no sub-pixel placement to correct.
     @Environment(\.displayScale) private var displayScale
 
-    private static let side: CGFloat = 40
+    static let side: CGFloat = 40
     private static let radius: CGFloat = 9.9
     private static let strokeInk = Color(red: 0.808, green: 0.808, blue: 0.808)
     private static let chevronInk = Color(red: 0.902, green: 0.902, blue: 0.902)
@@ -1623,7 +1668,15 @@ private struct CameraGlassButton: View {
             shape.strokeBorder(Self.strokeInk, lineWidth: 1 / displayScale)
         }
         .frame(width: Self.side, height: Self.side)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        .rotationEffect(.degrees(isOpen ? 180 : 0))
+        .contentShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+        .onTapGesture { action?() }
+        // It has a job now, so it is a button to VoiceOver as well. It was
+        // hidden while it was inert, because announcing a control that cannot
+        // be used is a promise the screen does not keep.
+        .accessibilityElement()
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Film look")
+        .accessibilityValue(isOpen ? "Open" : "Closed")
     }
 }
