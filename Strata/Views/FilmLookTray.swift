@@ -140,31 +140,24 @@ struct FilmLookTray: View {
         // the same glass as the rest of the app's chrome rather than a
         // fourth interpretation of it.
         .glassRoundedRect(cornerRadius: Self.radius)
-        // **Light glass, over a dark-only app, and this is the whole reason
-        // it was reading as a grey panel.**
+        // **Neutral glass, not light glass, and that is the whole of the
+        // fix.** This control forced the light appearance on itself for a
+        // while, to escape the camera's dark one. It worked and it was wrong:
+        // the owner, on the result, "yours is way brighter and too obvious,
+        // not clean."
         //
-        // The owner: "The glass button in the corner looks too dark. It should
-        // remain light, just using the colours of the background, not a muddy
-        // dark colour."
+        // It was aiming at the wrong target. The glass is not supposed to be
+        // light OR dark, it is supposed to be the scene. Measured against a
+        // frame of the same screen with `Glass.identity` (which draws nothing,
+        // so it is the scene behind this button pixel for pixel), the light
+        // appearance put the interior at 116% of the scene over sky, 152% over
+        // trees and 178% over a dark scene — lightest exactly where the
+        // picture was darkest.
         //
-        // Measured over the valley scene: the interior averaged RGB
-        // (95.9, 111.2, 133.9) against (142.0, 181.0, 239.8) just outside it —
-        // **61% of the background**, so the glass was taking 39% OUT of the
-        // picture rather than lightening it.
-        //
-        // The cause is not the glass, it is the room it is in. The camera
-        // declares the dark appearance, for good reasons that have nothing to
-        // do with this control — the tab bar's icons have to go white over a
-        // viewfinder. `glassEffect` follows the environment, so in a dark room
-        // it renders its dark variant and dims whatever is behind it.
-        //
-        // Over a PHOTOGRAPH the glass should take its cue from the picture
-        // rather than from the app's scheme, so this control declares the
-        // light appearance for itself. Everything inside it sets its own ink
-        // explicitly, so nothing else changes. On a dark scene it still goes
-        // dark, because it is sampling the scene, which is exactly his rule:
-        // "just using the colours of the background".
-        .environment(\.colorScheme, .light)
+        // `GlassRecipe.photoOverlay` measures 95 / 102 / 102 on the same three
+        // scenes, and it is scheme independent, so there is nothing left for
+        // this view to override. The recipe and its table live in
+        // `GlassIconButton.swift`.
         .animation(reduceMotion ? nil : GridConstants.slotSnap, value: isOpen)
         .task(id: source) { await makeSwatches() }
     }
@@ -224,8 +217,9 @@ struct FilmLookTray: View {
 
                 Text(kind.name)
                     .font(Typography.bodySmall)
-                    // Dark ink on light glass — see `chevronInk`. It needs no
-                    // halo, because the glass it sits on is its own ground.
+                    // White ink, and it needs no halo: the glass it sits on
+                    // is its own ground, and it is neutral rather than light,
+                    // so white reads on it over any scene.
                     .foregroundStyle(chosen ? .white : .white.opacity(0.65))
                     .lineLimit(1)
 

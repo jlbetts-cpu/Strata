@@ -1517,7 +1517,13 @@ struct CameraPreview: UIViewRepresentable {
         // those judgeable on a screenshot. It can never reach a device:
         // `targetEnvironment(simulator)` is resolved at compile time, and on
         // hardware this block does not exist.
-        if let scene = UIImage(named: "DemoPhoto1") {
+        // `-CameraStandIn DemoPhoto7` swaps the scene. The glass over this
+        // viewfinder can only be judged against a picture, and a single
+        // picture is not enough: the fault that made it read as "way brighter
+        // and too obvious" was invisible over a bright sky (116% of the scene)
+        // and obvious over a dark one (178%). One argument, three scenes.
+        let standIn = UserDefaults.standard.string(forKey: "CameraStandIn") ?? "DemoPhoto1"
+        if let scene = UIImage(named: standIn) {
             let backing = UIImageView(image: scene)
             backing.contentMode = .scaleAspectFill
             backing.frame = view.bounds

@@ -107,7 +107,7 @@ extension View {
     @ViewBuilder
     func glassRoundedRect(cornerRadius r: CGFloat) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(),
+            self.glassEffect(GlassRecipe.photoOverlay,
                              in: .rect(cornerRadius: r, style: .continuous))
         } else {
             let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
@@ -175,5 +175,91 @@ extension View {
         // a shadow under a tinted line is the "pure white with a shadow" he
         // called the opposite of what he wanted.
         shadow(color: .black.opacity(0.22), radius: 2, x: 0, y: 0)
+    }
+}
+
+
+/// The Liquid Glass recipe for a control that sits on a photograph.
+///
+/// **The target is neutral: the interior should measure about 100% of the
+/// scene behind it.** The owner: "yours is way brighter and too obvious, not
+/// clean... the interior should measure about 100 percent of the scene behind
+/// it, neither darkened nor lifted. What makes it visible is that the picture
+/// inside it is soft while the picture outside is sharp, plus the single light
+/// edge. Nothing else."
+///
+/// **Measured, not chosen.** `Glass.identity` draws nothing at all, which
+/// gives an exact reference: shoot the same screen twice and the identity
+/// frame is the scene that is behind the button, pixel for pixel. Interior
+/// means over three scenes, each against its own identity frame:
+///
+/// | recipe | bright sky | trees | dark scene |
+/// |---|---|---|---|
+/// | `.regular`, light appearance | 116% | 152% | 178% |
+/// | `.regular`, dark appearance | 56% | — | — |
+/// | `.clear` | 110% | 118% | 117% |
+/// | **`.clear` + 16% ink** | **95%** | **102%** | **102%** |
+///
+/// **Three things that decided it.**
+///
+/// `.regular` is the milky slab he rejected. It does not tint the scene, it
+/// washes toward white, and it washes hardest where the scene is darkest —
+/// +33 levels over sky, +86 over a dark scene. There is no appearance that
+/// fixes it: the dark variant crushes the same scene to 56%, which is the
+/// "muddy dark colour" he rejected before this.
+///
+/// `.clear` is scheme independent. Measured identical in both appearances to
+/// the decimal, so this control can no longer go dark because the camera
+/// declares the dark appearance for its tab bar. That removes the whole class
+/// of fault rather than compensating for it, and it is why the forced light
+/// appearance this control used to carry is gone.
+///
+/// **The 16% ink is not a fill, it is a cancellation.** `.clear` still lifts
+/// by a roughly constant +20 levels, so it reads lighter than the picture on
+/// every scene. The ink removes that lift and nothing more: net of it, the
+/// interior sits within about 2% of the scene on trees and on a dark scene,
+/// which is his "near zero fill" measured rather than declared. The one place
+/// it is not within a few percent is blue over a bright sky, where the scene's
+/// blue channel is already at 245 and cannot lift to meet it: that channel
+/// lands at 91%, and the interior reads a shade cooler than the sky.
+///
+/// **What this still does not match, measured: the blur.** His node asks for
+/// `backdrop-filter: blur(8px)` at a Figma background-blur radius of 16, which
+/// is a sigma of 8pt. Applying exactly that recipe to the same three identity
+/// frames (blur, then his `#080808` at 1%, then his `#CECECE` hairline) gives:
+///
+/// | | his recipe | ours | `.regular` |
+/// |---|---|---|---|
+/// | interior, sky | 98% | 95% | 116% |
+/// | interior, trees | 97% | 102% | 152% |
+/// | interior, dark | 102% | 102% | 178% |
+/// | **detail removed, sky** | **82%** | **-1%** | 76% |
+/// | **detail removed, trees** | **94%** | **37%** | 82% |
+/// | **detail removed, dark** | **92%** | **22%** | 74% |
+///
+/// So the neutrality is matched and the blur is not. Inside his button the
+/// picture is gone and the shape is a flat field; inside ours the scene is
+/// softened but still readable. `.clear` buys its neutrality by barely
+/// blurring, and the only stronger blur the platform exposes is `.regular`,
+/// which is the milky slab. There is no public way to blur what is behind a
+/// view on iOS, so closing this gap means blurring a copy of the camera frame
+/// ourselves and drawing it clipped to this shape.
+///
+/// **That is the live-frame work, not a separate job.** `CameraService`
+/// already has the seam for it (`attachFrames`) and `FilmLookTray` already has
+/// the seam for a live frame (`FilmLookSwatchSource.live`), both unused. It is
+/// deliberately not built here: it is the same pipeline the graded viewfinder
+/// needs, the owner deferred that to his own device, and its frame rate and
+/// thermal cost cannot be judged in a simulator.
+@available(iOS 26.0, *)
+enum GlassRecipe {
+    /// 0.16 cancels `.clear`'s lift. See the table above before changing it —
+    /// the number is the output of a measurement, and moving it moves the
+    /// interior off the scene in a direction the owner has already rejected
+    /// once in each direction.
+    static let photoInk: Double = 0.16
+
+    static var photoOverlay: Glass {
+        .clear.tint(.black.opacity(photoInk)).interactive()
     }
 }
