@@ -755,7 +755,7 @@ struct CameraView: View {
         HStack(alignment: .center, spacing: 0) {
             // Sized to the grid rather than to the page — see
             // `Header.wordmarkSize`.
-            StrataWordmark(size: Self.Header.wordmarkSize, color: .white)
+            ApolloWordmark(height: ApolloWordmark.boxHeight, color: .white)
                 // Legible over whatever the lens is pointing at.
                 .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
 

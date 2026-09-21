@@ -29,7 +29,7 @@ struct HabitEntity: AppEntity, IndexedEntity {
     var attributeSet: CSSearchableItemAttributeSet {
         let attrs = CSSearchableItemAttributeSet(contentType: .content)
         attrs.displayName = title
-        attrs.contentDescription = "A win in Strata"
+        attrs.contentDescription = "A win in Apollo"
         attrs.keywords = [title, "win", "strata"]
         attrs.thumbnailData = Self.categoryThumbnail(icon: iconName, category: category)
         return attrs

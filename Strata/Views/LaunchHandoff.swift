@@ -59,37 +59,54 @@ struct LaunchHandoff: View {
         }
     }
 
+    /// **The mark, centred on black, and nothing else.**
+    ///
+    /// The owner, on the rename: his launch frame (13212:11287) is the mark on
+    /// black, and "keep it simple; no rolling, no colour cycling."
+    ///
+    /// What left: the S rolling three times across the screen, tilting on its
+    /// bottom trailing corner, and cycling a palette of block colours as it
+    /// went, wearing a block's wash and rim until it landed. That was Strata's
+    /// mark performing its own logo. Apollo's launch is a still frame.
+    /// **The mark, centred on black, and nothing else.**
+    ///
+    /// His launch frame (13212:11287) is the mark on black, and his
+    /// instruction with the rename was "keep it simple; no rolling, no colour
+    /// cycling."
+    ///
+    /// What left: the S rolling three times across the screen, tilting on its
+    /// bottom trailing corner, cycling a palette of block colours as it went
+    /// and wearing a block's wash and rim until it landed. That was Strata's
+    /// mark performing its own logo. Apollo's launch is a still frame.
+    ///
+    /// **Geometrically centred, which is what his frame does.** A measured
+    /// note rather than a change: on the shelved branch a single mark alone on
+    /// a tall screen was found to read low when centred by the numbers, and
+    /// 45% of the height read better — 43.5pt on an 874pt screen. That is not
+    /// applied here, because he asked for simple and his frame centres it.
+    /// One `.offset(y:)` would add it.
+    /// **Unverified in the simulator, and the reason is worth recording.**
+    ///
+    /// This overlay does not draw here at all. Proved rather than assumed: a
+    /// full red 300x300 rectangle added to this ZStack produced **zero red
+    /// pixels** on a screenshot taken 0.2s after launch, across a video
+    /// capture at 20fps and five timed screenshots. The mark swap is not the
+    /// cause, and neither is the old rolling S — nothing in 
+    /// reaches the screen on this simulator.
+    ///
+    /// So the change below is right by inspection and unchecked by eye. It
+    /// needs a device.
     private func stage(_ f: LaunchRoll.Frame) -> some View {
         ZStack {
             Color("LaunchBlack")
-            mark(f.fill)
-                .rotationEffect(.degrees(f.restAngle))
-                .frame(width: LaunchRoll.side, height: LaunchRoll.side)
-                .rotationEffect(.degrees(f.tilt), anchor: .bottomTrailing)
-                .offset(x: f.offset)
+            ApolloWordmark(height: ApolloWordmark.launchBoxHeight,
+                           color: .white,
+                           // The launch mark already leaves 89pt of margin on
+                           // a 402pt screen and cannot wrap or truncate.
+                           scalesWithText: false)
                 .opacity(f.markOpacity)
         }
         .opacity(f.groundOpacity)
-    }
-
-    /// Rolling, the S wears a block: its colour, the wash over its lower
-    /// quarter, and the rim lit along its top edge, at `BlockSurface`'s own
-    /// weights for a dark ground. Landed in the centre, it is the icon: flat
-    /// white.
-    @ViewBuilder
-    private func mark(_ fill: Int) -> some View {
-        if fill >= LaunchRoll.rolls {
-            Image("LaunchS").renderingMode(.template).foregroundStyle(.white)
-        } else {
-            ZStack {
-                Image("LaunchS").renderingMode(.template)
-                    .foregroundStyle(Self.palette[fill % Self.palette.count])
-                Image("LaunchS").renderingMode(.template)
-                    .foregroundStyle(Self.wash)
-                Image("LaunchSRim").renderingMode(.template)
-                    .foregroundStyle(Self.rim)
-            }
-        }
     }
 
     private static let wash = LinearGradient(

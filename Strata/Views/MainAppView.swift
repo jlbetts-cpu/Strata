@@ -477,7 +477,7 @@ struct MainAppView: View {
             .alert("Nothing was deleted", isPresented: $resetFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Strata could not reset your data, so every win and photo is still here. Try again.")
+                Text("Apollo could not reset your data, so every win and photo is still here. Try again.")
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }

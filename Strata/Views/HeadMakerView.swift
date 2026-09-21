@@ -194,7 +194,7 @@ struct HeadMakerView: View {
     private var chrome: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: GridConstants.gapTight) {
-                StrataWordmark(size: Self.wordmarkSize, color: .white)
+                ApolloWordmark(height: ApolloWordmark.boxHeight, color: .white)
                     .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
                 Spacer(minLength: 0)
                 GlassIconButton(systemName: "xmark", tint: .white, glyphSize: 16,
