@@ -155,7 +155,7 @@ struct PhotoGalleryGrid: View {
         }
         .buttonStyle(.plain)
         .onAppear { prefetchAhead(of: photo) }
-        .accessibilityLabel(photo.title ?? "Photo")
+        .accessibilityLabel(photo.accessibilityName)
         .matchedTransitionSource(id: photo.id, in: transitionNamespace)
     }
 }
