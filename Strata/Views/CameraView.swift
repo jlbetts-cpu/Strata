@@ -1143,36 +1143,70 @@ struct CameraView: View {
         )
     }
 
-    /// **A circle, from his frame.** The owner: "rounded button".
+    /// **One shape that changes, not two shapes that swap.**
     ///
-    /// Node 14172:8010 draws it as a ring and a fill, both `#E6E6E6`, both at
-    /// radius 100 on an 80 and a 66pt square — which is to say two circles,
-    /// centred at (201, 713) on his 402 x 874 page.
+    /// At rest it is his round shutter from node 14172:8010 — an 80pt ring and
+    /// a 66pt fill in `#E6E6E6`. Press and hold and it becomes the block it is
+    /// about to make, growing through the sizes as the finger draws, which is
+    /// what the old rounded square did and what the circle had cost.
     ///
-    /// **What this replaces, and what it costs.** It was a rounded SQUARE
-    /// that drew the block it was about to make: 80x80 for a small win,
-    /// 149.05x80 for a medium, 149.05x149.05 for a large, with a 14pt rim and
-    /// a radius of `min(w, h) * 0.147`, growing under the finger as you drew a
-    /// size. The circle cannot show a size, so the shutter no longer previews
-    /// the block.
+    /// The owner asked for it to "animate effortlessly in between states", and
+    /// the way to get that is to never have two states in the view tree. Both
+    /// faces are **the same `RoundedRectangle`**: only its frame and its corner
+    /// radius differ, and SwiftUI interpolates both continuously. A circle is
+    /// simply this rectangle at radius = side / 2. So there is no circle to
+    /// dissolve and no rectangle to arrive — one object rounds off and grows.
     ///
-    /// **The draw gesture is untouched** — `.gesture(draw)` is still attached
-    /// and `drawnSize` still changes, so drawing still works and still logs
-    /// the size you drew. What is lost is only the preview of it in the
-    /// control itself. He asked for the rounded button and has not said what
-    /// should show the size instead, so nothing is invented here.
+    /// `.circular` rather than the app's usual `.continuous`, and the reason
+    /// is the rest state: a continuous rounded rectangle at radius = side / 2
+    /// is a squircle, visibly flatter down its sides than a circle, and the
+    /// resting shutter is the thing he specified and the thing you look at
+    /// almost all the time. The cost is that the block PREVIEW's corners are
+    /// circular where a real block's are continuous, which is a fraction of a
+    /// point at these radii and only visible while a finger is down.
+    ///
+    /// **The growth follows the gesture's own bands, not the raw finger.**
+    /// `BlockSizeDraw` steps at 46pt to grow and 34 to shrink with 12 of
+    /// hysteresis, and that banding is the feature — it is what makes a size
+    /// commit rather than hover. What is continuous is the shape between those
+    /// steps, each on `GridConstants.slotSnap`, the app's own rung at response
+    /// 0.30 and damping **1.0**: critically damped, so it arrives and stops
+    /// rather than wobbling into place.
+    ///
+    /// **Neutral, not the category's hue.** Both were drawn. The hue tells you
+    /// what you are making, but the camera does not know the category — there
+    /// is no `HabitCategory` anywhere in this file, because the win is not
+    /// made until after the photograph — so it would have to be plumbed from
+    /// the tower's next colour. And the shutter is the one control on the
+    /// screen: turning it green mid-gesture reads as a state change in the
+    /// CONTROL rather than a preview of the result. The size is the thing the
+    /// gesture is choosing, so the size is the thing it previews.
     private var shutter: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(Self.shutterInk, lineWidth: 1)
-                .frame(width: Self.shutterRing, height: Self.shutterRing)
+        let drawing = shutterDown && !reduceMotion
+        let block = Self.shutterBounds(drawnSize)
+        let outer = drawing ? block
+                            : CGSize(width: Self.shutterRing, height: Self.shutterRing)
+        let inner = drawing ? CGSize(width: block.width - 14, height: block.height - 14)
+                            : CGSize(width: Self.shutterFill, height: Self.shutterFill)
+        // A circle is this shape at half its side. The block's is the app's
+        // own block radius ratio.
+        let outerRadius = drawing ? min(outer.width, outer.height) * 0.147
+                                  : min(outer.width, outer.height) / 2
+        let innerRadius = drawing ? min(inner.width, inner.height) * 0.147
+                                  : min(inner.width, inner.height) / 2
 
-            Circle()
+        return ZStack {
+            RoundedRectangle(cornerRadius: outerRadius, style: .circular)
+                .strokeBorder(Self.shutterInk, lineWidth: 1)
+                .frame(width: outer.width, height: outer.height)
+
+            RoundedRectangle(cornerRadius: innerRadius, style: .circular)
                 .fill(Self.shutterInk)
-                .frame(width: Self.shutterFill, height: Self.shutterFill)
+                .frame(width: inner.width, height: inner.height)
                 .scaleEffect(shutterScale)
         }
-        .contentShape(Circle())
+        .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .circular))
+        .animation(GridConstants.slotSnap, value: shutterDown)
         .animation(GridConstants.slotSnap, value: drawnSize)
         .gesture(draw)
         .accessibilityLabel("Take photo")
@@ -1537,6 +1571,32 @@ private extension View {
 /// announcing a button that cannot be used is a promise the screen does not
 /// keep.
 private struct CameraGlassButton: View {
+    /// **The stroke is one physical pixel, not his 0.2pt, and that is why it
+    /// was blurry.**
+    ///
+    /// The owner: "My button does look a little blurry, I would want it a bit
+    /// better quality." Measured on the render rather than guessed — the pixel
+    /// values across the button's left edge read `0, 0, 136, 31, 31, ...`, so
+    /// the stroke was landing as a **single device pixel at 136** where
+    /// `#CECECE` is 206. At 0.2pt on a 3x screen the line is **0.6 of a
+    /// physical pixel**: it cannot land on the grid, so the renderer smears it
+    /// and it arrives at about 60% of its own colour. That is not a colour
+    /// that can be tuned brighter; it is a width that cannot be drawn.
+    ///
+    /// `1 / displayScale` is exactly one physical pixel at every scale —
+    /// 0.333pt at 3x — which lands clean and draws `#CECECE` at full value.
+    /// This file already records the same lesson for the thirds lines: "Half a
+    /// point does not land on a pixel boundary at 3x, so each line was
+    /// antialiased across two rows by a different amount."
+    ///
+    /// **Three other candidates were checked and cleared**, so the fix is the
+    /// width and nothing else: the chevron is a vector `Path` drawn at his own
+    /// coordinates rather than a rasterised asset; it sits ABOVE the material
+    /// in the stack, so the blur samples what is behind the button and never
+    /// its own contents; and the frame lands on x 342.00, a whole point and a
+    /// whole device pixel, so there is no sub-pixel placement to correct.
+    @Environment(\.displayScale) private var displayScale
+
     private static let side: CGFloat = 40
     private static let radius: CGFloat = 9.9
     private static let strokeInk = Color(red: 0.808, green: 0.808, blue: 0.808)
@@ -1560,7 +1620,7 @@ private struct CameraGlassButton: View {
                     style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             .frame(width: Self.side, height: Self.side)
 
-            shape.strokeBorder(Self.strokeInk, lineWidth: 0.2)
+            shape.strokeBorder(Self.strokeInk, lineWidth: 1 / displayScale)
         }
         .frame(width: Self.side, height: Self.side)
         .allowsHitTesting(false)
