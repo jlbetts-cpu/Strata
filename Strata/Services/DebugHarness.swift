@@ -96,6 +96,12 @@ enum DebugHarness {
         }
     }
 
+    /// Draws the graded viewfinder's real Metal path beside an ordinary
+    /// image, so its handedness can be LOOKED at. `-strataViewfinderLab 1`.
+    static var viewfinderLab: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataViewfinderLab")
+    }
+
     /// Shows the folder face lab instead of the app, so every expression can
     /// be looked at side by side. See `FolderLabView`.
     static var folderLab: Bool {

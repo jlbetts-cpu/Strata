@@ -38,6 +38,11 @@ struct WinsFolderView: View {
     /// day, not to what is inside the folder.
     @Binding var isOpenExternally: Bool
 
+    /// **The folder's own face, drifting.** It was handed a fixed expression,
+    /// so it wore one face for the life of the screen — the owner: "it should
+    /// switch eyes naturally, not keep the same eyes and then never change."
+    /// `FolderMood` owns the resting drift and the reactions.
+    @State private var mood = FolderMood()
     @State private var isOpen = false
     @State private var openness: Double = 0
     @State private var photos: [String: UIImage] = [:]
@@ -109,6 +114,14 @@ struct WinsFolderView: View {
             }
         }
         .task(id: blocks.map(\.id)) { await loadPhotos() }
+        // The face reads the contents, so it knows when the folder is empty
+        // and when a win has just gone in.
+        .onChange(of: blocks.count) { old, new in
+            mood.contents = FolderContents(count: new)
+            if new > old { mood.react(to: .winAdded) }
+        }
+        .onAppear { mood.contents = FolderContents(count: blocks.count) }
+        .onDisappear { mood.stopDrifting() }
     }
 
     private var folder: some View {
@@ -116,7 +129,7 @@ struct WinsFolderView: View {
             Spacer(minLength: 0)
             WinFolder(title: title, count: wins.count, tint: tint,
                       contents: wins,
-                      expression: wins.isEmpty ? .sleepy : .idle,
+                      expression: mood.expression,
                       isAlive: true)
                 .frame(maxWidth: 280)
                 .contentShape(Rectangle())
@@ -130,6 +143,7 @@ struct WinsFolderView: View {
 
     private func open() {
         HapticsEngine.lightTap()
+        mood.react(to: .opened)
         guard !reduceMotion else { isOpen = true; openness = 1; isOpenExternally = true; return }
         isOpenExternally = true
         withAnimation(Self.hinge) { openness = 1 }

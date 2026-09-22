@@ -122,13 +122,22 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// they show at the edge of a blown window, where everything else in the
     /// pipeline is what the look IS. Nothing sets it unless the device says
     /// so. See `GradedViewfinder.frameCost`.
+    /// `sparingBlurs` is the second rung: glow and clarity come off too,
+    /// leaving only what costs one pass per pixel — the colour table, the
+    /// tone curve, the shadow lift, the grain and the vignette. It is the
+    /// floor, and it still looks like a film look.
     func live(_ look: FilmLook, to input: CIImage, means: [Double]?, phase: CGPoint,
-              sparingHighlights: Bool = false, pulledStops: Double = 0) -> CIImage {
+              sparingHighlights: Bool = false, sparingBlurs: Bool = false,
+              pulledStops: Double = 0) -> CIImage {
         guard look.kind != .none else { return input }
         var look = look
-        if sparingHighlights {
+        if sparingHighlights || sparingBlurs {
             look.halation = nil
             look.bloom = nil
+        }
+        if sparingBlurs {
+            look.glow = nil
+            look.clarity = 0
         }
         return apply(look, to: input, means: means, grainPhase: phase, pulledStops: pulledStops)
     }

@@ -79,19 +79,49 @@ final class GradedViewfinder {
     /// most expensive and least identifying part of a look. Decided once and
     /// then left alone: a pipeline that switched back and forth would show as
     /// the look itself changing while the camera sat still.
+    /// **Two rungs, and it can measure again after stepping down.**
+    ///
+    /// It had one: over budget, halation and bloom came off, and that was
+    /// that. On his phone the whole pipeline was too slow and losing two
+    /// blurs was not enough, so it stepped down once and stayed laggy.
+    ///
+    /// Now it measures, steps down, and measures AGAIN. The second rung also
+    /// drops the glow and the clarity, which are the last two multi-pass
+    /// filters, leaving colour, the tone curve, grain and the vignette —
+    /// everything that costs one pass per pixel. That floor is cheap on any
+    /// phone that can run the camera at all, and it still looks like a film
+    /// look rather than like nothing.
     private var costs: [Double] = []
-    private var sparingHighlights = false
-    private static let budgetMilliseconds = 22.0
+    private(set) var sparingHighlights = false
+    private(set) var sparingBlurs = false
+    /// Under 33ms is the 30fps budget; 18 leaves room for everything else on
+    /// the screen, which on this one is a whole viewfinder's worth of chrome.
+    private static let budgetMilliseconds = 18.0
 
     private func frameCost(_ milliseconds: Double) {
         guard costs.count < 20 else { return }
         costs.append(milliseconds)
         guard costs.count == 20 else { return }
         let median = costs.sorted()[10]
-        sparingHighlights = median > Self.budgetMilliseconds
-        Self.log.notice("""
-            graded viewfinder: \(median, format: .fixed(precision: 2), privacy: .public) ms median on the GPU, \(self.sparingHighlights ? "dropping halation and bloom" : "running the whole pipeline", privacy: .public)
-            """)
+        guard median > Self.budgetMilliseconds else {
+            Self.log.notice("""
+                graded viewfinder: \(median, format: .fixed(precision: 2), privacy: .public) ms median, running the whole pipeline
+                """)
+            return
+        }
+        if !sparingHighlights {
+            sparingHighlights = true
+            Self.log.notice("""
+                graded viewfinder: \(median, format: .fixed(precision: 2), privacy: .public) ms median, dropping halation and bloom
+                """)
+        } else {
+            sparingBlurs = true
+            Self.log.notice("""
+                graded viewfinder: \(median, format: .fixed(precision: 2), privacy: .public) ms median, dropping glow and clarity too
+                """)
+        }
+        // Measure the new pipeline rather than assuming one step was enough.
+        costs.removeAll(keepingCapacity: true)
     }
 
     /// True when a look is selected AND frames are arriving.
@@ -147,6 +177,7 @@ final class GradedViewfinder {
         // brightness while both keep their highlights.
         let graded = FilmLookRenderer.shared.live(look, to: image, means: means, phase: grainPhase,
                                                   sparingHighlights: sparingHighlights,
+                                                  sparingBlurs: sparingBlurs,
                                                   pulledStops: look.pullStops)
         view.show(graded)
         if view.isHidden { view.isHidden = false }
@@ -468,12 +499,22 @@ final class GradedPreviewView: MTKView {
         // camera." It cannot be better while it is in the wrong colour space.
         (layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.displayP3)
 
-        // **The screen's own pixels, not points.** `autoResizeDrawable` sizes
-        // the drawable as bounds times `contentScaleFactor`, so a factor of 1
-        // would render the whole viewfinder at a third of the resolution on a
-        // 3x screen and read as soft. Set rather than inherited, because the
-        // inherited value depends on whoever adds this as a subview.
-        contentScaleFactor = UIScreen.main.scale
+        // **Two, not three, and this is where the lag was.**
+        //
+        // The owner, on the device: "the filters make everything very laggy."
+        //
+        // `.photo` hands the video output a PREVIEW sized buffer, around 1440
+        // points tall. Rendering that into a drawable at the screen's 3x
+        // scale means computing a 2622 point tall picture out of a 1440 point
+        // source: two and a quarter times the pixels, for detail the source
+        // does not contain. Every blur, every unsharp mask and every grain
+        // sample in the pipeline was paying for it.
+        //
+        // At 2x the drawable is still comfortably above the source, so
+        // nothing is lost that was ever there, and the whole pipeline gets
+        // 55% cheaper. A factor of 1 really would read as soft; three was
+        // simply free resolution nobody could see.
+        contentScaleFactor = min(UIScreen.main.scale, 2)
         // Driven by the camera, not by the display link: a frame arrives and
         // is drawn. Ticking at 60Hz for a 30Hz feed would draw each frame twice.
         isPaused = true
@@ -509,23 +550,33 @@ final class GradedPreviewView: MTKView {
             translationX: (width - scaled.extent.width) / 2 - scaled.extent.origin.x,
             y: (height - scaled.extent.height) / 2 - scaled.extent.origin.y))
 
-        // **Flipped, because Core Image and a Metal texture disagree about
-        // which way y runs.** Core Image works y-up; a texture is addressed
-        // y-down. Measured rather than assumed, in
-        // `GradedViewfinderOrientationTests`: a mark placed at the top of a
-        // 2x2 picture arrives in the texture's BOTTOM row, red 255 where the
-        // top row reads 0.
+        // **NOT flipped, and this cost three rounds to establish.**
         //
-        // This is the fault the owner reported as "the camera for some reason
-        // is a weird orientation". Without it the graded overlay is the scene
-        // upside down, sitting on a preview layer that is the right way up.
-        let upright = placed.transformed(by: CGAffineTransform(scaleX: 1, y: -1)
-            .concatenating(CGAffineTransform(translationX: 0, y: height)))
+        // The owner reported the live viewfinder upside down three times. The
+        // first fix changed the connection angle and added a y flip in one
+        // commit, and on his phone both were 180 degree moves, so they
+        // cancelled and he saw exactly what he had seen before. The second
+        // kept the flip on the strength of a probe that rendered a 2x2 image
+        // into a bare `MTLTexture` and read it back with `getBytes`.
+        //
+        // **That probe measured the wrong thing.** `getBytes` reads memory
+        // order. A drawable presented by a `CAMetalLayer` is not displayed in
+        // memory order, so a result about byte layout says nothing about what
+        // ends up on the glass — and the flip it justified was the entire
+        // fault.
+        //
+        // `ViewfinderLabView` measures the right thing: the real
+        // `GradedPreviewView`, on screen, beside the same photograph drawn by
+        // SwiftUI. With the flip in, the graded surface had rocks at the top
+        // and sky at the bottom while SwiftUI had it the right way up. Core
+        // Image renders into an `MTKView`'s drawable the right way up, and
+        // there is nothing to correct.
+        let upright = placed
 
         if !announced {
             announced = true
             GradedViewfinder.log.notice("""
-                graded viewfinder: drawing frame \(Int(image.extent.width), privacy: .public)                x\(Int(image.extent.height), privacy: .public)                 into drawable \(Int(width), privacy: .public)x\(Int(height), privacy: .public),                 scale \(scale, privacy: .public), flipped y
+                graded viewfinder: drawing frame \(Int(image.extent.width), privacy: .public)                x\(Int(image.extent.height), privacy: .public)                 into drawable \(Int(width), privacy: .public)x\(Int(height), privacy: .public),                 scale \(scale, privacy: .public)
                 """)
         }
 

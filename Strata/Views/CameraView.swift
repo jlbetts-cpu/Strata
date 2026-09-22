@@ -459,6 +459,27 @@ struct CameraView: View {
                 // merge". So `FilmLookTray` owns the button and grows out of
                 // it, and it is placed once, on the same 20pt margin and the
                 // same top line the header uses.
+                // **Tapping anywhere else closes the tray.**
+                //
+                // The owner, on the device: "the menu doesn't close when
+                // clicking outside of it." It did not, because nothing was
+                // listening: the only way out was the chevron, which on a
+                // panel that covers a third of the viewfinder is the one
+                // place a thumb is not.
+                //
+                // A clear layer under the tray and over everything else, so
+                // the tap that dismisses does not ALSO focus the camera or
+                // fire the shutter underneath it. That double action is the
+                // usual way this gets built wrong.
+                if showLookTray {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(GridConstants.slotSnap) { showLookTray = false }
+                        }
+                        .accessibilityHidden(true)
+                }
+
                 if !fillsScreen {
                     FilmLookTray(
                         selection: Binding(

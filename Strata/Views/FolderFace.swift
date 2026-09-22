@@ -40,21 +40,34 @@ import SwiftUI
 struct EyeStroke: Shape {
     /// -1 cupped, 0 flat, +1 arched. Interpolated by SwiftUI.
     var bend: CGFloat
+    /// **0 a line, 1 a dot**, and a dot is not a different drawing.
+    ///
+    /// The owner: "the eyes should be a bit more expressive, I like dot eyes."
+    ///
+    /// A round-capped stroke of zero length IS a circle, so a dot is this
+    /// same path with its horizontal reach taken to nothing and its weight
+    /// taken up. That means the face can travel continuously between a line
+    /// and a dot rather than cutting between two pictures, which is the same
+    /// property that made the seven original states one system.
+    var dot: CGFloat = 0
 
-    var animatableData: CGFloat {
-        get { bend }
-        set { bend = newValue }
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(bend, dot) }
+        set { bend = newValue.first; dot = newValue.second }
     }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let midY = rect.midY
+        // The stroke closes towards its own centre as it becomes a dot.
+        let half = rect.width / 2 * (1 - min(max(dot, 0), 1))
+        let left = rect.midX - half, right = rect.midX + half
         // The control point of a quadratic sits at twice the visual height of
         // the curve, so the reach is halved to make `bend` mean what it says.
-        let reach = rect.height * bend
-        path.move(to: CGPoint(x: rect.minX, y: midY + reach / 2))
+        let reach = rect.height * bend * (1 - min(max(dot, 0), 1))
+        path.move(to: CGPoint(x: left, y: midY + reach / 2))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: midY + reach / 2),
+            to: CGPoint(x: right, y: midY + reach / 2),
             control: CGPoint(x: rect.midX, y: midY - reach * 1.5)
         )
         return path
@@ -65,6 +78,8 @@ struct EyeStroke: Shape {
 struct Eye: Equatable {
     var bend: CGFloat = 0
     var angle: Double = 0
+    /// 0 a line, 1 a dot. See `EyeStroke.dot`.
+    var dot: CGFloat = 0
 }
 
 /// **A face, as data.** Everything an expression is: two eyes, where they are
@@ -121,10 +136,39 @@ struct FaceExpression: Equatable {
     static let dizzy = FaceExpression(
         left: Eye(bend: 0, angle: 34), right: Eye(bend: 0, angle: -34), cross: 1)
 
+    // MARK: - The resting repertoire
+
+    /// **Faces the folder wears while nothing is happening to it.**
+    ///
+    /// The owner: "it should switch eyes naturally, not keep the same eyes
+    /// and then never change."
+    ///
+    /// A face that holds one expression forever is a logo. These are what it
+    /// drifts between while it is simply sitting there, and every one of them
+    /// is NEUTRAL: attentive, calm, looking about. None is a judgement and
+    /// none can be reached by somebody failing to do something, which is the
+    /// line the whole direction rests on. Drifting between pleasant idles is
+    /// the illusion of life; drifting towards sad is a guilt machine.
+    static let dots = FaceExpression(
+        left: Eye(dot: 1), right: Eye(dot: 1))
+
+    /// Half closed and calm, the face of something content to wait.
+    static let easy = FaceExpression(
+        left: Eye(bend: 0.55), right: Eye(bend: 0.55), openness: 0.85)
+
+    /// One dot, one arc. Asymmetry reads as attention.
+    static let curious = FaceExpression(
+        left: Eye(bend: 0.30), right: Eye(dot: 1))
+
+    /// What a resting folder chooses from. Ordered so the plainest is first
+    /// and it starts there.
+    static let restingSet: [FaceExpression] = [.idle, .dots, .easy, .curious]
+
     static let all: [(String, FaceExpression)] = [
         ("Idle", .idle), ("Happy", .happy), ("Sleepy", .sleepy),
         ("Bored", .bored), ("Annoyed", .annoyed), ("Nervous", .nervous),
-        ("Confused", .confused), ("Dizzy", .dizzy)
+        ("Confused", .confused), ("Dizzy", .dizzy),
+        ("Dots", .dots), ("Easy", .easy), ("Curious", .curious)
     ]
 }
 
@@ -152,13 +196,13 @@ struct FolderFace: View {
 
     private func eye(_ eye: Eye) -> some View {
         ZStack {
-            stroke(bend: eye.bend)
+            stroke(bend: eye.bend, dot: eye.dot)
             // **The dizzy cross, and the first version of it did not cross.**
             // A mirrored copy of a straight line at +34 degrees is a line at
             // +34 degrees, so `x x` rendered as `\ /`. What makes an x is the
             // second stroke rotated to the OPPOSITE angle, which inside an
             // already-rotated frame is twice the angle back.
-            stroke(bend: eye.bend)
+            stroke(bend: eye.bend, dot: eye.dot)
                 .rotationEffect(.degrees(-2 * eye.angle))
                 .opacity(expression.cross)
         }
@@ -169,9 +213,12 @@ struct FolderFace: View {
         .scaleEffect(x: 1, y: expression.openness, anchor: .center)
     }
 
-    private func stroke(bend: CGFloat) -> some View {
-        EyeStroke(bend: bend)
-            .stroke(ink, style: StrokeStyle(lineWidth: thickness,
+    private func stroke(bend: CGFloat, dot: CGFloat = 0) -> some View {
+        // A dot is the same stroke closed up and thickened: the round cap is
+        // the circle. 2.6x is the weight at which a dot reads as an eye
+        // rather than as a full stop.
+        EyeStroke(bend: bend, dot: dot)
+            .stroke(ink, style: StrokeStyle(lineWidth: thickness * (1 + 2.6 * dot),
                                             lineCap: .round, lineJoin: .round))
     }
 }

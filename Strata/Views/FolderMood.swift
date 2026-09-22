@@ -79,11 +79,53 @@ final class FolderMood {
     init(contents: FolderContents = FolderContents()) {
         self.contents = contents
         expression = Self.resting(for: contents)
+        startDrifting()
     }
 
     /// The face a folder wears when nothing is happening to it.
-    nonisolated static func resting(for contents: FolderContents) -> FaceExpression {
-        contents.count == 0 ? .sleepy : .idle
+    ///
+    /// An empty folder is asleep, because it is empty. A folder with wins in
+    /// it is awake, and WHICH awake face it wears drifts: see `drift`.
+    nonisolated static func resting(for contents: FolderContents,
+                                    variant: Int = 0) -> FaceExpression {
+        guard contents.count > 0 else { return .sleepy }
+        let set = FaceExpression.restingSet
+        return set[((variant % set.count) + set.count) % set.count]
+    }
+
+    /// **The resting face changes on its own, and that is not a mood.**
+    ///
+    /// The owner: "it should switch eyes naturally, not keep the same eyes
+    /// and then never change."
+    ///
+    /// Every face it drifts between is neutral — attentive, calm, looking
+    /// about — so this is the same thing as blinking: a sign of life, not a
+    /// statement about the person's week. The rule that state may not change
+    /// because somebody DIDN'T do something is about judgement, and none of
+    /// these judge. A folder that drifted towards sad would be the other
+    /// thing entirely.
+    ///
+    /// Slow, because a face that changes every second is twitchy rather than
+    /// alive, and never while a reaction is playing.
+    private var variant = 0
+    private var drift: Task<Void, Never>?
+
+    private func startDrifting() {
+        guard drift == nil else { return }
+        drift = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Double.random(in: 5.5...9.5)))
+                guard let self, !Task.isCancelled, !self.holding,
+                      self.returnTask == nil else { continue }
+                self.variant += 1
+                self.settle()
+            }
+        }
+    }
+
+    func stopDrifting() {
+        drift?.cancel()
+        drift = nil
     }
 
     /// What an event does, and for how long. `nil` duration means it is held
@@ -141,6 +183,6 @@ final class FolderMood {
     /// Back to what the contents say, unless something is being held over it.
     func settle() {
         guard !holding else { return }
-        withAnimation(Self.glide) { expression = Self.resting(for: contents) }
+        withAnimation(Self.glide) { expression = Self.resting(for: contents, variant: variant) }
     }
 }
