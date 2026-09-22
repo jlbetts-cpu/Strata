@@ -174,6 +174,66 @@ struct FilmLookLiveSheetTests {
         }
     }
 
+    /// **What a frame costs the MAIN THREAD**, which is the number that
+    /// decides whether the app feels smooth.
+    ///
+    /// The GPU figure is the one that has been measured all along, and it is
+    /// only half the story: the graph is built and the command buffer is
+    /// ENCODED on the thread that calls, and for this pipeline that is the
+    /// main actor, thirty times a second, competing with everything SwiftUI
+    /// is doing. A pipeline can sit comfortably inside its GPU budget and
+    /// still make a screen feel heavy.
+    ///
+    /// The owner has now said twice that this must be silky, so the CPU side
+    /// gets a number too.
+    @Test("Building and encoding a frame barely touches the CPU")
+    func aLiveFrameIsCheapOnTheCPU() throws {
+        let source = try #require(scene())
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let queue = try #require(device.makeCommandQueue())
+        let context = CIContext(mtlCommandQueue: queue, options: [
+            .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3) as Any,
+            .cacheIntermediates: true
+        ])
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm,
+            width: Int(Self.liveSize.width), height: Int(Self.liveSize.height),
+            mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite, .renderTarget]
+        let texture = try #require(device.makeTexture(descriptor: descriptor))
+        let bounds = CGRect(origin: .zero, size: Self.liveSize)
+        let space = CGColorSpace(name: CGColorSpace.displayP3)!
+        let look = FilmLook.air
+
+        // Warm the cube and the shaders.
+        for _ in 0..<3 {
+            let warm = FilmLookRenderer.shared.live(look, to: source, means: [0.4, 0.4, 0.4],
+                                                     phase: .zero)
+            let buffer = queue.makeCommandBuffer()!
+            context.render(warm, to: texture, commandBuffer: buffer, bounds: bounds, colorSpace: space)
+            buffer.commit(); buffer.waitUntilCompleted()
+        }
+
+        let frames = 20
+        let began = CFAbsoluteTimeGetCurrent()
+        for i in 0..<frames {
+            let phase = CGPoint(x: Double(i) * 1013, y: Double(i) * 1409)
+            let graded = FilmLookRenderer.shared.live(look, to: source, means: [0.4, 0.4, 0.4],
+                                                      phase: phase)
+            let buffer = queue.makeCommandBuffer()!
+            context.render(graded, to: texture, commandBuffer: buffer,
+                           bounds: bounds, colorSpace: space)
+            buffer.commit()
+            // Deliberately NOT waiting: this measures only what the calling
+            // thread does, which is the graph and the encode.
+        }
+        let ms = (CFAbsoluteTimeGetCurrent() - began) / Double(frames) * 1000
+        print("CPU PER FRAME: \(String(format: "%.2f", ms)) ms building and encoding")
+        // A frame at 30fps is 33ms of wall clock and the main thread has a
+        // whole app to run in it. Eight is the most this may take.
+        #expect(ms < 8, "the main thread spends \(ms)ms a frame on the viewfinder")
+    }
+
     @Test("Grain moves between frames, so it is in the emulsion rather than on the glass")
     func grainMovesWithThePhase() throws {
         let source = try #require(scene())

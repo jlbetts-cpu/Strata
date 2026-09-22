@@ -97,15 +97,34 @@ struct FolderFace: View {
         return Color.clear
             .frame(width: diameter, height: diameter)
             .eyeGlass(tint: tint)
-            // **The light, and it is white.** Tiny, high and to one side. It
-            // is most of what separates a dot from an eye, and on glass it is
-            // the specular the material cannot give itself at this size.
+            // **A dark body inside the glass, so the rim stops out-shouting
+            // it.**
+            //
+            // Glass alone made a bubble rather than a button: zoomed in, the
+            // brightest thing in the eye was its own refractive edge, and the
+            // genuinely dark part was a thin crescent. A button's edge is not
+            // supposed to be its loudest feature.
+            //
+            // Inset by a sixteenth, so the rim survives as a thin edge around
+            // a solid centre — which is what a button sewn on cloth looks
+            // like, and what the glass was there to suggest in the first
+            // place.
+            .overlay {
+                Circle()
+                    .fill(.black.opacity(0.46))
+                    .padding(diameter * 0.06)
+            }
+            // **The light, and it is white.** It was a quarter of the eye and
+            // blurred, which behaves like a second pale pupil rather than a
+            // glint; a real button's shine is small and sharp. Smaller,
+            // harder and brighter now, and it goes on last so nothing sits
+            // over it.
             .overlay(alignment: .topLeading) {
                 Circle()
-                    .fill(.white.opacity(0.72))
-                    .frame(width: diameter * 0.24, height: diameter * 0.24)
-                    .blur(radius: diameter * 0.03)
-                    .offset(x: diameter * 0.19, y: diameter * 0.16)
+                    .fill(.white.opacity(0.92))
+                    .frame(width: diameter * 0.16, height: diameter * 0.16)
+                    .blur(radius: diameter * 0.012)
+                    .offset(x: diameter * 0.21, y: diameter * 0.18)
             }
             .offset(x: side * expression.pupilSplit * eyeWidth)
         .mask {
