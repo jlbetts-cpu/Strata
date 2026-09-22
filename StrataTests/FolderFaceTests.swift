@@ -29,7 +29,12 @@ struct FolderFaceTests {
         let smiling = FaceExpression.all.filter { _, face in
             face.left.lower > 0.3 && face.right.lower > 0.3
         }
-        #expect(smiling.count == 1, "\(smiling.count) of the set are a full smile")
+        // A ratio rather than a count, so the set can grow without this
+        // needing a number changed every time — and so it still catches the
+        // thing it is for, which is the set drifting towards a permanent
+        // grin.
+        #expect(Double(smiling.count) / Double(FaceExpression.all.count) < 0.3,
+                "\(smiling.count) of \(FaceExpression.all.count) are a full smile")
     }
 
     /// **A lid and its angle make every face the set needs.** If something
@@ -45,18 +50,26 @@ struct FolderFaceTests {
         // Asymmetry is what reads as thinking rather than as feeling, and
         // confused is the only face that is not a mirror of itself.
         #expect(FaceExpression.confused.left != FaceExpression.confused.right)
-        for (name, face) in FaceExpression.all where name != "Confused" && name != "Curious" {
-            #expect(face.left == face.right, "\(name) is lopsided by accident")
-        }
+        // **Asymmetry has to be deliberate and rare.** It is what reads as
+        // thinking or as silly rather than as feeling, and a set where most
+        // faces are lopsided reads as broken rather than as playful.
+        let lopsided = FaceExpression.all.filter { $0.1.left != $0.1.right }
+        #expect(Double(lopsided.count) / Double(FaceExpression.all.count) < 0.4,
+                "\(lopsided.count) of \(FaceExpression.all.count) faces are lopsided")
+        #expect(lopsided.contains { $0.0 == "Derp" }, "Derp has to be lopsided")
+        #expect(lopsided.contains { $0.0 == "Wink" }, "a wink is one eye")
         // Heavy lids are what read as tired.
         #expect(FaceExpression.sleepy.left.lid > FaceExpression.bored.left.lid)
         #expect(FaceExpression.bored.left.lid > FaceExpression.idle.left.lid)
         #expect(FaceExpression.wide.left.lid < FaceExpression.idle.left.lid)
         // The one thing a pair does that a lid cannot.
-        #expect(FaceExpression.dizzy.pupilSplit > 0)
-        for (name, face) in FaceExpression.all where name != "Dizzy" {
-            #expect(face.pupilSplit == 0, "\(name) has its eyes pushed apart")
-        }
+        // Pushing the pair apart or together is the one thing a lid cannot
+        // do, so it stays rare: wall-eyed for dizzy, cross-eyed for goofy,
+        // and nothing else.
+        #expect(FaceExpression.dizzy.pupilSplit > 0, "dizzy looks outward")
+        #expect(FaceExpression.goofy.pupilSplit < 0, "goofy looks inward")
+        let moved = FaceExpression.all.filter { $0.1.pupilSplit != 0 }.map(\.0)
+        #expect(Set(moved) == ["Dizzy", "Goofy"], "\(moved) have their eyes pushed about")
     }
 
     /// The mask has to mean what it says, because the whole rig is these

@@ -14,9 +14,17 @@ struct FolderBack: Shape {
     /// looked like a rounded rectangle with photographs behind it.
     var step: CGFloat = 0.16
 
+    /// The corner radius both the plate and the pocket use. **One number and
+    /// one construction**, because they were two: the plate drew quad curve
+    /// corners and the pocket used a continuous `RoundedRectangle`, which is
+    /// a squircle, so at the same radius they were visibly different shapes
+    /// meeting along one edge. The owner: "the corner rounding of the folder
+    /// isn't the same rounding of the folder."
+    static func radius(in rect: CGRect) -> CGFloat { min(rect.width, rect.height) * 0.135 }
+
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let r = min(w, h) * 0.135
+        let r = Self.radius(in: rect)
         let bodyTop = rect.minY + h * step
         let tabEnd = rect.minX + w * tabWidth
         let slope = w * 0.07
@@ -37,6 +45,37 @@ struct FolderBack: Shape {
         p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
         p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r),
                        control: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// The pocket's outline, drawn with the SAME corners the plate uses so the
+/// two read as one object. See `FolderBack.radius`.
+struct PocketShape: InsettableShape {
+    var radius: CGFloat
+    var inset: CGFloat = 0
+
+    func inset(by amount: CGFloat) -> PocketShape {
+        PocketShape(radius: max(radius - amount, 0), inset: inset + amount)
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: inset, dy: inset)
+        let c = min(radius, min(r.width, r.height) / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY + c))
+        p.addQuadCurve(to: CGPoint(x: r.minX + c, y: r.minY),
+                       control: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + c),
+                       control: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - c))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - c, y: r.maxY),
+                       control: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX + c, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - c),
+                       control: CGPoint(x: r.minX, y: r.maxY))
         p.closeSubpath()
         return p
     }
@@ -75,9 +114,21 @@ struct WinFolder: View {
     var isAlive: Bool = true
 
 
-    /// A neutral that belongs to the greyscale rather than arriving from
-    /// outside it. A folder is a container, not an accent.
-    static let defaultTint = Color(red: 0.36, green: 0.41, blue: 0.60)
+    /// **A warm premium white, and it is the right call for two reasons.**
+    ///
+    /// The owner: "to match the Apollo brand I was thinking of a warmer
+    /// premium white colour for the folder, I think that would look a lot
+    /// better when we bring the design system over to the Wins screen."
+    ///
+    /// It is right on the brand: Apollo's ground is near black and its ink is
+    /// a warm off white, so a warm white folder is the app's own two colours
+    /// rather than a blue that arrived from nowhere. And it fixes the face —
+    /// a Sackperson is DARK buttons on LIGHT sackcloth, and the eyes were
+    /// dark buttons on a mid blue, which is the reference half done.
+    ///
+    /// Warm rather than pure: a folder at 255 white is a light source, and
+    /// this one is an object sitting on a dark page.
+    static let defaultTint = Color(red: 0.95, green: 0.93, blue: 0.89)
 
     @State private var idle = FolderIdle()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -133,7 +184,8 @@ struct WinFolder: View {
 
             ZStack {
                 // 1. The plate.
-                LinearGradient(colors: [tint.opacity(0.95), tint.opacity(0.62)],
+                // The plate, lit from the top the way the rest of the app is.
+                LinearGradient(colors: [tint, tint.opacity(0.88)],
                                startPoint: .top, endPoint: .bottom)
                     .clipShape(shape)
 
@@ -228,20 +280,33 @@ struct WinFolder: View {
     }
 
     private func pocket(width w: CGFloat, height h: CGFloat) -> some View {
-        let radius = min(w, h) * 0.135
-        return RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let radius = FolderBack.radius(in: CGRect(x: 0, y: 0, width: w, height: h))
+        return PocketShape(radius: radius)
             .fill(.ultraThinMaterial)
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.44)],
+                    // **Shaded with the folder's own colour, not with
+                    // black.** A white folder plus a material plus black
+                    // came out grey, and grey beside cream reads as dirty
+                    // rather than as shadow. Laying the tint back over the
+                    // material warms it, and the shade comes from taking it
+                    // DOWN rather than from adding a second colour — which
+                    // is how a real shadow on cream behaves.
+                    .fill(LinearGradient(colors: [tint.opacity(0.70), tint.opacity(0.52)],
                                          startPoint: .top, endPoint: .bottom))
+                    .overlay {
+                        PocketShape(radius: radius)
+                            .fill(LinearGradient(colors: [.black.opacity(0.02),
+                                                          .black.opacity(0.07)],
+                                                 startPoint: .top, endPoint: .bottom))
+                    }
             }
             .overlay {
                 // The lit top edge a pocket catches, and the only hairline
                 // here. It is what stops the pocket reading as a rectangle
                 // pasted over the plate.
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                PocketShape(radius: radius)
+                    .strokeBorder(.white.opacity(0.55), lineWidth: 1)
             }
             // The pocket swells a little as the folder fills, as though
             // something is behind it.

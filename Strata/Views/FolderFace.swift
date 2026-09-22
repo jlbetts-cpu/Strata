@@ -50,7 +50,7 @@ struct FolderFace: View {
     /// rest of the work.
     var tint: Double = 0.56
 
-    private var diameter: CGFloat { eyeWidth * expression.scale }
+    private func diameter(_ eye: Eye) -> CGFloat { eyeWidth * expression.scale * eye.size }
     /// **Set wide, because close-set eyes are not cute.**
     ///
     /// The owner: "the eyes are too close to each other and too large still,
@@ -65,7 +65,12 @@ struct FolderFace: View {
     ///
     /// Fixed to the BASE size rather than the scaled one, so eyes that widen
     /// do not also drift apart.
-    private var gap: CGFloat { eyeWidth * 1.85 }
+    ///
+    /// **Wider again.** The owner: "I want the eyes to feel more derpy, like
+    /// spread out more." Two small eyes far apart on a big shape is the whole
+    /// look — it is what makes something read as a friendly object rather
+    /// than a face with a body attached.
+    private var gap: CGFloat { eyeWidth * 2.45 }
 
     var body: some View {
         HStack(spacing: gap) {
@@ -78,6 +83,7 @@ struct FolderFace: View {
 
     private func eye(_ eye: Eye, mirrored: Bool) -> some View {
         let side: CGFloat = mirrored ? -1 : 1
+        let diameter = diameter(eye)
         // A blink closes whatever lid is already there rather than replacing
         // it, so it composes with a squint instead of fighting it.
         let shut = 1 - expression.openness
@@ -126,7 +132,8 @@ struct FolderFace: View {
                     .blur(radius: diameter * 0.012)
                     .offset(x: diameter * 0.21, y: diameter * 0.18)
             }
-            .offset(x: side * expression.pupilSplit * eyeWidth)
+            .offset(x: side * expression.pupilSplit * eyeWidth,
+                    y: -eye.rise * diameter)
         .mask {
             LidMask(lid: lid, lower: eye.lower, tilt: eye.tilt * side)
         }
@@ -181,6 +188,14 @@ struct Eye: Equatable {
     var tilt: Double = 0
     /// How far the lower lid is up. The squint that reads as a smile.
     var lower: CGFloat = 0
+    /// **How big this eye is, on its own.** Expression-wide `scale` keeps the
+    /// pair matched; this breaks the match, which is the whole of what reads
+    /// as derpy. A face where both eyes are always identical is a logo with
+    /// moods.
+    var size: CGFloat = 1
+    /// How much higher this eye sits than its partner, as a fraction of its
+    /// own diameter. The other half of derpy.
+    var rise: CGFloat = 0
 }
 
 /// **A face, as data.**
@@ -251,6 +266,49 @@ struct FaceExpression: Equatable {
     static let dizzy = FaceExpression(
         left: Eye(lid: 0.02), right: Eye(lid: 0.02), pupilSplit: 0.13, scale: 1.22)
 
+    // MARK: - Playful
+
+    /// **Derpy: the eyes stop matching.** One wide and low, one small and
+    /// high. Nothing about the lids changes; the asymmetry does all of it.
+    static let derp = FaceExpression(
+        left: Eye(lid: 0.02, size: 1.18, rise: -0.08),
+        right: Eye(lid: 0.14, size: 0.82, rise: 0.10))
+
+    /// One shut, one smiling. A wink is a lid at one and a squint at the
+    /// other, which is the rig doing two of its own tricks at once.
+    static let wink = FaceExpression(
+        left: Eye(lid: 0.88, lower: 0.10),
+        right: Eye(lid: 0.04, lower: 0.40, size: 1.10))
+
+    static let surprised = FaceExpression(
+        left: Eye(lid: 0), right: Eye(lid: 0), scale: 1.34)
+
+    /// Half lidded with a squint under it and a slight turn: pleased with
+    /// itself.
+    static let smug = FaceExpression(
+        left: Eye(lid: 0.34, tilt: -8, lower: 0.26),
+        right: Eye(lid: 0.34, tilt: -8, lower: 0.26))
+
+    /// The full grin, rounder and bigger than Happy.
+    static let delighted = FaceExpression(
+        left: Eye(lid: 0.04, lower: 0.54), right: Eye(lid: 0.04, lower: 0.54),
+        scale: 1.28)
+
+    /// Lids in, squint under: up to something.
+    static let mischief = FaceExpression(
+        left: Eye(lid: 0.30, tilt: -14, lower: 0.30),
+        right: Eye(lid: 0.30, tilt: -14, lower: 0.30))
+
+    /// Not looking at you.
+    static let sideEye = FaceExpression(
+        left: Eye(lid: 0.22), right: Eye(lid: 0.22),
+        gaze: CGSize(width: 5, height: 0))
+
+    /// Cross eyed, which needs the pair rather than the lids.
+    static let goofy = FaceExpression(
+        left: Eye(lid: 0.04, size: 1.12), right: Eye(lid: 0.04, size: 1.12),
+        pupilSplit: -0.10)
+
     // MARK: - Resting
 
     /// Wide awake and level.
@@ -269,13 +327,27 @@ struct FaceExpression: Equatable {
     /// What a resting folder drifts between, all of them neutral. Drifting
     /// between pleasant idles is the illusion of life; drifting towards sad
     /// is a guilt machine.
-    static let restingSet: [FaceExpression] = [.idle, .wide, .easy, .curious]
+    /// **The resting drift, and it is playful now.** The owner: "I want a
+    /// bunch of different dynamic emotions, a bunch of playful expressions
+    /// with eyes."
+    ///
+    /// Every one is still NEUTRAL or warm — attentive, pleased, looking
+    /// about, a little silly. None is a judgement and none can be reached by
+    /// somebody failing to do something, which is the line the whole
+    /// direction rests on. A folder that drifted towards sad would be the
+    /// other thing entirely.
+    static let restingSet: [FaceExpression] = [
+        .idle, .wide, .easy, .curious, .derp, .sideEye, .smug, .goofy
+    ]
 
     static let all: [(String, FaceExpression)] = [
         ("Idle", .idle), ("Happy", .happy), ("Sleepy", .sleepy),
         ("Bored", .bored), ("Annoyed", .annoyed), ("Nervous", .nervous),
         ("Confused", .confused), ("Dizzy", .dizzy),
-        ("Wide", .wide), ("Easy", .easy), ("Curious", .curious)
+        ("Wide", .wide), ("Easy", .easy), ("Curious", .curious),
+        ("Derp", .derp), ("Wink", .wink), ("Surprised", .surprised),
+        ("Smug", .smug), ("Delighted", .delighted), ("Mischief", .mischief),
+        ("Side eye", .sideEye), ("Goofy", .goofy)
     ]
 }
 
