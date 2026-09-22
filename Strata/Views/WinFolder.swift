@@ -128,7 +128,36 @@ struct WinFolder: View {
     ///
     /// Warm rather than pure: a folder at 255 white is a light source, and
     /// this one is an object sitting on a dark page.
-    static let defaultTint = Color(red: 0.95, green: 0.93, blue: 0.89)
+    /// **Ivory, not a pale grey.** The first warm white measured as barely
+    /// warm at all — 4% of chroma, which on a near black page reads as
+    /// colourless, and the owner said so: "the colour isn't really doing
+    /// anything to me." This one has visible warmth in it while still being
+    /// a white, which is what makes it cream rather than paper.
+    static let defaultTint = Color(red: 0.975, green: 0.935, blue: 0.835)
+
+    /// The lit side of a colour: a touch brighter and a touch cleaner, the
+    /// way a light falls on something.
+    static func lit(_ colour: Color) -> Color {
+        let c = hsb(colour)
+        return Color(hue: c.h, saturation: c.s * 0.55, brightness: min(c.b * 1.02, 1))
+    }
+
+    /// The shaded side: deeper AND warmer. **A shadow on cream goes warm, not
+    /// grey**, which is the whole difference between this reading as an
+    /// object and reading as a faded rectangle.
+    static func shaded(_ colour: Color) -> Color {
+        let c = hsb(colour)
+        // Deeper and warmer, with room to actually be seen: at a cap of
+        // 0.22 the shaded side was still a pale grey and the two ends of the
+        // gradient were the same colour twice.
+        return Color(hue: c.h, saturation: min(c.s * 2.4, 0.34), brightness: c.b * 0.83)
+    }
+
+    private static func hsb(_ colour: Color) -> (h: CGFloat, s: CGFloat, b: CGFloat) {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(colour).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return (h, s, b)
+    }
 
     @State private var idle = FolderIdle()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -184,8 +213,14 @@ struct WinFolder: View {
 
             ZStack {
                 // 1. The plate.
-                // The plate, lit from the top the way the rest of the app is.
-                LinearGradient(colors: [tint, tint.opacity(0.88)],
+                // **Lit, not faded.** It was the tint against the tint at 88%
+                // opacity, and opacity on a near black page does not dim a
+                // colour, it turns it GREY — which is where "the colour just
+                // looks a bit sad" came from. Two real colours instead: a
+                // luminous top and a warmer, deeper bottom, so the folder
+                // looks like cream with a light on it rather than white
+                // fading out.
+                LinearGradient(colors: [Self.lit(tint), Self.shaded(tint)],
                                startPoint: .top, endPoint: .bottom)
                     .clipShape(shape)
 
@@ -269,7 +304,13 @@ struct WinFolder: View {
                 WinCardFace(win: win, image: win.image, showsTitle: false,
                             corner: w * 0.05)
                 .frame(width: cardWidth, height: cardWidth * max(0.5, min(ratio, 1.15)))
-                .shadow(color: .black.opacity(0.28), radius: w * 0.02, y: w * 0.008)
+                // **No shadow on these.** They sit BEHIND the pocket, so what
+                // they were casting landed on the glass in front of them: a
+                // soft dark smudge with no object over it, which is exactly
+                // what the owner saw — "random shadow on the glass part, take
+                // that out, looks muddy." The pocket already separates them,
+                // and a card tucked into a folder is not standing on
+                // anything to cast from.
                 .rotationEffect(.degrees(side * spread * (10 + 6 * Double(fullness))))
                 .offset(x: CGFloat(side) * CGFloat(spread) * w * (0.13 + 0.07 * fullness),
                         y: -h * 0.20 + CGFloat(spread) * h * 0.02)
@@ -294,12 +335,7 @@ struct WinFolder: View {
                     // is how a real shadow on cream behaves.
                     .fill(LinearGradient(colors: [tint.opacity(0.70), tint.opacity(0.52)],
                                          startPoint: .top, endPoint: .bottom))
-                    .overlay {
-                        PocketShape(radius: radius)
-                            .fill(LinearGradient(colors: [.black.opacity(0.02),
-                                                          .black.opacity(0.07)],
-                                                 startPoint: .top, endPoint: .bottom))
-                    }
+
             }
             .overlay {
                 // The lit top edge a pocket catches, and the only hairline
