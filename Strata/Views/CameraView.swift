@@ -28,7 +28,6 @@ struct CameraView: View {
     var fillsScreen: Bool = false
 
     @State private var camera = CameraService()
-    @State private var flashOpacity: Double = 0
     /// Whether the composition guides are drawn. Remembered, because it is a
     /// preference about how you shoot rather than a per-session choice.
     ///
@@ -1564,15 +1563,32 @@ struct CameraView: View {
         WarmRingLight(fillOpacity: fillOpacity)
     }
 
-    /// The front flash's modelling ring, and the capture flash over it.
+    /// **The front flash is the ring, and there is no second one.**
+    ///
+    /// There used to be a capture flash over this: a near-solid warm screen
+    /// at the moment of the shot, on the argument that at that moment nothing
+    /// matters except photons on the face.
+    ///
+    /// The owner: "for the front flash I think it might be too bright, and
+    /// also what's the point of the additional flash when you take the photo?
+    /// The ring is enough. A tip is make sure the person with the front flash
+    /// is able to check themselves out, like the person still needs to be
+    /// visible enough to admire themselves."
+    ///
+    /// **He is right, and it was wrong in three ways.** A ring light does not
+    /// pulse; it is on, and the light you compose by is the light you are
+    /// photographed by, which is the entire reason to hold a modelling light
+    /// at all. The blast covered the viewfinder at the one instant somebody
+    /// most wants to see their own face. And because a sudden light needs
+    /// auto-exposure to catch up, firing it meant SLEEPING 220ms before the
+    /// shutter — so the blast was also the reason the front camera felt slow.
+    ///
+    /// Removing it removes the delay, and the ring is already at full screen
+    /// brightness and was always doing most of the work.
     private var warmFlash: some View {
-        ZStack {
-            warmLight(fillOpacity: Self.ringFill)
-                .opacity(ringIsArmed ? Self.ringLevel : 0)
-                .animation(GridConstants.screenFlashOut, value: ringIsArmed)
-            warmLight(fillOpacity: Self.captureFill)
-                .opacity(flashOpacity)
-        }
+        warmLight(fillOpacity: Self.ringFill)
+            .opacity(ringIsArmed ? Self.ringLevel : 0)
+            .animation(GridConstants.screenFlashOut, value: ringIsArmed)
     }
 
     /// Whether the ring light is lit: the flash is on and the lens is the one
@@ -1589,8 +1605,6 @@ struct CameraView: View {
     /// instead of lighting it. The ring itself does the work.
     private static let ringFill = WarmRingLight.modellingFill
     private static let ringLevel = WarmRingLight.modellingLevel
-    /// At the moment of capture nothing matters but light on the face.
-    private static let captureFill = WarmRingLight.captureFill
 
     // MARK: - Firing
 
@@ -1644,16 +1658,12 @@ struct CameraView: View {
         // Brightness is already at 1.0 here: arming the flash lights the
         // modelling ring, and that is what raises it. `fire` only has to add
         // the fill.
-        let needsScreenFlash = camera.isFlashOn && camera.usesScreenFlash
-        if needsScreenFlash {
-            withAnimation(GridConstants.screenFlashIn) { flashOpacity = 1 }
-        }
-
+        // **No wait before the shutter any more.** This used to raise a
+        // capture flash and then sleep 220ms for auto-exposure to settle on
+        // the new light. With the ring held on there is no new light: the
+        // metering has been settled on it the whole time you were composing,
+        // so the front camera fires as fast as the back one.
         Task { @MainActor in
-            if needsScreenFlash {
-                // Long enough for auto-exposure to settle on the new light.
-                try? await Task.sleep(for: .milliseconds(220))
-            }
             // **A look turns Apple's multi-frame processing off.** None is
             // "take the best photograph you can" and gets the whole fusion
             // stack; a look is "give me the picture I framed" and gets one
@@ -1664,11 +1674,6 @@ struct CameraView: View {
             // See `CameraService.capture` and `RawDeveloper`.
             let wantsFilm = FilmLook.Kind(rawValue: lookRaw).map { $0 != .none } ?? false
             camera.capture(singleFrame: wantsFilm, raw: wantsFilm) { image in
-                if needsScreenFlash {
-                    // Back to the ring, not to darkness — the flash is still
-                    // armed, so the light you were composing under stays.
-                    withAnimation(GridConstants.screenFlashOut) { flashOpacity = 0 }
-                }
                 guard let image else {
                     // No photograph, so nothing was drawn for. Leaving the
                     // shutter wide would make the NEXT shot inherit a size
