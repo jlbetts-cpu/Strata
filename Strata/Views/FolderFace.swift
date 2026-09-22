@@ -31,13 +31,24 @@ struct FolderFace: View {
     /// The diameter of one eye. Everything else is derived, so the face
     /// scales as one thing.
     var eyeWidth: CGFloat = 34
-    /// **Black, because a button is.** It was white, which is the wrong end
-    /// of the reference: a Sackperson's eyes are dark buttons on light
-    /// sackcloth, and the folder's pocket is a mid tone, so dark reads on it
-    /// exactly as it does on him. The owner: "I'm pretty sure the eyes should
-    /// be black not white." Not pure black — 88% — so it sits ON the pocket
-    /// rather than punching a hole through it.
-    var ink: Color = Color.black.opacity(0.88)
+    /// **Dark glass, not dark paint.**
+    ///
+    /// The owner: "make sure the light in the eyes is white, and the eye
+    /// matches the design system like the glass and blur, and don't make the
+    /// eyes so stark."
+    ///
+    /// A flat 88% black disc was a hole cut in the pocket: the one element on
+    /// this screen that was not made of the same stuff as everything else.
+    /// Every other dark surface in Apollo is Liquid Glass with a black tint —
+    /// the camera's corner button, the film tray — so a button eye is the
+    /// same recipe at 26 points. It takes the pocket's own colour and light
+    /// through it, which is what stops it reading as a cut-out, and it is
+    /// what a real button does: a glassy thing sitting on cloth, not a hole
+    /// in it.
+    ///
+    /// The tint is a fraction of what the fill was, because glass does the
+    /// rest of the work.
+    var tint: Double = 0.56
 
     private var diameter: CGFloat { eyeWidth * expression.scale }
     /// **Set wide, because close-set eyes are not cute.**
@@ -83,17 +94,19 @@ struct FolderFace: View {
         // It also folds the two ideas together: a lid over a dot makes the
         // same arcs the old two-stroke face made, so nothing that read well
         // before is lost, and the lid angle adds everything it could not do.
-        return Circle()
-            .fill(ink)
-            // The shine a button has. Tiny, high and to one side, and it is
-            // most of what separates a dot from an eye.
+        return Color.clear
+            .frame(width: diameter, height: diameter)
+            .eyeGlass(tint: tint)
+            // **The light, and it is white.** Tiny, high and to one side. It
+            // is most of what separates a dot from an eye, and on glass it is
+            // the specular the material cannot give itself at this size.
             .overlay(alignment: .topLeading) {
                 Circle()
-                    .fill(.white.opacity(0.30))
-                    .frame(width: diameter * 0.26, height: diameter * 0.26)
-                    .offset(x: diameter * 0.20, y: diameter * 0.17)
+                    .fill(.white.opacity(0.72))
+                    .frame(width: diameter * 0.24, height: diameter * 0.24)
+                    .blur(radius: diameter * 0.03)
+                    .offset(x: diameter * 0.19, y: diameter * 0.16)
             }
-            .frame(width: diameter, height: diameter)
             .offset(x: side * expression.pupilSplit * eyeWidth)
         .mask {
             LidMask(lid: lid, lower: eye.lower, tilt: eye.tilt * side)
@@ -136,7 +149,12 @@ struct LidMask: Shape {
 /// One eye's lid, in three numbers.
 struct Eye: Equatable {
     /// How far the upper lid is down. 0 wide, 1 shut.
-    var lid: CGFloat = 0.12
+    ///
+    /// **Nearly nothing at rest.** It sat at 0.12, which flat-tops a small
+    /// circle: zoomed in, the buttons read as domes rather than as buttons,
+    /// and a flat top is the one thing a button does not have. The lid earns
+    /// its place in the expressions; at rest it should be almost invisible.
+    var lid: CGFloat = 0.03
     /// Which way the lid is turned, in degrees. **Negative drops the INNER
     /// corner**, which is determined or cross; positive drops the outer one,
     /// which is worried. Mirrored for the right eye, so the pair is
@@ -227,7 +245,7 @@ struct FaceExpression: Equatable {
 
     /// A small asymmetry: attentive rather than emotional.
     static let curious = FaceExpression(
-        left: Eye(lid: 0.05), right: Eye(lid: 0.22, tilt: -5))
+        left: Eye(lid: 0.02), right: Eye(lid: 0.20, tilt: -5))
 
     /// What a resting folder drifts between, all of them neutral. Drifting
     /// between pleasant idles is the illusion of life; drifting towards sad
@@ -240,4 +258,20 @@ struct FaceExpression: Equatable {
         ("Confused", .confused), ("Dizzy", .dizzy),
         ("Wide", .wide), ("Easy", .easy), ("Curious", .curious)
     ]
+}
+
+
+private extension View {
+    /// The app's own glass, at eye size. The same family as the camera's
+    /// corner button and the film tray, so the face is made of what the rest
+    /// of the screen is made of.
+    @ViewBuilder
+    func eyeGlass(tint: Double) -> some View {
+        if #available(iOS 26, *) {
+            self.glassEffect(.clear.tint(.black.opacity(tint)), in: .circle)
+        } else {
+            self.background(.ultraThinMaterial, in: Circle())
+                .overlay { Circle().fill(.black.opacity(tint * 0.8)) }
+        }
+    }
 }
