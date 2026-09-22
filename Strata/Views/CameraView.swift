@@ -72,7 +72,7 @@ struct CameraView: View {
     @State private var lookRaw = FilmLook.Kind.none.rawValue
     /// Whether the film looks are pulled down. Closed on every appearance,
     /// like the look itself — see `lookRaw`.
-    @State private var showLookTray = false
+    @State private var showLookTray = CameraTestSwitches.trayOpen
     /// The review photograph with the chosen look on it, at screen size. The
     /// real one is rendered full size only when the photograph is kept.
     @State private var looked: UIImage?
@@ -164,8 +164,68 @@ struct CameraView: View {
         /// material LIFT the scene instead, which is what "pick up on the
         /// light and colour" means and what makes it readable over bright and
         /// dark alike.
-        static let material: Material = .ultraThinMaterial
-        static let width: CGFloat = 1
+        /// **Paint, because a material draws nothing here.**
+        ///
+        /// These lines were `.ultraThinMaterial`, chosen to sample the scene
+        /// the way his `#98A184` at 0.5 samples his grass. Measured against a
+        /// frame of the same screen with the grid switched off, the material
+        /// version differed from it by **zero pixels** on all three scenes:
+        /// not faint, not subtle, absent. A 60% white overlay in the same
+        /// modifier chain drew nothing either, while a `Color` fill on the
+        /// same rectangle at the same offset drew correctly.
+        ///
+        /// The cause is that `CameraPreview` is a `UIViewRepresentable`. A
+        /// SwiftUI `Material` blurs the SwiftUI content behind it, and there
+        /// is none: the viewfinder is a UIKit layer outside that tree, so the
+        /// material has nothing to sample and composites to nothing. This is
+        /// also why the glass button works where these did not, since
+        /// `glassEffect` samples the rendered window rather than the SwiftUI
+        /// backdrop.
+        ///
+        /// So the scene tint is not available to these lines on iOS, and the
+        /// choice is paint or nothing. His own node is paint: one colour at
+        /// half opacity. White at 0.45 is that relationship carried to any
+        /// scene, and it is the one thing that is guaranteed to draw.
+        /// **The line is Liquid Glass, not paint, and it is 2pt.**
+        ///
+        /// The owner, against his frame 13646-7517: "The rule of thirds lines
+        /// still doesn't look there compared to mine. The thickness looks too
+        /// thin and the glass effect isn't there."
+        ///
+        /// **His node's numbers, read from its own exported vectors.** Every
+        /// line is `stroke="#98A184" stroke-opacity="0.5"` with NO
+        /// `stroke-width` attribute, so it is the SVG default of 1, in a
+        /// 402-wide frame, which is 1pt. There is no blur on them, no
+        /// backdrop-filter and no blend mode. **We were already drawing 1.00pt
+        /// (3 device pixels at 3x, measured off the render), so the widths
+        /// were identical**, and his line is the FAINTER of the two: composited
+        /// over these three scenes his sage at 0.5 lifts +18 to +37, where our
+        /// white at 0.45 lifted +56 to +71.
+        ///
+        /// So neither fault was where it looked. The width was the same, and
+        /// the "glass" is not an effect in his file at all. What his line has
+        /// is a colour taken OUT of his photograph, which is why it sits in the
+        /// picture while a white hairline sits on top of it.
+        ///
+        /// **`glassEffect` is the one thing that reproduces that here.** A
+        /// `Material` cannot: it draws literally nothing over the viewfinder,
+        /// which is what made these lines invisible in the first place, because
+        /// `CameraPreview` is a `UIViewRepresentable` and a material has no
+        /// SwiftUI backdrop to sample. Liquid Glass samples the rendered window
+        /// instead, so it works where a material does not, and it is the same
+        /// material family as his button.
+        ///
+        /// Measured on a 2pt line, the lift barely moves with the scene
+        /// (+42 / +40 / +43 over sky, trees and a dark room) where paint swings
+        /// with it, and the colour does move: cool over sky, warm over a lit
+        /// room. That is the relationship his sage has to his grass.
+        ///
+        /// **2pt rather than his 1pt, deliberately.** His is 1pt and reads
+        /// heavier to him because he is looking at it zoomed in Figma, where a
+        /// point is several screen pixels; on the phone at 3x it is a crisp
+        /// 3-pixel hairline. 2pt is what makes it read on the device the way
+        /// his reads on his monitor.
+        static let width: CGFloat = 2
         /// How much of the frame the bottom fade occupies.
         static let fadeHeight: CGFloat = 0.20
     }
@@ -313,7 +373,8 @@ struct CameraView: View {
                 // under the chrome, so the buttons still take their own taps.
                 viewfinderGestures(w: w, h: h)
 
-                if camera.showsGuides {
+                if (camera.showsGuides || CameraTestSwitches.forceGuides)
+                    && !CameraTestSwitches.hideGuides {
                     guides(w: w, h: h, topInset: topInset)
                         .allowsHitTesting(false)
                         .transition(.opacity)
@@ -815,27 +876,23 @@ struct CameraView: View {
             // "the middle one looks longer".
             let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
             Rectangle()
-                .fill(Guide.material)
-                .environment(\.colorScheme, .light)
+                .modifier(GuideGlass())
                 .frame(width: Guide.width, height: max(gapTop, 0))
                 .offset(x: x0, y: 0)
 
             Rectangle()
-                .fill(Guide.material)
-                .environment(\.colorScheme, .light)
+                .modifier(GuideGlass())
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
-                .fill(Guide.material)
-                .environment(\.colorScheme, .light)
+                .modifier(GuideGlass())
                 .frame(width: Guide.width, height: h)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
-                    .fill(Guide.material)
-                .environment(\.colorScheme, .light)
+                    .modifier(GuideGlass())
                     .frame(width: w, height: Guide.width)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
@@ -1716,5 +1773,56 @@ private struct CameraGlassButton: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Film look")
         .accessibilityValue(isOpen ? "Open" : "Closed")
+    }
+}
+
+
+/// Simulator-only launch switches, for judging the viewfinder's chrome.
+///
+/// Chrome drawn over a photograph can only be measured against the same frame
+/// without it: `-HideGuides 1` is to the thirds lines what `Glass.identity` is
+/// to the button, an exact reference rather than a guess at which pixels the
+/// line is on. Guessing is how they were once reported as invisible while they
+/// were lifting.
+///
+/// `targetEnvironment(simulator)` is resolved at compile time, so none of this
+/// exists on a device.
+enum CameraTestSwitches {
+    static var hideGuides: Bool {
+        #if targetEnvironment(simulator)
+        return UserDefaults.standard.bool(forKey: "HideGuides")
+        #else
+        return false
+        #endif
+    }
+    static var forceGuides: Bool {
+        #if targetEnvironment(simulator)
+        return UserDefaults.standard.bool(forKey: "ForceGuides")
+        #else
+        return false
+        #endif
+    }
+    static var trayOpen: Bool {
+        #if targetEnvironment(simulator)
+        return UserDefaults.standard.bool(forKey: "TrayOpen")
+        #else
+        return false
+        #endif
+    }
+}
+
+
+/// A thirds line: Liquid Glass over the viewfinder rather than paint.
+///
+/// See `Guide.width` for why. In one line: a `Material` renders nothing over
+/// the camera preview, and `glassEffect` is what takes its colour from the
+/// scene the way the owner's own line takes its colour from his grass.
+struct GuideGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(GlassRecipe.photoOverlay, in: .rect(cornerRadius: 0))
+        } else {
+            content.overlay(Color.white.opacity(0.45))
+        }
     }
 }

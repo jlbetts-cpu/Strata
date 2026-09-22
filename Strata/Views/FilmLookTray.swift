@@ -139,7 +139,7 @@ struct FilmLookTray: View {
         // `glassCircle` and `glassCapsule` already make — so this control is
         // the same glass as the rest of the app's chrome rather than a
         // fourth interpretation of it.
-        .glassRoundedRect(cornerRadius: Self.radius)
+        .glassRoundedRect(cornerRadius: Self.radius, carriesType: isOpen)
         // **Neutral glass, not light glass, and that is the whole of the
         // fix.** This control forced the light appearance on itself for a
         // while, to escape the camera's dark one. It worked and it was wrong:

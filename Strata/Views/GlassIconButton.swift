@@ -105,9 +105,9 @@ extension View {
     /// it already records: a glass treatment redefined per screen drifts per
     /// screen.
     @ViewBuilder
-    func glassRoundedRect(cornerRadius r: CGFloat) -> some View {
+    func glassRoundedRect(cornerRadius r: CGFloat, carriesType: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(GlassRecipe.photoOverlay,
+            self.glassEffect(carriesType ? GlassRecipe.typePanel : GlassRecipe.photoOverlay,
                              in: .rect(cornerRadius: r, style: .continuous))
         } else {
             let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
@@ -261,5 +261,35 @@ enum GlassRecipe {
 
     static var photoOverlay: Glass {
         .clear.tint(.black.opacity(photoInk)).interactive()
+    }
+
+    /// **The tray's glass is stronger than the button's, and that is
+    /// deliberate: one carries a glyph, the other carries type.**
+    ///
+    /// The owner, on the approved button: "the text isn't the most readable in
+    /// the section. I was thinking more like not so shiny glass effect, so the
+    /// text can still be readable."
+    ///
+    /// A button can be almost invisible because it holds one chevron, and the
+    /// chevron is legible against anything. Four rows of names need a ground.
+    /// Measured on the open tray, worst row of the four:
+    ///
+    /// | | bright sky | trees | dark |
+    /// |---|---|---|---|
+    /// | on `photoOverlay` (the button's glass) | 1.56:1 | 2.30:1 | — |
+    /// | `.regular`, no ink | 4.40:1 | 5.40:1 | — |
+    /// | **`.regular` + 30% ink** | **5.44:1** | **6.54:1** | **6.73:1** |
+    ///
+    /// So the button's own glass put the names at 1.56:1 over a bright sky,
+    /// against a 4.5:1 floor. This clears it on every row of every scene.
+    ///
+    /// `.regular` is the right base here for the same reason it was wrong for
+    /// the button: it blurs hard, removing about 82% of the scene's detail
+    /// where `.clear` removes 22 to 37, and that blur is what stops the
+    /// picture reading through the names. The 30% ink takes out its specular
+    /// lift, so the panel is substance rather than shine. It still takes the
+    /// scene's colour: blue over sky, olive over grass, warm over a dark room.
+    static var typePanel: Glass {
+        .regular.tint(.black.opacity(0.30)).interactive()
     }
 }
