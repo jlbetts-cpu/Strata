@@ -167,9 +167,11 @@ struct WinFolder: View {
                 //
                 // It also gives the face the pocket to itself, which is what
                 // it wanted: a face with a caption under it reads as a logo.
-                FolderFace(expression: live, eyeWidth: w * 0.108)
+                FolderFace(expression: live, eyeWidth: w * 0.076)
                 .frame(maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, h * 0.11)
+                // Low on the pocket, which is the other half of what reads
+                // as endearing: features set low on a large head.
+                .padding(.bottom, h * 0.085)
             }
             .compositingGroup()
             // The one shadow, and it is the folder standing on the ground

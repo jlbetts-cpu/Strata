@@ -31,12 +31,30 @@ struct FolderFace: View {
     /// The diameter of one eye. Everything else is derived, so the face
     /// scales as one thing.
     var eyeWidth: CGFloat = 34
-    var ink: Color = .white
+    /// **Black, because a button is.** It was white, which is the wrong end
+    /// of the reference: a Sackperson's eyes are dark buttons on light
+    /// sackcloth, and the folder's pocket is a mid tone, so dark reads on it
+    /// exactly as it does on him. The owner: "I'm pretty sure the eyes should
+    /// be black not white." Not pure black — 88% — so it sits ON the pocket
+    /// rather than punching a hole through it.
+    var ink: Color = Color.black.opacity(0.88)
 
     private var diameter: CGFloat { eyeWidth * expression.scale }
-    /// The gap is fixed to the BASE size rather than the scaled one, so eyes
-    /// that widen do not also drift apart.
-    private var gap: CGFloat { eyeWidth * 1.05 }
+    /// **Set wide, because close-set eyes are not cute.**
+    ///
+    /// The owner: "the eyes are too close to each other and too large still,
+    /// I want the eyes to genuinely be so adorable."
+    ///
+    /// That is not a taste note, it is anatomy: what reads as endearing in a
+    /// face is the infant schema — small features, set LOW and WIDE on a
+    /// large head. Close-set eyes read as intense, and large ones as a
+    /// cartoon. Small, far apart and a touch low is the whole recipe, and it
+    /// is why the folder should look like an object with a face rather than
+    /// a character with a body.
+    ///
+    /// Fixed to the BASE size rather than the scaled one, so eyes that widen
+    /// do not also drift apart.
+    private var gap: CGFloat { eyeWidth * 1.85 }
 
     var body: some View {
         HStack(spacing: gap) {
@@ -67,6 +85,14 @@ struct FolderFace: View {
         // before is lost, and the lid angle adds everything it could not do.
         return Circle()
             .fill(ink)
+            // The shine a button has. Tiny, high and to one side, and it is
+            // most of what separates a dot from an eye.
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(.white.opacity(0.30))
+                    .frame(width: diameter * 0.26, height: diameter * 0.26)
+                    .offset(x: diameter * 0.20, y: diameter * 0.17)
+            }
             .frame(width: diameter, height: diameter)
             .offset(x: side * expression.pupilSplit * eyeWidth)
         .mask {
