@@ -32,6 +32,11 @@ struct WinsFolderView: View {
     var title: String = "Today"
     var tint: Color = WinFolder.defaultTint
     var onOpenWin: (UUID) -> Void = { _ in }
+    /// **Told to the screen, so its header can get out of the way.** The
+    /// owner: "inside the folder there isn't a need for the top header with
+    /// + and Plan buttons, it just looks weird in there." They belong to the
+    /// day, not to what is inside the folder.
+    @Binding var isOpenExternally: Bool
 
     @State private var isOpen = false
     @State private var openness: Double = 0
@@ -54,8 +59,11 @@ struct WinsFolderView: View {
         photos = loaded
     }
 
+    /// **Newest on top.** The owner's call, and it is the right default for
+    /// a folder of today: the thing you just did is the thing you want to
+    /// see, and the tower put new blocks at the top for the same reason.
     private var wins: [ScatterWin] {
-        blocks.map { block in
+        blocks.reversed().map { block in
             ScatterWin(id: block.id.uuidString,
                        image: photos[block.id.uuidString],
                        size: block.look.blockSize,
@@ -64,15 +72,27 @@ struct WinsFolderView: View {
         }
     }
 
-    /// The folder falls open and the wins arrive in one movement rather than
-    /// two, which is why the number is shared rather than each side having
-    /// its own.
+    /// **Opening is going IN, not the folder coming at you.**
+    ///
+    /// The first version hinged the pocket forward on its bottom edge with
+    /// perspective, which is what a real folder does and which the owner read
+    /// immediately as wrong: "the opening animation doesn't look good, like
+    /// it's a folder, why is it pushing in." A face rotating towards the
+    /// viewer under perspective reads as being PRESSED, not opened, and on a
+    /// screen there is no depth cue to say otherwise.
+    ///
+    /// What reads as opening a container on a phone is the container growing
+    /// past you while its contents arrive: the folder scales up and fades as
+    /// though you are moving into it, and the wins come up from where it was.
+    /// No rotation at all, because the thing that looked wrong was the
+    /// rotation.
     private static let hinge = Animation.spring(response: 0.5, dampingFraction: 0.82)
 
     var body: some View {
         ZStack {
             folder
-                .opacity(isOpen ? 0 : 1)
+                .scaleEffect(1 + 0.22 * openness)
+                .opacity(1 - openness)
                 .allowsHitTesting(!isOpen)
 
             if isOpen {
@@ -97,8 +117,7 @@ struct WinsFolderView: View {
             WinFolder(title: title, count: wins.count, tint: tint,
                       contents: wins,
                       expression: wins.isEmpty ? .sleepy : .idle,
-                      isAlive: true,
-                      openness: openness)
+                      isAlive: true)
                 .frame(maxWidth: 280)
                 .contentShape(Rectangle())
                 .onTapGesture { open() }
@@ -111,7 +130,8 @@ struct WinsFolderView: View {
 
     private func open() {
         HapticsEngine.lightTap()
-        guard !reduceMotion else { isOpen = true; openness = 1; return }
+        guard !reduceMotion else { isOpen = true; openness = 1; isOpenExternally = true; return }
+        isOpenExternally = true
         withAnimation(Self.hinge) { openness = 1 }
         // The inside arrives while the pocket is still falling, so the two
         // read as one movement. Waiting for the hinge to finish first makes
@@ -125,7 +145,8 @@ struct WinsFolderView: View {
 
     private func close() {
         HapticsEngine.lightTap()
-        guard !reduceMotion else { isOpen = false; openness = 0; return }
+        guard !reduceMotion else { isOpen = false; openness = 0; isOpenExternally = false; return }
+        isOpenExternally = false
         withAnimation(.easeIn(duration: 0.16)) { isOpen = false }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(90))

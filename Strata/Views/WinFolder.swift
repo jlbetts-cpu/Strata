@@ -74,19 +74,6 @@ struct WinFolder: View {
     /// Off for a still. On, the face blinks, looks around and breathes.
     var isAlive: Bool = true
 
-    /// **0 shut, 1 open, and the pocket falls forward in between.**
-    ///
-    /// The reference the owner sent for this is a 3D folder: "when the folder
-    /// is opened, you will see the 3D effect". So the pocket rotates about
-    /// its own bottom edge, towards the viewer, with perspective — the same
-    /// thing a real folder does when you pull the front down — and the wins
-    /// inside rise and spread as it goes.
-    ///
-    /// It is a number rather than a boolean because the screen it opens into
-    /// has to be able to drive it: the folder finishes falling open exactly
-    /// as the scatter arrives, rather than the two playing one after the
-    /// other.
-    var openness: Double = 0
 
     /// A neutral that belongs to the greyscale rather than arriving from
     /// outside it. A folder is a container, not an accent.
@@ -144,21 +131,12 @@ struct WinFolder: View {
                 // whole trick. Nothing is lost by letting them out, because
                 // the pocket in front still holds them down.
                 peeking(width: w, height: h)
-                    .offset(y: -h * 0.16 * openness)
-                    .scaleEffect(1 + 0.06 * openness)
 
                 // 3. The pocket, which is the hinge. A material, so the wins behind it are really
                 //    blurred rather than drawn faint, which is the difference
                 //    between a folder holding things and a folder printed
                 //    with a picture of them.
                 pocket(width: w, height: h)
-                    // Falling forward, about its own bottom edge. The
-                    // perspective is what makes it a hinge rather than a
-                    // squash: without it the pocket just gets shorter.
-                    .rotation3DEffect(.degrees(74 * openness),
-                                      axis: (x: 1, y: 0, z: 0),
-                                      anchor: .bottom,
-                                      perspective: 0.55)
 
                 // 4. The face, on the pocket, and the name under it.
                 // **The face, and nothing else written on it.**
@@ -176,14 +154,6 @@ struct WinFolder: View {
                 FolderFace(expression: live, eyeWidth: w * 0.155)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, h * 0.11)
-                // The face goes with the pocket it is painted on, and fades
-                // as the pocket turns away: a face seen edge on is a line,
-                // and a line is not a face.
-                .rotation3DEffect(.degrees(74 * openness),
-                                  axis: (x: 1, y: 0, z: 0),
-                                  anchor: .bottom,
-                                  perspective: 0.55)
-                .opacity(1 - openness * 1.4)
             }
             .compositingGroup()
             // The one shadow, and it is the folder standing on the ground
@@ -192,42 +162,45 @@ struct WinFolder: View {
         }
     }
 
-    /// The wins, leaning out of the top of the folder the way photographs in
-    /// a real one never sit square.
+    /// **A stack that gets thicker as the folder fills.**
+    ///
+    /// The owner: "photos in the folder shouldn't be transparent and they
+    /// shouldn't have the outline, they should show the size... a folder with
+    /// 10 wins should look like it's storing 10 wins."
+    ///
+    /// It drew exactly two cards at a fixed square, with a white border, so
+    /// a day with two wins and a day with twenty looked identical and the
+    /// loudest thing on a dark screen was a white frame. Now: up to five
+    /// cards fanned, newest at the front, each one showing its own block's
+    /// proportion, no border, opaque.
+    ///
+    /// **One width, several heights.** Fanning cards of wildly different
+    /// widths reads as a mess rather than as a stack, so the width is shared
+    /// and the block's shape comes through in the HEIGHT — a 2x1 win is a
+    /// wide short card, a 1x1 is square, a 2x2 is tall. The stack still reads
+    /// as a stack and a win still reads as the shape it was drawn at.
     private func peeking(width w: CGFloat, height h: CGFloat) -> some View {
-        ZStack {
-            // Two, not three. Three read as a jumble at folder size, and the
-            // point of a card leaning out is that you can see it is a
-            // photograph, which needs room.
-            ForEach(Array(contents.prefix(2).enumerated()), id: \.offset) { index, win in
-                let lean = [-9.0, 6.0][min(index, 1)]
-                let slide = [-w * 0.13, w * 0.11][min(index, 1)]
-                Group {
-                    if let photo = win.image {
-                        Image(uiImage: photo).resizable().scaledToFill()
-                    } else {
-                        ZStack {
-                            LinearGradient(colors: [win.colour.opacity(0.95),
-                                                    win.colour.opacity(0.72)],
-                                           startPoint: .top, endPoint: .bottom)
-                            Text(win.title)
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .padding(w * 0.03)
-                        }
-                    }
-                }
-                    .frame(width: w * 0.42, height: w * 0.42)
-                    .clipShape(RoundedRectangle(cornerRadius: w * 0.055, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: w * 0.055, style: .continuous)
-                            .strokeBorder(.white.opacity(0.7), lineWidth: w * 0.011)
-                    }
-                    .rotationEffect(.degrees(lean))
-                    .offset(x: slide, y: -h * 0.22)
-                    .zIndex(Double(index))
+        let shown = Array(contents.prefix(5).enumerated())
+        let cardWidth = w * 0.40
+        return ZStack {
+            ForEach(shown, id: \.offset) { index, win in
+                // The fan opens from the middle outwards, oldest furthest
+                // back and widest out, so the newest sits square at the front.
+                let depth = Double(shown.count - 1 - index)
+                let spread = depth / Double(max(shown.count - 1, 1))
+                let side: Double = index % 2 == 0 ? -1 : 1
+                let ratio = CGFloat(win.size.rowSpan) / CGFloat(win.size.columnSpan)
+
+                // No title on the stack: a card here is 40% of a small
+                // folder and a word would be a smudge.
+                WinCardFace(win: win, image: win.image, showsTitle: false,
+                            corner: w * 0.05)
+                .frame(width: cardWidth, height: cardWidth * max(0.5, min(ratio, 1.15)))
+                .shadow(color: .black.opacity(0.28), radius: w * 0.02, y: w * 0.008)
+                .rotationEffect(.degrees(side * spread * 13))
+                .offset(x: CGFloat(side) * CGFloat(spread) * w * 0.17,
+                        y: -h * 0.20 + CGFloat(spread) * h * 0.02)
+                .zIndex(Double(index))
             }
         }
         .frame(width: w, height: h, alignment: .center)

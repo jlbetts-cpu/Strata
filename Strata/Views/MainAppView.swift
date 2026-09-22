@@ -214,6 +214,9 @@ struct MainAppView: View {
     /// that would have copied it in, so a stored 0 there culled against the
     /// top of the tower wherever it was scrolled.
     @State private var towerScrollOffset: CGFloat?
+    /// True while the folder on the Wins screen is open. The day's header
+    /// belongs to the day, not to what is inside the folder.
+    @State private var folderIsOpen = false
     /// Above this many blocks the tower culls what is off screen.
     private static let cullThreshold = 120
     @State private var screenHeight: CGFloat = 0
@@ -756,7 +759,10 @@ struct MainAppView: View {
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
             // at all.
-            .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !folderIsOpen { towerHeader.transition(.opacity) }
+            }
+            .animation(GridConstants.motionSmooth, value: folderIsOpen)
     }
 
     /// The whole header: one number, and what it counts.
@@ -1164,7 +1170,8 @@ struct MainAppView: View {
         // the app's home screen and the replacement is new; being able to put
         // the tower back is worth a warning about an unused function.
         return WinsFolderView(blocks: towerVM.placedBlocks,
-                              onOpenWin: { expandedBlockID = $0 })
+                              onOpenWin: { expandedBlockID = $0 },
+                              isOpenExternally: $folderIsOpen)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.
