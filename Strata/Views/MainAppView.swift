@@ -782,12 +782,14 @@ struct MainAppView: View {
                 headerCount
                 Spacer(minLength: 0)
                 headerReplayPill
+                headerAdd
                 headerPlan
             }
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     headerCount
                     Spacer(minLength: 0)
+                    headerAdd
                     headerPlan
                 }
                 headerReplayPill
@@ -890,6 +892,26 @@ struct MainAppView: View {
             }
             .glassCapsule()
             .transition(.opacity)
+        }
+    }
+
+    /// **A win without a photograph.**
+    ///
+    /// The owner: "add the + button on the top right for those that prefer to
+    /// not take photos."
+    ///
+    /// The camera tab has always been the fast way in, and it is the right
+    /// default because a photograph is what this app is for. But it was the
+    /// ONLY way in from this screen once the tower's own add affordance went,
+    /// and a person who wants to write down that they went for a run should
+    /// not have to point a lens at something first. It opens the same sheet
+    /// everything else opens, with nothing filled in.
+    private var headerAdd: some View {
+        GlassIconButton(
+            systemName: "plus",
+            accessibilityLabel: "Add a win"
+        ) {
+            winDraft = WinDraft()
         }
     }
 
@@ -1129,11 +1151,20 @@ struct MainAppView: View {
  
 
     private func towerTabContent() -> some View {
-        let colW = currentColW
-
-        return towerContent(colW: colW, topInset: collapsedHeaderHeight,
-                     safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
-                     viewportHeight: screenHeight)
+        // **The folder, where the tower was.**
+        //
+        // A swap and not a rewrite: everything around this is untouched. The
+        // header with the count and Plan, the replay pill, the add sheet, the
+        // edit sheet, the plan sheet and the ground are all exactly as they
+        // were, and the sheet below still opens from `expandedBlockID`, so
+        // tapping a win in the folder lands in the same place tapping a block
+        // in the tower did.
+        //
+        // `towerContent` is deliberately left in place and unused. This is
+        // the app's home screen and the replacement is new; being able to put
+        // the tower back is worth a warning about an unused function.
+        return WinsFolderView(blocks: towerVM.placedBlocks,
+                              onOpenWin: { expandedBlockID = $0 })
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.

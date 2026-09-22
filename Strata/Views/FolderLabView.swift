@@ -24,8 +24,11 @@ struct FolderLabView: View {
         ("Sage", Color(red: 0.40, green: 0.50, blue: 0.42))
     ]
 
-    private var photos: [UIImage] {
-        ["LookPreview", "DemoPhoto4", "DemoPhoto11"].compactMap { UIImage(named: $0) }
+    private var photos: [ScatterWin] {
+        ["LookPreview", "DemoPhoto4", "DemoPhoto11"].enumerated().compactMap { i, name in
+            guard let image = UIImage(named: name) else { return nil }
+            return ScatterWin(id: name, image: image, size: .small, title: "Win \(i + 1)")
+        }
     }
 
     var body: some View {

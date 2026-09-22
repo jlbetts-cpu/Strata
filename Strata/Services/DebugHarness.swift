@@ -91,7 +91,8 @@ enum DebugHarness {
         let sizes: [BlockSize] = [.small, .small, .medium, .small, .small, .hard]
         return (0..<count).compactMap { i in
             guard let image = UIImage(named: names[i % names.count]) else { return nil }
-            return ScatterWin(id: "win-\(i)", image: image, size: sizes[i % sizes.count])
+            return ScatterWin(id: "win-\(i)", image: image, size: sizes[i % sizes.count],
+                              title: "Win \(i + 1)")
         }
     }
 

@@ -58,14 +58,35 @@ struct FolderBack: Shape {
 /// reference: the plate is a deep tint and the pocket is a frosted lighter
 /// one, rather than the other way round. The face is the app's own white.
 struct WinFolder: View {
+    /// Kept for the accessibility label, which still has to say what this
+    /// is and how much is in it. Nothing is drawn from either.
     var title: String = "Wins"
     var count: Int = 0
     var tint: Color = WinFolder.defaultTint
-    /// What is in it. Drawn peeking out of the top and blurred by the pocket.
-    var contents: [UIImage] = []
+    /// **What is in it, as wins rather than as pictures.** It took
+    /// `[UIImage]`, which meant a day made of wins somebody TYPED showed an
+    /// empty folder: the tower drew those as plain coloured blocks and
+    /// dropping them lost the whole outside of the folder on any day without
+    /// photographs. A card with no image is its colour, exactly as the block
+    /// was.
+    var contents: [ScatterWin] = []
     var expression: FaceExpression = .idle
     /// Off for a still. On, the face blinks, looks around and breathes.
     var isAlive: Bool = true
+
+    /// **0 shut, 1 open, and the pocket falls forward in between.**
+    ///
+    /// The reference the owner sent for this is a 3D folder: "when the folder
+    /// is opened, you will see the 3D effect". So the pocket rotates about
+    /// its own bottom edge, towards the viewer, with perspective — the same
+    /// thing a real folder does when you pull the front down — and the wins
+    /// inside rise and spread as it goes.
+    ///
+    /// It is a number rather than a boolean because the screen it opens into
+    /// has to be able to drive it: the folder finishes falling open exactly
+    /// as the scatter arrives, rather than the two playing one after the
+    /// other.
+    var openness: Double = 0
 
     /// A neutral that belongs to the greyscale rather than arriving from
     /// outside it. A folder is a container, not an accent.
@@ -113,7 +134,8 @@ struct WinFolder: View {
                                startPoint: .top, endPoint: .bottom)
                     .clipShape(shape)
 
-                // 2. The wins, NOT clipped to the plate.
+                // 2. The wins, NOT clipped to the plate. They rise and
+                //    spread as the pocket falls away from them.
                 //
                 // They were, and it was the thing that kept it from reading
                 // as a folder: a photograph sitting flush with the top edge
@@ -122,27 +144,46 @@ struct WinFolder: View {
                 // whole trick. Nothing is lost by letting them out, because
                 // the pocket in front still holds them down.
                 peeking(width: w, height: h)
+                    .offset(y: -h * 0.16 * openness)
+                    .scaleEffect(1 + 0.06 * openness)
 
-                // 3. The pocket. A material, so the wins behind it are really
+                // 3. The pocket, which is the hinge. A material, so the wins behind it are really
                 //    blurred rather than drawn faint, which is the difference
                 //    between a folder holding things and a folder printed
                 //    with a picture of them.
                 pocket(width: w, height: h)
+                    // Falling forward, about its own bottom edge. The
+                    // perspective is what makes it a hinge rather than a
+                    // squash: without it the pocket just gets shorter.
+                    .rotation3DEffect(.degrees(74 * openness),
+                                      axis: (x: 1, y: 0, z: 0),
+                                      anchor: .bottom,
+                                      perspective: 0.55)
 
                 // 4. The face, on the pocket, and the name under it.
-                VStack(spacing: h * 0.085) {
-                    FolderFace(expression: live, eyeWidth: w * 0.145)
-                    VStack(spacing: 2) {
-                        Text(title)
-                            .font(Typography.headerSmall)
-                            .foregroundStyle(.white)
-                        Text("\(count)")
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-                }
+                // **The face, and nothing else written on it.**
+                //
+                // It carried the title and the count until the owner saw it
+                // on the real screen: "the Today and 9 aren't important on
+                // the folder because they are already on the top left." They
+                // were, in bigger type, six points away. Two labels saying
+                // the same thing is one of them being noise, and the one to
+                // lose is the one on the object rather than the one in the
+                // header that every other screen has too.
+                //
+                // It also gives the face the pocket to itself, which is what
+                // it wanted: a face with a caption under it reads as a logo.
+                FolderFace(expression: live, eyeWidth: w * 0.155)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, h * 0.11)
+                // The face goes with the pocket it is painted on, and fades
+                // as the pocket turns away: a face seen edge on is a line,
+                // and a line is not a face.
+                .rotation3DEffect(.degrees(74 * openness),
+                                  axis: (x: 1, y: 0, z: 0),
+                                  anchor: .bottom,
+                                  perspective: 0.55)
+                .opacity(1 - openness * 1.4)
             }
             .compositingGroup()
             // The one shadow, and it is the folder standing on the ground
@@ -158,12 +199,26 @@ struct WinFolder: View {
             // Two, not three. Three read as a jumble at folder size, and the
             // point of a card leaning out is that you can see it is a
             // photograph, which needs room.
-            ForEach(Array(contents.prefix(2).enumerated()), id: \.offset) { index, photo in
+            ForEach(Array(contents.prefix(2).enumerated()), id: \.offset) { index, win in
                 let lean = [-9.0, 6.0][min(index, 1)]
                 let slide = [-w * 0.13, w * 0.11][min(index, 1)]
-                Image(uiImage: photo)
-                    .resizable()
-                    .scaledToFill()
+                Group {
+                    if let photo = win.image {
+                        Image(uiImage: photo).resizable().scaledToFill()
+                    } else {
+                        ZStack {
+                            LinearGradient(colors: [win.colour.opacity(0.95),
+                                                    win.colour.opacity(0.72)],
+                                           startPoint: .top, endPoint: .bottom)
+                            Text(win.title)
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .padding(w * 0.03)
+                        }
+                    }
+                }
                     .frame(width: w * 0.42, height: w * 0.42)
                     .clipShape(RoundedRectangle(cornerRadius: w * 0.055, style: .continuous))
                     .overlay {

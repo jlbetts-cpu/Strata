@@ -3,9 +3,18 @@ import SwiftUI
 /// One win, as it sits in the folder.
 struct ScatterWin: Identifiable, Equatable {
     var id: String
-    var image: UIImage
+    /// **Optional, because not every win is a photograph.** The tower drew a
+    /// win with no picture as a plain coloured block, and dropping that would
+    /// lose every win somebody typed rather than shot. A card with no image
+    /// is its colour and its title, which is exactly what the block was.
+    var image: UIImage?
     var size: BlockSize
-    static func == (a: ScatterWin, b: ScatterWin) -> Bool { a.id == b.id && a.size == b.size }
+    var title: String = ""
+    var colour: Color = WinFolder.defaultTint
+
+    static func == (a: ScatterWin, b: ScatterWin) -> Bool {
+        a.id == b.id && a.size == b.size && (a.image == nil) == (b.image == nil)
+    }
 }
 
 /// **Inside the folder: organised clutter, and it is a phone.**
@@ -33,6 +42,14 @@ struct FolderInside: View {
     var wins: [ScatterWin]
     var tint: Color = WinFolder.defaultTint
     var onClose: () -> Void = {}
+    var onOpenWin: (String) -> Void = { _ in }
+    /// **Off when the screen already has a header.** On the Wins screen the
+    /// count and the word sit in the top left, six points above where this
+    /// was drawing them again, so opening the folder put "9 wins" on screen
+    /// twice in two sizes. The controls stay; the labels go.
+    var showsTitle: Bool = true
+    /// Room for the tab bar, when there is one under this.
+    var bottomInset: CGFloat = 0
 
     @State private var pressed: String?
     @State private var tidy = false
@@ -86,16 +103,17 @@ struct FolderInside: View {
         let made = await Task.detached(priority: .userInitiated) { () -> [String: UIImage] in
             var out: [String: UIImage] = [:]
             for win in source {
-                let side = max(win.image.size.width, win.image.size.height)
-                guard side > FolderInside.thumbnailSide else { out[win.id] = win.image; continue }
+                guard let original = win.image else { continue }
+                let side = max(original.size.width, original.size.height)
+                guard side > FolderInside.thumbnailSide else { out[win.id] = original; continue }
                 let scale = FolderInside.thumbnailSide / side
-                let size = CGSize(width: win.image.size.width * scale,
-                                  height: win.image.size.height * scale)
+                let size = CGSize(width: original.size.width * scale,
+                                  height: original.size.height * scale)
                 let format = UIGraphicsImageRendererFormat.default()
                 format.scale = 1
                 format.opaque = true
                 out[win.id] = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-                    win.image.draw(in: CGRect(origin: .zero, size: size))
+                    original.draw(in: CGRect(origin: .zero, size: size))
                 }
             }
             return out
@@ -105,13 +123,15 @@ struct FolderInside: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(Typography.screenTitle)
-                    .foregroundStyle(.white)
-                Text("\(wins.count) \(wins.count == 1 ? "win" : "wins")")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(Grey.g400)
+            if showsTitle {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(Typography.screenTitle)
+                        .foregroundStyle(.white)
+                    Text("\(wins.count) \(wins.count == 1 ? "win" : "wins")")
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(Grey.g400)
+                }
             }
             Spacer()
             // **Organise, which is a view and not a change.** It does not
@@ -166,9 +186,26 @@ struct FolderInside: View {
     private func card(_ win: ScatterWin, spot: ScatterLayout.Placement, index: Int) -> some View {
         let isPressed = pressed == win.id
         let radius = spot.frame.width * 0.085
-        return Image(uiImage: thumbs[win.id] ?? win.image)
-            .resizable()
-            .scaledToFill()
+        return Group {
+            if let image = thumbs[win.id] ?? win.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                // A win with no photograph: its colour and its words, which
+                // is what the block was.
+                ZStack {
+                    LinearGradient(colors: [win.colour.opacity(0.95), win.colour.opacity(0.7)],
+                                   startPoint: .top, endPoint: .bottom)
+                    Text(win.title)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .padding(spot.frame.width * 0.10)
+                }
+            }
+        }
             .frame(width: spot.frame.width, height: spot.frame.height)
             // **No white border.** The owner: "I don't like the random outline
             // we added for the photos, I don't think we need that." It was a
@@ -218,6 +255,10 @@ struct FolderInside: View {
                 pressed = down ? win.id : nil
                 if down { HapticsEngine.lightTap() }
             }
+            // The tap opens the win, which is the same sheet the tower's
+            // blocks opened. Separate from the press feedback above so a
+            // finger that slides off lifts the card back without opening it.
+            .onTapGesture { onOpenWin(win.id) }
             .accessibilityLabel("Win \(index + 1) of \(wins.count)")
     }
 }
