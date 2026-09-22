@@ -10,7 +10,7 @@ struct FolderFaceTests {
     /// silently: somebody tunes Annoyed a little closer to Idle, both still
     /// look fine on their own, and the folder quietly loses a mood.
     @Test("Every expression is a different face")
-    func allEightAreDistinct() {
+    func allAreDistinct() {
         let all = FaceExpression.all
         for i in all.indices {
             for j in all.indices where j > i {
@@ -20,62 +20,69 @@ struct FolderFaceTests {
         }
     }
 
-    /// Six of the seven in the reference are not happy, and that proportion
-    /// is the point: a folder wearing a constant grin is wallpaper. Happy is
-    /// the only one that arches both eyes hard.
+    /// Most of the set is not happy, and that proportion is the point: a
+    /// folder that can be bored is a folder that wants something put in it.
+    /// Happy is the only one that squints from below, which is how eyes
+    /// smile.
     @Test("The set is mostly not happy")
     func theSetIsNotAGrin() {
-        let cheerful = FaceExpression.all.filter { _, face in
-            face.left.bend > 0.8 && face.right.bend > 0.8
-                && face.left.angle == 0 && face.right.angle == 0
+        let smiling = FaceExpression.all.filter { _, face in
+            face.left.lower > 0.3 && face.right.lower > 0.3
         }
-        #expect(cheerful.count == 1, "\(cheerful.count) of the eight are a full grin")
+        #expect(smiling.count == 1, "\(smiling.count) of the set are a full smile")
     }
 
-    /// **Every face is two chevrons at a curvature and an angle**, which is
-    /// what makes it a system rather than a set of drawings. Nothing may need
-    /// a parameter that does not exist.
-    @Test("Bend and angle alone make every shape the set needs")
-    func theParametersSpanTheSet() {
-        // `>` is an arch rotated a quarter turn. If that stops being true the
-        // nervous and confused faces are drawings again.
-        #expect(FaceExpression.nervous.left.angle == 90)
-        #expect(FaceExpression.nervous.right.angle == -90)
-        #expect(FaceExpression.nervous.left.bend > 0.5, "a chevron needs curvature")
-        // `|` is a flat line rotated a quarter turn.
-        #expect(FaceExpression.confused.right.bend == 0)
-        #expect(FaceExpression.confused.right.angle == 90)
-        // Asymmetry is what reads as thinking rather than as feeling.
+    /// **A lid and its angle make every face the set needs.** If something
+    /// ever needs a parameter that does not exist, this is where it shows.
+    @Test("The lid alone spans the whole set")
+    func theLidSpansTheSet() {
+        // Eyes smile with the LOWER lid.
+        #expect(FaceExpression.happy.left.lower > 0.3)
+        // Inner corners down is cross; the sign is what carries it.
+        #expect(FaceExpression.annoyed.left.tilt < 0)
+        // Outer corners down is worried, which is the same lid turned.
+        #expect(FaceExpression.nervous.left.tilt > 0)
+        // Asymmetry is what reads as thinking rather than as feeling, and
+        // confused is the only face that is not a mirror of itself.
         #expect(FaceExpression.confused.left != FaceExpression.confused.right)
-        // Dizzy is the one face two strokes cannot make.
-        #expect(FaceExpression.dizzy.cross == 1)
+        for (name, face) in FaceExpression.all where name != "Confused" && name != "Curious" {
+            #expect(face.left == face.right, "\(name) is lopsided by accident")
+        }
+        // Heavy lids are what read as tired.
+        #expect(FaceExpression.sleepy.left.lid > FaceExpression.bored.left.lid)
+        #expect(FaceExpression.bored.left.lid > FaceExpression.idle.left.lid)
+        #expect(FaceExpression.wide.left.lid < FaceExpression.idle.left.lid)
+        // The one thing a pair does that a lid cannot.
+        #expect(FaceExpression.dizzy.pupilSplit > 0)
         for (name, face) in FaceExpression.all where name != "Dizzy" {
-            #expect(face.cross == 0, "\(name) should not be drawing the dizzy cross")
+            #expect(face.pupilSplit == 0, "\(name) has its eyes pushed apart")
         }
     }
 
-    /// The curvature has to mean what it says, because the whole rig is one
-    /// number being interpolated.
-    @Test("Bend zero is a flat line, and the sign picks the direction")
-    func bendMeansWhatItSays() {
-        let box = CGRect(x: 0, y: 0, width: 40, height: 28)
-        // **The TOP of the curve, not the middle of its box.** The first
-        // version of this measured `boundingRect.midY`, which barely moves:
-        // an arch grows upward while its box grows with it, so the centre
-        // stays put and the assertion compared 14.0 with 14.00000011.
-        func top(_ bend: CGFloat) -> CGFloat {
-            EyeStroke(bend: bend).path(in: box).boundingRect.minY
+    /// The mask has to mean what it says, because the whole rig is these
+    /// three numbers being interpolated.
+    @Test("An open lid shows the eye and a shut one hides it")
+    func theLidMeansWhatItSays() {
+        let box = CGRect(x: 0, y: 0, width: 40, height: 40)
+        func height(_ lid: CGFloat, _ lower: CGFloat = 0) -> CGFloat {
+            LidMask(lid: lid, lower: lower, tilt: 0).path(in: box)
+                .boundingRect.intersection(box).height
         }
-        func bottom(_ bend: CGFloat) -> CGFloat {
-            EyeStroke(bend: bend).path(in: box).boundingRect.maxY
-        }
-        let flatTop = top(0), flatBottom = bottom(0)
-        #expect(abs(flatTop - flatBottom) < 0.01, "bend 0 is not a flat line")
-        #expect(abs(flatTop - box.midY) < 0.01, "bend 0 is not centred on the eye")
-        #expect(top(0.9) < flatTop - 3, "a positive bend must arch UP")
-        #expect(bottom(-0.9) > flatBottom + 3, "a negative bend must cup DOWN")
-        // And it must be a smooth ramp, or interpolating it would jump.
-        #expect(top(0.45) < flatTop && top(0.45) > top(0.9))
+        #expect(height(0) >= box.height - 0.01, "a fully open lid hides part of the eye")
+        #expect(height(1) < 0.01, "a fully shut lid still shows the eye")
+        #expect(height(0.5) < height(0.2), "the lid goes the wrong way")
+        // The lower lid comes up from the bottom, which is a separate axis.
+        #expect(height(0, 0.5) < height(0, 0), "the lower lid does nothing")
+    }
+
+    /// A turned lid has to actually turn, or every tilted face is the same
+    /// as the level one.
+    @Test("Tilting the lid turns it")
+    func tiltTurnsTheLid() {
+        let box = CGRect(x: 0, y: 0, width: 40, height: 40)
+        let level = LidMask(lid: 0.3, lower: 0, tilt: 0).path(in: box).boundingRect
+        let turned = LidMask(lid: 0.3, lower: 0, tilt: 18).path(in: box).boundingRect
+        #expect(abs(level.minY - turned.minY) > 0.5, "the tilt changed nothing")
     }
 
     /// A blink is the openness going to nothing. Nothing else may sit at
@@ -84,6 +91,7 @@ struct FolderFaceTests {
     func nothingIsShutByDefault() {
         for (name, face) in FaceExpression.all {
             #expect(face.openness > 0.5, "\(name) is drawn half shut")
+            #expect(face.left.lid < 0.9 && face.right.lid < 0.9, "\(name) is drawn shut")
         }
     }
 }

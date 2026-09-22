@@ -85,10 +85,11 @@ struct WinFolder: View {
     private var live: FaceExpression {
         var face = expression
         guard isAlive, !reduceMotion else { return face }
+        // A blink closes whatever lid is already there, so it composes with a
+        // squint rather than replacing it. `FolderIdle.flatten` is gone with
+        // the strokes: on a round eye a lid coming down IS the blink, and
+        // there is no curve left to flatten on the way.
         face.openness *= idle.blink
-        // The stroke flattens as the lid comes down. See `FolderIdle.flatten`.
-        face.left.bend *= (1 - idle.flatten)
-        face.right.bend *= (1 - idle.flatten)
         face.gaze.width += idle.gaze.width
         face.gaze.height += idle.gaze.height + idle.breath
         return face
@@ -151,7 +152,7 @@ struct WinFolder: View {
                 //
                 // It also gives the face the pocket to itself, which is what
                 // it wanted: a face with a caption under it reads as a logo.
-                FolderFace(expression: live, eyeWidth: w * 0.155)
+                FolderFace(expression: live, eyeWidth: w * 0.108)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, h * 0.11)
             }

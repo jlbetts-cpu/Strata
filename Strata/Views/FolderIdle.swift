@@ -30,19 +30,9 @@ final class FolderIdle {
     /// Multiplied into the expression's openness, so a blink composes with a
     /// squint rather than fighting it.
     private(set) var blink: CGFloat = 1
-    /// **How much of a blink is happening, 0 to 1.** Separate from `blink`
-    /// because a blink is two things at once, and doing only the first is
-    /// what made the first version read as a shrink rather than a blink.
-    ///
-    /// The owner: "blinking should really feel like blinking."
-    ///
-    /// A lid comes DOWN. On a two-stroke face that means the stroke
-    /// FLATTENS as it closes — an arched eye passes through a straight line
-    /// on its way shut, because a closed eye IS a line. Squashing an arch
-    /// vertically just makes a smaller arch, which reads as the eye shrinking
-    /// away from you. So the bend is pulled toward zero by this amount at the
-    /// same time as the height goes.
-    private(set) var flatten: CGFloat = 0
+    // The stroke-flattening half of a blink is gone with the strokes: on a
+    // round eye with a lid, the lid coming down IS the blink and there is no
+    // curve to flatten on the way down.
     /// Added to the expression's gaze.
     private(set) var gaze: CGSize = .zero
     /// The slow vertical drift. Two points over two and a half seconds, which
@@ -73,7 +63,6 @@ final class FolderIdle {
         loop?.cancel()
         loop = nil
         blink = 1
-        flatten = 0
         gaze = .zero
     }
 
@@ -95,15 +84,9 @@ final class FolderIdle {
     /// closure the shorter half, so: 55ms down, a 25ms hold at the bottom,
     /// 95ms back up. 175ms, inside the range, weighted the way a real one is.
     private func blinkOnce() async {
-        withAnimation(.easeIn(duration: 0.055)) {
-            blink = 0.04
-            flatten = 1
-        }
+        withAnimation(.easeIn(duration: 0.055)) { blink = 0.04 }
         try? await Task.sleep(for: .milliseconds(80))
-        withAnimation(.easeOut(duration: 0.095)) {
-            blink = 1
-            flatten = 0
-        }
+        withAnimation(.easeOut(duration: 0.095)) { blink = 1 }
         try? await Task.sleep(for: .milliseconds(95))
     }
 

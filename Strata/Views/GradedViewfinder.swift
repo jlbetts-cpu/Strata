@@ -479,7 +479,12 @@ final class GradedPreviewView: MTKView {
         reportCost = cost
         ciContext = CIContext(mtlCommandQueue: queue, options: [
             .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3) as Any,
-            .cacheIntermediates: false
+            // **On, for the viewfinder.** It was off, which is right for a
+            // one-off still and wrong for thirty frames a second of the same
+            // graph: with no cache, every constant in the pipeline — the
+            // colour table, the grain mask, the blur kernels — is rebuilt
+            // for each frame. The cost of keeping them is a few megabytes.
+            .cacheIntermediates: true
         ])
         super.init(frame: .zero, device: device)
         // Required for Core Image to render into the drawable's texture.

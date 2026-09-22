@@ -33,6 +33,9 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// out again.
     private let lock = NSLock()
     private var cubes: [FilmLook.Kind: Data] = [:]
+    /// Built once per look and kept, so the table is not re-uploaded per
+    /// frame. See `colourFilter`.
+    private var colourFilters: [FilmLook.Kind: CIFilter] = [:]
     private var grainMasks: [FilmLook.Kind: Data] = [:]
     private var ramps: [RampKey: Data] = [:]
     private static let cubeSide = 64
@@ -246,13 +249,37 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
 
     // MARK: - Colour
 
-    private func coloured(_ image: CIImage, look: FilmLook) -> CIImage {
-        guard let data = cube(for: look) else { return image }
+    /// **The colour table is uploaded once, not thirty times a second.**
+    ///
+    /// The owner, with the live look on: "it feels so much slower than the
+    /// none."
+    ///
+    /// This built a fresh `CIColorCubeWithColorSpace` every frame and set
+    /// `cubeData` on it every frame. That property is not a reference somebody
+    /// holds: setting it hands Core Image **two megabytes** of table — 64
+    /// cubed, four half floats a cell — to validate and push to the GPU. At
+    /// thirty frames a second that is sixty megabytes a second of pure upload
+    /// for a table that had not changed since the app launched, and it landed
+    /// on the main thread, which is why the whole screen felt heavy rather
+    /// than just the picture.
+    ///
+    /// One filter per look, kept. Only `inputImage` moves per frame.
+    private func colourFilter(for look: FilmLook) -> CIFilter? {
+        lock.lock()
+        if let existing = colourFilters[look.kind] { lock.unlock(); return existing }
+        lock.unlock()
+        guard let data = cube(for: look) else { return nil }
         let filter = CIFilter.colorCubeWithColorSpace()
-        filter.inputImage = image
         filter.cubeDimension = Float(Self.cubeSide)
         filter.cubeData = data
         filter.colorSpace = cubeSpace
+        lock.lock(); colourFilters[look.kind] = filter; lock.unlock()
+        return filter
+    }
+
+    private func coloured(_ image: CIImage, look: FilmLook) -> CIImage {
+        guard let filter = colourFilter(for: look) else { return image }
+        filter.setValue(image, forKey: kCIInputImageKey)
         return filter.outputImage ?? image
     }
 
