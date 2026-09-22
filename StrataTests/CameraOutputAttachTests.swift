@@ -71,6 +71,6 @@ struct CameraOutputAttachTests {
         // No session, so no connection. This is the shape of the fourth
         // candidate cause: a connection property set before the output is
         // attached. It must do nothing rather than raise.
-        CameraService.orient(AVCaptureVideoDataOutput(), device: nil, mirrored: false)
+        CameraService.orient(AVCaptureVideoDataOutput(), angle: 90, mirrored: false)
     }
 }

@@ -62,13 +62,31 @@ final class CameraService: NSObject {
         }
     }
 
+    /// **Returns when the session is actually running.**
+    ///
+    /// It used to dispatch `startRunning` onto `queue` and return
+    /// immediately, so the caller's very next line ran on the main actor
+    /// BESIDE the start. `AVCaptureSession` raises an Objective-C exception
+    /// when it is reconfigured underneath a start, and an Objective-C
+    /// exception is not something Swift can catch: it goes to
+    /// `std::terminate`. That is what terminated the app on his phone, inside
+    /// `-[AVCaptureSession startRunning]` on thread 5.
+    ///
+    /// Awaiting the queue makes the ordering a property of the code rather
+    /// than of timing: everything a caller writes after `await start()` is
+    /// strictly after the session is up, whichever thread it then runs on.
     func start() async {
         await requestAccess()
         guard isAuthorized else { return }
         if !isConfigured { configure() }
         guard isConfigured else { return }
         let session = session
-        queue.async { if !session.isRunning { session.startRunning() } }
+        await withCheckedContinuation { continuation in
+            queue.async {
+                if !session.isRunning { session.startRunning() }
+                continuation.resume()
+            }
+        }
     }
 
     func stop() {
@@ -184,6 +202,8 @@ final class CameraService: NSObject {
     private var frameOutput: AVCaptureVideoDataOutput?
     /// The graded viewfinder's output. See `attachPreviewFrames`.
     private var previewFrames: AVCaptureVideoDataOutput?
+    /// The preview layer's rotation, copied at attach so a flip can restore it.
+    private var frameAngle: CGFloat = 90
     private var presetBeforeFrames: AVCaptureSession.Preset?
     /// The zoom to put back when the head maker is finished with the camera.
     private var zoomBeforeFrames: CGFloat?
@@ -286,14 +306,14 @@ final class CameraService: NSObject {
     /// reason, `previewFrames` stays nil, no frames are ever delivered, the
     /// overlay stays hidden, and the camera is exactly the camera it was
     /// before this feature existed.
-    func attachPreviewFrames(_ output: AVCaptureVideoDataOutput) {
+    func attachPreviewFrames(_ output: AVCaptureVideoDataOutput, matching angle: CGFloat) {
         guard isConfigured, previewFrames == nil, frameOutput == nil else { return }
         let session = self.session
-        let device = input?.device
+        frameAngle = angle
         let mirrored = facing == .front
         queue.async {
             let added = Self.addOnce(output, to: session) {
-                Self.orient(output, device: device, mirrored: mirrored)
+                Self.orient(output, angle: angle, mirrored: mirrored)
             }
             Task { @MainActor [weak self] in
                 self?.previewFrames = added ? output : nil
@@ -346,20 +366,24 @@ final class CameraService: NSObject {
     /// Upright, and mirrored on the front lens, so the graded surface shows
     /// what the preview layer under it shows.
     ///
-    /// **The angle is asked of the device rather than assumed**, and it is the
-    /// CAPTURE angle rather than the preview one: the preview angle is defined
-    /// relative to a preview layer and we have none to give the coordinator,
-    /// where the capture angle is well defined without one. It is also the
-    /// angle `attachFrames` uses, which is the path that was debugged on a
-    /// real phone when the iPhone 17's front sensor turned out to be mounted a
-    /// quarter turn differently from every phone before it.
+    /// **The angle is the preview layer's own, copied.** It was asked of an
+    /// `AVCaptureDevice.RotationCoordinator` instead, first as
+    /// `videoRotationAngleForHorizonLevelPreview` and then, in the commit that
+    /// added the y-flip, as `...ForHorizonLevelCapture`. Both are answers to a
+    /// question this surface is not asking. The overlay has exactly one
+    /// correctness condition — that it agree with the preview layer it is
+    /// drawn on top of — and the way to satisfy a condition like that is to
+    /// read the other side of it rather than to derive it a second time and
+    /// hope the two derivations agree. They did not: changing the property and
+    /// adding the flip in one commit moved the picture 180 degrees twice, and
+    /// the owner saw exactly what he had seen before. "The filter orientation
+    /// ones are still flipped upside down."
+    ///
+    /// Copying it also means no device can be wrong here. Whatever the layer
+    /// does, on whatever phone, this does the same.
     nonisolated static func orient(_ output: AVCaptureVideoDataOutput,
-                                   device: AVCaptureDevice?, mirrored: Bool) {
+                                   angle: CGFloat, mirrored: Bool) {
         guard let connection = output.connection(with: .video) else { return }
-        let angle = device.map {
-            AVCaptureDevice.RotationCoordinator(device: $0, previewLayer: nil)
-                .videoRotationAngleForHorizonLevelCapture
-        } ?? 90
         if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
@@ -373,9 +397,9 @@ final class CameraService: NSObject {
     /// everything else here is.
     private func reorientPreviewFrames() {
         guard let output = previewFrames else { return }
-        let device = input?.device
+        let angle = frameAngle
         let mirrored = facing == .front
-        queue.async { Self.orient(output, device: device, mirrored: mirrored) }
+        queue.async { Self.orient(output, angle: angle, mirrored: mirrored) }
     }
 
     func detachFrames() {

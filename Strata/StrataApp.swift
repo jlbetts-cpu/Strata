@@ -28,6 +28,11 @@ struct StrataApp: App {
     @State private var storeOpening: StoreOpening
 
     init() {
+        // **First line of the app.** An Objective-C exception is not
+        // catchable from Swift, so the only place its reason can be read is
+        // the uncaught handler, and the only way it survives the process is
+        // being written down there. See `CrashReason`.
+        CrashReason.install()
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
         // `body` is too late: `showsOnboarding` is read in the same evaluation

@@ -77,30 +77,52 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         return UIImage(cgImage: out, scale: image.scale, orientation: .up)
     }
 
-    /// **Colour only, for the live viewfinder.**
+    /// **The look, live in the viewfinder: the whole pipeline, not part of it.**
     ///
-    /// The neutraliser and the cube, and nothing else: no grain, no halation,
-    /// no bloom, no glow, no clarity, no vignette. Those are the expensive
-    /// half of `apply` — per-pixel noise and multi-pass blurs — and they are
-    /// wrong on a moving picture anyway, since grain that re-randomises at
-    /// 30Hz reads as sensor noise rather than as film.
+    /// This was colour and nothing else, on the argument that grain and blurs
+    /// were the expensive half and that grain re-randomising at 30Hz would
+    /// read as sensor noise. The owner, with that build on his phone: "there
+    /// is no film simulation like grain or anything and the looks dont look
+    /// distinct enough to look good."
     ///
-    /// **The cube is the same table the photograph gets**, so the viewfinder
-    /// and the saved picture agree about colour, which is the only thing the
-    /// viewfinder is promising. The still keeps the whole pipeline, so the
-    /// photograph gains grain and halation the preview did not show; that is
-    /// the intended difference and it is in the direction people expect, since
-    /// the picture is finished and the viewfinder is a guide to its colour.
+    /// He is right twice. A colour table is what the three looks have LEAST
+    /// in common — Air's character is its glow, Bright's is its clarity,
+    /// Silver's is the grain it carries through the midtones — so stripping
+    /// those left three tints of one another, which is exactly what "not
+    /// distinct enough" describes. And film that moves has moving grain; 24
+    /// frames a second of it is what people recognise film BY.
     ///
-    /// `means` is passed in rather than measured, because measuring is a
-    /// synchronous GPU readback. See `measureMeans`.
-    func colourOnly(_ look: FilmLook, to input: CIImage, means: [Double]?) -> CIImage {
+    /// **The expense was never measured, and it is not there.** Rendered the
+    /// way the viewfinder renders — into a Metal texture, no readback — a
+    /// 1080x1440 frame through the complete pipeline costs 3.1 to 3.4ms of
+    /// GPU on this Mac, against a 33ms budget at 30 frames a second. The
+    /// first attempt to measure it said 440ms and was wrong by two orders of
+    /// magnitude, because it rendered `toBitmap:` through a context with no
+    /// Metal device: six megabytes of readback a frame, which is nothing the
+    /// viewfinder does. `FilmLookLiveSheetTests` now measures the real path.
+    ///
+    /// So there is one pipeline and the viewfinder is the photograph. Nothing
+    /// appears in the picture that was not in the frame it was composed in,
+    /// which is the only promise a viewfinder makes.
+    ///
+    /// `means` is handed in rather than measured, because measuring is a
+    /// synchronous GPU readback. See `measureMeans`. `phase` moves the grain,
+    /// so a caller passes a new one each frame.
+    /// `sparingHighlights` drops halation and bloom, which are four Gaussian
+    /// blurs between them and the most expensive thing here. They are the
+    /// right things to give up first if a GPU cannot hold the frame rate:
+    /// they show at the edge of a blown window, where everything else in the
+    /// pipeline is what the look IS. Nothing sets it unless the device says
+    /// so. See `GradedViewfinder.frameCost`.
+    func live(_ look: FilmLook, to input: CIImage, means: [Double]?, phase: CGPoint,
+              sparingHighlights: Bool = false) -> CIImage {
         guard look.kind != .none else { return input }
-        var image = input
-        if look.neutralise > 0 {
-            image = neutralised(image, strength: look.neutralise, means: means)
+        var look = look
+        if sparingHighlights {
+            look.halation = nil
+            look.bloom = nil
         }
-        return coloured(image, look: look).cropped(to: input.extent)
+        return apply(look, to: input, means: means, grainPhase: phase)
     }
 
     /// A `CIImage` rendered out, for the tray's swatches.
@@ -113,12 +135,17 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     }
 
     /// The whole pipeline, as `CIImage`s.
-    func apply(_ look: FilmLook, to input: CIImage) -> CIImage {
+    ///
+    /// `means` lets a live caller skip the white-balance readback; a still
+    /// passes nothing and measures. `grainPhase` moves the noise field, so a
+    /// still stays reproducible at `.zero` and a viewfinder walks it.
+    func apply(_ look: FilmLook, to input: CIImage,
+               means: [Double]? = nil, grainPhase: CGPoint = .zero) -> CIImage {
         var image = input
         let scale = max(input.extent.width, input.extent.height) / Self.referenceSize
 
         if look.neutralise > 0 {
-            image = neutralised(image, strength: look.neutralise)
+            image = neutralised(image, strength: look.neutralise, means: means)
         }
 
         image = coloured(image, look: look)
@@ -153,7 +180,7 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
             image = (sharpen.outputImage ?? image).cropped(to: input.extent)
         }
         if let grain = look.grain {
-            image = grained(image, grain, look: look, scale: scale)
+            image = grained(image, grain, phase: grainPhase, look: look, scale: scale)
         }
         if look.vignette > 0 {
             let filter = CIFilter.vignette()

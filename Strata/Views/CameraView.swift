@@ -517,7 +517,11 @@ struct CameraView: View {
             // it. Doing it here on the main actor is what crashed his phone.
             // If it does not attach, no frames arrive, the overlay stays
             // hidden and this is the camera exactly as it was before.
-            camera.attachPreviewFrames(graded.relay.output)
+            // **The angle comes off the preview layer**, so the graded surface
+            // and the layer it covers cannot disagree about which way is up.
+            // Deriving it separately is what put the overlay 180 degrees out.
+            camera.attachPreviewFrames(graded.relay.output,
+                                       matching: previewBox.layer?.connection?.videoRotationAngle ?? 90)
             graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
         }
         .onChange(of: lookRaw) { _, raw in

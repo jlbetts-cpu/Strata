@@ -4,9 +4,6 @@ import MetalKit
 import UIKit
 import os
 
-/// Whatever handler was installed before ours, so nothing is swallowed.
-private nonisolated(unsafe) var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
-
 /// **The viewfinder, in the colour the photograph will be.**
 ///
 /// The owner, with the build on his phone: "The live filters don't actually
@@ -27,34 +24,16 @@ private nonisolated(unsafe) var previousExceptionHandler: (@convention(c) (NSExc
 /// where the viewfinder goes black because the grading failed: the worst case
 /// is an ungraded picture, which is the camera working.
 ///
-/// **Colour only.** No grain, no halation, no vignette, per the decision on
-/// the live path: those are per-pixel noise and multi-pass blurs, they are the
-/// expensive half of the pipeline, and grain that crawls at 30Hz reads as
-/// noise rather than as film. The still keeps the whole pipeline.
+/// **It carries the texture, not just the colour.** It did not, and the owner
+/// said so: "there is no film simulation like grain or anything and the looks
+/// dont look distinct enough to look good." A colour table is the part the
+/// three looks have least in common — Air is its glow, Bright is its clarity,
+/// Silver is its grain — so stripping those left three tints of each other.
+/// `FilmLookRenderer.live` now runs the whole pipeline bar halation and bloom,
+/// which are four blurs for the smallest difference of any step.
 @MainActor
 final class GradedViewfinder {
     static let log = Logger(subsystem: "JaydenBetts.Strata", category: "viewfinder")
-
-    /// **So the next Objective-C exception says what it was.**
-    ///
-    /// The camera crashed on his phone inside `-[AVCaptureSession startRunning]`
-    /// and the reason was cut off in the Xcode window. An `NSException` is not
-    /// catchable from Swift — it goes to `std::terminate` — so the only way to
-    /// see the reason without a breakpoint is to read it on the way out.
-    ///
-    /// Installed once, and it chains to whatever handler was there before so
-    /// it cannot swallow anything else's report.
-    private static let installExceptionLogging: Void = {
-        // A global rather than a capture: the handler is a C function pointer
-        // and cannot close over anything.
-        previousExceptionHandler = NSGetUncaughtExceptionHandler()
-        NSSetUncaughtExceptionHandler { exception in
-            GradedViewfinder.log.fault("""
-                uncaught \(exception.name.rawValue, privacy: .public):                 \(exception.reason ?? "no reason", privacy: .public)
-                """)
-            previousExceptionHandler?(exception)
-        }
-    }()
 
     /// The look being drawn. `.none` hides the overlay, which is the common
     /// case and costs nothing to render.
@@ -74,6 +53,46 @@ final class GradedViewfinder {
     /// a late one.
     private var presenting = false
 
+    /// **Where the grain field is sampled from, this frame.**
+    ///
+    /// `CIRandomGenerator` takes no seed: it is a deterministic function of
+    /// position, so the same call gives the same field pinned to the same
+    /// coordinates. Drawn unmoved, the grain would sit still while the scene
+    /// moved behind it — dirt on the glass rather than grain in the emulsion.
+    /// Walking the field by a prime number of points each frame samples
+    /// somewhere new without ever repeating a short cycle.
+    private var grainPhase: CGPoint = .zero
+
+    /// **What the grade actually costs this phone, and what to do about it.**
+    ///
+    /// The whole pipeline measured 2.4 to 9.5ms of GPU a frame on this Mac,
+    /// against a 33ms budget at 30 frames a second, so it ships complete. But
+    /// the Mac is not the phone and the phone is not every phone, and the
+    /// failure mode if it is wrong is bad: `alwaysDiscardsLateVideoFrames`
+    /// turns a frame that is too slow into a frame that is not delivered, so
+    /// a heavy pipeline reads as a stuttering camera rather than as a slow
+    /// one.
+    ///
+    /// The first twenty frames are timed and then a decision is made once.
+    /// Over budget, halation and bloom come off — four Gaussian blurs, the
+    /// most expensive and least identifying part of a look. Decided once and
+    /// then left alone: a pipeline that switched back and forth would show as
+    /// the look itself changing while the camera sat still.
+    private var costs: [Double] = []
+    private var sparingHighlights = false
+    private static let budgetMilliseconds = 22.0
+
+    private func frameCost(_ milliseconds: Double) {
+        guard costs.count < 20 else { return }
+        costs.append(milliseconds)
+        guard costs.count == 20 else { return }
+        let median = costs.sorted()[10]
+        sparingHighlights = median > Self.budgetMilliseconds
+        Self.log.notice("""
+            graded viewfinder: \(median, format: .fixed(precision: 2), privacy: .public) ms median on the GPU, \(self.sparingHighlights ? "dropping halation and bloom" : "running the whole pipeline", privacy: .public)
+            """)
+    }
+
     /// True when a look is selected AND frames are arriving.
     private var isDrawable: Bool { look.kind != .none && relay.isLive }
 
@@ -82,7 +101,6 @@ final class GradedViewfinder {
     private var watchdog: Timer?
 
     init() {
-        _ = Self.installExceptionLogging
         relay.onFrame = { [weak self] image, means in
             Task { @MainActor in
                 guard let self, !self.presenting else { return }
@@ -98,7 +116,9 @@ final class GradedViewfinder {
     /// then simply never adds an overlay.
     func makeView() -> GradedPreviewView? {
         if let view { return view }
-        guard let made = GradedPreviewView.make() else {
+        guard let made = GradedPreviewView.make(cost: { [weak self] ms in
+            Task { @MainActor in self?.frameCost(ms) }
+        }) else {
             Self.log.error("graded viewfinder: no Metal device, staying on the plain preview")
             return nil
         }
@@ -114,7 +134,9 @@ final class GradedViewfinder {
             if !view.isHidden { view.isHidden = true }
             return
         }
-        let graded = FilmLookRenderer.shared.colourOnly(look, to: image, means: means)
+        grainPhase = CGPoint(x: grainPhase.x + 1013, y: grainPhase.y + 1409)
+        let graded = FilmLookRenderer.shared.live(look, to: image, means: means, phase: grainPhase,
+                                                  sparingHighlights: sparingHighlights)
         view.show(graded)
         if view.isHidden { view.isHidden = false }
     }
@@ -278,18 +300,22 @@ final class GradedPreviewView: MTKView {
     private let space = CGColorSpace(name: CGColorSpace.displayP3)
     private var image: CIImage?
     private var announced = false
+    private var drawn = 0
+    /// Handed the GPU time for a frame, from the command buffer's own clock.
+    private let reportCost: @Sendable (Double) -> Void
 
     /// Nil where there is no Metal device: the simulator, and any failure on
     /// hardware. The caller then never adds an overlay and the plain preview
     /// is the viewfinder.
-    static func make() -> GradedPreviewView? {
+    static func make(cost: @escaping @Sendable (Double) -> Void) -> GradedPreviewView? {
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else { return nil }
-        return GradedPreviewView(device: device, queue: queue)
+        return GradedPreviewView(device: device, queue: queue, cost: cost)
     }
 
-    private init(device: MTLDevice, queue: MTLCommandQueue) {
+    private init(device: MTLDevice, queue: MTLCommandQueue, cost: @escaping @Sendable (Double) -> Void) {
         commands = queue
+        reportCost = cost
         ciContext = CIContext(mtlCommandQueue: queue, options: [
             .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3) as Any,
             .cacheIntermediates: false
@@ -376,6 +402,27 @@ final class GradedPreviewView: MTKView {
         ciContext.render(upright, to: drawable.texture, commandBuffer: buffer,
                          bounds: CGRect(x: 0, y: 0, width: width, height: height),
                          colorSpace: space ?? CGColorSpaceCreateDeviceRGB())
+
+        // **What the grade costs the GPU, as a number.** The live pipeline
+        // grew from one colour table to eight passes when the looks came back
+        // with their texture, and "is it smooth" should not be answered by
+        // feel. 33ms is the whole budget at 30 frames a second, so a reading
+        // near it is the signal to drop a blur. Sampled every sixtieth frame,
+        // and measured on the command buffer's own clock rather than by
+        // timing `commit`, which returns before the GPU has started.
+        drawn &+= 1
+        let report = reportCost
+        let announce = drawn % 60 == 1
+        if drawn <= 20 || announce {
+            buffer.addCompletedHandler { finished in
+                let ms = (finished.gpuEndTime - finished.gpuStartTime) * 1000
+                report(ms)
+                if announce {
+                    GradedViewfinder.log.notice(
+                        "graded viewfinder: \(ms, format: .fixed(precision: 2), privacy: .public) ms on the GPU for one frame")
+                }
+            }
+        }
         buffer.present(drawable)
         buffer.commit()
     }
