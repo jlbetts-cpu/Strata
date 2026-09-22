@@ -13,49 +13,49 @@ struct ScatterLayoutTests {
         (0..<n).map { ScatterLayout.Item(id: "win-\($0)", size: sizes[$0 % sizes.count]) }
     }
 
-    /// **The guarantee, at every count from one to twenty.**
+    /// **Nothing touches, at every count from one to twenty.**
     ///
-    /// It used to be "nothing touches", which held perfectly and looked
-    /// wrong: cards that never overlap read as a grid with a lean on it
-    /// rather than as clutter, and photographs in a real folder overlap.
-    ///
-    /// So the rule moved to the one that actually matters. Cards may tuck
-    /// under each other; no card may end up more than a fifth covered by the
-    /// ones drawn after it, because past that a win stops being recognisable
-    /// and stops being comfortably tappable. Same assertable property, at
-    /// every count, for the thing that is really required.
-    @Test("No win is ever buried, at any count from one to twenty")
-    func nothingIsEverBuried() {
+    /// This was the rule, then I relaxed it to "no win is more than a fifth
+    /// covered" so cards could overlap, on my own reading that organised
+    /// clutter means contact. The owner looked at it: "why are they
+    /// touching." His reference has clear air between every card, and he is
+    /// right that photographs somebody KEEPS are laid out rather than
+    /// dropped. The strong guarantee is back, and it is the one worth having
+    /// because it is absolute at any count.
+    @Test("No two wins ever touch, at any count from one to twenty")
+    func nothingEverCollides() {
         for count in 1...20 {
             let placed = ScatterLayout.place(items(count), in: Self.width)
             #expect(placed.count == count, "\(count) in, \(placed.count) out")
             for i in placed.indices {
-                let mine = placed[i].frame
-                let area = mine.width * mine.height
-                // Later cards are drawn on top, so only those can cover it.
-                var covered: CGFloat = 0
                 for j in placed.indices where j > i {
-                    let overlap = mine.intersection(placed[j].frame)
-                    if !overlap.isNull { covered += overlap.width * overlap.height }
+                    #expect(!placed[i].frame.intersects(placed[j].frame),
+                            "at \(count) items, \(placed[i].id) touches \(placed[j].id)")
                 }
-                #expect(covered / area <= ScatterLayout.maxCovered + 0.001,
-                        "at \(count) items, \(placed[i].id) is \(Int(covered / area * 100))% buried")
             }
         }
     }
 
-    /// And the other half of it: they must actually overlap SOMEWHERE, or the
-    /// tuck has quietly stopped happening and it is a grid again.
-    @Test("Cards do overlap, because that is what clutter is")
-    func cardsActuallyTouch() {
+    /// **A row must splay open rather than wedge shut.** Cards left of the
+    /// middle lean one way and cards right of it lean the other, so a pair
+    /// falls apart at the top instead of meeting there. Getting this
+    /// backwards is invisible in any per-card assertion and obvious on sight.
+    @Test("Neighbours lean away from each other, not into each other")
+    func rowsSplayOpen() {
         let placed = ScatterLayout.place(items(12), in: Self.width)
-        var touching = 0
         for i in placed.indices {
             for j in placed.indices where j > i {
-                if placed[i].frame.intersects(placed[j].frame) { touching += 1 }
+                let sameRow = abs(placed[i].frame.midY - placed[j].frame.midY)
+                    < placed[i].frame.height * 0.5
+                guard sameRow else { continue }
+                let (left, right) = placed[i].frame.midX < placed[j].frame.midX
+                    ? (placed[i], placed[j]) : (placed[j], placed[i])
+                #expect(left.angle <= 0.001,
+                        "\(left.id) is on the left and leans right, into its neighbour")
+                #expect(right.angle >= -0.001,
+                        "\(right.id) is on the right and leans left, into its neighbour")
             }
         }
-        #expect(touching > 0, "nothing overlaps, so this is a grid with a lean on it")
     }
 
     @Test("Everything stays inside the folder")
@@ -120,18 +120,40 @@ struct ScatterLayoutTests {
 
     /// The Organize button: the same wins, the mess turned off. Same cards,
     /// same order, no lean, no tuck.
-    @Test("Organising keeps every win and takes the mess out")
-    func tidyIsTheSameSetWithoutTheClutter() {
-        let messy = ScatterLayout.place(items(12), in: Self.width)
-        let tidy = ScatterLayout.place(items(12), in: Self.width, tidy: true)
-        #expect(messy.map(\.id) == tidy.map(\.id), "organising lost or reordered a win")
-        #expect(tidy.allSatisfy { $0.angle == 0 }, "a tidied win is still leaning")
-        for i in tidy.indices {
-            for j in tidy.indices where j > i {
-                #expect(!tidy[i].frame.intersects(tidy[j].frame),
-                        "organised wins must not overlap at all")
+    /// **Organised is two columns**, not the scatter with the lean removed.
+    /// Every card is the same width and sits in one of exactly two places
+    /// across, which is what makes it read as a grid rather than as a
+    /// straightened scatter.
+    @Test("Organising is a two column grid that keeps every win")
+    func tidyIsATwoColumnGrid() {
+        for count in 1...20 {
+            let tidy = ScatterLayout.place(items(count), in: Self.width, tidy: true)
+            #expect(tidy.count == count)
+            #expect(tidy.allSatisfy { $0.angle == 0 }, "a tidied win is still leaning")
+
+            let widths = Set(tidy.map { Int($0.frame.width.rounded()) })
+            #expect(widths.count == 1, "organised cards are not all one width")
+            let columns = Set(tidy.map { Int($0.frame.minX.rounded()) })
+            #expect(columns.count <= 2, "there are \(columns.count) columns, not two")
+
+            for i in tidy.indices {
+                for j in tidy.indices where j > i {
+                    #expect(!tidy[i].frame.intersects(tidy[j].frame),
+                            "organised wins must not overlap at all")
+                }
             }
         }
+    }
+
+    /// **The same cards have to be on screen before and after**, or the
+    /// change is a reload rather than an animation and nothing can glide.
+    @Test("Organising moves every win rather than replacing it")
+    func organisingIsAMoveNotAReload() {
+        let messy = ScatterLayout.place(items(12), in: Self.width)
+        let tidy = ScatterLayout.place(items(12), in: Self.width, tidy: true)
+        #expect(Set(messy.map(\.id)) == Set(tidy.map(\.id)),
+                "organising lost or gained a win")
+        #expect(messy.map(\.id) == tidy.map(\.id), "organising reordered the wins")
         #expect(messy != tidy, "organising did nothing")
     }
 
@@ -143,10 +165,18 @@ struct ScatterLayoutTests {
             #expect(abs(p.angle) <= ScatterLayout.lean + 0.001,
                     "\(p.id) leans \(p.angle) degrees")
         }
-        // And they are not all leaning the same way, or it reads as a skew
-        // rather than as a scatter.
+        // Both directions must appear, or it is a skew rather than a
+        // scatter. WHICH card leans which way is `rowsSplayOpen`'s job: the
+        // first version of this test asked only that both signs existed
+        // somewhere in twenty, and that passed while the leans came out
+        // `----------++++++++++` and every card on one screen tilted the
+        // same way. A property that holds over a set can be violated in
+        // every pair inside it.
         let angles = ScatterLayout.place(items(20), in: Self.width).map(\.angle)
         #expect(angles.contains(where: { $0 > 0.5 }) && angles.contains(where: { $0 < -0.5 }))
+        // And a lean has to be big enough to read as deliberate rather than
+        // as a card somebody failed to line up.
+        #expect(angles.allSatisfy { abs($0) > ScatterLayout.lean * 0.4 })
     }
 
     @Test("An empty folder lays out nothing rather than crashing")

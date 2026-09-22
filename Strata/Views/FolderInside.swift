@@ -77,7 +77,11 @@ struct FolderInside: View {
             GlassIconButton(systemName: tidy ? "square.grid.2x2.fill" : "square.grid.2x2",
                             tint: .white,
                             accessibilityLabel: tidy ? "Back to the scatter" : "Organise") {
-                withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) { tidy.toggle() }
+                // No `withAnimation` here on purpose: the cards carry their
+                // own, with a stagger, so this cannot animate them as one
+                // block. An animation declared at the value it belongs to
+                // also cannot be forgotten by a second caller later.
+                tidy.toggle()
             }
             GlassIconButton(systemName: "xmark", tint: .white,
                             accessibilityLabel: "Close the folder", action: onClose)
@@ -104,6 +108,10 @@ struct FolderInside: View {
                 }
                 .frame(width: width, height: ScatterLayout.height(placed),
                        alignment: .topLeading)
+                // The page is taller organised than scattered. Without this
+                // the height cuts to its new value on the first frame and
+                // the whole scroll jolts under cards that are still moving.
+                .animation(.spring(response: 0.55, dampingFraction: 0.84), value: tidy)
                 .padding(.horizontal, GridConstants.gapWide)
                 .padding(.bottom, 80)
             }
@@ -140,6 +148,19 @@ struct FolderInside: View {
             .offset(y: arrived ? 0 : 26)
             .animation(.spring(response: 0.5, dampingFraction: 0.8)
                         .delay(Double(index) * 0.022), value: arrived)
+            // **Organising is a ripple, not a cut.**
+            //
+            // Every card moving at the same instant reads as the screen
+            // being replaced; a small stagger reads as a hand tidying a
+            // stack. 16ms apart is under a frame each, so twelve cards are
+            // spread across about a fifth of a second and nothing feels
+            // like it is waiting.
+            //
+            // One spring for the position, the size and the lean together,
+            // because they are one movement: a card straightens as it
+            // travels rather than arriving and then straightening.
+            .animation(.spring(response: 0.55, dampingFraction: 0.84)
+                        .delay(Double(index) * 0.016), value: tidy)
             .animation(GridConstants.motionSnappy, value: isPressed)
             // **Touch down, not tap.** The lift happens while the finger is
             // still deciding, which is the whole difference.
