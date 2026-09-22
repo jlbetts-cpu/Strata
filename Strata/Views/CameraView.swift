@@ -978,10 +978,25 @@ struct CameraView: View {
         }
     }
 
+    /// **When the hold locked, so the release that follows it does not
+    /// immediately unlock.**
+    ///
+    /// A `SpatialTapGesture` has no maximum duration: it fires on release
+    /// however long the finger was down. So holding for a lock fired the long
+    /// press AND then the tap, and the tap releases a lock, so the feature
+    /// cancelled itself every single time. Found by reading the gesture
+    /// composition after shipping it, not by using it.
+    ///
+    /// Guarded on time rather than on a flag, because a flag that is set and
+    /// never cleared eats a real tap later. This heals itself after a second
+    /// whatever happens.
+    @State private var lockedAt: Date?
+
     /// Pins focus and exposure where the finger was held.
     private func lock(at location: CGPoint) {
         guard let layer = previewBox.layer else { return }
         camera.lockFocusAndExposure(at: layer.captureDevicePointConverted(fromLayerPoint: location))
+        lockedAt = Date()
         // Two knocks, because a lock is a state you are entering rather than
         // a thing that just happened.
         HapticsEngine.snap()
@@ -990,6 +1005,8 @@ struct CameraView: View {
     }
 
     private func focus(at location: CGPoint) {
+        // The release at the end of a hold is not a tap. See `lockedAt`.
+        if let lockedAt, Date().timeIntervalSince(lockedAt) < 1 { return }
         guard let layer = previewBox.layer else { return }
         let devicePoint = layer.captureDevicePointConverted(fromLayerPoint: location)
         camera.focus(at: devicePoint)
