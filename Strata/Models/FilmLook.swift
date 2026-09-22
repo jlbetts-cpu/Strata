@@ -189,7 +189,10 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     var bloom: Glare?
     /// The air: a soft, lifted copy printed back over the picture.
     var glow: Glare?
-    /// Local contrast, to pay for the softness the shoulder and the glow cost.
+    /// Local contrast, to pay for the softness the shoulder and the glow
+    /// cost. **Negative softens instead**, which is the move that takes the
+    /// clinical edge off a digital lens and is what a Fujifilm recipe means
+    /// by clarity -2.
     var clarity: Double = 0
     /// Grain: how strong, how big on a 2560px photograph, and how much colour
     /// it carries.
@@ -545,7 +548,7 @@ extension FilmLook {
         halation: Glare(threshold: 0.82, radius: 34, amount: 0.18),
         bloom: Glare(threshold: 0.88, radius: 50, amount: 0.08),
         glow: Glare(threshold: 0.24, radius: 36, amount: 0.20),
-        clarity: 0.20,
+        clarity: -0.14,
         grain: Grain(amount: 0.42, cell: 1.9, colour: 0.06),
         likeness: Likeness(saturation: 1.10, contrast: 0.95, brightness: 0.05))
 

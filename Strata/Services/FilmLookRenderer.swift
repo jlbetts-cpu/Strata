@@ -172,12 +172,30 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         if let glow = look.glow {
             image = glowing(image, glow, scale: scale)
         }
+        // **Clarity goes both ways, and one look needed the other one.**
+        //
+        // Positive clarity is local contrast, which pays for the softness the
+        // shoulder and the glow cost. Negative clarity is the opposite move
+        // and it is the one that takes the clinical edge off a digital lens:
+        // a small blurred copy mixed back in, softening mid-tone transitions
+        // without touching the picture's overall contrast.
+        //
+        // This existed only in the positive direction, and Air — the look
+        // whose entire character is softness — was set to +0.20, sharpening
+        // the one picture that should have been softened. Found by checking
+        // the pipeline against a blueprint the owner had a second agent
+        // write, which listed negative clarity as a thing Fujifilm recipes
+        // use and this did not have.
         if look.clarity > 0 {
             let sharpen = CIFilter.unsharpMask()
             sharpen.inputImage = image
             sharpen.radius = Float(max(1.5, 7 * scale))
             sharpen.intensity = Float(look.clarity)
             image = (sharpen.outputImage ?? image).cropped(to: input.extent)
+        } else if look.clarity < 0 {
+            let soft = blurred(image.clampedToExtent(), radius: max(1.5, 6 * scale))
+                .cropped(to: input.extent)
+            image = mix(soft, over: image, amount: -look.clarity)
         }
         if let grain = look.grain {
             image = grained(image, grain, phase: grainPhase, look: look, scale: scale)
