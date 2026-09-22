@@ -4,6 +4,9 @@ import MetalKit
 import UIKit
 import os
 
+/// Whatever handler was installed before ours, so nothing is swallowed.
+private nonisolated(unsafe) var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
+
 /// **The viewfinder, in the colour the photograph will be.**
 ///
 /// The owner, with the build on his phone: "The live filters don't actually
@@ -32,6 +35,27 @@ import os
 final class GradedViewfinder {
     static let log = Logger(subsystem: "JaydenBetts.Strata", category: "viewfinder")
 
+    /// **So the next Objective-C exception says what it was.**
+    ///
+    /// The camera crashed on his phone inside `-[AVCaptureSession startRunning]`
+    /// and the reason was cut off in the Xcode window. An `NSException` is not
+    /// catchable from Swift — it goes to `std::terminate` — so the only way to
+    /// see the reason without a breakpoint is to read it on the way out.
+    ///
+    /// Installed once, and it chains to whatever handler was there before so
+    /// it cannot swallow anything else's report.
+    private static let installExceptionLogging: Void = {
+        // A global rather than a capture: the handler is a C function pointer
+        // and cannot close over anything.
+        previousExceptionHandler = NSGetUncaughtExceptionHandler()
+        NSSetUncaughtExceptionHandler { exception in
+            GradedViewfinder.log.fault("""
+                uncaught \(exception.name.rawValue, privacy: .public):                 \(exception.reason ?? "no reason", privacy: .public)
+                """)
+            previousExceptionHandler?(exception)
+        }
+    }()
+
     /// The look being drawn. `.none` hides the overlay, which is the common
     /// case and costs nothing to render.
     var look: FilmLook = FilmLook.look(.none) {
@@ -58,6 +82,7 @@ final class GradedViewfinder {
     private var watchdog: Timer?
 
     init() {
+        _ = Self.installExceptionLogging
         relay.onFrame = { [weak self] image, means in
             Task { @MainActor in
                 guard let self, !self.presenting else { return }

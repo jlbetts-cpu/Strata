@@ -512,8 +512,11 @@ struct CameraView: View {
         .task {
             await camera.start()
             // After `start`, because a session that is not configured cannot
-            // take an output. If this returns false the overlay is never
-            // shown and the plain preview is what is on screen.
+            // take an output — and the attach itself hops onto the session
+            // queue, so it is ordered AFTER `startRunning` rather than beside
+            // it. Doing it here on the main actor is what crashed his phone.
+            // If it does not attach, no frames arrive, the overlay stays
+            // hidden and this is the camera exactly as it was before.
             camera.attachPreviewFrames(graded.relay.output)
             graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
         }

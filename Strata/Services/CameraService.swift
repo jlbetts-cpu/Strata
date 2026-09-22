@@ -130,7 +130,7 @@ final class CameraService: NSObject {
         session.commitConfiguration()
         // The connection is new after a flip, so the graded surface has to be
         // told which way up it is and whether it is a selfie.
-        orientPreviewFrames()
+        reorientPreviewFrames()
     }
 
     /// How much of the front camera's field to crop away by default.
@@ -264,51 +264,118 @@ final class CameraService: NSObject {
     /// composed. `.photo` already yields preview-sized buffers, so there is
     /// nothing to gain by changing it.
     ///
-    /// Returns whether it attached, so the caller can stay on the plain
-    /// preview rather than assume a graded one.
-    @discardableResult
-    func attachPreviewFrames(_ output: AVCaptureVideoDataOutput) -> Bool {
-        guard isConfigured, previewFrames == nil, frameOutput == nil else { return false }
-        session.beginConfiguration()
-        guard session.canAddOutput(output) else {
-            session.commitConfiguration()
-            return false
+    /// **This runs on the session queue, and that is the whole point of the
+    /// rewrite.** It crashed on his phone, inside `startRunning`:
+    ///
+    ///     Thread 5, closure #1 in CameraService.start()
+    ///     -[AVCaptureSession startRunning] -> objc_exception_throw
+    ///
+    /// `start()` dispatches `startRunning` onto `queue` and returns
+    /// immediately, so the caller's next line ran on the MAIN actor while the
+    /// session was starting on the session queue. `AVCaptureSession` raises an
+    /// Objective-C exception when its configuration is mutated underneath a
+    /// start, and an Objective-C exception is not something Swift can catch:
+    /// it goes straight to `std::terminate`.
+    ///
+    /// `queue` is serial, so dispatching the configuration onto it orders this
+    /// strictly after the start rather than beside it. Every session mutation
+    /// this feature makes now happens here, on that queue, inside one
+    /// begin/commit pair, with `canAddOutput` checked.
+    ///
+    /// **It cannot fail loudly.** If the output cannot be added for any
+    /// reason, `previewFrames` stays nil, no frames are ever delivered, the
+    /// overlay stays hidden, and the camera is exactly the camera it was
+    /// before this feature existed.
+    func attachPreviewFrames(_ output: AVCaptureVideoDataOutput) {
+        guard isConfigured, previewFrames == nil, frameOutput == nil else { return }
+        let session = self.session
+        let device = input?.device
+        let mirrored = facing == .front
+        queue.async {
+            let added = Self.addOnce(output, to: session) {
+                Self.orient(output, device: device, mirrored: mirrored)
+            }
+            Task { @MainActor [weak self] in
+                self?.previewFrames = added ? output : nil
+            }
         }
-        session.addOutput(output)
-        session.commitConfiguration()
-        previewFrames = output
-        orientPreviewFrames()
-        return true
     }
 
     func detachPreviewFrames() {
         guard let output = previewFrames else { return }
-        session.beginConfiguration()
-        session.removeOutput(output)
-        session.commitConfiguration()
         previewFrames = nil
+        let session = self.session
+        queue.async {
+            guard session.outputs.contains(where: { $0 === output }) else { return }
+            session.beginConfiguration()
+            session.removeOutput(output)
+            session.commitConfiguration()
+        }
+    }
+
+    /// **Adds an output to a session exactly once.**
+    ///
+    /// Idempotent by construction: adding an output the session already holds
+    /// is one of the things `-[AVCaptureSession addOutput:]` raises on, and a
+    /// raise here is a termination rather than an error. `canAddOutput` is the
+    /// documented precondition and is checked rather than assumed.
+    ///
+    /// `configure` runs inside the same begin/commit pair, because a
+    /// connection does not exist until the output is added and setting a
+    /// property on it afterwards would be a second reconfiguration.
+    ///
+    /// Static and `nonisolated` so it can be exercised by a test with a bare
+    /// session and no camera, which is the only part of this that a machine
+    /// without a lens can check.
+    nonisolated static func addOnce(_ output: AVCaptureOutput,
+                                    to session: AVCaptureSession,
+                                    configure: () -> Void = {}) -> Bool {
+        if session.outputs.contains(where: { $0 === output }) { return true }
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        guard session.canAddOutput(output) else {
+            GradedViewfinder.log.error(
+                "graded viewfinder: the session refused the frame output, staying on the plain preview")
+            return false
+        }
+        session.addOutput(output)
+        configure()
+        return true
     }
 
     /// Upright, and mirrored on the front lens, so the graded surface shows
-    /// what the preview layer under it shows. Re-applied after a flip, because
-    /// the connection is new.
-    private func orientPreviewFrames() {
-        guard let output = previewFrames, let connection = output.connection(with: .video) else { return }
-        // Asked of the device rather than assumed: the iPhone 17's front
-        // sensor is mounted a quarter turn differently and answers 0 for
-        // portrait where earlier phones answer 90. `attachFrames` records the
-        // same lesson and what it cost.
-        let angle = input.map {
-            AVCaptureDevice.RotationCoordinator(device: $0.device, previewLayer: nil)
+    /// what the preview layer under it shows.
+    ///
+    /// **The angle is asked of the device rather than assumed**, and it is the
+    /// CAPTURE angle rather than the preview one: the preview angle is defined
+    /// relative to a preview layer and we have none to give the coordinator,
+    /// where the capture angle is well defined without one. It is also the
+    /// angle `attachFrames` uses, which is the path that was debugged on a
+    /// real phone when the iPhone 17's front sensor turned out to be mounted a
+    /// quarter turn differently from every phone before it.
+    nonisolated static func orient(_ output: AVCaptureVideoDataOutput,
+                                   device: AVCaptureDevice?, mirrored: Bool) {
+        guard let connection = output.connection(with: .video) else { return }
+        let angle = device.map {
+            AVCaptureDevice.RotationCoordinator(device: $0, previewLayer: nil)
                 .videoRotationAngleForHorizonLevelCapture
         } ?? 90
         if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = facing == .front
+            connection.isVideoMirrored = mirrored
         }
         GradedViewfinder.log.notice(
             "graded viewfinder: connection set to \(Int(angle), privacy: .public) degrees, mirrored \(connection.isVideoMirrored, privacy: .public)")
+    }
+
+    /// Re-orients after a flip, on the session queue for the same reason
+    /// everything else here is.
+    private func reorientPreviewFrames() {
+        guard let output = previewFrames else { return }
+        let device = input?.device
+        let mirrored = facing == .front
+        queue.async { Self.orient(output, device: device, mirrored: mirrored) }
     }
 
     func detachFrames() {
