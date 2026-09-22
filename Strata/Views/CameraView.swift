@@ -373,7 +373,7 @@ struct CameraView: View {
     /// `#E6E6E6`.
     private static let shutterRing: CGFloat = 80
     private static let shutterFill: CGFloat = 66
-    private static let shutterInk = Color(red: 0.902, green: 0.902, blue: 0.902)
+    private static let shutterInk = Grey.g100
 
 
     var body: some View {
@@ -485,7 +485,7 @@ struct CameraView: View {
                 }
             }
             .frame(width: w, height: h)
-            .background(Color(red: 0.031, green: 0.031, blue: 0.031))
+            .background(Grey.g950)
             // Square where it meets the edge of the screen, rounded where it
             // stops short of one — the shape the Figma draws, and one that
             // only makes sense because something is behind it. Full screen, it
@@ -504,7 +504,17 @@ struct CameraView: View {
         // once told to ignore them, and the header needs the real value to
         // clear the notch. The preview reaches the edges by being drawn taller
         // and offset instead.
-        .background { WarmBackground().ignoresSafeArea() }
+        // **The camera's ground is 950, his darkest, not the app's warm
+        // charcoal.** The owner: "for the camera, for instance, I'd rather the
+        // bottom panel be the darkest value."
+        //
+        // Every other screen keeps `WarmBackground`, which is a warm charcoal
+        // and adaptive, because it is the ground a BLOCK stands on and the
+        // whole app is lit from somewhere. The camera is not that: it is a
+        // picture with a strip under it, and the strip's job is to stop
+        // existing so the picture is the only lit thing on the screen. 950 is
+        // 8, against the warm ground's 40 at its darkest.
+        .background { Grey.g950.ignoresSafeArea() }
         .task {
             await camera.start()
             // After `start`, because a session that is not configured cannot
@@ -1827,14 +1837,14 @@ private struct CameraGlassButton: View {
 
     static let side: CGFloat = 40
     private static let radius: CGFloat = 9.9
-    private static let strokeInk = Color(red: 0.808, green: 0.808, blue: 0.808)
-    private static let chevronInk = Color(red: 0.902, green: 0.902, blue: 0.902)
+    private static let strokeInk = Grey.g200
+    private static let chevronInk = Grey.g100
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         return ZStack {
             shape
-                .fill(Color(red: 0.031, green: 0.031, blue: 0.031).opacity(0.01))
+                .fill(Grey.g950.opacity(0.01))
                 .background(.ultraThinMaterial, in: shape)
 
             // His path, at his scale: a 12 x 6 chevron centred in the 40pt

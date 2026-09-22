@@ -27,7 +27,7 @@ struct HeadMakerView: View {
     @State private var brightnessBeforeFlash: CGFloat?
 
     /// `CameraView`'s viewfinder ground.
-    private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
+    private static let ground = Grey.g950
     /// The wordmark at the camera's own size.
     private static let wordmarkSize: CGFloat = 32
     /// The new head, shown near the size of the thank-you page's.

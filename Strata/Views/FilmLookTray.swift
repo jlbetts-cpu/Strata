@@ -98,7 +98,7 @@ struct FilmLookTray: View {
     /// premium blur more than a distinct object." It was dark for one build
     /// and that was wrong of me — see the note on the light appearance below,
     /// which records the one case where this costs contrast.
-    private static let chevronInk = Color(red: 0.902, green: 0.902, blue: 0.902)
+    private static let chevronInk = Grey.g100
 
     @State private var swatches: [FilmLook.Kind: UIImage] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
