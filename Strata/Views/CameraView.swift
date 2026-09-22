@@ -276,7 +276,25 @@ struct CameraView: View {
         /// number that has to be kept in step. It used to be 72, sized for a
         /// 61pt wordmark, which left a 40pt word hanging at the top of a gap
         /// half again as tall as it was.
-        static var height: CGFloat { wordmarkSize }
+        /// **The artwork's own box, not the cap height.**
+        ///
+        /// This was `wordmarkSize` (32), which is the cap height the mark is
+        /// drawn to, while the artwork itself renders at
+        /// `ApolloWordmark.boxHeight` (50). The break in the first vertical is
+        /// cut to this number, so the line was being cut for a 32pt mark and
+        /// then holding a 50pt one: measured, the gap above the mark was
+        /// 14.4pt and the gap below it was MINUS 4pt, with the line resuming
+        /// before the word had finished.
+        ///
+        /// The owner: "the rule of thirds lines don't look like they have even
+        /// spacing between the title." That is the number he was seeing.
+        static var height: CGFloat { markHeight }
+        /// The wordmark's drawn box height.
+        /// His node's own number, 50. He has asked for "slightly bigger" and
+        /// has not picked a number yet; 56 and 62 were rendered for him beside
+        /// this. Note that going above 50 puts the build out of step with his
+        /// file, which specifies 145.638 x 50.
+        static var markHeight: CGFloat { ApolloWordmark.boxHeight }
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
     }
@@ -320,7 +338,28 @@ struct CameraView: View {
     /// safe area; the only gap this screen owns is the one above it.
     private let stripBreathing: CGFloat = 20
     /// Air between the shutter and the bottom edge of the viewfinder.
-    private let shutterBottomGap: CGFloat = 40
+    /// **18, not 40, because 40 sat the row too high.**
+    ///
+    /// The owner: "make sure that the controls for the shutter and other are
+    /// in the right spot and not too high. I want it to be proper UX as well
+    /// as looking good."
+    ///
+    /// Measured off the render at 40, the shutter's centre was at **691pt** on
+    /// an 874pt screen, with a 39pt band of empty picture below it before the
+    /// viewfinder ended. His own frame 14172-8010 puts `Rectangle 215` at
+    /// y 673, 80 tall, so **his shutter centre is 713**. At 18 ours measures
+    /// **712.8**, which is his number, and it costs nothing in picture height.
+    ///
+    /// The alternative was ending the viewfinder higher so the row sat in the
+    /// black strip. Rendered at a trim of 80pt it was worse in both currencies:
+    /// it spent 10% of the picture AND left the shutter against the picture's
+    /// bottom edge rather than clear of it.
+    ///
+    /// Reach: 713 on an 874pt screen is 82% down, inside the lower third a
+    /// thumb sweeps one handed, and 161pt from the bottom of the screen. The
+    /// shutter's own bottom lands at 752, which is 18pt clear of the
+    /// viewfinder's edge and 38pt clear of the tab bar's pill.
+    private let shutterBottomGap: CGFloat = 18
 
     /// The shutter, from node 14172:8010: an 80pt ring and a 66pt fill, both
     /// `#E6E6E6`.
@@ -934,7 +973,7 @@ struct CameraView: View {
         HStack(alignment: .center, spacing: 0) {
             // Sized to the grid rather than to the page — see
             // `Header.wordmarkSize`.
-            ApolloWordmark(height: ApolloWordmark.boxHeight, color: .white)
+            ApolloWordmark(height: Header.markHeight, color: .white)
                 // Legible over whatever the lens is pointing at — the same
                 // halo every other white thing on this screen uses.
                 .legibleOverPhoto()
