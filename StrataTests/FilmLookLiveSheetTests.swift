@@ -57,6 +57,30 @@ struct FilmLookLiveSheetTests {
         return FilmLookRenderer.shared.measureMeans(difference)?.reduce(0, +) ?? 0
     }
 
+    /// Renders every look over several scenes, so the set is judged the way
+    /// it is used: a face, a landscape, an indoor table. A look that is
+    /// beautiful on a valley and ugly on a person is not a look this app can
+    /// have, because most of what goes in it is people.
+    @Test("Every look, over every kind of scene, written out to be looked at")
+    func contactSheet() throws {
+        for photo in ["DemoPhoto1", "DemoPhoto4", "DemoPhoto9", "DemoPhoto11"] {
+            guard let source = named(photo) else { continue }
+            write(source, "sheet-\(photo)-0-none.png")
+            for look in FilmLook.all where look.kind != .none {
+                write(FilmLookRenderer.shared.apply(look, to: source),
+                      "sheet-\(photo)-\(look.kind.rawValue).png")
+            }
+        }
+    }
+
+    private func named(_ name: String) -> CIImage? {
+        guard let photo = UIImage(named: name), let cg = photo.cgImage else { return nil }
+        let source = CIImage(cgImage: cg)
+        let scale = max(Self.liveSize.width / source.extent.width,
+                        Self.liveSize.height / source.extent.height)
+        return source.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+
     @Test("The live viewfinder carries texture, and the looks are far apart")
     func liveLooksAreDistinct() throws {
         let source = try #require(scene(), "DemoPhoto1 must be in the test bundle's app")
