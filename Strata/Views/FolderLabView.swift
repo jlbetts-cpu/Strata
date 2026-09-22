@@ -35,7 +35,7 @@ struct FolderLabView: View {
             ScrollView {
                 VStack(spacing: 28) {
                     // The one that is alive, big, to watch it idle.
-                    WinFolder(title: "This week", count: engine.contents.count,
+                    WinFolder(title: "Today", count: engine.contents.count,
                               tint: Self.tints[tint].1,
                               contents: photos,
                               expression: drivenByEvents ? engine.expression

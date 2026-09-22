@@ -36,6 +36,22 @@ struct FolderInside: View {
 
     @State private var pressed: String?
     @State private var tidy = false
+    /// **Photographs at the size they are drawn, not the size they were
+    /// taken.**
+    ///
+    /// The owner: "make sure the photo scroller isn't jittery, it is jittery
+    /// on my end." It was, and this is why: every card held the FULL
+    /// resolution image and asked SwiftUI to scale it down on every frame of
+    /// the scroll. Twenty multi megapixel photographs resampled sixty times a
+    /// second is not something any phone does smoothly, and it gets worse the
+    /// better the camera is.
+    ///
+    /// Downsampled once, off the main actor, and kept. The app already has a
+    /// derivative pipeline for exactly this — `ImageDerivatives` bakes 320
+    /// and 640 tiers beside every original — and the real integration should
+    /// read those rather than scaling here. This is the prototype's version
+    /// of the same idea and it is the same fix.
+    @State private var thumbs: [String: UIImage] = [:]
     @State private var arrived = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -48,6 +64,9 @@ struct FolderInside: View {
                 scatter
             }
         }
+        .task(id: wins.map(\.id)) {
+            await prepareThumbnails()
+        }
         .task {
             guard !reduceMotion else { arrived = true; return }
             // The cards do not fade in, they ARRIVE: the folder has just
@@ -56,6 +75,32 @@ struct FolderInside: View {
                 arrived = true
             }
         }
+    }
+
+    /// The widest a card is ever drawn is the full content width, so twice
+    /// that in pixels covers every screen this runs on with a little over.
+    private static let thumbnailSide: CGFloat = 840
+
+    private func prepareThumbnails() async {
+        let source = wins
+        let made = await Task.detached(priority: .userInitiated) { () -> [String: UIImage] in
+            var out: [String: UIImage] = [:]
+            for win in source {
+                let side = max(win.image.size.width, win.image.size.height)
+                guard side > FolderInside.thumbnailSide else { out[win.id] = win.image; continue }
+                let scale = FolderInside.thumbnailSide / side
+                let size = CGSize(width: win.image.size.width * scale,
+                                  height: win.image.size.height * scale)
+                let format = UIGraphicsImageRendererFormat.default()
+                format.scale = 1
+                format.opaque = true
+                out[win.id] = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                    win.image.draw(in: CGRect(origin: .zero, size: size))
+                }
+            }
+            return out
+        }.value
+        thumbs = made
     }
 
     private var header: some View {
@@ -121,7 +166,7 @@ struct FolderInside: View {
     private func card(_ win: ScatterWin, spot: ScatterLayout.Placement, index: Int) -> some View {
         let isPressed = pressed == win.id
         let radius = spot.frame.width * 0.085
-        return Image(uiImage: win.image)
+        return Image(uiImage: thumbs[win.id] ?? win.image)
             .resizable()
             .scaledToFill()
             .frame(width: spot.frame.width, height: spot.frame.height)
@@ -136,6 +181,10 @@ struct FolderInside: View {
             // The one shadow, and it is the card standing off the ground
             // rather than chrome floating. It grows under a finger, which is
             // most of what makes the press feel like lifting something.
+            // Flattened before the shadow: without this SwiftUI shadows the
+            // live image every frame, which is the other half of why a
+            // scroll full of these stutters.
+            .compositingGroup()
             .shadow(color: .black.opacity(isPressed ? 0.55 : 0.34),
                     radius: isPressed ? 22 : 10,
                     y: isPressed ? 12 : 5)

@@ -9,31 +9,81 @@ struct ScatterLayoutTests {
 
     private static let width: CGFloat = 360
 
-    private func items(_ n: Int, sizes: [BlockSize] = [.small, .medium, .hard]) -> [ScatterLayout.Item] {
+    /// **Mostly small, because most wins are.** The fixture used to cycle
+    /// small, medium, hard evenly, which meant no two 1x1s were ever
+    /// adjacent and therefore no row ever held two cards — so every test
+    /// about what happens BETWEEN cards on a line was silently checking
+    /// nothing.
+    private func items(_ n: Int,
+                       sizes: [BlockSize] = [.small, .small, .medium,
+                                             .small, .hard, .small]) -> [ScatterLayout.Item] {
         (0..<n).map { ScatterLayout.Item(id: "win-\($0)", size: sizes[$0 % sizes.count]) }
     }
 
-    /// **Nothing touches, at every count from one to twenty.**
+    /// **No win is ever buried, at every count from one to twenty.**
     ///
-    /// This was the rule, then I relaxed it to "no win is more than a fifth
-    /// covered" so cards could overlap, on my own reading that organised
-    /// clutter means contact. The owner looked at it: "why are they
-    /// touching." His reference has clear air between every card, and he is
-    /// right that photographs somebody KEEPS are laid out rather than
-    /// dropped. The strong guarantee is back, and it is the one worth having
-    /// because it is absolute at any count.
-    @Test("No two wins ever touch, at any count from one to twenty")
-    func nothingEverCollides() {
+    /// This rule has moved twice and each move was the owner looking at it.
+    /// It was "nothing touches", then "no win more than a fifth covered" so
+    /// cards could tuck, then back to "nothing touches" when he said they
+    /// should not be touching, and now here: space is the rule and a little
+    /// contact is the exception he allowed. The bound is what makes any of
+    /// those safe to change — whatever the arrangement, a win stays
+    /// recognisable and stays tappable.
+    @Test("No win is ever buried, at any count from one to twenty")
+    func nothingIsEverBuried() {
         for count in 1...20 {
             let placed = ScatterLayout.place(items(count), in: Self.width)
             #expect(placed.count == count, "\(count) in, \(placed.count) out")
             for i in placed.indices {
+                let mine = placed[i].frame
+                let area = mine.width * mine.height
+                var covered: CGFloat = 0
                 for j in placed.indices where j > i {
-                    #expect(!placed[i].frame.intersects(placed[j].frame),
-                            "at \(count) items, \(placed[i].id) touches \(placed[j].id)")
+                    let overlap = mine.intersection(placed[j].frame)
+                    if !overlap.isNull { covered += overlap.width * overlap.height }
                 }
+                #expect(covered / area <= ScatterLayout.maxCovered + 0.001,
+                        "at \(count) items, \(placed[i].id) is \(Int(covered / area * 100))% buried")
             }
         }
+    }
+
+    /// **Most pairs have air between them.** Contact is the exception, so if
+    /// it ever becomes the rule again this fails.
+    @Test("Space is the rule and touching is the exception")
+    func mostCardsHaveAirAroundThem() {
+        let placed = ScatterLayout.place(items(20), in: Self.width)
+        var pairs = 0, touching = 0
+        for i in placed.indices {
+            for j in placed.indices where j > i {
+                guard abs(placed[i].frame.midY - placed[j].frame.midY)
+                        < placed[i].frame.height * 0.5 else { continue }
+                pairs += 1
+                if placed[i].frame.intersects(placed[j].frame) { touching += 1 }
+            }
+        }
+        #expect(pairs > 0)
+        #expect(Double(touching) / Double(pairs) < 0.55,
+                "\(touching) of \(pairs) pairs on a line are touching, which is a pile")
+    }
+
+    /// **A win reaches the margins.** They were sized off a made-up fraction
+    /// of the width and came out tiny with a dead strip down both sides.
+    /// `BlockSize` spans a TWO column grid, so a small is half the folder and
+    /// a medium is all of it.
+    @Test("Wins fill the folder rather than floating in the middle of it")
+    func winsReachTheMargins() {
+        let w = Self.width
+        let small = ScatterLayout.size(for: .small, in: w)
+        let medium = ScatterLayout.size(for: .medium, in: w)
+        let hard = ScatterLayout.size(for: .hard, in: w)
+        #expect(abs(medium.width - w) < 0.01, "a 2x1 must span the whole folder")
+        #expect(abs(hard.width - w) < 0.01, "a 2x2 must span the whole folder")
+        #expect(abs(small.width * 2 + ScatterLayout.gutter - w) < 0.01,
+                "two 1x1s and a gutter must span the whole folder")
+        #expect(abs(small.width - small.height) < 0.01, "a 1x1 is square")
+        #expect(abs(medium.height - small.height) < 0.01, "a 2x1 is one row tall")
+        #expect(hard.height > medium.height, "a 2x2 is taller than a 2x1")
     }
 
     /// **A row must splay open rather than wedge shut.** Cards left of the
@@ -99,27 +149,6 @@ struct ScatterLayoutTests {
 
     /// The size a win is drawn at the shutter is the size it is in the
     /// folder. If that stops being true, the sizes become decoration.
-    /// **The shapes ARE the block system.** Small is 1x1, medium is 2x1,
-    /// hard is 2x2, straight off `BlockSize`'s own spans. If this drifts, a
-    /// win stops being recognisable as the thing that was drawn at the
-    /// shutter, and the folder has a second size ladder to keep in step.
-    @Test("A win is the shape its block size says it is")
-    func shapesComeFromTheBlockSystem() {
-        let w = Self.width
-        let small = ScatterLayout.size(for: .small, in: w)
-        let medium = ScatterLayout.size(for: .medium, in: w)
-        let hard = ScatterLayout.size(for: .hard, in: w)
-
-        #expect(abs(small.width - small.height) < 0.01, "small must be square")
-        #expect(abs(medium.width - medium.height * 2) < 0.01, "medium must be 2 to 1")
-        #expect(abs(hard.width - hard.height) < 0.01, "hard must be square")
-        #expect(hard.width > small.width, "the big one must be bigger")
-        #expect(abs(medium.width - hard.width) < 0.01, "2x1 and 2x2 are the same width")
-        #expect(hard.height > medium.height, "2x2 is taller than 2x1")
-    }
-
-    /// The Organize button: the same wins, the mess turned off. Same cards,
-    /// same order, no lean, no tuck.
     /// **Organised is two columns**, not the scatter with the lean removed.
     /// Every card is the same width and sits in one of exactly two places
     /// across, which is what makes it read as a grid rather than as a

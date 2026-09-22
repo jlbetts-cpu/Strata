@@ -85,7 +85,10 @@ enum DebugHarness {
     static func scatterWins(_ count: Int) -> [ScatterWin] {
         let names = ["LookPreview", "DemoPhoto1", "DemoPhoto4", "DemoPhoto9",
                      "DemoPhoto11", "DemoPhoto5", "DemoPhoto3", "DemoPhoto12"]
-        let sizes: [BlockSize] = [.medium, .small, .hard, .small, .medium, .small]
+        // Mostly 1x1, because most wins are. An even cycle of the three
+        // meant no two small wins were ever adjacent, so every row held one
+        // card and the scatter was a single column.
+        let sizes: [BlockSize] = [.small, .small, .medium, .small, .small, .hard]
         return (0..<count).compactMap { i in
             guard let image = UIImage(named: names[i % names.count]) else { return nil }
             return ScatterWin(id: "win-\(i)", image: image, size: sizes[i % sizes.count])

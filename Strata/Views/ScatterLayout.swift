@@ -60,16 +60,25 @@ enum ScatterLayout {
     /// would then have to be kept in step with the first.
     ///
     /// A win is a shape you recognise from the tower, in a folder.
-    /// **0.22, not 0.275.** Widening the gutter to stop cards touching made
-    /// almost every row hold ONE card, because a 2x1 plus a gutter plus
-    /// anything overflowed: the scatter quietly became a single column. The
-    /// cell came down so a wide card and a small one still share a line.
-    static let unit: CGFloat = 0.22
+    /// **The cell is half the folder, because the tower's grid is two
+    /// columns wide and these are the tower's blocks.**
+    ///
+    /// The owner: "I don't like that they are so tiny and they don't even go
+    /// to the margins, they just feel very off."
+    ///
+    /// They were tiny because the cell was a made-up fraction of the width
+    /// (0.22, then 0.275) rather than a share of the grid the sizes come
+    /// from. `BlockSize` spans columns of a TWO column grid: 1x1 is half a
+    /// row, 2x1 is a whole one, 2x2 is a whole one twice as tall. Sizing off
+    /// that makes a small exactly half the folder, a medium exactly all of
+    /// it, and every row reach both margins, which is what he is describing
+    /// and what the tower always did.
+    static func cell(in width: CGFloat) -> CGFloat { (width - gutter) / 2 }
 
     static func size(for size: BlockSize, in width: CGFloat) -> CGSize {
-        let cell = width * unit
-        return CGSize(width: cell * CGFloat(size.columnSpan),
-                      height: cell * CGFloat(size.rowSpan))
+        let cell = cell(in: width)
+        func span(_ n: Int) -> CGFloat { cell * CGFloat(n) + gutter * CGFloat(n - 1) }
+        return CGSize(width: span(size.columnSpan), height: span(size.rowSpan))
     }
 
     /// The space reserved between items. Part of it is the gap you see; the
@@ -87,12 +96,13 @@ enum ScatterLayout {
     /// photographs stops reading as casual and starts reading as broken.
     static let lean: Double = 4.4
 
-    /// **Nothing overlaps.** There was a tuck, which let every other card
-    /// slide a fifth of its width under its neighbour, on my reading that
-    /// clutter means contact. The owner looked at it and said the opposite,
-    /// and he is right: his reference has air between every card. The
-    /// guarantee is back to the strong one, that no two wins ever touch at
-    /// any count, which is both easier to assert and what he asked for.
+    /// **How far a card may tuck, when it tucks at all.** A tenth, on about
+    /// a third of the pairs that share a line. It was a fifth on every other
+    /// card, which read as a pile rather than as clutter; space is the rule
+    /// now and contact is the exception he allowed.
+    static let tuck: CGFloat = 0.10
+    /// The most of a card that may ever end up hidden behind later ones.
+    static let maxCovered: CGFloat = 0.14
 
     /// Places every item. Pure, deterministic, and total: any count from zero
     /// upwards returns a usable layout.
@@ -113,25 +123,43 @@ enum ScatterLayout {
             guard !row.isEmpty else { return }
             let sizes = row.map { Self.size(for: $0.size, in: width) }
             let total = sizes.map(\.width).reduce(0, +) + gutter * CGFloat(row.count - 1)
-            // Centred, so a short row is not left hanging against one edge.
-            var x = (width - total) / 2
+            // **A short row goes to one side, not the middle.**
+            //
+            // Centring it looked wrong the moment cards got big enough to
+            // reach the margins: a half width card sitting dead centre
+            // between two full width ones reads as a mistake rather than as
+            // clutter. Seeded off the first card, so it is the same side
+            // every time, and it only applies when there is room to move.
+            let slack = width - total
+            var x = slack < 1 ? 0
+                : slack * (0.15 + 0.7 * unit(row[0].id, 13))
             let tallest = sizes.map(\.height).max() ?? 0
 
             for (index, pair) in zip(row, sizes).enumerated() {
                 let (item, box) = pair
-                // Tidy sits everything on one baseline; scattered centres
-                // each card in its row, which is what lets shapes of
-                // different heights sit together without a ragged edge.
-                let top = tidy ? y : y + (tallest - box.height) / 2
-                var frame = CGRect(x: x, y: top, width: box.width, height: box.height)
+                // **A little overlap, sometimes.** The owner: "maybe a bit
+                // of overlap sometimes is okay, but I was hoping they would
+                // have enough space to look nicely organised clutter." So
+                // space is the rule and contact is the exception: about a
+                // third of the pairs that share a line touch, by up to a
+                // tenth of a card. Seeded, so it is the same pairs every
+                // time, and bounded, so `nothingIsEverBuried` still holds.
+                let touches = index > 0 && Self.unit(item.id, 11) < 0.34
+                let tuckBack = touches ? box.width * tuck : 0
+                let top = y + (tallest - box.height) / 2
+                var frame = CGRect(x: x - tuckBack, y: top,
+                                   width: box.width, height: box.height)
                 let seed = Self.seed(item.id)
-                if !tidy {
-                    // The jitter, spent out of the gutter that packing
-                    // reserved. A third of it each way, so two neighbours
-                    // leaning towards each other still keep a third of it.
-                    frame.origin.x += (seed.0 - 0.5) * gutter * (2.0 / 3.0)
-                    frame.origin.y += (seed.1 - 0.5) * gutter * (2.0 / 3.0)
-                }
+                // The jitter, spent out of the gutter that packing
+                // reserved. A third of it each way, so two neighbours
+                // leaning towards each other still keep a third of it.
+                frame.origin.x += (seed.0 - 0.5) * gutter * (2.0 / 3.0)
+                frame.origin.y += (seed.1 - 0.5) * gutter * (2.0 / 3.0)
+                // **Clamped, because a full width card has nowhere to go.**
+                // Now that a 2x1 spans both columns there is no slack beside
+                // it, and jittering pushed it three points past the margin.
+                // A card at the edge simply does not move sideways.
+                frame.origin.x = min(max(frame.origin.x, 0), width - frame.width)
                 // **Which way a card leans comes from where it SITS, not
                 // from its place in the list.**
                 //
@@ -159,7 +187,7 @@ enum ScatterLayout {
                     : (fromCentre < 0 ? -1 : 1)
                 placements.append(Placement(id: item.id, frame: frame,
                                             angle: tidy ? 0 : magnitude * direction))
-                x += box.width + gutter
+                x += box.width + gutter - tuckBack
             }
             // Rows close up as well, or the clutter is only sideways. A
             // third of the gutter back, which the vertical jitter then
@@ -174,10 +202,13 @@ enum ScatterLayout {
             let next = rowWidth == 0 ? itemWidth : rowWidth + gutter + itemWidth
             // A row is full when adding this one would overflow. The gutter
             // is counted, so the row's own jitter budget is always there.
-            // One gutter of slack, not two. Two was left over from when the
-            // jitter budget had to be found outside the row as well as
-            // inside it, and it cost a whole card per line.
-            if next > width - gutter, !row.isEmpty {
+            // **No slack at all, because the sizes are built to fill the
+            // width exactly.** Two 1x1s plus a gutter come to precisely the
+            // folder's width, so any allowance here rejected them and every
+            // row held one card: the scatter was a single column of
+            // full-width cards and no test about what happens BETWEEN two
+            // cards on a line was checking anything.
+            if next > width + 0.001, !row.isEmpty {
                 flush()
             }
             row.append(item)
