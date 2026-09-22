@@ -13,7 +13,15 @@ import UIKit
 /// Nothing about this control's layout changes.
 enum FilmLookSwatchSource: Equatable {
     case reference
-    /// Not reachable until the Metal preview lands.
+    /// **The seam for live swatches, deliberately unused.**
+    ///
+    /// The graded viewfinder has landed and this could be fed a camera frame,
+    /// but the owner asked for the simpler thing: "the preview image for the
+    /// filter, can it just be the Yosemite photo for now, like it is in the
+    /// preview." It is kept so that going back is a swap rather than a
+    /// rebuild, and it keeps the viewfinder as the only thing consuming
+    /// frames, which is one less surface while the orientation of that path is
+    /// still being settled on a real phone.
     case live(UIImage)
 
     /// **A bundled reference, and the alternatives were weighed.**
@@ -75,8 +83,11 @@ struct FilmLookTray: View {
     private static let pad: CGFloat = GridConstants.gapItem        // 12
     /// A swatch. 44 is the app's tap floor and it leaves the name a column.
     private static let swatch: CGFloat = 44
-    /// The pixel size a swatch is rendered at, so a caller handing in a live
-    /// camera frame can scale it once rather than hand over a full frame.
+    /// The pixel size a swatch is rendered at. Part of the live seam above:
+    /// a caller handing in a camera frame scales it once to this rather than
+    /// handing over a full frame. Every look is rendered at this size and not
+    /// at the photograph's own, so four graded copies cost four 132px images
+    /// rather than four 640px ones.
     static var swatchPixels: CGFloat { swatch * 3 }
     /// `gapItem` between a swatch and its name.
     private static let nameGap: CGFloat = GridConstants.gapItem    // 12

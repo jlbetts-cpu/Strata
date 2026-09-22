@@ -95,11 +95,6 @@ struct CameraView: View {
     /// The live look. See `GradedViewfinder`: it is an overlay ON the preview
     /// layer, so every failure path uncovers the ordinary picture.
     @State private var graded = GradedViewfinder()
-    /// The newest frame, for the tray's swatches. Taken when the tray opens
-    /// rather than every frame: four cubes over four thumbnails on every frame
-    /// would be the most expensive thing on the screen, and the scene does not
-    /// change meaningfully between opening the tray and reading it.
-    @State private var liveSwatch: UIImage?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -441,8 +436,7 @@ struct CameraView: View {
                         selection: Binding(
                             get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
                             set: { lookRaw = $0.rawValue }),
-                        isOpen: $showLookTray,
-                        source: liveSwatch.map { .live($0) } ?? .reference)
+                        isOpen: $showLookTray)
                         .frame(maxWidth: .infinity, maxHeight: .infinity,
                                alignment: .topTrailing)
                         .padding(.trailing, sideMargin)
@@ -525,11 +519,6 @@ struct CameraView: View {
         }
         .onChange(of: lookRaw) { _, raw in
             graded.look = FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none)
-        }
-        .onChange(of: showLookTray) { _, open in
-            // One frame, when it opens, so each swatch is this scene under
-            // that look rather than a bundled reference photograph.
-            liveSwatch = open ? graded.relay.snapshot(maxSide: FilmLookTray.swatchPixels) : nil
         }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen

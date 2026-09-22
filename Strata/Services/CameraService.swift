@@ -1,5 +1,6 @@
 import AVFoundation
 import UIKit
+import os
 
 /// The capture session behind the in-app camera.
 ///
@@ -299,13 +300,15 @@ final class CameraService: NSObject {
         // same lesson and what it cost.
         let angle = input.map {
             AVCaptureDevice.RotationCoordinator(device: $0.device, previewLayer: nil)
-                .videoRotationAngleForHorizonLevelPreview
+                .videoRotationAngleForHorizonLevelCapture
         } ?? 90
         if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = facing == .front
         }
+        GradedViewfinder.log.notice(
+            "graded viewfinder: connection set to \(Int(angle), privacy: .public) degrees, mirrored \(connection.isVideoMirrored, privacy: .public)")
     }
 
     func detachFrames() {

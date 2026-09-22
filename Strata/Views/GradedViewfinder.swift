@@ -135,6 +135,9 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private var counter = 0
     private var means: [Double]?
     private var announced = false
+    private var dropped = 0
+    private var statsAt: CFTimeInterval = 0
+    private var sinceStats = 0
 
     /// Handed each frame, on the frame queue's schedule, but only while
     /// `wantsFrames`. The newest frame is always kept regardless, because the
@@ -163,6 +166,25 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         output.setSampleBufferDelegate(self, queue: queue)
     }
 
+    /// **Delivered frame rate, every five seconds.** The answer to "is it
+    /// smooth" should be a number he can read off a log rather than a feeling,
+    /// and a rate that sits at 30 while dropped stays at 0 is the pipeline
+    /// keeping up. A rate that sags is the place to look next.
+    private func reportRate() {
+        let now = CACurrentMediaTime()
+        lock.lock()
+        sinceStats &+= 1
+        if statsAt == 0 { statsAt = now; lock.unlock(); return }
+        let elapsed = now - statsAt
+        guard elapsed >= 5 else { lock.unlock(); return }
+        let count = sinceStats, drops = dropped
+        sinceStats = 0; statsAt = now
+        lock.unlock()
+        let fps = Double(count) / elapsed
+        GradedViewfinder.log.notice(
+            "graded viewfinder: \(fps, format: .fixed(precision: 1), privacy: .public) fps delivered, \(drops, privacy: .public) dropped total")
+    }
+
     /// True while frames have arrived recently. The viewfinder uncovers the
     /// plain preview when this goes false.
     var isLive: Bool {
@@ -181,6 +203,20 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         return FilmLookRenderer.shared.uiImage(from: small)
     }
 
+    /// **Dropped frames, counted rather than guessed at.** `alwaysDiscardsLateVideoFrames`
+    /// means the system throws away a frame it could not hand over in time, and
+    /// that is the right behaviour for a viewfinder, but it is also the first
+    /// symptom of a pipeline that is too slow. Silent dropping is how a
+    /// stuttering camera gets reported as "it feels laggy" with nothing to
+    /// look at.
+    func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        lock.lock(); dropped &+= 1; let total = dropped; lock.unlock()
+        if total == 1 || total % 60 == 0 {
+            GradedViewfinder.log.error("graded viewfinder: dropped \(total, privacy: .public) frames")
+        }
+    }
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -196,9 +232,11 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         lock.unlock()
 
         if first {
-            GradedViewfinder.log.notice(
-                "graded viewfinder: first frame \(Int(image.extent.width))x\(Int(image.extent.height))")
+            GradedViewfinder.log.notice("""
+                graded viewfinder: first frame \(Int(image.extent.width), privacy: .public)                x\(Int(image.extent.height), privacy: .public),                 rotation \(Int(connection.videoRotationAngle), privacy: .public),                 mirrored \(connection.isVideoMirrored, privacy: .public)
+                """)
         }
+        reportRate()
         guard wantsFrames else { return }
         if shouldMeasure, let measured = FilmLookRenderer.shared.measureMeans(image) {
             lock.lock(); means = measured; lock.unlock()
@@ -214,6 +252,7 @@ final class GradedPreviewView: MTKView {
     private let commands: MTLCommandQueue
     private let space = CGColorSpace(name: CGColorSpace.displayP3)
     private var image: CIImage?
+    private var announced = false
 
     /// Nil where there is no Metal device: the simulator, and any failure on
     /// hardware. The caller then never adds an overlay and the plain preview
@@ -234,6 +273,26 @@ final class GradedPreviewView: MTKView {
         // Required for Core Image to render into the drawable's texture.
         framebufferOnly = false
         colorPixelFormat = .bgra8Unorm
+
+        // **Wide colour, or the grade looks wrong rather than merely flat.**
+        //
+        // The pipeline works in extended linear Display P3 and renders out in
+        // Display P3, which is what the preview layer shows on this screen. But
+        // a `CAMetalLayer` defaults to sRGB, so P3 numbers written into it are
+        // READ as sRGB and come out oversaturated: the reds go fluorescent and
+        // the skin goes hot. Telling the layer its own colour space is what
+        // makes the render mean what it says.
+        //
+        // The owner's bar: "the live should look better than the actual iOS
+        // camera." It cannot be better while it is in the wrong colour space.
+        (layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.displayP3)
+
+        // **The screen's own pixels, not points.** `autoResizeDrawable` sizes
+        // the drawable as bounds times `contentScaleFactor`, so a factor of 1
+        // would render the whole viewfinder at a third of the resolution on a
+        // 3x screen and read as soft. Set rather than inherited, because the
+        // inherited value depends on whoever adds this as a subview.
+        contentScaleFactor = UIScreen.main.scale
         // Driven by the camera, not by the display link: a frame arrives and
         // is drawn. Ticking at 60Hz for a 30Hz feed would draw each frame twice.
         isPaused = true
@@ -269,7 +328,27 @@ final class GradedPreviewView: MTKView {
             translationX: (width - scaled.extent.width) / 2 - scaled.extent.origin.x,
             y: (height - scaled.extent.height) / 2 - scaled.extent.origin.y))
 
-        ciContext.render(placed, to: drawable.texture, commandBuffer: buffer,
+        // **Flipped, because Core Image and a Metal texture disagree about
+        // which way y runs.** Core Image works y-up; a texture is addressed
+        // y-down. Measured rather than assumed, in
+        // `GradedViewfinderOrientationTests`: a mark placed at the top of a
+        // 2x2 picture arrives in the texture's BOTTOM row, red 255 where the
+        // top row reads 0.
+        //
+        // This is the fault the owner reported as "the camera for some reason
+        // is a weird orientation". Without it the graded overlay is the scene
+        // upside down, sitting on a preview layer that is the right way up.
+        let upright = placed.transformed(by: CGAffineTransform(scaleX: 1, y: -1)
+            .concatenating(CGAffineTransform(translationX: 0, y: height)))
+
+        if !announced {
+            announced = true
+            GradedViewfinder.log.notice("""
+                graded viewfinder: drawing frame \(Int(image.extent.width), privacy: .public)                x\(Int(image.extent.height), privacy: .public)                 into drawable \(Int(width), privacy: .public)x\(Int(height), privacy: .public),                 scale \(scale, privacy: .public), flipped y
+                """)
+        }
+
+        ciContext.render(upright, to: drawable.texture, commandBuffer: buffer,
                          bounds: CGRect(x: 0, y: 0, width: width, height: height),
                          colorSpace: space ?? CGColorSpaceCreateDeviceRGB())
         buffer.present(drawable)
