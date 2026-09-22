@@ -87,6 +87,8 @@ final class CameraService: NSObject {
         if !isConfigured { configure() }
         guard isConfigured else { return }
         let session = session
+        wantsRunning = true
+        watchForTrouble()
         await withCheckedContinuation { continuation in
             queue.async {
                 if !session.isRunning { session.startRunning() }
@@ -96,6 +98,11 @@ final class CameraService: NSObject {
     }
 
     func stop() {
+        wantsRunning = false
+        isInterrupted = false
+        // Nothing points at a lens after this, so nothing should be holding a
+        // reading from one either.
+        resetFocus()
         let session = session
         queue.async { if session.isRunning { session.stopRunning() } }
     }
@@ -670,6 +677,76 @@ final class CameraService: NSObject {
 
     /// Watches for the scene changing under a tapped focus. See `focus(at:)`.
     private var subjectAreaObserver: NSObjectProtocol?
+
+    /// **What to do when the camera is taken away and given back.**
+    ///
+    /// Nothing watched for either, so a session that stopped stayed stopped:
+    /// a phone call, a FaceTime call, Control Centre's own camera, or another
+    /// app claiming the lens left a permanently black viewfinder with working
+    /// buttons on top of it. The only way out was leaving the tab and coming
+    /// back. It is the most likely thing on this screen to actually happen to
+    /// somebody, and it looked like the app was broken.
+    ///
+    /// Three notifications, and they mean different things. A RUNTIME ERROR
+    /// is the session failing, and the one worth recovering from is
+    /// `mediaServicesWereReset`, where the whole media stack has restarted
+    /// underneath us and the session simply needs starting again. Anything
+    /// else is a failure the session cannot be talked out of, and pretending
+    /// otherwise is a restart loop. An INTERRUPTION is the system taking the
+    /// camera for something more important, and it ENDS, which is the moment
+    /// to take it back.
+    ///
+    /// `wantsRunning` is what makes recovery safe: set by `start`, cleared by
+    /// `stop`, so nothing here can bring the camera back to life after
+    /// somebody has left the screen. A camera that restarts itself in the
+    /// background is the exact thing this app promises never to be.
+    private var troubleObservers: [NSObjectProtocol] = []
+    private var wantsRunning = false
+    /// True while the system has the camera, so the view can say so rather
+    /// than showing black and hoping.
+    private(set) var isInterrupted = false
+
+    private func watchForTrouble() {
+        for observer in troubleObservers { NotificationCenter.default.removeObserver(observer) }
+        let centre = NotificationCenter.default
+        troubleObservers = [
+            centre.addObserver(forName: AVCaptureSession.runtimeErrorNotification,
+                               object: session, queue: .main) { [weak self] note in
+                let error = note.userInfo?[AVCaptureSessionErrorKey] as? AVError
+                Task { @MainActor in self?.recover(from: error) }
+            },
+            centre.addObserver(forName: AVCaptureSession.wasInterruptedNotification,
+                               object: session, queue: .main) { [weak self] note in
+                let raw = note.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+                Task { @MainActor in
+                    self?.isInterrupted = true
+                    GradedViewfinder.log.notice(
+                        "camera: interrupted, reason \(raw ?? -1, privacy: .public)")
+                }
+            },
+            centre.addObserver(forName: AVCaptureSession.interruptionEndedNotification,
+                               object: session, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    self?.isInterrupted = false
+                    self?.resumeIfWanted()
+                }
+            }
+        ]
+    }
+
+    private func recover(from error: AVError?) {
+        GradedViewfinder.log.error(
+            "camera: runtime error \(error?.code.rawValue ?? -1, privacy: .public)")
+        guard error?.code == .mediaServicesWereReset else { return }
+        resumeIfWanted()
+    }
+
+    /// Starts again only if somebody is still looking at this screen.
+    func resumeIfWanted() {
+        guard wantsRunning else { return }
+        let session = self.session
+        queue.async { if !session.isRunning { session.startRunning() } }
+    }
 
     private func watchForSceneChanges() {
         if let subjectAreaObserver {

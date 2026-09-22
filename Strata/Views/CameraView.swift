@@ -92,6 +92,15 @@ struct CameraView: View {
     /// sensor. `.resizeAspectFill` crops, and the crop depends on the preview's
     /// aspect against the format's — arithmetic here would be a second copy of
     /// a conversion AVFoundation already does exactly.
+    @Environment(\.scenePhase) private var scenePhase
+    /// Whether this tab is the one being looked at. A `scenePhase` change is
+    /// delivered to every tab that exists, and a TabView keeps them all
+    /// alive, so without this the camera would start itself from behind
+    /// another screen the moment the app came back.
+    @State private var isOnScreen = false
+    /// True once access has actually been asked for, so the refusal screen
+    /// cannot flash up in the moment before the prompt.
+    @State private var accessChecked = false
     @State private var previewBox = PreviewLayerBox()
     /// The live look. See `GradedViewfinder`: it is an overlay ON the preview
     /// layer, so every failure path uncovers the ordinary picture.
@@ -428,6 +437,19 @@ struct CameraView: View {
                         .allowsHitTesting(false)
                 }
 
+                // **Something to read, and somewhere to go.**
+                //
+                // Refusing the camera left a black rectangle with a wordmark
+                // and four working buttons on it, and no way back: the
+                // permission prompt is asked once and never again, so the
+                // only route is Settings and nothing said so. It is the first
+                // thing somebody sees if they tap the wrong button on the
+                // first run.
+                if accessChecked && !camera.isAuthorized {
+                    noCameraAccess
+                        .transition(.opacity)
+                }
+
                 header(topInset: topInset)
 
                 // **The button lives here, not in the header, because it and
@@ -515,8 +537,25 @@ struct CameraView: View {
         // existing so the picture is the only lit thing on the screen. 950 is
         // 8, against the warm ground's 40 at its darkest.
         .background { Grey.g950.ignoresSafeArea() }
+        .onAppear { isOnScreen = true }
+        // **Back from the home screen, and back on.**
+        //
+        // `.task` runs once for the life of the view, and leaving the app is
+        // not leaving the view, so a camera put away by the system stayed
+        // away: the tab was open, the buttons worked, the picture was black.
+        // Stopping on the way out also puts the orange camera light out,
+        // which matters more than the code does.
+        .onChange(of: scenePhase) { _, phase in
+            guard isOnScreen else { return }
+            switch phase {
+            case .active: Task { await camera.start() }
+            case .background: camera.stop()
+            default: break
+            }
+        }
         .task {
             await camera.start()
+            accessChecked = true
             // After `start`, because a session that is not configured cannot
             // take an output — and the attach itself hops onto the session
             // queue, so it is ordered AFTER `startRunning` rather than beside
@@ -573,6 +612,7 @@ struct CameraView: View {
             LocationService.shared.start()
         }
         .onDisappear {
+            isOnScreen = false
             // Not a tracker: it runs while the camera is open and not a
             // moment longer.
             LocationService.shared.stop()
@@ -1013,6 +1053,36 @@ struct CameraView: View {
         HapticsEngine.tick()
         withAnimation(GridConstants.motionSnappy) { focusPoint = location }
         focusShownAt = Date()
+    }
+
+    /// Shown when access was refused. Quiet, because it is an explanation
+    /// rather than an alarm, and the app is not owed a camera.
+    private var noCameraAccess: some View {
+        VStack(spacing: GridConstants.gapWide) {
+            Text("Apollo needs the camera to make a win a photograph.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(AppColors.onDarkSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 260)
+
+            Button {
+                HapticsEngine.lightTap()
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Text("Open Settings")
+                    .font(Typography.headerSmall)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, GridConstants.gapWide)
+                    .frame(height: 44)
+                    .contentShape(Capsule())
+                    .zoomGlass()
+            }
+            .buttonStyle(.pressWord)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, GridConstants.gapWide)
     }
 
     // MARK: - Guides

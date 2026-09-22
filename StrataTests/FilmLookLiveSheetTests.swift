@@ -63,7 +63,7 @@ struct FilmLookLiveSheetTests {
     /// have, because most of what goes in it is people.
     @Test("Every look, over every kind of scene, written out to be looked at")
     func contactSheet() throws {
-        for photo in ["DemoPhoto1", "DemoPhoto4", "DemoPhoto9", "DemoPhoto11"] {
+        for photo in ["LookPreview", "DemoPhoto4", "DemoPhoto9", "DemoPhoto11"] {
             guard let source = named(photo) else { continue }
             write(source, "sheet-\(photo)-0-none.png")
             for look in FilmLook.all where look.kind != .none {

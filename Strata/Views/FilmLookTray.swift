@@ -36,7 +36,20 @@ enum FilmLookSwatchSource: Equatable {
     func image() -> UIImage? {
         switch self {
         case .live(let frame): return frame
-        case .reference: return UIImage(named: "DemoPhoto1")
+        // **The owner's own photograph, chosen for what is in it.**
+        //
+        // "For the film simulation photo preview, could we use this photo? I
+        // feel like it's clean and will help get the point through."
+        //
+        // It is a better test than the valley it replaced, and not only
+        // because he likes it. A swatch has to show what a look DOES at 44
+        // points, and this frame carries every one of the things the looks
+        // move: a hand, so the skin exemption can be seen holding; sunlit
+        // grass, which is the green the hue bands steer; a cream highlight
+        // on the lid for the shoulder to roll; a saturated green straw for
+        // the saturation ramps; and hard afternoon sun for the halation. A
+        // landscape has the greens and the highlight and no skin at all.
+        case .reference: return UIImage(named: "LookPreview")
         }
     }
 }
