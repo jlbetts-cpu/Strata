@@ -161,6 +161,20 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     var shadowAmount: Double = 0
     var highlightTint: RGB = RGB(1, 1, 1)
     var highlightAmount: Double = 0
+    /// **Color Chrome FX Blue: a polariser made of arithmetic.**
+    ///
+    /// Fujifilm's own effect darkens and deepens blue and leaves everything
+    /// else alone, which is what a circular polariser does to a sky and why
+    /// people put one on a lens. It is the one recipe parameter this pipeline
+    /// did not have.
+    ///
+    /// It costs nothing, and that is worth saying because it sounds like it
+    /// should. It depends only on a pixel's own colour, so it bakes into the
+    /// same 64-step table as everything else and adds no pass and no
+    /// milliseconds. It is applied only where blue is already SATURATED, so a
+    /// grey sky and a white wall stay where they are and only the blue that
+    /// is really blue goes deeper.
+    var blueDensity: Double = 0
     /// How much of every colour move is kept off skin.
     var skinProtection: Double = 0.85
     /// Black and white, with the channel weights of a light orange filter so
@@ -169,6 +183,24 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
 
     // MARK: - Light and texture (applied by `FilmLookRenderer`)
 
+    /// **How far the sensor is deliberately underexposed, in stops.**
+    ///
+    /// This is what Fujifilm's DR200 and DR400 actually are, and the pipeline
+    /// was doing only half of it. DR400 does not mean "lift the shadows": it
+    /// means underexpose by two stops so the highlights are never clipped,
+    /// then lift everything back in processing. A sky that has already blown
+    /// cannot be recovered by any amount of grading, and `shadowLift` was
+    /// being asked to do a job that has to be done before the shutter.
+    ///
+    /// `CameraService` sets the sensor from this and `FilmLookRenderer` puts
+    /// the stops back, so the viewfinder and the photograph are pulled and
+    /// lifted identically and still agree.
+    ///
+    /// **Kept at one stop rather than the recipe's two**, for now. Two stops
+    /// of lift on a frame the phone has already processed amplifies its noise
+    /// reduction as much as it buys headroom. On the RAW path there is room
+    /// to go further, and that is a change to make with a phone in hand.
+    var pullStops: Double = 0
     /// How much of a colour cast to take out before the look goes on, 0...1.
     ///
     /// **A warm look is set higher, not lower.** It reads backwards and it is
@@ -320,6 +352,21 @@ extension FilmLook {
         if factor > 1.02 { colour = Self.mix(colour, beforeSaturation, skin) }
 
         let keep = 1 - skin
+
+        // **Blue goes deeper, and only blue that is already blue.** Weighted
+        // by the band, by how saturated the colour is, and away from skin
+        // like everything else. Darkening is what makes a sky read as deep
+        // rather than merely as more blue, so this takes value down and lets
+        // the saturation that comes with it follow.
+        if blueDensity > 0 {
+            let (hue, chroma, _) = Self.hsv(colour)
+            let weight = Self.window(hue, 0.588, 0.115) * Self.ramp(chroma, 0.18, 0.55) * keep
+            if weight > 0 {
+                let darker = 1 - blueDensity * weight
+                colour = RGB(colour.r * darker, colour.g * darker, colour.b * darker)
+            }
+        }
+
         if shadowAmount > 0 {
             colour = Self.mix(colour, shadowTint, shadowAmount * Self.ramp(brightness, 0.42, 0.02) * keep)
         }
@@ -543,8 +590,9 @@ extension FilmLook {
         saturation: 1.10, saturationHigh: 0.80, saturationLow: 0.88,
         shadowTint: .bytes(96, 96, 92), shadowAmount: 0.05,
         highlightTint: .bytes(255, 242, 226), highlightAmount: 0.12,
+        blueDensity: 0.05,
         skinProtection: 0.95,
-        neutralise: 0.62, shadowLift: 0.26,
+        pullStops: 1.0, neutralise: 0.62, shadowLift: 0.26,
         halation: Glare(threshold: 0.82, radius: 34, amount: 0.18),
         bloom: Glare(threshold: 0.88, radius: 50, amount: 0.08),
         glow: Glare(threshold: 0.24, radius: 36, amount: 0.20),
@@ -576,8 +624,9 @@ extension FilmLook {
         saturation: 1.15, saturationHigh: 0.82, saturationLow: 0.92,
         shadowTint: .bytes(84, 70, 54), shadowAmount: 0.07,
         highlightTint: .bytes(255, 238, 210), highlightAmount: 0.13,
+        blueDensity: 0.10,
         skinProtection: 0.88,
-        neutralise: 0.58, shadowLift: 0.18,
+        pullStops: 0.7, neutralise: 0.58, shadowLift: 0.18,
         halation: Glare(threshold: 0.82, radius: 28, amount: 0.20),
         bloom: Glare(threshold: 0.88, radius: 44, amount: 0.08),
         glow: Glare(threshold: 0.22, radius: 30, amount: 0.20),
@@ -620,8 +669,9 @@ extension FilmLook {
         saturation: 0.88, saturationHigh: 0.72, saturationLow: 0.80,
         shadowTint: .bytes(44, 54, 68), shadowAmount: 0.12,
         highlightTint: .bytes(244, 246, 250), highlightAmount: 0.08,
+        blueDensity: 0.18,
         skinProtection: 0.45,
-        neutralise: 0.45, shadowLift: 0.06,
+        pullStops: 0.7, neutralise: 0.45, shadowLift: 0.06,
         halation: Glare(threshold: 0.86, radius: 22, amount: 0.12),
         bloom: Glare(threshold: 0.90, radius: 36, amount: 0.06),
         glow: Glare(threshold: 0.26, radius: 26, amount: 0.12),
@@ -681,7 +731,7 @@ extension FilmLook {
         highlightTint: .bytes(255, 252, 245), highlightAmount: 0.05,
         skinProtection: 0,
         mono: RGB(0.42, 0.44, 0.14),
-        neutralise: 0.45, shadowLift: 0.12,
+        pullStops: 0.7, neutralise: 0.45, shadowLift: 0.12,
         bloom: Glare(threshold: 0.88, radius: 40, amount: 0.10),
         glow: Glare(threshold: 0.24, radius: 30, amount: 0.16),
         clarity: 0.56,

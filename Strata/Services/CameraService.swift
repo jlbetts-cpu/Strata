@@ -48,6 +48,12 @@ final class CameraService: NSObject {
     private var input: AVCaptureDeviceInput?
     private let queue = DispatchQueue(label: "camera.session")
     private var onCaptured: ((UIImage?) -> Void)?
+    /// Filled by the delegate while one shutter press is in flight. A RAW
+    /// capture delivers two photographs and they arrive in either order, so
+    /// both are held and the choice is made once at the end.
+    private var capturedRaw: Data?
+    private var capturedProcessed: UIImage?
+    private var capturedMirrored = false
 
     // MARK: - Lifecycle
 
@@ -141,6 +147,9 @@ final class CameraService: NSObject {
             // the first pinch jumps.
             zoom = 1
             exposureBias = 0
+            // A new device starts at its own metering, so the look's pull has
+            // to be put back on it or the next frame is a stop bright.
+            applyExposure()
             applyPortraitCropIfFront(device)
         } else {
             session.addInput(current)
@@ -443,7 +452,54 @@ final class CameraService: NSObject {
     // MARK: - Focus and exposure
 
     /// How far the exposure is pushed, in stops. 0 is what the camera chose.
+    ///
+    /// This is what the PERSON asked for, by dragging. What the sensor is
+    /// actually set to is this minus `lookPull`. They are kept apart because
+    /// they mean different things and one must not eat the other: a drag is
+    /// "make this brighter", and a pull is a look protecting its highlights.
     private(set) var exposureBias: Float = 0
+
+    /// **How far the look asks the sensor to underexpose, in stops.**
+    ///
+    /// This is what Fujifilm's DR200 and DR400 actually are, and the pipeline
+    /// was only doing half of it. A recipe that says DR400 does not lift
+    /// shadows on whatever it happened to capture: it deliberately
+    /// underexposes by two stops so the highlights are never clipped in the
+    /// first place, and lifts the rest back in processing. Highlights that
+    /// have already blown cannot be recovered by any amount of grading, and
+    /// this pipeline was lifting shadows on an image whose sky was already
+    /// gone.
+    ///
+    /// The lift back happens in `FilmLookRenderer`, which is handed the same
+    /// number, so the viewfinder and the photograph are both pulled and both
+    /// lifted and the pair still agree.
+    private(set) var lookPull: Float = 0
+
+    /// What the sensor is set to: the drag, less the look's pull, clamped to
+    /// what this device will accept.
+    private func applyExposure() {
+        guard let device = input?.device else { return }
+        let wanted = min(max(exposureBias - lookPull,
+                             device.minExposureTargetBias), device.maxExposureTargetBias)
+        do {
+            try device.lockForConfiguration()
+            device.setExposureTargetBias(wanted)
+            device.unlockForConfiguration()
+        } catch {
+            // A device that will not lock is being reconfigured; the next
+            // change carries the same intent.
+        }
+    }
+
+    /// Set when the look changes. Capped at two stops, because past that a
+    /// pull on a processed frame is buying highlight headroom with shadow
+    /// noise at a rate that stops being worth it.
+    func setLookPull(_ stops: Double) {
+        let wanted = Float(min(max(stops, 0), 2))
+        guard abs(wanted - lookPull) > 0.01 else { return }
+        lookPull = wanted
+        applyExposure()
+    }
 
     /// The range this device will accept, so the view can clamp a drag rather
     /// than discovering the limit by being refused.
@@ -481,7 +537,9 @@ final class CameraService: NSObject {
             }
             // A tap is a fresh reading, so the bias it was carrying no longer
             // describes anything.
-            device.setExposureTargetBias(0)
+            // The person's own bias goes, the look's pull stays: a tap is a
+            // fresh reading, not a change of look.
+            device.setExposureTargetBias(-lookPull)
             exposureBias = 0
             device.unlockForConfiguration()
         } catch {
@@ -496,12 +554,8 @@ final class CameraService: NSObject {
         let clamped = min(max(stops, device.minExposureTargetBias),
                           device.maxExposureTargetBias)
         guard abs(clamped - exposureBias) > 0.01 else { return }
-        do {
-            try device.lockForConfiguration()
-            device.setExposureTargetBias(clamped)
-            device.unlockForConfiguration()
-            exposureBias = clamped
-        } catch { }
+        exposureBias = clamped
+        applyExposure()
     }
 
     /// Back to whatever the camera decides on its own, everywhere in the
@@ -516,7 +570,7 @@ final class CameraService: NSObject {
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
-            device.setExposureTargetBias(0)
+            device.setExposureTargetBias(-lookPull)
             exposureBias = 0
             device.unlockForConfiguration()
         } catch { }
@@ -580,7 +634,8 @@ final class CameraService: NSObject {
     /// lag and responsive capture are properties of the OUTPUT, and toggling
     /// those between shots would be reconfiguring a running session, which is
     /// what terminated the app once already.
-    func capture(singleFrame: Bool = false, _ completion: @escaping (UIImage?) -> Void) {
+    func capture(singleFrame: Bool = false, raw: Bool = false,
+                 _ completion: @escaping (UIImage?) -> Void) {
         guard isConfigured, !isCapturing else { completion(nil); return }
         isCapturing = true
         onCaptured = completion
@@ -610,7 +665,36 @@ final class CameraService: NSObject {
             }
         }
 
-        let settings = AVCapturePhotoSettings()
+        // **Bayer RAW, and an ordinary photograph in the same shutter press.**
+        //
+        // `AVCapturePhotoSettings(rawPixelFormatType:processedFormat:)` asks
+        // for both, and both arrive. That is deliberately more work than
+        // asking for RAW alone: developing a RAW is the one thing in this
+        // app that cannot be tested on a machine with no camera, and a
+        // developer that returns nil would otherwise cost somebody the
+        // photograph they just took. With both in hand the RAW is an
+        // UPGRADE that is taken when it works and silently skipped when it
+        // does not.
+        //
+        // Apple ProRAW is not asked for and must not be: it is still
+        // multi-frame, with Smart HDR and Deep Fusion baked into the file,
+        // which is the exact thing being avoided. `isBayerRAWPixelFormat`
+        // picks the real sensor format out of whatever this device offers,
+        // and a device that offers none simply takes an ordinary photograph.
+        let rawFormat = raw ? output.availableRawPhotoPixelFormatTypes.first(where: {
+            AVCapturePhotoOutput.isBayerRAWPixelFormat($0)
+        }) : nil
+        let settings: AVCapturePhotoSettings
+        if let rawFormat {
+            settings = AVCapturePhotoSettings(
+                rawPixelFormatType: rawFormat,
+                processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
+        } else {
+            settings = AVCapturePhotoSettings()
+        }
+        capturedRaw = nil
+        capturedProcessed = nil
+        capturedMirrored = usesScreenFlash
         // **Ask for the good pipeline, not the quick one.**
         //
         // `AVCapturePhotoSettings` defaults to `.balanced`, which trades away
@@ -638,19 +722,59 @@ final class CameraService: NSObject {
 }
 
 extension CameraService: AVCapturePhotoCaptureDelegate {
+    /// Called once per photograph, so twice when RAW was asked for, and in no
+    /// guaranteed order. Nothing is decided here; both are just put down.
     nonisolated func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
         let data = photo.fileDataRepresentation()
+        let isRaw = photo.isRawPhoto
+        Task { @MainActor in
+            if isRaw {
+                self.capturedRaw = data
+            } else {
+                // No orientation surgery here. Mirroring is set on the
+                // capture connection before the shot; rebuilding the UIImage
+                // with `.leftMirrored` afterwards also ROTATED it a quarter
+                // turn, which is why that approach is wrong and not just
+                // redundant.
+                self.capturedProcessed = data.flatMap(UIImage.init(data:))
+            }
+        }
+    }
+
+    /// **Everything has been delivered, so now choose.**
+    ///
+    /// This runs after both photographs, which is why the decision lives here
+    /// rather than in the callback above: the RAW may arrive second, and a
+    /// choice made on the first one would be a coin toss. The RAW is taken
+    /// when it develops and the ordinary photograph is taken when it does
+    /// not, so the worst case of the whole RAW feature is the camera exactly
+    /// as it was before it existed.
+    nonisolated func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
         Task { @MainActor in
             self.isCapturing = false
-            // No orientation surgery here. Mirroring is set on the capture
-            // connection before the shot; rebuilding the UIImage with
-            // `.leftMirrored` afterwards also ROTATED it a quarter turn, which
-            // is why that approach is wrong and not just redundant.
-            self.onCaptured?(data.flatMap(UIImage.init(data:)))
+            let processed = self.capturedProcessed
+            let mirrored = self.capturedMirrored
+            var chosen = processed
+            if let dng = self.capturedRaw {
+                // Off the main actor: developing a RAW is tens of
+                // milliseconds of CPU and GPU and the shutter animation is
+                // running.
+                let developed = await Task.detached(priority: .userInitiated) {
+                    RawDeveloper.shared.develop(dng, mirrored: mirrored)
+                }.value
+                if let developed { chosen = developed }
+            }
+            self.capturedRaw = nil
+            self.capturedProcessed = nil
+            self.onCaptured?(chosen)
             self.onCaptured = nil
         }
     }

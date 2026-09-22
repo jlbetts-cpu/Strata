@@ -44,14 +44,22 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
 
     // MARK: - Rendering
 
-    func render(_ image: UIImage, look: FilmLook) -> UIImage {
+    func render(_ image: UIImage, look: FilmLook, pulledStops: Double = 0) -> UIImage {
         guard look.kind != .none else { return image }
         let upright = image.uprighted()
         guard let cg = upright.cgImage else { return image }
         let source = CIImage(cgImage: cg)
-        let result = apply(look, to: source)
+        let result = apply(look, to: source, pulledStops: pulledStops)
+        // **Eight bits out, and this is the single biggest buffer in the
+        // app.** A full frame as RGBAh is 97MB against 48MB as RGBA8, on the
+        // hottest path there is: every photograph goes through here. The
+        // pipeline still WORKS in 16 bit float — that is `workingFormat`, and
+        // it is what stops the sky banding — this is only what it writes out,
+        // and what it writes out goes to a JPEG and a 1024px block, both of
+        // which are 8 bit. The precision was being allocated and then thrown
+        // away one line later.
         guard let out = context.createCGImage(result, from: source.extent,
-                                              format: .RGBAh, colorSpace: outputSpace) else {
+                                              format: .RGBA8, colorSpace: outputSpace) else {
             return image
         }
         return UIImage(cgImage: out, scale: upright.scale, orientation: .up)
@@ -115,14 +123,14 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// pipeline is what the look IS. Nothing sets it unless the device says
     /// so. See `GradedViewfinder.frameCost`.
     func live(_ look: FilmLook, to input: CIImage, means: [Double]?, phase: CGPoint,
-              sparingHighlights: Bool = false) -> CIImage {
+              sparingHighlights: Bool = false, pulledStops: Double = 0) -> CIImage {
         guard look.kind != .none else { return input }
         var look = look
         if sparingHighlights {
             look.halation = nil
             look.bloom = nil
         }
-        return apply(look, to: input, means: means, grainPhase: phase)
+        return apply(look, to: input, means: means, grainPhase: phase, pulledStops: pulledStops)
     }
 
     /// A `CIImage` rendered out, for the tray's swatches.
@@ -140,9 +148,26 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// passes nothing and measures. `grainPhase` moves the noise field, so a
     /// still stays reproducible at `.zero` and a viewfinder walks it.
     func apply(_ look: FilmLook, to input: CIImage,
-               means: [Double]? = nil, grainPhase: CGPoint = .zero) -> CIImage {
+               means: [Double]? = nil, grainPhase: CGPoint = .zero,
+               pulledStops: Double = 0) -> CIImage {
         var image = input
         let scale = max(input.extent.width, input.extent.height) / Self.referenceSize
+
+        // **The other half of dynamic range.** The sensor was deliberately
+        // underexposed by this much so the highlights were never clipped;
+        // this is where the rest of the picture comes back up. In linear
+        // light, before anything else, because that is where an exposure
+        // change belongs and it is what the camera would have done.
+        //
+        // A parameter rather than a property of the look, because it is only
+        // true of a frame that was ACTUALLY pulled. A swatch rendered from a
+        // bundled photograph was not, and lifting it would blow it out.
+        if pulledStops > 0 {
+            let lift = CIFilter.exposureAdjust()
+            lift.inputImage = image
+            lift.ev = Float(pulledStops)
+            image = (lift.outputImage ?? image).cropped(to: input.extent)
+        }
 
         if look.neutralise > 0 {
             image = neutralised(image, strength: look.neutralise, means: means)

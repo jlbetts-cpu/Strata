@@ -522,10 +522,10 @@ struct CameraView: View {
             // Deriving it separately is what put the overlay 180 degrees out.
             camera.attachPreviewFrames(graded.relay.output,
                                        matching: previewBox.layer?.connection?.videoRotationAngle ?? 90)
-            graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+            apply(look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
         }
         .onChange(of: lookRaw) { _, raw in
-            graded.look = FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none)
+            apply(look: FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none))
         }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen
@@ -777,10 +777,23 @@ struct CameraView: View {
         }
         let look = FilmLook.look(kind)
         let rendered = await Task.detached(priority: .userInitiated) { () -> UIImage in
-            FilmLookRenderer.shared.render(image.scaledDown(to: 1400), look: look)
+            FilmLookRenderer.shared.render(image.scaledDown(to: 1400), look: look,
+                                           pulledStops: look.pullStops)
         }.value
         guard !Task.isCancelled else { return }
         looked = rendered
+    }
+
+    /// **A look is two settings, not one.**
+    ///
+    /// It is the grade the overlay draws, and it is how far the sensor is
+    /// asked to underexpose so the look's highlights survive. They have to
+    /// move together or the viewfinder is a stop out from the picture: a pull
+    /// with no lift is a dark preview, a lift with no pull is a blown one. So
+    /// there is one function that sets both and nothing else touches either.
+    private func apply(look: FilmLook) {
+        graded.look = look
+        camera.setLookPull(look.pullStops)
     }
 
     /// Keep it: the camera roll, then the win.
@@ -818,7 +831,7 @@ struct CameraView: View {
         // thing that stutters.
         Task { @MainActor in
             let graded = look.kind == .none ? final : await Task.detached(priority: .userInitiated) {
-                FilmLookRenderer.shared.render(final, look: look)
+                FilmLookRenderer.shared.render(final, look: look, pulledStops: look.pullStops)
             }.value
             Task { await PhotoLibrarySaver.save(graded) }
             onCaptured(graded, size, place, window)
@@ -1586,7 +1599,11 @@ struct CameraView: View {
             // stack; a look is "give me the picture I framed" and gets one
             // frame, so the still matches the viewfinder it was composed in.
             // See `CameraService.capture`.
-            camera.capture(singleFrame: FilmLook.Kind(rawValue: lookRaw).map { $0 != .none } ?? false) { image in
+            // A look means the sensor's own data and none of Apple's
+            // finishing; None means the best photograph this phone can take.
+            // See `CameraService.capture` and `RawDeveloper`.
+            let wantsFilm = FilmLook.Kind(rawValue: lookRaw).map { $0 != .none } ?? false
+            camera.capture(singleFrame: wantsFilm, raw: wantsFilm) { image in
                 if needsScreenFlash {
                     // Back to the ring, not to darkness — the flash is still
                     // armed, so the light you were composing under stays.

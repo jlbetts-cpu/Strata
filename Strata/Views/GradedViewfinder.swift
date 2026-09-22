@@ -135,8 +135,13 @@ final class GradedViewfinder {
             return
         }
         grainPhase = CGPoint(x: grainPhase.x + 1013, y: grainPhase.y + 1409)
+        // The frame arriving here was underexposed by `pullStops` at the
+        // sensor, so it is lifted by exactly the same amount the photograph
+        // will be. That is what keeps the viewfinder and the picture the same
+        // brightness while both keep their highlights.
         let graded = FilmLookRenderer.shared.live(look, to: image, means: means, phase: grainPhase,
-                                                  sparingHighlights: sparingHighlights)
+                                                  sparingHighlights: sparingHighlights,
+                                                  pulledStops: look.pullStops)
         view.show(graded)
         if view.isHidden { view.isHidden = false }
     }
