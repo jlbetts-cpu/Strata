@@ -39,18 +39,56 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
 
     /// Which look. The raw value is what is stored on a win.
     nonisolated enum Kind: String, CaseIterable, Identifiable, Sendable {
-        case none, air, gold, chrome, bright, silver
+        /// **The raw values are frozen and two of them no longer match their
+        /// case.** A win stores this string, so the string is storage and
+        /// renaming it would make every photograph taken before the rename
+        /// forget what it is. `gold` and `chrome` were the names the looks
+        /// shipped under for an afternoon; `amber` and `slate` are what they
+        /// are called now, and why is in the note on `name`.
+        case none
+        case air
+        case amber = "gold"
+        case slate = "chrome"
+        case ink = "silver"
+        case bright
         var id: String { rawValue }
 
-        /// What it is called on screen.
+        /// **What it is called on screen, and the names are our own.**
+        ///
+        /// The owner: "are the names like can we get in trouble for those, we
+        /// need original naming." He is right, and two of the four were a
+        /// problem.
+        ///
+        /// **Chrome was the bad one.** Classic Chrome is Fujifilm's own
+        /// registered name for the film simulation this look emulates, so
+        /// calling ours Chrome pointed a finger straight at their mark, in
+        /// the one product category where the confusion would be real. Gold
+        /// was the softer version of the same fault: Kodak Gold is Kodak's,
+        /// and while "gold" alone is a generic colour word and weak as a
+        /// mark, naming it that while modelling it on Kodak Gold 200 makes it
+        /// look deliberate rather than descriptive.
+        ///
+        /// The cost of being wrong is not a lawsuit, it is App Store
+        /// Guideline 5.2.1, on an account that has already been through a
+        /// 4.1(a) rejection. A rename is one line. It was not worth finding
+        /// out.
+        ///
+        /// So: materials, describing what the look DOES rather than what it
+        /// came from. Air is the glow in it, Amber is the colour it lays over
+        /// an afternoon, Slate is a cool grey stone, Ink is black. Generic
+        /// English words, descriptive of the result, owned by nobody.
+        ///
+        /// The stock names stay in the source, where they are documentation
+        /// of where the numbers came from and are nobody's brand. They must
+        /// never reach the screen, the listing or a screenshot.
         var name: String {
             switch self {
             case .none:   return "None"
             case .air:    return "Air"
-            case .gold:   return "Gold"
-            case .chrome: return "Chrome"
+            case .amber:  return "Amber"
+            case .slate:  return "Slate"
             case .bright: return "Bright"
-            case .silver: return "Silver"
+            case .ink:    return "Ink"
             }
         }
 
@@ -59,10 +97,10 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
             switch self {
             case .none:   return "No film look"
             case .air:    return "Air, soft and warm, made for people"
-            case .gold:   return "Gold, golden and sunny"
-            case .chrome: return "Chrome, rich colour and deep shadows"
+            case .amber:  return "Amber, golden and sunny"
+            case .slate:  return "Slate, cool and muted"
             case .bright: return "Bright, deep colour"
-            case .silver: return "Silver, black and white"
+            case .ink:    return "Ink, black and white"
             }
         }
     }
@@ -137,8 +175,8 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     /// the whole reason this step exists. A warm room plus a warm look is two
     /// casts stacked, which is how a photograph of a kitchen at night ends up
     /// orange; correcting more of the scene's own cast first is what leaves
-    /// room for the look's. Air and Gold take out the most because they add
-    /// the most. Chrome, which adds a cool cast to a world that is usually
+    /// room for the look's. Air and Amber take out the most because they add
+    /// the most. Slate, which adds a cool cast to a world that is usually
     /// warm, needs less.
     var neutralise: Double = 0.45
     /// Lifting only where the picture is dark, so a dim room keeps what is in
@@ -459,7 +497,7 @@ extension FilmLook {
     /// idea rather than a recipe, and rendered beside these it was the only
     /// look you had to compare against `none` to be sure it was on. Its
     /// saturation is inside Gold and its contrast is inside Chrome.
-    static let all: [FilmLook] = [none, air, gold, chrome, silver]
+    static let all: [FilmLook] = [none, air, amber, slate, ink]
 
     /// Everything the app can still NAME, including looks no longer offered.
     /// A win keeps the kind it was taken with, so a retired look has to keep
@@ -521,8 +559,8 @@ extension FilmLook {
     /// frame and everything green is pulled towards them, which is what warm
     /// afternoon light does to a lawn. The colour +3 is the strongest in the
     /// set and the skin exemption is doing the most work here.
-    static let gold = FilmLook(
-        kind: .gold,
+    static let amber = FilmLook(
+        kind: .amber,
         exposure: 1.10, shoulder: 2.00, contrast: 0.24, pivot: 0.50,
         blackLift: RGB(0.030, 0.024, 0.016),
         matrix: [1.055, -0.020, -0.035, 0.010, 1.004, -0.014, 0.038, 0.026, 0.936],
@@ -554,7 +592,7 @@ extension FilmLook {
     ///
     /// **This look exists because the other three are warm.** The first
     /// version of it was Kodachrome — also built on Classic Chrome, but
-    /// tuned rich and warm — and rendered beside Air and Gold it was a third
+    /// tuned rich and warm — and rendered beside Air and Amber it was a third
     /// warm look in a set of four. A set needs a pole at each end or the
     /// choice is only ever about how much.
     ///
@@ -565,8 +603,8 @@ extension FilmLook {
     /// for on a grey day, on a street, in a room with four different kinds of
     /// light in it — so `skinProtection` comes down rather than the look
     /// being a lie. It is the look for the picture that is not about a face.
-    static let chrome = FilmLook(
-        kind: .chrome,
+    static let slate = FilmLook(
+        kind: .slate,
         exposure: 1.04, shoulder: 2.20, contrast: 0.40, pivot: 0.46,
         blackLift: RGB(0.006, 0.008, 0.012),
         matrix: [0.960, 0.024, 0.016, -0.004, 0.994, 0.010, -0.022, -0.014, 1.036],
@@ -631,8 +669,8 @@ extension FilmLook {
     ///
     /// The orange filter weighting stays: it is why skin stays light and a
     /// sky keeps its clouds, and it is the reason to shoot a filter at all.
-    static let silver = FilmLook(
-        kind: .silver,
+    static let ink = FilmLook(
+        kind: .ink,
         exposure: 1.10, shoulder: 1.85, contrast: 0.42, pivot: 0.48,
         blackLift: RGB(0.010, 0.010, 0.010),
         inset: 0, restore: 0,

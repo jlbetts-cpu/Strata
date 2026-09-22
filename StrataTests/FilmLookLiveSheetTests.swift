@@ -177,7 +177,7 @@ struct FilmLookLiveSheetTests {
     @Test("Grain moves between frames, so it is in the emulsion rather than on the glass")
     func grainMovesWithThePhase() throws {
         let source = try #require(scene())
-        let look = FilmLook.silver
+        let look = FilmLook.ink
         let first = FilmLookRenderer.shared.live(look, to: source, means: nil, phase: .zero)
         let second = FilmLookRenderer.shared.live(look, to: source, means: nil,
                                                   phase: CGPoint(x: 1013, y: 1409))
