@@ -243,7 +243,7 @@ struct FilmLookTray: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressWord)
         .accessibilityLabel(kind.describedAs)
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
     }

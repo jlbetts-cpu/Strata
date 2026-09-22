@@ -414,11 +414,18 @@ struct CameraView: View {
                 // under the chrome, so the buttons still take their own taps.
                 viewfinderGestures(w: w, h: h)
 
-                if (camera.showsGuides || CameraTestSwitches.forceGuides)
-                    && !CameraTestSwitches.hideGuides {
-                    guides(w: w, h: h, topInset: topInset)
+                if !CameraTestSwitches.hideGuides {
+                    // **Kept mounted, and shown or hidden rather than
+                    // inserted and removed.** A transition can only fade the
+                    // group; the lines are then a rectangle appearing, which
+                    // is the cheapest-looking way for a grid to arrive. Held
+                    // in the hierarchy, each line can be scaled along its own
+                    // length, so the grid DRAWS itself out from the title
+                    // rather than switching on. Four rectangles cost nothing
+                    // to keep.
+                    guides(w: w, h: h, topInset: topInset,
+                           shown: camera.showsGuides || CameraTestSwitches.forceGuides)
                         .allowsHitTesting(false)
-                        .transition(.opacity)
                 }
 
                 header(topInset: topInset)
@@ -696,7 +703,7 @@ struct CameraView: View {
                             .contentShape(Rectangle())
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressWord)
                 // On the scale, and the same margin as the head maker's
                 // matching Retake / Save row. It was 28.
                 .padding(.horizontal, GridConstants.gapWide)
@@ -742,7 +749,7 @@ struct CameraView: View {
                                 .frame(minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressWord)
                         .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
                     }
                 }
@@ -960,7 +967,14 @@ struct CameraView: View {
         graded.tint.colour.opacity(0.5)
     }
 
-    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat) -> some View {
+    /// How far a line is drawn back when the grid is off. Subtle on purpose:
+    /// the motion should read as the grid settling onto the frame, not as a
+    /// wipe. 12% of a line's length is about 100pt at the edges, which is
+    /// enough to see and not enough to notice.
+    private static let guideDrawBack: CGFloat = 0.88
+
+    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat,
+                        shown: Bool) -> some View {
         // The break holds the wordmark, which is always drawn — so unlike the
         // count it replaced, the line is always broken. The gap is not a
         // rendering artefact: it is the wordmark's space, and the line
@@ -980,25 +994,34 @@ struct CameraView: View {
             // measuring a hair unequal, and unequal is what the eye reports as
             // "the middle one looks longer".
             let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
+            let draw = shown ? 1 : Self.guideDrawBack
+
+            // The two halves of the broken vertical grow AWAY from the break,
+            // so the line appears to come out of the title rather than to
+            // arrive around it.
             Rectangle()
                 .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: max(gapTop, 0))
+                .scaleEffect(x: 1, y: draw, anchor: .bottom)
                 .offset(x: x0, y: 0)
 
             Rectangle()
                 .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
+                .scaleEffect(x: 1, y: draw, anchor: .top)
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
                 .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: h)
+                .scaleEffect(x: 1, y: draw, anchor: .center)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
                     .foregroundStyle(guideInk)
                     .frame(width: w, height: Guide.width)
+                    .scaleEffect(x: draw, y: 1, anchor: .center)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
                     // pixel rows and reads lighter than its neighbour.
@@ -1006,6 +1029,14 @@ struct CameraView: View {
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
+        .opacity(shown ? 1 : 0)
+        // One curve for the fade and the draw, so they are one movement.
+        // `naturalSettle` rather than `motionSmooth`: a grid arriving wants
+        // to look like it is coming to rest, and 0.28 with a damping of 0.78
+        // is the rung that does that. The toggle no longer wraps this in its
+        // own `withAnimation`, because an animation declared at the value it
+        // belongs to cannot be missed by a caller who forgets.
+        .animation(GridConstants.naturalSettle, value: shown)
         // **No fade at the bottom.** The grid used to dissolve over the last
         // fifth of the frame, on the argument that ruled lines running into a
         // floating tab bar was two systems meeting at an edge neither drew.
@@ -1115,7 +1146,7 @@ struct CameraView: View {
                             identifier: "gridToggle",
                             value: camera.showsGuides ? "on" : "off",
                             dimmed: !camera.showsGuides) {
-                    withAnimation(GridConstants.motionSmooth) { camera.showsGuides.toggle() }
+                    camera.showsGuides.toggle()
                     UserDefaults.standard.set(camera.showsGuides, forKey: "cameraShowsGuides")
                 }
 
@@ -1229,13 +1260,23 @@ struct CameraView: View {
                     .font(Typography.bodySmall.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(.white)
+                    // After the layout, not before: the material takes its
+                    // shape from the final frame.
                     .frame(width: 56, height: 34)
-                    .contentShape(Capsule())
+                    .zoomGlass()
+                    // **The capsule stays 34pt and the TARGET is 44.** The
+                    // drawn pill is the size his frame draws it; the thing a
+                    // thumb has to find is not. It was 34 tall, ten points
+                    // under the floor every other control on this screen
+                    // meets, and it is the one control that appears
+                    // mid-gesture with a finger already moving. The extra
+                    // ten points are invisible and are the difference
+                    // between tapping it and tapping the viewfinder, which
+                    // refocuses the shot.
+                    .frame(width: 60, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            // After the layout, not before: the material takes its shape from
-            // the final frame.
-            .zoomGlass()
             // It grows out of the shutter's line rather than fading in on the
             // spot, which is what makes it read as belonging to the gesture
             // that produced it.
@@ -1318,7 +1359,7 @@ struct CameraView: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier ?? symbol)
         .accessibilityValue(value ?? "")
