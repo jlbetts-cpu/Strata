@@ -1,5 +1,6 @@
 import CoreImage
 import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -532,6 +533,22 @@ struct CameraView: View {
         .onChange(of: lookRaw) { _, raw in
             apply(look: FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none))
         }
+        // **The volume buttons take the photograph**, and on a phone that has
+        // one so does the Camera Control.
+        //
+        // It is muscle memory, it is how you hold a phone steady with one
+        // hand, and it is the only way to take a photograph of yourself at
+        // arm's length without the hand that is holding the phone also
+        // reaching for the middle of the screen. Every camera people have
+        // used does this.
+        //
+        // Off while a photograph is being judged: the buttons belong to
+        // composing, and Retake and Use Photo are a decision rather than a
+        // reflex.
+        .onCameraCaptureEvent(isEnabled: review == nil) { event in
+            guard event.phase == .ended else { return }
+            shutterPressed()
+        }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen
         // at 30% lights nothing.
@@ -881,6 +898,22 @@ struct CameraView: View {
                         }
                     )
             )
+            // **Press and hold to lock**, which is what press-and-hold means on
+            // every camera anybody has used. A tap points the camera at
+            // something and lets it settle; a hold pins it there and says so,
+            // for when the subject is about to move or when you meter off
+            // your hand and then reframe. A tap anywhere releases it.
+            //
+            // `simultaneousGesture`, and `minimumDuration` well clear of a
+            // tap, so the single and double taps above are untouched.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.55)
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .onEnded { value in
+                        guard case .second(true, let drag?) = value else { return }
+                        lock(at: drag.startLocation)
+                    }
+            )
             .simultaneousGesture(
                 MagnifyGesture()
                     .onChanged { value in
@@ -921,16 +954,39 @@ struct CameraView: View {
     @ViewBuilder
     private var reticle: some View {
         if let point = focusPoint {
-            FocusReticle(bias: camera.exposureBias, range: camera.exposureBiasRange)
+            FocusReticle(bias: camera.exposureBias, range: camera.exposureBiasRange,
+                         locked: camera.isLocked)
                 .position(point)
                 .transition(.scale(scale: 1.4).combined(with: .opacity))
                 .allowsHitTesting(false)
+                // **A locked reticle does not go away, and that IS the
+                // indicator.** The system camera says AE/AF LOCK in a yellow
+                // box; this screen's whole argument is that the picture is
+                // the only lit thing on it, so the mark that is already there
+                // stays instead of a banner arriving. Something held is
+                // something still on screen.
                 .task(id: focusShownAt) {
+                    guard !camera.isLocked else { return }
                     try? await Task.sleep(for: .seconds(4))
                     guard !Task.isCancelled else { return }
                     withAnimation(GridConstants.gentleReveal) { focusPoint = nil }
                 }
+                .accessibilityHidden(false)
+                .accessibilityLabel(camera.isLocked
+                                    ? "Focus and exposure locked. Tap to release."
+                                    : "Focus and exposure here")
         }
+    }
+
+    /// Pins focus and exposure where the finger was held.
+    private func lock(at location: CGPoint) {
+        guard let layer = previewBox.layer else { return }
+        camera.lockFocusAndExposure(at: layer.captureDevicePointConverted(fromLayerPoint: location))
+        // Two knocks, because a lock is a state you are entering rather than
+        // a thing that just happened.
+        HapticsEngine.snap()
+        withAnimation(GridConstants.motionSnappy) { focusPoint = location }
+        focusShownAt = Date()
     }
 
     private func focus(at location: CGPoint) {
@@ -1249,11 +1305,29 @@ struct CameraView: View {
     /// usually overshoots; one tap is the undo, and it is the same gesture
     /// Apple gives the lens buttons.
     @ViewBuilder
+    /// **The lens control, and on a phone with one lens it is still just the
+    /// zoom pill it was.**
+    ///
+    /// It used to appear only once you had pinched past 1x and did one thing:
+    /// go back. That was right when there was one piece of glass. Now that
+    /// the ultra-wide and the telephoto are open, a control that can only
+    /// return to the middle lens leaves two thirds of the camera reachable
+    /// by pinch alone, and nobody pinches to find a lens — they tap.
+    ///
+    /// **One pill rather than a row of them.** The system camera draws 0.5x,
+    /// 1x and 2x side by side; three buttons is three pieces of chrome on a
+    /// photograph, and this screen's whole argument is that the picture is
+    /// the only lit thing on it. So it is the pill that was already there,
+    /// showing where the lens is, and a tap moves to the next stop and wraps.
+    /// Pinch still goes anywhere in between.
+    ///
+    /// It is shown whenever there is more than one stop, because a control
+    /// nobody can see is a lens nobody knows they have.
     private var zoomPill: some View {
-        if camera.canZoom, camera.zoom > 1.005 {
+        if camera.canZoom, camera.opticalStops.count > 1 || abs(camera.zoom - 1) > 0.005 {
             Button {
                 HapticsEngine.lightTap()
-                withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
+                withAnimation(GridConstants.motionSnappy) { camera.setZoom(camera.nextStop) }
             } label: {
                 Text(Self.zoomLabel(camera.zoom))
                     .font(Typography.bodySmall.weight(.medium))
@@ -1280,8 +1354,8 @@ struct CameraView: View {
             // spot, which is what makes it read as belonging to the gesture
             // that produced it.
             .transition(.scale(scale: 0.7).combined(with: .opacity))
-            .accessibilityLabel("Zoom \(Self.zoomLabel(camera.zoom))")
-            .accessibilityHint("Returns to 1x")
+            .accessibilityLabel("Lens, \(Self.zoomLabel(camera.zoom))")
+            .accessibilityHint("Switches to \(Self.zoomLabel(camera.nextStop))")
         }
     }
 
@@ -1807,6 +1881,9 @@ struct CameraPreview: UIViewRepresentable {
 private struct FocusReticle: View {
     let bias: Float
     let range: ClosedRange<Float>
+    /// Held rather than settled. A locked square is drawn heavier and stays
+    /// on screen, which is the whole indicator.
+    var locked: Bool = false
 
     private static let side: CGFloat = 74
     private static let travel: CGFloat = 34
@@ -1823,8 +1900,13 @@ private struct FocusReticle: View {
     var body: some View {
         HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
-                .strokeBorder(Color(red: 1, green: 0.82, blue: 0.24), lineWidth: 1.4)
+                .strokeBorder(Color(red: 1, green: 0.82, blue: 0.24),
+                              lineWidth: locked ? 2.4 : 1.4)
                 .frame(width: Self.side, height: Self.side)
+                // A held square sits a little tighter than a settling one, so
+                // the difference reads without a second element arriving.
+                .scaleEffect(locked ? 0.88 : 1)
+                .animation(GridConstants.motionSnappy, value: locked)
 
             Image(systemName: "sun.max.fill")
                 .font(Typography.headerSmall)
