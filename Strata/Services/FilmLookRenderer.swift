@@ -307,9 +307,27 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// photograph is a different scene, and a cache keyed on time rather than
     /// on the image would hand one photograph another's white balance.
     func measureMeans(_ image: CIImage) -> [Double]? {
+        // **Averaged from a thumbnail, not from the frame.**
+        //
+        // This is a synchronous GPU to CPU readback: the CPU blocks until the
+        // GPU has finished, which DRAINS THE PIPELINE. Doing it over a full
+        // camera frame means reducing two million pixels and then stalling,
+        // twice a second, on the same queue the frames arrive on — a hitch
+        // you can feel, on a screen the owner needs to be silky.
+        //
+        // The average of a downscaled image is the average. Taking it to
+        // about 64 points first makes the reduction trivial and leaves only
+        // the stall, which is microseconds against a thumbnail. Nothing about
+        // the answer changes: white balance is a whole-frame statistic and a
+        // whole frame is exactly what a downscale preserves.
+        let side = max(image.extent.width, image.extent.height)
+        let shrink = side > 96 ? 64 / side : 1
+        let small = shrink < 1
+            ? image.transformed(by: CGAffineTransform(scaleX: shrink, y: shrink))
+            : image
         let average = CIFilter.areaAverage()
-        average.inputImage = image
-        average.extent = image.extent
+        average.inputImage = small
+        average.extent = small.extent
         guard let averaged = average.outputImage else { return nil }
         var pixel = [Float](repeating: 0, count: 4)
         context.render(averaged, toBitmap: &pixel, rowBytes: 16,

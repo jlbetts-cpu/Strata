@@ -1068,6 +1068,7 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             let processed = self.capturedProcessed
             let mirrored = self.capturedMirrored
             var chosen = processed
+            var developedOK = false
             if let dng = self.capturedRaw {
                 // Off the main actor: developing a RAW is tens of
                 // milliseconds of CPU and GPU and the shutter animation is
@@ -1075,8 +1076,19 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
                 let developed = await Task.detached(priority: .userInitiated) {
                     RawDeveloper.shared.develop(dng, mirrored: mirrored)
                 }.value
-                if let developed { chosen = developed }
+                if let developed { chosen = developed; developedOK = true }
             }
+            // **Say which path ran and what came back.**
+            //
+            // The owner: "the filtered photo never loaded on the block." That
+            // can be three different faults — the RAW never arrived, it
+            // arrived and would not develop, or nothing was captured at all —
+            // and they are indistinguishable from the outside. This is the
+            // one line that tells them apart on his next run, because none of
+            // it can be reproduced on a machine with no lens.
+            GradedViewfinder.log.notice("""
+                capture: raw \(self.capturedRaw?.count ?? 0, privacy: .public) bytes, processed \(processed == nil ? "none" : "yes", privacy: .public), developed \(developedOK ? "yes" : "no", privacy: .public), returning \(chosen == nil ? "NOTHING" : "a photograph", privacy: .public)
+                """)
             self.capturedRaw = nil
             self.capturedProcessed = nil
             self.onCaptured?(chosen)

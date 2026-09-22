@@ -95,6 +95,20 @@ struct WinFolder: View {
         return face
     }
 
+    /// **How full the folder looks, 0 to 1.**
+    ///
+    /// The owner: "a fun little detail of the folder, the fuller it gets."
+    ///
+    /// Twelve is a full day, so that is the top of the scale. Three things
+    /// move with it and all of them are small: the stack spreads wider, the
+    /// pocket swells as though there is something behind it, and the shadow
+    /// deepens because a fuller folder is a heavier one. None of them is
+    /// legible on its own, which is the point — it should be noticed as the
+    /// folder getting fuller rather than as an animation happening.
+    private var fullness: CGFloat {
+        min(CGFloat(max(count, contents.count)) / 12, 1)
+    }
+
     var body: some View {
         // **The aspect is established BEFORE the geometry is read, not
         // after.** A `GeometryReader` has no intrinsic size of its own, so
@@ -105,6 +119,7 @@ struct WinFolder: View {
         Color.clear
             .aspectRatio(1.04, contentMode: .fit)
             .overlay { folder }
+            .animation(GridConstants.naturalSettle, value: fullness)
             .onAppear { if isAlive { idle.reach = 5; idle.start() } }
             .onDisappear { idle.stop() }
             .accessibilityElement(children: .ignore)
@@ -159,7 +174,10 @@ struct WinFolder: View {
             .compositingGroup()
             // The one shadow, and it is the folder standing on the ground
             // rather than chrome pretending to float.
-            .shadow(color: .black.opacity(0.45), radius: h * 0.06, y: h * 0.025)
+            // A fuller folder is a heavier one.
+            .shadow(color: .black.opacity(0.42 + 0.12 * fullness),
+                    radius: h * (0.055 + 0.015 * fullness),
+                    y: h * (0.022 + 0.010 * fullness))
         }
     }
 
@@ -198,8 +216,8 @@ struct WinFolder: View {
                             corner: w * 0.05)
                 .frame(width: cardWidth, height: cardWidth * max(0.5, min(ratio, 1.15)))
                 .shadow(color: .black.opacity(0.28), radius: w * 0.02, y: w * 0.008)
-                .rotationEffect(.degrees(side * spread * 13))
-                .offset(x: CGFloat(side) * CGFloat(spread) * w * 0.17,
+                .rotationEffect(.degrees(side * spread * (10 + 6 * Double(fullness))))
+                .offset(x: CGFloat(side) * CGFloat(spread) * w * (0.13 + 0.07 * fullness),
                         y: -h * 0.20 + CGFloat(spread) * h * 0.02)
                 .zIndex(Double(index))
             }
@@ -223,7 +241,9 @@ struct WinFolder: View {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(.white.opacity(0.22), lineWidth: 1)
             }
-            .frame(height: h * 0.62)
+            // The pocket swells a little as the folder fills, as though
+            // something is behind it.
+            .frame(height: h * (0.62 + 0.025 * fullness))
             .frame(maxHeight: .infinity, alignment: .bottom)
     }
 }
