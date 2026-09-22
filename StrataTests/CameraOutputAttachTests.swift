@@ -66,6 +66,21 @@ struct CameraOutputAttachTests {
         #expect(runs == 1, "the early return must happen before any reconfiguration")
     }
 
+    /// The one part of the capture-pipeline choice that can be checked
+    /// without a lens: that the value asked for is never above the output's
+    /// ceiling, because a settings value above `maxPhotoQualityPrioritization`
+    /// throws, and a throw here is a termination.
+    @Test("Neither pipeline ever asks for more than the output allows",
+          arguments: [AVCapturePhotoOutput.QualityPrioritization.speed,
+                      .balanced, .quality])
+    func qualityNeverExceedsTheCeiling(ceiling: AVCapturePhotoOutput.QualityPrioritization) {
+        for wanted in [AVCapturePhotoOutput.QualityPrioritization.speed, .quality] {
+            let chosen = ceiling.rawValue >= wanted.rawValue ? wanted : ceiling
+            #expect(chosen.rawValue <= ceiling.rawValue,
+                    "asked for \(chosen.rawValue) against a ceiling of \(ceiling.rawValue)")
+        }
+    }
+
     @Test("Orienting an unattached output is a no-op rather than a crash")
     func orientingWithoutAConnectionIsSafe() {
         // No session, so no connection. This is the shape of the fourth

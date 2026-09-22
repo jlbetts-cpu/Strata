@@ -546,7 +546,41 @@ final class CameraService: NSObject {
 
     // MARK: - Capture
 
-    func capture(_ completion: @escaping (UIImage?) -> Void) {
+    /// **`singleFrame` asks the phone to stop improving the picture.**
+    ///
+    /// The owner's answer to which pipeline to use: "is it possible to keep
+    /// the apple processing on none and turning it off for the film
+    /// simulation?" It is, and it is a better answer than either of the ones
+    /// offered, because the person has already said which they want by
+    /// choosing a look.
+    ///
+    /// **What the two pipelines are.** Apple's default is multi-frame: Deep
+    /// Fusion and Smart HDR fuse several exposures, sharpen aggressively and
+    /// tone-map the result flat. It produces the cleanest file this phone can
+    /// make, especially in a dim room, and it is the right answer to "take
+    /// the best photograph you can" — which is what None means.
+    ///
+    /// It is the wrong answer to a film look, for two reasons. The sharpening
+    /// and the flat HDR curve are the two things people mean by a photograph
+    /// looking digital, and they fight everything the grade is doing: the
+    /// shoulder that was rolling highlights off, the soft toe, the grain that
+    /// a sharpener finds and amplifies. And the viewfinder reads the preview
+    /// stream while the still goes through the fusion stack, so the picture
+    /// cannot match the frame it was composed in. This app now promises that
+    /// it does. It is the same thing the IIWII camera verifies on: the saved
+    /// image matches the live preview rather than shifting into Apple's HDR
+    /// photo.
+    ///
+    /// So a look means `.speed`, which is a single frame with none of that,
+    /// and None means `.quality`, which is everything the phone has. The cost
+    /// is honest and belongs to whoever chose the look: one frame in a dark
+    /// room is a noisier frame, and grain is what the look was adding anyway.
+    ///
+    /// Only the per-shot `AVCapturePhotoSettings` is touched. Zero shutter
+    /// lag and responsive capture are properties of the OUTPUT, and toggling
+    /// those between shots would be reconfiguring a running session, which is
+    /// what terminated the app once already.
+    func capture(singleFrame: Bool = false, _ completion: @escaping (UIImage?) -> Void) {
         guard isConfigured, !isCapturing else { completion(nil); return }
         isCapturing = true
         onCaptured = completion
@@ -591,9 +625,10 @@ final class CameraService: NSObject {
         // `maxPhotoQualityPrioritization` throws.
         // `QualityPrioritization` is not Comparable, but its raw values are
         // ordered speed < balanced < quality, so compare those.
+        let wanted: AVCapturePhotoOutput.QualityPrioritization = singleFrame ? .speed : .quality
         settings.photoQualityPrioritization =
-            output.maxPhotoQualityPrioritization.rawValue >= AVCapturePhotoOutput.QualityPrioritization.quality.rawValue
-            ? .quality : output.maxPhotoQualityPrioritization
+            output.maxPhotoQualityPrioritization.rawValue >= wanted.rawValue
+            ? wanted : output.maxPhotoQualityPrioritization
         // Only the rear camera has a lamp to fire.
         if !usesScreenFlash, output.supportedFlashModes.contains(.on) {
             settings.flashMode = isFlashOn ? .on : .off

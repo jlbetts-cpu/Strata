@@ -1581,7 +1581,12 @@ struct CameraView: View {
                 // Long enough for auto-exposure to settle on the new light.
                 try? await Task.sleep(for: .milliseconds(220))
             }
-            camera.capture { image in
+            // **A look turns Apple's multi-frame processing off.** None is
+            // "take the best photograph you can" and gets the whole fusion
+            // stack; a look is "give me the picture I framed" and gets one
+            // frame, so the still matches the viewfinder it was composed in.
+            // See `CameraService.capture`.
+            camera.capture(singleFrame: FilmLook.Kind(rawValue: lookRaw).map { $0 != .none } ?? false) { image in
                 if needsScreenFlash {
                     // Back to the ring, not to darkness — the flash is still
                     // armed, so the light you were composing under stays.
