@@ -70,6 +70,12 @@ enum DebugHarness {
         return Int(raw)
     }
 
+    /// Shows the folder face lab instead of the app, so every expression can
+    /// be looked at side by side. See `FolderLabView`.
+    static var folderLab: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataFolderLab")
+    }
+
     /// Holds the front-camera ring light on so it can be photographed. The
     /// simulator has no camera, so this is the only way to see the light at
     /// all — what it looks like on a FACE is still unverifiable here.

@@ -164,7 +164,9 @@ struct StrataApp: App {
             // has been through this, it IS the app.
             Group {
                 #if DEBUG
-                if DebugHarness.headParity {
+                if DebugHarness.folderLab {
+                    FolderLabView()
+                } else if DebugHarness.headParity {
                     HeadParityView()
                 } else {
                     appRoot
