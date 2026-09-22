@@ -1,3 +1,4 @@
+import CoreImage
 import AVFoundation
 import SwiftUI
 import UIKit
@@ -229,8 +230,6 @@ struct CameraView: View {
         /// 3-pixel hairline. 2pt is what makes it read on the device the way
         /// his reads on his monitor.
         static let width: CGFloat = 2
-        /// How much of the frame the bottom fade occupies.
-        static let fadeHeight: CGFloat = 0.20
     }
 
     /// The header the grid is built around.
@@ -297,7 +296,7 @@ struct CameraView: View {
         /// has not picked a number yet; 56 and 62 were rendered for him beside
         /// this. Note that going above 50 puts the build out of step with his
         /// file, which specifies 145.638 x 50.
-        static var markHeight: CGFloat { ApolloWordmark.boxHeight }
+        static var markHeight: CGFloat { 56 }
         /// Air between the header and the cut ends of the line.
         static let breathing: CGFloat = 14
     }
@@ -939,6 +938,28 @@ struct CameraView: View {
 
     // MARK: - Guides
 
+    /// **Flat, and the colour of what the camera is looking at.**
+    ///
+    /// The owner: "they look too much like glass; what I liked about my figma
+    /// compared to this is it took the colour but it didn't emulate glass, it
+    /// was more flat."
+    ///
+    /// He is describing his own node exactly: `#98A184` at half opacity, one
+    /// flat stroke, no blur and no blend mode, in a colour lifted out of the
+    /// grass behind it. `glassEffect` was reached for because a SwiftUI
+    /// `Material` draws literally nothing over the camera's
+    /// `UIViewRepresentable` — measured at zero pixels of difference — but
+    /// glass has a refracted edge and a specular, and those are the thing he
+    /// can see and does not want.
+    ///
+    /// `SceneTint` gets the relationship without the material: the camera is
+    /// already measuring the whole frame's colour for white balance, so the
+    /// line is painted from that, drained and lifted in the same proportion
+    /// his line has to his grass. Flat paint, scene coloured, half opacity.
+    private var guideInk: Color {
+        graded.tint.colour.opacity(0.5)
+    }
+
     private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat) -> some View {
         // The break holds the wordmark, which is always drawn — so unlike the
         // count it replaced, the line is always broken. The gap is not a
@@ -960,23 +981,23 @@ struct CameraView: View {
             // "the middle one looks longer".
             let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
             Rectangle()
-                .modifier(GuideGlass())
+                .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: max(gapTop, 0))
                 .offset(x: x0, y: 0)
 
             Rectangle()
-                .modifier(GuideGlass())
+                .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
-                .modifier(GuideGlass())
+                .foregroundStyle(guideInk)
                 .frame(width: Guide.width, height: h)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
-                    .modifier(GuideGlass())
+                    .foregroundStyle(guideInk)
                     .frame(width: w, height: Guide.width)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
@@ -985,23 +1006,21 @@ struct CameraView: View {
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
-        // The grid dissolves before it reaches the tab bar.
+        // **No fade at the bottom.** The grid used to dissolve over the last
+        // fifth of the frame, on the argument that ruled lines running into a
+        // floating tab bar was two systems meeting at an edge neither drew.
         //
-        // Ruled lines running hard into a floating bar is the one place this
-        // screen looked pasted together — two systems meeting at an edge
-        // neither of them drew. Fading them out over the last stretch means
-        // the page stops rather than being cut off.
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .black, location: 0),
-                    .init(color: .black, location: 1 - Guide.fadeHeight * 1.6),
-                    .init(color: .clear, location: 1 - Guide.fadeHeight * 0.55)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        // The owner: "I don't think I'm particularly the biggest fan of the
+        // rule of thirds lines just because they fade away at the bottom,
+        // which I think looks a bit cheap."
+        //
+        // He is right and the argument was already stale. The reason it was
+        // added was lines hitting the bar; the viewfinder now ends in its own
+        // rounded strip and CLIPS them, so they stop against a shape that is
+        // part of the design rather than trailing off into nothing. A
+        // gradient was solving a problem that the strip had already solved,
+        // and a line that fades out is a line that looks like it failed to
+        // draw. His file has no fade either: the strokes run the full frame.
     }
 
     /// The count, the flip and the flash — one line, in the gap.
@@ -1691,6 +1710,15 @@ struct CameraPreview: UIViewRepresentable {
             backing.frame = view.bounds
             backing.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             view.addSubview(backing)
+            // **The guides take their colour from the camera, and here there
+            // is none.** The stand-in exists so what is drawn OVER the
+            // viewfinder can be judged on a screenshot, and a line painted
+            // from the scene cannot be judged against a fallback grey. So the
+            // stand-in measures itself once, exactly as a frame would.
+            if let cg = scene.cgImage,
+               let means = FilmLookRenderer.shared.measureMeans(CIImage(cgImage: cg)) {
+                graded?.tint.update(sceneMean: means)
+            }
         }
         #endif
         view.previewLayer.session = session
@@ -1927,18 +1955,3 @@ enum CameraTestSwitches {
     }
 }
 
-
-/// A thirds line: Liquid Glass over the viewfinder rather than paint.
-///
-/// See `Guide.width` for why. In one line: a `Material` renders nothing over
-/// the camera preview, and `glassEffect` is what takes its colour from the
-/// scene the way the owner's own line takes its colour from his grass.
-struct GuideGlass: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(GlassRecipe.photoOverlay, in: .rect(cornerRadius: 0))
-        } else {
-            content.overlay(Color.white.opacity(0.45))
-        }
-    }
-}

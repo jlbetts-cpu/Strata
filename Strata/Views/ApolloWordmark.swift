@@ -39,6 +39,19 @@ struct ApolloWordmark: View {
     static let capTopFraction: CGFloat = 3.3 / 200
     static let baselineFraction: CGFloat = 153.4 / 200
 
+    /// **The box IS the ink, top and bottom**, which is why a gap cut to the
+    /// box is balanced around the word.
+    ///
+    /// It is not obvious and it was nearly "corrected" on a bad measurement.
+    /// `capTopFraction` above is the CAP, and the cap is not the tallest
+    /// thing here: the two `l` ascenders go higher, all the way to the top of
+    /// the viewBox, and the `p`'s descender goes all the way to the bottom of
+    /// it. Rasterised a thousand points tall, the very first row carries 35
+    /// inked pixels and so does the very last. `ApolloWordmarkInkTests`
+    /// asserts exactly that, so if the artwork is ever redrawn with padding,
+    /// every gap cut to this box fails here rather than on his screen.
+
+
     /// **How far to raise a control so it centres on the mark's CAP rather
     /// than on its box.**
     ///

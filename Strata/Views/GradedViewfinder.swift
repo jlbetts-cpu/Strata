@@ -1,3 +1,4 @@
+import SwiftUI
 import AVFoundation
 import CoreImage
 import MetalKit
@@ -97,10 +98,15 @@ final class GradedViewfinder {
     private var isDrawable: Bool { look.kind != .none && relay.isLive }
 
     private(set) var view: GradedPreviewView?
+    /// The colour the composition guides are painted in. See `SceneTint`.
+    let tint = SceneTint()
     let relay = CameraFrameRelay()
     private var watchdog: Timer?
 
     init() {
+        relay.onSceneMean = { [weak self] means in
+            Task { @MainActor in self?.tint.update(sceneMean: means) }
+        }
         relay.onFrame = { [weak self] image, means in
             Task { @MainActor in
                 guard let self, !self.presenting else { return }
@@ -173,6 +179,109 @@ final class GradedViewfinder {
     }
 }
 
+/// **The colour of what the camera is pointed at, for the guides to be drawn
+/// in.**
+///
+/// The owner, on the thirds lines: "what I liked about my figma compared to
+/// this is it took the color but it didnt emulate glass, it was more flat."
+///
+/// His own node draws them `#98A184` at half opacity: flat paint, one colour,
+/// no blur and no blend mode. `#98A184` is not from the palette — it is the
+/// grass in the photograph behind it, lightened and drained. "I took the
+/// colour from the background kinda and then turned the transparency down."
+///
+/// A fixed sage is right over grass and wrong over a kitchen counter, so what
+/// generalises is the relationship rather than the value. That used to be done
+/// with `glassEffect`, which was the only thing that would draw at all over a
+/// `UIViewRepresentable` — a SwiftUI `Material` composites to nothing there,
+/// measured at zero pixels of difference. But glass is a material, with a
+/// refracted edge and a specular, and he can see it: it is not what his file
+/// does.
+///
+/// The camera is already handing this class a measurement of the whole frame,
+/// for white balance. Painting the lines from that is his relationship,
+/// reproduced exactly and flatly: take the scene's colour, drain most of the
+/// saturation out of it, lift it well above the scene's own brightness, and
+/// draw it at half opacity. Sage over grass, pale blue over sky, warm over a
+/// lit room, and flat everywhere.
+@MainActor
+@Observable
+final class SceneTint {
+
+    /// Where there is no camera yet: the simulator, the first frames of a
+    /// launch, and any device that will not hand over frames. Neutral rather
+    /// than tinted, because inventing a colour for a scene nobody has seen is
+    /// worse than not tinting at all.
+    static let fallback = Color(white: 0.78)
+
+    private(set) var colour: Color = SceneTint.fallback
+
+    /// Lifted and drained, in the proportion his own line has to his own
+    /// grass.
+    ///
+    /// Measured off his file rather than chosen. His grass reads about
+    /// (0.35, 0.45, 0.20) in HSV terms — hue 0.233, saturation 0.56, value
+    /// 0.45 — and `#98A184` is hue 0.218, saturation 0.18, value 0.63. The
+    /// hue is held, the saturation is about a third of the scene's, and the
+    /// value is about 1.4 times it. Those two numbers are the whole
+    /// transform.
+    ///
+    /// The value is then held inside a corridor. Below 0.55 a line over a
+    /// dark room would disappear, and he asked for "still very visible";
+    /// above 0.95 a line over a bright sky would be white paint, and he asked
+    /// for the opposite of that — "the white UI has some trouble being
+    /// visible against the bright image, I want it to be semi invisible." Low
+    /// contrast over bright IS the intent here, and the ceiling is what keeps
+    /// it from becoming a hairline of pure white.
+    nonisolated static func tint(forSceneMean means: [Double]) -> Color? {
+        guard means.count == 3 else { return nil }
+        let scene = FilmLook.RGB(min(max(means[0], 0), 1),
+                                 min(max(means[1], 0), 1),
+                                 min(max(means[2], 0), 1))
+        let (hue, saturation, value) = FilmLook.hsv(scene)
+        // **The chroma is held, not drained, and that took a measurement to
+        // get right.**
+        //
+        // Draining it by two thirds is the relationship his `#98A184` has to
+        // his GRASS, and grass is a region. This number is the average of the
+        // WHOLE frame — sky, rock, water and trees together — which has
+        // already done most of the draining by itself. Measured on his own
+        // valley photograph, the frame's mean saturation is 0.11 where the
+        // grass alone is about 0.56; draining that again gave 0.036, which
+        // composited to a neutral grey indistinguishable from the fallback.
+        // The line was not taking any colour from the picture at all, and a
+        // profile across it said so: the paint came back at (182, 186, 188).
+        //
+        // So the drain is already in the input, twice over, and the chroma
+        // has to be put BACK for the line to be coloured at all. Measured on
+        // his valley: hue 0.590, saturation 0.079, value 0.487. At 2.2 that
+        // is a chroma of 0.174, which is within a hair of his own line's
+        // 0.179 — the same amount of colour he chose, arrived at from the
+        // frame instead of from the grass.
+        //
+        // A floor, so a grey room still gets a line. A ceiling, so a
+        // photograph that really is all one colour gets a tinted line rather
+        // than a coloured one.
+        let chroma = min(max(saturation * 2.2, 0.05), 0.18)
+        let lifted = min(max(value * 1.4, 0.55), 0.95)
+        let out = FilmLook.rgb(h: hue, s: chroma, v: lifted)
+        return Color(.displayP3, red: out.r, green: out.g, blue: out.b)
+    }
+
+    func update(sceneMean means: [Double]) {
+        guard let next = Self.tint(forSceneMean: means) else { return }
+        let (h, sat, v) = FilmLook.hsv(FilmLook.RGB(means[0], means[1], means[2]))
+        GradedViewfinder.log.notice("""
+            guides: scene hue \(h, format: .fixed(precision: 3), privacy: .public), saturation \(sat, format: .fixed(precision: 3), privacy: .public), value \(v, format: .fixed(precision: 3), privacy: .public)
+            """)
+        // Half a second, because the measurement moves as the camera moves and
+        // a line that changes colour in steps reads as flicker. Long enough to
+        // be a drift, short enough that walking indoors is not followed by a
+        // line from outside.
+        withAnimation(.easeInOut(duration: 0.5)) { colour = next }
+    }
+}
+
 /// Reads the camera's frames, keeps the newest one, and measures white balance
 /// at its own cadence.
 ///
@@ -195,6 +304,11 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     /// `wantsFrames`. The newest frame is always kept regardless, because the
     /// tray's swatches ask for one whenever it opens.
     var onFrame: ((CIImage, [Double]?) -> Void)?
+
+    /// Handed every new whole-frame measurement, look or no look, so the
+    /// guides can be painted in the colour of what the camera is pointed at.
+    /// See `SceneTint`.
+    var onSceneMean: (([Double]) -> Void)?
 
     /// Whether anything is drawing frames. False whenever the look is `.none`,
     /// which is the common case, so the ordinary camera costs one `CIImage`
@@ -278,7 +392,12 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         latest = image
         lastFrameAt = CACurrentMediaTime()
         counter &+= 1
-        let shouldMeasure = counter % Self.measureEvery == 0 || means == nil
+        // **Half as often when no look is on**, because then the only thing
+        // that wants this is the guide colour and a line that re-tints once a
+        // second is already drifting faster than a room's light changes. With
+        // a look on, the white balance wants the finer cadence.
+        let cadence = wantsFrames ? Self.measureEvery : Self.measureEvery * 2
+        let shouldMeasure = counter % cadence == 0 || means == nil
         let first = !announced
         if first { announced = true }
         lock.unlock()
@@ -289,10 +408,16 @@ final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 """)
         }
         reportRate()
-        guard wantsFrames else { return }
+
+        // Measured BEFORE the look gate, because the guides want it whether a
+        // look is chosen or not. It is a synchronous GPU readback, which is
+        // why it happens on a cadence rather than per frame, and it happens
+        // on this queue rather than the main one.
         if shouldMeasure, let measured = FilmLookRenderer.shared.measureMeans(image) {
             lock.lock(); means = measured; lock.unlock()
+            onSceneMean?(measured)
         }
+        guard wantsFrames else { return }
         lock.lock(); let current = means; lock.unlock()
         onFrame?(image, current)
     }
