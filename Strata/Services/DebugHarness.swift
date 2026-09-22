@@ -70,6 +70,28 @@ enum DebugHarness {
         return Int(raw)
     }
 
+    /// Opens the inside of a folder with this many wins in it, so the
+    /// scatter can be looked at across the range it has to hold.
+    /// `-strataScatter 20`.
+    static var scatterCount: Int? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-strataScatter"), i + 1 < args.count,
+              let n = Int(args[i + 1]), n > 0 else { return nil }
+        return n
+    }
+
+    /// Wins to fill a scatter with. Real photographs, cycled, with distinct
+    /// identifiers so each one seeds its own lean.
+    static func scatterWins(_ count: Int) -> [ScatterWin] {
+        let names = ["LookPreview", "DemoPhoto1", "DemoPhoto4", "DemoPhoto9",
+                     "DemoPhoto11", "DemoPhoto5", "DemoPhoto3", "DemoPhoto12"]
+        let sizes: [BlockSize] = [.medium, .small, .hard, .small, .medium, .small]
+        return (0..<count).compactMap { i in
+            guard let image = UIImage(named: names[i % names.count]) else { return nil }
+            return ScatterWin(id: "win-\(i)", image: image, size: sizes[i % sizes.count])
+        }
+    }
+
     /// Shows the folder face lab instead of the app, so every expression can
     /// be looked at side by side. See `FolderLabView`.
     static var folderLab: Bool {

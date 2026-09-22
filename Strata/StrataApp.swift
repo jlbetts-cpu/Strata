@@ -164,7 +164,10 @@ struct StrataApp: App {
             // has been through this, it IS the app.
             Group {
                 #if DEBUG
-                if DebugHarness.folderLab {
+                if let count = DebugHarness.scatterCount {
+                    FolderInside(title: "This week", wins: DebugHarness.scatterWins(count))
+                        .preferredColorScheme(.dark)
+                } else if DebugHarness.folderLab {
                     FolderLabView()
                 } else if DebugHarness.headParity {
                     HeadParityView()
