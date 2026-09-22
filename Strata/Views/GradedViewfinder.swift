@@ -1,0 +1,278 @@
+import AVFoundation
+import CoreImage
+import MetalKit
+import UIKit
+import os
+
+/// **The viewfinder, in the colour the photograph will be.**
+///
+/// The owner, with the build on his phone: "The live filters don't actually
+/// work." They were applied at capture and nowhere else, so choosing a look
+/// changed the swatch and the saved picture but not the scene you were
+/// composing.
+///
+/// **Why this is not simply "filter the preview".** `AVCaptureVideoPreviewLayer`
+/// renders the feed itself and nothing can be put between it and the glass, so
+/// a graded viewfinder has to be a second surface fed by
+/// `AVCaptureVideoDataOutput` and drawn by hand. This is that surface: a
+/// `MTKView` that Core Image renders each frame into.
+///
+/// **The preview layer stays, underneath, and that is the whole fail-safe.**
+/// This view is an overlay on top of it. If Metal is unavailable, if frames
+/// stop arriving, or if no look is selected, the overlay is simply hidden and
+/// the ordinary preview is already there showing the scene. There is no path
+/// where the viewfinder goes black because the grading failed: the worst case
+/// is an ungraded picture, which is the camera working.
+///
+/// **Colour only.** No grain, no halation, no vignette, per the decision on
+/// the live path: those are per-pixel noise and multi-pass blurs, they are the
+/// expensive half of the pipeline, and grain that crawls at 30Hz reads as
+/// noise rather than as film. The still keeps the whole pipeline.
+@MainActor
+final class GradedViewfinder {
+    static let log = Logger(subsystem: "JaydenBetts.Strata", category: "viewfinder")
+
+    /// The look being drawn. `.none` hides the overlay, which is the common
+    /// case and costs nothing to render.
+    var look: FilmLook = FilmLook.look(.none) {
+        didSet {
+            // The relay keeps reading frames either way, because the tray's
+            // swatches need the scene, but it stops waking the main actor.
+            relay.wantsFrames = look.kind != .none
+            view?.isHidden = !isDrawable
+        }
+    }
+
+    /// One frame in flight at a time. Without this a main thread that falls
+    /// behind accumulates a queue of `Task`s, and the viewfinder drifts
+    /// further behind the world the busier the phone gets. Dropping is the
+    /// right behaviour for a viewfinder: the next frame is always better than
+    /// a late one.
+    private var presenting = false
+
+    /// True when a look is selected AND frames are arriving.
+    private var isDrawable: Bool { look.kind != .none && relay.isLive }
+
+    private(set) var view: GradedPreviewView?
+    let relay = CameraFrameRelay()
+    private var watchdog: Timer?
+
+    init() {
+        relay.onFrame = { [weak self] image, means in
+            Task { @MainActor in
+                guard let self, !self.presenting else { return }
+                self.presenting = true
+                self.present(image, means: means)
+                self.presenting = false
+            }
+        }
+    }
+
+    /// Builds the drawing surface, or returns nil if this machine has no Metal
+    /// device — the simulator, and any failure mode on hardware. The caller
+    /// then simply never adds an overlay.
+    func makeView() -> GradedPreviewView? {
+        if let view { return view }
+        guard let made = GradedPreviewView.make() else {
+            Self.log.error("graded viewfinder: no Metal device, staying on the plain preview")
+            return nil
+        }
+        made.isHidden = true
+        view = made
+        startWatchdog()
+        return made
+    }
+
+    private func present(_ image: CIImage, means: [Double]?) {
+        guard let view else { return }
+        guard look.kind != .none else {
+            if !view.isHidden { view.isHidden = true }
+            return
+        }
+        let graded = FilmLookRenderer.shared.colourOnly(look, to: image, means: means)
+        view.show(graded)
+        if view.isHidden { view.isHidden = false }
+    }
+
+    /// **If frames stop, uncover the plain preview rather than freezing.**
+    ///
+    /// A `MTKView` holds its last drawable, so a stalled pipeline would leave
+    /// a still photograph of a moment ago sitting over a live camera, which is
+    /// worse than no grading at all: it looks like the camera has frozen. One
+    /// second without a frame hides the overlay and the ungraded feed is
+    /// already underneath it.
+    private func startWatchdog() {
+        watchdog?.invalidate()
+        watchdog = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let view = self.view, !view.isHidden else { return }
+                if !self.relay.isLive {
+                    Self.log.error("graded viewfinder: no frames for 1s, falling back to the plain preview")
+                    view.isHidden = true
+                }
+            }
+        }
+    }
+
+    func stop() {
+        watchdog?.invalidate()
+        watchdog = nil
+        view?.isHidden = true
+    }
+}
+
+/// Reads the camera's frames, keeps the newest one, and measures white balance
+/// at its own cadence.
+///
+/// `nonisolated`, because `captureOutput` arrives on its own queue and must not
+/// hop to the main actor per frame.
+final class CameraFrameRelay: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
+    let output = AVCaptureVideoDataOutput()
+    private let queue = DispatchQueue(label: "camera.viewfinder.frames", qos: .userInitiated)
+    private let lock = NSLock()
+    private var lastFrameAt: CFTimeInterval = 0
+    private var latest: CIImage?
+    private var counter = 0
+    private var means: [Double]?
+    private var announced = false
+
+    /// Handed each frame, on the frame queue's schedule, but only while
+    /// `wantsFrames`. The newest frame is always kept regardless, because the
+    /// tray's swatches ask for one whenever it opens.
+    var onFrame: ((CIImage, [Double]?) -> Void)?
+
+    /// Whether anything is drawing frames. False whenever the look is `.none`,
+    /// which is the common case, so the ordinary camera costs one `CIImage`
+    /// wrapper a frame and nothing else.
+    var wantsFrames = false
+
+    /// **How often the white balance is re-measured.** `measureMeans` is a
+    /// synchronous GPU to CPU readback, so once a frame would stall every
+    /// frame, and because the reading moves slightly frame to frame the
+    /// balance would visibly breathe while the camera sat still. Every 15
+    /// frames is about twice a second, which is ample for white balance and
+    /// is the cadence `FilmLookRenderer` documents for exactly this path.
+    private static let measureEvery = 15
+
+    override init() {
+        super.init()
+        output.alwaysDiscardsLateVideoFrames = true
+        output.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ]
+        output.setSampleBufferDelegate(self, queue: queue)
+    }
+
+    /// True while frames have arrived recently. The viewfinder uncovers the
+    /// plain preview when this goes false.
+    var isLive: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return lastFrameAt > 0 && CACurrentMediaTime() - lastFrameAt < 1.0
+    }
+
+    /// The newest frame as a small `UIImage`, for the tray's swatches.
+    func snapshot(maxSide: CGFloat) -> UIImage? {
+        lock.lock(); let image = latest; lock.unlock()
+        guard let image else { return nil }
+        let side = max(image.extent.width, image.extent.height)
+        guard side > 0 else { return nil }
+        let scale = min(1, maxSide / side)
+        let small = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return FilmLookRenderer.shared.uiImage(from: small)
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let image = CIImage(cvPixelBuffer: buffer)
+
+        lock.lock()
+        latest = image
+        lastFrameAt = CACurrentMediaTime()
+        counter &+= 1
+        let shouldMeasure = counter % Self.measureEvery == 0 || means == nil
+        let first = !announced
+        if first { announced = true }
+        lock.unlock()
+
+        if first {
+            GradedViewfinder.log.notice(
+                "graded viewfinder: first frame \(Int(image.extent.width))x\(Int(image.extent.height))")
+        }
+        guard wantsFrames else { return }
+        if shouldMeasure, let measured = FilmLookRenderer.shared.measureMeans(image) {
+            lock.lock(); means = measured; lock.unlock()
+        }
+        lock.lock(); let current = means; lock.unlock()
+        onFrame?(image, current)
+    }
+}
+
+/// A `MTKView` that draws one `CIImage` per frame, aspect-filled.
+final class GradedPreviewView: MTKView {
+    private let ciContext: CIContext
+    private let commands: MTLCommandQueue
+    private let space = CGColorSpace(name: CGColorSpace.displayP3)
+    private var image: CIImage?
+
+    /// Nil where there is no Metal device: the simulator, and any failure on
+    /// hardware. The caller then never adds an overlay and the plain preview
+    /// is the viewfinder.
+    static func make() -> GradedPreviewView? {
+        guard let device = MTLCreateSystemDefaultDevice(),
+              let queue = device.makeCommandQueue() else { return nil }
+        return GradedPreviewView(device: device, queue: queue)
+    }
+
+    private init(device: MTLDevice, queue: MTLCommandQueue) {
+        commands = queue
+        ciContext = CIContext(mtlCommandQueue: queue, options: [
+            .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3) as Any,
+            .cacheIntermediates: false
+        ])
+        super.init(frame: .zero, device: device)
+        // Required for Core Image to render into the drawable's texture.
+        framebufferOnly = false
+        colorPixelFormat = .bgra8Unorm
+        // Driven by the camera, not by the display link: a frame arrives and
+        // is drawn. Ticking at 60Hz for a 30Hz feed would draw each frame twice.
+        isPaused = true
+        enableSetNeedsDisplay = false
+        isOpaque = true
+        isUserInteractionEnabled = false
+        autoResizeDrawable = true
+        backgroundColor = .black
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("not from a nib") }
+
+    func show(_ image: CIImage) {
+        self.image = image
+        draw()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let image,
+              let drawable = currentDrawable,
+              let buffer = commands.makeCommandBuffer() else { return }
+        let width = CGFloat(drawable.texture.width)
+        let height = CGFloat(drawable.texture.height)
+        guard width > 0, height > 0, image.extent.width > 0, image.extent.height > 0 else { return }
+
+        // Aspect fill, the same framing `videoGravity = .resizeAspectFill`
+        // gives the layer underneath — so uncovering the plain preview does
+        // not move the picture.
+        let scale = max(width / image.extent.width, height / image.extent.height)
+        let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let placed = scaled.transformed(by: CGAffineTransform(
+            translationX: (width - scaled.extent.width) / 2 - scaled.extent.origin.x,
+            y: (height - scaled.extent.height) / 2 - scaled.extent.origin.y))
+
+        ciContext.render(placed, to: drawable.texture, commandBuffer: buffer,
+                         bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                         colorSpace: space ?? CGColorSpaceCreateDeviceRGB())
+        buffer.present(drawable)
+        buffer.commit()
+    }
+}

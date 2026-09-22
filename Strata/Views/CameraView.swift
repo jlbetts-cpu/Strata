@@ -92,6 +92,14 @@ struct CameraView: View {
     /// aspect against the format's — arithmetic here would be a second copy of
     /// a conversion AVFoundation already does exactly.
     @State private var previewBox = PreviewLayerBox()
+    /// The live look. See `GradedViewfinder`: it is an overlay ON the preview
+    /// layer, so every failure path uncovers the ordinary picture.
+    @State private var graded = GradedViewfinder()
+    /// The newest frame, for the tray's swatches. Taken when the tray opens
+    /// rather than every frame: four cubes over four thumbnails on every frame
+    /// would be the most expensive thing on the screen, and the scene does not
+    /// change meaningfully between opening the tray and reading it.
+    @State private var liveSwatch: UIImage?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -406,7 +414,7 @@ struct CameraView: View {
                 - (fillsScreen ? 0 : stripBreathing)
 
             ZStack {
-                CameraPreview(session: camera.session, box: previewBox)
+                CameraPreview(session: camera.session, box: previewBox, graded: graded)
 
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
@@ -433,7 +441,8 @@ struct CameraView: View {
                         selection: Binding(
                             get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
                             set: { lookRaw = $0.rawValue }),
-                        isOpen: $showLookTray)
+                        isOpen: $showLookTray,
+                        source: liveSwatch.map { .live($0) } ?? .reference)
                         .frame(maxWidth: .infinity, maxHeight: .infinity,
                                alignment: .topTrailing)
                         .padding(.trailing, sideMargin)
@@ -496,7 +505,22 @@ struct CameraView: View {
         // clear the notch. The preview reaches the edges by being drawn taller
         // and offset instead.
         .background { WarmBackground().ignoresSafeArea() }
-        .task { await camera.start() }
+        .task {
+            await camera.start()
+            // After `start`, because a session that is not configured cannot
+            // take an output. If this returns false the overlay is never
+            // shown and the plain preview is what is on screen.
+            camera.attachPreviewFrames(graded.relay.output)
+            graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        }
+        .onChange(of: lookRaw) { _, raw in
+            graded.look = FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none)
+        }
+        .onChange(of: showLookTray) { _, open in
+            // One frame, when it opens, so each swatch is this scene under
+            // that look rather than a bundled reference photograph.
+            liveSwatch = open ? graded.relay.snapshot(maxSide: FilmLookTray.swatchPixels) : nil
+        }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen
         // at 30% lights nothing.
@@ -524,6 +548,8 @@ struct CameraView: View {
             // Not a tracker: it runs while the camera is open and not a
             // moment longer.
             LocationService.shared.stop()
+            camera.detachPreviewFrames()
+            graded.stop()
             camera.stop()
             // Every exit path restores it. Leaving somebody's screen pinned at
             // full brightness because they walked away from the camera tab is
@@ -1595,6 +1621,9 @@ final class PreviewLayerBox {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let box: PreviewLayerBox
+    /// The graded surface, when there is one. Nil for the head maker, which
+    /// wants the scene as the lens sees it and has its own frame output.
+    var graded: GradedViewfinder? = nil
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -1639,6 +1668,17 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         box.layer = view.previewLayer
+
+        // **On top of the preview layer, never instead of it.** The layer
+        // keeps showing the scene the whole time, so a missing Metal device,
+        // a stalled pipeline or simply no look selected all resolve to the
+        // ordinary viewfinder rather than to black. It also stays the thing
+        // that converts a tap into a focus point, which a `MTKView` cannot do.
+        if let overlay = graded?.makeView() {
+            overlay.frame = view.bounds
+            overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(overlay)
+        }
         return view
     }
 

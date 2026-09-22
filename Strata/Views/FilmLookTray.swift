@@ -50,9 +50,11 @@ enum FilmLookSwatchSource: Equatable {
 /// container reads as extending and then filling rather than as a menu
 /// arriving whole.
 ///
-/// **Nothing here promises the viewfinder.** The swatch shows what the look
-/// does to a photograph; the preview behind it is ungraded until the Metal
-/// path lands, and no copy in this view says otherwise.
+/// **The swatches are the live scene.** `FilmLookSwatchSource.live` is handed
+/// one camera frame when the tray opens, so each row shows what that look does
+/// to what the lens is pointing at rather than to a bundled photograph. It
+/// falls back to the reference image when there is no frame, which is the
+/// simulator and the first moment after launch.
 struct FilmLookTray: View {
     @Binding var selection: FilmLook.Kind
     @Binding var isOpen: Bool
@@ -73,6 +75,9 @@ struct FilmLookTray: View {
     private static let pad: CGFloat = GridConstants.gapItem        // 12
     /// A swatch. 44 is the app's tap floor and it leaves the name a column.
     private static let swatch: CGFloat = 44
+    /// The pixel size a swatch is rendered at, so a caller handing in a live
+    /// camera frame can scale it once rather than hand over a full frame.
+    static var swatchPixels: CGFloat { swatch * 3 }
     /// `gapItem` between a swatch and its name.
     private static let nameGap: CGFloat = GridConstants.gapItem    // 12
     /// `gapTight` between rows.

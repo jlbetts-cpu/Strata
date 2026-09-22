@@ -127,6 +127,9 @@ final class CameraService: NSObject {
             session.addInput(current)
         }
         session.commitConfiguration()
+        // The connection is new after a flip, so the graded surface has to be
+        // told which way up it is and whether it is a selfie.
+        orientPreviewFrames()
     }
 
     /// How much of the front camera's field to crop away by default.
@@ -178,6 +181,8 @@ final class CameraService: NSObject {
     /// heat for no benefit to a head drawn at 88pt — and goes back to the
     /// photo preset when it is removed.
     private var frameOutput: AVCaptureVideoDataOutput?
+    /// The graded viewfinder's output. See `attachPreviewFrames`.
+    private var previewFrames: AVCaptureVideoDataOutput?
     private var presetBeforeFrames: AVCaptureSession.Preset?
     /// The zoom to put back when the head maker is finished with the camera.
     private var zoomBeforeFrames: CGFloat?
@@ -245,6 +250,62 @@ final class CameraService: NSObject {
         }
         session.commitConfiguration()
         frameOutput = output
+    }
+
+    /// **Frames for the graded viewfinder**, which is a different job from
+    /// `attachFrames` above and therefore a different method.
+    ///
+    /// That one is the head maker's: it drops the session to 1080p and resets
+    /// the zoom to 1, because Vision is measuring a face and the portrait crop
+    /// breaks its distance estimate. Neither is acceptable here. The
+    /// viewfinder must keep the `.photo` preset and the exact framing the
+    /// shutter is about to use, or the picture would not be the one that was
+    /// composed. `.photo` already yields preview-sized buffers, so there is
+    /// nothing to gain by changing it.
+    ///
+    /// Returns whether it attached, so the caller can stay on the plain
+    /// preview rather than assume a graded one.
+    @discardableResult
+    func attachPreviewFrames(_ output: AVCaptureVideoDataOutput) -> Bool {
+        guard isConfigured, previewFrames == nil, frameOutput == nil else { return false }
+        session.beginConfiguration()
+        guard session.canAddOutput(output) else {
+            session.commitConfiguration()
+            return false
+        }
+        session.addOutput(output)
+        session.commitConfiguration()
+        previewFrames = output
+        orientPreviewFrames()
+        return true
+    }
+
+    func detachPreviewFrames() {
+        guard let output = previewFrames else { return }
+        session.beginConfiguration()
+        session.removeOutput(output)
+        session.commitConfiguration()
+        previewFrames = nil
+    }
+
+    /// Upright, and mirrored on the front lens, so the graded surface shows
+    /// what the preview layer under it shows. Re-applied after a flip, because
+    /// the connection is new.
+    private func orientPreviewFrames() {
+        guard let output = previewFrames, let connection = output.connection(with: .video) else { return }
+        // Asked of the device rather than assumed: the iPhone 17's front
+        // sensor is mounted a quarter turn differently and answers 0 for
+        // portrait where earlier phones answer 90. `attachFrames` records the
+        // same lesson and what it cost.
+        let angle = input.map {
+            AVCaptureDevice.RotationCoordinator(device: $0.device, previewLayer: nil)
+                .videoRotationAngleForHorizonLevelPreview
+        } ?? 90
+        if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = facing == .front
+        }
     }
 
     func detachFrames() {

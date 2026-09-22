@@ -77,6 +77,41 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         return UIImage(cgImage: out, scale: image.scale, orientation: .up)
     }
 
+    /// **Colour only, for the live viewfinder.**
+    ///
+    /// The neutraliser and the cube, and nothing else: no grain, no halation,
+    /// no bloom, no glow, no clarity, no vignette. Those are the expensive
+    /// half of `apply` — per-pixel noise and multi-pass blurs — and they are
+    /// wrong on a moving picture anyway, since grain that re-randomises at
+    /// 30Hz reads as sensor noise rather than as film.
+    ///
+    /// **The cube is the same table the photograph gets**, so the viewfinder
+    /// and the saved picture agree about colour, which is the only thing the
+    /// viewfinder is promising. The still keeps the whole pipeline, so the
+    /// photograph gains grain and halation the preview did not show; that is
+    /// the intended difference and it is in the direction people expect, since
+    /// the picture is finished and the viewfinder is a guide to its colour.
+    ///
+    /// `means` is passed in rather than measured, because measuring is a
+    /// synchronous GPU readback. See `measureMeans`.
+    func colourOnly(_ look: FilmLook, to input: CIImage, means: [Double]?) -> CIImage {
+        guard look.kind != .none else { return input }
+        var image = input
+        if look.neutralise > 0 {
+            image = neutralised(image, strength: look.neutralise, means: means)
+        }
+        return coloured(image, look: look).cropped(to: input.extent)
+    }
+
+    /// A `CIImage` rendered out, for the tray's swatches.
+    func uiImage(from image: CIImage) -> UIImage? {
+        let extent = image.extent
+        guard extent.width >= 1, extent.height >= 1, extent.isInfinite == false else { return nil }
+        guard let cg = context.createCGImage(image, from: extent,
+                                             format: .RGBA8, colorSpace: outputSpace) else { return nil }
+        return UIImage(cgImage: cg, scale: 1, orientation: .up)
+    }
+
     /// The whole pipeline, as `CIImage`s.
     func apply(_ look: FilmLook, to input: CIImage) -> CIImage {
         var image = input
