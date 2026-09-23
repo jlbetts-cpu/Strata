@@ -62,6 +62,10 @@ struct HomeView: View {
     /// The day cut-outs, by day. See `DayStickerService` — most days have
     /// none, and the service remembers that so a day is examined once.
     @State private var stickers: [String: UIImage] = [:]
+    /// Where each folder sits on the page, and how big the page is: together
+    /// they say where an opening folder should come FROM.
+    @State private var folderFrames: [String: CGRect] = [:]
+    @State private var pageSize: CGSize = .zero
     @State private var mood = FolderMood()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -174,9 +178,30 @@ struct HomeView: View {
     private func loadStickers() async {
         #if DEBUG
         if DebugHarness.fakesStickers {
-            // Placement only. See `DebugHarness.fakesStickers`.
+            // **Real cut-outs, dropped in from outside.**
+            //
+            // Standing a plain demo photograph in was enough to judge the
+            // placement and nothing else — it is a rectangle, so it says
+            // nothing about whether the die line reads, whether a subject's
+            // edges survive at 45pt, or whether a cut-out on a coloured
+            // folder looks like a sticker. Any PNG copied into
+            // `strata-images/stickers/fake-*.png` is used instead, so a
+            // cut-out generated on a Mac (where the model can actually run)
+            // can be looked at inside the real view.
+            //
+            //   xcrun simctl get_app_container <dev> JaydenBetts.Strata data
+            //   cp *.png <container>/Documents/strata-images/stickers/
+            let folder = ImageManager.shared.imageDirectory
+                .appendingPathComponent("stickers", isDirectory: true)
+            let dropped = ((try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.lastPathComponent.hasPrefix("fake-") }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                .compactMap { UIImage(contentsOfFile: $0.path) }
             for (index, day) in days.enumerated() where index % 2 == 0 {
-                if let stand = UIImage(named: ["DemoPhoto4", "DemoPhoto11", "LookPreview"][index % 3]) {
+                if !dropped.isEmpty {
+                    stickers[day.id] = dropped[(index / 2) % dropped.count]
+                } else if let stand = UIImage(named: ["DemoPhoto4", "DemoPhoto11", "LookPreview"][index % 3]) {
                     stickers[day.id] = stand
                 }
             }
@@ -298,6 +323,11 @@ struct HomeView: View {
             TabBarGlyphs(tint: tabGlyphTint).frame(width: 0, height: 0)
 
             VStack(alignment: .leading, spacing: 0) {
+                // Recents sits at the top of the sheet and the room under it
+                // is room, not a gap to fill. More sections are coming and
+                // they start here, so nothing below Recents is centred,
+                // stretched or padded to look occupied — the first thing the
+                // next section would have to do is undo it.
                 VStack(alignment: .leading, spacing: 0) {
                     RecentsRow(days: days,
                                styles: { store.style(for: $0) },
@@ -322,20 +352,9 @@ struct HomeView: View {
                 Color.clear.frame(height: GridConstants.bottomStrip)
             }
 
-            if let day = openDay {
-                FolderInside(title: day.title(),
-                             wins: openWins(day),
-                             tint: store.style(for: day.id).tint(for: day.id),
-                             onClose: close,
-                             onOpenWin: { id in
-                                 if let uuid = UUID(uuidString: id) { onOpenWin(uuid) }
-                             },
-                             showsTitle: true,
-                             bottomInset: 96)
-                    .transition(.opacity)
-                    .task(id: day.id) { await loadOpen(day) }
-            }
+            inside
         }
+        .modifier(HomePageWiring(frames: $folderFrames, size: $pageSize))
         .task(id: days.map(\.id).joined()) { await loadPeeks() }
         .task(id: days.map(\.id).joined()) { await loadStickers() }
         .task(id: todayBlocks.map(\.id)) { await loadPeeks() }
@@ -359,6 +378,68 @@ struct HomeView: View {
         }
     }
 
+    /// **Broken out of `body` because the type checker gave up on it.**
+    ///
+    /// "The compiler is unable to type-check this expression in reasonable
+    /// time" is not a suggestion about style: a `ZStack` of four branches
+    /// under a dozen modifiers is an exponential inference problem, and the
+    /// only fix is fewer things in one expression. `MainAppView` has the
+    /// same note in four places.
+    @ViewBuilder
+    private var inside: some View {
+        if let day = openDay {
+            FolderInside(title: day.title(),
+                         wins: openWins(day),
+                         tint: store.style(for: day.id).tint(for: day.id),
+                         onClose: close,
+                         onOpenWin: { id in
+                             if let uuid = UUID(uuidString: id) { onOpenWin(uuid) }
+                         },
+                         showsTitle: true,
+                         bottomInset: 96)
+                    // **It comes out of the folder you pressed.**
+                    //
+                    // It crossfaded, which is the transition for "a different
+                    // screen" and says nothing about where you came from. On
+                    // a row of six identical objects that is exactly the
+                    // thing the animation has to say: this one. Scaling up
+                    // from the pressed folder's own centre makes the screen
+                    // the inside of that folder rather than a page that
+                    // replaced it, and it costs one `UnitPoint`.
+                    //
+                    // 0.34 rather than the folder's true share of the screen
+                    // (about 0.38 wide but 0.15 tall): a transform that
+                    // starts at the real rect squashes the layout on the way
+                    // out, and what reads as opening is the MOVEMENT plus the
+                    // origin, not a literal morph.
+                .transition(.scale(scale: 0.34, anchor: openAnchor(day))
+                    .combined(with: .opacity))
+                .task(id: day.id) { await loadOpen(day) }
+        }
+    }
+
+    /// The page's own measurements, as a modifier so `body` does not have to
+    /// carry them: which coordinate space the folders report their frames in,
+    /// the frames themselves, and how big the page is. Together they say
+    /// where an opening folder should come from.
+    private struct HomePageWiring: ViewModifier {
+        @Binding var frames: [String: CGRect]
+        @Binding var size: CGSize
+
+        func body(content: Content) -> some View {
+            content
+                .coordinateSpace(HomeSpace.space)
+                .onPreferenceChange(FolderFrames.self) { frames = $0 }
+                .background {
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { size = geo.size }
+                            .onChange(of: geo.size) { _, new in size = new }
+                    }
+                }
+        }
+    }
+
     /// The warm white sheet the top of the page sits on.
     ///
     /// **It reaches a long way up on purpose.** The header is not inside this
@@ -378,18 +459,32 @@ struct HomeView: View {
             .ignoresSafeArea(edges: .top)
     }
 
+    /// The point on the page the opening folder grows out of, as a fraction
+    /// of the page. Falls back to the middle for a folder whose frame has not
+    /// been reported — which is only ever the first frame after a rotation.
+    private func openAnchor(_ day: RecentDay) -> UnitPoint {
+        guard let frame = folderFrames[day.id],
+              pageSize.width > 0, pageSize.height > 0 else { return .center }
+        return UnitPoint(x: min(max(frame.midX / pageSize.width, 0), 1),
+                         y: min(max(frame.midY / pageSize.height, 0), 1))
+    }
+
     private func open(_ day: RecentDay) {
         openPhotos = [:]
         isOpenExternally = true
         guard !reduceMotion else { openDay = day; return }
-        withAnimation(.easeOut(duration: 0.22)) { openDay = day }
+        // A spring rather than an ease, because this is an object moving
+        // rather than a value changing. Lightly damped enough to settle in
+        // one pass: an overshoot on a full screen of photographs reads as a
+        // wobble, not as life.
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { openDay = day }
     }
 
     private func close() {
         HapticsEngine.lightTap()
         isOpenExternally = false
         guard !reduceMotion else { openDay = nil; openPhotos = [:]; return }
-        withAnimation(.easeIn(duration: 0.18)) { openDay = nil }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.90)) { openDay = nil }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(200))
             openPhotos = [:]

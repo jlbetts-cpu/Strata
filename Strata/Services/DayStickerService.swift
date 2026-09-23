@@ -42,7 +42,8 @@ final class DayStickerService {
         /// How confident Vision is that the frame has one thing it is about,
         /// 0 to 1.
         var salience: Double = 0
-        /// The share of the frame the liftable subject covers, 0 to 1.
+        /// The share of the frame's PIXELS the liftable subject covers, 0 to
+        /// 1. Not the share its bounding box covers — see `coverage`.
         var subjectArea: Double = 0
         /// The win was given a name rather than left as it was logged.
         var named: Bool = false
@@ -55,11 +56,19 @@ final class DayStickerService {
     /// **The bar, and why each term is here.**
     ///
     /// - **A subject that cuts out cleanly, or nothing.** `subjectArea`
-    ///   outside 6% to 62% scores zero however good the rest is. Under 6% the
-    ///   sticker is a speck at 50pt; over 62% the "cut-out" is the whole
+    ///   outside 6% to 75% scores zero however good the rest is. Under 6% the
+    ///   sticker is a speck at 50pt; over 75% the "cut-out" is the whole
     ///   photograph with its corners nibbled, which is not a sticker, it is a
     ///   badly cropped picture. This is a gate rather than a term because no
     ///   amount of significance rescues a cut-out that does not read.
+    ///
+    ///   **The band and the sweet spot are both set from real photographs**,
+    ///   run through this exact pipeline on a Mac because a simulator cannot
+    ///   run the model. Across twelve, two had nothing liftable, one measured
+    ///   0.05 (a small object on a table) and the rest landed between 0.13
+    ///   and 0.71 — with every photograph of people between 0.22 and 0.56.
+    ///   The ceiling was 0.62 until that run, which would have thrown away a
+    ///   close portrait of two people at 0.71.
     /// - **People, weighted hardest.** A frame with somebody in it is the
     ///   single strongest signal that a photograph will be looked at again;
     ///   it is what Photos and Memories both lean on. Capped at two, because
@@ -84,14 +93,14 @@ final class DayStickerService {
     /// has to be re-tuned by hand every time a term is added. Normalised, the
     /// bar is readable as what it is — 40% of perfect.
     nonisolated static func score(_ f: Features) -> Double {
-        guard f.subjectArea >= 0.06, f.subjectArea <= 0.62 else { return 0 }
+        guard f.subjectArea >= 0.06, f.subjectArea <= 0.75 else { return 0 }
         var total = 0.0
         total += Double(min(f.faces, 2)) * 0.25
         total += f.salience * 0.19
         // Best around a third of the frame, falling off either side: that is
         // the size a sticker wants to be, and it is also what a photograph
         // taken OF something usually looks like.
-        total += (1 - min(abs(f.subjectArea - 0.32) / 0.32, 1)) * 0.12
+        total += (1 - min(abs(f.subjectArea - 0.34) / 0.34, 1)) * 0.12
         total += f.named ? 0.08 : 0
         total += Double(f.weight - 1) * 0.04
         total += f.located ? 0.03 : 0
@@ -295,7 +304,18 @@ final class DayStickerService {
             return nil
         }
         guard let mask = subject.results?.first, !mask.allInstances.isEmpty else { return nil }
-        guard let masked = try? mask.generateMaskedImage(ofInstances: mask.allInstances,
+        // **One subject, not everything in the foreground.**
+        //
+        // `allInstances` is every object Vision lifted, which on a photograph
+        // of a plate of food and a hand and a corner of a table is three
+        // cut-outs floating in one rectangle. A sticker is a thing, so this
+        // keeps the biggest instance and anything at least a third of its
+        // size — which holds two people together and drops the clutter
+        // beside them.
+        let (kept, coverage) = principalInstances(in: mask)
+        guard !kept.isEmpty else { return nil }
+        features.subjectArea = coverage
+        guard let masked = try? mask.generateMaskedImage(ofInstances: kept,
                                                          from: handler,
                                                          croppedToInstancesExtent: true)
         else { return nil }
@@ -311,16 +331,121 @@ final class DayStickerService {
         }
 
         let cut = CIImage(cvPixelBuffer: masked)
-        // The share of the ORIGINAL frame the subject covers. Cropping to the
-        // subject's extent is what makes this measurable: the ratio of the
-        // two areas is exactly how much of the picture the subject was.
-        let whole = Double(image.width) * Double(image.height)
-        let part = Double(cut.extent.width) * Double(cut.extent.height)
-        features.subjectArea = whole > 0 ? min(part / whole, 1) : 0
 
         let context = CIContext(options: [.useSoftwareRenderer: false])
-        guard let rendered = context.createCGImage(cut, from: cut.extent) else { return nil }
-        return (features, UIImage(cgImage: rendered))
+        guard let finished = dieCut(cut, in: context) else { return nil }
+        return (features, finished)
+    }
+
+    /// **Which of the lifted objects the sticker is of, and how much of the
+    /// frame they actually cover.**
+    ///
+    /// `VNInstanceMaskObservation.instanceMask` is a single-channel buffer
+    /// whose pixel VALUES are instance indexes — 0 for background, 1, 2, 3
+    /// for the objects — so both answers come out of one pass over a small
+    /// buffer rather than out of a mask generated per instance.
+    ///
+    /// **Coverage is counted here because the bounding box lies.** The first
+    /// version measured the cropped extent against the whole frame, which is
+    /// the subject's BOX, not the subject. Run on real photographs on a Mac
+    /// (the simulator cannot run the model at all), three pictures of people
+    /// measured 0.66, 0.95 and 0.95 — all of them past the 0.62 ceiling, so
+    /// every one would have been thrown away. A standing person's box covers
+    /// most of a portrait while the person covers perhaps a third of its
+    /// pixels, and the whole point of the ceiling is to reject a "cut-out"
+    /// that is really the entire picture. Counting the mask is the only
+    /// measure that means what the gate needs it to mean.
+    private nonisolated static func principalInstances(
+        in mask: VNInstanceMaskObservation) -> (kept: IndexSet, coverage: Double) {
+        let buffer = mask.instanceMask
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(buffer) else {
+            return (mask.allInstances, 0)
+        }
+        let width = CVPixelBufferGetWidth(buffer)
+        let height = CVPixelBufferGetHeight(buffer)
+        let stride = CVPixelBufferGetBytesPerRow(buffer)
+        var area: [Int: Int] = [:]
+        for y in 0..<height {
+            let row = base.advanced(by: y * stride).assumingMemoryBound(to: UInt8.self)
+            for x in 0..<width {
+                let index = Int(row[x])
+                if index > 0 { area[index, default: 0] += 1 }
+            }
+        }
+        guard let largest = area.values.max(), largest > 0 else {
+            return (mask.allInstances, 0)
+        }
+        var kept = IndexSet()
+        var covered = 0
+        for (index, size) in area where Double(size) >= Double(largest) * 0.33 {
+            kept.insert(index)
+            covered += size
+        }
+        let total = Double(width * height)
+        let coverage = total > 0 ? min(Double(covered) / total, 1) : 0
+        return (kept.isEmpty ? mask.allInstances : kept, coverage)
+    }
+
+    /// **The white edge that makes a cut-out a sticker.**
+    ///
+    /// The owner: "right now it's just an image without any cut-out... I want
+    /// that to feel and look better."
+    ///
+    /// A subject lifted off its background is a cut-out. What turns a cut-out
+    /// into a STICKER is the die line: the white border a printer leaves
+    /// around the artwork so the blade has something to cut through. Without
+    /// it the subject floats and its edges read as an unfinished mask — which
+    /// is exactly what "just an image" means. With it, the same pixels read
+    /// as a physical thing that was peeled off a sheet and pressed onto the
+    /// folder.
+    ///
+    /// It is built from the alpha rather than from the picture: the alpha is
+    /// pushed into every channel to make a white silhouette, that silhouette
+    /// is dilated, and the subject is laid back over it. So the border traces
+    /// the subject exactly and costs one morphology pass.
+    ///
+    /// The radius is 2% of the short side rather than a fixed number of
+    /// pixels, so the border is the same weight whatever size the source was.
+    private nonisolated static func dieCut(_ cut: CIImage, in context: CIContext) -> UIImage? {
+        // **Off the LONG side, so the border is the same weight on screen.**
+        //
+        // It was the short side, which is the correct-looking choice and is
+        // wrong: the sticker is drawn with `scaledToFit` into a fixed frame,
+        // so what maps to a constant on screen is the long side. Measured on
+        // the contact sheet — a tall portrait and a wide group of six, side
+        // by side — the group's die line came out visibly thinner than the
+        // portrait's, and they are meant to be the same sheet of vinyl.
+        let long = max(cut.extent.width, cut.extent.height)
+        let radius = max(long * 0.013, 2)
+
+        // Alpha into every channel: a white shape with the subject's outline.
+        guard let silhouette = CIFilter(name: "CIColorMatrix", parameters: [
+            kCIInputImageKey: cut,
+            "inputRVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1)
+        ])?.outputImage else { return nil }
+
+        guard let spread = CIFilter(name: "CIMorphologyMaximum", parameters: [
+            kCIInputImageKey: silhouette,
+            kCIInputRadiusKey: radius
+        ])?.outputImage else { return nil }
+
+        // The dilation leaves a soft edge; a hard one is what a die line is.
+        guard let firm = CIFilter(name: "CIColorMatrix", parameters: [
+            kCIInputImageKey: spread,
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 2.2)
+        ])?.outputImage else { return nil }
+
+        let composed = cut.composited(over: firm)
+        // The border grows outward, so the frame has to grow with it or the
+        // edge is clipped square on whichever side the subject touched.
+        let bounds = cut.extent.insetBy(dx: -radius * 1.2, dy: -radius * 1.2)
+        guard let rendered = context.createCGImage(composed, from: bounds) else { return nil }
+        return UIImage(cgImage: rendered)
     }
 
     /// Drops stickers for days that are no longer on the row, and for wins

@@ -941,6 +941,14 @@ struct MainAppView: View {
     private var headerTitle: some View {
         Text("Home")
             .font(Typography.screenTitleSerif)
+            // **Tighter, because a serif at 34pt is set for a book.** New
+            // York's default tracking is tuned for running text at reading
+            // sizes; at a masthead size the same spacing leaves the word
+            // looking loose, which is the single most common tell of type
+            // that was picked rather than set. Apple's own guidance is that
+            // tracking tightens as size grows, and −0.6 is the step its
+            // optical sizes take between the body and display cuts.
+            .tracking(-0.6)
             .foregroundStyle(AppColors.inkPrimary)
             // A serif's own sidebearing is wider than a sans's, so a title
             // aligned to the grid still LOOKS indented beside a folder whose

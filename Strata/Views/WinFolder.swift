@@ -350,41 +350,65 @@ struct WinFolder: View {
                 //    reference does this and it is the whole trick.
                 peeking(width: w, height: h)
 
-                // 3. The pocket: the glass front, and the hinge.
+                // 3. The line where the front meets what is behind it.
+                //
+                // **This is not the smudge he had taken out, and the
+                // difference is the whole point.** That one was cast by the
+                // cards onto the glass IN FRONT of them — a dark patch with
+                // no object above it. This is the opposite and it is the
+                // thing that was missing: light cannot get into the gap where
+                // the pocket's lip stands proud of the plate, so there is a
+                // narrow darkening ABOVE the seam, on the surface behind. It
+                // is the one cue that says the front is in front.
+                //
+                // Clipped to the plate, so it can never appear over the
+                // folder's own outline; 5% of the height and 8% black, which
+                // is below the threshold at which anybody sees it as a
+                // shadow and above the one at which the seam reads as two
+                // shapes butted together.
+                occlusion(width: w, height: h)
+
+                // 4. The pocket: the glass front, and the hinge.
                 pocket(width: w, height: h)
 
-                // 4. The day's cut-out, stuck on the front.
+                // 5. The day's cut-out, stuck low on the front.
                 //
-                // **Over the pocket's lip, not inside the pocket.** A sticker
-                // is on the OUTSIDE of a folder — that is what makes it a
-                // sticker rather than another thing filed in it — so it
-                // straddles the seam where the front meets the plate, which
-                // is the one place on this object that reads as a surface
-                // you would stick something to.
+                // The owner: "the sticker placement should be near the bottom
+                // of the folder, not the top."
+                //
+                // He is right and the reason is worth keeping. It straddled
+                // the seam where the pocket meets the plate, on the argument
+                // that a sticker goes on the outside. But that seam is the
+                // busiest line on the object — it is where the photographs
+                // come out — so a sticker there was competing with the
+                // contents rather than labelling them. Low on the front is
+                // where a label goes on anything you file: a spine, a jar, a
+                // box. It is also the quietest part of this folder, which is
+                // what a mark wants to be put on.
                 //
                 // Leaning right, always the same way. A sticker put on by
                 // hand is never square, and randomising the lean per day
-                // would make the row look like it was shaken rather than
-                // labelled.
+                // would make the row look shaken rather than labelled.
                 if let sticker {
                     Image(uiImage: sticker)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: w * 0.34, height: h * 0.34)
+                        .frame(width: w * 0.30, height: h * 0.30)
                         // The one shadow it gets, and it is a contact
                         // shadow: a sticker is lying ON the folder, a
-                        // millimetre off it, so the shadow is tight and
-                        // close rather than a float.
-                        .shadow(color: .black.opacity(0.22), radius: h * 0.012, y: h * 0.006)
-                        .rotationEffect(.degrees(-7))
+                        // millimetre off it, so it is tight and close rather
+                        // than a float.
+                        .shadow(color: .black.opacity(0.20), radius: h * 0.010, y: h * 0.005)
+                        .rotationEffect(.degrees(-6))
                         .frame(maxWidth: .infinity, maxHeight: .infinity,
-                               alignment: .topTrailing)
-                        .offset(x: -w * 0.05, y: h * 0.20)
+                               alignment: .bottomTrailing)
+                        .padding(.trailing, w * 0.055)
+                        .padding(.bottom, h * 0.055)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                         .allowsHitTesting(false)
                 }
 
-                // 5. The face, on the pocket, when it is asked for.
+                // 6. The face, on the pocket, when it is asked for.
                 if showsFace {
                     FolderFace(expression: live, eyeWidth: w * 0.072)
                         .frame(maxHeight: .infinity, alignment: .bottom)
@@ -395,14 +419,31 @@ struct WinFolder: View {
                 }
             }
             .compositingGroup()
-            // The one shadow, and it is the folder standing on the ground
-            // rather than chrome pretending to float. **Much lighter than it
-            // was**, because it is on a warm white page now: 42% black under
-            // a folder on near black is a soft falloff, and the same number
-            // on a light page is a bruise.
-            .shadow(color: .black.opacity(0.10 + 0.05 * fullness),
-                    radius: h * (0.055 + 0.015 * fullness),
-                    y: h * (0.020 + 0.010 * fullness))
+            // **Two shadows, because one is fog.**
+            //
+            // A single soft shadow was tuned for a near-black page, where a
+            // wide dark falloff reads as depth. On warm white the same
+            // construction has no edge anywhere in it, so the folder does not
+            // sit on the page, it hovers over a smudge — which is most of why
+            // the row looked weightless.
+            //
+            // What makes an object sit on paper is two separate things
+            // happening at once, and photographers and print designers both
+            // name them: a CONTACT shadow, tight and dark and directly under
+            // the edge, which is the light that cannot get between the object
+            // and the surface; and an AMBIENT one, wide and very faint, which
+            // is the room. The contact shadow is the one that was missing. It
+            // is small enough that you never see it as a shadow — you see the
+            // folder touching the page.
+            //
+            // Both deepen as the folder fills, because a fuller folder is a
+            // heavier one.
+            .shadow(color: .black.opacity(0.13 + 0.05 * fullness),
+                    radius: h * 0.012,
+                    y: h * 0.006)
+            .shadow(color: .black.opacity(0.07 + 0.03 * fullness),
+                    radius: h * (0.075 + 0.02 * fullness),
+                    y: h * (0.030 + 0.012 * fullness))
         }
     }
 
@@ -495,14 +536,32 @@ struct WinFolder: View {
     /// third is the reflection, which is the layer that makes it read as
     /// glass rather than as plastic: without it the front is evenly bright
     /// and nothing on a phone is evenly bright.
+    /// The occlusion above the pocket's lip. See where it is composited.
+    private func occlusion(width w: CGFloat, height h: CGFloat) -> some View {
+        let pocketHeight = h * pocketShare
+        return LinearGradient(colors: [.clear, .black.opacity(0.08)],
+                              startPoint: .top, endPoint: .bottom)
+            .frame(height: h * 0.05)
+            .offset(y: -pocketHeight)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .clipShape(FolderBack())
+            .allowsHitTesting(false)
+    }
+
+    /// How much of the folder's height the front covers. One number, because
+    /// the pocket and the line above it have to agree to a point.
+    private var pocketShare: CGFloat {
+        let closed: CGFloat = 0.845
+        let open: CGFloat = 0.62 + 0.025 * fullness
+        return closed + (open - closed) * openAmount
+    }
+
     private func pocket(width w: CGFloat, height h: CGFloat) -> some View {
         let radius = FolderBack.radius(in: CGRect(x: 0, y: 0, width: w, height: h))
         // Closed, the pocket comes up to just under the tab's step, so there
         // is nothing to see above it. Open, it sits at 62% and the stack
-        // stands out of it.
-        let closedHeight: CGFloat = 0.845
-        let openHeight: CGFloat = 0.62 + 0.025 * fullness
-        let height = h * (closedHeight + (openHeight - closedHeight) * openAmount)
+        // stands out of it. See `pocketShare`.
+        let height = h * pocketShare
 
         return PocketShape(radius: radius)
             // **The full material, which is the front he picked.**

@@ -46,8 +46,32 @@ struct DayStickerTests {
     func gateEdges() {
         #expect(DayStickerService.score(features(area: 0.059)) == 0)
         #expect(DayStickerService.score(features(salience: 1, area: 0.061)) > 0)
-        #expect(DayStickerService.score(features(salience: 1, area: 0.619)) > 0)
-        #expect(DayStickerService.score(features(area: 0.621)) == 0)
+        #expect(DayStickerService.score(features(salience: 1, area: 0.749)) > 0)
+        #expect(DayStickerService.score(features(area: 0.751)) == 0)
+    }
+
+    /// **The numbers real photographs actually produce**, measured by running
+    /// this pipeline on the app's own demo pictures on a Mac — the model
+    /// cannot run in a simulator. Every photograph of people landed between
+    /// 0.22 and 0.56 coverage, and a close portrait of two reached 0.71.
+    ///
+    /// This is the test that would have caught the bug that shipped for an
+    /// hour: coverage was being measured as the subject's BOUNDING BOX
+    /// against the frame, which put those same three photographs at 0.66,
+    /// 0.95 and 0.95 — every one of them past the ceiling, so the feature
+    /// would have produced nothing at all on a phone and there would have
+    /// been no way to tell that from "no day was good enough".
+    @Test("The coverage real photographs of people produce is inside the band")
+    func realPhotographsPass() {
+        for coverage in [0.22, 0.28, 0.31, 0.34, 0.54, 0.56, 0.71] {
+            let person = features(faces: 1, salience: 1, area: coverage)
+            #expect(DayStickerService.score(person) > 0,
+                    "coverage \(coverage) was gated out, and a person at that size is a sticker")
+        }
+        // And the two that should be refused: a speck, and a mask that is
+        // nearly the whole picture.
+        #expect(DayStickerService.score(features(faces: 1, salience: 1, area: 0.05)) == 0)
+        #expect(DayStickerService.score(features(faces: 1, salience: 1, area: 0.95)) == 0)
     }
 
     // MARK: - The bar
