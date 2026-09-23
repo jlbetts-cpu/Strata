@@ -81,19 +81,21 @@ struct FolderInside: View {
 
     var body: some View {
         ZStack {
-            // **The same room you were just in.**
+            // **The same room you were just in, strip and all.**
             //
             // The owner: "going inside the folder needs to feel like the same
-            // experience — when we click in now it's like I'm in a different
-            // area, it should still be light."
+            // experience — it should still be light", and then "keep the dark
+            // bottom, it's kinda like our look, so keep it even when going to
+            // sub screens."
             //
-            // It was `Grey.g950`, on the argument that photographs sing on
-            // black. They do, and that was the wrong thing to optimise: you
-            // arrive here by tapping an object on a warm white page, and
-            // landing on black makes the tap read as leaving the app rather
-            // than as opening the folder. The shelf and the inside are one
-            // place now.
-            HomeGround().ignoresSafeArea()
+            // It was `Grey.g950` full bleed, on the argument that photographs
+            // sing on black. They do, and that was the wrong thing to
+            // optimise: you arrive here by tapping an object on a warm white
+            // page, and landing on black makes the tap read as leaving the
+            // app rather than as opening the folder. `ApolloGround` is the
+            // shelf's own ground — warm white with the camera's black showing
+            // as a strip — so the two are one place.
+            ApolloGround()
 
             VStack(spacing: 0) {
                 header
@@ -169,7 +171,13 @@ struct FolderInside: View {
         GeometryReader { geo in
             let width = geo.size.width - GridConstants.gapWide * 2
             let placed = ScatterLayout.place(
-                wins.map { ScatterLayout.Item(id: $0.id, size: $0.size) },
+                wins.map { win in
+                    // The photograph's own proportion when it has one. See
+                    // `ScatterLayout.Item.aspect`.
+                    let image = thumbs[win.id] ?? win.image
+                    let ratio = image.map { $0.size.height / max($0.size.width, 1) }
+                    return ScatterLayout.Item(id: win.id, size: win.size, aspect: ratio)
+                },
                 in: width, tidy: true)
             let byID = Dictionary(uniqueKeysWithValues: placed.map { ($0.id, $0) })
 

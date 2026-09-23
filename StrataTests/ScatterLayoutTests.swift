@@ -174,11 +174,16 @@ struct ScatterLayoutTests {
             // on one of the two column origins, nothing leans, and nothing
             // overlaps. That is a grid. One width was never the property
             // that made it one.
+            // **Exactly one width now, and that is the contract.** This
+            // allowed a column OR the full width, from the day a 2x1 spanned
+            // both. The owner's call is the Cosmos grid: "make sure if an
+            // image is shown it is consistent on every page, no crazy
+            // different sizes everywhere." One width, heights from the
+            // pictures. A full-width card reappearing should fail here.
             let column = (Self.width - ScatterLayout.gutter) / 2
-            let allowed = Set([Int(column.rounded()), Int(Self.width.rounded())])
             let widths = Set(tidy.map { Int($0.frame.width.rounded()) })
-            #expect(widths.isSubset(of: allowed),
-                    "a card is \(widths) wide, which is neither a column nor the full width")
+            #expect(widths == Set([Int(column.rounded())]),
+                    "cards came out \(widths) wide, and a column is \(Int(column.rounded()))")
             let columns = Set(tidy.map { Int($0.frame.minX.rounded()) })
             #expect(columns.count <= 2, "there are \(columns.count) columns, not two")
             #expect(columns.isSubset(of: [0, Int((column + ScatterLayout.gutter).rounded())]),

@@ -29,9 +29,9 @@ struct WinPrintView: View {
 
     var body: some View {
         ZStack {
-            // Light, like the folder it came out of and the page behind
-            // that. See `FolderInside`.
-            HomeGround().ignoresSafeArea()
+            // The app's ground, like the folder it came out of and the page
+            // behind that. See `ApolloGround`.
+            ApolloGround()
 
             VStack(spacing: 0) {
                 header

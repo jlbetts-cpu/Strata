@@ -374,33 +374,7 @@ struct HomeView: View {
         PerfProbe.count("HomeView")
         #endif
         return ZStack {
-            // **The page's floor is the camera's black, and the light part is
-            // a sheet laid on top of it.**
-            //
-            // The owner: "I want the dark mode bottom to actually go all the
-            // way up to under the folders text... make sure it's like that
-            // rounded vibe just like the bottom of the camera, that black
-            // part, how it curves up." Then, on the first attempt: "it's
-            // curved the wrong way, and I don't think it's the same darkness
-            // as the camera."
-            //
-            // Both notes were the same mistake. I drew the dark part as a
-            // panel with its own rounded TOP corners, which curves the dark
-            // down and away at the edges. The camera does the opposite and
-            // that is why it looks right: its black is a plain full-bleed
-            // rectangle, and the LIT thing in front of it — the viewfinder —
-            // has rounded BOTTOM corners. The black is not shaped at all; it
-            // is what shows around a shape. That is what makes it curve up.
-            //
-            // So the dark is the ground here, `Grey.g950` exactly as
-            // `CameraView` uses it, and the warm white is a sheet over it
-            // with two rounded bottom corners.
-            Grey.g950.ignoresSafeArea()
-
-            // The bar's glyphs, told what they are sitting on. Zero sized,
-            // draws nothing, and this is the only place in the app that
-            // touches the bar.
-            TabBarGlyphs(tint: tabGlyphTint).frame(width: 0, height: 0)
+            ApolloGround()
 
             VStack(alignment: .leading, spacing: 0) {
                 // Recents sits at the top of the sheet and the room under it
@@ -436,17 +410,9 @@ struct HomeView: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(alignment: .bottom) { lightSheet }
 
-                // **The strip, and it is the camera's own 20.** The first
-                // version cut the page in half under the folders' labels and
-                // filled everything below with black, which the owner read
-                // straight away: "put the black part right where it is in the
-                // camera, not so high up." The camera's black is not a panel
-                // at all — it is a 20pt margin the viewfinder stops short of,
-                // with the floating bar sitting in it. Home does the same
-                // thing, which also gives the page back the room under
-                // Recents that the next section has to go in.
+                // The strip belongs to `ApolloGround` now, which every
+                // screen shares. This keeps the CONTENT clear of it.
                 Color.clear.frame(height: GridConstants.bottomStrip)
             }
 
@@ -641,25 +607,6 @@ struct HomeView: View {
                     }
                 }
         }
-    }
-
-    /// The warm white sheet the top of the page sits on.
-    ///
-    /// **It reaches a long way up on purpose.** The header is not inside this
-    /// view — it is a `safeAreaInset` on the tab above — so the sheet has to
-    /// extend past its own bounds and out under the status bar to get behind
-    /// it. 1200 is more than any iPhone is tall, which is the point: there is
-    /// no arithmetic here to get wrong on a different device, and the excess
-    /// is off-screen.
-    private var lightSheet: some View {
-        UnevenRoundedRectangle(topLeadingRadius: 0,
-                               bottomLeadingRadius: Self.panelRadius,
-                               bottomTrailingRadius: Self.panelRadius,
-                               topTrailingRadius: 0,
-                               style: .continuous)
-            .fill(HomeGround.top)
-            .padding(.top, -1200)
-            .ignoresSafeArea(edges: .top)
     }
 
     /// The point on the page the opening folder grows out of, as a fraction

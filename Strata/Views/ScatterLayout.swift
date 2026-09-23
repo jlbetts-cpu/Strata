@@ -37,6 +37,16 @@ enum ScatterLayout {
     struct Item: Equatable {
         var id: String
         var size: BlockSize
+        /// The PHOTOGRAPH's own proportion, height over width, when there is
+        /// one. Nil falls back to the block's shape, which is what a win
+        /// somebody typed has instead of a picture.
+        ///
+        /// Cosmos shows every image at its own proportion and that is most of
+        /// why its grid looks like photographs rather than like tiles: a
+        /// portrait is tall, a landscape is wide, and the column keeps them
+        /// honest. Passing the block's aspect for a real photograph would
+        /// letterbox or crop it into a shape it is not.
+        var aspect: CGFloat? = nil
     }
 
     /// What comes out: where it sits and how far it leans.
@@ -264,38 +274,36 @@ enum ScatterLayout {
         var heights: [CGFloat] = [gutter, gutter]
         var placements: [Placement] = []
         for item in items {
-            let shape = size(for: item.size, in: width)
-            let wide = item.size.columnSpan > 1
-            let cardWidth = wide ? width : column
-            // **Capped at one and a half columns.**
+            // **One width, and the height is the picture's own.**
             //
-            // A 2x2 is square in the tower, and at the tower's four-column
-            // pitch that is about 178pt. Here the pitch is two columns, so
-            // the true proportion made it a square the full width of the
-            // screen — 354pt on an iPhone 17, photographed, and it filled
-            // most of a scroll on its own. It is still the biggest card by a
-            // long way at 1.5 columns, and the row above and below it are
-            // both visible, which is what lets it read as "the big one"
-            // rather than as the only one.
-            let height = min(cardWidth * (shape.height / max(shape.width, 0.001)),
-                             column * 1.5)
-            if wide {
-                let top = max(heights[0], heights[1])
-                placements.append(Placement(
-                    id: item.id,
-                    frame: CGRect(x: 0, y: top, width: cardWidth, height: height),
-                    angle: 0))
-                heights[0] = top + height + gutter
-                heights[1] = heights[0]
-            } else {
-                let side = heights[0] <= heights[1] ? 0 : 1
-                let x = side == 0 ? 0 : column + gutter
-                placements.append(Placement(
-                    id: item.id,
-                    frame: CGRect(x: x, y: heights[side], width: cardWidth, height: height),
-                    angle: 0))
-                heights[side] += height + gutter
-            }
+            // The owner: "do the cosmos two column sizing... make sure if an
+            // image is shown it is consistent on every page, no crazy
+            // different sizes everywhere."
+            //
+            // Cosmos has no full-width items at all. Every card is one column
+            // across and as tall as the photograph is, and that is what makes
+            // its grid read as photographs rather than as tiles: the variety
+            // comes from the pictures instead of from a size system laid over
+            // them.
+            //
+            // This honoured `columnSpan` for one day — a medium or a hard
+            // went full width — which was the right answer to "make sure the
+            // different sizes are shown" and the wrong one to this. Size is
+            // still shown, in the HEIGHT: a 2x1 is a short card, a 1x1 is
+            // square, a 2x2 is tall. One dimension carries it instead of two.
+            let shape = size(for: item.size, in: width)
+            let ratio = item.aspect ?? (shape.height / max(shape.width, 0.001))
+            // Clamped, because a panorama is 20 pixels tall in a column and a
+            // very tall crop fills a screen on its own. Both are photographs
+            // the app should still show.
+            let height = column * min(max(ratio, 0.55), 1.85)
+            let side = heights[0] <= heights[1] ? 0 : 1
+            let x = side == 0 ? 0 : column + gutter
+            placements.append(Placement(
+                id: item.id,
+                frame: CGRect(x: x, y: heights[side], width: column, height: height),
+                angle: 0))
+            heights[side] += height + gutter
         }
         return placements
     }

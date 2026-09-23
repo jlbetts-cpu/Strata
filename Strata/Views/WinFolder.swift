@@ -558,10 +558,22 @@ struct WinFolder: View {
                 // medium 81%, a hard 90%. The span still decides which one,
                 // so nothing about the block system moved — only what a
                 // block looks like when it is a print in a pocket.
-                let wide = win.size.columnSpan > 1
-                let tall = win.size.rowSpan > 1
-                let cardWidth = w * (wide ? 0.45 : 0.38)
-                let cardHeight = h * (tall ? 0.76 : (wide ? 0.67 : 0.60))
+                // **One width, and the height is the picture's own** — the
+                // same rule the grid inside the folder uses, so a photograph
+                // is the same shape peeking out of a folder as it is lying
+                // in one. The owner: "make sure if an image is shown it is
+                // consistent on every page, no crazy different sizes
+                // everywhere."
+                //
+                // It was two widths and three heights keyed off the block's
+                // spans, which meant a landscape photograph on a 1x1 win came
+                // out portrait here and landscape inside. Same clamp as
+                // `ScatterLayout.tidied`, for the same reason: a panorama is
+                // a sliver at this size and a tall crop runs off the folder.
+                let cardWidth = w * 0.42
+                let ratio = win.image.map { $0.size.height / max($0.size.width, 1) }
+                    ?? CGFloat(win.size.rowSpan) / CGFloat(win.size.columnSpan)
+                let cardHeight = cardWidth * min(max(ratio, 0.55), 1.85)
 
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
