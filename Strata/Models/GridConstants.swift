@@ -108,6 +108,23 @@ enum GridConstants {
     /// The miniatures peeking out of a folder take `photoMiniature` — the
     /// same card seen at about a third the size, so its corner is scaled
     /// with it rather than being a second decision.
+    /// **The strip of dark between the page and the bottom edge.**
+    ///
+    /// The camera has had this for a long time: its viewfinder stops 20pt
+    /// short of the content's bottom and the app's darkest grey shows under
+    /// it, behind the floating tab bar. It is what makes the bar read as
+    /// sitting in a strip that belongs to the screen rather than on the
+    /// ground.
+    ///
+    /// Home takes the same 20, and the same construction: a light sheet with
+    /// rounded bottom corners over a dark ground, so the dark curves up
+    /// around it. The owner: "put the black part right where it is in the
+    /// camera, not so high up."
+    ///
+    /// Shared rather than copied, because the alternative is two 20s that
+    /// drift. `CameraView.stripBreathing` reads this.
+    static let bottomStrip: CGFloat = 20
+
     static let radiusPhoto: CGFloat = 16
     static let radiusPhotoMiniature: CGFloat = 7
     /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.

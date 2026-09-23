@@ -1299,9 +1299,15 @@ struct MainAppView: View {
         // `towerContent` is deliberately left in place and unused. This is
         // the app's home screen and the replacement is new; being able to put
         // the tower back is worth a warning about an unused function.
+        // **White glyphs on the two screens whose floor is dark**, which is
+        // Home and the camera — both end in `Grey.g950`, and the bar floats
+        // in that strip rather than over the page. Memories keeps the
+        // system's own colours until it joins the redesign, because forcing
+        // white onto a light bar hides it completely. See `TabBarGlyphs`.
         return HomeView(todayBlocks: towerVM.placedBlocks,
                         onOpenWin: { expandedBlockID = $0 },
-                        isOpenExternally: $folderIsOpen)
+                        isOpenExternally: $folderIsOpen,
+                        tabGlyphTint: selectedTab == .memories ? nil : .white)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.

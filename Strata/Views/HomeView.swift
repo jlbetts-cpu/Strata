@@ -29,6 +29,10 @@ struct HomeView: View {
     /// Told to the screen, so its header can get out of the way while a
     /// folder is open.
     @Binding var isOpenExternally: Bool
+    /// What colour the tab bar's glyphs should be, which depends on the
+    /// screen that is showing rather than on this one. See `TabBarGlyphs`.
+    /// Home is always mounted, so this is where the one probe lives.
+    var tabGlyphTint: UIColor? = nil
 
     /// **Its own query, over its own window, on purpose.**
     ///
@@ -55,6 +59,9 @@ struct HomeView: View {
     @State private var openDay: RecentDay?
     @State private var openPhotos: [String: UIImage] = [:]
     @State private var customising: RecentDay?
+    /// The day cut-outs, by day. See `DayStickerService` — most days have
+    /// none, and the service remembers that so a day is examined once.
+    @State private var stickers: [String: UIImage] = [:]
     @State private var mood = FolderMood()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -63,10 +70,12 @@ struct HomeView: View {
 
     init(todayBlocks: [PlacedBlock],
          onOpenWin: @escaping (UUID) -> Void = { _ in },
-         isOpenExternally: Binding<Bool>) {
+         isOpenExternally: Binding<Bool>,
+         tabGlyphTint: UIColor? = nil) {
         self.todayBlocks = todayBlocks
         self.onOpenWin = onOpenWin
         self._isOpenExternally = isOpenExternally
+        self.tabGlyphTint = tabGlyphTint
         let start = Calendar.current.date(byAdding: .day, value: -(Self.window - 1), to: Date()) ?? Date()
         let key = DateUtils.dateString(from: start)
         _recentLogs = Query(filter: #Predicate<HabitLog> { log in
@@ -152,6 +161,69 @@ struct HomeView: View {
         if loaded.count != peeks.count { peeks = loaded }
     }
 
+    /// **The day cut-outs, worked out after everything else has arrived.**
+    ///
+    /// A foreground-instance mask is the most expensive thing this app asks
+    /// of the phone, so this runs LAST and one day at a time: the row is
+    /// already drawn, the photographs behind the glass are already there, and
+    /// a sticker arriving a second later reads as the app noticing something
+    /// rather than as the screen still loading.
+    ///
+    /// `DayStickerService` remembers both answers — the cut-out and the
+    /// "nothing here" — so a day is examined once ever, not once per appear.
+    private func loadStickers() async {
+        #if DEBUG
+        if DebugHarness.fakesStickers {
+            // Placement only. See `DebugHarness.fakesStickers`.
+            for (index, day) in days.enumerated() where index % 2 == 0 {
+                if let stand = UIImage(named: ["DemoPhoto4", "DemoPhoto11", "LookPreview"][index % 3]) {
+                    stickers[day.id] = stand
+                }
+            }
+            return
+        }
+        #endif
+        let service = DayStickerService.shared
+        var live: Set<String> = []
+        for day in days {
+            let logs = day.isToday
+                ? todayBlocks.compactMap { block -> DayStickerService.Candidate? in
+                    guard let name = block.look.imageFileName else { return nil }
+                    return DayStickerService.Candidate(
+                        fileName: name,
+                        named: !block.look.title.isEmpty,
+                        weight: block.look.blockSize.massTier,
+                        located: block.log.latitude != nil)
+                }
+                : recentLogs.filter { $0.dateString == day.id }
+                    .compactMap { log -> DayStickerService.Candidate? in
+                        guard let name = log.imageFileName, let habit = log.habit else { return nil }
+                        return DayStickerService.Candidate(
+                            fileName: name,
+                            named: !habit.title.isEmpty,
+                            weight: habit.blockSize.massTier,
+                            located: log.latitude != nil)
+                    }
+            guard logs.count >= 1 else { continue }
+            let key = DayStickerService.key(day: day.id, winIDs: logs.map(\.fileName))
+            if let made = await service.sticker(key: key, candidates: logs) {
+                stickers[day.id] = made
+            }
+            // One at a time, and yielding between days: this is the lowest
+            // priority work on the screen and it must never be what a scroll
+            // is waiting behind.
+            await Task.yield()
+            live.insert(key)
+        }
+        // Everything not on the row any more, including the older key of a
+        // day whose wins have changed. Off the main actor: it is a directory
+        // walk and a handful of unlinks, and nothing is waiting on it.
+        let directory = ImageManager.shared.imageDirectory
+        Task.detached(priority: .background) {
+            _ = DayStickerService.prune(keeping: live, in: directory)
+        }
+    }
+
     /// The full-size-enough photographs for a day somebody actually opened.
     /// 640 is the tier baked beside every original and is bigger than any
     /// card inside the folder is drawn.
@@ -220,16 +292,34 @@ struct HomeView: View {
             // with two rounded bottom corners.
             Grey.g950.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 0) {
-                RecentsRow(days: days,
-                           styles: { store.style(for: $0) },
-                           onOpen: open(_:),
-                           onCustomise: { customising = $0 })
-                    .padding(.top, GridConstants.gapItem)
-                    .padding(.bottom, GridConstants.gapWide)
-                    .background(alignment: .bottom) { lightSheet }
+            // The bar's glyphs, told what they are sitting on. Zero sized,
+            // draws nothing, and this is the only place in the app that
+            // touches the bar.
+            TabBarGlyphs(tint: tabGlyphTint).frame(width: 0, height: 0)
 
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    RecentsRow(days: days,
+                               styles: { store.style(for: $0) },
+                               stickers: { stickers[$0] },
+                               onOpen: open(_:),
+                               onCustomise: { customising = $0 })
+                        .padding(.top, GridConstants.gapItem)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(alignment: .bottom) { lightSheet }
+
+                // **The strip, and it is the camera's own 20.** The first
+                // version cut the page in half under the folders' labels and
+                // filled everything below with black, which the owner read
+                // straight away: "put the black part right where it is in the
+                // camera, not so high up." The camera's black is not a panel
+                // at all — it is a 20pt margin the viewfinder stops short of,
+                // with the floating bar sitting in it. Home does the same
+                // thing, which also gives the page back the room under
+                // Recents that the next section has to go in.
+                Color.clear.frame(height: GridConstants.bottomStrip)
             }
 
             if let day = openDay {
@@ -247,6 +337,7 @@ struct HomeView: View {
             }
         }
         .task(id: days.map(\.id).joined()) { await loadPeeks() }
+        .task(id: days.map(\.id).joined()) { await loadStickers() }
         .task(id: todayBlocks.map(\.id)) { await loadPeeks() }
         .onAppear {
             mood.contents = FolderContents(count: todayBlocks.count)

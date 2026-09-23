@@ -252,6 +252,13 @@ struct WinFolder: View {
     var expression: FaceExpression = .idle
     /// Off for a still. On, the face blinks, looks around and breathes.
     var isAlive: Bool = true
+    /// **One thing out of the day, lifted off its background.**
+    ///
+    /// Nil for most days and that is correct — see `DayStickerService` for
+    /// the bar a photograph has to clear. A sticker on every folder is
+    /// decoration; a sticker on the days that had something in them is a
+    /// remark.
+    var sticker: UIImage? = nil
 
     /// **The folder's default colour, for anything that does not pick one.**
     ///
@@ -317,6 +324,9 @@ struct WinFolder: View {
             .overlay { folder }
             .animation(GridConstants.naturalSettle, value: fullness)
             .animation(GridConstants.naturalSettle, value: openAmount)
+            // A sticker that has just been worked out arrives rather than
+            // appearing: it is being put on.
+            .animation(.spring(response: 0.46, dampingFraction: 0.72), value: sticker != nil)
             .onAppear { if isAlive && showsFace { idle.reach = 5; idle.start() } }
             .onDisappear { idle.stop() }
             .accessibilityElement(children: .ignore)
@@ -343,7 +353,38 @@ struct WinFolder: View {
                 // 3. The pocket: the glass front, and the hinge.
                 pocket(width: w, height: h)
 
-                // 4. The face, on the pocket, when it is asked for.
+                // 4. The day's cut-out, stuck on the front.
+                //
+                // **Over the pocket's lip, not inside the pocket.** A sticker
+                // is on the OUTSIDE of a folder — that is what makes it a
+                // sticker rather than another thing filed in it — so it
+                // straddles the seam where the front meets the plate, which
+                // is the one place on this object that reads as a surface
+                // you would stick something to.
+                //
+                // Leaning right, always the same way. A sticker put on by
+                // hand is never square, and randomising the lean per day
+                // would make the row look like it was shaken rather than
+                // labelled.
+                if let sticker {
+                    Image(uiImage: sticker)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: w * 0.34, height: h * 0.34)
+                        // The one shadow it gets, and it is a contact
+                        // shadow: a sticker is lying ON the folder, a
+                        // millimetre off it, so the shadow is tight and
+                        // close rather than a float.
+                        .shadow(color: .black.opacity(0.22), radius: h * 0.012, y: h * 0.006)
+                        .rotationEffect(.degrees(-7))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .topTrailing)
+                        .offset(x: -w * 0.05, y: h * 0.20)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                }
+
+                // 5. The face, on the pocket, when it is asked for.
                 if showsFace {
                     FolderFace(expression: live, eyeWidth: w * 0.072)
                         .frame(maxHeight: .infinity, alignment: .bottom)

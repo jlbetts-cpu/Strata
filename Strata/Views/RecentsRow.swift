@@ -57,6 +57,8 @@ struct RecentDay: Identifiable, Equatable {
 struct RecentsRow: View {
     var days: [RecentDay]
     var styles: (String) -> FolderStyle = { _ in .default }
+    /// The day's cut-out, when there is one. See `DayStickerService`.
+    var stickers: (String) -> UIImage? = { _ in nil }
     var onOpen: (RecentDay) -> Void = { _ in }
     var onCustomise: (RecentDay) -> Void = { _ in }
 
@@ -91,6 +93,7 @@ struct RecentsRow: View {
                     ForEach(days) { day in
                         DayFolderTile(day: day,
                                       style: styles(day.id),
+                                      sticker: stickers(day.id),
                                       onOpen: { onOpen(day) },
                                       onCustomise: { onCustomise(day) })
                             .frame(width: Self.tileWidth)
@@ -119,6 +122,7 @@ struct RecentsRow: View {
 struct DayFolderTile: View {
     var day: RecentDay
     var style: FolderStyle
+    var sticker: UIImage? = nil
     var onOpen: () -> Void = {}
     var onCustomise: () -> Void = {}
 
@@ -147,7 +151,8 @@ struct DayFolderTile: View {
                       openAmount: 1,
                       showsFace: style.faceName != nil,
                       expression: style.expression,
-                      isAlive: day.isToday)
+                      isAlive: day.isToday,
+                      sticker: sticker)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(day.title())

@@ -102,6 +102,20 @@ enum DebugHarness {
         ProcessInfo.processInfo.arguments.contains("-strataViewfinderLab")
     }
 
+    /// **Stands a bundled photograph in for a day cut-out.**
+    ///
+    /// `VNGenerateForegroundInstanceMaskRequest` cannot run in a simulator at
+    /// all — it is a CoreML model that wants the Neural Engine, and every
+    /// call returns "Failed to create espresso context" — so the sticker
+    /// never appears there and its PLACEMENT on the folder could not be
+    /// looked at. Which is the half most likely to be wrong: whether it sits
+    /// on the seam, how big it is, whether it collides with the peeking
+    /// stack. This puts something folder-shaped in the slot so that can be
+    /// judged. `-strataFakeSticker 1`.
+    static var fakesStickers: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataFakeSticker")
+    }
+
     /// Shows the folder face lab instead of the app, so every expression can
     /// be looked at side by side. See `FolderLabView`.
     static var folderLab: Bool {

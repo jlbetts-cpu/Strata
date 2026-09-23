@@ -347,7 +347,9 @@ struct CameraView: View {
     /// **The 23 below is not ours to change.** A floating tab bar's distance
     /// from the bottom edge is the platform's, set by the home indicator's
     /// safe area; the only gap this screen owns is the one above it.
-    private let stripBreathing: CGFloat = 20
+    /// Shared with Home, which builds its own strip the same way. See
+    /// `GridConstants.bottomStrip`. The value is unchanged.
+    private let stripBreathing: CGFloat = GridConstants.bottomStrip
     /// Air between the shutter and the bottom edge of the viewfinder.
     /// **18, not 40, because 40 sat the row too high.**
     ///
