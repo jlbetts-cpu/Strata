@@ -2374,6 +2374,17 @@ struct MainAppView: View {
                         // beneath it, rather than on a caption.
                     }
                 }
+                // **The grid the blocks land in, drawn behind them.**
+                //
+                // Bottom aligned and taller than the content on purpose: a
+                // background may overflow its anchor, so the lattice carries
+                // a viewport further up the page than the tower reaches and
+                // fades out inside that, which is what gives the empty screen
+                // above a short tower its structure. See `TowerLattice`.
+                .background(alignment: .bottom) {
+                    TowerLattice(cellSize: colW, contentHeight: max(gridH, 1))
+                        .frame(width: gridW)
+                }
                 .overlay {
                     if showTowerConfetti {
                         AllClearCelebration(
