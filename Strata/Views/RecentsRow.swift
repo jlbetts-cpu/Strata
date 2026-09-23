@@ -285,6 +285,7 @@ struct DayFolderTile: View {
         VStack(alignment: .leading, spacing: 0) {
             WinFolder(title: day.title(),
                       count: day.count,
+                      subtitle: day.countLabel,
                       tint: style.tint(for: day.id),
                       contents: day.peek,
                       // **Every folder is open.** The owner: "can all the
@@ -308,16 +309,11 @@ struct DayFolderTile: View {
                       sticker: sticker,
                       stickerSeed: day.id)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(day.title())
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkPrimary)
-                Text(day.countLabel)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(AppColors.inkTertiary)
-            }
-            .lineLimit(1)
-            .padding(.top, GridConstants.gapTight)
+            // **No caption under the folder any more.** The day and the
+            // count are ON the glass now — see `WinFolder.plate`. Printing
+            // them twice would be the folder saying what it is and then the
+            // page saying it again, which is the thing that got the count
+            // taken off the old folder in the first place.
         }
         .contentShape(Rectangle())
     }

@@ -12,50 +12,82 @@ import SwiftUI
 /// moulded plastic; a bevelled diagonal reads as a cut edge, which is what
 /// card stock has.
 struct FolderBack: Shape {
-    /// How much of the width the tab takes.
-    var tabWidth: CGFloat = 0.42
-    /// How far below the tab's top the body sits, as a fraction of height.
-    var step: CGFloat = 0.17
-
-    /// The corner radius both the plate and the pocket use. **One number and
-    /// one construction**, because they were two: the plate drew quad curve
-    /// corners and the pocket used a continuous `RoundedRectangle`, which is
-    /// a squircle, so at the same radius they were visibly different shapes
-    /// meeting along one edge. The owner: "the corner rounding of the folder
-    /// isn't the same rounding of the folder."
-    static func radius(in rect: CGRect) -> CGFloat { min(rect.width, rect.height) * 0.072 }
+    /// **A plain rounded square, and the tab moved to the FRONT.**
+    ///
+    /// The owner, with the orange reference beside the row: "I might like the
+    /// shape of the orange one a bit better, with the text on the glass part,
+    /// I feel like that looks more luxury."
+    ///
+    /// He is pointing at an inversion, and it is the thing that makes that
+    /// drawing read as an object rather than an icon. A folder ICON puts the
+    /// tab on the back plate and a flat rectangle in front — which is the
+    /// 1994 file glyph, and is what this drew. The reference does the
+    /// opposite: the body behind is a plain rounded square and the PANEL in
+    /// front is the folder-shaped piece, its top edge rising on the left and
+    /// stepping down to the right. So the tab is a thing you could put your
+    /// thumb behind rather than a notch cut out of a silhouette.
+    ///
+    /// It also gives the photographs somewhere to be. With the front's top
+    /// edge low on the right, the stack shows through exactly where that
+    /// drawing shows its notes.
+    static func radius(in rect: CGRect) -> CGFloat { min(rect.width, rect.height) * 0.135 }
 
     func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let r = Self.radius(in: rect)
-        let bodyTop = rect.minY + h * step
-        let tabEnd = rect.minX + w * tabWidth
-        // How far right the diagonal travels on its way down, and how much of
-        // each end of it is rounded off. The bevel is deliberately a fifth of
-        // the corner radius: enough that the join is not a needle point at
-        // 1pt of antialiasing, nowhere near enough to read as a curve.
-        let run = w * 0.055
-        let bevel = min(r * 0.45, run * 0.5)
+        RoundedRectangle(cornerRadius: Self.radius(in: rect), style: .continuous)
+            .path(in: rect)
+    }
+}
+
+/// **The glass panel in front, and it is the piece with the tab on it.**
+///
+/// Its top edge runs along at `tabTop` for the left `tabWidth` of the card,
+/// steps down a bevelled diagonal, and continues low across the rest — the
+/// profile of a folder's front, and the shape the owner picked out of the
+/// reference.
+struct FolderFront: InsettableShape {
+    /// Where the front's top edge sits on the RIGHT, as a fraction of the
+    /// card's height from its top.
+    var lowTop: CGFloat = 0.42
+    /// Where it sits on the left, over the tab.
+    var tabTop: CGFloat = 0.30
+    /// How much of the width the raised part takes.
+    var tabWidth: CGFloat = 0.46
+    var inset: CGFloat = 0
+
+    func inset(by amount: CGFloat) -> FolderFront {
+        FolderFront(lowTop: lowTop, tabTop: tabTop, tabWidth: tabWidth,
+                    inset: inset + amount)
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: inset, dy: inset)
+        let w = r.width, h = r.height
+        let corner = min(w, h) * 0.135
+        let top = r.minY + h * lowTop
+        let raised = r.minY + h * tabTop
+        let tabEnd = r.minX + w * tabWidth
+        let run = w * 0.075
+        let bevel = min(corner * 0.5, run * 0.5)
 
         var p = Path()
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY + r))
-        p.addQuadCurve(to: CGPoint(x: rect.minX + r, y: rect.minY),
-                       control: CGPoint(x: rect.minX, y: rect.minY))
-        p.addLine(to: CGPoint(x: tabEnd - bevel, y: rect.minY))
-        p.addQuadCurve(to: CGPoint(x: tabEnd + bevel * 0.5, y: rect.minY + bevel * 0.9),
-                       control: CGPoint(x: tabEnd, y: rect.minY))
-        p.addLine(to: CGPoint(x: tabEnd + run - bevel * 0.5, y: bodyTop - bevel * 0.9))
-        p.addQuadCurve(to: CGPoint(x: tabEnd + run + bevel * 0.4, y: bodyTop),
-                       control: CGPoint(x: tabEnd + run, y: bodyTop))
-        p.addLine(to: CGPoint(x: rect.maxX - r, y: bodyTop))
-        p.addQuadCurve(to: CGPoint(x: rect.maxX, y: bodyTop + r),
-                       control: CGPoint(x: rect.maxX, y: bodyTop))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY),
-                       control: CGPoint(x: rect.maxX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r),
-                       control: CGPoint(x: rect.minX, y: rect.maxY))
+        p.move(to: CGPoint(x: r.minX, y: raised + corner))
+        p.addQuadCurve(to: CGPoint(x: r.minX + corner, y: raised),
+                       control: CGPoint(x: r.minX, y: raised))
+        p.addLine(to: CGPoint(x: tabEnd - bevel, y: raised))
+        p.addQuadCurve(to: CGPoint(x: tabEnd + bevel * 0.5, y: raised + bevel * 0.9),
+                       control: CGPoint(x: tabEnd, y: raised))
+        p.addLine(to: CGPoint(x: tabEnd + run - bevel * 0.5, y: top - bevel * 0.9))
+        p.addQuadCurve(to: CGPoint(x: tabEnd + run + bevel * 0.4, y: top),
+                       control: CGPoint(x: tabEnd + run, y: top))
+        p.addLine(to: CGPoint(x: r.maxX - corner, y: top))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: top + corner),
+                       control: CGPoint(x: r.maxX, y: top))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - corner))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - corner, y: r.maxY),
+                       control: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX + corner, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - corner),
+                       control: CGPoint(x: r.minX, y: r.maxY))
         p.closeSubpath()
         return p
     }
@@ -242,6 +274,8 @@ struct WinFolder: View {
     /// is and how much is in it. Nothing is drawn from either.
     var title: String = "Wins"
     var count: Int = 0
+    /// The quiet line under the title, on the glass. "7 wins", "Nothing yet".
+    var subtitle: String = ""
     var tint: Color = WinFolder.defaultTint
     /// **What is in it, as wins rather than as pictures.** A card with no
     /// image is its colour, exactly as the block was.
@@ -391,8 +425,8 @@ struct WinFolder: View {
                 // shapes butted together.
                 occlusion(width: w, height: h)
 
-                // 4. The pocket: the glass front, and the hinge.
-                pocket(width: w, height: h)
+                // 4. The glass front, which is the folder-shaped piece.
+                front(width: w, height: h)
 
                 // 5. The day's cut-out, stuck low on the front.
                 //
@@ -710,131 +744,95 @@ struct WinFolder: View {
             .allowsHitTesting(false)
     }
 
-    /// How much of the folder's height the front covers. One number, because
-    /// the pocket and the line above it have to agree to a point.
-    private var pocketShare: CGFloat {
-        let closed: CGFloat = 0.845
-        let open: CGFloat = 0.62 + 0.025 * fullness
+    /// **Where the front's low edge sits**, as a fraction of the card's
+    /// height from the top. Open it sits at 44% and the photographs stand out
+    /// of it; closed it rides up to 20% and there is almost nothing to see.
+    /// A fuller folder pushes it down a little, as though something behind it
+    /// is holding it open.
+    private var frontTop: CGFloat {
+        let open: CGFloat = 0.44 - 0.02 * fullness
+        let closed: CGFloat = 0.20
         return closed + (open - closed) * openAmount
     }
 
-    private func pocket(width w: CGFloat, height h: CGFloat) -> some View {
-        let radius = FolderBack.radius(in: CGRect(x: 0, y: 0, width: w, height: h))
-        // Closed, the pocket comes up to just under the tab's step, so there
-        // is nothing to see above it. Open, it sits at 62% and the stack
-        // stands out of it. See `pocketShare`.
-        let height = h * pocketShare
+    /// The raised part of the front's top edge — the tab. A fixed distance
+    /// above the low edge, so the step is the same depth however open the
+    /// folder is.
+    private var frontTabTop: CGFloat { max(frontTop - 0.13, 0.04) }
 
-        return PocketShape(radius: radius)
-            // **Two thirds of a material, which is the thinnest real glass
-            // this can be.**
-            //
-            // The owner: "could you make the front of the folder actually
-            // more glass, right now it looks matte, like not premium
-            // transparent blur at all."
-            //
-            // `.ultraThinMaterial` is the thinnest SwiftUI ships and it is
-            // still a full-strength backdrop blur that LIGHTENS what is
-            // behind it. At full strength, with photographs behind, all that
-            // came through was a faint warm haze — which is the definition of
-            // matte: you can tell something is back there and you cannot tell
-            // what. Held at 0.65 the blur is still unmistakably a blur and
-            // the shapes survive it.
-            //
-            // **Its own layer, under the tint, not composited with it.** A
-            // material inside an `.opacity` still samples the whole backdrop;
-            // the fade happens after the blur rather than to it, so the blur
-            // radius is untouched and only its opacity moves. That is the
-            // difference between thinner glass and less glass.
+    /// How much of the folder's height the front covers, which is what the
+    /// sticker's safe region and the seam's shadow are both measured from.
+    private var pocketShare: CGFloat { 1 - frontTop }
+
+    /// **The glass panel, which is now the folder-shaped piece.**
+    ///
+    /// The owner: "I'm looking for more of a premium design for the folders,
+    /// like glass like this... I might like the shape of the orange one a bit
+    /// better, with the text on the glass part, I feel like that looks more
+    /// luxury."
+    ///
+    /// Four layers, and each one is a thing a pane of coloured glass does.
+    /// The **material** blurs what is behind it, so the photographs are
+    /// genuinely seen through it rather than drawn faint. The **tint** is the
+    /// glass being coloured rather than grey. The **sheen** is a wide, very
+    /// soft radial high on the panel — and this is NOT the specular band he
+    /// had taken out twice. That was a hard diagonal streak, which is a claim
+    /// about a point light and made six folders in a row catch it in
+    /// identical places. This is the diffuse bloom a frosted panel has when
+    /// light falls on the whole of it, which is what the reference draws and
+    /// why that drawing reads as luxury rather than as a rendering. And the
+    /// **rim** is one hairline, so the panel has an edge.
+    private func front(width w: CGFloat, height h: CGFloat) -> some View {
+        let shape = FolderFront(lowTop: frontTop, tabTop: frontTabTop)
+        return shape
             .fill(.ultraThinMaterial)
             .opacity(0.80)
             .overlay {
-                PocketShape(radius: radius)
-                    // Shaded with the folder's own colour, not with black.
-                    // The shade comes from taking the tint DOWN rather than
-                    // from adding a second colour, which is how a real shadow
-                    // on a warm surface behaves.
-                    // Heavier at the TOP, which is the way round the build
-                    // he picked had it: the lip of a pocket is the doubled
-                    // edge of the card stock and the part of it furthest from
-                    // what is behind it, so it is the most opaque place on
-                    // the front rather than the least.
-                    // **Thin at the top, denser at the bottom, and much
-                    // thinner overall than it was.**
-                    //
-                    // The owner: "could you make the front of the folder
-                    // actually more glass, right now it looks matte, like not
-                    // premium transparent blur at all."
-                    //
-                    // Two things were making it matte and the colour was the
-                    // second of them. A flat wash at 0.56 falling to 0.42 is
-                    // near enough one value across the whole pane, and one
-                    // value is what paint looks like. Glass is not uniform:
-                    // it is clearest where there is least of it between you
-                    // and what is behind.
-                    //
-                    // So the wash now runs 0.20 to 0.46 — the top, where the
-                    // photographs are, is barely tinted at all and the bottom
-                    // carries the colour. The material underneath is
-                    // untouched at full strength, so the blur is the same;
-                    // what changed is how much paint is over it.
-                    //
-                    // **0.24 to 0.50 is where the two demands meet**, and
-                    // both of them are his. At 0.17/0.42 the cards read
-                    // beautifully and the folder stopped being a colour — a
-                    // fog folder beside a sage one was two pale rectangles,
-                    // and the whole point of dealing each day a colour is
-                    // that you can tell them apart down the row. At 0.56 the
-                    // colour was solid and the cards were a haze. Looked at
-                    // side by side rather than reasoned about.
-                    .fill(LinearGradient(colors: [tint.opacity(0.21), tint.opacity(0.44)],
-                                         startPoint: .top, endPoint: .bottom))
+                shape.fill(LinearGradient(colors: [tint.opacity(0.24), tint.opacity(0.50)],
+                                          startPoint: .top, endPoint: .bottom))
             }
-            // **No sheen, and taking it out is the fix.**
-            //
-            // A diagonal `plusLighter` band ran across the upper third here,
-            // on the argument that a reflection is what separates glass from
-            // a frosted rectangle. The owner: "the glass on the front of the
-            // folders has a random shine... it should be just premium, you
-            // kinda did that with the eye one but then changed it, the
-            // original eye had that premium look that I wanted, like the
-            // blurred glass look, no bright light on it or anything."
-            //
-            // He is right and the argument was wrong. A specular highlight
-            // implies a POINT light and a fixed angle, so six folders in a
-            // row all catch it in the same place and the row reads as a
-            // rendering rather than as objects on a page. Frosted glass is
-            // diffuse by definition — that is what frosting does to a
-            // reflection — so a sheen on it is a contradiction, not a
-            // finish. What makes it read as glass is the blur behind it and
-            // the one lit edge, which is what the build he liked had.
             .overlay {
-                // **One quiet rim, and no light on the surface at all.**
-                //
-                // The owner: "the glass — I would like there to be less light
-                // refraction and more of a premium blur."
-                //
-                // There was a 1pt rim at 0.55 plus a short bright fall just
-                // inside the top edge, argued for as the pane's thickness.
-                // He is right that it was the wrong lever. Every bright
-                // gradient on a pane is a claim about where a light is, and
-                // six folders in a row all claiming the same light is what
-                // makes a set of objects look rendered. What actually says
-                // "expensive glass" is the depth of the blur behind it, not
-                // anything drawn on top: the material carries the whole
-                // effect and the rim only has to stop the pocket reading as a
-                // rectangle pasted onto the plate.
-                //
-                // So the fall is gone and the rim is down to 0.30 — still
-                // enough to find the edge, not enough to be a highlight. The
-                // material goes up to 0.80 in its place, which is more blur
-                // rather than more paint: the wash comes DOWN to 0.21/0.44 at
-                // the same time, so the front is no heavier than it was and
-                // the photographs behind it are frostier.
-                PocketShape(radius: radius)
-                    .strokeBorder(.white.opacity(0.30), lineWidth: 1)
+                // The diffuse bloom, centred high and slightly left, falling
+                // away to nothing well before the edges. 22% is the most it
+                // can be before it stops being light on a surface and starts
+                // being a shape drawn on one.
+                RadialGradient(colors: [.white.opacity(0.22), .clear],
+                               center: UnitPoint(x: 0.42, y: 0.30),
+                               startRadius: 0,
+                               endRadius: w * 0.72)
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
             }
-            .frame(height: height)
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            .overlay {
+                shape.strokeBorder(.white.opacity(0.30), lineWidth: 1)
+            }
+            .overlay(alignment: .bottomLeading) { plate(width: w) }
+    }
+
+    /// **The day and the count, set on the glass.**
+    ///
+    /// They were under the folder, as a caption. On the glass they are part
+    /// of the object — which is the whole of what he means by the reference
+    /// looking more luxury: a designed thing carries its own label, and a
+    /// thing with a caption beneath it is a thumbnail in a list.
+    ///
+    /// White, because every tint in the palette is a mid tone and white is
+    /// the only ink that reads on all six. The count at 70% rather than a
+    /// second colour, so the pair is one voice at two volumes.
+    private func plate(width w: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: w * 0.012) {
+            Text(title)
+                .font(Typography.headerMedium)
+                .foregroundStyle(.white)
+            Text(subtitle)
+                .font(Typography.bodySmall)
+                .foregroundStyle(.white.opacity(0.70))
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .shadow(color: .black.opacity(0.18), radius: w * 0.02, y: w * 0.004)
+        .padding(.leading, w * 0.075)
+        .padding(.bottom, w * 0.07)
+        .allowsHitTesting(false)
     }
 }

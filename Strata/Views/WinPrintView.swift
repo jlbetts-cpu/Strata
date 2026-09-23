@@ -29,7 +29,9 @@ struct WinPrintView: View {
 
     var body: some View {
         ZStack {
-            Grey.g950.ignoresSafeArea()
+            // Light, like the folder it came out of and the page behind
+            // that. See `FolderInside`.
+            HomeGround().ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
@@ -61,11 +63,11 @@ struct WinPrintView: View {
                 .font(Typography.sectionLabel)
                 .kerning(Typography.sectionKerning)
                 .textCase(.uppercase)
-                .foregroundStyle(Grey.g400)
+                .foregroundStyle(AppColors.inkTertiary)
             Spacer()
-            GlassIconButton(systemName: "square.and.pencil", tint: .white,
+            GlassIconButton(systemName: "square.and.pencil",
                             accessibilityLabel: "Edit this win", action: onEdit)
-            GlassIconButton(systemName: "xmark", tint: .white,
+            GlassIconButton(systemName: "xmark",
                             accessibilityLabel: "Close", action: onClose)
         }
         .padding(.horizontal, GridConstants.gapWide)
@@ -81,7 +83,7 @@ struct WinPrintView: View {
         if !title.isEmpty {
             Text(title)
                 .font(Typography.headerMedium)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColors.inkPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, GridConstants.gapWide)
                 .padding(.top, GridConstants.gapLabel)

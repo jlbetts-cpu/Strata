@@ -81,7 +81,19 @@ struct FolderInside: View {
 
     var body: some View {
         ZStack {
-            Grey.g950.ignoresSafeArea()
+            // **The same room you were just in.**
+            //
+            // The owner: "going inside the folder needs to feel like the same
+            // experience — when we click in now it's like I'm in a different
+            // area, it should still be light."
+            //
+            // It was `Grey.g950`, on the argument that photographs sing on
+            // black. They do, and that was the wrong thing to optimise: you
+            // arrive here by tapping an object on a warm white page, and
+            // landing on black makes the tap read as leaving the app rather
+            // than as opening the folder. The shelf and the inside are one
+            // place now.
+            HomeGround().ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
@@ -139,14 +151,14 @@ struct FolderInside: View {
                     Text(title)
                         .font(Typography.screenTitleSerif)
                         .tracking(-0.6)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColors.inkPrimary)
                     Text("\(wins.count) \(wins.count == 1 ? "win" : "wins")")
                         .font(Typography.bodySmall)
-                        .foregroundStyle(Grey.g400)
+                        .foregroundStyle(AppColors.inkTertiary)
                 }
             }
             Spacer()
-            GlassIconButton(systemName: "xmark", tint: .white,
+            GlassIconButton(systemName: "xmark",
                             accessibilityLabel: "Close the folder", action: onClose)
         }
         .padding(.horizontal, GridConstants.gapWide)
@@ -195,9 +207,17 @@ struct FolderInside: View {
             // live image every frame, which is the other half of why a
             // scroll full of these stutters.
             .compositingGroup()
-            .shadow(color: .black.opacity(isPressed ? 0.55 : 0.34),
-                    radius: isPressed ? 22 : 10,
-                    y: isPressed ? 12 : 5)
+            // **Two shadows, and much lighter than they were.** These were
+            // 34% black on a near-black ground, where a wide dark falloff
+            // reads as depth. On warm white the same numbers are a bruise;
+            // what puts a card on paper is a tight contact shadow plus a
+            // wide, very faint ambient. Same construction the folders use.
+            .shadow(color: .black.opacity(isPressed ? 0.20 : 0.11),
+                    radius: isPressed ? 5 : 2,
+                    y: isPressed ? 3 : 1)
+            .shadow(color: .black.opacity(isPressed ? 0.16 : 0.07),
+                    radius: isPressed ? 26 : 12,
+                    y: isPressed ? 14 : 6)
             .rotationEffect(.degrees(spot.angle))
             .scaleEffect(isPressed ? 1.055 : 1)
             .zIndex(isPressed ? 100 : Double(index))

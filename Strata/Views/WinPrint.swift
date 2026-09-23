@@ -50,10 +50,8 @@ struct WinPrint: View {
 
     /// The mark's measurements are a fraction of the card's WIDTH, so the
     /// signature is the same size relative to the print at any scale. The
-    /// CORNER is not: it comes from `GridConstants.radiusPhoto`, which is one
-    /// absolute number for every photograph the app draws, because a corner
-    /// is a property of the card stock rather than of how much of it there
-    /// is. See `PhotoFinish`.
+    /// CORNER comes from `PhotoFinish`, which is the same fraction of the
+    /// width on every photograph the app draws.
     private static let markWidthRatio: CGFloat = 66.0 / 342.0
     private static let markInsetRatio: CGFloat = 16.0 / 342.0
     private static let markOpacity: CGFloat = 0.8

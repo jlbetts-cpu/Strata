@@ -314,18 +314,16 @@ struct MainAppView: View {
     /// visible on purpose rather than hidden by converting a screen nobody
     /// has looked at yet.
     ///
-    /// **And `.dark` again the moment a folder opens over it.** The inside of
-    /// a folder is `Grey.g950` full bleed, which is the right ground for
-    /// photographs and is the camera's own. But the window was still pinned
-    /// light underneath it, so the STATUS BAR stayed in its light-mode
-    /// colours: measured, the clock came out at 0 against a ground of 8,
-    /// which is a contrast ratio of 1.03 and a clock nobody can read. The
-    /// thing on screen decides the appearance, and while a folder is open the
-    /// thing on screen is black.
+    /// **Home stays light with a folder open, and that is new again.** It was
+    /// pinned `.dark` while a folder was open, because the inside of a folder
+    /// was `Grey.g950` and a light status bar over black measured 1.03:1.
+    /// The inside is light now — the owner: "it should still be light" — so
+    /// the special case is gone rather than inverted. `folderIsOpen` stays
+    /// as a parameter because the header still hides on it.
     private static func scheme(for tab: StrataTab, folderIsOpen: Bool = false) -> ColorScheme? {
         switch tab {
         case .camera: return .dark
-        case .tower:  return folderIsOpen ? .dark : .light
+        case .tower:  return .light
         default:      return nil
         }
     }

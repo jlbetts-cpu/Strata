@@ -102,8 +102,21 @@ enum GridConstants {
     /// is: cut two photographs out of the same paper and the corners match
     /// whatever the size.
     ///
-    /// **8, from the print's own file** (Figma `13258-6988`), and one value
-    /// for every photograph the app draws.
+    /// **The print's own corner, as a fraction of its width**, and the same
+    /// fraction on every photograph the app draws — 8 on the 342-wide print
+    /// in Figma `13258-6988`, which is 2.34%.
+    ///
+    /// **Proportional, and that is the owner's second answer on this.** An
+    /// absolute 8 makes every photograph literally the same card stock, which
+    /// is the physically honest reading; it also means the same corner is 2%
+    /// of a print and 14% of a 57pt thumbnail, so the small one looks round
+    /// and the big one looks square. Told that trade-off he asked for "same
+    /// apparent roundness as well", which is this: the corner scales, so a
+    /// thumbnail and a print read as the same shape seen at two distances.
+    ///
+    /// No floor. A card small enough for the corner to vanish SHOULD have a
+    /// corner you cannot see, because that is what a print looks like from
+    /// across a room.
     ///
     /// It was three. 16 inside a folder, 7 on the stack peeking out of one,
     /// and the print computing its own 8 from a ratio — after the owner had
@@ -139,7 +152,7 @@ enum GridConstants {
     /// drift. `CameraView.stripBreathing` reads this.
     static let bottomStrip: CGFloat = 20
 
-    static let radiusPhoto: CGFloat = 8
+    static let photoCornerRatio: CGFloat = 8.0 / 342.0
     /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.
     static let radiusField: CGFloat = 12
     /// Small controls, icon wells, drop indicators.
