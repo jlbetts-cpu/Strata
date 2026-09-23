@@ -2,6 +2,13 @@ import SwiftUI
 
 /// **The Wins screen: a folder where the tower was.**
 ///
+/// **Superseded by `HomeView` on 2026-09-22 and kept, unused**, the same way
+/// `MainAppView.towerContent` is kept: the Home redesign is new and being
+/// able to put the single centred folder back is worth an unused-type
+/// warning. `showsFace` is passed explicitly here because the folder's
+/// default became "no face" when it went into a row of seven, and this view
+/// is the one place a face was always the point.
+///
 /// The owner: "remember this is replacing the wins tower, so make sure it
 /// comes with all the features the tower had. Make sure it's a clean
 /// effortless replacement and it doesn't ruin the rest of the app we built."
@@ -129,6 +136,7 @@ struct WinsFolderView: View {
             Spacer(minLength: 0)
             WinFolder(title: title, count: wins.count, tint: tint,
                       contents: wins,
+                      showsFace: true,
                       expression: mood.expression,
                       isAlive: true)
                 .frame(maxWidth: 280)

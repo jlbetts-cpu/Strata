@@ -63,3 +63,38 @@ struct WarmBackground: View {
             .accessibilityHidden(true)
     }
 }
+
+/// **The Home screen's ground: a warm premium white.**
+///
+/// The owner: "I think we go light mode, like for the top a warm premium
+/// white."
+///
+/// **Why this is not `WarmBackground`.** That token's own comment says it
+/// deliberately is NOT warm: it was a warm off-white and got a faint COOL
+/// lift, because the block palette is half cool and a yellow ground pulled
+/// against the blues and greens. That reasoning is about *blocks on a page*.
+/// Home has no blocks on it — it has photographs and coloured folders, and a
+/// photograph sits on warm paper the way a print does. Rebinding the shared
+/// ground would change twelve screens to fix one, which is the mistake
+/// CLAUDE.md's accent rule is about.
+///
+/// So it is a second, named ground with a job description, and as the light
+/// redesign works down the app the screens that join Home move onto this one
+/// rather than each inventing a white.
+///
+/// The value: 2.4 points of warmth (R−B) at 98% brightness. Enough that a
+/// white card laid on it reads as cooler, which is the test for whether a
+/// ground is warm at all; far short of cream, which would make the folders
+/// look grubby.
+///
+/// It does not go dark. Home is a light screen in both appearances for now —
+/// the honest state of the redesign, and the alternative is a dark variant
+/// nobody has looked at.
+struct HomeGround: View {
+    static let top = Color(red: 0.980, green: 0.972, blue: 0.956)
+
+    var body: some View {
+        Self.top
+            .accessibilityHidden(true)
+    }
+}

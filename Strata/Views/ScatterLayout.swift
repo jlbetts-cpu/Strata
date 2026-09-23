@@ -236,20 +236,66 @@ enum ScatterLayout {
     /// change between the two be an animation rather than a reload: the same
     /// cards are on screen before and after, and only their frames moved, so
     /// SwiftUI carries each one from one place to the other.
+    /// **Organised, and the sizes still mean something.**
+    ///
+    /// The owner: "make sure the different sizes are shown, and inside the
+    /// folders it is nice and organised, right now it's a bit all over the
+    /// place."
+    ///
+    /// Both halves of that were one bug. This forced EVERY card to a single
+    /// column and took only its height from the block's proportion, so a 1x1
+    /// and a 2x2 came out the same width — the sizes did not read, and the
+    /// two columns filled with cards of arbitrary heights, which is what
+    /// "all over the place" looks like when nothing lines up.
+    ///
+    /// It honours `columnSpan` now, which is the same number the tower packs
+    /// with: a small takes one column, a medium or a hard takes the whole
+    /// width. So a row is either two smalls side by side or one wide card,
+    /// every card reaches a margin, and the shapes are the tower's shapes.
+    /// That is more ordered than before rather than less — a full-width card
+    /// is a ruled line across the layout, and there is one every few rows.
+    ///
+    /// **A wide card waits for both columns to be level.** Dropping it at
+    /// `max(heights)` alone would leave a notch of dead space under the
+    /// shorter one; filling that notch first is what keeps the left and right
+    /// edges reading as columns rather than as a pile.
     static func tidied(_ items: [Item], in width: CGFloat) -> [Placement] {
         let column = (width - gutter) / 2
         var heights: [CGFloat] = [gutter, gutter]
         var placements: [Placement] = []
         for item in items {
             let shape = size(for: item.size, in: width)
-            let height = column * (shape.height / max(shape.width, 0.001))
-            let side = heights[0] <= heights[1] ? 0 : 1
-            let x = side == 0 ? 0 : column + gutter
-            placements.append(Placement(
-                id: item.id,
-                frame: CGRect(x: x, y: heights[side], width: column, height: height),
-                angle: 0))
-            heights[side] += height + gutter
+            let wide = item.size.columnSpan > 1
+            let cardWidth = wide ? width : column
+            // **Capped at one and a half columns.**
+            //
+            // A 2x2 is square in the tower, and at the tower's four-column
+            // pitch that is about 178pt. Here the pitch is two columns, so
+            // the true proportion made it a square the full width of the
+            // screen — 354pt on an iPhone 17, photographed, and it filled
+            // most of a scroll on its own. It is still the biggest card by a
+            // long way at 1.5 columns, and the row above and below it are
+            // both visible, which is what lets it read as "the big one"
+            // rather than as the only one.
+            let height = min(cardWidth * (shape.height / max(shape.width, 0.001)),
+                             column * 1.5)
+            if wide {
+                let top = max(heights[0], heights[1])
+                placements.append(Placement(
+                    id: item.id,
+                    frame: CGRect(x: 0, y: top, width: cardWidth, height: height),
+                    angle: 0))
+                heights[0] = top + height + gutter
+                heights[1] = heights[0]
+            } else {
+                let side = heights[0] <= heights[1] ? 0 : 1
+                let x = side == 0 ? 0 : column + gutter
+                placements.append(Placement(
+                    id: item.id,
+                    frame: CGRect(x: x, y: heights[side], width: cardWidth, height: height),
+                    angle: 0))
+                heights[side] += height + gutter
+            }
         }
         return placements
     }

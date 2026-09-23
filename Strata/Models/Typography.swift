@@ -1,6 +1,22 @@
 import SwiftUI
 
 enum Typography {
+    // MARK: - The face: SF Pro, not SF Pro Rounded
+    //
+    // The owner, 2026-09-22: "I want SF Pro, no SF Pro Rounded, I feel like
+    // that fits Apollo's editorial aesthetic more."
+    //
+    // He is right about what the two faces say. Rounded is the friendly cut —
+    // it is what watchOS, Fitness and Home use, and it reads as approachable
+    // software. Apollo is a photograph on a page with a serif title over it,
+    // and editorial type is not friendly, it is *composed*. SF Pro's flat
+    // terminals sit under a serif without arguing with it; Rounded's do not.
+    //
+    // **Nothing moves.** SF Pro Rounded is metrically compatible with SF Pro
+    // — same advance widths, same cap height ratio — so every size, every
+    // line, every layout constant derived from a cap height is unchanged by
+    // this. Only the shapes are different.
+    //
     // MARK: - The scale: five sizes, two weights
     //
     // 34, 17, 15, 13 and 11, at Regular and Medium (docs/research/font.md
@@ -20,15 +36,15 @@ enum Typography {
     // countdown, the widget's counts, and symbol glyph sizes.
 
     /// 17 Medium. Headings, and a block's or a card's title.
-    static let headerMedium = Font.system(.headline, design: .rounded, weight: .medium)
+    static let headerMedium = Font.system(.headline, design: .default, weight: .medium)
     /// 15 Medium. Buttons.
-    static let headerSmall = Font.system(.subheadline, design: .rounded, weight: .medium)
+    static let headerSmall = Font.system(.subheadline, design: .default, weight: .medium)
     /// 17 Regular. What you read.
-    static let bodyLarge = Font.system(.body, design: .rounded)
+    static let bodyLarge = Font.system(.body, design: .default)
     /// 13 Regular. Footnotes and captions.
-    static let bodySmall = Font.system(.footnote, design: .rounded)
+    static let bodySmall = Font.system(.footnote, design: .default)
     /// 11 Medium. Chart axes and the smallest labels.
-    static let caption2 = Font.system(.caption2, design: .rounded, weight: .medium)
+    static let caption2 = Font.system(.caption2, design: .default, weight: .medium)
 
     // MARK: - The screen scale
     //
@@ -60,7 +76,30 @@ enum Typography {
     /// number picked to look impressive. The 48 it replaced came from a lowfi
     /// and made the title the loudest thing on a page whose subject is
     /// photographs and blocks.
-    static let screenTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
+    static let screenTitle = Font.system(.largeTitle, design: .default, weight: .medium)
+
+    /// **The screen's name, in a serif.** Home, and the screens that follow
+    /// it as the light redesign works down the app.
+    ///
+    /// The owner: "change the Wins to a pretty serif for Home to bring in the
+    /// new Apollo brand."
+    ///
+    /// `design: .serif` is **New York**, Apple's own serif, and it is the
+    /// right answer rather than a licensed face for three reasons that all
+    /// matter here. It ships with the system, so it costs nothing to download
+    /// and cannot fail to load. It is optically sized — iOS picks a different
+    /// cut at 34pt than at 13pt, which is what a display serif needs and what
+    /// a single static file cannot do. And it carries the full system
+    /// character set, so a title never falls back mid-word.
+    ///
+    /// Regular, not medium: a serif at a large title size is already the
+    /// heaviest thing on a page, and a heavier cut of it reads as a headline
+    /// shouting rather than a masthead.
+    static let screenTitleSerif = Font.system(.largeTitle, design: .serif, weight: .regular)
+
+    /// The same serif one step down, for a section that names itself inside
+    /// a screen rather than naming the screen.
+    static let sectionSerif = Font.system(.title3, design: .serif, weight: .regular)
 
     /// The same title in the owner's face (`StrataFont`), for a title that
     /// names the screen, through `DynamicScreenTitle` where the words are data.
@@ -78,8 +117,10 @@ enum Typography {
     /// The CAP HEIGHT of a screen title, for artwork that has to match one.
     ///
     /// A `Font.system(size:)` is an em size and its cap is a fraction of that
-    /// — 1443/2048 for SF Pro Rounded, read out of `SFNSRounded.ttf`'s own
-    /// `OS/2` table rather than eyeballed. A drawing's `size` IS its cap, so
+    /// — 1443/2048, read out of the shipped font's own `OS/2` table rather
+    /// than eyeballed. The ratio is the same for SF Pro and SF Pro Rounded
+    /// (they are metrically compatible), so moving off Rounded did not move
+    /// this number. A drawing's `size` IS its cap, so
     /// handing a drawn title the 34 would set it 41% taller than the type it
     /// replaced. Measured before this existed: "Memories" came out with a
     /// 33.3pt cap against the tower tally's 23.3pt, on two screens that are
@@ -87,11 +128,11 @@ enum Typography {
     static let screenTitleCap: CGFloat = screenTitleSize * 1443 / 2048
 
     /// The line under a screen title: "2 wins", a date, a count.
-    static let screenSubtitle = Font.system(.subheadline, design: .rounded)
+    static let screenSubtitle = Font.system(.subheadline, design: .default)
 
     /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
     /// One style for all of them, so a heading is recognisable as a heading.
-    static let sectionLabel = Font.system(.footnote, design: .rounded, weight: .medium)
+    static let sectionLabel = Font.system(.footnote, design: .default, weight: .medium)
     static let sectionKerning: CGFloat = 0.8
 
     /// Any number the app states as a fact about your day: the win tally, a

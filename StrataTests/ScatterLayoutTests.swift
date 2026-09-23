@@ -160,10 +160,29 @@ struct ScatterLayoutTests {
             #expect(tidy.count == count)
             #expect(tidy.allSatisfy { $0.angle == 0 }, "a tidied win is still leaning")
 
+            // **This asserted one width, and the assertion WAS the bug.**
+            //
+            // Updated 2026-09-22, not relaxed. The owner: "make sure the
+            // different sizes are shown, and inside the folders it is nice
+            // and organised." Forcing every card to a single column was
+            // what made a 1x1 and a 2x2 identical, so the test was pinning
+            // the defect it was written beside.
+            //
+            // What "organised" actually means here is still checked, and
+            // more of it than before: a card is either ONE column or the
+            // FULL width — never a third, arbitrary size — every card starts
+            // on one of the two column origins, nothing leans, and nothing
+            // overlaps. That is a grid. One width was never the property
+            // that made it one.
+            let column = (Self.width - ScatterLayout.gutter) / 2
+            let allowed = Set([Int(column.rounded()), Int(Self.width.rounded())])
             let widths = Set(tidy.map { Int($0.frame.width.rounded()) })
-            #expect(widths.count == 1, "organised cards are not all one width")
+            #expect(widths.isSubset(of: allowed),
+                    "a card is \(widths) wide, which is neither a column nor the full width")
             let columns = Set(tidy.map { Int($0.frame.minX.rounded()) })
             #expect(columns.count <= 2, "there are \(columns.count) columns, not two")
+            #expect(columns.isSubset(of: [0, Int((column + ScatterLayout.gutter).rounded())]),
+                    "a card starts at \(columns), which is not a column origin")
 
             for i in tidy.indices {
                 for j in tidy.indices where j > i {

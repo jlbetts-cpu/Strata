@@ -130,7 +130,7 @@ struct TowerWidgetView: View {
                 .font(StrataFont.size(30))
                 .foregroundStyle(.white)
             Text(snapshot.today == 1 ? "win" : "wins")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
                 .foregroundStyle(.white.opacity(0.85))
         }
         .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
@@ -148,7 +148,7 @@ struct TowerWidgetView: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 30, height: 30)
             Text(snapshot.total == 0 ? "Your first win goes here" : "Nothing yet today")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -166,10 +166,10 @@ struct TowerWidgetView: View {
                 Text(StrataFont.digits(snapshot.today))
                     .font(StrataFont.size(16))
                 Text("today")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .default))
             }
             Text(secondLine)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

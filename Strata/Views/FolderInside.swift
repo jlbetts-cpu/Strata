@@ -167,7 +167,12 @@ struct FolderInside: View {
                 .frame(width: width, height: ScatterLayout.height(placed),
                        alignment: .topLeading)
                 .padding(.horizontal, GridConstants.gapWide)
-                .padding(.bottom, 80)
+                // **The caller's inset, not a guessed 80.** `bottomInset`
+                // was declared, documented as "room for the tab bar, when
+                // there is one under this", and then never read — so the
+                // last card ran under the bar whatever the caller passed.
+                // Photographed on Home, where the bar is 96.
+                .padding(.bottom, max(bottomInset, 24) + GridConstants.gapWide)
             }
         }
     }

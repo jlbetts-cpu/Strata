@@ -299,8 +299,26 @@ struct MainAppView: View {
     /// The camera stays pinned to `.dark` and that is not an exception to the
     /// rule, it is the rule: a viewfinder is a dark room whatever the phone is
     /// set to, and its chrome is white type over a live image in both.
+    ///
+    /// **Home is pinned to `.light`, and that is new.** The owner, starting
+    /// the Home redesign: "I think we go light mode, like for the top a warm
+    /// premium white... I just want the bottom part to be like that dark
+    /// part just like the camera and the rest a nice clean light mode vibe."
+    ///
+    /// It is the same argument the camera's `.dark` already makes, pointed
+    /// the other way: a viewfinder is a dark room whatever the phone is set
+    /// to, and Home is a warm white page whatever the phone is set to,
+    /// because the warm white IS the design rather than an absence of dark.
+    /// Memories still follows the system — the honest state of a redesign
+    /// that is working down the app one screen at a time, and the seam is
+    /// visible on purpose rather than hidden by converting a screen nobody
+    /// has looked at yet.
     private static func scheme(for tab: StrataTab) -> ColorScheme? {
-        tab == .camera ? .dark : nil
+        switch tab {
+        case .camera: return .dark
+        case .tower:  return .light
+        default:      return nil
+        }
     }
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
@@ -590,10 +608,27 @@ struct MainAppView: View {
             // is. One glyph in two states says "here" without needing the
             // label, the colour or the pill to say it as well — and it is what
             // every tab bar on the platform does, so it needs no learning.
+            // **Glyphs, with no word under them.**
+            //
+            // The owner: "we are no longer going to need the words under the
+            // icons, and the Home needs a home icon."
+            //
+            // A `Tab` label containing no `Text` produces a bar item with no
+            // title, which is the whole mechanism — there is no "hide the
+            // labels" switch, and pushing the text off-screen with
+            // `titlePositionAdjustment` is the trick that breaks the next
+            // time the bar is redrawn. The name moves to
+            // `accessibilityLabel`, so VoiceOver still says "Home" while the
+            // bar shows a house.
+            //
+            // Three destinations with one glyph each is the case where this
+            // works: Safari, Photos and Camera all do it, and a label under a
+            // house is the interface explaining a picture of a house.
             Tab(value: StrataTab.tower) {
                 towerTabRoot
-                        } label: {
-                Label("Wins", systemImage: selectedTab == .tower ? "square.stack.fill" : "square.stack")
+            } label: {
+                Image(systemName: selectedTab == .tower ? "house.fill" : "house")
+                    .accessibilityLabel("Home")
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -616,13 +651,52 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
+                Image(systemName: selectedTab == .camera ? "camera.fill" : "camera")
+                    .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
-                Label("Memories", systemImage: StrataTab.memories.icon)
+                Image(systemName: StrataTab.memories.icon)
+                    .accessibilityLabel("Memories")
             }
+            // MARK: - The bar is light under a light page, and cannot be
+            // made otherwise without replacing it
+            //
+            // The owner asked for it dark: "I just want the bottom part to be
+            // like that dark part just like the camera and the rest a nice
+            // clean light mode vibe." It is not dark, and this is the
+            // measured reason rather than an omission.
+            //
+            // **Four ways, all photographed on iOS 26.3:**
+            //
+            // 1. `.toolbarColorScheme(.dark, for: .tabBar)` — no effect. This
+            //    file already recorded the same result once, from the last
+            //    time somebody needed this bar to be a colour it did not
+            //    want to be.
+            // 2. `UITabBar.appearance().overrideUserInterfaceStyle = .dark`
+            //    in `StrataApp.init` — no effect. The appearance proxy does
+            //    not carry the property.
+            // 3. The same override set on the BAR INSTANCE, found by walking
+            //    the responder chain from inside the tab's own content — the
+            //    bar was found (an instrumented miss never fired) and the
+            //    property was set. No effect.
+            // 4. A `UITabBarAppearance` with `configureWithOpaqueBackground`,
+            //    a black `backgroundColor` and `backgroundEffect = nil`, set
+            //    on that instance. **Half of it applied**, which is the
+            //    finding: the item tints changed (the selected glyph went
+            //    white and vanished against the light bar) and the BACKGROUND
+            //    did not move at all. Liquid Glass owns the bar's background
+            //    and renders it from the window's appearance; nothing in the
+            //    public API reaches it.
+            //
+            // So a dark bar means not using the system bar: hiding it and
+            // drawing a dark pill with our own three buttons. That is a real
+            // piece of work — it is the thing every deep link, every
+            // programmatic tab change and the camera's full-screen cover
+            // travel through, and this file has three paragraphs about how
+            // badly that goes wrong. It is his call to make, not one to slip
+            // in beside a redesign of the page above it.
         }
         // The window's appearance, changed without an animation.
         //
@@ -650,6 +724,19 @@ struct MainAppView: View {
         // through that binding on appear and overwrote anything set during
         // setup.
         .preferredColorScheme(windowScheme)
+        // **The bar stays dark while Home is light.**
+        //
+        // The owner: "I just want the bottom part to be like that dark part
+        // just like the camera and the rest a nice clean light mode vibe."
+        //
+        // Worth saying plainly: the black band under the reference he sent is
+        // Mobbin's own watermark, not that app's tab bar — Givingli's bar is
+        // white. But the thing he is asking for stands on its own and is
+        // better than what the reference actually does. The bar is the one
+        // piece of chrome every tab shares, and the camera already forces it
+        // dark; making it dark everywhere means it stops changing colour
+        // underneath you when you move between tabs, which is the flicker
+        // this file already has three paragraphs about.
         .onChange(of: selectedTab) { _, newTab in
             var transaction = Transaction()
             transaction.disablesAnimations = true
@@ -785,7 +872,7 @@ struct MainAppView: View {
         // at full size, the way Dynamic Type layouts stack at large sizes.
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                headerCount
+                headerTitle
                 Spacer(minLength: 0)
                 headerReplayPill
                 headerAdd
@@ -793,7 +880,7 @@ struct MainAppView: View {
             }
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    headerCount
+                    headerTitle
                     Spacer(minLength: 0)
                     headerAdd
                     headerPlan
@@ -803,30 +890,71 @@ struct MainAppView: View {
         }
         .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
         .accessibilityElement(children: .combine)
-        // Constrained to the GRID's width, not the page's.
+        // **The page's width, not the tower grid's.**
         //
-        // The tower is leading-aligned inside the padded page, and four
-        // columns rarely divide the remaining width exactly — so the grid ends
-        // a couple of points short of the page's trailing padding. Padding the
-        // header by `hPad` on both sides therefore put the share button past
-        // the tower's right edge. Measured: tower right 383.7pt, button right
-        // 386pt. Giving the header the grid's own width lands both on the same
-        // line whatever the screen.
-        .frame(width: towerGridWidth, alignment: .leading)
-        .padding(.leading, hPad)
+        // The owner: "the + and plan button aren't staying on the right side
+        // for some reason."
+        //
+        // They were pinned to `towerGridWidth`, which is four column widths
+        // plus their gaps — correct when a tower stood under this header and
+        // the buttons had to land on its right edge rather than the page's.
+        // There is no tower under it now, and worse, `currentColW` is written
+        // by a `geometryTracker` that lives in the tower's own content: with
+        // Home in its place nothing sets it, so the header was being framed
+        // to a stale width and the two buttons sat wherever that landed —
+        // measured at 700pt of a 1206pt screen.
+        //
+        // Home is a full-bleed page, so its header is the page: margin to
+        // margin, which is also where the Recents label under it sits.
+        .padding(.horizontal, hPad)
         .frame(maxWidth: .infinity, alignment: .leading)
         // Shared with every other screen's title — see `headerTopPadding`.
         // Works out at the 4pt this used to hard-code; the other headers move
         // to meet it.
         .padding(.top, GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral))
-        // Air between the count and the top of a tall tower. Without it a
-        // tower that reaches the top of the scroll runs straight into the
-        // number and the page reads as crowded.
-        .padding(.bottom, 20)
+        // Air under the title. It was 20, which was the gap a tall tower
+        // needed under a numeral; Home's next line is a section heading, and
+        // a heading wants to belong to the title above it rather than float
+        // between the two.
+        .padding(.bottom, 10)
+    }
+
+    /// **The screen's name, and the screen is called Home.**
+    ///
+    /// The owner: "change the Wins to a pretty serif for Home to bring in the
+    /// new Apollo brand."
+    ///
+    /// **The count went with it, and nothing was lost.** This was the tally —
+    /// a big drawn numeral and the word "wins" — and that number is now under
+    /// today's folder on the Recents row, six points lower, next to the
+    /// object it counts. Two labels saying the same thing is one of them
+    /// being noise, and the same argument took the count OFF the folder a
+    /// week ago when the header was the one that had it. The header is not
+    /// the one that has it any more.
+    ///
+    /// It also lets the page be a page. "Wins" plus a number is a screen
+    /// about a metric; "Home" is a screen you live on, which is what he is
+    /// building — "since we are turning the Wins page into like an actual
+    /// home page."
+    private var headerTitle: some View {
+        Text("Home")
+            .font(Typography.screenTitleSerif)
+            .foregroundStyle(AppColors.inkPrimary)
+            // A serif's own sidebearing is wider than a sans's, so a title
+            // aligned to the grid still LOOKS indented beside a folder whose
+            // colour goes to its edge. The same optical inset the tally
+            // numeral needed, for the same reason.
+            .padding(.leading, -2)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// The count and the word for what it counts. Never wrapped: at
     /// accessibility sizes beside the replay pill, "12" broke onto two lines.
+    ///
+    /// **Unused since Home took the header**, and kept for the same reason
+    /// `towerContent` is: the redesign is new and being able to put the
+    /// tally back is worth a warning.
     @ViewBuilder
     private var headerCount: some View {
         Text(verbatim: StrataFont.digits(towerVM.placedBlocks.count))
@@ -1169,9 +1297,9 @@ struct MainAppView: View {
         // `towerContent` is deliberately left in place and unused. This is
         // the app's home screen and the replacement is new; being able to put
         // the tower back is worth a warning about an unused function.
-        return WinsFolderView(blocks: towerVM.placedBlocks,
-                              onOpenWin: { expandedBlockID = $0 },
-                              isOpenExternally: $folderIsOpen)
+        return HomeView(todayBlocks: towerVM.placedBlocks,
+                        onOpenWin: { expandedBlockID = $0 },
+                        isOpenExternally: $folderIsOpen)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.
@@ -1183,7 +1311,10 @@ struct MainAppView: View {
             // which is the frosted band that belongs to blocks and to nothing
             // else. The tower stands on the page's own ground with the tab
             // bar directly beneath it, and that is the whole page.
-            .background { WarmBackground().ignoresSafeArea() }
+            // Home draws its own two grounds — the camera's black, with a
+            // warm white sheet over the top of it. See `HomeView.lightSheet`.
+            // This is only what shows if that view ever fails to fill.
+            .background { Grey.g950.ignoresSafeArea() }
             // Tapping a block opens the same sheet that made it.
             //
             // It used to expand into `BlockExpansionCard` — a floating card
