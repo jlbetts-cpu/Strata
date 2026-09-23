@@ -24,11 +24,34 @@ struct FolderLabView: View {
         ("Sage", Color(red: 0.40, green: 0.50, blue: 0.42))
     ]
 
-    private var photos: [ScatterWin] {
-        ["LookPreview", "DemoPhoto4", "DemoPhoto11"].enumerated().compactMap { i, name in
-            guard let image = UIImage(named: name) else { return nil }
-            return ScatterWin(id: name, image: image, size: .small, title: "Win \(i + 1)")
-        }
+    /// **Real state, so a win can actually arrive.**
+    ///
+    /// It was a computed constant, which meant the lab could show the folder
+    /// holding three photographs and could never show one being PUT IN. The
+    /// drop animation is the thing most likely to be wrong and was the one
+    /// thing here that could not be looked at — the app's own `-strataAutoWin`
+    /// opens the add sheet over the top of it, and a screenshot burst catches
+    /// a half-second animation about twice.
+    @State private var photos: [ScatterWin] = FolderLabView.startingPhotos
+
+    private static let names = ["LookPreview", "DemoPhoto4", "DemoPhoto11",
+                                "DemoPhoto9", "DemoPhoto2", "DemoPhoto6"]
+    private static let sizes: [BlockSize] = [.small, .medium, .small, .hard, .small, .medium]
+
+    private static var startingPhotos: [ScatterWin] {
+        (0..<3).compactMap { made(index: $0, id: "seed-\($0)") }
+    }
+
+    private static func made(index: Int, id: String) -> ScatterWin? {
+        guard let image = UIImage(named: names[index % names.count]) else { return nil }
+        return ScatterWin(id: id, image: image, size: sizes[index % sizes.count],
+                          title: "Win \(index + 1)")
+    }
+
+    /// Newest first, which is the order `HomeView` hands the folder.
+    private func addWin() {
+        guard let win = Self.made(index: photos.count, id: "win-\(UUID().uuidString)") else { return }
+        photos.insert(win, at: 0)
     }
 
     var body: some View {
@@ -83,7 +106,10 @@ struct FolderLabView: View {
     private var events: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                eventButton("Add win", .winAdded) { engine.contents.count += 1 }
+                eventButton("Add win", .winAdded) {
+                    engine.contents.count += 1
+                    addWin()
+                }
                 eventButton("Rush", .winRush) { engine.contents.count += 4 }
                 eventButton("Shake", .shaken)
                 eventButton("Poke", .poked)

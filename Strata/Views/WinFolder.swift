@@ -483,11 +483,27 @@ struct WinFolder: View {
         let open = openAmount
         let fan = 0.30 + 0.70 * openAmount
         return ZStack {
-            ForEach(shown, id: \.offset) { index, win in
-                // The fan opens from the middle outwards, oldest furthest
-                // back and widest out, so the newest sits square at the front.
-                let depth = Double(shown.count - 1 - index)
-                let spread = depth / Double(max(shown.count - 1, 1))
+            ForEach(shown, id: \.element.id) { index, win in
+                // **The newest is at the front, and it was at the back.**
+                //
+                // `contents` arrives newest first — the owner's call, and the
+                // same order the tower put new blocks on top in. This read
+                // `shown.count - 1 - index`, which was written for a
+                // list that ran the other way: it put the win you had just
+                // logged furthest back in the fan and the oldest of the five
+                // square on top. Nobody would have described it that way and
+                // it is exactly the wrong way round for a folder you have
+                // just put something into.
+                //
+                // Index 0 is now square, upright and in front, and the older
+                // ones fan out behind it.
+                //
+                // **Keyed by the win, not by its position.** `id: \.offset`
+                // gave card slot 0 the same identity whatever win was in it,
+                // so a new win arriving was a CHANGE to an existing card
+                // rather than an insertion — nothing could animate, because
+                // as far as SwiftUI knew nothing had arrived.
+                let spread = Double(index) / Double(max(shown.count - 1, 1))
                 let side: Double = index % 2 == 0 ? -1 : 1
                 // **Photographs, not thumbnails.**
                 //
@@ -545,10 +561,32 @@ struct WinFolder: View {
                 .offset(x: CGFloat(side) * CGFloat(spread) * fan * w * (0.12 + 0.07 * fullness),
                         y: topOfStack(in: h) + cardHeight / 2 - h / 2
                             + CGFloat(spread) * h * 0.02)
-                .zIndex(Double(index))
+                .zIndex(Double(shown.count - index))
+                // **It drops in.**
+                //
+                // The owner: "when you take the photo or add a win there
+                // needs to be an animation after, of the photo plopping in
+                // the folder... and it needs to look good while doing it."
+                //
+                // A new win comes from above the folder, a touch too big and
+                // a touch turned, and settles square on the front of the
+                // stack while the four behind it shuffle out of the way. The
+                // shuffle is not extra work: every other card's spread
+                // depends on how many there are, so they move because the
+                // stack genuinely changed, not because something told them
+                // to look busy.
+                .transition(.asymmetric(
+                    insertion: .offset(y: -h * 0.42)
+                        .combined(with: .scale(scale: 1.12))
+                        .combined(with: .opacity),
+                    removal: .opacity))
             }
         }
         .frame(width: w, height: h, alignment: .center)
+        // The stack settles rather than cutting. Keyed on which wins are in
+        // it, so a photograph finishing its decode does not set it off.
+        .animation(.spring(response: 0.52, dampingFraction: 0.74),
+                   value: contents.map(\.id))
         // **Flattened to one texture.**
         //
         // Five cards, each with four blend-mode blooms, a blur and a grain
