@@ -64,6 +64,11 @@ struct HomeView: View {
     @State private var openDay: RecentDay?
     @State private var openPhotos: [String: UIImage] = [:]
     @State private var customising: RecentDay?
+    /// The win being looked at as a print, and the photograph for it at a
+    /// size worth looking at. See `WinPrintView`.
+    @State private var openWin: ScatterWin?
+    @State private var printImage: UIImage?
+    @State private var printCrop: CGPoint = .zero
     /// The day cut-outs, by day. See `DayStickerService` — most days have
     /// none, and the service remembers that so a day is examined once.
     @State private var stickers: [String: UIImage] = [:]
@@ -529,9 +534,7 @@ struct HomeView: View {
                          wins: openWins(day),
                          tint: store.style(for: day.id).tint(for: day.id),
                          onClose: close,
-                         onOpenWin: { id in
-                             if let uuid = UUID(uuidString: id) { onOpenWin(uuid) }
-                         },
+                         onOpenWin: { id in showPrint(id: id, in: day) },
                          showsTitle: true,
                          bottomInset: 96)
                     // **It comes out of the folder you pressed.**
@@ -552,7 +555,70 @@ struct HomeView: View {
                 .transition(.scale(scale: 0.34, anchor: openAnchor(day))
                     .combined(with: .opacity))
                 .task(id: day.id) { await loadOpen(day) }
+                .overlay {
+                    if let win = openWin {
+                        WinPrintView(title: win.title,
+                                     day: day.title(),
+                                     win: win,
+                                     image: printImage,
+                                     crop: printCrop,
+                                     onClose: closePrint,
+                                     onEdit: {
+                                         let id = win.id
+                                         closePrint()
+                                         if let uuid = UUID(uuidString: id) { onOpenWin(uuid) }
+                                     })
+                            .transition(.opacity)
+                    }
+                }
         }
+    }
+
+    /// **Opens a win as a print, and fetches a photograph worth printing.**
+    ///
+    /// The inside of a folder holds 640px thumbnails, which is right for a
+    /// card and short for a print: the print is the page's width less its
+    /// margins, about 350pt, which is over a thousand pixels on a phone. This
+    /// asks for one properly and shows the card's copy in the meantime, so
+    /// the print is never empty while it waits.
+    private func showPrint(id: String, in day: RecentDay) {
+        let win = openWins(day).first { $0.id == id }
+        guard let win else { return }
+        printImage = win.image
+        printCrop = crop(for: id, in: day)
+        HapticsEngine.lightTap()
+        withAnimation(.easeOut(duration: 0.2)) { openWin = win }
+        Task { @MainActor in
+            guard let name = fileName(for: id, in: day) else { return }
+            if let full = await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: 1200),
+               openWin?.id == id {
+                printImage = full
+            }
+        }
+    }
+
+    private func closePrint() {
+        HapticsEngine.lightTap()
+        withAnimation(.easeIn(duration: 0.16)) { openWin = nil }
+    }
+
+    /// Where the owner dragged the frame, so a print is cropped where he
+    /// cropped it. Nil is the middle, which is every win nobody moved.
+    private func crop(for id: String, in day: RecentDay) -> CGPoint {
+        if day.isToday, let block = todayBlocks.first(where: { $0.id.uuidString == id }) {
+            return CGPoint(x: block.look.cropX ?? 0, y: block.look.cropY ?? 0)
+        }
+        if let log = recentLogs.first(where: { $0.id.uuidString == id }) {
+            return CGPoint(x: log.cropPositionX ?? 0, y: log.cropPositionY ?? 0)
+        }
+        return .zero
+    }
+
+    private func fileName(for id: String, in day: RecentDay) -> String? {
+        if day.isToday, let block = todayBlocks.first(where: { $0.id.uuidString == id }) {
+            return block.look.imageFileName
+        }
+        return recentLogs.first { $0.id.uuidString == id }?.imageFileName
     }
 
     /// The page's own measurements, as a modifier so `body` does not have to
