@@ -28,15 +28,29 @@ struct ApolloGround: View {
     var body: some View {
         ZStack(alignment: .top) {
             Grey.g950
-            VStack(spacing: 0) {
-                UnevenRoundedRectangle(topLeadingRadius: 0,
-                                       bottomLeadingRadius: Self.radius,
-                                       bottomTrailingRadius: Self.radius,
-                                       topTrailingRadius: 0,
-                                       style: .continuous)
-                    .fill(HomeGround.top)
-                Color.clear.frame(height: GridConstants.bottomStrip)
-            }
+            ApolloSheet()
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+/// **The warm white sheet on its own**, without the dark behind it.
+///
+/// Separate because Home drags it: the sheet and the page's content lift
+/// together to uncover the feed, while the black stays where it is. A ground
+/// that draws both cannot do that, and `ApolloGround` is still the right
+/// thing for every screen that does not move.
+struct ApolloSheet: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            UnevenRoundedRectangle(topLeadingRadius: 0,
+                                   bottomLeadingRadius: ApolloGround.radius,
+                                   bottomTrailingRadius: ApolloGround.radius,
+                                   topTrailingRadius: 0,
+                                   style: .continuous)
+                .fill(HomeGround.top)
+            Color.clear.frame(height: GridConstants.bottomStrip)
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
@@ -49,5 +63,44 @@ extension View {
     func apolloGround() -> some View {
         background { ApolloGround() }
             .safeAreaPadding(.bottom, GridConstants.bottomStrip)
+    }
+}
+
+/// **How far Home's page has been lifted, for the one view that is not in it.**
+///
+/// The header is a `safeAreaInset` on the tab rather than part of `HomeView`,
+/// so it cannot simply take the same `.offset`. A binding would work and
+/// would be wrong: the value changes every frame of a drag, and a binding
+/// writes into the TAB's state, so the whole tab — the folders, the shelf,
+/// the grid — would re-evaluate sixty times a second to move one row of
+/// chrome.
+///
+/// An `@Observable` read only by `LiftedHeader` invalidates only
+/// `LiftedHeader`.
+@Observable
+final class HomeLift {
+    var offset: CGFloat = 0
+    /// **Whether enough of the feed is showing that the screen is now dark.**
+    ///
+    /// Separate from `offset` on purpose, and it is the difference between a
+    /// value that changes sixty times a second and one that changes twice per
+    /// interaction. The window's appearance is driven off THIS: anything
+    /// reading `offset` re-evaluates on every frame of a drag, and the window
+    /// scheme is the last thing that should.
+    var feedShown: Bool = false
+}
+
+/// Applies `HomeLift` to a header without the rest of the screen having to
+/// know about it. See `HomeLift` for why this is its own view.
+struct LiftedHeader<Content: View>: View {
+    var lift: HomeLift
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .offset(y: -lift.offset)
+            // Gone well before it reaches the top, so it does not slide up
+            // under the clock and out through the notch.
+            .opacity(lift.offset > 0 ? max(0, 1 - Double(lift.offset / 120)) : 1)
     }
 }

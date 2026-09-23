@@ -38,6 +38,8 @@ struct HomeView: View {
     /// fires once at launch and never again. This is what tells Home it has
     /// just been arrived at.
     var isActive: Bool = true
+    /// Where the header should sit while the page is being lifted.
+    var headerLift: HomeLift = HomeLift()
 
     /// **Its own query, over its own window, on purpose.**
     ///
@@ -79,6 +81,15 @@ struct HomeView: View {
     @State private var mood = FolderMood()
     /// How far the page has settled after arriving on it, 0 to 1.
     @State private var arrival: CGFloat = 1
+    /// How far the light page has been pulled up, in points, uncovering the
+    /// feed underneath. Settled; the live part of a drag is `pulling`.
+    @State private var lifted: CGFloat = 0
+    @GestureState private var pulling: CGFloat = 0
+    /// Told to the header, which is not in this view — it is a
+    /// `safeAreaInset` on the tab — and has to travel with the page it
+    /// belongs to. An `@Observable` rather than a binding so that writing it
+    /// sixty times a second invalidates the header alone and not the whole
+    /// tab. See `LiftedHeader`.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The camera's own corner. See `CameraView.cornerRadius`.
@@ -88,12 +99,14 @@ struct HomeView: View {
          onOpenWin: @escaping (UUID) -> Void = { _ in },
          isOpenExternally: Binding<Bool>,
          tabGlyphTint: UIColor? = nil,
-         isActive: Bool = true) {
+         isActive: Bool = true,
+         headerLift: HomeLift = HomeLift()) {
         self.todayBlocks = todayBlocks
         self.onOpenWin = onOpenWin
         self._isOpenExternally = isOpenExternally
         self.tabGlyphTint = tabGlyphTint
         self.isActive = isActive
+        self.headerLift = headerLift
         let start = Calendar.current.date(byAdding: .day, value: -(Self.window - 1), to: Date()) ?? Date()
         let key = DateUtils.dateString(from: start)
         _recentLogs = Query(filter: #Predicate<HabitLog> { log in
@@ -109,8 +122,12 @@ struct HomeView: View {
     /// working out again: which days are on the row, and which wins are in
     /// today's. Cheap to compute and stable while nothing has happened.
     private var signature: String {
-        days.map(\.id).joined(separator: ",")
-            + "#" + todayBlocks.map(\.id.uuidString).joined(separator: ",")
+        // **Off the raw inputs, not off `days`.** It used to map over the
+        // computed shelf, which meant asking for the signature rebuilt the
+        // shelf — three times per body evaluation, and the shelf is the
+        // expensive thing here.
+        "\(todayKey)#\(recentLogs.count)#"
+            + todayBlocks.map(\.id.uuidString).joined(separator: ",")
     }
 
     /// **Today first, then the days behind it, newest to oldest.**
@@ -120,7 +137,22 @@ struct HomeView: View {
     /// thing this app does not do. Today is the one exception and is always
     /// present, because an empty folder for today is not a reproach, it is
     /// the place the next win goes.
-    private var days: [RecentDay] {
+    /// **The shelf, computed when something changes rather than per frame.**
+    ///
+    /// It was a computed property, which was fine while the page only
+    /// re-evaluated on real changes. Dragging the page up re-evaluates
+    /// `body` on EVERY frame — the offset depends on the gesture — and a
+    /// computed `days` would regroup and re-sort a fortnight of logs sixty
+    /// times a second under a finger. Held in state and rebuilt on the two
+    /// things that actually change it.
+    @State private var shelf: [RecentDay] = []
+
+    private func rebuildShelf() {
+        let next = computeDays()
+        if next != shelf { shelf = next }
+    }
+
+    private func computeDays() -> [RecentDay] {
         var byDate: [String: [HabitLog]] = [:]
         for log in recentLogs where log.habit != nil && log.dateString != todayKey {
             byDate[log.dateString, default: []].append(log)
@@ -139,6 +171,9 @@ struct HomeView: View {
                               isToday: true)
         return [today] + past
     }
+
+    /// What the row is handed. See `rebuildShelf`.
+    private var days: [RecentDay] { shelf }
 
     private func win(from log: HabitLog) -> ScatterWin? {
         guard let habit = log.habit else { return nil }
@@ -374,7 +409,14 @@ struct HomeView: View {
         PerfProbe.count("HomeView")
         #endif
         return ZStack {
-            ApolloGround()
+            // **The feed's ground, and it does not move.** The light page
+            // slides up off it; a dark panel that moved too would be a second
+            // screen arriving rather than this one being lifted away.
+            Grey.g950.ignoresSafeArea()
+            feedBehind
+
+            ApolloSheet()
+                .offset(y: -revealed)
 
             VStack(alignment: .leading, spacing: 0) {
                 // Recents sits at the top of the sheet and the room under it
@@ -415,9 +457,25 @@ struct HomeView: View {
                 // screen shares. This keeps the CONTENT clear of it.
                 Color.clear.frame(height: GridConstants.bottomStrip)
             }
+            .offset(y: -revealed)
 
             inside
         }
+        // **The pull lives on the whole page, simultaneously.**
+        //
+        // It was attached to the sheet and to the layer behind it, on the
+        // reasoning that a finger on the Recents row should scroll the row
+        // and a finger on the page should lift it. Filmed: the open worked
+        // and the close never did, because a `VStack` holding a `Spacer`
+        // inside a `ZStack` is only as tall as its content — the layer that
+        // was supposed to catch the downward drag was fifty points of
+        // wordmark at the top of the screen.
+        //
+        // `simultaneousGesture` on the container gets every touch without
+        // taking any away: the row still scrolls, and the guard below means a
+        // horizontal flick never lifts the page.
+        .contentShape(Rectangle())
+        .simultaneousGesture(pull)
         .modifier(HomePageWiring(frames: $folderFrames, size: $pageSize))
         // **One signature for both, and it has to include today's wins.**
         //
@@ -428,9 +486,15 @@ struct HomeView: View {
         // somebody would actually watch for. `DayStickerService` already
         // keys its cache on the day's file names, so re-running the loop
         // costs nothing for the days that have not moved.
+        .onChange(of: signature) { _, _ in rebuildShelf() }
+        // The photographs arriving change what the folders hold, so the shelf
+        // is rebuilt with them. Keyed on the COUNT rather than the dictionary
+        // so an unchanged reload costs nothing.
+        .onChange(of: peeks.count) { _, _ in rebuildShelf() }
         .task(id: signature) { await loadPeeks() }
         .task(id: signature) { await loadStickers() }
         .onAppear {
+            rebuildShelf()
             mood.contents = FolderContents(count: todayBlocks.count)
             store.prune(before: FolderStyleStore.cutoff(from: Date()))
             #if DEBUG
@@ -585,6 +649,116 @@ struct HomeView: View {
             return block.look.imageFileName
         }
         return recentLogs.first { $0.id.uuidString == id }?.imageFileName
+    }
+
+    // MARK: - Pulling the page up
+
+    /// How far the light page is lifted right now: what has settled plus
+    /// whatever the finger is doing, clamped so it can neither go below the
+    /// bottom nor past the top.
+    private var revealed: CGFloat {
+        min(max(lifted + pulling, 0), maxLift)
+    }
+
+    /// **Far enough that the sheet clears the screen, which is more than the
+    /// page is tall.**
+    ///
+    /// This was `pageSize.height`, and `pageSize` measures the CONTENT area —
+    /// the screen less the header's safe-area inset and the tab bar. Lifting
+    /// by exactly that left a band of sheet the height of the header still on
+    /// screen, with the header sitting on it: photographed, the page appeared
+    /// to stop halfway and stay there. The extra is the header plus the
+    /// status bar with room to spare; there is nothing above the top of the
+    /// screen for it to overshoot into.
+    private var maxLift: CGFloat { max(pageSize.height, 1) + 260 }
+
+    /// **The page lifts off to show what is under it.**
+    ///
+    /// The owner: "I think we make this home draggable, like the light part,
+    /// and when you drag it up it goes away revealing the Apollo wordmark in
+    /// the corner, and this will be our feed, that dark mode feed."
+    ///
+    /// **On the sheet, not on the page.** The gesture is attached to the
+    /// white sheet BEHIND the content, so a finger on the Recents row scrolls
+    /// the row and a finger on the empty page below it lifts the page. Put on
+    /// the container it would have to out-argue the row's own scroll, which
+    /// is the fight that makes a drawer feel like it is stealing gestures.
+    ///
+    /// **It also checks that the drag is vertical.** A horizontal flick that
+    /// clips the sheet should not start lifting the page a few points.
+    private var pull: some Gesture {
+        DragGesture(minimumDistance: 14)
+            .updating($pulling) { value, state, _ in
+                guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                state = -value.translation.height
+                // **Told straight to the header, from inside the gesture.**
+                //
+                // This went through `.onChange(of: revealed)` and never
+                // fired once: `revealed` is a computed property, and the
+                // value SwiftUI compares it against is captured when the body
+                // that declared the modifier ran — which during a gesture is
+                // the same evaluation that produced the new value. Setting it
+                // here is the gesture telling the header where it is, which
+                // is the actual relationship.
+                let now = min(max(lifted + state, 0), maxLift)
+                headerLift.offset = now
+                // Flipped while the finger is still down, so the clock is
+                // already white by the time the page has cleared it. A
+                // boolean that changes once a drag, not a number that changes
+                // every frame.
+                let dark = now > 120
+                if headerLift.feedShown != dark { headerLift.feedShown = dark }
+            }
+            .onEnded { value in
+                guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                // **Where the finger was GOING, not where it stopped.** A
+                // flick that travels 40pt and is still moving fast should
+                // open; the same 40pt at rest should not. `predictedEnd` is
+                // the system's own projection of the throw, so the velocity
+                // is already in this number.
+                //
+                // **Nearest end, and that is a correction.** The threshold
+                // was 28% of the travel, measured from the bottom — which is
+                // fine opening and absurd closing: from fully open you had to
+                // drag 72% of the screen DOWN before it would shut. Filmed
+                // three times; it never closed once. Half the travel is the
+                // symmetric rule, and the projection is what lets a short
+                // fast flick still cross it.
+                let projected = lifted - value.predictedEndTranslation.height
+                let target: CGFloat = projected > maxLift * 0.5 ? maxLift : 0
+                if (target > 0) != (lifted > 0) { HapticsEngine.lightTap() }
+                headerLift.feedShown = target > 0
+                withAnimation(.spring(response: 0.44, dampingFraction: 0.88)) {
+                    lifted = target
+                    headerLift.offset = target
+                }
+            }
+    }
+
+    /// What the page uncovers: the app's name, and the room the feed goes in.
+    ///
+    /// **Empty on purpose, for now.** The owner: "we will get to the feed
+    /// part right after, just make sure to polish what we have already." The
+    /// wordmark is what he asked to be revealed and it is what is here; the
+    /// countdown, the floating faces and the posts land in this space.
+    private var feedBehind: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ApolloWordmark(height: 34, color: .white)
+                .padding(.leading, GridConstants.gapWide)
+                .padding(.top, GridConstants.gapItem)
+                // It arrives as the page clears it rather than sitting there
+                // the whole time under an opaque sheet: a mark you uncover
+                // reads as the app's own room, one already showing reads as
+                // something that was always behind a door.
+                .opacity(Double(min(revealed / max(maxLift * 0.35, 1), 1)))
+            Spacer(minLength: 0)
+        }
+        // **The whole screen, not just the wordmark.** A `VStack` with a
+        // `Spacer` inside a `ZStack` takes the height of its content, so this
+        // was about fifty points tall at the top of the page: the drag that
+        // closes the feed only worked if your thumb happened to land on the
+        // mark. Filmed it shut nowhere else.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// The page's own measurements, as a modifier so `body` does not have to

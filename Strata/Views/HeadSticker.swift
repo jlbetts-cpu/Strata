@@ -384,16 +384,33 @@ struct BlockCropOutline: View {
                 y: min(max(base.y + translation.height / max(size.height, 1), -range.height), range.height))
     }
 
-    static func crop(photo: CGSize, block size: BlockSize) -> CGRect {
+    /// **The part of a photograph a given FORMAT keeps**, as fractions of
+    /// the photograph.
+    ///
+    /// This used to take a `BlockSize`, because a block cropped the picture
+    /// to its own proportion and the window on the camera's review was
+    /// previewing that crop. Nothing crops to a block any more: the grid
+    /// inside a folder and the cards peeking out of one both show a
+    /// photograph at its OWN proportion, so the only place a crop still
+    /// happens is the print, which is one fixed format. The owner: "you are
+    /// going to have to change the crop showing when taking a photo as well."
+    ///
+    /// So the window previews `WinPrint.aspect` and the block no longer
+    /// enters into it. `crop(photo:block:)` stays for the tests that pin the
+    /// arithmetic itself.
+    static func crop(photo: CGSize, aspect: CGFloat) -> CGRect {
         let photoAspect = photo.width / max(photo.height, 1)
-        let blockAspect = size.cropAspectRatio
-        if blockAspect > photoAspect {
-            let height = photoAspect / blockAspect
+        if aspect > photoAspect {
+            let height = photoAspect / aspect
             return CGRect(x: 0, y: (1 - height) / 2, width: 1, height: height)
         } else {
-            let width = blockAspect / photoAspect
+            let width = aspect / photoAspect
             return CGRect(x: (1 - width) / 2, y: 0, width: width, height: 1)
         }
+    }
+
+    static func crop(photo: CGSize, block size: BlockSize) -> CGRect {
+        crop(photo: photo, aspect: size.cropAspectRatio)
     }
 }
 

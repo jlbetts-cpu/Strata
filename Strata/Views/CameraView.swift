@@ -715,7 +715,10 @@ struct CameraView: View {
                     // dimmed. It changes with the size you drew, and with
                     // where you drag it.
                     .overlay {
-                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size, block: drawnSize),
+                        // The print's format, not the block's. See
+                        // `BlockCropOutline.crop(photo:aspect:)`.
+                        BlockCropOutline(crop: BlockCropOutline.crop(photo: image.size,
+                                                                     aspect: WinPrint.aspect),
                                          offset: crop)
                     }
                     // Over the photograph's own frame, so the head's place and
@@ -726,7 +729,8 @@ struct CameraView: View {
                             placement: $sticker,
                             crop: $crop,
                             cropRange: BlockCropOutline.range(
-                                for: BlockCropOutline.crop(photo: image.size, block: drawnSize)),
+                                for: BlockCropOutline.crop(photo: image.size,
+                                                           aspect: WinPrint.aspect)),
                             look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
                     }
 

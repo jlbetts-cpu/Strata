@@ -284,6 +284,8 @@ struct MainAppView: View {
     /// never fired and the window stayed light behind a black viewfinder. The
     /// tab bar's icons came up black on black.
     @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.initialTab())
+    /// How far Home's page has been pulled up, so the header can go with it.
+    @State private var homeLift = HomeLift()
 
     /// The one place that decides. Both the initial value and every later
     /// change go through it, so they cannot disagree.
@@ -314,16 +316,17 @@ struct MainAppView: View {
     /// visible on purpose rather than hidden by converting a screen nobody
     /// has looked at yet.
     ///
-    /// **Home stays light with a folder open, and that is new again.** It was
-    /// pinned `.dark` while a folder was open, because the inside of a folder
-    /// was `Grey.g950` and a light status bar over black measured 1.03:1.
-    /// The inside is light now — the owner: "it should still be light" — so
-    /// the special case is gone rather than inverted. `folderIsOpen` stays
-    /// as a parameter because the header still hides on it.
-    private static func scheme(for tab: StrataTab, folderIsOpen: Bool = false) -> ColorScheme? {
+    /// **Light on Home, dark once the page is pulled up off the feed.**
+    ///
+    /// A folder opening no longer darkens anything — its inside is light now
+    /// — but dragging the page away uncovers `Grey.g950`, and a light status
+    /// bar over that is the same 1.03:1 clock nobody can read. Driven off
+    /// `HomeLift.feedShown`, which changes twice an interaction, rather than
+    /// off the offset, which changes every frame.
+    private static func scheme(for tab: StrataTab, feedShown: Bool = false) -> ColorScheme? {
         switch tab {
         case .camera: return .dark
-        case .tower:  return .light
+        case .tower:  return feedShown ? .dark : .light
         default:      return nil
         }
     }
@@ -748,18 +751,18 @@ struct MainAppView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                windowScheme = Self.scheme(for: newTab, folderIsOpen: folderIsOpen)
+                windowScheme = Self.scheme(for: newTab, feedShown: homeLift.feedShown)
             }
         }
-        // Opening a folder covers Home with the camera's black, so the
-        // window has to follow it or the status bar is unreadable. Same
-        // transaction treatment: this is not a state anything transitions
-        // through, so blending it reads as a hiccup.
-        .onChange(of: folderIsOpen) { _, open in
+        // Pulling Home's page up uncovers the camera's black, so the window
+        // has to follow it or the status bar is unreadable. Same transaction
+        // treatment: this is not a state anything transitions through, so
+        // blending it reads as a hiccup.
+        .onChange(of: homeLift.feedShown) { _, shown in
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                windowScheme = Self.scheme(for: selectedTab, folderIsOpen: open)
+                windowScheme = Self.scheme(for: selectedTab, feedShown: shown)
             }
         }
         // The tab bar is NOT rebuilt when leaving the camera.
@@ -865,7 +868,12 @@ struct MainAppView: View {
             // always in the same place, and the tower has nothing beneath it
             // at all.
             .safeAreaInset(edge: .top, spacing: 0) {
-                if !folderIsOpen { towerHeader.transition(.opacity) }
+                if !folderIsOpen {
+                    // The header belongs to Home's page, so it travels with
+                    // it when the page is dragged up. See `HomeLift`.
+                    LiftedHeader(lift: homeLift) { towerHeader }
+                        .transition(.opacity)
+                }
             }
             .animation(GridConstants.motionSmooth, value: folderIsOpen)
     }
@@ -1334,7 +1342,8 @@ struct MainAppView: View {
                         onOpenWin: { expandedBlockID = $0 },
                         isOpenExternally: $folderIsOpen,
                         tabGlyphTint: selectedTab == .memories ? nil : .white,
-                        isActive: selectedTab == .tower)
+                        isActive: selectedTab == .tower,
+                        headerLift: homeLift)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.

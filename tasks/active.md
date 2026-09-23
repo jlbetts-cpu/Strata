@@ -29,6 +29,28 @@ settled by being wrong first.
 - [ ] The lens code, RAW, and front-flash brightness (carried over, still
       true).
 
+## The test suite cannot be trusted on this machine right now
+
+Found 2026-09-23 and NOT diagnosed to a conclusion. The full run aborts and
+restarts repeatedly with `RPC timeout. Apparently deadlocked` out of the
+simulator's capture and audio stacks — `FigCaptureSourceSimulator`,
+`HALC_ProxyIOContext ... skipping cycle due to overload`. It survived a
+simulator reboot AND an erase. Individual suites pass: 54 tests across the
+seven that cover the folder, the print, the grid and the shutter ran green
+in 0.3s immediately after a full run had failed.
+
+One genuine-looking failure inside it is almost certainly not one: "Building
+and encoding a frame barely touches the CPU" measured 10.8ms against an 8ms
+budget, on a machine that had been building and running simulators for
+twelve hours. CLAUDE.md's own rule applies — timing gates read CPU load.
+Check it against `origin/main` on a quiet machine before touching the code it
+points at.
+
+`SoundEngineRestartTests` had its audio probe moved out of the suite trait as
+part of the diagnosis. That change stands on its own (a probe evaluated while
+the runner is preparing can abort every test; one inside a test cannot) but
+it did NOT fix this.
+
 ## Next, in the order it should happen
 
 **The social feed is the big one and it has its own document:
