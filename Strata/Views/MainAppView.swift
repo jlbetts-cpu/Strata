@@ -1335,7 +1335,8 @@ struct MainAppView: View {
         return HomeView(todayBlocks: towerVM.placedBlocks,
                         onOpenWin: { expandedBlockID = $0 },
                         isOpenExternally: $folderIsOpen,
-                        tabGlyphTint: selectedTab == .memories ? nil : .white)
+                        tabGlyphTint: selectedTab == .memories ? nil : .white,
+                        isActive: selectedTab == .tower)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.

@@ -33,6 +33,11 @@ struct HomeView: View {
     /// screen that is showing rather than on this one. See `TabBarGlyphs`.
     /// Home is always mounted, so this is where the one probe lives.
     var tabGlyphTint: UIColor? = nil
+    /// Whether Home is the tab you are looking at. **Not the same as being on
+    /// screen**: a `TabView` keeps every tab's content mounted, so `onAppear`
+    /// fires once at launch and never again. This is what tells Home it has
+    /// just been arrived at.
+    var isActive: Bool = true
 
     /// **Its own query, over its own window, on purpose.**
     ///
@@ -67,6 +72,8 @@ struct HomeView: View {
     @State private var folderFrames: [String: CGRect] = [:]
     @State private var pageSize: CGSize = .zero
     @State private var mood = FolderMood()
+    /// How far the page has settled after arriving on it, 0 to 1.
+    @State private var arrival: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The camera's own corner. See `CameraView.cornerRadius`.
@@ -75,11 +82,13 @@ struct HomeView: View {
     init(todayBlocks: [PlacedBlock],
          onOpenWin: @escaping (UUID) -> Void = { _ in },
          isOpenExternally: Binding<Bool>,
-         tabGlyphTint: UIColor? = nil) {
+         tabGlyphTint: UIColor? = nil,
+         isActive: Bool = true) {
         self.todayBlocks = todayBlocks
         self.onOpenWin = onOpenWin
         self._isOpenExternally = isOpenExternally
         self.tabGlyphTint = tabGlyphTint
+        self.isActive = isActive
         let start = Calendar.current.date(byAdding: .day, value: -(Self.window - 1), to: Date()) ?? Date()
         let key = DateUtils.dateString(from: start)
         _recentLogs = Query(filter: #Predicate<HabitLog> { log in
@@ -401,6 +410,24 @@ struct HomeView: View {
                                onOpen: open(_:),
                                onCustomise: { customising = $0 })
                         .padding(.top, GridConstants.gapItem)
+                        // **The page settles onto itself when you arrive.**
+                        //
+                        // The owner: "make sure the transition between tabs
+                        // is clean and effortless, I'm expecting some nice
+                        // animations coming in and out cleanly."
+                        //
+                        // A `TabView` cross-fades, which is quick and correct
+                        // and says nothing: filmed at 30fps the swap is two
+                        // frames, and Home simply IS there. Ten points of
+                        // rise over a quarter of a second is enough to read
+                        // as the page arriving and short enough that it is
+                        // finished before a thumb has left the bar.
+                        //
+                        // Only the content moves. The ground, the sheet and
+                        // its rounded corners are still, because they are the
+                        // page rather than what is on it — sliding those
+                        // would be the whole screen lurching.
+                        .offset(y: (1 - arrival) * 14)
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -449,6 +476,30 @@ struct HomeView: View {
             if new > old { mood.react(to: .winAdded) }
         }
         .onDisappear { mood.stopDrifting() }
+        // **Set it back, let a frame happen, THEN animate.**
+        //
+        // The first version did `arrival = 0` and `withAnimation { arrival = 1 }`
+        // in the same block, which SwiftUI batches into one update: the view
+        // never renders at 0, so the spring has nothing to travel from.
+        // Filmed and measured, the folders moved 2pt of an intended 14.
+        // The hop to the next main-actor turn is what gives it a frame to
+        // start from.
+        //
+        // **Only on arriving, never on leaving.** Resetting on deactivate
+        // made the page jump up 14pt while it was still cross-fading OUT,
+        // so the exit popped. The cross-fade carries the exit on its own;
+        // this only has to carry the entrance.
+        //
+        // **And only the offset.** Fading as well would be a second fade over
+        // the `TabView`'s own, which is two animations disagreeing about the
+        // same pixels. The swap is the system's; the settle is ours.
+        .onChange(of: isActive) { _, active in
+            guard active, !reduceMotion else { return }
+            arrival = 0
+            Task { @MainActor in
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) { arrival = 1 }
+            }
+        }
         .sheet(item: $customising) { day in
             FolderStyleSheet(title: day.title(),
                              dayKey: day.id,
