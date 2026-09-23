@@ -132,8 +132,13 @@ struct FolderInside: View {
         HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
             if showsTitle {
                 VStack(alignment: .leading, spacing: 2) {
+                    // The brand's own voice, the same as Home's. A day is
+                    // named in a serif on the page and was named in a sans
+                    // once you opened it, which is the sort of seam that
+                    // makes an app feel assembled rather than designed.
                     Text(title)
-                        .font(Typography.screenTitle)
+                        .font(Typography.screenTitleSerif)
+                        .tracking(-0.6)
                         .foregroundStyle(.white)
                     Text("\(wins.count) \(wins.count == 1 ? "win" : "wins")")
                         .font(Typography.bodySmall)
