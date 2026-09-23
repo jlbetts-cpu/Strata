@@ -1,59 +1,72 @@
-# Strata — Active Work
+# Apollo — Active Work
 
-## Done overnight (unverified — none of it has been compiled)
+Rewritten 2026-09-22. Everything the previous version described (five tabs,
+light-only, SF Pro Rounded, the tower grid) is gone; it is in `history.md`.
 
-- [x] **Wins button page, set as the home tab.** Tab order is now Wins, Tower,
-      Today, Plan, Insights. One button, a counter, a neutral grey block, naming
-      optional and available on every win chip.
-- [x] **Apollo block rim** ported onto the current block views — uniform white
-      border, crisp above the frosted band and blurred inside it, replacing the
-      flat 5pt bottom strip. `blockCornerRadius` 16 → 12.
-- [x] **Single light appearance.** `UIUserInterfaceStyle = Light` on both build
-      configs; 25 dark ternaries and 2 if/else blocks collapsed to their light
-      branch; 11 unused `colorScheme` declarations removed.
+## Where the app is
 
-## First thing when you wake
+Three tabs, glyphs only: **Home · Camera · Memories**.
 
-- [ ] **Build it.** Nothing above has been through a compiler — there is no Xcode
-      on the machine the agent runs on. If it fails, the whole night's work backs
-      out with `git revert -m 1 <merge sha>` and nothing else is affected.
+**Home** replaced the tower. A warm white sheet over the camera's black, a
+"Recents" shelf of one folder per day, every folder open, newest first. Read
+`## Home` in `CLAUDE.md` before touching it — most of what is settled there was
+settled by being wrong first.
 
-## The tower grid — needs a screenshot before anyone touches it
+578 tests green, Release builds for a device, branch `apollo-rename`.
 
-Jayden reported blocks sitting too high and ghost blocks off screen. That was
-never diagnosed, because the screenshot showing it came from a build that
-predated `b189dae` — a different tower implementation entirely.
+## Not verified on a device — the honest list
 
-Prime suspect, from reading `MainAppView` around the tower ScrollView:
+- [ ] **The day sticker's cut-out.** `VNGenerateForegroundInstanceMaskRequest`
+      cannot run in a simulator at all. The picking, scoring, caching and
+      placement are all tested; the lift is a device check. Run with a real
+      day of photographs and see what it picks.
+- [ ] **The shutter blink** — the geometry has tests and a lab, but it fires
+      on a real capture, and a simulator has no camera.
+- [ ] **Launch smoothness.** Two or three gaps over 50ms in the first twenty
+      seconds on a Debug simulator build, worst about 115ms. Much of it is app
+      startup rather than Home. Needs his phone's numbers before anyone
+      optimises further.
+- [ ] The lens code, RAW, and front-flash brightness (carried over, still
+      true).
 
-- The ZStack's height is set by `Color.clear.frame(height: max(gridH, 1))`, but
-  the tier badge sits at `.offset(y: gridH + 16)` and "Your first block." at
-  `gridH + 40`. Both are drawn OUTSIDE the measured bounds, so the container
-  reserves no space for them and they cannot participate in layout.
-- `.padding(.bottom, max(safeAreaBottom, 8))` may be double-counting the bottom
-  inset that the tab bar already contributes.
+## Next, in the order it should happen
 
-Do NOT change either without a screenshot from a current build. Two rounds were
-already lost this session to fixing things that were not there.
+**The social feed is the big one and it has its own document:
+`docs/social-and-backend.md`.** Read that before starting any of it. Short
+version: the backend already exists, complete, in `~/Desktop/apollo-app`, and
+the daily-unlock ritual is already written (`SunsetClock`).
 
-## Next up
+1. [ ] **The polaroid.** Figma `13258-6988` in the Apollo file, 342x452, thin
+       border with a deep bottom edge and the mark in the corner. It is what a
+       win becomes when you TAP it, not how it looks while scrolling. Smallest
+       piece, no backend, and the feed will reuse it.
+2. [ ] **The locked feed, on mock data.** Port `SunsetClock` and the feed view
+       under Recents, running entirely on `MockFeedRepository`. No network, no
+       auth, nothing that can break the app.
+3. [ ] **Auth and real reads.** Supabase session, real repositories.
+4. [ ] **Publishing.** A local win to `publish_photo`.
 
-- [ ] Icon Dynamic Type — icons are sized with fixed `.font(.system(size:))`, so
-      they do not grow with the user's text size while the labels beside them do.
-      A `.iconSize()` modifier wrapping `@ScaledMetric` exists on
-      `claude/strata-xcode-dh6gp6` and can be ported.
-- [ ] Decide whether Today and Plan become one tab. Jayden has said twice that
-      the tabs should feel connected; Today's unscheduled Sandbox already does
-      Plan's job, so there are two places to schedule the same habit. Structural,
-      so it wants him awake.
-- [ ] Ghost tier redesign (white card, category rim, colour previewed where the
-      filled block's band sits) — on `claude/strata-xcode-dh6gp6`, not yet ported.
+## Smaller, unclaimed
+
+- [ ] Sort inside a folder (by time, size, colour). Asked for, never built.
+      The inside is a clean masonry now, and this adds chrome to a screen he
+      asked to keep bare — worth checking he still wants it.
+- [ ] Tower features never carried over: outlined blocks for habits planned
+      but not done, and long-press to edit.
+- [ ] App Store Connect still says "Strata Wins". The 4.1(a) rejection is
+      unanswered.
+- [ ] `docs/design-system.md` and `docs/product-direction.md` both predate
+      Home and still describe the tower and four tabs.
 
 ## Settled — do not reopen
 
-- **Typeface: SF Pro Rounded.** The Apollo Figma specifies Familjen Grotesk;
-  Jayden chose to keep the native face on 2026-09-06. The block's identity is
-  carried by shape, colour and the rim, not the letterforms.
-- **Light only.** Chosen 2026-09-06.
-- **Insights is Jayden's implementation.** A parallel one was written against an
-  old snapshot and has been dropped; do not reintroduce it.
+- **SF Pro, not SF Pro Rounded.** 2026-09-22.
+- **Titles are New York at Medium.** Medium because the mark's stems are
+  heavier than New York Regular's; Semibold overtakes them. `-strataTypeLab`
+  sets every weight against the mark.
+- **Home is light, the strip under it is the camera's black.** Both pinned,
+  whatever the phone is set to.
+- **The tab bar's background cannot be changed.** Four approaches, all
+  recorded in `MainAppView`.
+- **Every folder on the shelf is open.** Closed folders were my reading of an
+  earlier note, not his.

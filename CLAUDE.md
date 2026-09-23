@@ -5,11 +5,19 @@ hours, so that a new session does not repeat them.
 
 ## What this is
 
-A SwiftUI + SwiftData iOS **win tracker**. You log something you already did;
-it becomes a 2.5D block, and the blocks stack into a tower. Three tabs:
+A SwiftUI + SwiftData iOS **win tracker**, called **Apollo**. You log
+something you already did; it goes into that day's folder. Three tabs, glyphs
+only, no labels:
 
-**Wins** (the tower — the record, and the home tab) · **Camera** ·
-**Memories** (albums, the month tower, and Settings)
+**Home** (the record) · **Camera** · **Memories** (albums, the month tower,
+and Settings)
+
+**The tower is gone.** It was replaced on 2026-09-22 by a row of folders, one
+per day. `MainAppView.towerContent` and `WinsFolderView` are both still in the
+tree, unused and deliberately so — the replacement is new and being able to
+put the tower back is worth two unused-symbol warnings. Everything below that
+describes the tower is history unless it says otherwise; **`## Home` is the
+current screen and it wins.**
 
 Habits, repeating tasks, the Today timeline and the Plan tab are all gone. So
 is Insights, which History replaced, and History itself, which Memories
@@ -198,10 +206,106 @@ app.** Today and Plan are being replaced by one checklist.
 `docs/case-study.md` — collected material for the write-up: the measurement
 method, every bug and what made it invisible, and the before/after numbers.
 
+## Home
+
+**The screen the app opens onto, rebuilt 2026-09-22.** It replaced the tower.
+Read this before touching `HomeView`, `RecentsRow`, `WinFolder` or
+`DayStickerService`; the sections further down that describe the tower are
+kept for their traps, not their layout.
+
+**The shape of it.** A warm white page (`HomeGround`, and it is deliberately
+NOT the shared `WarmBackground` — see that file for why) over the camera's own
+`Grey.g950`. The light part is a sheet with two rounded BOTTOM corners, so the
+dark curves up around it exactly the way the viewfinder's does; the dark is a
+plain full-bleed rectangle and is not shaped at all. The strip is
+`GridConstants.bottomStrip`, shared with `CameraView` rather than copied.
+
+**Recents** is a horizontal shelf of folders, one per day, newest first, over
+a 14-day window. Every folder is open. Days with nothing in them are left out;
+today is always present and says "Nothing yet" rather than "0 wins", because a
+nought is a score and today's folder starts there every morning.
+
+**Settled, do not reopen:**
+
+- **Home is pinned `.light`** whatever the phone is set to, and `.dark` again
+  the moment a folder opens over it. Both are in `MainAppView.scheme(for:)`.
+  The second one is not cosmetic: the clock measured 0 against a ground of 8
+  before it.
+- **The tab bar cannot be made dark.** Four approaches are written up in
+  `MainAppView` with what each one did. Liquid Glass owns the background;
+  `UITabBarAppearance` reaches the ITEM colours only, which is what
+  `TabBarGlyphs` uses to put white glyphs over the dark strip.
+- **Folder colours are dealt, not chosen** — an FNV hash of the day's own key
+  into a six-entry muted palette, never repeating the day before. Held by
+  `FolderStyleTests`: every entry between 0.06 and 0.34 saturation, so a
+  neon cannot be added and a grey cannot either. "Ink" was removed for being
+  a grey; a folder with no chroma reads as switched off.
+- **The newest win is at the FRONT of the stack.** It was at the back for a
+  day, because the depth was computed as if `contents` ran oldest-first.
+- **Eager `HStack`, not `LazyHStack`.** Measured: lazy moved the build cost
+  into the scroll and tripled the worst hitch. The note is in `RecentsRow`.
+
+**The folder's glass** is `.ultraThinMaterial` at 0.70 under a tint gradient
+at 0.24/0.50, with a 0.30 rim and **no highlight of any kind**. Two separate
+attempts at a specular sheen were rejected: every bright gradient on a pane is
+a claim about where a light is, and six folders claiming the same light is
+what makes a set of objects look rendered. What reads as glass is the blur
+behind it. The cards are placed by their TOP so their bodies sit behind the
+pane — a front with nothing behind it is a flat colour, which is what "matte"
+meant.
+
+**The sticker** is a subject cut out of the day's best photograph with
+`VNGenerateForegroundInstanceMaskRequest`, with a white die line round it, low
+on the folder's front. It **cannot be tested in a simulator** — the model
+wants the Neural Engine and every call there fails to create an espresso
+context. `-strataFakeSticker` uses any PNG dropped into the stickers folder so
+the placement can be looked at; the cut-out itself is a device check.
+`DayStickerService.score` is the judgement, pure, with twelve tests on it.
+
+## Looking at an animation
+
+**A simulator screenshot takes about 150ms**, which is three frames at 60Hz.
+A quarter-second transition is either missed entirely or caught once, and
+BOTH of those look like a still frame of something working. Two animations
+were shipped this way and neither was running:
+
+- Home's arrival moved 2pt of an intended 14, because setting a value back and
+  animating it in the same block is one SwiftUI update and the view never
+  renders at the start value.
+- The folder's drop would have been clipped in half, because `drawingGroup`
+  renders its own bounds and the card starts outside them.
+
+**Record and extract frames instead.** `xcrun simctl io <dev> recordVideo`,
+then an `AVAssetImageGenerator` harness to pull frames at any rate; there is
+one in the session scratchpad and it is thirty lines. Then MEASURE something
+in the frames — a colour, an edge position — rather than flipping through
+them. Both bugs above were found by tracking one folder's top edge.
+
+## Measuring smoothness
+
+`PerfProbe` (`-strataPerfProbe`) writes to `Documents/perf.log` as well as the
+unified log, and **the file is the one to read**: on a loaded simulator the log
+store delivers lines tens of seconds late and a `log show` straight after a
+measurement silently comes back short.
+
+`PerfProbe.window(label:seconds:)` gives frames, gaps over 25 and 50ms, the
+worst gap, and the memory high-water. Home opens two: one at `onAppear` and
+one after the photographs and cut-outs have landed. **They measure different
+things and conflating them wasted an hour** — the launch window had four gaps
+over 50ms and the settled window had none at all. The scroll was never the
+problem.
+
+Single numbers off this machine are noise. The same drag measured 424ms and
+then 20ms twenty minutes apart. Compare windows, not samples.
+
 ## Settled — do not reopen
 
-- **SF Pro Rounded, two weights.** The Figma specifies Familjen Grotesk; the
-  owner chose the native face on 2026-09-06. Shape, colour and the rim carry the
+- **SF Pro, two weights — NOT Rounded, since 2026-09-22.** The owner: "I want
+  SF Pro, no SF Pro Rounded, I feel like that fits Apollo's editorial aesthetic
+  more." Rounded is the friendly cut and Apollo is a photograph on a page with
+  a serif over it. The two faces are metrically compatible, so nothing moved.
+  Screen TITLES are New York (`Typography.screenTitleSerif`), at Medium — see
+  `## Home`. Shape, colour and the rim carry the
   block's identity, not the letterforms. The **wordmark** is the one exception:
   it is Rounded *Semibold*, because a wordmark is drawn artwork rather than
   interface type and at 61pt white over a viewfinder Medium reads thin. Do not
