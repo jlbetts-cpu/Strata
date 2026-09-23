@@ -1,59 +1,93 @@
 # Strata — Active Work
 
-## Done overnight (unverified — none of it has been compiled)
+Rewritten 2026-09-23. Everything the previous version described (five tabs,
+Wins/Tower/Today/Plan/Insights, an overnight run that had never been compiled)
+is long gone. It is in `history.md`.
 
-- [x] **Wins button page, set as the home tab.** Tab order is now Wins, Tower,
-      Today, Plan, Insights. One button, a counter, a neutral grey block, naming
-      optional and available on every win chip.
-- [x] **Apollo block rim** ported onto the current block views — uniform white
-      border, crisp above the frosted band and blurred inside it, replacing the
-      flat 5pt bottom strip. `blockCornerRadius` 16 → 12.
-- [x] **Single light appearance.** `UIUserInterfaceStyle = Light` on both build
-      configs; 25 dark ternaries and 2 if/else blocks collapsed to their light
-      branch; 11 unused `colorScheme` declarations removed.
+## Where the app is
 
-## First thing when you wake
+Three tabs: **Wins · Camera · Memories**. Wins is the tower of blocks.
 
-- [ ] **Build it.** Nothing above has been through a compiler — there is no Xcode
-      on the machine the agent runs on. If it fails, the whole night's work backs
-      out with `git revert -m 1 <merge sha>` and nothing else is affected.
+`main` was restored on 2026-09-23 to the tree of the tag `strata-offline-v1`
+(df23688, 17 September), the commit before "Strata becomes Apollo" turned this
+into a different app. **The restore is a new commit, not a reset**: the Apollo
+camera, the folder that replaced the tower, the stickers and the prints are all
+still in this history and on the branch `apollo-rename`, and anything wanted
+back is a cherry-pick away. That is how the live film emulation is coming back.
 
-## The tower grid — needs a screenshot before anyone touches it
+## The design language
 
-Jayden reported blocks sitting too high and ghost blocks off screen. That was
-never diagnosed, because the screenshot showing it came from a build that
-predated `b189dae` — a different tower implementation entirely.
+`docs/design-system-future.md` is the brief every screen is being held to, and
+it is not decoration: the owner asked for a 1990s Japanese future, bright and
+precise rather than dark and neon. Read it before touching any screen. The two
+rules it is easiest to break: **Jaro is for the app's own nouns and numbers
+only**, and **nothing animates because a screen appeared.**
 
-Prime suspect, from reading `MainAppView` around the tower ScrollView:
+## Landed
 
-- The ZStack's height is set by `Color.clear.frame(height: max(gridH, 1))`, but
-  the tier badge sits at `.offset(y: gridH + 16)` and "Your first block." at
-  `gridH + 40`. Both are drawn OUTSIDE the measured bounds, so the container
-  reserves no space for them and they cannot participate in layout.
-- `.padding(.bottom, max(safeAreaBottom, 8))` may be double-counting the bottom
-  inset that the tab bar already contributes.
+- **The lattice.** `TowerLattice` draws the tower's own grid behind it: same
+  cell, same 4pt gutter, same corner radius, anchored to the same bottom row.
+  Not a pattern. `TowerLatticeTests` holds it to `GridConstants.blockFrame`.
+- **The landing ripple**, in progress at the time of writing: the surface
+  answers a block landing, from that block's cell, in its colour, scaled by its
+  size. Nothing on arrival, which was the first version and was rejected.
 
-Do NOT change either without a screenshot from a current build. Two rounds were
-already lost this session to fixing things that were not there.
+## In flight, one agent each, partitioned by file
 
-## Next up
+1. The lattice ripple (`TowerLattice.swift`, the ripple lines of `MainAppView`).
+2. Memories (`MemoriesView`, `MemoriesDrawer`, `MemoriesMapView`, the albums).
+3. The recap cards (`ReplayCard`, `ReplayShelf`, `ReplayFrame`, `ReplayView`).
+4. The sheets and popups (nine files). **Done**: one `FormSectionLabel`, one
+   spacing ladder, every `.primary.opacity(x)` removed, and two real bugs
+   caught on the way (a plan row sitting 1pt inside the margin, and a ghost
+   bullet drawn at 22 against the 24 that lands in it).
+5. The camera: porting the live film emulation and the lens picker from
+   `apollo-rename`. RAW is deliberately NOT in that port.
 
-- [ ] Icon Dynamic Type — icons are sized with fixed `.font(.system(size:))`, so
-      they do not grow with the user's text size while the labels beside them do.
-      A `.iconSize()` modifier wrapping `@ScaledMetric` exists on
-      `claude/strata-xcode-dh6gp6` and can be ported.
-- [ ] Decide whether Today and Plan become one tab. Jayden has said twice that
-      the tabs should feel connected; Today's unscheduled Sandbox already does
-      Plan's job, so there are two places to schedule the same habit. Structural,
-      so it wants him awake.
-- [ ] Ghost tier redesign (white card, category rim, colour previewed where the
-      filled block's band sits) — on `claude/strata-xcode-dh6gp6`, not yet ported.
+**Only one agent may build.** The owner's machine rule is one xcodebuild and
+one simulator at a time, so four of the five write code and report what they
+could not verify, and the whole tree is built and fixed in one pass afterwards.
+
+## Not verified, honestly
+
+- **Nothing from agents 2, 3, 4 or 5 has been compiled.** They were told not
+  to, and their reports say what they could not check. The build and the
+  screenshots are owed.
+- **The camera cannot be checked in a simulator at all.** No camera, so the
+  looks, the lens picker, the shutter path and the flash are all device work.
+- **RAW** is the heaviest thing in the camera and changes the shutter path, the
+  capture time and the memory profile. It goes in as its own piece with a test
+  on a real phone, after the looks and the lenses land.
+
+## App Store: the 4.1(a) rejection
+
+Rejected under **4.1(a) Copycats**, "metadata contains third-party content
+similar to a popular app", on an account already under extended review.
+Apple did not say which part. What is known:
+
+- The listing already says "Strata Wins" and was rejected with that name, so
+  simply adding a word is not on its own the remedy.
+- **There is another App Store app called Strata that captures everyday
+  moments, and its own feature is called Strata Capture.** Same word, same
+  category. That is a better candidate than Strava, which is at least a
+  different category.
+- The owner: the head maker is completely original and is not the problem.
+
+**The name being adopted is Strata Neo**, subject to him saying it out loud a
+few times. Clear on the App Store. Note for whoever writes the metadata:
+NEOSTRATA is a 50-year-old registered skincare mark built from the same two
+roots in the other order. Different class, different industry, but a lawyer
+rather than an agent should confirm it.
+
+Also: **the app ships as "Strata" on the home screen and the widget ships as
+"Strata Wins"**, because only the widget target sets
+`INFOPLIST_KEY_CFBundleDisplayName`. Both need to say the same thing.
 
 ## Settled — do not reopen
 
-- **Typeface: SF Pro Rounded.** The Apollo Figma specifies Familjen Grotesk;
-  Jayden chose to keep the native face on 2026-09-06. The block's identity is
-  carried by shape, colour and the rim, not the letterforms.
+- **Typeface: SF Rounded for language, Jaro for the app's own nouns and
+  numbers.** Settings, Line and Privacy keep SF Rounded Medium titles; that is
+  in `CLAUDE.md` and it beats any later brief.
 - **Light only.** Chosen 2026-09-06.
-- **Insights is Jayden's implementation.** A parallel one was written against an
-  old snapshot and has been dropped; do not reintroduce it.
+- **The tower's chaos is not the tower's problem.** Do not tidy the blocks.
+- **Nothing loops and nothing animates on appearance.**
