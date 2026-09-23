@@ -453,9 +453,13 @@ struct HomeView: View {
             FolderStyleSheet(title: day.title(),
                              dayKey: day.id,
                              count: day.count,
+                             contents: day.peek,
                              style: store.style(for: day.id),
                              onChange: { store.set($0, for: day.id) })
-                .presentationDetents([.height(420)])
+                // Measured off the render rather than guessed: the content
+                // ends about two thirds of the way down a 420 sheet, and the
+                // empty third reads as something failing to load.
+                .presentationDetents([.height(380)])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -586,6 +590,12 @@ struct FolderStyleSheet: View {
     /// takes the colour that day was dealt. See `FolderTint.seeded`.
     var dayKey: String
     var count: Int
+    /// **What is actually in the folder.** The preview was drawn empty, so
+    /// choosing a colour meant judging it on a bare plate — and the whole
+    /// point of the front being glass is that the colour is seen WITH
+    /// photographs behind it. A pale tint that looks weak on its own can be
+    /// exactly right over a stack.
+    var contents: [ScatterWin] = []
     @State var style: FolderStyle
     var onChange: (FolderStyle) -> Void = { _ in }
 
@@ -597,17 +607,26 @@ struct FolderStyleSheet: View {
     private static let faces = ["Idle", "Delighted", "Derp", "Wink", "Surprised", "Smug"]
 
     var body: some View {
-        VStack(spacing: GridConstants.gapWide) {
-            // The folder itself, live, so a colour is chosen by looking at
-            // the thing rather than at a swatch.
+        VStack(spacing: GridConstants.gapLabel) {
+            // The folder itself, live and full, so a colour is chosen by
+            // looking at the thing rather than at a swatch.
             WinFolder(title: title, count: count,
                       tint: style.tint(for: dayKey),
+                      contents: contents,
                       openAmount: 1,
                       showsFace: style.faceName != nil,
                       expression: style.expression,
-                      isAlive: true)
-                .frame(width: 150)
-                .padding(.top, GridConstants.gapWide)
+                      isAlive: true,
+                      stickerSeed: dayKey)
+                .frame(width: 168)
+                .padding(.top, GridConstants.gapItem)
+
+            // Which day is being dressed. The sheet had no title at all,
+            // which is fine when you have just held a folder and forgettable
+            // three seconds later.
+            Text(title)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
 
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                 Text("Colour")
@@ -655,7 +674,7 @@ struct FolderStyleSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.horizontal, GridConstants.gapWide)
 
             Spacer(minLength: 0)
         }

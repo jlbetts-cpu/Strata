@@ -534,6 +534,27 @@ struct WinFolder: View {
                 WinCardFace(win: win, image: win.image, showsTitle: false,
                             corner: GridConstants.radiusPhotoMiniature)
                 .frame(width: cardWidth, height: cardHeight)
+                // **Rasterised per CARD, and it was per stack.**
+                //
+                // One group around the whole stack is the cheaper composite
+                // and it quietly breaks the drop: a `drawingGroup` renders
+                // its own bounds, and a card arriving from 42% of the
+                // folder's height ABOVE the stack starts outside them, so the
+                // first half of the animation would have been clipped away —
+                // the card would appear halfway down instead of coming in
+                // from above.
+                //
+                // Per card keeps what the group was for. The expensive part
+                // is inside a card, not between them: four blend-mode blooms,
+                // a blur and a grain canvas, five cards a folder, six folders
+                // on the row, all being recomposited live while a finger
+                // moves. Measured with `-strataPerfProbe` over an identical
+                // drag, body evaluations were ZERO and the display link still
+                // logged gaps of 147, 67 and 53ms — rendering cost rather
+                // than SwiftUI cost — and rasterising took the worst to 32ms.
+                // Every transform now sits OUTSIDE the texture, where it can
+                // move as far as it likes.
+                .drawingGroup()
                 // **No shadow on these.** They sit BEHIND the pocket, so what
                 // they were casting landed on the glass in front of them: a
                 // soft dark smudge with no object over it.
@@ -587,22 +608,6 @@ struct WinFolder: View {
         // it, so a photograph finishing its decode does not set it off.
         .animation(.spring(response: 0.52, dampingFraction: 0.74),
                    value: contents.map(\.id))
-        // **Flattened to one texture.**
-        //
-        // Five cards, each with four blend-mode blooms, a blur and a grain
-        // canvas, times six folders on the row: thirty live blurs being
-        // recomposited while a finger moves. Measured with `-strataPerfProbe`
-        // during a drag, body evaluations were ZERO — nothing was being
-        // recomputed — and the display link still logged gaps of 147, 67 and
-        // 53ms, which is rendering cost rather than SwiftUI cost.
-        //
-        // The stack does not change while the row scrolls, so it can be
-        // rasterised once and moved as an image. `drawingGroup` is exactly
-        // that, and it is safe here for the reason it is NOT safe on the
-        // folder as a whole: nothing inside it samples a backdrop. The
-        // material in front is outside this group and still sees through to
-        // the texture.
-        .drawingGroup()
     }
 
     /// **The glass front.**

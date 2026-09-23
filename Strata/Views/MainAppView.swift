@@ -313,10 +313,19 @@ struct MainAppView: View {
     /// that is working down the app one screen at a time, and the seam is
     /// visible on purpose rather than hidden by converting a screen nobody
     /// has looked at yet.
-    private static func scheme(for tab: StrataTab) -> ColorScheme? {
+    ///
+    /// **And `.dark` again the moment a folder opens over it.** The inside of
+    /// a folder is `Grey.g950` full bleed, which is the right ground for
+    /// photographs and is the camera's own. But the window was still pinned
+    /// light underneath it, so the STATUS BAR stayed in its light-mode
+    /// colours: measured, the clock came out at 0 against a ground of 8,
+    /// which is a contrast ratio of 1.03 and a clock nobody can read. The
+    /// thing on screen decides the appearance, and while a folder is open the
+    /// thing on screen is black.
+    private static func scheme(for tab: StrataTab, folderIsOpen: Bool = false) -> ColorScheme? {
         switch tab {
         case .camera: return .dark
-        case .tower:  return .light
+        case .tower:  return folderIsOpen ? .dark : .light
         default:      return nil
         }
     }
@@ -741,7 +750,18 @@ struct MainAppView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                windowScheme = Self.scheme(for: newTab)
+                windowScheme = Self.scheme(for: newTab, folderIsOpen: folderIsOpen)
+            }
+        }
+        // Opening a folder covers Home with the camera's black, so the
+        // window has to follow it or the status bar is unreadable. Same
+        // transaction treatment: this is not a state anything transitions
+        // through, so blending it reads as a hiccup.
+        .onChange(of: folderIsOpen) { _, open in
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                windowScheme = Self.scheme(for: selectedTab, folderIsOpen: open)
             }
         }
         // The tab bar is NOT rebuilt when leaving the camera.
