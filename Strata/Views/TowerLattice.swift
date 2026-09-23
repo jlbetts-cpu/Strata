@@ -64,14 +64,64 @@ struct TowerLattice: View {
     /// not enough to count them without looking for them.
     static let strength: Double = 0.34
 
+    /// **What a cell is worth as the charge passes through it.**
+    ///
+    /// The owner, 2026-09-23: "everything about the app needs to feel fast,
+    /// like animating the lattice with pulses... I want the app to truly feel
+    /// like the future in your hands."
+    ///
+    /// So the surface takes a charge rather than blinking: a band travels up
+    /// the lattice once, each cell brightening as it passes and settling back
+    /// to `strength` behind it. **Once**, never a loop — a lattice that
+    /// pulses on its own is a screensaver, and it would be the first thing to
+    /// look cheap and the first thing to drain a battery.
+    static let charged: Double = 0.92
+
+    /// How long the charge takes to travel the whole lattice.
+    ///
+    /// Fast is the brief. At half a second it reads as a sweep you watched;
+    /// under about a third it reads as the surface simply being live, which
+    /// is the difference between an animation and a material.
+    static let chargeDuration: Double = 0.34
+
+    /// How much of the lattice the bright band covers, as a share of its
+    /// height. Narrow enough to be a moving edge rather than a wash.
+    static let bandWidth: CGFloat = 0.22
+
+    /// How long the lattice waits before taking its charge, so the sweep
+    /// lands on a page that is already on screen rather than inside the
+    /// launch transition. See `run()`.
+    static let settleDelay: Double = 0.34
+
+    /// Something that changes when a win lands, so the surface answers it.
+    var charge: Int = 0
+
+    /// **Whether the Wins screen is the one you are looking at.**
+    ///
+    /// A `TabView` keeps every tab mounted, so `onAppear` fires once at
+    /// launch and never again — and at launch it fires while the app is
+    /// still coming up out of its own fade, which is where the first two
+    /// attempts at this went: filmed twice, the only thing moving in those
+    /// frames was the launch transition. Arriving on the tab is the moment
+    /// somebody is actually looking at the surface.
+    var isActive: Bool = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// What the charge is keyed on. Any change plays it once.
+    private struct ChargeKey: Equatable {
+        var charge: Int
+        var active: Bool
+    }
+    private var chargeKey: ChargeKey { ChargeKey(charge: charge, active: isActive) }
+
     private var pitch: CGFloat { cellSize + spacing }
     private var overhang: CGFloat { CGFloat(Self.rowsAbove) * pitch }
     private var height: CGFloat { max(contentHeight, 1) + overhang }
 
     var body: some View {
-        TowerLatticeShape(cellSize: cellSize, spacing: spacing, columns: columns)
-            .fill(AppColors.quietFill.opacity(Self.strength))
-            .frame(height: height)
+        resting
+            .overlay { charging }
             .mask {
                 // **The fade is spent on the overhang, not on the whole
                 // height.** As a share of the lattice it finished above the
@@ -87,6 +137,115 @@ struct TowerLattice: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
+
+    /// The lattice as it sits: every cell at `strength`.
+    private var shape: TowerLatticeShape {
+        TowerLatticeShape(cellSize: cellSize, spacing: spacing, columns: columns)
+    }
+
+    private var resting: some View {
+        shape.fill(AppColors.quietFill.opacity(Self.strength))
+            .frame(height: height)
+    }
+
+    /// The charge: the same cells at full strength, seen through a band that
+    /// travels up the lattice. **The same shape, not a second one** — the
+    /// bright cells are the resting cells, so nothing can drift out of step
+    /// and there is no edge between the two states to catch.
+    private var charging: some View {
+        shape.fill(AppColors.quietFill.opacity(Self.charged - Self.strength))
+            .frame(height: height)
+            .mask {
+                // **The band MOVES; its gradient does not change.**
+                //
+                // The first version animated the stop locations of a
+                // full-height `LinearGradient`, and filmed it did nothing at
+                // all: every frame after the page arrived was pixel identical
+                // to the settled one. A gradient's stops are a `ShapeStyle`,
+                // and SwiftUI does not interpolate those — so the mask jumped
+                // straight to its end state inside a single frame, which is a
+                // band that has already left the screen.
+                //
+                // An `.offset` is animatable, so the same fixed gradient is
+                // simply slid up the lattice.
+                band
+                    .frame(height: height, alignment: .top)
+            }
+            .allowsHitTesting(false)
+    }
+
+    /// **The band itself, played once per charge by a keyframe track.**
+    ///
+    /// Three attempts, and the first two are why this is a keyframe animator
+    /// rather than a piece of state:
+    ///
+    /// 1. Animating the stop LOCATIONS of a gradient. A gradient's stops are
+    ///    a `ShapeStyle` and SwiftUI does not interpolate those, so the mask
+    ///    jumped to its end state inside one frame. Filmed: every frame after
+    ///    the page arrived was pixel identical to the settled one.
+    /// 2. `@State` plus `withAnimation`, driven from `onAppear`. The offset
+    ///    IS animatable, and it still never ran: the lattice is the
+    ///    background of a view that re-evaluates constantly, and a reset
+    ///    followed by an animated set in that traffic never became a
+    ///    travelling band. Verified by holding the sweep at its midpoint in
+    ///    red, which drew a red band exactly where it belonged — so the
+    ///    drawing was right and the driving was wrong.
+    ///
+    /// A keyframe track has no state to lose and no update to be batched
+    /// into: on a change of `chargeKey` it plays start to finish, once, and
+    /// ends where it began with the band parked above the lattice.
+    @ViewBuilder
+    private var band: some View {
+        let gradient = LinearGradient(colors: [.clear, .black, .clear],
+                                      startPoint: .top, endPoint: .bottom)
+            .frame(height: bandHeight)
+        if Self.isLab {
+            // **The lab: the same charge, slowly, on a loop.**
+            //
+            // Not decoration and not a feature — it is how this gets
+            // verified at all. A third of a second is shorter than the round
+            // trip between asking the simulator for a screenshot and getting
+            // one, so every attempt to photograph the real thing caught
+            // either the launch fade or the settled page. On a four second
+            // loop any screenshot lands inside it. `-strataLatticeLab`.
+            gradient.keyframeAnimator(initialValue: 1.0, repeating: true) { view, sweep in
+                view.offset(y: height - sweep * (height + bandHeight))
+            } keyframes: { _ in
+                KeyframeTrack(\.self) {
+                    LinearKeyframe(0.0, duration: 0.001)
+                    LinearKeyframe(0.0, duration: 0.6)
+                    CubicKeyframe(1.0, duration: 4.0)
+                }
+            }
+        } else {
+            gradient.keyframeAnimator(initialValue: 1.0, trigger: chargeKey) { view, sweep in
+                view.offset(y: height - sweep * (height + bandHeight))
+            } keyframes: { _ in
+                KeyframeTrack(\.self) {
+                    // Below the lattice, out of sight behind the blocks.
+                    LinearKeyframe(0.0, duration: 0.001)
+                    // **Not while the page is still arriving.** Filmed at
+                    // launch, the charge ran inside the app's own fade-in and
+                    // was spent before there was anything to see.
+                    LinearKeyframe(0.0, duration: reduceMotion ? 0 : Self.settleDelay)
+                    // Up through every cell, and gone.
+                    CubicKeyframe(1.0, duration: reduceMotion ? 0 : Self.chargeDuration)
+                }
+            }
+        }
+    }
+
+    /// `-strataLatticeLab`: slow the charge down and loop it, so it can be
+    /// photographed. DEBUG only, and off unless the flag is passed.
+    static var isLab: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-strataLatticeLab")
+        #else
+        false
+        #endif
+    }
+
+    private var bandHeight: CGFloat { max(height * Self.bandWidth, 1) }
 }
 
 /// Every cell of the tower's grid, from the bottom row upward.

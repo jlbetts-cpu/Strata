@@ -2382,7 +2382,11 @@ struct MainAppView: View {
                 // fades out inside that, which is what gives the empty screen
                 // above a short tower its structure. See `TowerLattice`.
                 .background(alignment: .bottom) {
-                    TowerLattice(cellSize: colW, contentHeight: max(gridH, 1))
+                    // The charge is the block count, so the surface answers
+                    // a win landing rather than animating on a timer.
+                    TowerLattice(cellSize: colW, contentHeight: max(gridH, 1),
+                                 charge: towerVM.placedBlocks.count,
+                                 isActive: selectedTab == .tower)
                         .frame(width: gridW)
                 }
                 .overlay {
