@@ -33,9 +33,6 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// out again.
     private let lock = NSLock()
     private var cubes: [FilmLook.Kind: Data] = [:]
-    /// Built once per look and kept, so the table is not re-uploaded per
-    /// frame. See `colourFilter`.
-    private var colourFilters: [FilmLook.Kind: CIFilter] = [:]
     private var grainMasks: [FilmLook.Kind: Data] = [:]
     private var ramps: [RampKey: Data] = [:]
     private static let cubeSide = 64
@@ -47,22 +44,14 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
 
     // MARK: - Rendering
 
-    func render(_ image: UIImage, look: FilmLook, pulledStops: Double = 0) -> UIImage {
+    func render(_ image: UIImage, look: FilmLook) -> UIImage {
         guard look.kind != .none else { return image }
         let upright = image.uprighted()
         guard let cg = upright.cgImage else { return image }
         let source = CIImage(cgImage: cg)
-        let result = apply(look, to: source, pulledStops: pulledStops)
-        // **Eight bits out, and this is the single biggest buffer in the
-        // app.** A full frame as RGBAh is 97MB against 48MB as RGBA8, on the
-        // hottest path there is: every photograph goes through here. The
-        // pipeline still WORKS in 16 bit float — that is `workingFormat`, and
-        // it is what stops the sky banding — this is only what it writes out,
-        // and what it writes out goes to a JPEG and a 1024px block, both of
-        // which are 8 bit. The precision was being allocated and then thrown
-        // away one line later.
+        let result = apply(look, to: source)
         guard let out = context.createCGImage(result, from: source.extent,
-                                              format: .RGBA8, colorSpace: outputSpace) else {
+                                              format: .RGBAh, colorSpace: outputSpace) else {
             return image
         }
         return UIImage(cgImage: out, scale: upright.scale, orientation: .up)
@@ -88,101 +77,13 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         return UIImage(cgImage: out, scale: image.scale, orientation: .up)
     }
 
-    /// **The look, live in the viewfinder: the whole pipeline, not part of it.**
-    ///
-    /// This was colour and nothing else, on the argument that grain and blurs
-    /// were the expensive half and that grain re-randomising at 30Hz would
-    /// read as sensor noise. The owner, with that build on his phone: "there
-    /// is no film simulation like grain or anything and the looks dont look
-    /// distinct enough to look good."
-    ///
-    /// He is right twice. A colour table is what the three looks have LEAST
-    /// in common — Air's character is its glow, Bright's is its clarity,
-    /// Silver's is the grain it carries through the midtones — so stripping
-    /// those left three tints of one another, which is exactly what "not
-    /// distinct enough" describes. And film that moves has moving grain; 24
-    /// frames a second of it is what people recognise film BY.
-    ///
-    /// **The expense was never measured, and it is not there.** Rendered the
-    /// way the viewfinder renders — into a Metal texture, no readback — a
-    /// 1080x1440 frame through the complete pipeline costs 3.1 to 3.4ms of
-    /// GPU on this Mac, against a 33ms budget at 30 frames a second. The
-    /// first attempt to measure it said 440ms and was wrong by two orders of
-    /// magnitude, because it rendered `toBitmap:` through a context with no
-    /// Metal device: six megabytes of readback a frame, which is nothing the
-    /// viewfinder does. `FilmLookLiveSheetTests` now measures the real path.
-    ///
-    /// So there is one pipeline and the viewfinder is the photograph. Nothing
-    /// appears in the picture that was not in the frame it was composed in,
-    /// which is the only promise a viewfinder makes.
-    ///
-    /// `means` is handed in rather than measured, because measuring is a
-    /// synchronous GPU readback. See `measureMeans`. `phase` moves the grain,
-    /// so a caller passes a new one each frame.
-    /// `sparingHighlights` drops halation and bloom, which are four Gaussian
-    /// blurs between them and the most expensive thing here. They are the
-    /// right things to give up first if a GPU cannot hold the frame rate:
-    /// they show at the edge of a blown window, where everything else in the
-    /// pipeline is what the look IS. Nothing sets it unless the device says
-    /// so. See `GradedViewfinder.frameCost`.
-    /// `sparingBlurs` is the second rung: glow and clarity come off too,
-    /// leaving only what costs one pass per pixel — the colour table, the
-    /// tone curve, the shadow lift, the grain and the vignette. It is the
-    /// floor, and it still looks like a film look.
-    func live(_ look: FilmLook, to input: CIImage, means: [Double]?, phase: CGPoint,
-              sparingHighlights: Bool = false, sparingBlurs: Bool = false,
-              pulledStops: Double = 0) -> CIImage {
-        guard look.kind != .none else { return input }
-        var look = look
-        if sparingHighlights || sparingBlurs {
-            look.halation = nil
-            look.bloom = nil
-        }
-        if sparingBlurs {
-            look.glow = nil
-            look.clarity = 0
-        }
-        return apply(look, to: input, means: means, grainPhase: phase, pulledStops: pulledStops)
-    }
-
-    /// A `CIImage` rendered out, for the tray's swatches.
-    func uiImage(from image: CIImage) -> UIImage? {
-        let extent = image.extent
-        guard extent.width >= 1, extent.height >= 1, extent.isInfinite == false else { return nil }
-        guard let cg = context.createCGImage(image, from: extent,
-                                             format: .RGBA8, colorSpace: outputSpace) else { return nil }
-        return UIImage(cgImage: cg, scale: 1, orientation: .up)
-    }
-
     /// The whole pipeline, as `CIImage`s.
-    ///
-    /// `means` lets a live caller skip the white-balance readback; a still
-    /// passes nothing and measures. `grainPhase` moves the noise field, so a
-    /// still stays reproducible at `.zero` and a viewfinder walks it.
-    func apply(_ look: FilmLook, to input: CIImage,
-               means: [Double]? = nil, grainPhase: CGPoint = .zero,
-               pulledStops: Double = 0) -> CIImage {
+    func apply(_ look: FilmLook, to input: CIImage) -> CIImage {
         var image = input
         let scale = max(input.extent.width, input.extent.height) / Self.referenceSize
 
-        // **The other half of dynamic range.** The sensor was deliberately
-        // underexposed by this much so the highlights were never clipped;
-        // this is where the rest of the picture comes back up. In linear
-        // light, before anything else, because that is where an exposure
-        // change belongs and it is what the camera would have done.
-        //
-        // A parameter rather than a property of the look, because it is only
-        // true of a frame that was ACTUALLY pulled. A swatch rendered from a
-        // bundled photograph was not, and lifting it would blow it out.
-        if pulledStops > 0 {
-            let lift = CIFilter.exposureAdjust()
-            lift.inputImage = image
-            lift.ev = Float(pulledStops)
-            image = (lift.outputImage ?? image).cropped(to: input.extent)
-        }
-
         if look.neutralise > 0 {
-            image = neutralised(image, strength: look.neutralise, means: means)
+            image = neutralised(image, strength: look.neutralise)
         }
 
         image = coloured(image, look: look)
@@ -209,33 +110,15 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         if let glow = look.glow {
             image = glowing(image, glow, scale: scale)
         }
-        // **Clarity goes both ways, and one look needed the other one.**
-        //
-        // Positive clarity is local contrast, which pays for the softness the
-        // shoulder and the glow cost. Negative clarity is the opposite move
-        // and it is the one that takes the clinical edge off a digital lens:
-        // a small blurred copy mixed back in, softening mid-tone transitions
-        // without touching the picture's overall contrast.
-        //
-        // This existed only in the positive direction, and Air — the look
-        // whose entire character is softness — was set to +0.20, sharpening
-        // the one picture that should have been softened. Found by checking
-        // the pipeline against a blueprint the owner had a second agent
-        // write, which listed negative clarity as a thing Fujifilm recipes
-        // use and this did not have.
         if look.clarity > 0 {
             let sharpen = CIFilter.unsharpMask()
             sharpen.inputImage = image
             sharpen.radius = Float(max(1.5, 7 * scale))
             sharpen.intensity = Float(look.clarity)
             image = (sharpen.outputImage ?? image).cropped(to: input.extent)
-        } else if look.clarity < 0 {
-            let soft = blurred(image.clampedToExtent(), radius: max(1.5, 6 * scale))
-                .cropped(to: input.extent)
-            image = mix(soft, over: image, amount: -look.clarity)
         }
         if let grain = look.grain {
-            image = grained(image, grain, phase: grainPhase, look: look, scale: scale)
+            image = grained(image, grain, look: look, scale: scale)
         }
         if look.vignette > 0 {
             let filter = CIFilter.vignette()
@@ -249,37 +132,13 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
 
     // MARK: - Colour
 
-    /// **The colour table is uploaded once, not thirty times a second.**
-    ///
-    /// The owner, with the live look on: "it feels so much slower than the
-    /// none."
-    ///
-    /// This built a fresh `CIColorCubeWithColorSpace` every frame and set
-    /// `cubeData` on it every frame. That property is not a reference somebody
-    /// holds: setting it hands Core Image **two megabytes** of table — 64
-    /// cubed, four half floats a cell — to validate and push to the GPU. At
-    /// thirty frames a second that is sixty megabytes a second of pure upload
-    /// for a table that had not changed since the app launched, and it landed
-    /// on the main thread, which is why the whole screen felt heavy rather
-    /// than just the picture.
-    ///
-    /// One filter per look, kept. Only `inputImage` moves per frame.
-    private func colourFilter(for look: FilmLook) -> CIFilter? {
-        lock.lock()
-        if let existing = colourFilters[look.kind] { lock.unlock(); return existing }
-        lock.unlock()
-        guard let data = cube(for: look) else { return nil }
+    private func coloured(_ image: CIImage, look: FilmLook) -> CIImage {
+        guard let data = cube(for: look) else { return image }
         let filter = CIFilter.colorCubeWithColorSpace()
+        filter.inputImage = image
         filter.cubeDimension = Float(Self.cubeSide)
         filter.cubeData = data
         filter.colorSpace = cubeSpace
-        lock.lock(); colourFilters[look.kind] = filter; lock.unlock()
-        return filter
-    }
-
-    private func coloured(_ image: CIImage, look: FilmLook) -> CIImage {
-        guard let filter = colourFilter(for: look) else { return image }
-        filter.setValue(image, forKey: kCIInputImageKey)
         return filter.outputImage ?? image
     }
 
@@ -289,81 +148,27 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// exactly when a picture really is mostly one colour — a lawn, a sunset,
     /// a team in blue — so the correction is capped at a few percent and
     /// scaled by how neutral the picture already looks.
-    /// **The measurement is separable from the correction, and on a live
-    /// viewfinder it has to be.**
-    ///
-    /// `measureMeans` does a `context.render(toBitmap:)`, which is a
-    /// synchronous GPU to CPU readback: the CPU blocks until the GPU has
-    /// finished, which drains the pipeline. Once per photograph that is
-    /// nothing. Once per frame at 30 or 60Hz it is a stall every frame, and
-    /// because the reading changes slightly frame to frame the white balance
-    /// would visibly breathe while the camera sat still.
-    ///
-    /// So a live path measures at its own cadence — a few times a second is
-    /// ample for white balance — and hands the result in. Passing `means`
-    /// skips the readback entirely.
-    ///
-    /// Stills pass nothing and measure every time, which is correct: each
-    /// photograph is a different scene, and a cache keyed on time rather than
-    /// on the image would hand one photograph another's white balance.
-    func measureMeans(_ image: CIImage) -> [Double]? {
-        // **Averaged from a thumbnail, not from the frame.**
-        //
-        // This is a synchronous GPU to CPU readback: the CPU blocks until the
-        // GPU has finished, which DRAINS THE PIPELINE. Doing it over a full
-        // camera frame means reducing two million pixels and then stalling,
-        // twice a second, on the same queue the frames arrive on — a hitch
-        // you can feel, on a screen the owner needs to be silky.
-        //
-        // The average of a downscaled image is the average. Taking it to
-        // about 64 points first makes the reduction trivial and leaves only
-        // the stall, which is microseconds against a thumbnail. Nothing about
-        // the answer changes: white balance is a whole-frame statistic and a
-        // whole frame is exactly what a downscale preserves.
-        let side = max(image.extent.width, image.extent.height)
-        let shrink = side > 96 ? 64 / side : 1
-        let small = shrink < 1
-            ? image.transformed(by: CGAffineTransform(scaleX: shrink, y: shrink))
-            : image
+    private func neutralised(_ image: CIImage, strength: Double) -> CIImage {
         let average = CIFilter.areaAverage()
-        average.inputImage = small
-        average.extent = small.extent
-        guard let averaged = average.outputImage else { return nil }
+        average.inputImage = image
+        average.extent = image.extent
+        guard let averaged = average.outputImage else { return image }
         var pixel = [Float](repeating: 0, count: 4)
         context.render(averaged, toBitmap: &pixel, rowBytes: 16,
                        bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
                        format: .RGBAf, colorSpace: outputSpace)
-        return [Double(pixel[0]), Double(pixel[1]), Double(pixel[2])]
-    }
-
-    /// The gains themselves, as arithmetic with no Core Image in it.
-    ///
-    /// Pure so it can be tested: the grey-world assumption fails exactly when
-    /// a picture really is mostly one colour — a lawn, a sunset, a team in
-    /// blue — so the correction is capped at a few percent AND scaled by how
-    /// neutral the picture already looks. Both of those are worth an
-    /// assertion, and neither was reachable while this was welded to a GPU
-    /// readback.
-    static func neutralisingGains(means: [Double], strength: Double) -> [Double]? {
-        guard means.count == 3 else { return nil }
+        let means = [Double(pixel[0]), Double(pixel[1]), Double(pixel[2])]
         let grey = (means[0] + means[1] + means[2]) / 3
-        guard grey > 0.01 else { return nil }
+        guard grey > 0.01 else { return image }
         let spread = (means.max() ?? 0) - (means.min() ?? 0)
         // A strongly coloured scene scores low and keeps its colour.
         let confidence = max(0, 1 - spread / 0.16)
         let cap = 0.07
-        return means.map { mean -> Double in
+        let gains = means.map { mean -> Double in
             let raw = grey / max(mean, 0.0001)
             let capped = min(max(raw, 1 - cap), 1 + cap)
             return 1 + (capped - 1) * strength * confidence
         }
-    }
-
-    private func neutralised(_ image: CIImage, strength: Double,
-                             means: [Double]? = nil) -> CIImage {
-        guard let means = means ?? measureMeans(image),
-              let gains = Self.neutralisingGains(means: means, strength: strength)
-        else { return image }
         let filter = CIFilter.colorMatrix()
         filter.inputImage = image
         filter.rVector = CIVector(x: CGFloat(gains[0]), y: 0, z: 0, w: 0)
@@ -476,7 +281,6 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
     /// is densest in the midtones and gone in the highlights, which is how an
     /// emulsion behaves.
     private func grained(_ image: CIImage, _ grain: FilmLook.Grain,
-                         phase: CGPoint = .zero,
                          look: FilmLook, scale: CGFloat) -> CIImage {
         // **A preview must not lie about grain.** Grain is quoted for a
         // 2560px photograph; on a 180pt swatch one grain would be a fifth of a
@@ -485,24 +289,7 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         // negative does anyway.
         let cell = max(1, grain.cell * Double(scale))
         let strength = grain.amount * min(1, max(Double(scale), 0.1))
-        // **The noise field is moved, and on a live path it must be.**
-        //
-        // `CIRandomGenerator` takes no seed. It is a deterministic function of
-        // position with infinite extent, so every call produces the SAME field
-        // anchored to the same coordinates. On a still that is fine, and it is
-        // why re-rendering one photograph gives identical grain.
-        //
-        // On a viewfinder it is wrong in a way that is immediately obvious:
-        // every frame would carry an identical noise field pinned to the
-        // screen, so the grain would sit still while the scene moved behind it
-        // — dirt on the glass rather than grain in the emulsion.
-        //
-        // Translating the field before scaling samples a different region of
-        // the same infinite function, which is how you seed this filter. A
-        // still passes `.zero` and stays reproducible; a live path passes a
-        // new phase per frame.
         let noise = CIFilter.randomGenerator().outputImage?
-            .transformed(by: CGAffineTransform(translationX: phase.x, y: phase.y))
             .transformed(by: CGAffineTransform(scaleX: CGFloat(cell), y: CGFloat(cell)))
             .cropped(to: image.extent)
         guard let noise else { return image }

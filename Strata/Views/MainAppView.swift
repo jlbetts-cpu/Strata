@@ -214,9 +214,6 @@ struct MainAppView: View {
     /// that would have copied it in, so a stored 0 there culled against the
     /// top of the tower wherever it was scrolled.
     @State private var towerScrollOffset: CGFloat?
-    /// True while the folder on the Wins screen is open. The day's header
-    /// belongs to the day, not to what is inside the folder.
-    @State private var folderIsOpen = false
     /// Above this many blocks the tower culls what is off screen.
     private static let cullThreshold = 120
     @State private var screenHeight: CGFloat = 0
@@ -480,7 +477,7 @@ struct MainAppView: View {
             .alert("Nothing was deleted", isPresented: $resetFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Apollo could not reset your data, so every win and photo is still here. Try again.")
+                Text("Strata could not reset your data, so every win and photo is still here. Try again.")
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
@@ -759,10 +756,7 @@ struct MainAppView: View {
             // and put a caption between the tower and the tab bar. Here it is
             // always in the same place, and the tower has nothing beneath it
             // at all.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !folderIsOpen { towerHeader.transition(.opacity) }
-            }
-            .animation(GridConstants.motionSmooth, value: folderIsOpen)
+            .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
     }
 
     /// The whole header: one number, and what it counts.
@@ -788,14 +782,12 @@ struct MainAppView: View {
                 headerCount
                 Spacer(minLength: 0)
                 headerReplayPill
-                headerAdd
                 headerPlan
             }
             VStack(alignment: .leading, spacing: GridConstants.gapTight) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     headerCount
                     Spacer(minLength: 0)
-                    headerAdd
                     headerPlan
                 }
                 headerReplayPill
@@ -898,26 +890,6 @@ struct MainAppView: View {
             }
             .glassCapsule()
             .transition(.opacity)
-        }
-    }
-
-    /// **A win without a photograph.**
-    ///
-    /// The owner: "add the + button on the top right for those that prefer to
-    /// not take photos."
-    ///
-    /// The camera tab has always been the fast way in, and it is the right
-    /// default because a photograph is what this app is for. But it was the
-    /// ONLY way in from this screen once the tower's own add affordance went,
-    /// and a person who wants to write down that they went for a run should
-    /// not have to point a lens at something first. It opens the same sheet
-    /// everything else opens, with nothing filled in.
-    private var headerAdd: some View {
-        GlassIconButton(
-            systemName: "plus",
-            accessibilityLabel: "Add a win"
-        ) {
-            winDraft = WinDraft()
         }
     }
 
@@ -1157,21 +1129,11 @@ struct MainAppView: View {
  
 
     private func towerTabContent() -> some View {
-        // **The folder, where the tower was.**
-        //
-        // A swap and not a rewrite: everything around this is untouched. The
-        // header with the count and Plan, the replay pill, the add sheet, the
-        // edit sheet, the plan sheet and the ground are all exactly as they
-        // were, and the sheet below still opens from `expandedBlockID`, so
-        // tapping a win in the folder lands in the same place tapping a block
-        // in the tower did.
-        //
-        // `towerContent` is deliberately left in place and unused. This is
-        // the app's home screen and the replacement is new; being able to put
-        // the tower back is worth a warning about an unused function.
-        return WinsFolderView(blocks: towerVM.placedBlocks,
-                              onOpenWin: { expandedBlockID = $0 },
-                              isOpenExternally: $folderIsOpen)
+        let colW = currentColW
+
+        return towerContent(colW: colW, topInset: collapsedHeaderHeight,
+                     safeAreaTop: safeAreaTop, safeAreaBottom: safeAreaBottom,
+                     viewportHeight: screenHeight)
             .environment(\.towerFilterMode, towerFilterMode)
             .environment(\.perfectDayDates, perfectDayDates)
             // Nothing sits under the tower.
@@ -3337,19 +3299,7 @@ private struct StableCameraTab: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 
     var body: some View {
-        // **`false`, so the viewfinder stops above the tab strip.**
-        //
-        // The owner: "the area at the bottom to hold the tabs", and the
-        // rounded bottom he has asked for twice. `fillsScreen` drives three
-        // things at once — the bottom inset, the viewfinder's height, and
-        // whether the bottom corners round — and `true` turned the corners
-        // OFF (`fillsScreen ? 0 : cornerRadius`). That is why the tab's
-        // viewfinder has never been rounded: it was never asked to be.
-        //
-        // The modal camera in the add sheet keeps `true`. It has no tab bar
-        // under it, so a strip there would be a light band under a floating
-        // rounded rectangle, which is the fault that comment records.
-        CameraView(onCaptured: onCaptured, fillsScreen: false)
+        CameraView(onCaptured: onCaptured, fillsScreen: true)
     }
 }
 

@@ -27,7 +27,7 @@ struct HeadMakerView: View {
     @State private var brightnessBeforeFlash: CGFloat?
 
     /// `CameraView`'s viewfinder ground.
-    private static let ground = Grey.g950
+    private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
     /// The wordmark at the camera's own size.
     private static let wordmarkSize: CGFloat = 32
     /// The new head, shown near the size of the thank-you page's.
@@ -194,7 +194,7 @@ struct HeadMakerView: View {
     private var chrome: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: GridConstants.gapTight) {
-                ApolloWordmark(height: ApolloWordmark.boxHeight, color: .white)
+                StrataWordmark(size: Self.wordmarkSize, color: .white)
                     .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
                 Spacer(minLength: 0)
                 GlassIconButton(systemName: "xmark", tint: .white, glyphSize: 16,

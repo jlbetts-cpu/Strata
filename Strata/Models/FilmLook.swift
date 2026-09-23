@@ -39,56 +39,16 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
 
     /// Which look. The raw value is what is stored on a win.
     nonisolated enum Kind: String, CaseIterable, Identifiable, Sendable {
-        /// **The raw values are frozen and two of them no longer match their
-        /// case.** A win stores this string, so the string is storage and
-        /// renaming it would make every photograph taken before the rename
-        /// forget what it is. `gold` and `chrome` were the names the looks
-        /// shipped under for an afternoon; `amber` and `slate` are what they
-        /// are called now, and why is in the note on `name`.
-        case none
-        case air
-        case amber = "gold"
-        case slate = "chrome"
-        case ink = "silver"
-        case bright
+        case none, air, bright, silver
         var id: String { rawValue }
 
-        /// **What it is called on screen, and the names are our own.**
-        ///
-        /// The owner: "are the names like can we get in trouble for those, we
-        /// need original naming." He is right, and two of the four were a
-        /// problem.
-        ///
-        /// **Chrome was the bad one.** Classic Chrome is Fujifilm's own
-        /// registered name for the film simulation this look emulates, so
-        /// calling ours Chrome pointed a finger straight at their mark, in
-        /// the one product category where the confusion would be real. Gold
-        /// was the softer version of the same fault: Kodak Gold is Kodak's,
-        /// and while "gold" alone is a generic colour word and weak as a
-        /// mark, naming it that while modelling it on Kodak Gold 200 makes it
-        /// look deliberate rather than descriptive.
-        ///
-        /// The cost of being wrong is not a lawsuit, it is App Store
-        /// Guideline 5.2.1, on an account that has already been through a
-        /// 4.1(a) rejection. A rename is one line. It was not worth finding
-        /// out.
-        ///
-        /// So: materials, describing what the look DOES rather than what it
-        /// came from. Air is the glow in it, Amber is the colour it lays over
-        /// an afternoon, Slate is a cool grey stone, Ink is black. Generic
-        /// English words, descriptive of the result, owned by nobody.
-        ///
-        /// The stock names stay in the source, where they are documentation
-        /// of where the numbers came from and are nobody's brand. They must
-        /// never reach the screen, the listing or a screenshot.
+        /// What it is called on screen.
         var name: String {
             switch self {
             case .none:   return "None"
             case .air:    return "Air"
-            case .amber:  return "Amber"
-            case .slate:  return "Slate"
             case .bright: return "Bright"
-            case .ink:    return "Ink"
+            case .silver: return "Silver"
             }
         }
 
@@ -96,11 +56,9 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
         var describedAs: String {
             switch self {
             case .none:   return "No film look"
-            case .air:    return "Air, soft and warm, made for people"
-            case .amber:  return "Amber, golden and sunny"
-            case .slate:  return "Slate, cool and muted"
+            case .air:    return "Air, warm and soft"
             case .bright: return "Bright, deep colour"
-            case .ink:    return "Ink, black and white"
+            case .silver: return "Silver, black and white"
             }
         }
     }
@@ -136,17 +94,6 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     /// behind.
     var clipGuard: Double = 0.6
     /// Row-major 3x3, identity plus a few percent.
-    ///
-    /// **Every row sums to 1, and that is a contract rather than a habit.** A
-    /// row that sums to more or less than 1 is a channel GAIN: it tints grey,
-    /// and it tints white, so a blown sky comes out coloured. Three looks
-    /// were written here as gains first — a white balance shift is a gain on
-    /// a camera — and `FilmLookTests.clippedHighlightsStayNeutral` caught all
-    /// three, with up to 0.077 of colour left in a highlight against a
-    /// ceiling of 0.03. The warmth belongs in the CROSS-TALK: red taking a
-    /// little from blue, blue giving a little back to red and green. That
-    /// warms everything that has colour and leaves everything that does not
-    /// exactly where it was.
     var matrix: [Double] = [1, 0, 0, 0, 1, 0, 0, 0, 1]
     /// Hue bands: centre and width on a 0..<1 hue circle, how far to move
     /// them, and what to do to their saturation.
@@ -161,20 +108,6 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     var shadowAmount: Double = 0
     var highlightTint: RGB = RGB(1, 1, 1)
     var highlightAmount: Double = 0
-    /// **Color Chrome FX Blue: a polariser made of arithmetic.**
-    ///
-    /// Fujifilm's own effect darkens and deepens blue and leaves everything
-    /// else alone, which is what a circular polariser does to a sky and why
-    /// people put one on a lens. It is the one recipe parameter this pipeline
-    /// did not have.
-    ///
-    /// It costs nothing, and that is worth saying because it sounds like it
-    /// should. It depends only on a pixel's own colour, so it bakes into the
-    /// same 64-step table as everything else and adds no pass and no
-    /// milliseconds. It is applied only where blue is already SATURATED, so a
-    /// grey sky and a white wall stay where they are and only the blue that
-    /// is really blue goes deeper.
-    var blueDensity: Double = 0
     /// How much of every colour move is kept off skin.
     var skinProtection: Double = 0.85
     /// Black and white, with the channel weights of a light orange filter so
@@ -183,33 +116,7 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
 
     // MARK: - Light and texture (applied by `FilmLookRenderer`)
 
-    /// **How far the sensor is deliberately underexposed, in stops.**
-    ///
-    /// This is what Fujifilm's DR200 and DR400 actually are, and the pipeline
-    /// was doing only half of it. DR400 does not mean "lift the shadows": it
-    /// means underexpose by two stops so the highlights are never clipped,
-    /// then lift everything back in processing. A sky that has already blown
-    /// cannot be recovered by any amount of grading, and `shadowLift` was
-    /// being asked to do a job that has to be done before the shutter.
-    ///
-    /// `CameraService` sets the sensor from this and `FilmLookRenderer` puts
-    /// the stops back, so the viewfinder and the photograph are pulled and
-    /// lifted identically and still agree.
-    ///
-    /// **Kept at one stop rather than the recipe's two**, for now. Two stops
-    /// of lift on a frame the phone has already processed amplifies its noise
-    /// reduction as much as it buys headroom. On the RAW path there is room
-    /// to go further, and that is a change to make with a phone in hand.
-    var pullStops: Double = 0
     /// How much of a colour cast to take out before the look goes on, 0...1.
-    ///
-    /// **A warm look is set higher, not lower.** It reads backwards and it is
-    /// the whole reason this step exists. A warm room plus a warm look is two
-    /// casts stacked, which is how a photograph of a kitchen at night ends up
-    /// orange; correcting more of the scene's own cast first is what leaves
-    /// room for the look's. Air and Amber take out the most because they add
-    /// the most. Slate, which adds a cool cast to a world that is usually
-    /// warm, needs less.
     var neutralise: Double = 0.45
     /// Lifting only where the picture is dark, so a dim room keeps what is in
     /// it without the whole frame going milky.
@@ -221,10 +128,7 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
     var bloom: Glare?
     /// The air: a soft, lifted copy printed back over the picture.
     var glow: Glare?
-    /// Local contrast, to pay for the softness the shoulder and the glow
-    /// cost. **Negative softens instead**, which is the move that takes the
-    /// clinical edge off a digital lens and is what a Fujifilm recipe means
-    /// by clarity -2.
+    /// Local contrast, to pay for the softness the shoulder and the glow cost.
     var clarity: Double = 0
     /// Grain: how strong, how big on a 2560px photograph, and how much colour
     /// it carries.
@@ -352,21 +256,6 @@ extension FilmLook {
         if factor > 1.02 { colour = Self.mix(colour, beforeSaturation, skin) }
 
         let keep = 1 - skin
-
-        // **Blue goes deeper, and only blue that is already blue.** Weighted
-        // by the band, by how saturated the colour is, and away from skin
-        // like everything else. Darkening is what makes a sky read as deep
-        // rather than merely as more blue, so this takes value down and lets
-        // the saturation that comes with it follow.
-        if blueDensity > 0 {
-            let (hue, chroma, _) = Self.hsv(colour)
-            let weight = Self.window(hue, 0.588, 0.115) * Self.ramp(chroma, 0.18, 0.55) * keep
-            if weight > 0 {
-                let darker = 1 - blueDensity * weight
-                colour = RGB(colour.r * darker, colour.g * darker, colour.b * darker)
-            }
-        }
-
         if shadowAmount > 0 {
             colour = Self.mix(colour, shadowTint, shadowAmount * Self.ramp(brightness, 0.42, 0.02) * keep)
         }
@@ -530,155 +419,38 @@ extension FilmLook {
     /// Three, and none. **Less is more** (the owner's call): a long list of
     /// looks is a list nobody reads, and the two that were cut both read as
     /// sad — muted plus cool plus heavy shadows is the recipe for gloom.
-    /// **Four, and each one a corner.**
-    ///
-    /// The owner, having read a shelf of Fujifilm recipes: "lets decide on
-    /// the four best and most distinct ones from each other in all the
-    /// recipes I send and that look stunning, I think prioritise popular ones
-    /// and understand why they are popular."
-    ///
-    /// Four corners, so no two of them are ever a near miss: soft and warm,
-    /// golden and loud, cool and muted, and no colour at all. Each is the
-    /// most used recipe of its kind rather than the most obscure, because a
-    /// recipe becomes popular by being the one people actually keep their
-    /// camera on.
-    ///
-    /// **Bright is retired and it is the right one to lose.** It was a Velvia
-    /// idea rather than a recipe, and rendered beside these it was the only
-    /// look you had to compare against `none` to be sure it was on. Its
-    /// saturation is inside Gold and its contrast is inside Chrome.
-    static let all: [FilmLook] = [none, air, amber, slate, ink]
-
-    /// Everything the app can still NAME, including looks no longer offered.
-    /// A win keeps the kind it was taken with, so a retired look has to keep
-    /// resolving or an old photograph would forget what it is.
-    static let everyKnown: [FilmLook] = all + [bright]
+    static let all: [FilmLook] = [none, air, bright, silver]
 
     static func look(_ kind: Kind) -> FilmLook {
-        everyKnown.first { $0.kind == kind } ?? none
+        all.first { $0.kind == kind } ?? none
     }
 
     static let none = FilmLook(kind: .none, neutralise: 0)
 
-    /// **Soft, warm and luminous, and the one for people.**
-    ///
-    /// Tuned against the two Kodak Portra recipes the owner sent, which are
-    /// the most used film recipes there are and are within one white balance
-    /// click of each other: Classic Chrome, DR400, daylight shifted +2 red
-    /// and -5 blue, shadows -2, colour +2, grain strong and small.
-    ///
-    /// **What each of those becomes here.** DR400 protects highlights and
-    /// opens shadows, which is a long shoulder and a shadow lift, not an
-    /// exposure change. Shadows -2 is a flatter toe: less contrast and more
-    /// base fog. Colour +2 is a small saturation lift that must not touch
-    /// skin, so `skinProtection` goes to its highest value in the set. The
-    /// white balance shift is a channel gain after the curve, which is where
-    /// a camera's own shift effectively lands in its JPEG.
-    ///
-    /// Nothing in it pushes skin anywhere, the highlights are creamy rather
-    /// than clipped, and the glow does most of the work.
+    /// Soft, warm and luminous. The one for people: nothing in it pushes skin
+    /// anywhere, the highlights are creamy rather than clipped, and the glow
+    /// does most of the work.
     static let air = FilmLook(
         kind: .air,
-        exposure: 1.14, shoulder: 2.45, contrast: 0.10, pivot: 0.53,
+        exposure: 1.14, shoulder: 2.30, contrast: 0.16, pivot: 0.53,
         blackLift: RGB(0.046, 0.042, 0.040),
-        matrix: [1.030, -0.012, -0.018, 0.006, 1.000, -0.006, 0.020, 0.016, 0.964],
-        hues: [HueBand(centre: 0.313, width: 0.110, move: 0.014, saturation: 0.94),
-               HueBand(centre: 0.588, width: 0.102, move: -0.008, saturation: 0.96),
-               HueBand(centre: 0.149, width: 0.070, move: -0.006, saturation: 1.06)],
+        matrix: [1.01, 0, -0.01, 0, 1, 0, -0.01, 0, 1.01],
+        hues: [HueBand(centre: 0.313, width: 0.110, move: 0.020, saturation: 1.02),
+               HueBand(centre: 0.588, width: 0.102, move: -0.008, saturation: 1.06),
+               HueBand(centre: 0.149, width: 0.070, move: -0.008, saturation: 0.98)],
         memory: [HueBand(centre: 0.345, width: 0.102, move: 0.30, pull: true),
                  HueBand(centre: 0.588, width: 0.102, move: 0.30, pull: true)],
-        saturation: 1.10, saturationHigh: 0.80, saturationLow: 0.88,
-        shadowTint: .bytes(96, 96, 92), shadowAmount: 0.05,
-        highlightTint: .bytes(255, 242, 226), highlightAmount: 0.12,
-        blueDensity: 0.05,
-        skinProtection: 0.95,
-        pullStops: 1.0, neutralise: 0.62, shadowLift: 0.26,
-        halation: Glare(threshold: 0.82, radius: 34, amount: 0.18),
-        bloom: Glare(threshold: 0.88, radius: 50, amount: 0.08),
-        glow: Glare(threshold: 0.24, radius: 36, amount: 0.20),
-        clarity: -0.14,
-        grain: Grain(amount: 0.42, cell: 1.9, colour: 0.06),
-        likeness: Likeness(saturation: 1.10, contrast: 0.95, brightness: 0.05))
-
-    /// **Golden and sunny**, from the Kodak Gold 200 recipe: Classic Chrome,
-    /// DR200, daylight shifted +3 red and -5 blue, highlights -1, shadows +1,
-    /// colour +3.
-    ///
-    /// The cheap consumer film everybody's holiday photographs were taken on,
-    /// which is why it reads as a memory rather than as a filter. Its whole
-    /// character is in the yellows: they are the most saturated thing in the
-    /// frame and everything green is pulled towards them, which is what warm
-    /// afternoon light does to a lawn. The colour +3 is the strongest in the
-    /// set and the skin exemption is doing the most work here.
-    static let amber = FilmLook(
-        kind: .amber,
-        exposure: 1.10, shoulder: 2.00, contrast: 0.24, pivot: 0.50,
-        blackLift: RGB(0.030, 0.024, 0.016),
-        matrix: [1.055, -0.020, -0.035, 0.010, 1.004, -0.014, 0.038, 0.026, 0.936],
-        hues: [HueBand(centre: 0.149, width: 0.080, move: -0.006, saturation: 1.30),
-               HueBand(centre: 0.313, width: 0.115, move: -0.016, saturation: 1.00),
-               HueBand(centre: 0.588, width: 0.110, move: 0.010, saturation: 0.90),
-               HueBand(centre: 0.0, width: 0.055, move: 0.006, saturation: 1.10)],
-        memory: [HueBand(centre: 0.345, width: 0.102, move: 0.26, pull: true),
-                 HueBand(centre: 0.588, width: 0.102, move: 0.26, pull: true)],
-        saturation: 1.15, saturationHigh: 0.82, saturationLow: 0.92,
-        shadowTint: .bytes(84, 70, 54), shadowAmount: 0.07,
-        highlightTint: .bytes(255, 238, 210), highlightAmount: 0.13,
-        blueDensity: 0.10,
-        skinProtection: 0.88,
-        pullStops: 0.7, neutralise: 0.58, shadowLift: 0.18,
-        halation: Glare(threshold: 0.82, radius: 28, amount: 0.20),
-        bloom: Glare(threshold: 0.88, radius: 44, amount: 0.08),
-        glow: Glare(threshold: 0.22, radius: 30, amount: 0.20),
-        clarity: 0.34,
-        grain: Grain(amount: 0.40, cell: 2.0, colour: 0.08),
-        likeness: Likeness(saturation: 1.18, contrast: 1.02, brightness: 0.03))
-
-    /// **Cool, muted, and the only look here that is not warm.**
-    ///
-    /// Fujifilm's Classic Chrome, which the owner's own note describes
-    /// precisely: "muted and globally desaturated, but selectively retains
-    /// punchy blues shifted toward cyan... skin tones neutral, slightly
-    /// desaturated and pale, avoiding warm orange or pink casts... heavy
-    /// shadow contrast but a smooth, predictable highlight response."
-    ///
-    /// **This look exists because the other three are warm.** The first
-    /// version of it was Kodachrome — also built on Classic Chrome, but
-    /// tuned rich and warm — and rendered beside Air and Amber it was a third
-    /// warm look in a set of four. A set needs a pole at each end or the
-    /// choice is only ever about how much.
-    ///
-    /// It is also the one look that deliberately touches skin. Every other
-    /// look here exempts it, because a look that moves skin is a look nobody
-    /// uses on a photograph of a person. Classic Chrome's whole reputation is
-    /// pale, cool, unflattered skin — it is why it is the recipe people reach
-    /// for on a grey day, on a street, in a room with four different kinds of
-    /// light in it — so `skinProtection` comes down rather than the look
-    /// being a lie. It is the look for the picture that is not about a face.
-    static let slate = FilmLook(
-        kind: .slate,
-        exposure: 1.04, shoulder: 2.20, contrast: 0.40, pivot: 0.46,
-        blackLift: RGB(0.006, 0.008, 0.012),
-        matrix: [0.960, 0.024, 0.016, -0.004, 0.994, 0.010, -0.022, -0.014, 1.036],
-        hues: [HueBand(centre: 0.0, width: 0.060, move: 0.004, saturation: 0.84),
-               HueBand(centre: 0.149, width: 0.075, move: 0.006, saturation: 0.82),
-               HueBand(centre: 0.313, width: 0.115, move: 0.010, saturation: 0.80),
-               HueBand(centre: 0.588, width: 0.105, move: -0.020, saturation: 1.12)],
-        memory: [HueBand(centre: 0.345, width: 0.102, move: 0.24, pull: true),
-                 HueBand(centre: 0.588, width: 0.102, move: 0.24, pull: true)],
-        saturation: 0.88, saturationHigh: 0.72, saturationLow: 0.80,
-        shadowTint: .bytes(44, 54, 68), shadowAmount: 0.12,
-        highlightTint: .bytes(244, 246, 250), highlightAmount: 0.08,
-        blueDensity: 0.18,
-        skinProtection: 0.45,
-        pullStops: 0.7, neutralise: 0.45, shadowLift: 0.06,
-        halation: Glare(threshold: 0.86, radius: 22, amount: 0.12),
-        bloom: Glare(threshold: 0.90, radius: 36, amount: 0.06),
-        glow: Glare(threshold: 0.26, radius: 26, amount: 0.12),
-        clarity: 0.40,
-        grain: Grain(amount: 0.36, cell: 2.0, colour: 0.05),
-        vignette: 0.06,
-        likeness: Likeness(saturation: 0.88, contrast: 1.12, brightness: -0.01))
+        saturation: 1.02, saturationHigh: 0.84, saturationLow: 0.90,
+        shadowTint: .bytes(96, 92, 98), shadowAmount: 0.05,
+        highlightTint: .bytes(255, 238, 214), highlightAmount: 0.16,
+        skinProtection: 0.90,
+        neutralise: 0.45, shadowLift: 0.22,
+        halation: Glare(threshold: 0.84, radius: 30, amount: 0.16),
+        bloom: Glare(threshold: 0.86, radius: 54, amount: 0.10),
+        glow: Glare(threshold: 0.22, radius: 40, amount: 0.30),
+        clarity: 0.28,
+        grain: Grain(amount: 0.34, cell: 2.2, colour: 0.08),
+        likeness: Likeness(saturation: 1.02, contrast: 0.97, brightness: 0.045))
 
     /// Velvia's colour with the lights on: greens towards teal, blues deep,
     /// reds loud, and saturation that falls away near white so a sky keeps its
@@ -707,35 +479,23 @@ extension FilmLook {
         grain: Grain(amount: 0.28, cell: 2.0, colour: 0.07),
         likeness: Likeness(saturation: 1.24, contrast: 1.06, brightness: 0.02))
 
-    /// **Black and white with the texture turned up**, from the Kodak Tri-X
-    /// 400 recipe: Acros with a yellow filter, DR200, highlights +1, shadows
-    /// +2, grain strong and LARGE.
-    ///
-    /// It was the softer, lifted kind of black and white, and against the
-    /// owner's "the looks dont look distinct enough" that was the wrong
-    /// choice twice over: it made it milder than Air rather than the other
-    /// end of the set, and mild is not what anybody wants black and white
-    /// FOR. Tri-X is the definitive one because it is punchy — shadows that
-    /// go to black, highlights that hold, and grain you can see from across a
-    /// room. The grain cell is the largest here by half again, which is the
-    /// one parameter in the recipe written in capitals.
-    ///
-    /// The orange filter weighting stays: it is why skin stays light and a
-    /// sky keeps its clouds, and it is the reason to shoot a filter at all.
-    static let ink = FilmLook(
-        kind: .ink,
-        exposure: 1.10, shoulder: 1.85, contrast: 0.42, pivot: 0.48,
-        blackLift: RGB(0.010, 0.010, 0.010),
+    /// Black and white through a light orange filter, so skin stays light and
+    /// a sky keeps its clouds. Lifted rather than gloomy, with the grain film
+    /// actually has: heaviest in the midtones, gone in the highlights.
+    static let silver = FilmLook(
+        kind: .silver,
+        exposure: 1.11, shoulder: 2.10, contrast: 0.28, pivot: 0.49,
+        blackLift: RGB(0.016, 0.016, 0.016),
         inset: 0, restore: 0,
         saturation: 1, saturationHigh: 1, saturationLow: 1,
         highlightTint: .bytes(255, 252, 245), highlightAmount: 0.05,
         skinProtection: 0,
         mono: RGB(0.42, 0.44, 0.14),
-        pullStops: 0.7, neutralise: 0.45, shadowLift: 0.12,
-        bloom: Glare(threshold: 0.88, radius: 40, amount: 0.10),
-        glow: Glare(threshold: 0.24, radius: 30, amount: 0.16),
-        clarity: 0.56,
-        grain: Grain(amount: 0.56, cell: 3.0, colour: 0),
-        vignette: 0.10,
-        likeness: Likeness(contrast: 1.14, brightness: 0.02, grayscale: 1))
+        neutralise: 0.45, shadowLift: 0.20,
+        bloom: Glare(threshold: 0.88, radius: 44, amount: 0.10),
+        glow: Glare(threshold: 0.22, radius: 36, amount: 0.25),
+        clarity: 0.46,
+        grain: Grain(amount: 0.56, cell: 2.6, colour: 0),
+        vignette: 0.05,
+        likeness: Likeness(contrast: 1.05, brightness: 0.04, grayscale: 1))
 }

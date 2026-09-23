@@ -620,7 +620,7 @@ struct Filmstrip: View {
                         // replaces and the strip flickers as they cross.
                         .zIndex(distance < 0.5 ? 1 : 0)
                         .onTapGesture { select(photo) }
-                        .accessibilityLabel(photo.accessibilityName)
+                        .accessibilityLabel(photo.title ?? "Photo")
                     }
             }
             // Centre the frame at `progress`. Half the card either side is why

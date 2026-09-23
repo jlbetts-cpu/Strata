@@ -161,24 +161,6 @@ struct CachedImageView: View {
         let drawn = filled(photo, in: frame)
         guard drawn.width > 0, drawn.height > 0 else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
         let shift = shift(crop: crop, photo: photo, frame: frame)
-        // **The `/ 2` is the crop anchor, and it is a decision.**
-        //
-        // A cover fit crops from the CENTRE. That was a SwiftUI default that
-        // nothing stated — `scaledToFill` centres, and this arithmetic has
-        // always divided by two — so it could have been moved by a refactor
-        // without anybody noticing it had been chosen.
-        //
-        // It is also the right value, tested rather than assumed: rendered
-        // both ways on four of the owner's own photographs at a real tile
-        // size, the centre crop won three of the four. Anchoring a third from
-        // the top is a LANDSCAPE rule, it keeps a sky and a horizon, and most
-        // photographs here have a subject in them, where it pushes heads
-        // toward the frame's edge. The case it loses is a valley landscape,
-        // where the centre cuts the top of the mountain.
-        //
-        // A photograph the person cropped themselves in the camera's review
-        // still shows what they chose; this is only where a crop of zero
-        // lands. Pinned by `CropAnchorTests`.
         return CGRect(x: ((drawn.width - frame.width) / 2 - shift.width) / drawn.width,
                       y: ((drawn.height - frame.height) / 2 - shift.height) / drawn.height,
                       width: frame.width / drawn.width, height: frame.height / drawn.height)

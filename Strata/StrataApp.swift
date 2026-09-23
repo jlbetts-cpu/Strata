@@ -28,11 +28,6 @@ struct StrataApp: App {
     @State private var storeOpening: StoreOpening
 
     init() {
-        // **First line of the app.** An Objective-C exception is not
-        // catchable from Swift, so the only place its reason can be read is
-        // the uncaught handler, and the only way it survives the process is
-        // being written down there. See `CrashReason`.
-        CrashReason.install()
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
         // `body` is too late: `showsOnboarding` is read in the same evaluation
@@ -164,14 +159,7 @@ struct StrataApp: App {
             // has been through this, it IS the app.
             Group {
                 #if DEBUG
-                if DebugHarness.viewfinderLab {
-                    ViewfinderLabView()
-                } else if let count = DebugHarness.scatterCount {
-                    FolderInside(title: "Today", wins: DebugHarness.scatterWins(count))
-                        .preferredColorScheme(.dark)
-                } else if DebugHarness.folderLab {
-                    FolderLabView()
-                } else if DebugHarness.headParity {
+                if DebugHarness.headParity {
                     HeadParityView()
                 } else {
                     appRoot

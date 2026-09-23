@@ -75,7 +75,7 @@ struct FilmLookStrip: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.press)
+        .buttonStyle(.plain)
         .accessibilityLabel(look.kind.describedAs)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
     }

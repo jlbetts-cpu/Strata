@@ -84,7 +84,7 @@ struct FilmLookTests {
     @Test("Silver is black and white")
     func silverIsGrey() {
         for r in stride(from: 0.0, through: 1.0, by: 0.25) {
-            let out = FilmLook.ink.graded(FilmLook.RGB(r, 1 - r, 0.5))
+            let out = FilmLook.silver.graded(FilmLook.RGB(r, 1 - r, 0.5))
             #expect(close(out.r, out.g, 1e-6) && close(out.g, out.b, 1e-6))
         }
     }
@@ -150,60 +150,6 @@ struct FilmLookTests {
         let faceGain = FilmLook.hsv(FilmLook.bright.graded(face)).s / FilmLook.hsv(face).s
         #expect(leafGain > 1.15, "the leaf should gain colour, got \(leafGain)")
         #expect(faceGain < leafGain, "skin gained as much as foliage")
-    }
-
-    /// **The stored string is storage, and a rename must never touch it.**
-    ///
-    /// A win keeps the raw value of the look it was taken with. Two looks
-    /// were renamed for trademark reasons after they had already been
-    /// written to disk, so this pins what is on disk: change a case name
-    /// freely, change one of these and every photograph taken before the
-    /// change forgets what it is.
-    @Test("Every stored look string still resolves to the look it named")
-    func storedRawValuesAreFrozen() {
-        let onDisk: [String: String] = [
-            "none": "None", "air": "Air", "gold": "Amber",
-            "chrome": "Slate", "silver": "Ink", "bright": "Bright"
-        ]
-        for (stored, shown) in onDisk {
-            let kind = FilmLook.Kind(rawValue: stored)
-            #expect(kind != nil, "a win storing \"\(stored)\" no longer decodes")
-            #expect(kind?.name == shown, "\(stored) now shows as \(kind?.name ?? "nothing")")
-            #expect(FilmLook.look(kind ?? .none).kind == kind,
-                    "\(stored) decodes but resolves to a different look")
-        }
-    }
-
-    /// **No stock is a brand of ours to use.** The source may say where a
-    /// number came from; the screen may not.
-    ///
-    /// Two checks, because one was not enough. A NAME is a claim, so no look
-    /// may simply BE a reserved word: a filter called "Chrome" or "Gold" in a
-    /// camera app is pointing at Fujifilm's Classic Chrome and Kodak Gold
-    /// whatever the intent. A DESCRIPTION is prose, so it is checked for the
-    /// brands themselves rather than for ordinary words: the first version of
-    /// this failed on "golden and sunny", which is English describing a
-    /// colour, and a gate that cries at English gets deleted rather than
-    /// obeyed.
-    @Test("No look is named after somebody else's film")
-    func noLookBorrowsATrademark() {
-        // A name may not BE one of these.
-        let reservedNames = ["gold", "chrome", "portra", "velvia", "acros",
-                             "ektar", "provia", "astia", "reala", "superia"]
-        // Neither name nor description may CONTAIN one of these.
-        let brands = ["kodak", "fujifilm", "kodachrome", "tri-x", "ilford",
-                      "classic chrome", "classic negative", "cinestill"]
-
-        for look in FilmLook.everyKnown {
-            let name = look.kind.name.lowercased()
-            let shown = (look.kind.name + " " + look.kind.describedAs).lowercased()
-            #expect(!reservedNames.contains(name),
-                    "a look called \"\(look.kind.name)\" is somebody else's film simulation")
-            for brand in brands {
-                #expect(!shown.contains(brand),
-                        "\(look.kind.name) puts \"\(brand)\" on the screen")
-            }
-        }
     }
 
     @Test("a blown highlight goes white, not magenta")

@@ -473,28 +473,6 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     /// synthesized init entirely, which is the trap `WinRecord.place`
     /// documents.
     var place: WinPlace?
-    /// What VoiceOver calls this photograph.
-    ///
-    /// **Not the literal word "Photo".** Every untitled photograph used the
-    /// same string, so swiping a month's gallery read "Photo, Photo, Photo"
-    /// several hundred times — the grid announced its own type over and over
-    /// and never said which picture you were on. A label that is identical
-    /// for every element is the same as no label.
-    ///
-    /// A win that was named says its name. One that was not says when it was
-    /// taken, which is the only thing that distinguishes it.
-    var accessibilityName: String {
-        if let title, !title.isEmpty { return title }
-        return Self.spokenDateFormatter.string(from: date)
-    }
-
-    private static let spokenDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .long
-        f.timeStyle = .short
-        return f
-    }()
-
 }
 
 /// A run of photographs under one heading — a month of the gallery.

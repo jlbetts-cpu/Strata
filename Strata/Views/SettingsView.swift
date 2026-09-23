@@ -96,11 +96,9 @@ struct SettingsView: View {
                     // — the styling the tower left behind. `StrataMark` is
                     // drawn from `BlockSurface`, so it is the same object the
                     // rest of the app is made of and cannot drift again.
-                    // **The S block is gone with the rename.** The
-                    // standalone mark belongs to the app icon and to nothing
-                    // inside the app, and a mark directly above a wordmark
-                    // says the same thing twice. The name carries the header.
-                    ApolloWordmark(height: ApolloWordmark.boxHeight)
+                    StrataMark(side: 72)
+
+                    StrataWordmark(size: 30)
 
                     Text("Version \(appVersion)")
                         .font(Typography.bodySmall)
@@ -110,7 +108,7 @@ struct SettingsView: View {
                 .padding(.top, 24)
                 .padding(.bottom, 8)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Apollo version \(appVersion)")
+                .accessibilityLabel("Strata version \(appVersion)")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -262,8 +260,8 @@ struct SettingsView: View {
                 // Stated here because it is the map's one real disappointment
                 // and it should not be discovered.
                 Text(location.isDenied
-                     ? "Location is off for Apollo in the Settings app, so photographs can't be placed on your map."
-                     : "Photographs you take in Apollo keep the place they were taken, and appear on your map.")
+                     ? "Location is off for Strata in the Settings app, so photographs can't be placed on your map."
+                     : "Photographs you take in Strata keep the place they were taken, and appear on your map.")
             }
 
             // MARK: - How Strata works
@@ -274,7 +272,7 @@ struct SettingsView: View {
                     replayOnboarding = true
                 } label: {
                     Label {
-                        Text("How Apollo Works")
+                        Text("How Strata Works")
                             .foregroundStyle(.primary)
                     } icon: {
                         SettingsIcon(systemName: "questionmark.circle")
@@ -391,7 +389,7 @@ struct SettingsView: View {
                     }
                 }
             } footer: {
-                Text("Everything you log stays on this device. Apollo has no account and no server.")
+                Text("Everything you log stays on this device. Strata has no account and no server.")
             }
 
             // MARK: - Section 6: Debug
@@ -431,7 +429,7 @@ struct SettingsView: View {
         .alert("Nothing was deleted", isPresented: $resetFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Apollo could not reset your data, so every win and photo is still here. Try again.")
+            Text("Strata could not reset your data, so every win and photo is still here. Try again.")
         }
         #if DEBUG
         .task {
@@ -562,7 +560,7 @@ struct SettingsView: View {
 
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyy-MM-dd"
-        let name = "Apollo Backup \(stamp.string(from: Date()))"
+        let name = "Strata Backup \(stamp.string(from: Date()))"
 
         // **A backup, which means the photographs too.**
         //

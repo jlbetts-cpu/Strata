@@ -20,24 +20,19 @@ import SwiftUI
 /// centre removes every shadow that gives a face shape; light from the rim
 /// keeps the modelling and puts the catchlight in the eye.
 struct WarmRingLight: View {
-    /// The base wash's strength. It is held low, because this light is ON the
-    /// whole time the front flash is armed and the preview is underneath it:
-    /// a heavy wash whites out the very thing it exists to light.
+    /// The base wash's strength. The CAPTURE flash wants the full fill,
+    /// because at that moment nothing matters except photons on the face. The
+    /// MODELLING ring is held on while the flash is armed so you can see
+    /// yourself — and there the fill has to stay low, or the overlay whites
+    /// out the very preview it exists to light.
     let fillOpacity: Double
 
-    /// **There is one level now, and it is the one you compose by.**
-    ///
-    /// There were two: this, and a much heavier `captureFill` of 0.72 fired
-    /// as a blast at the shutter. The owner cut it — "what's the point of the
-    /// additional flash when you take the photo? The ring is enough" — and
-    /// with it went the 220ms the shutter had to wait for auto-exposure to
-    /// catch up with a light that had just appeared.
-    ///
-    /// So this number now has to be BOTH the modelling light and the flash,
-    /// which means it can only come down so far. The owner's bar for how far:
-    /// "the person still needs to be visible enough to admire themselves."
+    /// Held on, the fill has to stay low or the overlay hides your face
+    /// instead of lighting it. The ring itself does the work.
     static let modellingFill: Double = 0.10
     static let modellingLevel: Double = 0.92
+    /// At the moment of capture nothing matters but light on the face.
+    static let captureFill: Double = 0.72
 
     /// ~3400K.
     static let fill = Color(red: 1.00, green: 0.90, blue: 0.78)
@@ -72,36 +67,19 @@ struct WarmRingLight: View {
                 // the top and bottom only. An elliptical gradient takes its
                 // radii from the view's own proportions, so the bright band
                 // lands on all four edges of whatever shape the screen is.
-                // **The band sits further out than it used to, and that is
-                // about the PREVIEW rather than about the light.**
-                //
-                // Measured over a selfie with the ring held on, the old stops
-                // lifted the centre by 12 but the edges by 75 to 105 and a
-                // face at the lower middle by 35 to 54. The owner: "I think
-                // it might be too bright... the person still needs to be
-                // visible enough to admire themselves."
-                //
-                // Dimming the whole thing is the wrong answer, because this
-                // is now the ONLY light — the capture blast is gone — and
-                // less screen emission is less light on the face. What can
-                // move instead is where the emission sits. Light at the
-                // extreme perimeter still reaches the face; it just does not
-                // sit on top of it in the preview. So the ramp starts at half
-                // the radius rather than a third, and the blur is tightened
-                // so it bleeds less of that inward.
                 EllipticalGradient(
                     stops: [
                         .init(color: .clear, location: 0.00),
-                        .init(color: .clear, location: 0.52),
-                        .init(color: Self.ring.opacity(0.22), location: 0.72),
-                        .init(color: Self.ring.opacity(0.80), location: 0.88),
+                        .init(color: .clear, location: 0.30),
+                        .init(color: Self.ring.opacity(0.30), location: 0.55),
+                        .init(color: Self.ring.opacity(0.90), location: 0.82),
                         .init(color: Self.ring, location: 1.00)
                     ],
                     center: .center,
                     startRadiusFraction: 0,
                     endRadiusFraction: 0.62
                 )
-                .blur(radius: 22)
+                .blur(radius: 28)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }

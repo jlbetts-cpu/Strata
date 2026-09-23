@@ -57,8 +57,7 @@ struct OnboardingView: View {
                 // shrank back on the way off. Matching `CameraView.Header`
                 // and the head maker also means the app you land in after
                 // onboarding has its wordmark exactly where onboarding left it.
-                ApolloWordmark(height: ApolloWordmark.boxHeight,
-                               color: onDark ? .white : AppColors.inkPrimary)
+                StrataWordmark(size: 32, color: onDark ? .white : AppColors.inkPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, GridConstants.headerArtworkTopPadding)
                     .opacity(step == 2 ? 0 : 1)
@@ -383,7 +382,7 @@ struct OnboardingView: View {
                 .clipShape(Circle())
                 .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
                 .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 14, y: 6)
-                .accessibilityLabel("Jayden, who made Apollo")
+                .accessibilityLabel("Jayden, who made Strata")
                 // The same person twice: the photograph, and the head from his
                 // portfolio leaning in over its edge. Mostly outside the circle
                 // on purpose — a cut-out laid over a busy photograph loses its
