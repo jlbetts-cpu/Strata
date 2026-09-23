@@ -184,10 +184,9 @@ struct FolderInside: View {
 
     private func card(_ win: ScatterWin, spot: ScatterLayout.Placement, index: Int) -> some View {
         let isPressed = pressed == win.id
-        // One corner on every photograph, whatever size the card is. See
-        // `GridConstants.radiusPhoto`.
-        let radius = GridConstants.radiusPhoto
-        return WinCardFace(win: win, image: thumbs[win.id] ?? win.image, corner: radius)
+        // The corner and the edge come from `PhotoFinish` now, so nothing
+        // here decides either.
+        return WinCardFace(win: win, image: thumbs[win.id] ?? win.image)
             .frame(width: spot.frame.width, height: spot.frame.height)
             // The one shadow, and it is the card standing off the ground
             // rather than chrome floating. It grows under a finger, which is

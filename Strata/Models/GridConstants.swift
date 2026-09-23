@@ -102,12 +102,26 @@ enum GridConstants {
     /// is: cut two photographs out of the same paper and the corners match
     /// whatever the size.
     ///
-    /// 16 rather than `radiusSurface`'s 20 because a photograph is a thing ON
-    /// a surface rather than the surface, and it takes the rung below.
+    /// **8, from the print's own file** (Figma `13258-6988`), and one value
+    /// for every photograph the app draws.
     ///
-    /// The miniatures peeking out of a folder take `photoMiniature` — the
-    /// same card seen at about a third the size, so its corner is scaled
-    /// with it rather than being a second decision.
+    /// It was three. 16 inside a folder, 7 on the stack peeking out of one,
+    /// and the print computing its own 8 from a ratio — after the owner had
+    /// already asked for one corner: "the corner rounding of the photos needs
+    /// to be the same throughout all the photos." He said it again looking at
+    /// the print beside the cards: "match the blocks with the polaroid, they
+    /// shouldn't look different."
+    ///
+    /// The reasoning that produced the miniature's 7 was that a small card is
+    /// "the same card seen at a third the size, so its corner scales with
+    /// it". That is wrong and it contradicts the sentence directly above it
+    /// in the same file: a corner is a property of the CARD STOCK, not of how
+    /// much of it there is. Cut two photographs out of the same paper and the
+    /// corners match whatever the size — which is the whole reason this is an
+    /// absolute number and not a fraction of the width.
+    ///
+    /// Anything drawing a photograph takes `.photoFinish()`, which applies
+    /// this corner and the edge together. See `PhotoFinish`.
     /// **The strip of dark between the page and the bottom edge.**
     ///
     /// The camera has had this for a long time: its viewfinder stops 20pt
@@ -125,8 +139,7 @@ enum GridConstants {
     /// drift. `CameraView.stripBreathing` reads this.
     static let bottomStrip: CGFloat = 20
 
-    static let radiusPhoto: CGFloat = 16
-    static let radiusPhotoMiniature: CGFloat = 7
+    static let radiusPhoto: CGFloat = 8
     /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.
     static let radiusField: CGFloat = 12
     /// Small controls, icon wells, drop indicators.

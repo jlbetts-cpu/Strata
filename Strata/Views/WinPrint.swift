@@ -48,9 +48,12 @@ struct WinPrint: View {
     /// than a pair that can drift.
     static let aspect: CGFloat = 342.0 / 452.0
 
-    /// Every other measurement is a fraction of the card's WIDTH, so the
-    /// print is the same drawing at 120pt on a shelf and at 340pt held.
-    private static let radiusRatio: CGFloat = 8.0 / 342.0
+    /// The mark's measurements are a fraction of the card's WIDTH, so the
+    /// signature is the same size relative to the print at any scale. The
+    /// CORNER is not: it comes from `GridConstants.radiusPhoto`, which is one
+    /// absolute number for every photograph the app draws, because a corner
+    /// is a property of the card stock rather than of how much of it there
+    /// is. See `PhotoFinish`.
     private static let markWidthRatio: CGFloat = 66.0 / 342.0
     private static let markInsetRatio: CGFloat = 16.0 / 342.0
     private static let markOpacity: CGFloat = 0.8
@@ -58,8 +61,6 @@ struct WinPrint: View {
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
-            let radius = w * Self.radiusRatio
-            let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
 
             ZStack {
                 photograph(in: geo.size)
@@ -75,19 +76,7 @@ struct WinPrint: View {
                         .allowsHitTesting(false)
                 }
             }
-            .clipShape(shape)
-            .overlay {
-                // **A hairline, and a real one.** The file says 0.2px, which
-                // is a Figma number rather than a screen one: below one
-                // device pixel it renders as a paler line rather than a
-                // thinner one, and on a 3x phone 0.2pt is 0.6px. One device
-                // pixel is the thinnest a line can honestly be, so that is
-                // what it draws, and it is the app's own quiet ink rather
-                // than a hex value from a file that does not know about dark
-                // mode.
-                shape.strokeBorder(AppColors.inkPrimary.opacity(0.10),
-                                   lineWidth: 1 / max(UIScreen.main.scale, 1))
-            }
+            .photoFinish()
         }
         .aspectRatio(Self.aspect, contentMode: .fit)
     }
@@ -107,7 +96,7 @@ struct WinPrint: View {
                 .offset(x: crop.x * size.width, y: crop.y * size.height)
                 .clipped()
         } else if let win {
-            WinCardFace(win: win, image: nil, showsTitle: false, corner: 0)
+            WinCardFace(win: win, image: nil, showsTitle: false, edged: false)
         } else {
             AppColors.quietFill
         }

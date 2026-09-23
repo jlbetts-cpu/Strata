@@ -37,7 +37,9 @@ struct WinCardFace: View {
     /// Titles are hidden on the folder's stack, where a card is 40% of a
     /// small folder and a word would be a smudge.
     var showsTitle: Bool = true
-    var corner: CGFloat = 16
+    /// Off behind the folder's glass, where a hairline reads as a scratch on
+    /// the pane rather than as the edge of a print.
+    var edged: Bool = true
 
     /// The category hue, at the saturation and brightness a large surface can
     /// carry. Measured against the palette rather than guessed: the app's own
@@ -78,11 +80,14 @@ struct WinCardFace: View {
                         .foregroundStyle(.white.opacity(0.92))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                        .padding(corner * 0.85)
+                        .padding(GridConstants.gapLabel)
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        // One corner and one edge for every photograph in the app. The
+        // `corner` this used to take is gone: three call sites passed three
+        // different values for the same object. See `PhotoFinish`.
+        .photoFinish(edged: edged)
     }
 
     /// **Every card of a colour was the same card.**

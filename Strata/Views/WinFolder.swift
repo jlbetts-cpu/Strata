@@ -531,8 +531,10 @@ struct WinFolder: View {
 
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
+                // Unedged: these sit behind the pocket's glass, and a
+                // hairline seen through a pane reads as a scratch on it.
                 WinCardFace(win: win, image: win.image, showsTitle: false,
-                            corner: GridConstants.radiusPhotoMiniature)
+                            edged: false)
                 .frame(width: cardWidth, height: cardHeight)
                 // **Rasterised per CARD, and it was per stack.**
                 //
