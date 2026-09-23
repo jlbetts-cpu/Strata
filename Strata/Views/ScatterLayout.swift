@@ -37,16 +37,6 @@ enum ScatterLayout {
     struct Item: Equatable {
         var id: String
         var size: BlockSize
-        /// The PHOTOGRAPH's own proportion, height over width, when there is
-        /// one. Nil falls back to the block's shape, which is what a win
-        /// somebody typed has instead of a picture.
-        ///
-        /// Cosmos shows every image at its own proportion and that is most of
-        /// why its grid looks like photographs rather than like tiles: a
-        /// portrait is tall, a landscape is wide, and the column keeps them
-        /// honest. Passing the block's aspect for a real photograph would
-        /// letterbox or crop it into a shape it is not.
-        var aspect: CGFloat? = nil
     }
 
     /// What comes out: where it sits and how far it leans.
@@ -228,6 +218,37 @@ enum ScatterLayout {
         return placements
     }
 
+    /// **How tall a card is in the organised grid, by the size it was drawn
+    /// at.** One column wide always; the ladder is in the height.
+    ///
+    /// The owner, 2026-09-23: "for the sizing make sure medium looks medium,
+    /// large looks large and small looks small."
+    ///
+    /// They did not. The height came from the PHOTOGRAPH's proportion, so a
+    /// small holding a portrait came out taller than a hard holding a
+    /// landscape, and the ladder carried no information at all. The comment
+    /// that used to sit here claimed "size is still shown, in the height",
+    /// and that was the one thing it was not doing.
+    ///
+    /// **What had to go is the picture's shape, not the two columns.** He
+    /// asked for the Cosmos grid the day before and it is still exactly
+    /// that: one width, masonry, no full-bleed rows. Only the source of the
+    /// height moved. A photograph fills its card, which is also what makes a
+    /// given size look the same on every page instead of depending on what
+    /// happened to be photographed.
+    ///
+    /// Far enough apart to read at a glance rather than to be measured: a
+    /// hard is **2.25 times the area of a small**, and a medium sits halfway
+    /// between them. Inside the 0.55 to 1.85 band that real photographs were
+    /// already being held to, so no card is a shape the grid has not shown.
+    static func tidyHeight(for size: BlockSize) -> CGFloat {
+        switch size {
+        case .small: return 0.72
+        case .medium: return 1.0
+        case .hard: return 1.62
+        }
+    }
+
     /// **Organised: two columns, and it is a different layout rather than
     /// the same one with the mess switched off.**
     ///
@@ -237,66 +258,28 @@ enum ScatterLayout {
     /// still had ragged rows and cards centred on each other, which reads as
     /// a scatter someone straightened rather than as a grid.
     ///
-    /// Two equal columns, every card the full column width, heights from the
-    /// block's own proportions, each one going to whichever column is
-    /// shorter. That is a masonry, it never leaves a ragged edge, and it
-    /// reads as a place things have been PUT.
+    /// Two equal columns, every card the full column width, heights from
+    /// `tidyHeight(for:)`, each one going to whichever column is shorter.
+    /// That is a masonry, it never leaves a ragged edge, and it reads as a
+    /// place things have been PUT.
     ///
     /// **The order is preserved and so is every id**, which is what lets the
     /// change between the two be an animation rather than a reload: the same
     /// cards are on screen before and after, and only their frames moved, so
     /// SwiftUI carries each one from one place to the other.
-    /// **Organised, and the sizes still mean something.**
     ///
-    /// The owner: "make sure the different sizes are shown, and inside the
-    /// folders it is nice and organised, right now it's a bit all over the
-    /// place."
-    ///
-    /// Both halves of that were one bug. This forced EVERY card to a single
-    /// column and took only its height from the block's proportion, so a 1x1
-    /// and a 2x2 came out the same width — the sizes did not read, and the
-    /// two columns filled with cards of arbitrary heights, which is what
-    /// "all over the place" looks like when nothing lines up.
-    ///
-    /// It honours `columnSpan` now, which is the same number the tower packs
-    /// with: a small takes one column, a medium or a hard takes the whole
-    /// width. So a row is either two smalls side by side or one wide card,
-    /// every card reaches a margin, and the shapes are the tower's shapes.
-    /// That is more ordered than before rather than less — a full-width card
-    /// is a ruled line across the layout, and there is one every few rows.
-    ///
-    /// **A wide card waits for both columns to be level.** Dropping it at
-    /// `max(heights)` alone would leave a notch of dead space under the
-    /// shorter one; filling that notch first is what keeps the left and right
-    /// edges reading as columns rather than as a pile.
+    /// **A full-width card was tried and is gone.** For one day a medium or
+    /// a hard spanned both columns, which read the sizes loudly and broke
+    /// the grid he had just asked for — Cosmos has no full-bleed rows. The
+    /// size is in the height instead, and the columns are never interrupted.
     static func tidied(_ items: [Item], in width: CGFloat) -> [Placement] {
         let column = (width - gutter) / 2
         var heights: [CGFloat] = [gutter, gutter]
         var placements: [Placement] = []
         for item in items {
-            // **One width, and the height is the picture's own.**
-            //
-            // The owner: "do the cosmos two column sizing... make sure if an
-            // image is shown it is consistent on every page, no crazy
-            // different sizes everywhere."
-            //
-            // Cosmos has no full-width items at all. Every card is one column
-            // across and as tall as the photograph is, and that is what makes
-            // its grid read as photographs rather than as tiles: the variety
-            // comes from the pictures instead of from a size system laid over
-            // them.
-            //
-            // This honoured `columnSpan` for one day — a medium or a hard
-            // went full width — which was the right answer to "make sure the
-            // different sizes are shown" and the wrong one to this. Size is
-            // still shown, in the HEIGHT: a 2x1 is a short card, a 1x1 is
-            // square, a 2x2 is tall. One dimension carries it instead of two.
-            let shape = size(for: item.size, in: width)
-            let ratio = item.aspect ?? (shape.height / max(shape.width, 0.001))
-            // Clamped, because a panorama is 20 pixels tall in a column and a
-            // very tall crop fills a screen on its own. Both are photographs
-            // the app should still show.
-            let height = column * min(max(ratio, 0.55), 1.85)
+            // **One width, and the height is the SIZE's.** See
+            // `tidyHeight(for:)` for why it stopped being the picture's.
+            let height = column * tidyHeight(for: item.size)
             let side = heights[0] <= heights[1] ? 0 : 1
             let x = side == 0 ? 0 : column + gutter
             placements.append(Placement(

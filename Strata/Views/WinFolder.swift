@@ -508,10 +508,9 @@ struct WinFolder: View {
     /// Up to five cards fanned, newest at the front, each one showing its own
     /// block's proportion, no border, opaque.
     ///
-    /// **One width, several heights.** Fanning cards of wildly different
-    /// widths reads as a mess rather than as a stack, so the width is shared
-    /// and the block's shape comes through in the HEIGHT — a 2x1 win is a
-    /// wide short card, a 1x1 is square, a 2x2 is tall.
+    /// **The size shows as how deep into the folder a card reaches.** The
+    /// widths move too, but much less: fanning cards of wildly different
+    /// widths reads as a mess rather than as a stack.
     private func peeking(width w: CGFloat, height h: CGFloat) -> some View {
         let shown = Array(contents.prefix(5).enumerated())
         let open = openAmount
@@ -558,22 +557,35 @@ struct WinFolder: View {
                 // medium 81%, a hard 90%. The span still decides which one,
                 // so nothing about the block system moved — only what a
                 // block looks like when it is a print in a pocket.
-                // **One width, and the height is the picture's own** — the
-                // same rule the grid inside the folder uses, so a photograph
-                // is the same shape peeking out of a folder as it is lying
-                // in one. The owner: "make sure if an image is shown it is
-                // consistent on every page, no crazy different sizes
-                // everywhere."
+                // **The size is in how far down the folder a card reaches,
+                // and a little in its width.**
                 //
-                // It was two widths and three heights keyed off the block's
-                // spans, which meant a landscape photograph on a 1x1 win came
-                // out portrait here and landscape inside. Same clamp as
-                // `ScatterLayout.tidied`, for the same reason: a panorama is
-                // a sliver at this size and a tall crop runs off the folder.
-                let cardWidth = w * 0.42
-                let ratio = win.image.map { $0.size.height / max($0.size.width, 1) }
-                    ?? CGFloat(win.size.rowSpan) / CGFloat(win.size.columnSpan)
-                let cardHeight = cardWidth * min(max(ratio, 0.55), 1.85)
+                // The owner, 2026-09-23: "for the sizing make sure medium
+                // looks medium, large looks large and small looks small."
+                //
+                // For a day the card was one width with the PHOTOGRAPH's
+                // proportion for its height, which made every win on the
+                // shelf the same card and lost the ladder completely. Before
+                // that the height came off the block's spans, and a 2x1 was
+                // a letterbox a third of the folder deep — he rejected that
+                // too: "make sure the cards inside are bigger, so they kinda
+                // reach near the bottom of the folder like they were real
+                // photographs."
+                //
+                // So the three are stated as what they should MEASURE in a
+                // folder. Every card still goes most of the way down, and
+                // they stay ordered: a small reaches 74% of the way, a
+                // medium 81%, a hard 90%. The widths move with them but far
+                // less, because fanning cards of wildly different widths
+                // reads as a mess rather than as a stack. Half again the
+                // area from the smallest to the largest.
+                let cardWidth = w * PeekSize.widthShare(for: win.size)
+                // **Measured to where the card ENDS, not how tall it is.**
+                // The stack hangs from `topOfStack`, so a height taken
+                // straight off the folder put the biggest cards through the
+                // bottom of it — photographed, a pink corner hanging below
+                // Today and Yesterday.
+                let cardHeight = h * PeekSize.depth(for: win.size) - topOfStack(in: h)
 
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
@@ -846,5 +858,46 @@ struct WinFolder: View {
         .padding(.leading, w * 0.075)
         .padding(.bottom, w * 0.07)
         .allowsHitTesting(false)
+    }
+}
+
+/// **How big a win looks peeking out of its folder.**
+///
+/// The owner, 2026-09-23: "for the sizing make sure medium looks medium,
+/// large looks large and small looks small."
+///
+/// Its own type because a ladder written inline is a ladder nothing can
+/// check, and this one has been wrong twice in opposite directions: once
+/// derived from the block's spans, which made a 2x1 a letterbox a third of
+/// the folder deep, and once taken from the photograph, which made every
+/// card on the shelf the same card.
+///
+/// **Depth carries it and width follows quietly.** Every card still goes
+/// most of the way down the folder, because that is what makes them read as
+/// photographs standing in a pocket rather than as tabs; fanning cards of
+/// wildly different widths reads as a mess rather than as a stack. Half
+/// again the area from the smallest to the largest, which is a step you see
+/// without being asked to compare.
+nonisolated enum PeekSize {
+    /// **How far down the folder a card REACHES**, as a share of the
+    /// folder's height, measured from the folder's top rather than from the
+    /// top of the stack. The card's own height is this less wherever the
+    /// stack hangs from, which is what keeps the deepest card inside the
+    /// folder instead of through the bottom of it.
+    static func depth(for size: BlockSize) -> CGFloat {
+        switch size {
+        case .small: return 0.74
+        case .medium: return 0.81
+        case .hard: return 0.90
+        }
+    }
+
+    /// How wide a card is, as a share of the folder's width.
+    static func widthShare(for size: BlockSize) -> CGFloat {
+        switch size {
+        case .small: return 0.38
+        case .medium: return 0.42
+        case .hard: return 0.47
+        }
     }
 }

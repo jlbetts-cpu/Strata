@@ -27,10 +27,13 @@ struct ApolloGround: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Grey.g950
+            // Only the DARK goes to the edges of the glass. The sheet has to
+            // keep the bottom safe area, because that is where the tab bar
+            // is and the strip is measured from the bar, not from the
+            // screen. See `ApolloSheet`.
+            Grey.g950.ignoresSafeArea()
             ApolloSheet()
         }
-        .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 }
@@ -52,7 +55,22 @@ struct ApolloSheet: View {
                 .fill(HomeGround.top)
             Color.clear.frame(height: GridConstants.bottomStrip)
         }
-        .ignoresSafeArea()
+        // **The top and the sides, and NOT the bottom.**
+        //
+        // The owner, 2026-09-23: "the pulley is now too low."
+        //
+        // Measured, and he is right by 84 points. This ignored the safe area
+        // on every edge, so the 20pt strip was 20pt from the bottom of the
+        // GLASS — under the floating tab bar, which is the one place a thumb
+        // cannot reach. The camera's viewfinder stops 20pt above the BAR,
+        // which is 104 off the bottom once the bar and the home indicator
+        // are counted, and `CameraView.stripBreathing` says so in as many
+        // words: "the strip becomes 104, with 20 above the bar and the
+        // system's own 23 below it."
+        //
+        // Keeping the bottom inset is what makes the same constant mean the
+        // same thing on both screens: 20 points of air above the tab bar.
+        .ignoresSafeArea(edges: [.top, .horizontal])
         .accessibilityHidden(true)
     }
 }
@@ -63,6 +81,23 @@ extension View {
     func apolloGround() -> some View {
         background { ApolloGround() }
             .safeAreaPadding(.bottom, GridConstants.bottomStrip)
+    }
+
+    /// **Keeps a screen's content ON the paper.**
+    ///
+    /// A `ScrollView` takes the safe area and gives its content an inset
+    /// instead, which is the right behaviour under a floating tab bar and
+    /// the wrong one here: once the sheet stopped 104pt short of the bottom,
+    /// cards carried on scrolling past its lip and floated on the black with
+    /// the bar over them. Photographed inside Today — a green card lying
+    /// half on the paper and half on the strip.
+    ///
+    /// The mask is `ApolloSheet` itself rather than a second copy of its
+    /// shape, so the edge content is cut at is the same edge the sheet is
+    /// drawn to, by construction, and a change to one cannot leave the other
+    /// behind.
+    func clippedToSheet() -> some View {
+        mask { ApolloSheet() }
     }
 }
 

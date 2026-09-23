@@ -1,5 +1,23 @@
 # Apollo — Active Work
 
+## PARKED, 2026-09-23 — Strata ships first
+
+The owner: "I think what we had with Strata was releasable and all we have to
+do is update the camera, fix the App Store Connect problem, I want to add
+these live emulations and release the app, and then come back to Apollo right
+after for another release... this is looking like a couple more months of
+development when we already built a stunning minimal app that works."
+
+So Apollo stops here, at a build that runs and looks right, rather than
+mid-feature. **The social feed was not started** — it is the next thing, and
+`docs/social-and-backend.md` is ready for whoever picks it up.
+
+**Carry back to Strata**, his own note: the performance work from this session
+applies to both apps. The jitter and lag findings are in `CLAUDE.md` under
+`## Measuring smoothness` — the short version is that the scroll was never
+the problem, the cost is at launch, and `drawingGroup` per card rather than
+per stack is what fixed the folder.
+
 Rewritten 2026-09-22. Everything the previous version described (five tabs,
 light-only, SF Pro Rounded, the tower grid) is gone; it is in `history.md`.
 
@@ -12,7 +30,10 @@ Three tabs, glyphs only: **Home · Camera · Memories**.
 `## Home` in `CLAUDE.md` before touching it — most of what is settled there was
 settled by being wrong first.
 
-578 tests green, Release builds for a device, branch `apollo-rename`.
+Release builds for a device, branch `apollo-rename`. **Not "578 tests
+green" any more** — see the section below on the suite: individual suites
+pass, the full run cannot finish on this machine, and nobody should quote a
+total until it does.
 
 ## Not verified on a device — the honest list
 
@@ -51,6 +72,25 @@ part of the diagnosis. That change stands on its own (a probe evaluated while
 the runner is preparing can abort every test; one inside a test cannot) but
 it did NOT fix this.
 
+## Landed on 2026-09-23, after the list above was written
+
+- **A size looks like a size again.** The organised grid took its height from
+  the PHOTOGRAPH, so a small holding a portrait came out taller than a hard
+  holding a landscape. The height is the size's now
+  (`ScatterLayout.tidyHeight`), the two columns he asked for are untouched,
+  and a hard is 2.25x the area of a small. The same ladder reaches the shelf:
+  `PeekSize` orders how deep into its folder a card stands.
+- **The sheet stopped 84pt too low.** `ApolloSheet` ignored the safe area on
+  every edge, so the 20pt strip was 20pt from the bottom of the GLASS, under
+  the floating tab bar. The camera's viewfinder stops 20pt above the BAR.
+  Both now measure 103 to 104pt off the bottom, photographed.
+- **The pull has a handle.** iOS's grabber, 36x5, on the lip of the sheet.
+- **Content is clipped to the paper** (`clippedToSheet`), because a
+  `ScrollView` takes the safe area and gives its content an inset, so cards
+  used to carry on past the lip and float on the black.
+- **The selected tab glyph was black on near-black** once the bar started
+  floating over the strip. `.tint` follows the strip now, not the window.
+
 ## Next, in the order it should happen
 
 **The social feed is the big one and it has its own document:
@@ -58,7 +98,8 @@ it did NOT fix this.
 version: the backend already exists, complete, in `~/Desktop/apollo-app`, and
 the daily-unlock ritual is already written (`SunsetClock`).
 
-1. [ ] **The polaroid.** Figma `13258-6988` in the Apollo file, 342x452, thin
+1. [x] **The polaroid.** Done 2026-09-22. `WinPrint` / `WinPrintView`.
+       Original note: Figma `13258-6988` in the Apollo file, 342x452, thin
        border with a deep bottom edge and the mark in the corner. It is what a
        win becomes when you TAP it, not how it looks while scrolling. Smallest
        piece, no backend, and the feed will reuse it.

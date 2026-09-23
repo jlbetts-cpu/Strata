@@ -453,6 +453,21 @@ struct HomeView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
+                // **Something to take hold of.**
+                //
+                // The owner, 2026-09-23: "it doesn't have the native pull
+                // mechanic visible."
+                //
+                // It had none at all. The page lifted from anywhere, which
+                // is right, but nothing on the screen said so, and a gesture
+                // nobody can see is a gesture nobody performs. This is iOS's
+                // own grabber at the size the system draws one, sitting on
+                // the lip of the sheet it lifts, so the thing you take hold
+                // of is the thing that moves.
+                PullGrabber()
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 6)
+
                 // The strip belongs to `ApolloGround` now, which every
                 // screen shares. This keeps the CONTENT clear of it.
                 Color.clear.frame(height: GridConstants.bottomStrip)
@@ -956,5 +971,24 @@ struct FolderStyleSheet: View {
                 }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// **The handle on the bottom lip of Home's sheet.**
+///
+/// iOS's own grabber, at the size the system draws one for a sheet: 36 by 5,
+/// fully rounded. A flat tint and nothing else — no shadow, no shine, no
+/// pill behind it. Chrome in this app separates with a hairline and a tint;
+/// elevation is reserved for things that are standing on something.
+///
+/// It is not a button and does not take the touch. The pull is a
+/// `simultaneousGesture` on the whole page, so the whole page is still the
+/// target and this only says which way it goes.
+struct PullGrabber: View {
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(AppColors.inkPrimary.opacity(0.20))
+            .frame(width: 36, height: 5)
+            .accessibilityHidden(true)
     }
 }

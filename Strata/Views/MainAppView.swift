@@ -791,7 +791,19 @@ struct MainAppView: View {
         // of whichever ground it is on — maximum contrast on both, and the
         // same colour as the icons beside it, which is what "the highlight is
         // the icon colour" meant.
-        .tint(.primary)
+        // **And `.primary` is the ink of the WINDOW, not of the strip the
+        // bar floats in.** That was the same thing until the sheet stopped
+        // 104pt short of the bottom: the bar now floats over `Grey.g950` on
+        // every redesigned screen, while Home still pins the window to
+        // `.light` so the page can be warm white — so the selected glyph
+        // came out black on near-black. Photographed after the change, the
+        // house in the pill was all but invisible while the two unselected
+        // glyphs beside it were white.
+        //
+        // Same condition as `tabGlyphTint` above, and for the same reason:
+        // Memories has not joined the redesign and its floor is still light,
+        // so white there would hide the bar completely.
+        .tint(selectedTab == .memories ? .primary : .white)
         .modifier(TabBarCollapseModifier())
         .onChange(of: selectedTab) { oldTab, newTab in
             HapticsEngine.tick()

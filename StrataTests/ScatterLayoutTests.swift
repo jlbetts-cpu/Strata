@@ -198,6 +198,48 @@ struct ScatterLayoutTests {
         }
     }
 
+    /// **A size has to be visible as a size.**
+    ///
+    /// The owner, 2026-09-23: "for the sizing make sure medium looks medium,
+    /// large looks large and small looks small."
+    ///
+    /// The grid is one column wide by his own earlier call, so the only
+    /// dimension left to carry the ladder is the height. This checks the
+    /// three are strictly ordered, that the step between them is big enough
+    /// to see rather than to measure, and that a size always comes out the
+    /// same height wherever it lands.
+    ///
+    /// **Proven able to fail**: putting the photograph's proportion back in
+    /// the height — the bug this replaced — makes a small holding a portrait
+    /// taller than a hard holding a landscape, and the first expectation
+    /// goes red.
+    @Test("Organised, a small looks small and a hard looks large")
+    func organisedHeightsReadAsSizes() {
+        let w = Self.width
+        let small = ScatterLayout.tidyHeight(for: .small)
+        let medium = ScatterLayout.tidyHeight(for: .medium)
+        let hard = ScatterLayout.tidyHeight(for: .hard)
+        #expect(small < medium && medium < hard,
+                "the ladder is \(small), \(medium), \(hard), which is not ordered")
+        // A fifth taller is a step you see; a twentieth is one you measure.
+        #expect(medium / small >= 1.2, "a medium is only \(medium / small) of a small")
+        #expect(hard / medium >= 1.2, "a hard is only \(hard / medium) of a medium")
+
+        // And the laid-out frames agree with the ladder, so nothing between
+        // here and the screen is quietly overriding it.
+        let mixed = [ScatterLayout.Item(id: "a", size: .small),
+                     ScatterLayout.Item(id: "b", size: .hard),
+                     ScatterLayout.Item(id: "c", size: .small),
+                     ScatterLayout.Item(id: "d", size: .medium),
+                     ScatterLayout.Item(id: "e", size: .hard)]
+        let placed = ScatterLayout.place(mixed, in: w, tidy: true)
+        let byID = Dictionary(uniqueKeysWithValues: placed.map { ($0.id, $0.frame.height) })
+        #expect(byID["a"] == byID["c"], "two smalls came out different heights")
+        #expect(byID["b"] == byID["e"], "two hards came out different heights")
+        #expect(byID["a"]! < byID["d"]!, "a small is not shorter than a medium")
+        #expect(byID["d"]! < byID["b"]!, "a medium is not shorter than a hard")
+    }
+
     /// **The same cards have to be on screen before and after**, or the
     /// change is a reload rather than an animation and nothing can glide.
     @Test("Organising moves every win rather than replacing it")

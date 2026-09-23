@@ -101,6 +101,8 @@ struct FolderInside: View {
                 header
                 scatter
             }
+            // The cards stop where the paper does. See `clippedToSheet`.
+            .clippedToSheet()
         }
         .task(id: wins.map(\.id)) {
             await prepareThumbnails()
@@ -170,14 +172,12 @@ struct FolderInside: View {
     private var scatter: some View {
         GeometryReader { geo in
             let width = geo.size.width - GridConstants.gapWide * 2
+            // **The layout does not ask about the photographs.** It used
+            // to take each card's proportion from the picture, which meant
+            // the grid re-laid itself as thumbnails arrived and a size
+            // stopped meaning anything. See `ScatterLayout.tidyHeight(for:)`.
             let placed = ScatterLayout.place(
-                wins.map { win in
-                    // The photograph's own proportion when it has one. See
-                    // `ScatterLayout.Item.aspect`.
-                    let image = thumbs[win.id] ?? win.image
-                    let ratio = image.map { $0.size.height / max($0.size.width, 1) }
-                    return ScatterLayout.Item(id: win.id, size: win.size, aspect: ratio)
-                },
+                wins.map { ScatterLayout.Item(id: $0.id, size: $0.size) },
                 in: width, tidy: true)
             let byID = Dictionary(uniqueKeysWithValues: placed.map { ($0.id, $0) })
 
