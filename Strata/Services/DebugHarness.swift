@@ -116,6 +116,12 @@ enum DebugHarness {
         ProcessInfo.processInfo.arguments.contains("-strataFakeSticker")
     }
 
+    /// Sets the title face at every weight beside the Apollo mark, so the
+    /// two can be compared at one cap height. See `TypeSpecimenView`.
+    static var typeLab: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataTypeLab")
+    }
+
     /// Holds the shutter's blades still at every stage, over a photograph,
     /// so the shape can be looked at. It fires in a fifth of a second and a
     /// simulator has no camera. See `ShutterLabView`.

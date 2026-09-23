@@ -92,14 +92,37 @@ enum Typography {
     /// a single static file cannot do. And it carries the full system
     /// character set, so a title never falls back mid-word.
     ///
-    /// Regular, not medium: a serif at a large title size is already the
-    /// heaviest thing on a page, and a heavier cut of it reads as a headline
-    /// shouting rather than a masthead.
-    static let screenTitleSerif = Font.system(.largeTitle, design: .serif, weight: .regular)
+    /// **Medium, and the reason is the mark rather than the page.**
+    ///
+    /// The owner: "are we able to get a serif with a slightly thicker weight,
+    /// just to look better but also match the Apollo mark better."
+    ///
+    /// This said Regular, on the argument that a serif at a large title size
+    /// is already the heaviest thing on a page. That argument was about the
+    /// page in isolation and the page is not in isolation — the mark is one
+    /// tab away, at the top of the camera. Set side by side at one cap height
+    /// (`TypeSpecimenView`), the mark's STEMS are clearly heavier than New
+    /// York Regular's: it is a high-contrast drawing, thick stems against
+    /// hairline serifs, and Regular matches its hairlines rather than its
+    /// stems. Medium matches the stems. Semibold overtakes them and Bold
+    /// argues with them.
+    ///
+    /// It also costs no new weight: Apollo has run on Regular and Medium
+    /// since Semibold was removed, so this is the scale's own second rung
+    /// rather than a third one arriving for one word.
+    ///
+    /// **What it cannot do is BE the mark.** `Apollowordmark.svg` is his own
+    /// drawn artwork, outlined vectors, not a font — so no family is ever
+    /// going to be it, and the most a title face can do is not argue with it.
+    /// Matching its contrast rather than its weight would mean a licensed
+    /// display serif: a real cost, a real decision, and not one to slip in
+    /// under a question about weight.
+    static let screenTitleSerif = Font.system(.largeTitle, design: .serif, weight: .medium)
 
     /// The same serif one step down, for a section that names itself inside
-    /// a screen rather than naming the screen.
-    static let sectionSerif = Font.system(.title3, design: .serif, weight: .regular)
+    /// a screen rather than naming the screen. Medium with it, so a heading
+    /// and the title above it are one voice.
+    static let sectionSerif = Font.system(.title3, design: .serif, weight: .medium)
 
     /// The same title in the owner's face (`StrataFont`), for a title that
     /// names the screen, through `DynamicScreenTitle` where the words are data.
