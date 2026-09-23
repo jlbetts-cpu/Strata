@@ -170,7 +170,12 @@ final class DayStickerService {
 
         let directory = ImageManager.shared.imageDirectory
         let destination = url(for: key)
-        let made = await Task.detached(priority: .utility) { () -> UIImage? in
+        // **Background, not utility.** This is the least urgent thing the
+        // app ever does and the most expensive: a model on the Neural Engine
+        // while somebody is looking at a photograph that has already
+        // arrived. Utility competes with the decodes that put those
+        // photographs on the folders in the first place.
+        let made = await Task.detached(priority: .background) { () -> UIImage? in
             await Self.make(candidates, in: directory, saveTo: destination)
         }.value
         memory[key] = made

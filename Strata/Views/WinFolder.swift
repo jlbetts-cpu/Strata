@@ -489,29 +489,29 @@ struct WinFolder: View {
                 let depth = Double(shown.count - 1 - index)
                 let spread = depth / Double(max(shown.count - 1, 1))
                 let side: Double = index % 2 == 0 ? -1 : 1
-                let ratio = CGFloat(win.size.rowSpan) / CGFloat(win.size.columnSpan)
-                // **The width says the size too, not only the height.**
+                // **Photographs, not thumbnails.**
                 //
-                // The owner: "make sure the different sizes are shown." It
-                // was one shared width with the proportion in the height
-                // alone, which reads as one stack of cards that happen to be
-                // cropped differently rather than as a small win and a big
-                // one. A 2-column block is a quarter wider here — enough to
-                // be seen at 150pt, and short of the spread that makes a fan
-                // of mixed widths look like a spill.
-                let cardWidth = w * (win.size.columnSpan > 1 ? 0.50 : 0.40)
-                // **Tall enough to be behind the glass, clamped so nothing
-                // stands proud of the plate.**
+                // The owner: "make sure the cards inside are bigger, so they
+                // kinda reach near the bottom of the folder like they were
+                // real photographs."
                 //
-                // The cap was h * 0.50 and the stack was lifted clear of the
-                // pocket, so the photographs were almost entirely ABOVE the
-                // front — and the front therefore had the plate behind it and
-                // nothing else. That is the whole reason it read as matte:
-                // a pane of glass over a flat colour is a flat colour. The
-                // floor at 0.62 of the card's width keeps a wide 2x1 from
-                // being a letterbox that never reaches the lip.
-                let shape = cardWidth * max(0.5, min(ratio, 1.15))
-                let cardHeight = min(max(shape, cardWidth * 0.62), h * 0.62)
+                // They were sized off the block's own aspect, which is
+                // correct for the tower and wrong here: a 2x1 came out a
+                // letterbox a third of the folder deep, so the pocket had
+                // nothing behind most of it and the stack read as a row of
+                // tabs rather than as prints standing in a folder. A
+                // photograph put in a folder goes most of the way down it.
+                //
+                // So the three sizes are stated as what they should MEASURE
+                // in a folder rather than derived from their spans, and they
+                // stay ordered: a small reaches 74% of the way down, a
+                // medium 81%, a hard 90%. The span still decides which one,
+                // so nothing about the block system moved — only what a
+                // block looks like when it is a print in a pocket.
+                let wide = win.size.columnSpan > 1
+                let tall = win.size.rowSpan > 1
+                let cardWidth = w * (wide ? 0.45 : 0.38)
+                let cardHeight = h * (tall ? 0.76 : (wide ? 0.67 : 0.60))
 
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
@@ -549,6 +549,22 @@ struct WinFolder: View {
             }
         }
         .frame(width: w, height: h, alignment: .center)
+        // **Flattened to one texture.**
+        //
+        // Five cards, each with four blend-mode blooms, a blur and a grain
+        // canvas, times six folders on the row: thirty live blurs being
+        // recomposited while a finger moves. Measured with `-strataPerfProbe`
+        // during a drag, body evaluations were ZERO — nothing was being
+        // recomputed — and the display link still logged gaps of 147, 67 and
+        // 53ms, which is rendering cost rather than SwiftUI cost.
+        //
+        // The stack does not change while the row scrolls, so it can be
+        // rasterised once and moved as an image. `drawingGroup` is exactly
+        // that, and it is safe here for the reason it is NOT safe on the
+        // folder as a whole: nothing inside it samples a backdrop. The
+        // material in front is outside this group and still sees through to
+        // the texture.
+        .drawingGroup()
     }
 
     /// **The glass front.**
@@ -686,7 +702,7 @@ struct WinFolder: View {
             // radius is untouched and only its opacity moves. That is the
             // difference between thinner glass and less glass.
             .fill(.ultraThinMaterial)
-            .opacity(0.70)
+            .opacity(0.80)
             .overlay {
                 PocketShape(radius: radius)
                     // Shaded with the folder's own colour, not with black.
@@ -726,7 +742,7 @@ struct WinFolder: View {
                     // that you can tell them apart down the row. At 0.56 the
                     // colour was solid and the cards were a haze. Looked at
                     // side by side rather than reasoned about.
-                    .fill(LinearGradient(colors: [tint.opacity(0.24), tint.opacity(0.50)],
+                    .fill(LinearGradient(colors: [tint.opacity(0.21), tint.opacity(0.44)],
                                          startPoint: .top, endPoint: .bottom))
             }
             // **No sheen, and taking it out is the fix.**
@@ -748,30 +764,30 @@ struct WinFolder: View {
             // finish. What makes it read as glass is the blur behind it and
             // the one lit edge, which is what the build he liked had.
             .overlay {
-                // **The pane's thickness, seen edge on.**
+                // **One quiet rim, and no light on the surface at all.**
                 //
-                // A sheet of glass is not a flat wash: you look through more
-                // of it near an edge, so the edges carry more of whatever it
-                // is made of. A 1pt lit rim plus a short bright fall just
-                // inside the top edge is the whole of it — the rim is the cut
-                // edge catching light and the fall is the pane's depth.
+                // The owner: "the glass — I would like there to be less light
+                // refraction and more of a premium blur."
                 //
-                // **This is not the shine he had taken out.** That was a wide
-                // diagonal band across the upper third, which implies a point
-                // light and a fixed angle, so six folders caught it in
-                // identical places and the row read as a rendering. An edge
-                // treatment belongs to the OBJECT rather than to a light: it
-                // is in the same place on a pane whichever way you turn it,
-                // which is exactly why it reads as glass instead of gloss.
+                // There was a 1pt rim at 0.55 plus a short bright fall just
+                // inside the top edge, argued for as the pane's thickness.
+                // He is right that it was the wrong lever. Every bright
+                // gradient on a pane is a claim about where a light is, and
+                // six folders in a row all claiming the same light is what
+                // makes a set of objects look rendered. What actually says
+                // "expensive glass" is the depth of the blur behind it, not
+                // anything drawn on top: the material carries the whole
+                // effect and the rim only has to stop the pocket reading as a
+                // rectangle pasted onto the plate.
+                //
+                // So the fall is gone and the rim is down to 0.30 — still
+                // enough to find the edge, not enough to be a highlight. The
+                // material goes up to 0.80 in its place, which is more blur
+                // rather than more paint: the wash comes DOWN to 0.21/0.44 at
+                // the same time, so the front is no heavier than it was and
+                // the photographs behind it are frostier.
                 PocketShape(radius: radius)
-                    .strokeBorder(.white.opacity(0.55), lineWidth: 1)
-                    .overlay(alignment: .top) {
-                        LinearGradient(colors: [.white.opacity(0.22), .clear],
-                                       startPoint: .top, endPoint: .bottom)
-                            .frame(height: radius * 1.6)
-                            .clipShape(PocketShape(radius: radius))
-                            .allowsHitTesting(false)
-                    }
+                    .strokeBorder(.white.opacity(0.30), lineWidth: 1)
             }
             .frame(height: height)
             .frame(maxHeight: .infinity, alignment: .bottom)

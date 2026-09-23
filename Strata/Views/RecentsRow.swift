@@ -126,7 +126,10 @@ struct RecentsRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+        #if DEBUG
+        PerfProbe.count("RecentsRow")
+        #endif
+        return VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             // **On the camera's margin, not the page's old one.**
             //
             // The owner: "make sure everything aligns with the grid set with
@@ -146,6 +149,23 @@ struct RecentsRow: View {
                 .padding(.horizontal, GridConstants.gapWide)
 
             ScrollView(.horizontal, showsIndicators: false) {
+                // **Eager, and that is the measured choice rather than the
+                // lazy default.**
+                //
+                // `LazyHStack` looks obviously right here — fourteen folders,
+                // two on screen, each carrying a live `ultraThinMaterial` —
+                // and it made the scroll worse. Measured with
+                // `-strataPerfProbe` over an identical drag: eager had a
+                // worst display-link gap of 59ms, lazy had 221ms and 164ms.
+                //
+                // Lazy does not remove the work, it MOVES it: a folder is
+                // built, its stack rasterised and its material created at the
+                // moment it scrolls into view, which is the one moment a
+                // finger is on the glass. Eager pays for all fourteen once,
+                // at launch, where nothing is moving. At a fortnight's worth
+                // that is the right trade; if Recents ever reaches into
+                // months, it stops being, and this note is the reason to
+                // re-measure rather than assume.
                 HStack(alignment: .top, spacing: GridConstants.gapItem) {
                     ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                         DayFolderTile(day: day,
@@ -221,7 +241,10 @@ struct DayFolderTile: View {
     var onCustomise: () -> Void = {}
 
     var body: some View {
-        Button(action: onOpen) { label }
+        #if DEBUG
+        PerfProbe.count("DayFolderTile")
+        #endif
+        return Button(action: onOpen) { label }
             // **A real `Button`, not a hand-rolled gesture pair.**
             //
             // This was an `onLongPressGesture` for the press state with a

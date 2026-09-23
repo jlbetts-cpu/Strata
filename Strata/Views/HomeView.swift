@@ -91,6 +91,14 @@ struct HomeView: View {
 
     private var todayKey: String { DateUtils.dateString(from: Date()) }
 
+    /// What has to change before the photographs and the cut-outs are worth
+    /// working out again: which days are on the row, and which wins are in
+    /// today's. Cheap to compute and stable while nothing has happened.
+    private var signature: String {
+        days.map(\.id).joined(separator: ",")
+            + "#" + todayBlocks.map(\.id.uuidString).joined(separator: ",")
+    }
+
     /// **Today first, then the days behind it, newest to oldest.**
     ///
     /// Days with nothing in them are left out — a row of empty folders is a
@@ -156,10 +164,36 @@ struct HomeView: View {
                 }
             }
         }
+        // **The folders you can see, then the rest.**
+        //
+        // Every thumbnail was decoded and then published in ONE assignment,
+        // which meant the row sat empty while a fortnight of photographs was
+        // read and then re-rendered all fourteen folders on a single frame.
+        // Measured with `-strataPerfProbe`: the twenty seconds from Home
+        // appearing had four display-link gaps over 50ms, worst 106ms, while
+        // the settled scroll had none at all. The jank was never the scroll.
+        //
+        // Publishing the first three days as soon as they are ready puts
+        // photographs on the folders you are actually looking at within one
+        // frame's work rather than fourteen, and the rest arrive behind
+        // them. The split is `firstPaint` items rather than a time, because
+        // what matters is how much lands in one render, not how long it took
+        // to fetch.
+        let firstPaint = 3 * 5
         var loaded = peeks
-        for (id, name) in wanted where loaded[id] == nil {
-            if let image = await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: 320) {
-                loaded[id] = image
+        var published = false
+        for (index, item) in wanted.enumerated() where loaded[item.0] == nil {
+            if let image = await ImageManager.shared.loadThumbnail(
+                fileName: item.1, maxWidth: 320) {
+                loaded[item.0] = image
+            }
+            if !published && index >= firstPaint - 1 {
+                published = true
+                peeks = loaded
+                // Let the render happen before the rest is fetched, so the
+                // decode of day four is not queued ahead of the frame that
+                // draws day one.
+                await Task.yield()
             }
         }
         if loaded.count != peeks.count { peeks = loaded }
@@ -234,14 +268,26 @@ struct HomeView: View {
                     }
             guard logs.count >= 1 else { continue }
             let key = DayStickerService.key(day: day.id, winIDs: logs.map(\.fileName))
-            if let made = await service.sticker(key: key, candidates: logs) {
-                stickers[day.id] = made
-            }
-            // One at a time, and yielding between days: this is the lowest
-            // priority work on the screen and it must never be what a scroll
-            // is waiting behind.
-            await Task.yield()
+            let made = await service.sticker(key: key, candidates: logs)
+            // **Assigned either way.** It only ever wrote a sticker in, so a
+            // day that gained a photograph and stopped qualifying — or one
+            // whose winner was deleted — kept showing the old cut-out until
+            // the app was relaunched.
+            if stickers[day.id] !== made { stickers[day.id] = made }
             live.insert(key)
+            // **A pause between days, not just a yield.**
+            //
+            // On a phone the subject mask is a real model on the Neural
+            // Engine — a few hundred milliseconds per photograph, up to four
+            // photographs a day, fourteen days on a first run. Yielding
+            // between them keeps the main thread free but still asks the
+            // device to work flat out for the best part of a minute the
+            // first time Home is opened, which is how an app becomes the one
+            // that gets warm in your hand. A sixth of a second between days
+            // costs nothing anybody will see — the stickers arrive over the
+            // first half minute rather than the first ten seconds — and it
+            // is all cached after that.
+            try? await Task.sleep(for: .milliseconds(160))
         }
         // Everything not on the row any more, including the older key of a
         // day whose wins have changed. Off the main actor: it is a directory
@@ -250,7 +296,21 @@ struct HomeView: View {
         Task.detached(priority: .background) {
             _ = DayStickerService.prune(keeping: live, in: directory)
         }
+        #if DEBUG
+        // A second window, opened once everything has actually arrived. The
+        // first one starts at `onAppear` and therefore measures the launch —
+        // photographs decoding, cut-outs being attempted — which is real but
+        // is not what "does the scroll feel smooth" is asking.
+        if !Self.measuredSettled {
+            Self.measuredSettled = true
+            PerfProbe.window("home-settled", seconds: 15)
+        }
+        #endif
     }
+
+    #if DEBUG
+    nonisolated(unsafe) private static var measuredSettled = false
+    #endif
 
     /// The full-size-enough photographs for a day somebody actually opened.
     /// 640 is the tier baked beside every original and is bigger than any
@@ -296,7 +356,10 @@ struct HomeView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
+        #if DEBUG
+        PerfProbe.count("HomeView")
+        #endif
+        return ZStack {
             // **The page's floor is the camera's black, and the light part is
             // a sheet laid on top of it.**
             //
@@ -358,12 +421,28 @@ struct HomeView: View {
             inside
         }
         .modifier(HomePageWiring(frames: $folderFrames, size: $pageSize))
-        .task(id: days.map(\.id).joined()) { await loadPeeks() }
-        .task(id: days.map(\.id).joined()) { await loadStickers() }
-        .task(id: todayBlocks.map(\.id)) { await loadPeeks() }
+        // **One signature for both, and it has to include today's wins.**
+        //
+        // The sticker task was keyed on the day KEYS alone, which change at
+        // midnight and when a day scrolls into the window — and not when you
+        // photograph something. So a win logged today never produced a
+        // sticker until the app was relaunched, which is the one case
+        // somebody would actually watch for. `DayStickerService` already
+        // keys its cache on the day's file names, so re-running the loop
+        // costs nothing for the days that have not moved.
+        .task(id: signature) { await loadPeeks() }
+        .task(id: signature) { await loadStickers() }
         .onAppear {
             mood.contents = FolderContents(count: todayBlocks.count)
             store.prune(before: FolderStyleStore.cutoff(from: Date()))
+            #if DEBUG
+            // Twenty seconds from the moment Home appears, reported to
+            // Documents/perf.log — frames, gaps, the worst one, and the
+            // memory high-water. The unified log drops lines tens of seconds
+            // late on a loaded simulator, which is why the file is the one to
+            // read. Only with `-strataPerfProbe`.
+            PerfProbe.window("home", seconds: 20)
+            #endif
         }
         .onChange(of: todayBlocks.count) { old, new in
             mood.contents = FolderContents(count: new)
