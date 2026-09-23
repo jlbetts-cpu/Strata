@@ -198,9 +198,12 @@ struct HomeView: View {
                 .filter { $0.lastPathComponent.hasPrefix("fake-") }
                 .sorted { $0.lastPathComponent < $1.lastPathComponent }
                 .compactMap { UIImage(contentsOfFile: $0.path) }
-            for (index, day) in days.enumerated() where index % 2 == 0 {
+            // Every day, unlike the real thing where most have none: the
+            // harness exists to judge how the placement VARIES, and a sample
+            // of one says nothing about variety.
+            for (index, day) in days.enumerated() {
                 if !dropped.isEmpty {
-                    stickers[day.id] = dropped[(index / 2) % dropped.count]
+                    stickers[day.id] = dropped[index % dropped.count]
                 } else if let stand = UIImage(named: ["DemoPhoto4", "DemoPhoto11", "LookPreview"][index % 3]) {
                     stickers[day.id] = stand
                 }

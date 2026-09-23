@@ -282,7 +282,8 @@ struct DayFolderTile: View {
                       showsFace: style.faceName != nil,
                       expression: style.expression,
                       isAlive: day.isToday,
-                      sticker: sticker)
+                      sticker: sticker,
+                      stickerSeed: day.id)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(day.title())

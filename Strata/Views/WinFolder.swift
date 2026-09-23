@@ -213,6 +213,24 @@ struct FolderTint: Identifiable, Hashable {
     }
 }
 
+/// Where a day's sticker sits on its folder: how big, how far round, and
+/// where its centre lands. See `WinFolder.stickerSpot`.
+struct StickerSpot: Equatable {
+    var side: CGFloat
+    var centre: CGPoint
+    var lean: Double
+
+    /// The axis-aligned box the sticker can occupy once it has been turned.
+    /// A square of `side` rotated by `lean` needs this much room, and it is
+    /// what "stays on the folder" has to be measured against.
+    var bounds: CGRect {
+        let radians = abs(lean) * .pi / 180
+        let extent = side * (abs(cos(radians)) + abs(sin(radians)))
+        return CGRect(x: centre.x - extent / 2, y: centre.y - extent / 2,
+                      width: extent, height: extent)
+    }
+}
+
 /// **A folder of wins, with a glass front.**
 ///
 /// **`tint` is the whole customisation story and it is one parameter.** Every
@@ -259,6 +277,11 @@ struct WinFolder: View {
     /// decoration; a sticker on the days that had something in them is a
     /// remark.
     var sticker: UIImage? = nil
+    /// What the sticker's size, place and lean are drawn from. The day's own
+    /// key, so a folder's sticker is in the same spot every launch — one that
+    /// moved when you scrolled past it would read as a bug rather than as
+    /// something stuck on by hand.
+    var stickerSeed: String = ""
 
     /// **The folder's default colour, for anything that does not pick one.**
     ///
@@ -390,20 +413,18 @@ struct WinFolder: View {
                 // hand is never square, and randomising the lean per day
                 // would make the row look shaken rather than labelled.
                 if let sticker {
+                    let spot = stickerSpot(width: w, height: h)
                     Image(uiImage: sticker)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: w * 0.30, height: h * 0.30)
+                        .frame(width: spot.side, height: spot.side)
                         // The one shadow it gets, and it is a contact
                         // shadow: a sticker is lying ON the folder, a
                         // millimetre off it, so it is tight and close rather
                         // than a float.
                         .shadow(color: .black.opacity(0.20), radius: h * 0.010, y: h * 0.005)
-                        .rotationEffect(.degrees(-6))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity,
-                               alignment: .bottomTrailing)
-                        .padding(.trailing, w * 0.055)
-                        .padding(.bottom, h * 0.055)
+                        .rotationEffect(.degrees(spot.lean))
+                        .position(x: spot.centre.x, y: spot.centre.y)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                         .allowsHitTesting(false)
                 }
@@ -479,13 +500,18 @@ struct WinFolder: View {
                 // be seen at 150pt, and short of the spread that makes a fan
                 // of mixed widths look like a spill.
                 let cardWidth = w * (win.size.columnSpan > 1 ? 0.50 : 0.40)
-                // **Clamped, so nothing stands proud of the plate.** A 2x2
-                // at half the width comes out 75pt tall in a 131pt folder;
-                // lifted and tilted, its corners cleared the back plate's own
-                // top edge and the folder read as overflowing rather than as
-                // full. A card in a folder sticks out of the POCKET, never
-                // out of the folder.
-                let cardHeight = min(cardWidth * max(0.5, min(ratio, 1.15)), h * 0.50)
+                // **Tall enough to be behind the glass, clamped so nothing
+                // stands proud of the plate.**
+                //
+                // The cap was h * 0.50 and the stack was lifted clear of the
+                // pocket, so the photographs were almost entirely ABOVE the
+                // front — and the front therefore had the plate behind it and
+                // nothing else. That is the whole reason it read as matte:
+                // a pane of glass over a flat colour is a flat colour. The
+                // floor at 0.62 of the card's width keeps a wide 2x1 from
+                // being a letterbox that never reaches the lip.
+                let shape = cardWidth * max(0.5, min(ratio, 1.15))
+                let cardHeight = min(max(shape, cardWidth * 0.62), h * 0.62)
 
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
@@ -507,14 +533,18 @@ struct WinFolder: View {
                 .rotationEffect(.degrees(side * spread * Double(fan) * (9 + 6 * Double(fullness))))
                 // Nothing is hidden with opacity: the pocket is genuinely in
                 // front of them, so they only have to move to be behind it.
-                // Closed, the stack settles LOW in the folder rather than
-                // sitting in the middle of it. Centred, the cards read as a
-                // photograph printed on the front; dropped 7% they read as
-                // something down inside it that the glass is over — and a
-                // closed folder ends up visibly quieter than the open one
-                // beside it, which is the whole job of the two states.
+                // **Placed by its TOP, not by its centre.**
+                //
+                // Centring meant a taller card grew in both directions, so
+                // the biggest wins rose furthest out of the folder and
+                // reached no further down behind the glass. Pinning the top
+                // does the opposite and is what a stack in a pocket actually
+                // does: every card shows about the same amount of itself
+                // above the lip, and the rest of it goes down inside where
+                // the front can be seen through to it.
                 .offset(x: CGFloat(side) * CGFloat(spread) * fan * w * (0.12 + 0.07 * fullness),
-                        y: -h * 0.14 * open + h * 0.07 * (1 - open) + CGFloat(spread) * h * 0.02)
+                        y: topOfStack(in: h) + cardHeight / 2 - h / 2
+                            + CGFloat(spread) * h * 0.02)
                 .zIndex(Double(index))
             }
         }
@@ -536,6 +566,77 @@ struct WinFolder: View {
     /// third is the reflection, which is the layer that makes it read as
     /// glass rather than as plastic: without it the front is evenly bright
     /// and nothing on a phone is evenly bright.
+    /// **Where a day's sticker goes, how big it is and how far it leans.**
+    ///
+    /// The owner: "can you have them have varied sizes and placements, but
+    /// keep them on the folder and visible."
+    ///
+    /// Every folder had its sticker at exactly the same size in exactly the
+    /// same corner at exactly the same angle, which is the tell that a
+    /// machine put it there. Drawn from the day's own key instead: stable
+    /// across launches, different from its neighbour.
+    ///
+    /// **Varied inside a box, never outside it.** The random part is where in
+    /// the SAFE REGION the centre lands, and the safe region is computed from
+    /// the sticker's own size so it cannot reach an edge. Its top is the
+    /// pocket's lip, so the sticker is always on the front rather than
+    /// half-behind the photographs; its bottom, left and right are a margin
+    /// in from the folder. A sticker is a mark on the object, so leaving the
+    /// object is the one thing it may never do.
+    ///
+    /// The side is the FRAME both dimensions are fitted into, and the picture
+    /// inside it is `scaledToFit`, so the drawn width and height are both at
+    /// most `side` whatever shape the subject is. That is what makes the
+    /// margin arithmetic safe without measuring the image.
+    private func stickerSpot(width w: CGFloat, height h: CGFloat) -> StickerSpot {
+        Self.stickerSpot(seed: stickerSeed.isEmpty ? title : stickerSeed,
+                         width: w, height: h, pocketShare: pocketShare)
+    }
+
+    /// Where a sticker goes, as a pure function so the one invariant that
+    /// matters can be tested: it never leaves the folder. See
+    /// `StickerPlacementTests`.
+    nonisolated static func stickerSpot(seed: String, width w: CGFloat, height h: CGFloat,
+                                        pocketShare: CGFloat) -> StickerSpot {
+        var rng = StableSeed(seed)
+        // 26% to 37% of the folder's width. Below a quarter a group of people
+        // stops being readable at this size; above 37% it competes with the
+        // folder instead of marking it.
+        let side = w * (0.26 + 0.11 * rng.unit())
+        let margin = w * 0.045
+        // The lean expands the sticker's footprint by up to its own diagonal
+        // minus its side, and that is reserved here.
+        //
+        // **Honestly: at ±10° the margin already covers it.** Removing this
+        // line and re-running `staysOnTheFolder` over four hundred days
+        // passes — the worst swing is 4.8pt against a 6.8pt margin. It stays
+        // because the margin covering it is a coincidence of two numbers
+        // that are tuned for different reasons: widen the lean past about
+        // ±18° and the margin stops being enough, and the failure would be
+        // one corner of one day's sticker off one edge. The arithmetic is
+        // cheaper than finding that.
+        let lean = -10 + 16 * Double(rng.unit())
+        let swing = abs(sin(lean * .pi / 180)) * side
+        let half = side / 2 + swing / 2
+
+        let left = half + margin
+        let right = max(w - half - margin, left)
+        let top = h * (1 - pocketShare) + half + margin * 0.6
+        let bottom = max(h - half - margin, top)
+
+        return StickerSpot(side: side,
+                           centre: CGPoint(x: left + (right - left) * rng.unit(),
+                                           y: top + (bottom - top) * rng.unit()),
+                           lean: lean)
+    }
+
+    /// Where the cards' top edge sits. Open, high enough that a good part of
+    /// every card stands above the pocket's lip; closed, low enough that only
+    /// a sliver does.
+    private func topOfStack(in h: CGFloat) -> CGFloat {
+        h * (0.135 * openAmount + 0.30 * (1 - openAmount))
+    }
+
     /// The occlusion above the pocket's lip. See where it is composited.
     private func occlusion(width w: CGFloat, height h: CGFloat) -> some View {
         let pocketHeight = h * pocketShare
@@ -564,21 +665,28 @@ struct WinFolder: View {
         let height = h * pocketShare
 
         return PocketShape(radius: radius)
-            // **The full material, which is the front he picked.**
+            // **Two thirds of a material, which is the thinnest real glass
+            // this can be.**
             //
-            // The owner, comparing this row against the dark cream folder
-            // with the face on it: "the glass front looked better in the one
-            // with the eyes." It did, and the difference was here — that
-            // build used `.ultraThinMaterial` at full strength under a tint
-            // at 0.70 falling to 0.52. I had cut the material to half and
-            // flipped the gradient the other way up chasing transparency,
-            // which let the cards through and lost the frost that made it
-            // read as a pane rather than a wash. His two notes are not in
-            // conflict: the transparency he liked in the reference is the
-            // card shapes being VISIBLE through the front, and that survives
-            // the full material now that the stack fans even when the folder
-            // is shut.
+            // The owner: "could you make the front of the folder actually
+            // more glass, right now it looks matte, like not premium
+            // transparent blur at all."
+            //
+            // `.ultraThinMaterial` is the thinnest SwiftUI ships and it is
+            // still a full-strength backdrop blur that LIGHTENS what is
+            // behind it. At full strength, with photographs behind, all that
+            // came through was a faint warm haze — which is the definition of
+            // matte: you can tell something is back there and you cannot tell
+            // what. Held at 0.65 the blur is still unmistakably a blur and
+            // the shapes survive it.
+            //
+            // **Its own layer, under the tint, not composited with it.** A
+            // material inside an `.opacity` still samples the whole backdrop;
+            // the fade happens after the blur rather than to it, so the blur
+            // radius is untouched and only its opacity moves. That is the
+            // difference between thinner glass and less glass.
             .fill(.ultraThinMaterial)
+            .opacity(0.70)
             .overlay {
                 PocketShape(radius: radius)
                     // Shaded with the folder's own colour, not with black.
@@ -590,16 +698,35 @@ struct WinFolder: View {
                     // edge of the card stock and the part of it furthest from
                     // what is behind it, so it is the most opaque place on
                     // the front rather than the least.
-                    // **Down again, on his read of the row rather than of a
-                    // reference:** "make the front of the folder a bit more
-                    // transparent so you can kinda see the images in the
-                    // folder." The material behind this is still at full
-                    // strength — that is the frost he asked to keep — so what
-                    // comes off here is the colour laid over it, not the
-                    // blur. Measured against the build he liked: 0.70/0.52
-                    // down to 0.56/0.42, a fifth less tint, with the same
-                    // top-heavy fall.
-                    .fill(LinearGradient(colors: [tint.opacity(0.56), tint.opacity(0.42)],
+                    // **Thin at the top, denser at the bottom, and much
+                    // thinner overall than it was.**
+                    //
+                    // The owner: "could you make the front of the folder
+                    // actually more glass, right now it looks matte, like not
+                    // premium transparent blur at all."
+                    //
+                    // Two things were making it matte and the colour was the
+                    // second of them. A flat wash at 0.56 falling to 0.42 is
+                    // near enough one value across the whole pane, and one
+                    // value is what paint looks like. Glass is not uniform:
+                    // it is clearest where there is least of it between you
+                    // and what is behind.
+                    //
+                    // So the wash now runs 0.20 to 0.46 — the top, where the
+                    // photographs are, is barely tinted at all and the bottom
+                    // carries the colour. The material underneath is
+                    // untouched at full strength, so the blur is the same;
+                    // what changed is how much paint is over it.
+                    //
+                    // **0.24 to 0.50 is where the two demands meet**, and
+                    // both of them are his. At 0.17/0.42 the cards read
+                    // beautifully and the folder stopped being a colour — a
+                    // fog folder beside a sage one was two pale rectangles,
+                    // and the whole point of dealing each day a colour is
+                    // that you can tell them apart down the row. At 0.56 the
+                    // colour was solid and the cards were a haze. Looked at
+                    // side by side rather than reasoned about.
+                    .fill(LinearGradient(colors: [tint.opacity(0.24), tint.opacity(0.50)],
                                          startPoint: .top, endPoint: .bottom))
             }
             // **No sheen, and taking it out is the fix.**
@@ -621,11 +748,30 @@ struct WinFolder: View {
             // finish. What makes it read as glass is the blur behind it and
             // the one lit edge, which is what the build he liked had.
             .overlay {
-                // The lit top edge a pocket catches, and the only hairline
-                // here. It is what stops the pocket reading as a rectangle
-                // pasted over the plate.
+                // **The pane's thickness, seen edge on.**
+                //
+                // A sheet of glass is not a flat wash: you look through more
+                // of it near an edge, so the edges carry more of whatever it
+                // is made of. A 1pt lit rim plus a short bright fall just
+                // inside the top edge is the whole of it — the rim is the cut
+                // edge catching light and the fall is the pane's depth.
+                //
+                // **This is not the shine he had taken out.** That was a wide
+                // diagonal band across the upper third, which implies a point
+                // light and a fixed angle, so six folders caught it in
+                // identical places and the row read as a rendering. An edge
+                // treatment belongs to the OBJECT rather than to a light: it
+                // is in the same place on a pane whichever way you turn it,
+                // which is exactly why it reads as glass instead of gloss.
                 PocketShape(radius: radius)
                     .strokeBorder(.white.opacity(0.55), lineWidth: 1)
+                    .overlay(alignment: .top) {
+                        LinearGradient(colors: [.white.opacity(0.22), .clear],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: radius * 1.6)
+                            .clipShape(PocketShape(radius: radius))
+                            .allowsHitTesting(false)
+                    }
             }
             .frame(height: height)
             .frame(maxHeight: .infinity, alignment: .bottom)

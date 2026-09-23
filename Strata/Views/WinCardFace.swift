@@ -114,7 +114,7 @@ struct WinCardFace: View {
     /// from two directions and a card with two colours on it.
     private var colourField: some View {
         let base = Self.muted(win.colour)
-        var rng = WinCardSeed(win.id)
+        var rng = StableSeed(win.id)
         let blooms = (0..<4).map { index in
             Bloom(dx: rng.signed() * 0.34,
                   dy: rng.signed() * 0.34,
@@ -164,13 +164,17 @@ private struct Bloom {
     var lifts: Bool
 }
 
-/// **A stable sequence from a win's id.**
+/// **A stable sequence from a string.**
 ///
 /// Not `hashValue`, which Swift seeds per process, so the same win would be
 /// a different surface after every launch. FNV-1a to start it and xorshift to
 /// walk it, which is the same pair `ScatterLayout` uses and for the same
 /// reason.
-private struct WinCardSeed {
+///
+/// Internal rather than private because the folder draws from it too: a day's
+/// sticker is placed and sized from its own key, and two generators that must
+/// both be stable across launches should be one generator.
+struct StableSeed {
     private var state: UInt64
 
     init(_ text: String) {
