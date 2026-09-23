@@ -906,7 +906,9 @@ struct MainAppView: View {
         //
         // Home is a full-bleed page, so its header is the page: margin to
         // margin, which is also where the Recents label under it sits.
-        .padding(.horizontal, hPad)
+        // The camera's margin, which the Recents label under it also uses.
+        // See the note in `RecentsRow`.
+        .padding(.horizontal, GridConstants.gapWide)
         .frame(maxWidth: .infinity, alignment: .leading)
         // Shared with every other screen's title — see `headerTopPadding`.
         // Works out at the 4pt this used to hard-code; the other headers move

@@ -408,7 +408,7 @@ struct WinFolder: View {
                 // No title on the stack: a card here is 40% of a small folder
                 // and a word would be a smudge.
                 WinCardFace(win: win, image: win.image, showsTitle: false,
-                            corner: w * 0.05)
+                            corner: GridConstants.radiusPhotoMiniature)
                 .frame(width: cardWidth, height: cardHeight)
                 // **No shadow on these.** They sit BEHIND the pocket, so what
                 // they were casting landed on the glass in front of them: a
@@ -490,7 +490,16 @@ struct WinFolder: View {
                     // edge of the card stock and the part of it furthest from
                     // what is behind it, so it is the most opaque place on
                     // the front rather than the least.
-                    .fill(LinearGradient(colors: [tint.opacity(0.70), tint.opacity(0.52)],
+                    // **Down again, on his read of the row rather than of a
+                    // reference:** "make the front of the folder a bit more
+                    // transparent so you can kinda see the images in the
+                    // folder." The material behind this is still at full
+                    // strength — that is the frost he asked to keep — so what
+                    // comes off here is the colour laid over it, not the
+                    // blur. Measured against the build he liked: 0.70/0.52
+                    // down to 0.56/0.42, a fifth less tint, with the same
+                    // top-heavy fall.
+                    .fill(LinearGradient(colors: [tint.opacity(0.56), tint.opacity(0.42)],
                                          startPoint: .top, endPoint: .bottom))
             }
             // **No sheen, and taking it out is the fix.**

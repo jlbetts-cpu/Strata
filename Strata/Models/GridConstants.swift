@@ -88,6 +88,28 @@ enum GridConstants {
     // rung is deliberately blockCornerRadius, so chrome and blocks agree.
     /// Sheets and expansion cards — surfaces that become the environment.
     static let radiusSurface: CGFloat = 20
+
+    /// **The corner of a photograph, and it is the same corner on all of
+    /// them.**
+    ///
+    /// The owner: "the corner rounding of the photos needs to be the same
+    /// throughout all the photos."
+    ///
+    /// They were each a FRACTION of their own width — 8.5% inside the folder,
+    /// 5% on its face — so a small win and a big one were different shapes,
+    /// and the big one's corner measured 30pt against the small one's 14. A
+    /// radius is a property of the card stock, not of how much of it there
+    /// is: cut two photographs out of the same paper and the corners match
+    /// whatever the size.
+    ///
+    /// 16 rather than `radiusSurface`'s 20 because a photograph is a thing ON
+    /// a surface rather than the surface, and it takes the rung below.
+    ///
+    /// The miniatures peeking out of a folder take `photoMiniature` — the
+    /// same card seen at about a third the size, so its corner is scaled
+    /// with it rather than being a second decision.
+    static let radiusPhoto: CGFloat = 16
+    static let radiusPhotoMiniature: CGFloat = 7
     /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.
     static let radiusField: CGFloat = 12
     /// Small controls, icon wells, drop indicators.

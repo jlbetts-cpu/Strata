@@ -179,7 +179,9 @@ struct FolderInside: View {
 
     private func card(_ win: ScatterWin, spot: ScatterLayout.Placement, index: Int) -> some View {
         let isPressed = pressed == win.id
-        let radius = spot.frame.width * 0.085
+        // One corner on every photograph, whatever size the card is. See
+        // `GridConstants.radiusPhoto`.
+        let radius = GridConstants.radiusPhoto
         return WinCardFace(win: win, image: thumbs[win.id] ?? win.image, corner: radius)
             .frame(width: spot.frame.width, height: spot.frame.height)
             // The one shadow, and it is the card standing off the ground

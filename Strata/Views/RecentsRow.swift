@@ -71,10 +71,20 @@ struct RecentsRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            // **On the camera's margin, not the page's old one.**
+            //
+            // The owner: "make sure everything aligns with the grid set with
+            // the camera that we took long to build." The camera's chrome
+            // sits on `gapWide` (24) — its controls row, its look tray and
+            // its review all do — and so does the inside of a folder. Home
+            // was on `horizontalPadding` (16), which is the margin the tower
+            // grid used, and the tower is gone. Measured: the section label
+            // and the first folder both start 8pt further in now, and line up
+            // with the shutter row you see when you switch tabs.
             Text("Recents")
                 .font(Typography.sectionSerif)
                 .foregroundStyle(AppColors.inkPrimary)
-                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.horizontal, GridConstants.gapWide)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: GridConstants.gapItem) {
@@ -91,7 +101,7 @@ struct RecentsRow: View {
                 // reach the screen's, so a folder fades out 20pt early and
                 // the shadow is cut off square. Inside, content starts on the
                 // page's margin and scrolls all the way to the bezel.
-                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.horizontal, GridConstants.gapWide)
                 // Room for the folders' shadows, which fall outside their
                 // frames and were being clipped flat by the scroll view.
                 .padding(.vertical, 10)

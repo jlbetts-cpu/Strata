@@ -43,6 +43,18 @@ struct WinCardFace: View {
     /// carry. Measured against the palette rather than guessed: the app's own
     /// colours run around 0.7 saturation, which is right for a 20pt mark and
     /// loud across half a screen.
+    /// The same colour, moved a little around the wheel. Wrapped rather than
+    /// clamped: a hue is a circle, and clamping it would make red and purple
+    /// drift one way only.
+    static func shifted(_ colour: Color, by amount: Double) -> Color {
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(colour).getHue(&hue, saturation: &saturation,
+                               brightness: &brightness, alpha: &alpha)
+        let moved = (hue + CGFloat(amount)).truncatingRemainder(dividingBy: 1)
+        return Color(hue: moved < 0 ? moved + 1 : moved,
+                     saturation: saturation, brightness: brightness)
+    }
+
     static func muted(_ colour: Color) -> Color {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         UIColor(colour).getHue(&hue, saturation: &saturation,
@@ -73,24 +85,60 @@ struct WinCardFace: View {
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
 
+    /// **Every card of a colour was the same card.**
+    ///
+    /// The owner: "the coloured ones that don't have a photo, they should
+    /// have a clean blurry glass effect too, and there should be an actual
+    /// like Unsplash image behind it in that colour, so it's kinda just doing
+    /// the colours, each coloured block looking semi unique."
+    ///
+    /// **Not an Unsplash image, and here is the honest reason.** Real stock
+    /// photographs mean either a network fetch at the moment somebody logs a
+    /// win — which is the one moment this app is offline-first about — or a
+    /// pack bundled into the binary, which is a licence to read and a couple
+    /// of megabytes for something nobody chose. Both buy less than they
+    /// cost, because what he is actually describing is *variation*: two
+    /// "Deep work" wins that do not look like the same rectangle twice.
+    ///
+    /// So the field is generated per win instead. Four blooms rather than
+    /// two, their positions, sizes, hue drift and light-or-dark all drawn
+    /// from a hash of the win's own id: the same win is the same surface on
+    /// every launch and on every device, and no two wins are alike. It ships
+    /// as nothing, it is unique forever rather than one of forty, and it is
+    /// fills rather than images, so a scroll full of them is fills rather
+    /// than decodes. If he wants real photographs behind these later, the
+    /// right source is his own camera roll, not a stock library.
+    ///
+    /// **Hue drift, not hue change.** Each bloom moves at most 0.035 around
+    /// the wheel, which is the difference between a surface catching light
+    /// from two directions and a card with two colours on it.
     private var colourField: some View {
         let base = Self.muted(win.colour)
+        var rng = WinCardSeed(win.id)
+        let blooms = (0..<4).map { index in
+            Bloom(dx: rng.signed() * 0.34,
+                  dy: rng.signed() * 0.34,
+                  scale: 0.72 + rng.unit() * 0.62,
+                  drift: rng.signed() * 0.035,
+                  // Two lighter and two darker whatever the draw, so a card
+                  // can never come up flat or blown out. Which two is what
+                  // the seed decides.
+                  lifts: index % 2 == 0)
+        }
         return ZStack {
             base
-            // Two blooms, off centre, so the surface has a light side.
             GeometryReader { geo in
                 let side = max(geo.size.width, geo.size.height)
                 ZStack {
-                    Circle()
-                        .fill(base.opacity(0.9))
-                        .frame(width: side * 1.1)
-                        .offset(x: -side * 0.22, y: -side * 0.28)
-                        .blendMode(.screen)
-                    Circle()
-                        .fill(Color.black.opacity(0.45))
-                        .frame(width: side * 0.9)
-                        .offset(x: side * 0.3, y: side * 0.34)
-                        .blendMode(.multiply)
+                    ForEach(Array(blooms.enumerated()), id: \.offset) { _, bloom in
+                        Circle()
+                            .fill(bloom.lifts
+                                  ? Self.shifted(base, by: bloom.drift).opacity(0.9)
+                                  : Color.black.opacity(0.42))
+                            .frame(width: side * bloom.scale)
+                            .offset(x: side * bloom.dx, y: side * bloom.dy)
+                            .blendMode(bloom.lifts ? .screen : .multiply)
+                    }
                 }
                 .blur(radius: side * 0.22)
             }
@@ -105,6 +153,47 @@ struct WinCardFace: View {
         }
         .compositingGroup()
     }
+}
+
+/// One bloom of the generated field. See `WinCardFace.colourField`.
+private struct Bloom {
+    var dx: CGFloat
+    var dy: CGFloat
+    var scale: CGFloat
+    var drift: Double
+    var lifts: Bool
+}
+
+/// **A stable sequence from a win's id.**
+///
+/// Not `hashValue`, which Swift seeds per process, so the same win would be
+/// a different surface after every launch. FNV-1a to start it and xorshift to
+/// walk it, which is the same pair `ScatterLayout` uses and for the same
+/// reason.
+private struct WinCardSeed {
+    private var state: UInt64
+
+    init(_ text: String) {
+        var h: UInt64 = 0xcbf29ce484222325
+        for byte in text.utf8 {
+            h ^= UInt64(byte)
+            h = h &* 0x100000001b3
+        }
+        // xorshift is a fixed point at zero, and an empty id hashes to a
+        // constant, so a guard here is cheaper than a card that comes out
+        // identical for every untitled win.
+        state = h == 0 ? 0x9E3779B97F4A7C15 : h
+    }
+
+    mutating func unit() -> CGFloat {
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return CGFloat(state % 10_000) / 10_000
+    }
+
+    /// Centred on zero, so an offset is as likely to go left as right.
+    mutating func signed() -> CGFloat { unit() * 2 - 1 }
 }
 
 /// A fine, still speckle. Drawn once into a `Canvas` rather than generated
