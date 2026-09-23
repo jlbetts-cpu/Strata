@@ -137,6 +137,10 @@ struct MemoriesMapView: View {
     /// which stops every caller constructing this view.
     @State private var location = LocationService.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// For the empty state's hairline, which is one device pixel rather than
+    /// a point. Read here rather than inside the panel helper: a `View`
+    /// extension has no environment of its own to read it from.
+    @Environment(\.displayScale) private var displayScale
 
     /// A cluster, and where it is being drawn.
     ///
@@ -550,21 +554,48 @@ struct MemoriesMapView: View {
     /// This is also the only place the app asks for location. The camera would
     /// be the wrong place — a permission prompt in the middle of taking a
     /// photograph is a prompt with no visible payoff.
+    ///
+    /// **A panel, not a darkened screen** (2026-09-23).
+    ///
+    /// It was a full bleed radial gradient of the app's black, 0.88 at the
+    /// centre out to 0.55, with white type on it. It worked, in that you could
+    /// read it, and it was the wrong object: the design language's §1 is
+    /// "optimistic, bright and precise... white and light grey, not black and
+    /// neon", and §8 refuses a decorative gradient laid over a page outright.
+    /// A screen that turns itself dark to hold up two sentences is the
+    /// opposite of a bright room.
+    ///
+    /// So the words stand on the app's own surface instead: translucency and a
+    /// hairline (§6), the surface radius, ink from `AppColors` and nothing
+    /// borrowed from the map underneath. It is the same material the recentre
+    /// button and the header's buttons are made of, which is the whole point
+    /// of §3, one system per screen.
+    ///
+    /// **It follows the scheme rather than being pinned light.** The round
+    /// buttons over the map are pinned, because a 44pt disc over an IMAGE is
+    /// not standing on the app's ground. A panel this size is: in dark mode
+    /// the night map IS dark mode (see `MemoriesView.mapStyle`), and a bright
+    /// slab in the middle of it would be the one thing on the screen that had
+    /// not been told.
     @ViewBuilder
     private var emptyState: some View {
         let denied = location.isDenied
         VStack(spacing: GridConstants.gapTight) {
             Text(denied ? "Places are off" : "Your map starts here")
                 .font(Typography.headerMedium)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColors.inkPrimary)
 
+            // No measure of its own any more. The 40pt inset was holding the
+            // line length down inside a panel that was the whole screen; this
+            // one is the page's own width less its margins, so the panel's
+            // padding is the measure.
             Text(denied
                  ? "Strata can't tell where a photo was taken."
                  : "Photos you take in Strata keep the place they were taken, and land here.")
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.onDarkSecondary)
+                .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button {
                 HapticsEngine.lightTap()
@@ -576,37 +607,38 @@ struct MemoriesMapView: View {
                     location.requestAccess()
                 }
             } label: {
-                // It was white type with a `contentShape` and no fill — a
+                // It was white type with a `contentShape` and no fill, a
                 // button-shaped hit area with nothing to press. On a map, of
                 // all grounds, invisible chrome is the one thing that cannot
-                // work.
+                // work. It keeps its fill and takes the app's own primary
+                // pill: `slotInk` filled with the page's ground for a label,
+                // which is what `OnboardingView.pillFill` draws on a light
+                // ground and what makes this the same button as the one on
+                // the onboarding page that asks the same question. Both
+                // tokens invert, so the pill follows the panel it is on.
                 Text(denied ? "Open Settings" : "Turn On Places")
                     .font(Typography.headerSmall)
-                    .foregroundStyle(AppColors.warmBlack)
+                    .foregroundStyle(WarmBackground.top)
                     .padding(.horizontal, 22)
                     .frame(height: 46)
-                    .background(Capsule().fill(AppColors.onDarkStrong))
+                    .background(Capsule().fill(AppColors.slotInk))
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .mapPrimeGlass()
             .padding(.top, GridConstants.gapTight)
             // Once it is granted there is nothing left to ask, and a button
             // that does nothing is worse than no button.
             .opacity(location.canAsk || denied ? 1 : 0)
         }
+        .frame(maxWidth: .infinity)
         .padding(GridConstants.gapSection)
+        // `1 / displayScale` is the hairline the design language asks for
+        // (§6): one device pixel, in ink at low alpha, never a grey line.
+        .mapPanel(hairline: 1 / displayScale)
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        // Centred on the map, and only the panel takes touches: the map
+        // around it still pans, which it could not do under the old wash.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Dark enough to read white type on, whatever the imagery underneath
-        // happens to be. Deeper behind the words themselves: at a flat 0.55
-        // the map's own city labels ("Chicago", "Houston") still read through
-        // the sentence and the button, two layers of type on top of each other.
-        .background {
-            RadialGradient(
-                colors: [AppColors.warmBlack.opacity(0.88), AppColors.warmBlack.opacity(0.55)],
-                center: .center, startRadius: 40, endRadius: 320
-            )
-        }
     }
 
     #if DEBUG
@@ -1220,15 +1252,33 @@ struct ClusterCountBadge: View {
 }
 
 private extension View {
-    /// The prime's own capsule. Not a block: CLAUDE.md is explicit that a rim,
-    /// a frosted band or a blurred edge is a block's claim, and a button is
-    /// not a block.
+    /// The surface the map's empty state stands on.
+    ///
+    /// **Translucency and a hairline, never elevation** (§6). The same
+    /// material `GlassIconButton` and the recentre button are made of, at the
+    /// surface radius, so the one panel on this screen belongs to the same
+    /// system as the three controls floating beside it.
+    ///
+    /// Not a block: CLAUDE.md is explicit that a white rim, a frosted band or
+    /// a blurred edge is a block's claim, "you built this and it is standing
+    /// on something". A hairline in ink at low alpha is a separation, not a
+    /// rim, and nothing here casts a shadow.
+    ///
+    /// **`.regular`, not `.interactive()`.** That variant reacts to a press,
+    /// which is an affordance a button buys and a panel would be lying about.
+    ///
+    /// It replaced `mapPrimeGlass`, which put this material behind a capsule
+    /// that already had a solid fill of its own and therefore drew nothing.
     @ViewBuilder
-    func mapPrimeGlass() -> some View {
+    func mapPanel(hairline: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: GridConstants.radiusSurface,
+                                     style: .continuous)
         if #available(iOS 26, *) {
-            self.glassEffect(.regular.interactive(), in: .capsule)
+            self.glassEffect(.regular, in: shape)
+                .overlay { shape.strokeBorder(GridConstants.fillHairline, lineWidth: hairline) }
         } else {
-            self.background(.ultraThinMaterial, in: Capsule())
+            self.background(.ultraThinMaterial, in: shape)
+                .overlay { shape.strokeBorder(GridConstants.fillHairline, lineWidth: hairline) }
         }
     }
 }

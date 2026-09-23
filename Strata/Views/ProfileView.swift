@@ -32,6 +32,10 @@ struct ProfileView: View {
     @State private var selectedBar: Date?
     @State private var showsMaker = false
     @State private var confirmsDeleteHead = false
+    /// One neutral face per head, for the row of heads. Read off the main
+    /// actor, because five heads are five 600px PNGs and this draws five 60pt
+    /// squares.
+    @State private var headSwatches: [UUID: HeadRig] = [:]
     /// Remembered: somebody who reads their weeks will want their weeks the
     /// next time too.
     @AppStorage("profileChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
@@ -45,13 +49,28 @@ struct ProfileView: View {
     /// Tall enough to compare bars by eye, short enough that the chart and
     /// its sentence share a screen with the streak.
     private static let chartHeight: CGFloat = 160
-    /// The same ink as the tally.
-    private static let barOpacity = 0.85
-    /// The period we are in, which is not finished. Computed, not picked:
-    /// 3.3:1 against the light row and 4.4:1 against the dark one, so it still
-    /// clears 3:1 as a graphic while reading as not yet whole. 0.35 fell to
+    /// **The tally's ink, taken from the palette.**
+    ///
+    /// The streak figure and the bars were `.primary.opacity(0.85)` and
+    /// `.primary.opacity(0.45)`. CLAUDE.md is explicit that this is not a
+    /// colour, it is a colour in light mode: the same number is 85% black on a
+    /// near-white page and 85% WHITE on a near-black one, and the two are not
+    /// the same weight of voice. `AppColors.inkPrimary` is exactly that ink made
+    /// adaptive (0.85 light, 0.92 dark), and it exists because the literal had
+    /// been written in eight places.
+    ///
+    /// So the numbers below are FRACTIONS of the token rather than alphas of
+    /// their own.
+    ///
+    /// The period we are in, which is not finished. 0.53 of the ink lands on
+    /// the same 0.45 in light mode that was measured at 3.3:1, and a little
+    /// stronger in dark, which is the correction the token exists for. It still
+    /// clears 3:1 as a graphic while reading as not yet whole; 0.35 fell to
     /// 2.4:1.
-    private static let unfinishedBarOpacity = 0.45
+    private static let unfinishedBarShare = 0.53
+    /// A bar that is not the one you picked. It steps back rather than
+    /// disappearing, so its height can still be compared with the picked one's.
+    private static let unpickedBarShare = 0.4
 
     var body: some View {
         Form {
@@ -81,13 +100,22 @@ struct ProfileView: View {
             #endif
         }
         .onChange(of: unitRaw) { _, _ in selectedBar = nil }
+        // Keyed on the ids, not the whole list: a rename must not send five
+        // heads back to disk to be read again.
+        .task(id: heads.entries.map(\.id)) { headSwatches = await heads.swatches() }
         .fullScreenCover(isPresented: $showsMaker) {
             HeadMakerView()
         }
-        .confirmationDialog("Delete your head?", isPresented: $confirmsDeleteHead, titleVisibility: .visible) {
-            Button("Delete Head", role: .destructive) { heads.delete() }
+        // **By name, and it says out loud that it cannot be undone.** A head is
+        // minutes in front of the camera over a photograph that may not exist
+        // any more, so this is the one place in Profile that destroys work.
+        .confirmationDialog(Text("Delete \(deletableHeadName)?"),
+                            isPresented: $confirmsDeleteHead, titleVisibility: .visible) {
+            Button("Delete \(deletableHeadName)", role: .destructive) {
+                if let id = heads.activeID { heads.delete(id) }
+            }
         } message: {
-            Text("It's removed from this phone and from everywhere it appears.")
+            Text("\(deletableHeadName) is removed from this phone and from everywhere it appears. A head can't be brought back, only made again.")
         }
         .photosPicker(isPresented: $showsLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
@@ -147,7 +175,10 @@ struct ProfileView: View {
                         heads.setProfilePicture(false)
                     }
                 } else {
-                    Button("Use My Head", systemImage: "face.smiling") {
+                    // Named once there is more than one, because with several
+                    // heads "my head" does not say which.
+                    Button(heads.entries.count > 1 ? "Use \(deletableHeadName)" : "Use My Head",
+                           systemImage: "face.smiling") {
                         heads.setProfilePicture(true)
                     }
                 }
@@ -212,11 +243,31 @@ struct ProfileView: View {
             }
         } label: {
             Circle()
-                .fill(colour.map { AnyShapeStyle($0.style.baseColor) } ?? AnyShapeStyle(.quaternary))
+                // **`AppColors`, not `.quaternary`.** A system hierarchical grey
+                // is neither in the palette nor measured against this page, and
+                // section 8 of `docs/design-system-future.md` refuses a colour
+                // that is neither in `AppColors` nor taken from content.
+                // `quietFill` is the token for a shape that is only there to be
+                // a shape.
+                .fill(colour.map { AnyShapeStyle($0.style.baseColor) } ?? AnyShapeStyle(AppColors.quietFill))
                 .frame(width: Self.swatchSide, height: Self.swatchSide)
-                .padding(3)
+                // **"No colour" still has to read as a choice.** `quietFill` is
+                // 6% ink, so on its own it all but vanishes beside six
+                // saturated circles. The app's own word for an empty slot is a
+                // faint outline, at the weight `AddWinSheet`'s empty photo well
+                // already uses, borrowed rather than invented.
                 .overlay {
-                    Circle().strokeBorder(Color.primary.opacity(selected ? 0.85 : 0), lineWidth: 2)
+                    if colour == nil {
+                        Circle().strokeBorder(AppColors.slotInk.opacity(0.26),
+                                              lineWidth: GridConstants.strokeThin)
+                    }
+                }
+                .padding(GridConstants.spacing)
+                .overlay {
+                    // The ring was `.primary.opacity(0.85)`, which is
+                    // `AppColors.inkPrimary` written the way CLAUDE.md forbids.
+                    Circle().strokeBorder(AppColors.inkPrimary.opacity(selected ? 1 : 0),
+                                          lineWidth: GridConstants.strokeMedium)
                 }
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .contentShape(Rectangle())
@@ -252,7 +303,7 @@ struct ProfileView: View {
             }
             .padding(.vertical, GridConstants.gapTight)
         } header: {
-            Text("Streak")
+            FormSectionLabel("Streak")
         } footer: {
             if vm.currentStreak == 0 {
                 Text("Log a win to start one.")
@@ -265,7 +316,7 @@ struct ProfileView: View {
             HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
                 Text(verbatim: StrataFont.digits(value))
                     .font(StrataFont.relative(28, to: .title))
-                    .foregroundStyle(.primary.opacity(Self.barOpacity))
+                    .foregroundStyle(AppColors.inkPrimary)
                     .contentTransition(.numericText())
                 Text(value == 1 ? "day" : "days")
                     .font(Typography.bodyLarge)
@@ -302,7 +353,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(shownHeadline(summary: summary, bars: bars))
                         .font(Typography.headerMedium)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(AppColors.inkPrimary)
                         .contentTransition(.numericText())
                     Text(shownDetail(summary: summary, bars: bars))
                         .font(Typography.bodySmall)
@@ -320,7 +371,7 @@ struct ProfileView: View {
             }
             .padding(.vertical, GridConstants.gapTight)
         } header: {
-            Text("Wins per \(unit.name)")
+            FormSectionLabel("Wins per \(unit.name)")
         }
     }
 
@@ -406,12 +457,13 @@ struct ProfileView: View {
         }
     }
 
-    private func barOpacity(for bar: WinTrend.Bar) -> Double {
-        let base = bar.isCurrent ? Self.unfinishedBarOpacity : Self.barOpacity
-        guard let selectedBar else { return base }
+    private func barInk(for bar: WinTrend.Bar) -> Color {
+        let share = bar.isCurrent ? Self.unfinishedBarShare : 1.0
+        guard let selectedBar else { return AppColors.inkPrimary.opacity(share) }
         // The picked bar keeps its ink; the rest step back rather than
         // disappearing, so its height can still be compared with theirs.
-        return bar.start == selectedBar ? base : base * 0.4
+        return AppColors.inkPrimary
+            .opacity(bar.start == selectedBar ? share : share * Self.unpickedBarShare)
     }
 
     private func pick(_ date: Date, in bars: [WinTrend.Bar]) {
@@ -436,14 +488,17 @@ struct ProfileView: View {
                     y: .value("Wins", bar.count),
                     // 0.6 read as a wall of white slabs on the dark ground.
                     width: .ratio(0.5))
-                .foregroundStyle(Color.primary.opacity(barOpacity(for: bar)))
+                .foregroundStyle(barInk(for: bar))
                 .cornerRadius(GridConstants.radiusMark)
         }
         .chartYScale(domain: 0...(ticks.last ?? 2))
         .chartYAxis {
             AxisMarks(position: .trailing, values: ticks) { _ in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: GridConstants.headerDividerHeight))
-                    .foregroundStyle(Color.primary.opacity(0.1))
+                    // `quietFill` is the token for "a hairline's fill", and it
+                    // is adaptive. The 0.1 here was a `.primary.opacity`, the
+                    // one thing CLAUDE.md says a colour must never be.
+                    .foregroundStyle(AppColors.quietFill)
                 AxisValueLabel()
                     .font(Typography.caption2)
                     .foregroundStyle(AppColors.inkSecondary)
@@ -493,24 +548,40 @@ struct ProfileView: View {
 
     // MARK: - Your head
 
+    /// The head the delete row would remove: the one in use, which is the one
+    /// the row above it has marked and the one the picture is showing.
+    private var deletableHeadName: String { heads.activeEntry?.name ?? "this head" }
+
     /// 100% optional. Before a head exists, one row and a footer saying what
     /// it is. Once it exists, only switches for places it can actually
     /// appear — a switch for a placement that is not built would be a
     /// feature that cannot fire, which CLAUDE.md calls worse than none.
+    ///
+    /// **Several heads since 2026-09-23** (owner: "add your friend's head for
+    /// instance to your tower instead of yours"). The row picks which one is
+    /// in use; every switch under it is about that head, which is what the
+    /// footer says. Branching on the LIST rather than on `heads.head`, so a
+    /// head whose files will not load still shows in the row and can be
+    /// deleted, rather than the whole section falling back to "Make Your
+    /// Head" over a folder full of faces.
     private var headSection: some View {
         Section {
-            if heads.head == nil {
+            if heads.entries.isEmpty {
                 Button {
                     HapticsEngine.lightTap()
                     showsMaker = true
                 } label: {
                     Label {
-                        Text("Make Your Head").foregroundStyle(.primary)
+                        Text("Make Your Head").foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "face.smiling")
                     }
                 }
             } else {
+                HeadPickerRow(entries: heads.entries, activeID: heads.activeID,
+                              swatches: headSwatches, active: heads.undressed,
+                              onPick: { heads.use($0) })
+
                 Toggle(isOn: Binding(get: { heads.isProfilePicture },
                                      set: { heads.setProfilePicture($0) })) {
                     Label {
@@ -532,6 +603,29 @@ struct ProfileView: View {
                     }
                 }
 
+                // **The head that lives on the tower.**
+                //
+                // The owner, 2026-09-23: "for the head I want it to be added
+                // to the Wins screen as an option, where it kinda just floats
+                // on the top, around, bouncing off the walls... occasionally
+                // he can drop down and jump along the tops of the blocks."
+                //
+                // "As an option" is the load bearing part, and it is why this
+                // row exists rather than the companion simply being there:
+                // off by default, and while it is off `TowerCompanionLayer`
+                // builds no view, starts no clock and asks for no frames.
+                // First in this group because it is the one you SEE, above
+                // the two that decide where the head is stamped.
+                Toggle(isOn: Binding(get: { heads.showsOnTower },
+                                     set: { heads.setShowsOnTower($0) })) {
+                    Label {
+                        Text("Let My Head Onto the Tower")
+                    } icon: {
+                        SettingsIcon(systemName: "square.stack")
+                    }
+                }
+                .tint(AppColors.switchOn)
+
                 Toggle(isOn: Binding(get: { heads.showsOnMap },
                                      set: { heads.setShowsOnMap($0) })) {
                     Label {
@@ -552,12 +646,15 @@ struct ProfileView: View {
                 }
                 .tint(AppColors.switchOn)
 
+                // Not "Make It Again". Saving adds a head now and never writes
+                // over one, so a label that promised a replacement would be
+                // describing something the code no longer does.
                 Button {
                     HapticsEngine.lightTap()
                     showsMaker = true
                 } label: {
                     Label {
-                        Text("Make It Again").foregroundStyle(.primary)
+                        Text("Add Another Head").foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "camera")
                     }
@@ -567,19 +664,30 @@ struct ProfileView: View {
                     confirmsDeleteHead = true
                 } label: {
                     Label {
-                        Text("Delete Head")
+                        Text("Delete \(deletableHeadName)")
                     } icon: {
                         SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
                     }
                 }
             }
         } header: {
-            Text("Your head")
+            FormSectionLabel(heads.entries.count > 1 ? "Your heads" : "Your head")
         } footer: {
-            Text(heads.head == nil
-                 ? "About fifteen seconds in front of the camera. It stays on this phone, and it only appears where you switch it on."
-                 : "It only appears where you switch it on.")
+            Text(headFooter)
         }
+    }
+
+    private var headFooter: String {
+        if heads.entries.isEmpty {
+            return "About fifteen seconds in front of the camera. It stays on this phone, and it only appears where you switch it on."
+        }
+        if heads.entries.count > 1 {
+            // Says which head the switches under it are about. Without this,
+            // four switches sit under a row of faces with nothing saying
+            // which face they belong to.
+            return "The head you pick above is the one that appears where you switch it on."
+        }
+        return "It only appears where you switch it on."
     }
 
     // MARK: - Settings

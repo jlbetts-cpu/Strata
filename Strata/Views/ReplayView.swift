@@ -804,10 +804,20 @@ enum ReplayShareSheet {
 /// Where the tower will stand, while a replay waits for its photographs.
 ///
 /// Shown only when nothing could start within `replayLoadingDelay`. The
-/// tower's own empty slot, a dashed ghost in `slotInk`, breathing: the page
-/// is about a tower, so the wait is the place it will stand rather than a
-/// spinner that could belong to anything. Live only, never in a video, so
-/// its breathing runs on the wall clock.
+/// tower's own empty slot, a dashed ghost in `slotInk`: the page is about a
+/// tower, so the wait is the place it will stand rather than a spinner that
+/// could belong to anything.
+///
+/// **It does not breathe.** It used to pulse on the wall clock, which is the
+/// one thing `docs/design-system-future.md` section 8 refuses outright:
+/// nothing loops and nothing idles. It also said "working" about a wait that
+/// is usually shorter than one cycle of it (`replayLoadingDelay` is 0.15s
+/// against a 1.6s breath), so what was actually seen was a slot at some
+/// arbitrary point of a fade.
+///
+/// Drawn at full strength now, which is not a new value: the pulse swung
+/// between 0.45 and 1 of the ink below, and the ink below is exactly the
+/// recess `NextSlotButton` draws the real slot with. Resting, the two match.
 struct ReplayLoadingSlot: View {
     let metrics: ReplayScript.Metrics
     @Environment(\.colorScheme) private var scheme
@@ -815,20 +825,15 @@ struct ReplayLoadingSlot: View {
     var body: some View {
         let side = metrics.cell
         let radius = GridConstants.blockCornerRadius(forCell: side)
-        TimelineView(.animation) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate / GridConstants.replayLoadingBreath
-            let breath = 0.5 - 0.5 * cos(2 * .pi * phase)
-            ZStack {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(AppColors.slotInk.opacity(scheme == .dark ? 0.075 : 0.038))
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(AppColors.slotInk.opacity(scheme == .dark ? 0.42 : 0.26),
-                                  style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength]))
-            }
-            .frame(width: side, height: side)
-            .opacity(0.45 + 0.55 * breath)
-            .position(x: metrics.frame.width / 2, y: metrics.baseY - side / 2)
+        ZStack {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(AppColors.slotInk.opacity(scheme == .dark ? 0.075 : 0.038))
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(AppColors.slotInk.opacity(scheme == .dark ? 0.42 : 0.26),
+                              style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength]))
         }
+        .frame(width: side, height: side)
+        .position(x: metrics.frame.width / 2, y: metrics.baseY - side / 2)
         .allowsHitTesting(false)
         .accessibilityElement()
         .accessibilityLabel("Loading the replay")

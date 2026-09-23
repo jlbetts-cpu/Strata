@@ -87,7 +87,7 @@ struct SettingsView: View {
             // MARK: - Branded Header
 
             Section {
-                VStack(spacing: 12) {
+                VStack(spacing: GridConstants.gapItem) {
                     // The mark, not a five-block diorama.
                     //
                     // This was a little tower built from `MiniBlockPreview`,
@@ -105,8 +105,8 @@ struct SettingsView: View {
                         .foregroundStyle(AppColors.inkQuiet)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, 24)
-                .padding(.bottom, 8)
+                .padding(.top, GridConstants.gapWide)
+                .padding(.bottom, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Strata version \(appVersion)")
             }
@@ -160,10 +160,10 @@ struct SettingsView: View {
                     Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
                 }
             } header: {
-                Text("Notifications")
+                FormSectionLabel("Notifications")
             } footer: {
                 if systemNotificationsDenied && notificationsEnabled {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: GridConstants.spacing) {
                         Text("Notifications are disabled in system settings.")
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -183,7 +183,7 @@ struct SettingsView: View {
             // and an email in the other. What you hear and what you feel when a
             // win lands are the same question, and Settings on the phone
             // already answers it with this heading.
-            Section("Sounds & Haptics") {
+            Section {
                 Toggle(isOn: Binding(
                     get: { !SoundEngine.isMuted },
                     set: { SoundEngine.isMuted = !$0 }
@@ -204,6 +204,8 @@ struct SettingsView: View {
                     }
                 }
                 .tint(AppColors.switchOn)
+            } header: {
+                FormSectionLabel("Sounds & Haptics")
             }
 
             // MARK: - Replays
@@ -211,7 +213,7 @@ struct SettingsView: View {
             // **Watch it before it happens.** A replay only arrives at the end of a week
             // or a month, so without this nobody could see what one looks like until
             // then. The preview is the real replay on sample wins, not a video of one.
-            Section("Replays") {
+            Section {
                 // The ink is on the rows, not the Section: on the Section it
                 // also inked the header, which then read darker and heavier
                 // than every other heading on the screen.
@@ -223,6 +225,8 @@ struct SettingsView: View {
                     Label { Text("Preview Your Month") } icon: { SettingsIcon(systemName: "calendar") }
                 }
                 .foregroundStyle(AppColors.inkPrimary)
+            } header: {
+                FormSectionLabel("Replays")
             }
 
             // MARK: - Camera
@@ -251,10 +255,10 @@ struct SettingsView: View {
                 .tint(AppColors.switchOn)
                 .disabled(location.isDenied)
             } header: {
-                Text("Camera")
+                FormSectionLabel("Camera")
             } footer: {
                 Text(storageLine)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, GridConstants.gapTight)
                     .accessibilityLabel("Photographs use \(storageLine)")
 
                 // Stated here because it is the map's one real disappointment
@@ -273,7 +277,7 @@ struct SettingsView: View {
                 } label: {
                     Label {
                         Text("How Strata Works")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "questionmark.circle")
                     }
@@ -289,20 +293,23 @@ struct SettingsView: View {
 
             // MARK: - Section 3: Data
 
-            Section("Data") {
+            Section {
                 Button {
                     HapticsEngine.lightTap()
                     exportData()
                 } label: {
                     Label {
                         Text("Back Up Everything")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "square.and.arrow.up")
                     }
                 }
                 .disabled(habits.isEmpty)
-                .foregroundStyle(habits.isEmpty ? .tertiary : .primary)
+                // `AppColors`, not `.tertiary`/`.primary`. The row beside it in
+                // Replays was already on the app's ink, so one section of this
+                // screen was lit by the platform and the next by the app.
+                .foregroundStyle(habits.isEmpty ? AppColors.inkQuiet : AppColors.inkPrimary)
 
                 Button(role: .destructive) {
                     showResetConfirmation = true
@@ -330,11 +337,13 @@ struct SettingsView: View {
                 } message: {
                     Text("This permanently deletes every win and photo, your name and profile photo, and your head. It cannot be undone.")
                 }
+            } header: {
+                FormSectionLabel("Data")
             }
 
             // MARK: - Section 4: Support
 
-            Section("Support") {
+            Section {
                 // **An address that receives mail.** This was
                 // support@strataapp.co, and strataapp.co has no MX record and
                 // no A record — checked with dig on 2026-09-13 — so every
@@ -347,10 +356,15 @@ struct SettingsView: View {
                     Label {
                         HStack {
                             Text("Send Feedback")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(AppColors.inkPrimary)
                             Spacer()
                             Image(systemName: "arrow.up.right")
-                                .font(.caption)
+                                // Icon sizes come from `GridConstants.icon*`
+                                // (CLAUDE.md, Conventions). `.font(.caption)`
+                                // was the one raw text style left on a glyph
+                                // in this screen, and it does not scale with
+                                // Dynamic Type the way `iconSize` does.
+                                .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
                                 .foregroundStyle(AppColors.inkQuiet)
                         }
                     } icon: {
@@ -363,11 +377,13 @@ struct SettingsView: View {
                 } label: {
                     Label {
                         Text("Rate on App Store")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "star")
                     }
                 }
+            } header: {
+                FormSectionLabel("Support")
             }
 
             // MARK: - Section 5: Legal
@@ -395,12 +411,14 @@ struct SettingsView: View {
             // MARK: - Section 6: Debug
 
             #if DEBUG
-            Section("Debug") {
+            Section {
                 Button(role: .destructive) {
                     runReset()
                 } label: {
                     Label("Reset All Data", systemImage: "trash")
                 }
+            } header: {
+                FormSectionLabel("Debug")
             }
 
             #endif
@@ -649,6 +667,42 @@ struct SettingsIcon: View {
             .iconSize(GridConstants.iconCategory, relativeTo: .footnote, weight: .medium)
             .foregroundStyle(tint ?? AppColors.inkSecondary)
             .frame(width: Self.side, height: Self.side)
+    }
+}
+
+// MARK: - A section's label
+
+/// The one heading a `Form` section wears, on every sheet in the app.
+///
+/// **`Section("Name")` is the platform's heading, not this app's.** It arrives
+/// in SF Pro at a size and a case iOS picks, so Settings, Profile and a plan
+/// line each named their sections in a face the app uses nowhere else, while
+/// `AddWinSheet` set its own labels from `Typography.sectionLabel` by hand.
+/// Three screens, three answers to one question.
+///
+/// `docs/design-system-future.md` section 2 settles which: "A label that wants
+/// to feel like an instrument gets: SF Rounded, footnote size, medium weight,
+/// ALL CAPS, `Typography.sectionKerning` (0.8). That is
+/// `Typography.sectionLabel` and it already exists. Use it for section headings
+/// and index labels; do not invent another."
+///
+/// **Case comes from the style, not from the caller**: the bug
+/// `SectionHeading` records, and the reason "Streak" and "Your head" sat one
+/// section apart at the same rank looking like two different ranks. This is
+/// `SectionHeading`'s style without its page margin and section gap, which a
+/// `Form` row already supplies; and without its `.isHeader` trait, which a
+/// `Form` section header already carries.
+struct FormSectionLabel: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(Typography.sectionLabel)
+            .kerning(Typography.sectionKerning)
+            .textCase(.uppercase)
+            .foregroundStyle(AppColors.inkSecondary)
     }
 }
 

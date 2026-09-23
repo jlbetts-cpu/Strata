@@ -234,7 +234,23 @@ struct MemoriesView: View {
                         // card the shelf is not drawn at all — only what there
                         // is to show gets shown.
                         if !vm.carousel.isEmpty {
-                            sectionLabel("ALBUMS")
+                            // **What this is, and how much is here.** The
+                            // design language's §7 asks every section for
+                            // both; the heading answered the first and left
+                            // the second to be found by scrolling the shelf
+                            // to its end.
+                            // **No count on this one, and that is a
+                            // subtraction rather than an omission.**
+                            //
+                            // Three of us applied the design doc's "how much
+                            // is here" to our own section on the same day,
+                            // and the page ended up saying how much is here
+                            // six times on one scroll, four of them with the
+                            // word PHOTOS. The doc asks a SCREEN to answer
+                            // it, not every band of a screen. The page header
+                            // answers it, and a shelf of seven cards is
+                            // countable by looking.
+                            SectionHeading(text: "ALBUMS")
                                 .id("MemoriesShelf")
                             shelf
                         }
@@ -620,10 +636,6 @@ struct MemoriesView: View {
         }
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        SectionHeading(text: text)
-    }
-
     // MARK: - The shelf
 
     private var shelf: some View {
@@ -641,7 +653,16 @@ struct MemoriesView: View {
 
     // MARK: - The month
 
-    /// The page's own header: what this is, how to leave, and which month.
+    /// Every photograph the page holds, which is what the gallery below it is
+    /// a grid of. Summed from the sections rather than kept as a second
+    /// number: a count that can disagree with the thing it counts is worse
+    /// than no count at all.
+    private var photographCount: Int {
+        vm.gallery.reduce(0) { $0 + $1.photos.count }
+    }
+
+    /// The page's own header: what this is, how much is in it, how to leave,
+    /// and which month.
     ///
     /// The title used to live only on the map, so the page you pulled up over
     /// it was unnamed — the owner's call is that "that section also needs the
@@ -651,7 +672,18 @@ struct MemoriesView: View {
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
-                MemoriesTitle(color: AppColors.inkPrimary)
+                // **The title says its name and nothing else.**
+                //
+                // It carried a photograph count for an afternoon and the
+                // owner cut it: "the memories section didn't really change
+                // outside of adding photos to the title, which looks bad and
+                // isn't needed." He is right twice over. A number welded to a
+                // drawn wordmark fights it, and the page already had five
+                // other places telling you how much was in it.
+                HStack(alignment: .lastTextBaseline, spacing: GridConstants.gapTight) {
+                    MemoriesTitle(color: AppColors.inkPrimary)
+
+                }
                 Spacer(minLength: 0)
                 Button {
                     HapticsEngine.lightTap()
@@ -702,20 +734,39 @@ struct MemoriesView: View {
     }
 
     private var monthHeader: some View {
-        MonthPicker(
-            title: vm.monthTitle,
-            months: vm.availableMonths,
-            titleFor: { vm.title(for: $0) },
-            onSelect: { month in
-                withAnimation(GridConstants.crossFade) {
-                    vm.select(month: month, context: modelContext)
+        HStack(spacing: 0) {
+            MonthPicker(
+                title: vm.monthTitle,
+                months: vm.availableMonths,
+                titleFor: { vm.title(for: $0) },
+                onSelect: { month in
+                    withAnimation(GridConstants.crossFade) {
+                        vm.select(month: month, context: modelContext)
+                    }
                 }
-            }
-        )
-        // Aligned to the page margin, less the menu label's own 10pt inset,
-        // so the WORD lines up with the title above it and with every heading
-        // below it rather than the tap target's edge doing.
-        .padding(.horizontal, GridConstants.horizontalPadding - 10)
+            )
+            // Aligned to the page margin, less the menu label's own 10pt
+            // inset, so the WORD lines up with the title above it and with
+            // every heading below it rather than the tap target's edge doing.
+            .padding(.leading, GridConstants.horizontalPadding - 10)
+
+            // **How much of the month is here.** The design language's §7,
+            // and the count is DAYS rather than wins on purpose: the blocks
+            // under this heading are days, one each, so the number can be
+            // checked against the thing it labels by looking. That is what
+            // §7 means by the structure being visible. The exact win count
+            // belongs to the day's own screen, one tap away, which is the
+            // line `MonthTower.size` already draws ("this ranks days; it does
+            // not measure them").
+            //
+            // `.center`, and the picker is 44pt tall with its label centred
+            // in that, so the two words sit on one line without either of
+            // them depending on a baseline surviving a `frame`.
+            // **And no count here either.** The blocks under this heading
+            // ARE the days, which is the doc's own "structure visible, not
+            // implied": the tower says how many there are by being that many.
+            // A number on top of it is the page narrating itself.
+        }
         .padding(.top, GridConstants.gapTight)
         .padding(.bottom, GridConstants.gapTight)
         // **Above the tower, or its chevrons do not take their own taps.**
@@ -735,6 +786,21 @@ struct MemoriesView: View {
         .zIndex(1)
     }
 
+    /// The width the month is packed into, and the cell that falls out of it.
+    ///
+    /// Named because two things need the same answer now: the tower draws its
+    /// blocks at this cell and the lattice behind it draws its slots at the
+    /// same one. A lattice a few points out of step with the blocks is worse
+    /// than no lattice, which is the warning `TowerLatticeShape.cellRects`
+    /// already carries.
+    private var monthGridWidth: CGFloat {
+        UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
+    }
+
+    private var monthCell: CGFloat {
+        GridConstants.cellSize(forGridWidth: monthGridWidth)
+    }
+
     @ViewBuilder
     private var monthTower: some View {
         if vm.month.isEmpty {
@@ -751,10 +817,45 @@ struct MemoriesView: View {
         } else {
             MonthTowerView(
                 packed: vm.month,
-                width: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2,
+                width: monthGridWidth,
                 onSelect: { path.append(.day($0)) },
                 transitionNamespace: photoTransition
             )
+            // **The slots the days sit in.**
+            //
+            // The same surface the Wins tab's tower stands on, from the same
+            // shape, for the reason the owner gave for building it (2026-09-23,
+            // about the tower): "they just don't feel like they fit when there
+            // is a bunch of images... the easy fix would be to add structure
+            // to the background, like a grid of some sort that helps structure
+            // the screen." A month with photographs in half its days is that
+            // same collage, and it was the last grid in the app still floating
+            // on the bare page rather than filling cells.
+            //
+            // **`TowerLatticeShape`, not `TowerLattice`.** The view carries
+            // three rows of overhang above its content and spends its fade in
+            // them, which is right for a tower standing at the bottom of a
+            // viewport and wrong inside a scrolling page: here the overhang
+            // would reach up through the month picker and the page header. A
+            // month is a CLOSED block of days, so its lattice is exactly its
+            // own grid, every empty cell of the rectangle the days pack into
+            // and nothing above it. Strength and fill are the lattice's own
+            // tokens, so the two surfaces cannot drift apart.
+            //
+            // Safe as a background because `MonthTowerView`'s frame IS its
+            // grid (`gridWidth` x `gridHeight`, with no cell cap), so the
+            // cells this draws are the cells the blocks land in by
+            // construction. `StaticTowerView` centres a capped grid inside a
+            // wider frame, which is why the day screen's tower cannot be given
+            // one from outside; that one belongs in the view itself.
+            .background {
+                TowerLatticeShape(cellSize: monthCell,
+                                  spacing: GridConstants.spacing,
+                                  columns: GridConstants.columnCount)
+                    .fill(AppColors.quietFill.opacity(TowerLattice.strength))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, GridConstants.gapTight)
             // The month is REPLACED, not moved, so it cross-fades. A spring
@@ -810,7 +911,7 @@ struct MemoriesView: View {
 
         return VStack(spacing: GridConstants.gapSection) {
             ZStack(alignment: .topLeading) {
-                ForEach(Array(ghosts.enumerated()), id: \.offset) { index, g in
+                ForEach(Array(ghosts.enumerated()), id: \.offset) { _, g in
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .strokeBorder(AppColors.slotInk.opacity(0.16),
                                       style: StrokeStyle(lineWidth: 1.5,
@@ -822,11 +923,16 @@ struct MemoriesView: View {
                         .frame(width: g.w * cell + (g.w - 1) * gutter,
                                height: g.h * cell + (g.h - 1) * gutter)
                         .offset(x: g.c * (cell + gutter), y: g.r * (cell + gutter))
-                        // They fade up in order, so the page arrives rather
-                        // than appearing.
+                        // **No entrance.** They used to fade up in order,
+                        // staggered off the index, "so the page arrives
+                        // rather than appearing". The design language refuses
+                        // that outright (§5, §8): "nothing animates because a
+                        // screen appeared. Things animate because a person
+                        // did something, and they animate where it happened."
+                        // Nobody has done anything here yet, which is the
+                        // whole subject of this screen, so there is nothing
+                        // for it to be answering.
                         .opacity(0.9)
-                        .animation(GridConstants.gentleReveal.delay(Double(index) * 0.06),
-                                   value: vm.month.isEmpty)
                 }
             }
             // **`.topLeading`, or the ghosts sit 33pt right and down.** The
@@ -851,6 +957,105 @@ struct MemoriesView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 72)
+    }
+}
+
+// MARK: - How much is here
+
+/// A count, the way an instrument reads one out: the owner's digits, and the
+/// unit beside them in the heading's own register.
+///
+/// **The digits are not the label's face and never should be.** The design
+/// language's §2 splits the two jobs: the owner's face carries the app's
+/// nouns and numbers, SF Rounded carries everything read as language, and
+/// "counts and indices are Jaro, tabular, and never abbreviated when they
+/// fit". A count set in the label's face is a word that happens to be made of
+/// digits; set in his, it is a readout.
+///
+/// **Relative to `.footnote`, not `Typography.numeral`.** That token takes a
+/// fixed point size, which is right for a month block's numeral (solved off
+/// its cell) and wrong here: this sits beside `Typography.sectionLabel`,
+/// which is a text STYLE, so at any Dynamic Type setting but the default the
+/// two would drift apart. It belongs in `Typography` beside `sectionLabel`
+/// the next time that file is free to edit.
+///
+/// **The case comes from the style, not the caller**, which is the rule
+/// `SectionHeading` exists to enforce: pass "photos", not "PHOTOS".
+struct CountReadout: View {
+    let count: Int
+    /// What is being counted, or nil where the heading beside it already
+    /// says (a shelf headed ALBUMS does not need the word twice).
+    var unit: String? = nil
+
+    /// The section label's own size, so the digits and the word are one line
+    /// of type rather than two sizes agreeing by accident.
+    private static let digitFont = StrataFont.relative(13, to: .footnote)
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
+            // `StrataFont.digits`, never `Text("\(count)")`: interpolation is
+            // a `LocalizedStringKey` and groups 1000 as "1,000", and the face
+            // has no comma. That is how the map badge came out as "1,0" over
+            // "00".
+            Text(verbatim: StrataFont.digits(count))
+                .font(Self.digitFont)
+                .foregroundStyle(AppColors.inkSecondary)
+                // §2: "a count that ticks should tick, not cross-fade".
+                .contentTransition(.numericText())
+            if let unit {
+                Text(unit)
+                    .font(Typography.sectionLabel)
+                    .kerning(Typography.sectionKerning)
+                    .textCase(.uppercase)
+                    // A shade under the digits. The number is the fact and
+                    // the unit is a caption for it, which is the same order
+                    // the tower's header puts its count and its word in.
+                    .foregroundStyle(AppColors.inkTertiary)
+            }
+        }
+        .lineLimit(1)
+        // Inflexible on purpose: it is laid out beside things that expand,
+        // and an `HStack` hands a fixed child its ideal width first and the
+        // remainder to the flexible one. Without it the heading beside it
+        // would take everything and squeeze the count to nothing.
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A section heading with its count: what this is, and how much is here.
+///
+/// The design language's §7 asks both of every section. `SectionHeading` is
+/// still the one owner of the heading's style, ink, case and spacing, for the
+/// reason that file records at length ("a token is not a style"); this only
+/// puts a readout on the other end of the same line.
+///
+/// **It belongs in `SectionHeading.swift`**, and is here because that file is
+/// being edited elsewhere. Move it when the two can be in one place.
+///
+/// **Why the readout mirrors the heading's vertical padding.** The two have to
+/// sit on one line, and `.firstTextBaseline` would be the natural way to say
+/// so, except that the heading's own text is wrapped in three paddings and a
+/// flexible `frame` before anything outside it can see a baseline. Giving the
+/// readout the same box top and bottom makes the two children the same shape,
+/// so plain `.center` puts the digits on the label's line with nothing
+/// depending on a baseline surviving a modifier. If `SectionHeading`'s padding
+/// moves, this has to move with it.
+struct SectionHeadingCount: View {
+    let text: String
+    let count: Int
+    var unit: String? = nil
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            // Carries the page margins on both sides, so its trailing 16 is
+            // the gutter between the label and the readout.
+            SectionHeading(text: text)
+            CountReadout(count: count, unit: unit)
+                .padding(.top, GridConstants.gapSection)
+                .padding(.bottom, GridConstants.gapLabel)
+                .padding(.trailing, GridConstants.horizontalPadding)
+        }
     }
 }
 

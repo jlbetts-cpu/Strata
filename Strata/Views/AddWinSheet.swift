@@ -258,16 +258,15 @@ struct AddWinSheet: View {
 
     @ViewBuilder
     private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // `SectionHeading`'s style, so a label here is recognisably the
-            // same kind of thing as a heading in Memories. Not `SectionHeading`
-            // itself: that carries the page margin and a section's top gap,
-            // and these sit inside a form that already has both.
-            Text(label)
-                .font(Typography.sectionLabel)
-                .kerning(Typography.sectionKerning)
-                .textCase(.uppercase)
-                .foregroundStyle(AppColors.inkSecondary)
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            // **`FormSectionLabel`, the same one Settings, Profile and a plan
+            // line's sections wear.** This style was written out by hand here
+            // and was the app's ONLY correct one: the three `Form` screens were
+            // all still on the platform's `Section("Name")` heading, in SF Pro
+            // at a case iOS picked. Setting it in one place is what makes a
+            // label on this sheet and a label on Settings the same kind of
+            // thing rather than two things that happen to look alike.
+            FormSectionLabel(label)
             content()
         }
     }
@@ -382,9 +381,12 @@ struct AddWinSheet: View {
                         // tower's slot and the Memories ghosts use. A fixed
                         // dark ink measured about 1.1:1 on the dark sheet.
                         .fill(AppColors.slotInk.opacity(0.035))
-                    VStack(spacing: 6) {
+                    VStack(spacing: GridConstants.gapTight) {
                         Image(systemName: "camera.fill")
-                            .font(Typography.bodyLarge.weight(.medium))
+                            // An icon size from a token, which also scales with
+                            // Dynamic Type (CLAUDE.md, Conventions). A weighted
+                            // text style does neither.
+                            .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                             .foregroundStyle(AppColors.inkQuiet)
                         if size != .small {
                             Text("Add a photo")
@@ -413,11 +415,11 @@ struct AddWinSheet: View {
             .overlay(alignment: .bottomTrailing) {
                 if photo != nil {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(Typography.caption2)
+                        .iconSize(GridConstants.iconMedium, relativeTo: .caption2, weight: .medium)
                         .foregroundStyle(.white)
                         .padding(GridConstants.gapTight)
                         .background(Circle().fill(.black.opacity(0.35)))
-                        .padding(8)
+                        .padding(GridConstants.gapTight)
                 }
             }
             // Grows from the top left, where a block is anchored, so the
@@ -457,7 +459,10 @@ struct AddWinSheet: View {
     }
 
     private var categoryControl: some View {
-        HStack(spacing: 6) {
+        // 4pt, the grid's own gutter. The circles are 34 inside 44pt targets,
+        // so there is already 10pt of air between them before any spacing at
+        // all; the 6 this was is simply not a rung.
+        HStack(spacing: GridConstants.spacing) {
             ForEach(HabitCategory.selectable, id: \.self) { cat in
                 let isSelected = showsSelection && category == cat
                 Button {
@@ -476,7 +481,15 @@ struct AddWinSheet: View {
                         }
                         if isSelected {
                             Circle()
-                                .strokeBorder(.primary.opacity(0.75), lineWidth: 2)
+                                // **`inkPrimary`, not `.primary.opacity(0.75)`.**
+                                // CLAUDE.md's rule is that this is not a colour,
+                                // it is a colour in light mode: 75% black on a
+                                // near-white page and 75% white on a near-black
+                                // one, which are not the same weight. The token
+                                // is the adaptive form of exactly this ink, and
+                                // Profile's own swatch ring now wears it too.
+                                .strokeBorder(AppColors.inkPrimary,
+                                              lineWidth: GridConstants.strokeMedium)
                                 .frame(width: 42, height: 42)
                         }
                     }

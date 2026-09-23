@@ -33,7 +33,41 @@ struct PlanSheet: View {
     @State private var focused: UUID?
     @State private var detail: PlanItem?
 
+    /// A hairline is `1 / displayScale` (`docs/design-system-future.md` section
+    /// 6), which is one device pixel however dense the screen is.
+    @Environment(\.displayScale) private var displayScale
+
     private let calendar = Calendar.current
+
+    // MARK: - The row's geometry
+    //
+    // **One arithmetic, not two.** The row's leading margin, the empty state's
+    // and the separator's inset were three hand-written sums of the same
+    // numbers (`horizontalPadding - 11`, `horizontalPadding + 24 + 14`), which
+    // is how the separator ended up starting one point off where the text does.
+    // Derived from the bullet and its target, so they cannot drift apart.
+
+    /// `PlanBullet`'s own side, which is its default.
+    private static let bulletSide: CGFloat = 24
+    /// The HIG's minimum target, measured not declared. Every control on this
+    /// sheet is this box, whatever its glyph measures.
+    private static let tapTarget: CGFloat = 44
+    /// What the target adds around the bullet, which the row's margin gives back
+    /// so the glyph still lands on the page margin.
+    ///
+    /// **Derived, and it moves the page one point.** It was written as a literal
+    /// 11, which is right for a 22pt bullet and the bullet is 24, so the glyph
+    /// sat at 15 while every other page margin in the app is 16. The comment on
+    /// the row already claimed it "stays exactly where it was on the page"; now
+    /// it does.
+    private static let bulletInset: CGFloat = (tapTarget - bulletSide) / 2
+    /// Where a line's text starts, and therefore where a separator does. Comes
+    /// out at 54, which is what the separator's hand-written sum said.
+    private static let textLeading: CGFloat =
+        GridConstants.horizontalPadding - bulletInset + tapTarget + GridConstants.spacing
+    /// The tap-to-write space under the last line. Deep enough to be the
+    /// obvious place to aim at rather than a strip you find by accident.
+    private static let tailHeight: CGFloat = 160
 
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
@@ -42,17 +76,25 @@ struct PlanSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                WarmBackground().ignoresSafeArea()
-                content
-            }
-            .sheetTitle("Plan", drawn: true)
-            .toolbar { planToolbar }
-            .sheet(item: $detail) { item in
-                PlanItemDetailSheet(item: item)
-            }
+            content
+                .sheetTitle("Plan", drawn: true)
+                .toolbar { planToolbar }
+                .sheet(item: $detail) { item in
+                    PlanItemDetailSheet(item: item)
+                }
         }
+        // **Full height, and stated.** It was unstated, which happens to give
+        // the same thing, and unstated is how two sheets end up differing
+        // without anybody choosing.
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        // The page's own ground, as the sheet's material rather than as a layer
+        // inside it. `AddWinSheet` records why: through the default frosted
+        // glass the tower's colours bleed up behind the controls, and a frosted
+        // surface is the block's material, not a sheet's. This was a
+        // `WarmBackground` in a `ZStack`, which covers the content area and
+        // leaves the sheet's own material to the system.
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
     }
 
     /// **The same bare glyphs every other screen has.**
@@ -99,7 +141,7 @@ struct PlanSheet: View {
             // is sized by its label unless it is told otherwise.
             Text("Done")
                 .font(Typography.headerSmall)
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
                 .contentShape(Rectangle())
         }
         .foregroundStyle(AppColors.accentWarm)
@@ -110,7 +152,7 @@ struct PlanSheet: View {
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                 .foregroundStyle(AppColors.accentWarm)
-                .frame(width: 44, height: 44)
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("Add a line")
@@ -122,8 +164,16 @@ struct PlanSheet: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
                     row(item)
-                    Divider()
-                        .padding(.leading, GridConstants.horizontalPadding + 24 + 14)
+                    // **A hairline in ink, not a `Divider`.** Section 6: chrome
+                    // separates with a hairline and with translucency, and a
+                    // hairline is `1 / displayScale` in ink at low alpha, never
+                    // a grey line. `Divider` draws the platform's separator
+                    // colour at the platform's weight, which is the one grey
+                    // this page had.
+                    Rectangle()
+                        .fill(AppColors.quietFill)
+                        .frame(height: 1 / displayScale)
+                        .padding(.leading, Self.textLeading)
                         .padding(.trailing, GridConstants.horizontalPadding)
                 }
 
@@ -134,7 +184,7 @@ struct PlanSheet: View {
                 // way to add is the button in the corner, and the corner is
                 // not where anyone looks when they are writing.
                 Color.clear
-                    .frame(height: max(160, 44))
+                    .frame(height: Self.tailHeight)
                     .contentShape(Rectangle())
                     .onTapGesture { addLine() }
                     .accessibilityLabel("Add a line")
@@ -165,15 +215,21 @@ struct PlanSheet: View {
                 //
                 // Same corner rule as the real one, off the same cell size, so
                 // the outline is the exact silhouette of what will land in it.
+                // **`bulletSide`, not 22.** The comment above is the test and
+                // the outline failed it: the bullet that lands here is 24, so a
+                // 22pt ghost was the silhouette of nothing, two points off the
+                // real one and a point off the page margin with it.
                 RoundedRectangle(
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: 22),
+                    cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
                     style: .continuous)
                     .strokeBorder(AppColors.slotInk.opacity(0.40),
-                                  style: StrokeStyle(lineWidth: 1.5,
+                                  style: StrokeStyle(lineWidth: GridConstants.strokeDefault,
                                                      dash: [GridConstants.ghostBlockDashLength]))
-                    .frame(width: 22, height: 22)
-                    .frame(width: 44, height: 44)
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .frame(width: Self.bulletSide, height: Self.bulletSide)
+                    .frame(width: Self.tapTarget, height: Self.tapTarget)
+                // `radiusMark`, the ladder's rung for a tiny mark. The 3 was
+                // a fourth radius for a thing the ladder already answers.
+                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
                     .fill(AppColors.slotInk.opacity(0.10))
                     .frame(width: 150, height: 11)
             }
@@ -183,7 +239,7 @@ struct PlanSheet: View {
                 .foregroundStyle(AppColors.inkSecondary)
                 .padding(.leading, GridConstants.gapItem)
         }
-        .padding(.leading, GridConstants.horizontalPadding - 11)
+        .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
         .padding(.trailing, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.gapWide)
         .contentShape(Rectangle())
@@ -217,10 +273,14 @@ struct PlanSheet: View {
                     // well's unbounded image: in SwiftUI what a view occupies
                     // and what it can be touched through are two different
                     // rectangles, and only the second one catches fingers.
-                    .frame(width: 44, height: 44)
+                    .frame(width: Self.tapTarget, height: Self.tapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // The bullet has no text in it, so it has no baseline of its own to
+            // align on. This puts one where the glyph's own middle is: measured
+            // from the box's bottom, not derived, because where a 17pt line's
+            // baseline sits inside its line box is the font's business.
             .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 27 }
             .accessibilityLabel(item.isDone
                                 ? "\(item.text), done"
@@ -257,11 +317,14 @@ struct PlanSheet: View {
             if focused == item.id {
                 Button { HapticsEngine.lightTap(); detail = item } label: {
                     Image(systemName: "info.circle")
-                        .font(Typography.bodyLarge)
+                        // The same icon token the plus and the trash beside it
+                        // use, so the three controls on this sheet are one size
+                        // rather than two.
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
                         .foregroundStyle(AppColors.inkQuiet)
                         // 44pt, the HIG minimum. The glyph plus 8pt of padding
                         // came to 33, which is a control you have to aim at.
-                        .frame(width: 44, height: 44)
+                        .frame(width: Self.tapTarget, height: Self.tapTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -272,9 +335,12 @@ struct PlanSheet: View {
         // The bullet's 44pt box already carries its own air, so the row's
         // leading margin gives back what the box added — the glyph stays
         // exactly where it was on the page.
-        .padding(.leading, GridConstants.horizontalPadding - 11)
+        .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
         .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.vertical, 6)
+        // 4pt, the grid's gutter. The bullet's 44pt box already carries 10pt of
+        // air above and below a 24pt glyph, so the 6 this was added a fifth
+        // number to a row whose every other measure comes from the ladder.
+        .padding(.vertical, GridConstants.spacing)
         .contentShape(Rectangle())
         .animation(GridConstants.motionSnappy, value: focused)
         // A context menu, not `.swipeActions`.

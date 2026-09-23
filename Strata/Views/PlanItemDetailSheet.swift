@@ -29,8 +29,10 @@ struct PlanItemDetailSheet: View {
                         .font(Typography.bodyLarge)
                 }
 
-                Section("Colour") {
+                Section {
                     colours
+                } header: {
+                    FormSectionLabel("Colour")
                 }
 
                 Section {
@@ -64,8 +66,15 @@ struct PlanItemDetailSheet: View {
             .sheetTitle("Line", drawn: false)
             .toolbar { detailToolbar }
         }
+        // Half height first, because this sheet is four controls. `AddWinSheet`
+        // and `PlanSheet` are `[.large]` and say why; a detail sheet is the one
+        // shape in the family that is allowed to be shorter than the page it
+        // came from.
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // The same ground the other two sheets declare, so the sheet's own
+        // material is the app's page and never the system's frosted glass.
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
     }
 
     // MARK: - Colour
@@ -74,19 +83,21 @@ struct PlanItemDetailSheet: View {
     /// a row of swatches would be a picture of a colour, and this is a picture
     /// of the thing.
     private var colours: some View {
-        HStack(spacing: 2) {
+        // 4pt, the grid's gutter, as the win sheet's swatches now are. The 2
+        // was a sixth spacing value for the same kind of row.
+        HStack(spacing: GridConstants.spacing) {
             ForEach(HabitCategory.selectable, id: \.self) { category in
                 Button {
                     item.categoryRaw = category.rawValue
                     HapticsEngine.lightTap()
                 } label: {
                     BlockSurface(
-                        cornerRadius: GridConstants.blockCornerRadius(forCell: 34),
-                        scale: 34 / GridConstants.blockReferenceCell
+                        cornerRadius: GridConstants.blockCornerRadius(forCell: Self.swatchSide),
+                        scale: Self.swatchSide / GridConstants.blockReferenceCell
                     ) {
                         category.style.baseColor
                     }
-                    .frame(width: 34, height: 34)
+                    .frame(width: Self.swatchSide, height: Self.swatchSide)
                     .overlay {
                         if item.category == category {
                             Image(systemName: "checkmark")
@@ -98,7 +109,7 @@ struct PlanItemDetailSheet: View {
                     .animation(GridConstants.motionSnappy, value: item.category)
                     // The block stays 34pt; what you can hit is 44. A swatch
                     // sized to its own artwork is a swatch you have to aim at.
-                    .frame(width: 44, height: 44)
+                    .frame(width: Self.tapTarget, height: Self.tapTarget)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -106,13 +117,13 @@ struct PlanItemDetailSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .padding(.vertical, GridConstants.spacing)
     }
 
     // MARK: - Days
 
     private var days: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: GridConstants.spacing) {
             ForEach(weekdayOrder, id: \.self) { day in
                 let on = item.repeatDays.contains(day)
                 Button {
@@ -122,21 +133,27 @@ struct PlanItemDetailSheet: View {
                     HapticsEngine.lightTap()
                 } label: {
                     Text(letter(for: day))
-                        .font(Typography.bodySmall.weight(.medium))
+                        // `sectionLabel` is the token, not a weight bolted on to
+                        // the body rung: the two resolve to the same font, and
+                        // section 2 of `docs/design-system-future.md` names this
+                        // style for "section headings and index labels". A
+                        // weekday initial in a chip is an index label. Not
+                        // uppercased or kerned here, because the locale already
+                        // gives the initial and one letter has nothing to kern.
+                        .font(Typography.sectionLabel)
                         .foregroundStyle(on ? .white : AppColors.inkTertiary)
                         // 44, not 38: seven of them still fit across the
                         // page, and a day you have to aim at is a day you set
                         // by accident.
-                        .frame(width: 44, height: 44)
+                        .frame(width: Self.tapTarget, height: Self.tapTarget)
                         .background {
-                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 44),
-                                             style: .continuous)
+                            Self.dayShape
                                 .fill(on ? item.category.style.baseColor : GridConstants.fillWell)
                         }
                         .overlay {
-                            RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: 44),
-                                             style: .continuous)
-                                .strokeBorder(on ? .clear : GridConstants.fillHairline, lineWidth: 1)
+                            Self.dayShape
+                                .strokeBorder(on ? .clear : GridConstants.fillHairline,
+                                              lineWidth: GridConstants.strokeThin)
                         }
                         .contentShape(Rectangle())
                 }
@@ -147,7 +164,25 @@ struct PlanItemDetailSheet: View {
         }
         .animation(GridConstants.motionSnappy, value: item.repeatDaysRaw)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .padding(.vertical, GridConstants.spacing)
+    }
+
+    /// The HIG's minimum target, measured not declared. Both rows of controls on
+    /// this sheet are this box, whatever their artwork measures.
+    private static let tapTarget: CGFloat = 44
+
+    /// A colour swatch's own artwork, the same 34 the win sheet's circles are.
+    /// It was typed three times in one expression, once as a radius, once as a
+    /// scale and once as a frame.
+    private static let swatchSide: CGFloat = 34
+
+    /// One shape for a day chip's fill and its edge, off the block ladder, since
+    /// a chip that can hold a block's colour is drawn with a block's corner. It
+    /// was written out twice with the same arguments, which is how two copies of
+    /// one radius start to disagree.
+    private static var dayShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: tapTarget),
+                         style: .continuous)
     }
 
     /// The weekday's own initial, from the locale rather than a hard-coded

@@ -20,7 +20,7 @@ struct StoreUnavailableView: View {
     @State private var triedAgain = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: GridConstants.gapWide) {
             Spacer()
 
             Text(StoreUnavailableCopy.title)
@@ -56,17 +56,28 @@ struct StoreUnavailableView: View {
                     // declared on the button.
                     .frame(height: 52)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        // `radiusField`, the ladder's rung for a card, a field
+                        // or a well. The 16 was a fifth radius: the ladder runs
+                        // 20 for a surface, 12 for a field, 8 for a control and
+                        // 4 for a mark, and nothing in the app is 16.
+                        RoundedRectangle(cornerRadius: GridConstants.radiusField,
+                                         style: .continuous)
                             .fill(AppColors.quietFill)
                     )
             }
             .buttonStyle(.plain)
             .accessibilityHint("Tries to open your wins again.")
         }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 32)
+        .padding(.horizontal, GridConstants.gapSection)
+        .padding(.bottom, GridConstants.gapSection)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground).ignoresSafeArea())
+        // **The app's ground, not the system's.** `Color(.systemBackground)` is
+        // pure white and pure black; `WarmBackground` is the faint cool lift
+        // every other page in Strata stands on, and its dark value is a warm
+        // charcoal on purpose. This screen is the first thing somebody sees when
+        // the store will not open, so it was the one page that did not look like
+        // the app it is apologising for.
+        .background { WarmBackground().ignoresSafeArea() }
     }
 }
 

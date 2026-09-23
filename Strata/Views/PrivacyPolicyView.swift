@@ -14,11 +14,19 @@ import SwiftUI
 struct PrivacyPolicyView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: GridConstants.gapWide) {
                 ForEach(Self.sections, id: \.title) { section in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(section.title)
-                            .font(Typography.headerMedium)
+                    VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                        // **The same label Settings' sections wear.** This page
+                        // is opened FROM a Settings row, and its headings were
+                        // `headerMedium` on the app's default ink while the
+                        // headings a tap behind it were the platform's grouped
+                        // list style. Two ranks of heading, one after the other,
+                        // for the same job. `FormSectionLabel` is the style
+                        // section 2 of `docs/design-system-future.md` names, and
+                        // uppercase and kerned is also the register the page
+                        // wants: a policy reads as a document, not as prose.
+                        FormSectionLabel(section.title)
                         Text(section.body)
                             .font(Typography.bodySmall)
                             .foregroundStyle(AppColors.inkSecondary)
@@ -28,7 +36,7 @@ struct PrivacyPolicyView: View {
                 Text("Last updated 14 September 2026")
                     .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkQuiet)
-                    .padding(.top, 8)
+                    .padding(.top, GridConstants.gapTight)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(GridConstants.horizontalPadding)

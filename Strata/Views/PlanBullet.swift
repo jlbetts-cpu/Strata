@@ -19,6 +19,9 @@ import SwiftUI
 struct PlanBullet: View {
     let category: HabitCategory
     let isDone: Bool
+    /// `PlanSheet.bulletSide` is the same number, and the ghost in its empty
+    /// state is drawn from it, so the outline is the exact silhouette of what
+    /// lands in it.
     var side: CGFloat = 24
 
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: side) }
@@ -42,8 +45,16 @@ struct PlanBullet: View {
                 // tower's empty slot: it inverts with the scheme. At 0.60 it
                 // measures 3.35:1 on light and 6.34:1 on dark, both clearing
                 // the 3:1 WCAG asks of a UI element. 0.55 was 2.96 and missed.
+                //
+                // The rim's own width from the token, scaled to this side the
+                // same way `BlockSurface` scales it. The 1.4 was a copy of
+                // `blockRimWidth`, and a copy of a number is a number that can
+                // stop matching the thing it was copied from. The 3.4 stays a
+                // literal: it is this outline being deliberately heavier than a
+                // block's rim, because an empty checkbox IS its boundary.
                 .strokeBorder(AppColors.slotInk.opacity(0.60),
-                              lineWidth: 1.4 * (side / GridConstants.blockReferenceCell) * 3.4)
+                              lineWidth: GridConstants.blockRimWidth
+                                  * (side / GridConstants.blockReferenceCell) * 3.4)
                 .opacity(isDone ? 0 : 1)
 
             // The block, once it is real.

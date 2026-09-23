@@ -84,9 +84,109 @@ final class HeadStore {
     /// 200pt — 600px at 3x.
     nonisolated static let side: CGFloat = 600
 
-    /// The head as every screen draws it: wearing `look`.
+    // MARK: - The collection
+
+    /// One head in the collection: what it is called, when it was made, and
+    /// where its files are.
+    ///
+    /// The owner, 2026-09-23: "I want it so you are able to save multiple
+    /// heads, like you are able to add your friend's head for instance to your
+    /// tower instead of yours."
+    ///
+    /// `folder` is relative to Application Support, and it is the whole reason
+    /// this change is additive. **The one head that existed before the
+    /// collection was built keeps `"Head"`**: the folder it has always had,
+    /// never moved, renamed or rewritten, so a build from before this change
+    /// still finds it exactly where it left it. Every head made since lives in
+    /// `"Heads/<id>"`, a folder of its own that nothing else ever writes to.
+    nonisolated struct Entry: Codable, Identifiable, Equatable, Sendable {
+        var id: UUID
+        var name: String
+        var created: Date
+        var folder: String
+    }
+
+    /// Every head, and which one is in use.
+    ///
+    /// The list is the order they were made in. **Exactly one head is active
+    /// whenever there is one to be** (`settle()`): every caller outside this
+    /// file asks `HeadStore` for "the head" and gets the active one, so a
+    /// collection with nothing active would show all of them a person with no
+    /// head while their heads sat on disk.
+    ///
+    /// Every edit is a `mutating` function here rather than list surgery at
+    /// the call site, so the rules above can be tested without a screen, a
+    /// simulator or a file (`HeadRosterTests`).
+    nonisolated struct Roster: Codable, Equatable, Sendable {
+        var version = 1
+        var heads: [Entry] = []
+        var activeID: UUID?
+
+        var active: Entry? { heads.first { $0.id == activeID } }
+
+        /// **A new head is the one in use.** Making one is itself the request
+        /// to use it, which is the reasoning `save` already applies to the
+        /// profile picture and the camera sticker.
+        mutating func add(_ entry: Entry) {
+            heads.append(entry)
+            activeID = entry.id
+        }
+
+        /// Forgets one head. **When it was the one in use, the head beside it
+        /// takes over rather than leaving none**: the next along, or the last
+        /// one if this was the end of the row. Returns the entry so the caller
+        /// can remove its folder, or nil when there was no such head.
+        @discardableResult
+        mutating func remove(_ id: UUID) -> Entry? {
+            guard let index = heads.firstIndex(where: { $0.id == id }) else { return nil }
+            let removed = heads.remove(at: index)
+            if activeID == removed.id {
+                activeID = (heads.indices.contains(index) ? heads[index] : heads.last)?.id
+            }
+            return removed
+        }
+
+        /// Puts a head in use. A head that is not in the list is ignored
+        /// rather than pointed at.
+        mutating func use(_ id: UUID) {
+            guard heads.contains(where: { $0.id == id }) else { return }
+            activeID = id
+        }
+
+        /// A name somebody typed. Empty keeps the name it has: the maker's
+        /// field arrives pre-filled, and clearing it must not leave a head
+        /// with no name at all.
+        mutating func rename(_ id: UUID, to name: String) {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let index = heads.firstIndex(where: { $0.id == id }) else { return }
+            heads[index].name = String(trimmed.prefix(Self.nameLimit))
+        }
+
+        /// **Exactly one head is in use whenever there is one to use.**
+        /// Anything that loads or edits the list ends here.
+        mutating func settle() {
+            guard !heads.contains(where: { $0.id == activeID }) else { return }
+            activeID = heads.first?.id
+        }
+
+        /// Long enough for a name and short enough to draw under a 60pt
+        /// square without becoming a sentence.
+        static let nameLimit = 40
+    }
+
+    /// Every head, and which one is in use. One stored value rather than two,
+    /// so the rules above cannot be half applied.
+    private(set) var roster = Roster()
+
+    var entries: [Entry] { roster.heads }
+    var activeID: UUID? { roster.activeID }
+    var activeEntry: Entry? { roster.active }
+
+    /// The head as every screen draws it: wearing `look`. **The active one.**
+    /// Every caller written before the collection asks for this and needed no
+    /// change.
     private(set) var head: HeadRig?
-    /// The head as it was made, before any look.
+    /// The active head as it was made, before any look.
     private(set) var undressed: HeadRig?
     /// The film look the head wears everywhere it appears. The owner: "a way
     /// to add the filter to the profile picture head so the user can get
@@ -120,10 +220,30 @@ final class HeadStore {
         #if DEBUG
         if DebugHarness.seedsMadeHead { Self.writeMadeHeadFixture() }
         #endif
-        let loaded = Self.load()
+        // **First launch of this code with a head already on the phone**: the
+        // roster file does not exist yet, so `loadedRoster` adopts the folder
+        // that is there, where it lies, under the name below. No file inside
+        // it is read for the adoption, none is written, moved or renamed, and
+        // a build from before this change would still load it unchanged.
+        let onDisk = Self.support.map { Self.loadedRoster(in: $0, legacyName: Self.firstHeadName) } ?? Roster()
+        roster = onDisk
+        // A local, not `activeDirectory`: a computed property is a method call
+        // on self, and self is not whole until every stored property is set.
+        let directory = Self.directory(of: onDisk.active)
+        let loaded = directory.flatMap { Self.load(at: $0) }
         undressed = loaded?.rig
         #if DEBUG
-        if undressed == nil, DebugHarness.seedsHead { undressed = HeadRig.creator() }
+        if undressed == nil, DebugHarness.seedsHead {
+            undressed = HeadRig.creator()
+            // A row of heads with nothing in it would contradict the head on
+            // screen. An empty folder: `resolve` refuses it, so nothing can
+            // delete a directory for a head that was never on disk, and
+            // `persistRoster` never writes it out.
+            // Built whole rather than settled: a mutating call on a stored
+            // property needs a self that is not finished being built yet.
+            let seeded = Entry(id: UUID(), name: Self.firstHeadName, created: Date(), folder: "")
+            roster = Roster(heads: [seeded], activeID: seeded.id)
+        }
         if let on = DebugHarness.headSwitches {
             isProfilePicture = on.contains("picture")
             showsOnMap = on.contains("map")
@@ -133,8 +253,13 @@ final class HeadStore {
         #endif
         head = undressed
         dress()
-        if loaded?.needsMigration == true, let directory = Self.directory { migrate(directory) }
+        if loaded?.needsMigration == true, let directory { migrate(directory) }
     }
+
+    /// What the head that was here before the collection is called until
+    /// somebody renames it. It is his own head, and it is the only one that
+    /// can be adopted, so there is nothing to guess.
+    nonisolated static let firstHeadName = "Me"
 
     // MARK: - Look
 
@@ -197,18 +322,39 @@ final class HeadStore {
 
     // MARK: - Saving
 
-    func save(_ payload: Payload) throws {
-        guard let rig = Self.rig(from: payload), let directory = Self.directory else {
+    /// **Adds a head. It never writes over one that is already there.**
+    ///
+    /// Every save goes to a folder of its own, named after a fresh id, so the
+    /// clear-the-folder-first step this used to need is gone with the problem
+    /// it solved (a smile skipped this time leaving last time's smile behind).
+    /// The owner's heads are minutes of work over a photograph he may not have
+    /// any more, and nothing here can reach a head that already exists.
+    ///
+    /// `name` nil takes the suggestion, so the maker's existing call site
+    /// keeps working unchanged and a head is never nameless.
+    func save(_ payload: Payload, name: String? = nil) throws {
+        guard let rig = Self.rig(from: payload), let support = Self.support else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let id = UUID()
+        guard let directory = Self.resolve(folder: Self.folder(for: id), in: support) else {
             throw CocoaError(.fileWriteUnknown)
         }
         let manager = FileManager.default
-        // Clear first, so a smile skipped this time does not leave last
-        // time's smile behind.
         epoch &+= 1
-        try? manager.removeItem(at: directory)
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Self.write(payload, to: directory)
-        let isFirstHead = undressed == nil
+        do {
+            try Self.write(payload, to: directory)
+        } catch {
+            // A half written head is not a head. Only this save's own folder
+            // is removed, and only on this save's own failure.
+            try? manager.removeItem(at: directory)
+            throw error
+        }
+        let isFirstHead = roster.heads.isEmpty
+        roster.add(Entry(id: id, name: name ?? suggestedName(), created: Date(),
+                         folder: Self.folder(for: id)))
+        persistRoster()
         undressed = rig
         head = rig
         dress()
@@ -222,17 +368,93 @@ final class HeadStore {
         }
     }
 
-    /// Removes the files and turns every switch off.
+    /// Puts one head in use. Every caller that asks for "the head" gets this
+    /// one from here on.
+    func use(_ id: UUID) {
+        guard id != roster.activeID else { return }
+        roster.use(id)
+        persistRoster()
+        loadActive()
+    }
+
+    /// Renames one head. An empty name keeps the one it has.
+    func rename(_ id: UUID, to name: String) {
+        let before = roster
+        roster.rename(id, to: name)
+        if roster != before { persistRoster() }
+    }
+
+    /// **Removes one head, files and all. It cannot be undone**, which is why
+    /// the only caller asks first, by name, in plain words.
+    ///
+    /// The active head is never left empty: `Roster.remove` promotes the head
+    /// beside it.
+    func delete(_ id: UUID) {
+        let wasActive = roster.activeID == id
+        // Bumped only once something is really going: `epoch` aborts a
+        // migration in flight, and an id that is not here changes nothing.
+        guard let removed = roster.remove(id) else { return }
+        epoch &+= 1
+        Self.removeFolder(removed)
+        persistRoster()
+        if wasActive { loadActive() }
+        if roster.heads.isEmpty { turnEverySwitchOff() }
+    }
+
+    /// **Every head**, for Reset All Data, which is the one caller
+    /// (`MainAppView`: "the policy says Reset All Data removes every photo; a
+    /// profile photo is one, and a head is made of them"). Nothing else in the
+    /// app deletes more than one head at a time.
     func delete() {
         epoch &+= 1
-        if let directory = Self.directory { try? FileManager.default.removeItem(at: directory) }
+        for entry in roster.heads { Self.removeFolder(entry) }
+        roster = Roster()
+        persistRoster()
         dressing?.cancel()
         undressed = nil
         head = nil
+        turnEverySwitchOff()
+    }
+
+    private func turnEverySwitchOff() {
         setProfilePicture(false)
         setShowsOnMap(false)
         setShowsCameraSticker(false)
         setShowsOnTower(false)
+    }
+
+    /// Loads whatever is active now, and migrates it if it predates
+    /// derivation. The undressed head stays nil rather than stale when a
+    /// folder cannot be read: a head on screen that is not the one the row
+    /// says is picked would be worse than none.
+    private func loadActive() {
+        dressing?.cancel()
+        guard let directory = activeDirectory, let loaded = Self.load(at: directory) else {
+            undressed = nil
+            head = nil
+            return
+        }
+        undressed = loaded.rig
+        head = loaded.rig
+        dress()
+        if loaded.needsMigration { migrate(directory) }
+    }
+
+    /// What to call the next head before anybody types anything.
+    ///
+    /// The first is you. After that they are numbered, because guessing whose
+    /// head it is would be worse than not guessing, and the maker's field is
+    /// pre-filled with this so naming never blocks finishing.
+    func suggestedName(person: String = "") -> String {
+        Self.defaultName(index: roster.heads.count, person: person)
+    }
+
+    nonisolated static func defaultName(index: Int, person: String) -> String {
+        guard index > 0 else {
+            let trimmed = person.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? firstHeadName : String(trimmed.prefix(Roster.nameLimit))
+        }
+        return "Head \(index + 1)"
     }
 
     nonisolated static func rig(from payload: Payload) -> HeadRig? {
@@ -250,9 +472,137 @@ final class HeadStore {
 
     // MARK: - Files
 
-    private static var directory: URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appending(path: "Head", directoryHint: .isDirectory)
+    /// The app's own directory. Everything a head owns is inside it, and
+    /// `resolve` is what makes that a rule rather than a convention.
+    nonisolated static var support: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    }
+
+    /// **The folder the one head has always had.** Nothing moves it, renames
+    /// it or writes over it: it is adopted into the collection exactly where
+    /// it lies, so a build from before the collection still finds it.
+    private static var legacyDirectory: URL? {
+        support?.appending(path: legacyFolder, directoryHint: .isDirectory)
+    }
+
+    nonisolated static let legacyFolder = "Head"
+    /// Where a head made since the collection lives, relative to Application
+    /// Support.
+    nonisolated static func folder(for id: UUID) -> String { "Heads/\(id.uuidString)" }
+    /// The roster file, beside the folders rather than inside any of them, so
+    /// no head's folder has a file in it that an older build does not expect.
+    nonisolated static let rosterFile = "heads.json"
+
+    /// **A head's folder on disk, and only if it really is inside the app's
+    /// own directory.**
+    ///
+    /// The roster is a JSON file like any other, and deleting a head removes a
+    /// whole folder, so a `folder` of `"../../Documents"` must never reach
+    /// `removeItem`. Nil refuses: outside Application Support, or Application
+    /// Support itself.
+    nonisolated static func resolve(folder: String, in support: URL) -> URL? {
+        guard !folder.isEmpty else { return nil }
+        let base = support.standardizedFileURL
+        let candidate = base.appending(path: folder, directoryHint: .isDirectory).standardizedFileURL
+        let inside = base.path.hasSuffix("/") ? base.path : base.path + "/"
+        guard candidate.path != base.path, candidate.path.hasPrefix(inside) else { return nil }
+        return candidate
+    }
+
+    private var activeDirectory: URL? { Self.directory(of: roster.active) }
+
+    nonisolated static func directory(of entry: Entry?) -> URL? {
+        guard let support else { return nil }
+        return directory(of: entry, in: support)
+    }
+
+    /// The same, against a directory handed in, so the rules can be tested
+    /// without the app's real Application Support folder anywhere near it.
+    nonisolated static func directory(of entry: Entry?, in support: URL) -> URL? {
+        guard let entry else { return nil }
+        return resolve(folder: entry.folder, in: support)
+    }
+
+    /// Removes one head's folder, through the guard. Returns false when the
+    /// folder refused to resolve, in which case nothing on disk was touched.
+    @discardableResult
+    nonisolated static func removeFolder(_ entry: Entry) -> Bool {
+        guard let support else { return false }
+        return removeFolder(entry, in: support)
+    }
+
+    @discardableResult
+    nonisolated static func removeFolder(_ entry: Entry, in support: URL) -> Bool {
+        guard let url = resolve(folder: entry.folder, in: support) else { return false }
+        try? FileManager.default.removeItem(at: url)
+        return true
+    }
+
+    // MARK: - The roster file
+
+    nonisolated static func readRoster(in support: URL) -> Roster? {
+        guard let data = try? Data(contentsOf: support.appending(path: rosterFile)) else { return nil }
+        return try? JSONDecoder().decode(Roster.self, from: data)
+    }
+
+    nonisolated static func writeRoster(_ roster: Roster, in support: URL) {
+        guard let data = try? JSONEncoder().encode(roster) else { return }
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try? data.write(to: support.appending(path: rosterFile), options: .atomic)
+    }
+
+    private func persistRoster() {
+        guard let support = Self.support else { return }
+        // A DEBUG seeded head has no folder on disk and must never reach the
+        // file: next launch would show a head whose files do not exist.
+        var written = roster
+        written.heads = written.heads.filter { !$0.folder.isEmpty }
+        written.settle()
+        Self.writeRoster(written, in: support)
+    }
+
+    /// **The collection as it is on disk, with the head that predates it
+    /// adopted.**
+    ///
+    /// What happens on the first launch of this code, in order:
+    ///
+    /// 1. There is no `heads.json`, so the list starts empty.
+    /// 2. `Head/head.json` exists, so that folder is adopted as one entry,
+    ///    named `legacyName`, created on the folder's own date. **Not one file
+    ///    inside it is written, moved or renamed**, and the only thing the
+    ///    adoption itself looks at is whether `head.json` is there.
+    /// 3. It is the only head, so it becomes the active one, and every caller
+    ///    that asks `HeadStore` for "the head" gets exactly what it got before.
+    /// 4. `heads.json` is written, beside `Head/`, never inside it.
+    ///
+    /// On a rollback the old build ignores `heads.json` and `Heads/` and reads
+    /// `Head/` as it always did, so the head that was there is still there,
+    /// byte for byte. Heads made since are in `Heads/` and an old build simply
+    /// does not see them; nothing is lost.
+    ///
+    /// The adoption is not once-only on purpose: an old build that re-made the
+    /// head would write `Head/` again, and this picks that up too.
+    ///
+    /// Entries whose folder refuses to resolve, or whose `head.json` has gone,
+    /// are dropped from the LIST. Nothing on disk is removed for them.
+    nonisolated static func loadedRoster(in support: URL, legacyName: String) -> Roster {
+        var roster = readRoster(in: support) ?? Roster()
+        let before = roster
+        let manager = FileManager.default
+        roster.heads = roster.heads.filter { entry in
+            guard let url = resolve(folder: entry.folder, in: support) else { return false }
+            return manager.fileExists(atPath: url.appending(path: "head.json").path)
+        }
+        let legacy = support.appending(path: legacyFolder, directoryHint: .isDirectory)
+        if manager.fileExists(atPath: legacy.appending(path: "head.json").path),
+           !roster.heads.contains(where: { $0.folder == legacyFolder }) {
+            let made = (try? legacy.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
+            // First in the list: it is the oldest head there can be.
+            roster.heads.insert(Entry(id: UUID(), name: legacyName, created: made, folder: legacyFolder), at: 0)
+        }
+        roster.settle()
+        if roster != before { writeRoster(roster, in: support) }
+        return roster
     }
 
     /// `addsOnly`: a file that is already there is left exactly as it is (a
@@ -330,11 +680,46 @@ final class HeadStore {
         return (payload, manifest)
     }
 
-    private static func load() -> (rig: HeadRig?, needsMigration: Bool)? {
-        guard let directory, let (payload, manifest) = read(from: directory) else { return nil }
+    nonisolated static func load(at directory: URL) -> (rig: HeadRig?, needsMigration: Bool)? {
+        guard let (payload, manifest) = read(from: directory) else { return nil }
         return (HeadRig(faces: rigFaces(payload), shut: payload.usableShut.flatMap(UIImage.init(data:)),
                         popsIn: payload.popsIn, contentHeight: manifest.contentHeight, chin: manifest.chin),
                 manifest.version < 3)
+    }
+
+    /// **One head's neutral face and nothing else**, for a swatch in the row
+    /// in Profile.
+    ///
+    /// Two files, not the folder: a head is five 600px PNGs and their shut
+    /// twins, and a row of five heads that loaded all of them would decode
+    /// fifty pictures to draw five 60pt squares. Undressed, because dressing
+    /// every swatch again on every look change is work nobody asked for and
+    /// the look is already shown, full size, one row above.
+    nonisolated static func neutralRig(at directory: URL) -> HeadRig? {
+        guard let data = try? Data(contentsOf: directory.appending(path: "head.json")),
+              let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
+              let png = try? Data(contentsOf: directory.appending(path: "\(HeadRig.Expression.neutral.rawValue).png")),
+              let image = UIImage(data: png) else { return nil }
+        return HeadRig(faces: [.neutral: HeadRig.Face(image: image,
+                                                      eyes: manifest.eyes[HeadRig.Expression.neutral.rawValue] ?? [])],
+                       contentHeight: manifest.contentHeight, chin: manifest.chin)
+    }
+
+    /// Every head's neutral face, read off the main actor, for the row in
+    /// Profile.
+    func swatches() async -> [UUID: HeadRig] {
+        guard let support = Self.support else { return [:] }
+        let folders: [(UUID, URL)] = roster.heads.compactMap { entry in
+            Self.resolve(folder: entry.folder, in: support).map { (entry.id, $0) }
+        }
+        guard !folders.isEmpty else { return [:] }
+        return await Task.detached(priority: .userInitiated) {
+            var made: [UUID: HeadRig] = [:]
+            for (id, url) in folders {
+                if let rig = Self.neutralRig(at: url) { made[id] = rig }
+            }
+            return made
+        }.value
     }
 
     private nonisolated static func rigFaces(_ payload: Payload) -> [HeadRig.Expression: HeadRig.Face] {
@@ -362,6 +747,11 @@ final class HeadStore {
             let derived = prepared.derived
             NSLog("[strata-head] migrated a version \(prepared.manifest.version) head: shut on \(derived.faces.compactMap { $0.value.shut == nil ? nil : $0.key.rawValue }.sorted()), pops \(derived.popsIn.map(\.rawValue).sorted()), banded brows \(derived.rawBrows != nil)")
             #endif
+            // **Only if that head is still the one in use.** Switching heads
+            // does not bump `epoch` (nothing was written), so without this a
+            // migration finishing after a switch would put the head you
+            // switched AWAY from back on screen.
+            guard activeDirectory == directory else { return }
             replaceUndressed(rig)
         }
     }
@@ -393,7 +783,11 @@ final class HeadStore {
         }
         let manager = FileManager.default
         guard let (_, onDisk) = read(from: directory), onDisk.version < 3 else { return nil }
-        let staging = directory.deletingLastPathComponent().appending(path: "Head-migrating", directoryHint: .isDirectory)
+        // Named after the folder being migrated, so two heads can never stage
+        // into the same place. For the one head that predates the collection
+        // that is still `Head-migrating`.
+        let staging = directory.deletingLastPathComponent()
+            .appending(path: "\(directory.lastPathComponent)-migrating", directoryHint: .isDirectory)
         do {
             try? manager.removeItem(at: staging)
             try manager.copyItem(at: directory, to: staging)
@@ -431,7 +825,8 @@ final class HeadStore {
     /// frame seconds later would be). Loading it runs the migration.
     /// Written only when there is no head on disk.
     private static func writeMadeHeadFixture() {
-        guard let directory, !FileManager.default.fileExists(atPath: directory.appending(path: "head.json").path) else { return }
+        guard let directory = legacyDirectory,
+              !FileManager.default.fileExists(atPath: directory.appending(path: "head.json").path) else { return }
         writeVersion2Fixture(to: directory)
     }
 

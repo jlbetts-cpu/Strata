@@ -108,6 +108,10 @@ struct MainAppView: View {
     /// existing installs recover.
     private let towerFilterMode: TowerFilterMode = .day
     @State private var animCoord = TowerAnimationCoordinator()
+    /// The landing the lattice is answering, if any. Cleared as soon as the
+    /// ring has finished, so the surface goes back to drawing nothing: with
+    /// nothing here `TowerLattice` builds no ring cells at all.
+    @State private var latticeRipple: LatticeRipple?
     @State private var towerProbe = TowerGeometryProbe()
     /// What the widget was last handed. Not observed: see `WidgetPublisher`.
     @State private var widgetPublisher = WidgetPublisher()
@@ -1098,6 +1102,142 @@ struct MainAppView: View {
         floor((totalWidth - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns))
     }
 
+    /// **`-strataLatticeLab`: a landing every second and a half, for ever.**
+    ///
+    /// The ripple is under three quarters of a second and a simulator
+    /// screenshot takes longer than that to come back, so the real thing
+    /// cannot be photographed by asking for a picture at the right moment.
+    /// This makes the right moment come round again. DEBUG only, off unless
+    /// the flag is passed, and it does not touch the tower — it only tells
+    /// the lattice it was hit.
+    @MainActor
+    private func startLatticeLab() {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-strataLatticeLab") else { return }
+        Task { @MainActor in
+            var step = 0
+            while !Task.isCancelled {
+                // 1x1, 2x1, 2x2, and then a 2x2 carrying a PHOTOGRAPH's
+                // colour, so the photo path can be photographed rather than
+                // only reasoned about. Needs `-strataSeedTodayPhotos`: the
+                // seeder deliberately leaves TODAY without photographs, and
+                // today is what the tower shows.
+                let sizes = [(1, 1), (2, 1), (2, 2), (2, 2)]
+                let (cols, rows) = sizes[step % sizes.count]
+                let wantsPhoto = step % sizes.count == 3
+                step += 1
+                let base = HabitCategory.allCases.first?.style.baseColor ?? .blue
+                // **The photograph whose category is least like the base
+                // colour the other three landings use.** Every seeded
+                // photograph is a wash hued off its own block's category, so
+                // a photo block picked at random can produce a ring the same
+                // colour as the category ring and prove nothing. Picking the
+                // furthest hue is what makes the two tellable apart in a
+                // screenshot. See CLAUDE.md: the fixture cannot judge this.
+                let photoBlock = wantsPhoto ? farthestPhotoBlock(from: base) : nil
+                latticeRipple = LatticeRipple(
+                    column: 1,
+                    // A few rows up, so the whole ring is inside the lattice
+                    // rather than half of it below the ground row. It is
+                    // where a landing really happens on a tower with a few
+                    // blocks in it.
+                    row: 3,
+                    columnSpan: cols, rowSpan: rows,
+                    colour: photoBlock.flatMap { LatticeTint.cached(for: $0.id) }
+                        ?? photoBlock?.look.displayCategory.style.baseColor
+                        ?? base)
+                if let photoBlock, let photo = photoBlock.look.imageFileName {
+                    let started = latticeRipple?.started
+                    LatticeTint.tint(for: photoBlock.id, fileName: photo) { colour in
+                        guard var live = latticeRipple, live.started == started else { return }
+                        live.colour = colour
+                        latticeRipple = live
+                    }
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+        }
+        #endif
+    }
+
+    #if DEBUG
+    /// The photographed block whose category colour is furthest round the hue
+    /// wheel from `base`. See `startLatticeLab`.
+    @MainActor
+    private func farthestPhotoBlock(from base: Color) -> PlacedBlock? {
+        func hue(_ colour: Color) -> CGFloat {
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            UIColor(colour).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+            return h
+        }
+        let baseHue = hue(base)
+        return towerVM.placedBlocks
+            .filter { $0.look.imageFileName != nil }
+            .map { block -> (block: PlacedBlock, distance: CGFloat) in
+                let d = abs(hue(block.look.displayCategory.style.baseColor) - baseHue)
+                return (block, min(d, 1 - d))
+            }
+            .max { $0.distance < $1.distance }?
+            .block
+    }
+    #endif
+
+    /// **Tells the lattice where it was hit, and clears it afterwards.**
+    ///
+    /// The clear is not a performance story any more and the comment that
+    /// said it was outlived the code by a version: there is no `TimelineView`
+    /// behind the lattice, so a screen with nothing landing on it already
+    /// asks the system for no frames. It is here because a landing left set
+    /// would be a landing the surface is still answering, and the next one
+    /// has to be able to tell itself apart from it.
+    @MainActor
+    private func rippleTheLattice(from landedID: UUID) {
+        guard !reduceMotion,
+              let block = towerVM.placedBlocks.first(where: { $0.id == landedID })
+        else { return }
+        // **The block's own colour, and the PHOTOGRAPH's colour when it has
+        // one.** The owner, 2026-09-23: "make sure the ripple ripples like
+        // the color of the block or the photo of the block."
+        //
+        // The category colour goes up on this frame, always, because this
+        // frame is the one the block lands on and nothing may be read,
+        // decoded or averaged on it. A photograph's colour that has already
+        // been worked out is free and is used instead; one that has not is
+        // worked out off the main actor from the smallest thumbnail the app
+        // is already holding, and swapped in underneath the ring that is by
+        // then already running. See `LatticeTint`.
+        let ripple = LatticeRipple(column: block.column,
+                                   row: block.row,
+                                   columnSpan: block.columnSpan,
+                                   rowSpan: block.rowSpan,
+                                   colour: LatticeTint.cached(for: landedID)
+                                       ?? block.look.displayCategory.style.baseColor)
+        latticeRipple = ripple
+        if let photo = block.look.imageFileName {
+            LatticeTint.tint(for: landedID, fileName: photo) { colour in
+                // **Only the ring that asked, and `started` is left alone.**
+                // The keyframe track's trigger IS `started`, so changing the
+                // colour underneath a running ring carries on where it was;
+                // touching `started` would restart it from nothing halfway
+                // through, which is the one thing worse than the category
+                // colour.
+                guard var live = latticeRipple, live.started == ripple.started else { return }
+                live.colour = colour
+                latticeRipple = live
+            }
+        }
+        let life = TowerLattice.duration(for: ripple.span)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(life + 0.05))
+            // Only if nothing else has landed since: a second landing owns
+            // the surface now and clearing here would cut its ring short.
+            // Compared on `started` rather than on the whole value, because
+            // this landing's own colour may have been swapped for its
+            // photograph's while the ring was running.
+            if latticeRipple?.started == ripple.started { latticeRipple = nil }
+        }
+    }
+
     private func flippedY(for f: CGRect, gridH: CGFloat) -> CGFloat {
         gridH - f.minY - f.height
     }
@@ -1730,11 +1870,19 @@ struct MainAppView: View {
         timelineVM.modelContext = modelContext
 
         animCoord.reduceMotion = reduceMotion
+        startLatticeLab()
         animCoord.lookupMass = { [towerVM] id in
             towerVM.placedBlocks.first(where: { $0.id == id })?.habit.blockSize.massTier
         }
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
+            // **The surface answers every landing, including the small one.**
+            // The block-to-block ripple above deliberately ignores a Quick
+            // because a one-cell block has no mass to shake a stack with. The
+            // lattice is not the stack: a Quick still touches it, it just
+            // touches it less, which is what `TowerLattice.peak(for:)` and
+            // its reach are for.
+            rippleTheLattice(from: landedID)
             // The column too, so the landing is heard where it is seen.
             // `blockImpact` has always taken it and always been called without
             // it, so the stereo placement its own comment describes has never
@@ -2382,11 +2530,10 @@ struct MainAppView: View {
                 // fades out inside that, which is what gives the empty screen
                 // above a short tower its structure. See `TowerLattice`.
                 .background(alignment: .bottom) {
-                    // The charge is the block count, so the surface answers
-                    // a win landing rather than animating on a timer.
+                    // Nothing animates here on arrival. The surface only
+                    // moves when something lands on it. See `TowerLattice`.
                     TowerLattice(cellSize: colW, contentHeight: max(gridH, 1),
-                                 charge: towerVM.placedBlocks.count,
-                                 isActive: selectedTab == .tower)
+                                 ripple: latticeRipple)
                         .frame(width: gridW)
                 }
                 .overlay {
@@ -2455,6 +2602,40 @@ struct MainAppView: View {
             .onChange(of: scrollToTopTrigger) {
                 withAnimation(GridConstants.heavySettle) {
                     proxy.scrollTo("TowerTop", anchor: .top)
+                }
+            }
+            // **The head that lives on the tower.**
+            //
+            // The owner: "for the head I want it to be added to the Wins
+            // screen as an option, where it kinda just floats on the top,
+            // around, bouncing off the walls... occasionally he can drop down
+            // and jump along the tops of the blocks, making sure to jump out
+            // of the way of the blocks falling."
+            //
+            // On the ScrollView rather than on its content, or he scrolls
+            // away with the tower. Off unless the Profile switch is on, and
+            // while it is off this builds no view, starts no clock and asks
+            // for no frames. The landing it answers is the same
+            // `latticeRipple` the surface answers, so the head and the
+            // lattice react to one event rather than to two.
+            .overlay {
+                TowerCompanionLayer(
+                    active: selectedTab == .tower,
+                    probe: towerProbe,
+                    bottomInset: GridConstants.tabBarClearance,
+                    landing: {
+                        latticeRipple.map {
+                            TowerCompanionLanding(
+                                at: $0.started,
+                                cell: TowerCompanionWorld.Cell($0.column, $0.row,
+                                                               $0.columnSpan, $0.rowSpan))
+                        }
+                    }
+                ) {
+                    towerVM.placedBlocks.lazy.map {
+                        TowerCompanionWorld.Cell($0.column, $0.row,
+                                                 $0.columnSpan, $0.rowSpan)
+                    }
                 }
             }
         }

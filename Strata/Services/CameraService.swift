@@ -94,14 +94,50 @@ final class CameraService: NSObject {
         input = deviceInput
         session.commitConfiguration()
         isConfigured = true
+        // **Open at 1x, not at the widest lens.**
+        //
+        // On a virtual device the zoom factor 1.0 is the ULTRA WIDE, so a
+        // phone with three cameras would have opened the camera at 0.5x and
+        // the picture would have been wider than anybody asked for.
+        // `CameraLenses.base(for:)` is the factor that means 1x on whatever
+        // device this turned out to be, and on a single lens phone it is 1.
+        setZoom(CameraLenses.base(for: device))
     }
 
+    /// **Every lens the phone has, not just the middle one.**
+    ///
+    /// The owner asked for the lens picker back, and the picker was drawn and
+    /// wired and completely inert, because this asked for
+    /// `.builtInWideAngleCamera` and that is the 1x lens and only the 1x
+    /// lens. A phone with three cameras reported no switchover factors, so
+    /// `CameraLenses.stops` came back with one entry and the control hid
+    /// itself rather than drawing dead buttons. Nothing in the view needed to
+    /// change; this line was the whole of it.
+    ///
+    /// A virtual device (triple, dual wide, dual) is one `AVCaptureDevice`
+    /// that switches between its own physical lenses as the zoom crosses
+    /// `virtualDeviceSwitchOverVideoZoomFactors`, which is what makes 0.5x
+    /// and 3x a zoom rather than a device swap. Preference order is most
+    /// lenses first, and the last entry is exactly what this used to return.
+    ///
+    /// The front camera stays the single wide angle: there is only one.
     private func camera(for facing: Facing) -> AVCaptureDevice? {
-        AVCaptureDevice.default(
-            .builtInWideAngleCamera,
-            for: .video,
-            position: facing == .back ? .back : .front
-        )
+        guard facing == .back else {
+            return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+        }
+        let preferred: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,     // ultra wide + wide + telephoto
+            .builtInDualWideCamera,   // ultra wide + wide
+            .builtInDualCamera,       // wide + telephoto
+            .builtInWideAngleCamera   // one lens, which is what this used to be
+        ]
+        let found = AVCaptureDevice.DiscoverySession(deviceTypes: preferred,
+                                                     mediaType: .video,
+                                                     position: .back).devices
+        for type in preferred {
+            if let device = found.first(where: { $0.deviceType == type }) { return device }
+        }
+        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
     }
 
     // MARK: - Controls
@@ -123,6 +159,10 @@ final class CameraService: NSObject {
             zoom = 1
             exposureBias = 0
             applyPortraitCropIfFront(device)
+            // Same reason as `configure()`: on a virtual device, 1.0 is the
+            // ultra wide, so flipping back to a three lens camera has to land
+            // on its 1x rather than on its widest.
+            if next == .back { setZoom(CameraLenses.base(for: device)) }
         } else {
             session.addInput(current)
         }
@@ -278,7 +318,13 @@ final class CameraService: NSObject {
     /// that on its own.
     var maxZoom: CGFloat {
         guard let device = input?.device else { return 1 }
-        return min(device.activeFormat.videoMaxZoomFactor, 8)
+        // **Measured from 1x, not from the ultra wide.** On a virtual device
+        // the raw factor counts from the widest lens, so a triple camera's 8
+        // is a displayed 4x once the 0.5x base is taken out. Dividing keeps
+        // the ceiling meaning the same thing on every phone: eight times the
+        // picture you see at 1x.
+        let ceiling = min(device.activeFormat.videoMaxZoomFactor, 8 * CameraLenses.base(for: device))
+        return ceiling
     }
 
     /// Whether the lens can move at all, so the view can leave the control out

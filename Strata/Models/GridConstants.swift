@@ -294,11 +294,7 @@ enum GridConstants {
     /// The shutter springing back out. It follows `shutterPress`, so the call
     /// site delays it by that curve's duration.
     static let shutterRelease = Animation.spring(response: 0.28, dampingFraction: 0.6)
-    /// The front flash's capture fill coming up. Fast: the screen has to be
-    /// bright before the sensor opens.
-    static let screenFlashIn = Animation.easeOut(duration: 0.12)
-    /// The capture fill going back to the modelling ring, and the ring itself
-    /// arming.
+    /// The ring arming, and settling to the level you compose by.
     static let screenFlashOut = Animation.easeOut(duration: 0.22)
 
     /// How long one month-tower photograph takes to hand over to the next.

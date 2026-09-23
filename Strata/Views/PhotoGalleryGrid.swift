@@ -84,7 +84,7 @@ struct PhotoGalleryGrid: View {
                     }
                 } header: {
                     if !Self.headingRepeatsTitle(sections, title: screenTitle) {
-                        heading(section.title)
+                        heading(section)
                     }
                 }
             }
@@ -118,12 +118,25 @@ struct PhotoGalleryGrid: View {
         }
     }
 
-    /// Pinned, like Photos. The month you are inside stays named while you
-    /// scroll through it, which is the entire job of the heading — unpinned it
-    /// answers the question only at the moment you have already scrolled past
-    /// the answer.
-    private func heading(_ title: String) -> some View {
-        SectionHeading(text: title)
+    /// A month, and how many pictures it holds.
+    ///
+    /// **Not pinned**, for the reasons the body records. The comment that was
+    /// here claimed the opposite ("Pinned, like Photos") and had outlived the
+    /// change that unpinned them, which is the failure mode CLAUDE.md warns
+    /// about: a doc comment for behaviour that is gone reads exactly like a
+    /// feature you cannot find.
+    ///
+    /// **The count is the design language's §7.** A section says what it is
+    /// and how much is in it, and on a wall of pictures the second one is the
+    /// harder question: an unpinned heading tells you which month you have
+    /// reached, and the readout tells you how long it runs for before you
+    /// scroll it. The digits are the owner's face, the unit is the heading's
+    /// own style, so the pair reads as an index entry rather than as a word
+    /// floating over somebody's photographs.
+    private func heading(_ section: GallerySection) -> some View {
+        SectionHeadingCount(text: section.title,
+                            count: section.photos.count,
+                            unit: "photos")
     }
 
     private func cell(_ photo: GalleryPhoto) -> some View {

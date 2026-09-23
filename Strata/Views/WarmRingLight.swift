@@ -31,8 +31,6 @@ struct WarmRingLight: View {
     /// instead of lighting it. The ring itself does the work.
     static let modellingFill: Double = 0.10
     static let modellingLevel: Double = 0.92
-    /// At the moment of capture nothing matters but light on the face.
-    static let captureFill: Double = 0.72
 
     /// ~3400K.
     static let fill = Color(red: 1.00, green: 0.90, blue: 0.78)
@@ -70,16 +68,41 @@ struct WarmRingLight: View {
                 EllipticalGradient(
                     stops: [
                         .init(color: .clear, location: 0.00),
-                        .init(color: .clear, location: 0.30),
-                        .init(color: Self.ring.opacity(0.30), location: 0.55),
-                        .init(color: Self.ring.opacity(0.90), location: 0.82),
+                        // **The band sits further out than it used to, and
+                        // that is about the PREVIEW rather than about the
+                        // light.**
+                        //
+                        // Measured on `apollo-rename` over a selfie with the
+                        // ring held on, against the same frame unlit: the old
+                        // stops lifted the centre by 12 but the edges by 75 to
+                        // 105, and a face at the lower middle by 35 to 54. The
+                        // owner: "for the front flash I think it might be too
+                        // bright... the person still needs to be visible
+                        // enough to admire themselves."
+                        //
+                        // Dimming the whole thing is the wrong answer now that
+                        // this is the ONLY light, because less screen emission
+                        // is less light on the face. What can move instead is
+                        // WHERE the emission sits: light at the extreme
+                        // perimeter still reaches a face a foot away, it just
+                        // does not sit on top of it in the preview. So the ramp
+                        // starts at half the radius rather than a third.
+                        //
+                        // After: face lower middle +35 to +11, lower left +54
+                        // to +25, edges +75/+105 to +35/+55, centre +12 either
+                        // way. About a seventh of the emission given up for two
+                        // thirds of the wash coming off the face.
+                        .init(color: .clear, location: 0.52),
+                        .init(color: Self.ring.opacity(0.22), location: 0.72),
+                        .init(color: Self.ring.opacity(0.80), location: 0.88),
                         .init(color: Self.ring, location: 1.00)
                     ],
                     center: .center,
                     startRadiusFraction: 0,
                     endRadiusFraction: 0.62
                 )
-                .blur(radius: 28)
+                // Tightened with the band, so it bleeds less of it inward.
+                .blur(radius: 22)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }

@@ -35,10 +35,35 @@ struct PlanTextField: UIViewRepresentable {
         }
     }
 
+    /// **SF Pro ROUNDED, like every other word in the app.**
+    ///
+    /// This was `.preferredFont(forTextStyle: .body)`, which is SF Pro. So the
+    /// one screen in Strata that is mostly typing was the one screen set in a
+    /// face the rest of the app does not use: `Typography` is `design: .rounded`
+    /// throughout and CLAUDE.md settles it as "SF Pro Rounded, two weights".
+    /// Nothing errors, nothing looks broken, the letterforms are simply not the
+    /// app's.
+    ///
+    /// Built from the DEFAULT body size and then scaled by `UIFontMetrics`,
+    /// because that is the form `adjustsFontForContentSizeCategory` can grow;
+    /// scaling a font that has already been scaled applies Dynamic Type twice.
+    /// Falls back to the plain preferred font if the rounded design is refused,
+    /// which is the same shape of guard `DynamicScreenTitle` uses for coverage.
+    private static var lineFont: UIFont {
+        let base = UIFont.preferredFont(
+            forTextStyle: .body,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))
+        guard let rounded = base.fontDescriptor.withDesign(.rounded) else {
+            return UIFont.preferredFont(forTextStyle: .body)
+        }
+        return UIFontMetrics(forTextStyle: .body)
+            .scaledFont(for: UIFont(descriptor: rounded, size: base.pointSize))
+    }
+
     func makeUIView(context: Context) -> Field {
         let field = Field()
         field.delegate = context.coordinator
-        field.font = .preferredFont(forTextStyle: .body)
+        field.font = Self.lineFont
         field.adjustsFontForContentSizeCategory = true
         field.returnKeyType = .next
         field.autocorrectionType = .default
@@ -56,7 +81,17 @@ struct PlanTextField: UIViewRepresentable {
         field.placeholder = placeholder
         // A finished line is quieter, but never struck through: this is a list
         // of what you did, and crossing it out reads as cancelled.
-        field.textColor = isDone ? UIColor.label.withAlphaComponent(0.35) : .label
+        //
+        // **The app's inks, not `UIColor.label`.** Section 4 allows only
+        // `AppColors` or a colour taken from content, and CLAUDE.md's rule is
+        // sharper: `label` at 0.35 is a fixed fraction of a colour that inverts,
+        // so the quiet state was 35% black on the light page and 35% white on
+        // the dark one, which is the fault that measured 1.08:1 under the
+        // bullets beside it. `inkQuiet` is the token held to 3:1 in both, which
+        // is the right bar for something deliberately not being read.
+        // `UIColor(_:)` keeps a dynamic `Color` dynamic, so both still follow
+        // the scheme.
+        field.textColor = UIColor(isDone ? AppColors.inkQuiet : AppColors.inkPrimary)
         field.onBackspaceWhenEmpty = { context.coordinator.parent.onBackspaceWhenEmpty() }
 
         // Focus is driven from outside so the list can move the caret when a

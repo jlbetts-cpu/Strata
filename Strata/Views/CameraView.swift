@@ -27,7 +27,6 @@ struct CameraView: View {
     var fillsScreen: Bool = false
 
     @State private var camera = CameraService()
-    @State private var flashOpacity: Double = 0
     /// Whether the composition guides are drawn. Remembered, because it is a
     /// preference about how you shoot rather than a per-session choice.
     ///
@@ -70,6 +69,9 @@ struct CameraView: View {
     /// setting that follows you: a remembered one means the picture you take
     /// tomorrow is graded by something you chose today and forgot.
     @State private var lookRaw = FilmLook.Kind.none.rawValue
+    /// Whether the looks panel is open. Shut on every appearance: it is a
+    /// decision, not a state to come back to.
+    @State private var showLookTray = false
     /// The review photograph with the chosen look on it, at screen size. The
     /// real one is rendered full size only when the photograph is kept.
     @State private var looked: UIImage?
@@ -89,6 +91,12 @@ struct CameraView: View {
     /// aspect against the format's — arithmetic here would be a second copy of
     /// a conversion AVFoundation already does exactly.
     @State private var previewBox = PreviewLayerBox()
+    /// The graded surface drawn over the preview layer, and the frames that
+    /// feed it. Both are inert until a look is chosen, and both fail safe:
+    /// with no Metal device or no frames there is no overlay, and the plain
+    /// preview underneath is the viewfinder.
+    @State private var graded = GradedViewfinder()
+    @State private var frames = CameraPreviewFrames()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -208,19 +216,63 @@ struct CameraView: View {
             let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
-                CameraPreview(session: camera.session, box: previewBox)
+                CameraPreview(session: camera.session, box: previewBox, graded: graded)
 
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
                 viewfinderGestures(w: w, h: h)
 
-                if camera.showsGuides {
-                    guides(w: w, h: h, topInset: topInset)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
+                // Kept mounted and ruled in or out, never inserted and
+                // removed. See `guides`.
+                guides(w: w, h: h, topInset: topInset, shown: camera.showsGuides)
+                    .allowsHitTesting(false)
 
                 header(topInset: topInset)
+
+                // **The button lives here, not in the header, because it and
+                // the tray are one shape.**
+                //
+                // This is `apollo-rename`'s `FilmLookTray`, brought over
+                // whole rather than rebuilt. The owner: "I wanted the actual
+                // look and button from the Apollo build, not some rip off
+                // that doesn't look remotely as good." He is right, and the
+                // rip off was mine: I told the port to put a glyph in the
+                // control row, which crowded the row AND split the button
+                // from its panel. A tray placed under a separate button is
+                // two pieces of glass with a gap; his note on the original
+                // was that they should merge "kind of like how the same
+                // colour blocks merge". So the tray owns the button and grows
+                // out of it, on the screen's own margin and the header's own
+                // top line.
+                FilmLookTray(
+                    selection: Binding(
+                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
+                        set: { lookRaw = $0.rawValue }),
+                    isOpen: $showLookTray)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity,
+                           alignment: .topTrailing)
+                    .padding(.trailing, GridConstants.horizontalPadding)
+                    .padding(.top, topInset + GridConstants.gapItem)
+                    .opacity(isDrawing ? 0 : 1)
+                    .allowsHitTesting(!isDrawing)
+
+                // **Tapping anywhere else closes the looks panel.**
+                //
+                // A clear layer under the panel and over the viewfinder, so
+                // the tap that dismisses does not ALSO focus the camera
+                // underneath it. That double action is the usual way this gets
+                // built wrong. It sits below `controls`, so the four settings
+                // beside the looks glyph still take their own taps.
+                if showLookTray {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) {
+                                showLookTray = false
+                            }
+                        }
+                        .accessibilityHidden(true)
+                }
 
                 // The count, over the frame. Big and central because you are
                 // standing in the shot looking at the lens, not at a corner.
@@ -278,7 +330,34 @@ struct CameraView: View {
         // clear the notch. The preview reaches the edges by being drawn taller
         // and offset instead.
         .background { WarmBackground().ignoresSafeArea() }
-        .task { await camera.start() }
+        .task {
+            await camera.start()
+            // **After `start`, never beside it.** A session that is not
+            // configured cannot take an output, and mutating one underneath a
+            // `startRunning` raises an Objective-C exception, which is a
+            // termination rather than an error. `CameraPreviewFrames` waits
+            // for the session to be running before it touches anything; if it
+            // never attaches, no frames arrive, the overlay stays hidden and
+            // this is the camera exactly as it was before.
+            //
+            // **The angle comes off the preview layer**, so the graded surface
+            // and the layer it covers cannot disagree about which way is up.
+            // Deriving it separately is what put the overlay 180 degrees out,
+            // twice.
+            frames.attach(graded.relay.output, to: camera,
+                          matching: previewBox.layer?.connection?.videoRotationAngle ?? 90,
+                          mirrored: camera.usesScreenFlash)
+            graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
+        }
+        .onChange(of: lookRaw) { _, raw in
+            graded.look = FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none)
+        }
+        // The review covers the viewfinder completely, and the same phone is
+        // busy grading the photograph that was just taken. Nothing is drawn
+        // under it.
+        .onChange(of: review == nil) { _, composing in
+            graded.isPaused = !composing
+        }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen
         // at 30% lights nothing.
@@ -306,7 +385,16 @@ struct CameraView: View {
             // Not a tracker: it runs while the camera is open and not a
             // moment longer.
             LocationService.shared.stop()
+            // **Detached BEFORE the session is stopped**, while it is still
+            // running and there is nothing in flight on the service's own
+            // queue to collide with. See `CameraPreviewFrames.detach`.
+            frames.detach()
+            graded.stop()
             camera.stop()
+            // A panel is a decision in progress, and leaving the screen ends
+            // it. Coming back to an open tray would be the app remembering
+            // something nobody asked it to.
+            showLookTray = false
             // Every exit path restores it. Leaving somebody's screen pinned at
             // full brightness because they walked away from the camera tab is
             // the kind of bug that gets noticed as battery drain, not as a
@@ -604,7 +692,7 @@ struct CameraView: View {
                 SpatialTapGesture(count: 2)
                     .onEnded { _ in
                         HapticsEngine.snap()
-                        withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                        withAnimation(GridConstants.motionSmooth) { flip() }
                         focusPoint = nil
                     }
                     .exclusively(before:
@@ -665,6 +753,21 @@ struct CameraView: View {
         }
     }
 
+    /// Turn the camera round, and tell the graded surface which way up it is
+    /// now.
+    ///
+    /// The connection is NEW after a flip, a different device and a different
+    /// input, so the rotation and the mirroring have to be set on it again.
+    /// Without this a selfie is graded the right way round and drawn the wrong
+    /// way round, which is a mirrored picture sitting on an unmirrored one.
+    /// The angle is read back off the preview layer rather than derived, for
+    /// the reason `CameraPreviewFrames.attach` gives.
+    private func flip() {
+        camera.flip()
+        frames.reorient(matching: previewBox.layer?.connection?.videoRotationAngle ?? 90,
+                        mirrored: camera.usesScreenFlash)
+    }
+
     private func focus(at location: CGPoint) {
         guard let layer = previewBox.layer else { return }
         let devicePoint = layer.captureDevicePointConverted(fromLayerPoint: location)
@@ -676,7 +779,31 @@ struct CameraView: View {
 
     // MARK: - Guides
 
-    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat) -> some View {
+    /// **The grid draws itself out; it does not fade in.**
+    ///
+    /// The owner, 2026-09-23: "I like our rule of third lines better in this
+    /// app than in Apollo so let's keep that one, but the animation of the
+    /// lines coming in should be updated." So the lines are untouched: same
+    /// colour, same weight, same break for the wordmark, same dissolve at the
+    /// bottom, and only their arrival has changed.
+    ///
+    /// It was `.transition(.opacity)` on the whole group, which is a
+    /// rectangle appearing: the cheapest-looking way for a grid to arrive, and
+    /// a layer fading in rather than an instrument ruling a line. Each line
+    /// now grows along its own length from its own middle, all of them
+    /// together, which is what a machine drawing a grid looks like and is the
+    /// 1990s Japanese future the design doc asks for.
+    ///
+    /// **`shown` rather than an `if`.** A transition can only fade a group; a
+    /// line held in the hierarchy can be scaled along its own length. Four
+    /// rectangles cost nothing to keep.
+    ///
+    /// The animation is attached to `shown` and to nothing else, so the grid
+    /// moves because somebody pressed the button and never because the screen
+    /// appeared. `gentleReveal` is 0.22s and all but critically damped: an
+    /// overshoot here would run the line past its own end, and nothing about
+    /// a button press is momentum.
+    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat, shown: Bool) -> some View {
         // The break holds the wordmark, which is always drawn — so unlike the
         // count it replaced, the line is always broken. The gap is not a
         // rendering artefact: it is the wordmark's space, and the line
@@ -699,22 +826,26 @@ struct CameraView: View {
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: max(gapTop, 0))
+                .ruled(shown, along: .vertical)
                 .offset(x: x0, y: 0)
 
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: max(h - gapBottom, 0))
+                .ruled(shown, along: .vertical)
                 .offset(x: x0, y: gapBottom)
 
             Rectangle()
                 .fill(Guide.colour)
                 .frame(width: Guide.width, height: h)
+                .ruled(shown, along: .vertical)
                 .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
                     .fill(Guide.colour)
                     .frame(width: w, height: Guide.width)
+                    .ruled(shown, along: .horizontal)
                     // Rounded to a whole point for the same reason the width
                     // is: a line at a fractional offset is smeared across two
                     // pixel rows and reads lighter than its neighbour.
@@ -722,6 +853,10 @@ struct CameraView: View {
             }
         }
         .frame(width: w, height: h, alignment: .topLeading)
+        // Both ways at the same speed, and interruptible: pressing the button
+        // again while a line is still drawing sends it back from where it is,
+        // because a spring animates from the presentation value.
+        .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: shown)
         // The grid dissolves before it reaches the tab bar.
         //
         // Ruled lines running hard into a floating bar is the one place this
@@ -785,9 +920,21 @@ struct CameraView: View {
         // "off" across two taps while the flash — same helper, same action
         // path — toggled correctly in the same run.
         //
-        // A row also makes the arrangement honest: two settings either side of
-        // the shutter, symmetrical, inside the arc a thumb already sweeps.
-        ZStack(alignment: .bottom) {
+        // A row also makes the arrangement honest: the settings sit either
+        // side of the shutter, inside the arc a thumb already sweeps.
+        //
+        // **The margin is what is left over, not a fixed 44.** The row was
+        // four glyphs and a shutter, which is 256pt, and 44 either side left
+        // 58pt of air on a 402pt phone. The looks glyph makes it five and
+        // 300pt, which still fits there but is 13pt wider than an SE has
+        // room for, and a row that overflows its own margin is a row that
+        // looks squeezed on the smallest phone and correct on the biggest.
+        // Solving for the margin instead keeps the air even on every screen,
+        // floored at the app's own page margin.
+        let rowWidth = Self.controlSide * 5 + Self.shutterBounds(.small).width
+        let rowMargin = max(GridConstants.horizontalPadding,
+                            min(44, (w - rowWidth) / 2))
+        return ZStack(alignment: .bottom) {
             VStack(spacing: 16) {
             // Above the shutter, clear of it. It was an overlay on the row,
             // and the row's top IS the shutter's top — so it sat on the
@@ -803,6 +950,20 @@ struct CameraView: View {
 
             ZStack {
             HStack(spacing: 0) {
+                // **The looks button is NOT in this row**, and that is the
+                // owner's correction rather than a layout preference: "the
+                // filter button is in the row, I thought we were porting the
+                // button from Apollo, like the one that's in the top right
+                // for filters."
+                //
+                // Putting it here was my instruction to the person who did
+                // the port, and photographed it was plainly worse: five
+                // glyphs plus the shutter crowds a 300pt row into an SE's
+                // 287, the flash mark ends up under the shutter's edge, and
+                // the one control that changes the PICTURE was sitting in the
+                // row of controls that change the camera. It lives in the top
+                // right now, with the tray growing out of it. See `looksButton`.
+
                 // `rectangle.split.3x3`, not `grid`. Both are real SF Symbols,
                 // but `grid` is a 3x3 of separate tiles — an app-grid mark —
                 // and this is a rectangle divided by two verticals and two
@@ -814,7 +975,11 @@ struct CameraView: View {
                             identifier: "gridToggle",
                             value: camera.showsGuides ? "on" : "off",
                             dimmed: !camera.showsGuides) {
-                    withAnimation(GridConstants.motionSmooth) { camera.showsGuides.toggle() }
+                    // No `withAnimation` here. The grid owns its own timing,
+                    // attached to this value inside `guides`, so it can never
+                    // be animated by a transaction that happens to be running
+                    // for some other reason.
+                    camera.showsGuides.toggle()
                     UserDefaults.standard.set(camera.showsGuides, forKey: "cameraShowsGuides")
                 }
 
@@ -844,18 +1009,18 @@ struct CameraView: View {
                 Spacer(minLength: 0)
 
                 glyphButton("arrow.triangle.2.circlepath", label: "Switch camera") {
-                    withAnimation(GridConstants.motionSmooth) { camera.flip() }
+                    withAnimation(GridConstants.motionSmooth) { flip() }
                 }
 
                 Spacer(minLength: 0)
 
                 timerButton
             }
-            // The four settings step out of the way while you draw.
+            // The settings step out of the way while you draw.
             //
             // A drawn block runs to 149pt across and the row has about 138 to
             // give, so something has to move — and the honest something is the
-            // four controls you are not using at that moment. They are already
+            // controls you are not using at that moment. They are already
             // set; you are taking the picture. Back the instant you let go.
             .opacity(isDrawing ? 0 : 1)
             .allowsHitTesting(!isDrawing)
@@ -876,7 +1041,7 @@ struct CameraView: View {
             shutter
             }
             }
-            .padding(.horizontal, 44)
+            .padding(.horizontal, rowMargin)
             .padding(.bottom, bottomInset + shutterBottomGap)
 
             if let onClose {
@@ -898,58 +1063,83 @@ struct CameraView: View {
         .frame(width: w, height: h, alignment: .bottom)
     }
 
-    /// How far the lens is in, above the shutter.
+    /// The looks panel, drawn from the glyph at the row's leading edge.
     ///
-    /// iOS Camera puts a row of lens buttons there — 0.5x, 1x, 3x — one per
-    /// physical camera. This app uses the wide-angle lens only, so a row of
-    /// buttons would be a row of one, and a control offering a single choice
-    /// is not a choice. What is left is the part that is true here: a readout
-    /// of where the lens is.
+    /// Its own property rather than inline in `controls`, which is already a
+    /// long expression: CLAUDE.md records what the type-checker does when one
+    /// of these grows one modifier too far.
+
+    /// **The lens control, and on a phone with one lens it is still just the
+    /// zoom readout it was.**
     ///
-    /// **It is not there at 1x.** At the lens's own field there is nothing to
-    /// report and nothing to undo, and a permanent `1x` badge is a label for a
-    /// state that is not worth naming. It appears when you pinch and leaves
-    /// when you come back.
+    /// The owner, 2026-09-23: "what is the RAW and lens picker, don't we need
+    /// those for the camera as well?" Nobody pinches to find a lens; they tap.
     ///
-    /// **Tapping it returns to 1x**, which is also what makes it leave.
-    /// Getting back from 4.7x by pinching outward takes several passes and
-    /// usually overshoots; one tap is the undo, and it is the same gesture
-    /// Apple gives the lens buttons.
+    /// **One pill rather than a row of them.** The system camera draws 0.5x,
+    /// 1x and 2x side by side; three buttons is three pieces of chrome on a
+    /// photograph, and this screen's whole argument is that the picture is the
+    /// only lit thing on it. So it is the pill that was already here, showing
+    /// where the lens is, and a tap moves to the next stop and wraps. Pinch
+    /// still goes anywhere in between.
+    ///
+    /// **It degrades honestly, and on `main` today that is what it does.**
+    /// `CameraLenses.offer` asks the device in the session what pieces of
+    /// glass it has. With one, which is every phone until
+    /// `CameraService.configure()` opens a virtual device, and every simulator,
+    /// which has no camera at all, there is one stop, `hasChoice` is false,
+    /// and this is exactly the control it has always been: absent at 1x,
+    /// present after a pinch, and a tap undoes the pinch. No dead buttons, and
+    /// nothing drawn for a lens that is not there.
     @ViewBuilder
     private var zoomPill: some View {
-        if camera.canZoom, camera.zoom > 1.005 {
+        let lenses = CameraLenses.offer(from: camera)
+        let label = CameraLenses.label(forDeviceFactor: camera.zoom, base: lenses.base)
+        // A choice of glass is worth a permanent control; a bare readout is
+        // not. See the note above `shutterBounds` about reserving its height
+        // either way.
+        if camera.canZoom, lenses.hasChoice || camera.zoom > 1.005 {
+            let next = lenses.hasChoice
+                ? CameraLenses.stop(after: camera.zoom, in: lenses.stops)
+                : 1
             Button {
                 HapticsEngine.lightTap()
-                withAnimation(GridConstants.motionSnappy) { camera.setZoom(1) }
+                withAnimation(GridConstants.motionSnappy) { camera.setZoom(next) }
             } label: {
-                Text(Self.zoomLabel(camera.zoom))
+                Text(label)
                     .font(Typography.bodySmall.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(.white)
+                    // After the layout, not before: the material takes its
+                    // shape from the final frame.
                     .frame(width: 56, height: 34)
-                    .contentShape(Capsule())
+                    .zoomGlass()
+                    // **The capsule stays 34pt and the TARGET is 44.** The
+                    // drawn pill is the size it is drawn; the thing a thumb
+                    // has to find is not. It was 34 tall, ten points under the
+                    // floor every other control on this screen meets, and it
+                    // is the one control that appears mid-gesture with a
+                    // finger already moving. The extra ten points are
+                    // invisible and are the difference between tapping it and
+                    // tapping the viewfinder, which refocuses the shot.
+                    .frame(width: 60, height: Self.controlSide)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            // After the layout, not before: the material takes its shape from
-            // the final frame.
-            .zoomGlass()
             // It grows out of the shutter's line rather than fading in on the
             // spot, which is what makes it read as belonging to the gesture
             // that produced it.
             .transition(.scale(scale: 0.7).combined(with: .opacity))
-            .accessibilityLabel("Zoom \(Self.zoomLabel(camera.zoom))")
-            .accessibilityHint("Returns to 1x")
+            .accessibilityLabel("Lens, \(label)")
+            .accessibilityHint(lenses.hasChoice
+                               ? "Switches to \(CameraLenses.label(forDeviceFactor: next, base: lenses.base))"
+                               : "Returns to 1x")
         }
     }
 
-    /// `1x`, `2.4x` — one decimal, and none when it is a round number, which
-    /// is what iOS Camera does.
-    static func zoomLabel(_ factor: CGFloat) -> String {
-        let rounded = (factor * 10).rounded() / 10
-        return rounded == rounded.rounded()
-            ? String(format: "%.0fx", rounded)
-            : String(format: "%.1fx", rounded)
-    }
+    // `zoomLabel` was here. It is `CameraLenses.label(forDeviceFactor:base:)`
+    // now, because a number on a lens control has to have the lens base
+    // divided out of it before it is formatted, and doing that in two places
+    // is how a pill ends up reading 1x while showing something else.
 
     /// Off / 3s / 10s, cycling, exactly the set iOS Camera offers.
     private var timerButton: some View {
@@ -992,6 +1182,11 @@ struct CameraView: View {
     /// track the state it was describing. The grid toggle read "Show the grid"
     /// whether the grid was on or off, which is also why it looked like it
     /// could not be turned back on.
+    /// Every glyph in the control row is this square. It is the HIG's minimum
+    /// target and the number the row's width is solved from, so it is stated
+    /// once rather than written into both.
+    static let controlSide: CGFloat = 44
+
     private func glyphButton(_ symbol: String,
                              label: String,
                              identifier: String? = nil,
@@ -1012,7 +1207,7 @@ struct CameraView: View {
                 // helper, no opacity modifier) toggled every time.
                 .foregroundStyle(.white.opacity(dimmed ? 0.5 : 1))
                 .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
-                .frame(width: 44, height: 44)
+                .frame(width: Self.controlSide, height: Self.controlSide)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1177,15 +1372,32 @@ struct CameraView: View {
         WarmRingLight(fillOpacity: fillOpacity)
     }
 
-    /// The front flash's modelling ring, and the capture flash over it.
+    /// **The front flash is the ring, and there is no second one.**
+    ///
+    /// There used to be a capture flash over this: a near-solid warm screen at
+    /// the moment of the shot, on the argument that at that moment nothing
+    /// matters except photons on the face.
+    ///
+    /// The owner: "for the front flash I think it might be too bright, and
+    /// also what's the point of the additional flash when you take the photo?
+    /// The ring is enough. A tip is make sure the person with the front flash
+    /// is able to check themselves out, like the person still needs to be
+    /// visible enough to admire themselves."
+    ///
+    /// **He is right, and it was wrong in three ways.** A ring light does not
+    /// pulse; it is on, and the light you compose by is the light you are
+    /// photographed by, which is the entire reason to hold a modelling light
+    /// at all. The blast covered the viewfinder at the one instant somebody
+    /// most wants to see their own face. And because a sudden light needs
+    /// auto-exposure to catch up, firing it meant SLEEPING 220ms before the
+    /// shutter, so the blast was also the reason the front camera felt slow.
+    ///
+    /// Removing it removes the delay, and the ring is already at full screen
+    /// brightness and was always doing most of the work.
     private var warmFlash: some View {
-        ZStack {
-            warmLight(fillOpacity: Self.ringFill)
-                .opacity(ringIsArmed ? Self.ringLevel : 0)
-                .animation(GridConstants.screenFlashOut, value: ringIsArmed)
-            warmLight(fillOpacity: Self.captureFill)
-                .opacity(flashOpacity)
-        }
+        warmLight(fillOpacity: Self.ringFill)
+            .opacity(ringIsArmed ? Self.ringLevel : 0)
+            .animation(GridConstants.screenFlashOut, value: ringIsArmed)
     }
 
     /// Whether the ring light is lit: the flash is on and the lens is the one
@@ -1202,8 +1414,6 @@ struct CameraView: View {
     /// instead of lighting it. The ring itself does the work.
     private static let ringFill = WarmRingLight.modellingFill
     private static let ringLevel = WarmRingLight.modellingLevel
-    /// At the moment of capture nothing matters but light on the face.
-    private static let captureFill = WarmRingLight.captureFill
 
     // MARK: - Firing
 
@@ -1211,6 +1421,12 @@ struct CameraView: View {
     /// countdown cancels it — which is what iOS Camera does, and the only
     /// sensible answer once you have walked into frame and changed your mind.
     private func shutterPressed() {
+        // The looks panel belongs to composing. Taking the photograph is the
+        // end of composing, so it closes with the shutter rather than being
+        // found still open behind a retake.
+        if showLookTray {
+            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) { showLookTray = false }
+        }
         if countdownTask != nil {
             cancelCountdown()
             return
@@ -1250,29 +1466,15 @@ struct CameraView: View {
             shutterScale = 1
         }
 
-        // The screen has to be BRIGHT before the shutter opens, not with it —
-        // the sensor is already metering by the time a simultaneous flash
-        // arrives, so a flash fired on the same frame lights nothing.
-        //
-        // Brightness is already at 1.0 here: arming the flash lights the
-        // modelling ring, and that is what raises it. `fire` only has to add
-        // the fill.
-        let needsScreenFlash = camera.isFlashOn && camera.usesScreenFlash
-        if needsScreenFlash {
-            withAnimation(GridConstants.screenFlashIn) { flashOpacity = 1 }
-        }
-
+        // **No wait before the shutter any more.** This used to raise a
+        // capture flash and then sleep 220ms for auto-exposure to settle on
+        // the new light. With the ring held on there is no new light: the
+        // metering has been settled on it the whole time you were composing,
+        // and the screen is already at full brightness because arming the
+        // flash is what raises it. So the front camera fires as fast as the
+        // back one.
         Task { @MainActor in
-            if needsScreenFlash {
-                // Long enough for auto-exposure to settle on the new light.
-                try? await Task.sleep(for: .milliseconds(220))
-            }
             camera.capture { image in
-                if needsScreenFlash {
-                    // Back to the ring, not to darkness — the flash is still
-                    // armed, so the light you were composing under stays.
-                    withAnimation(GridConstants.screenFlashOut) { flashOpacity = 0 }
-                }
                 guard let image else {
                     // No photograph, so nothing was drawn for. Leaving the
                     // shutter wide would make the NEXT shot inherit a size
@@ -1291,6 +1493,21 @@ struct CameraView: View {
                 withAnimation(GridConstants.gentleReveal) { review = image }
             }
         }
+    }
+}
+
+private extension View {
+    /// A composition line that is drawn out from its own middle rather than
+    /// faded in. See `CameraView.guides`.
+    ///
+    /// A scale along the line's own length, and nothing else: no opacity, or
+    /// it is a fade again with extra steps. At zero the line has no length and
+    /// is not there; at one it is exactly the line it always was, so nothing
+    /// about how the grid LOOKS when it is on has changed.
+    func ruled(_ shown: Bool, along axis: Axis) -> some View {
+        scaleEffect(x: axis == .horizontal ? (shown ? 1 : 0) : 1,
+                    y: axis == .vertical ? (shown ? 1 : 0) : 1,
+                    anchor: .center)
     }
 }
 
@@ -1313,6 +1530,9 @@ final class PreviewLayerBox {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let box: PreviewLayerBox
+    /// The graded surface, when there is one. Nil for the head maker, which
+    /// wants the scene as the lens sees it and has its own frame output.
+    var graded: GradedViewfinder? = nil
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -1320,6 +1540,17 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         box.layer = view.previewLayer
+
+        // **On top of the preview layer, never instead of it.** The layer
+        // keeps showing the scene the whole time, so a missing Metal device, a
+        // stalled pipeline or simply no look selected all resolve to the
+        // ordinary viewfinder rather than to black. It also stays the thing
+        // that converts a tap into a focus point, which a `MTKView` cannot do.
+        if let overlay = graded?.makeView() {
+            overlay.frame = view.bounds
+            overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(overlay)
+        }
         return view
     }
 
