@@ -170,6 +170,8 @@ struct StrataApp: App {
                 } else if let count = DebugHarness.scatterCount {
                     FolderInside(title: "Today", wins: DebugHarness.scatterWins(count))
                         .preferredColorScheme(.dark)
+                } else if DebugHarness.shutterLab {
+                    ShutterLabView()
                 } else if DebugHarness.folderLab {
                     FolderLabView()
                 } else if DebugHarness.headParity {

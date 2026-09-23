@@ -81,6 +81,9 @@ struct CameraView: View {
     /// from the middle. Moved by dragging the picture on the review.
     @State private var crop: CGPoint = .zero
     @State private var shutterDown = false
+    /// How far the blades are open, 1 to 0 to 1 across a capture. See
+    /// `ShutterBlink`.
+    @State private var iris: CGFloat = 1
     /// Where the last tap-to-focus landed, in the viewfinder's own space, and
     /// when — the reticle fades itself out.
     @State private var focusPoint: CGPoint?
@@ -519,6 +522,11 @@ struct CameraView: View {
                     // waiting to be judged there is nothing to compose.
                     .opacity(review == nil ? 1 : 0)
                     .allowsHitTesting(review == nil)
+
+                // The blades, over the picture and under the controls. See
+                // `ShutterBlink` for why a camera blinks black rather than
+                // flashing white.
+                ShutterBlink(openness: iris)
 
                 warmFlash
                     .allowsHitTesting(false)
@@ -1819,6 +1827,33 @@ struct CameraView: View {
         }
     }
 
+    /// **The ritual, and it is three beats rather than one.**
+    ///
+    /// The owner: "a tasteful pressing of the shutter animation, like it
+    /// meant something to press it. Make it a satisfying ritual."
+    ///
+    /// The button already had a press. What it did not have was a MOMENT: you
+    /// pressed, the disc dipped, and the picture arrived some time later with
+    /// nothing in between to say the photograph had been taken. So the finder
+    /// blinks — blades shut, dark, blades open — and the two haptics sit at
+    /// the two ends of it rather than both at the start. A snap as it closes
+    /// and a lighter tick as it returns is felt as one mechanism working,
+    /// which is exactly what a person means by a satisfying shutter.
+    ///
+    /// **Nothing waits for it.** The capture is already in flight; the blink
+    /// is a description of what the camera is doing, not a gate in front of
+    /// it. A ritual that costs you a fifth of a second of shutter lag is not
+    /// a ritual, it is a delay.
+    private func blink() {
+        guard !reduceMotion else { return }
+        withAnimation(.easeIn(duration: ShutterBlink.shutDuration)) { iris = 0 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(ShutterBlink.shutDuration + ShutterBlink.darkDuration))
+            HapticsEngine.tick()
+            withAnimation(.easeOut(duration: ShutterBlink.openDuration)) { iris = 1 }
+        }
+    }
+
     private func cancelCountdown() {
         countdownTask?.cancel()
         countdownTask = nil
@@ -1834,6 +1869,7 @@ struct CameraView: View {
         withAnimation(GridConstants.shutterRelease.delay(0.08)) {
             shutterScale = 1
         }
+        blink()
 
         // The screen has to be BRIGHT before the shutter opens, not with it —
         // the sensor is already metering by the time a simultaneous flash

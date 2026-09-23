@@ -116,6 +116,13 @@ enum DebugHarness {
         ProcessInfo.processInfo.arguments.contains("-strataFakeSticker")
     }
 
+    /// Holds the shutter's blades still at every stage, over a photograph,
+    /// so the shape can be looked at. It fires in a fifth of a second and a
+    /// simulator has no camera. See `ShutterLabView`.
+    static var shutterLab: Bool {
+        ProcessInfo.processInfo.arguments.contains("-strataShutterLab")
+    }
+
     /// Shows the folder face lab instead of the app, so every expression can
     /// be looked at side by side. See `FolderLabView`.
     static var folderLab: Bool {
