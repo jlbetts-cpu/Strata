@@ -165,44 +165,74 @@ struct OnboardingView: View {
     /// The owner, 2026-09-23, with a picture: "I would prefer if there was a
     /// back button in the onboarding like this so I can go back to previous
     /// pages with ease."
+    ///
+    /// **Two rows, not one, because of what one row did to page 0** (the owner,
+    /// 2026-09-23: "the screen progress bar looks weird on the first page since
+    /// there is no back button"). The button and the rule shared a row, so the
+    /// rule began a thumb-width in from the leading margin with nothing in that
+    /// space: on page 0 the first thing on the first screen was a gauge that had
+    /// been pushed aside by an invisible object. `OnboardingProgress`'s own
+    /// opening line is "one rule, margin to margin", and in one row that was
+    /// never true on any page.
+    ///
+    /// Stacked, the rule spans the page margin on every page and the button sits
+    /// where iOS puts a back button: in the navigation row above the content. On
+    /// page 0 that row is empty air, which is what an app with nowhere to go back
+    /// to looks like, and the rule under it does not move by a point when the
+    /// button arrives.
+    ///
+    /// The alternative was letting the rule fill the vacated slot on page 0 and
+    /// shrink when the button appears. Rejected: the rule's track and its fill
+    /// would both change width in the same transaction, and a gauge whose scale
+    /// moves while its reading moves cannot be read as either.
     private var topBand: some View {
-        HStack(spacing: GridConstants.gapItem) {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             back
             OnboardingProgress(step: step, count: Self.lastStep + 1)
         }
         .padding(.top, GridConstants.gapItem)
     }
 
-    /// **Its room is held on page 0, where there is nothing to go back to.**
+    /// **Its room is held on page 0, where there is nothing to go back to**, so
+    /// the rule below it never moves between pages. Held with `.opacity`, not by
+    /// leaving the button out: the glass then cross-fades in on the 0 to 1 press,
+    /// inside the caller's own transaction, rather than appearing.
     ///
-    /// This is the opposite of the call on the decline button, and the reason is
-    /// the same rule read in the other direction: the shared furniture must not
-    /// move between pages. Reserving space under the primary button would have
-    /// moved the button, so it was not reserved; NOT reserving space here would
-    /// change the progress rule's width between page 0 and page 1, so it is.
+    /// **It is the system's Liquid Glass disc**, which is what the owner asked
+    /// for (2026-09-23: "the back needs to be liquid glass native iOS"). It was a
+    /// bare chevron at `inkSecondary` with no disc and no fill, which read as a
+    /// mark on the page rather than as something to press, and which is the same
+    /// note he made about the share and settings glyphs that became
+    /// `GlassIconButton` in the first place.
     ///
-    /// The quietest control on the page: a chevron, no disc, no fill, no glass.
-    /// Its glyph sits ON the margin and the 44pt target grows to the right
-    /// (`alignment: .leading`), so the tap area is the HIG's minimum without the
-    /// mark being pushed a centimetre into the page.
+    /// **Note what `GlassIconButton.swift` says at the top**: glass is for a
+    /// control floating over content, and on a plain warm page it has nothing to
+    /// refract. Two of these six pages are a live viewfinder and a live map,
+    /// where that is satisfied exactly; four stand on `WarmBackground`, where it
+    /// is the concession. The owner has already settled the direction it trades
+    /// against ("see if there are other areas of the app that should get the
+    /// glass treatment... I think it's confidence and we need to add it to every
+    /// page"), and one disc is inside the three-element glass budget on every one
+    /// of these pages.
+    ///
+    /// The glyph takes `inkPrimary`, the same ink the rule beneath it fills with
+    /// and the title under that is set in, so the band reads as one object.
     private var back: some View {
-        Button {
-            HapticsEngine.lightTap()
-            // **Going back replays nothing.** The opening cascade is in a
-            // `.task`, which does not run again; the tutorial's blocks and its
-            // grid are state that is simply still there; the lattice's ripple
-            // rests at a phase that draws no cells. There is nothing here that
-            // re-arms.
-            withAnimation(GridConstants.naturalSettle) { step -= 1 }
-        } label: {
-            Image(systemName: "chevron.left")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .headline, weight: .medium)
-                .foregroundStyle(AppColors.inkSecondary)
-                .frame(width: Self.backSlot, height: Self.backSlot, alignment: .leading)
-                .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            // `GlassIconButton` taps the haptic itself.
+            GlassIconButton(systemName: "chevron.left",
+                            tint: AppColors.inkPrimary,
+                            accessibilityLabel: "Back") {
+                // **Going back replays nothing.** The opening cascade is in a
+                // `.task`, which does not run again; the tutorial's blocks and
+                // its grid are state that is simply still there; the lattice's
+                // ripple rests at a phase that draws no cells. There is nothing
+                // here that re-arms.
+                withAnimation(GridConstants.naturalSettle) { step -= 1 }
+            }
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Back")
+        .frame(height: Self.backSlot)
         .opacity(step > 0 ? 1 : 0)
         .allowsHitTesting(step > 0)
         .accessibilityHidden(step == 0)
