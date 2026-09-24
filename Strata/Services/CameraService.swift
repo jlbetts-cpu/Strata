@@ -336,11 +336,34 @@ final class CameraService: NSObject {
     /// How far the exposure is pushed, in stops. 0 is what the camera chose.
     private(set) var exposureBias: Float = 0
 
-    /// The range this device will accept, so the view can clamp a drag rather
-    /// than discovering the limit by being refused.
+    /// **Two stops either way, which is what Apple's own camera offers, not
+    /// the eight the hardware will accept.**
+    ///
+    /// The owner, on the shipped build: "exposure levels go way too high and
+    /// low", and "could you just research the settings Apple does, because
+    /// the exposure is way too much."
+    ///
+    /// He is right and the number was the whole bug. This returned
+    /// `device.minExposureTargetBias...device.maxExposureTargetBias`, which
+    /// on an iPhone is **-8 to +8 EV**. A stop is a doubling, so that range
+    /// spans a factor of 256 in either direction: the top of it is a white
+    /// screen and the bottom is a black one, and a drag of a few hundred
+    /// points crossed most of it.
+    ///
+    /// iOS Camera's own sun slider, the one beside the focus box, is about
+    /// two stops either way, and every third party camera worth using clamps
+    /// to two or three for the same reason: past that you are not adjusting
+    /// the picture, you are destroying it. The hardware range still bounds
+    /// this, because a device that offers less must not be asked for more.
+    ///
+    /// The drag's sensitivity is unchanged at one stop per 120 points, which
+    /// now means the full range is a 240pt drag rather than a 960pt one.
+    static let biasLimit: Float = 2
+
     var exposureBiasRange: ClosedRange<Float> {
         guard let device = input?.device else { return 0...0 }
-        return device.minExposureTargetBias...device.maxExposureTargetBias
+        return max(device.minExposureTargetBias, -Self.biasLimit)
+            ... min(device.maxExposureTargetBias, Self.biasLimit)
     }
 
     /// Points the lens at a spot, in DEVICE coordinates (0-1, origin top-left
@@ -384,8 +407,10 @@ final class CameraService: NSObject {
     /// accepts. Safe to call on every frame of a drag.
     func setExposureBias(_ stops: Float) {
         guard let device = input?.device else { return }
-        let clamped = min(max(stops, device.minExposureTargetBias),
-                          device.maxExposureTargetBias)
+        // Clamped to the app's own two stops, not the hardware's eight. See
+        // `biasLimit`.
+        let clamped = min(max(stops, max(device.minExposureTargetBias, -Self.biasLimit)),
+                          min(device.maxExposureTargetBias, Self.biasLimit))
         guard abs(clamped - exposureBias) > 0.01 else { return }
         do {
             try device.lockForConfiguration()

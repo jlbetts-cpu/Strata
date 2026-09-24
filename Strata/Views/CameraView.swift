@@ -663,10 +663,14 @@ struct CameraView: View {
                         guard focusPoint != nil, zoomAtPinchStart == nil else { return }
                         let start = biasAtDragStart ?? camera.exposureBias
                         if biasAtDragStart == nil { biasAtDragStart = start }
-                        // Up is brighter. 120pt to a stop, so the whole usable
-                        // range is about a screen and a half of travel — far
-                        // enough that a shaky thumb does not blow the picture
-                        // out, short enough to reach the end.
+                        // Up is brighter, 120pt to a stop, so the whole two
+                        // stops `CameraService.biasLimit` allows is 240pt of
+                        // travel: about a third of the screen, which is the
+                        // same order as the throw on Apple's own sun slider.
+                        // This comment used to claim the range was a screen and
+                        // a half; under the old eight-stop range it was 1920pt,
+                        // and that is what "exposure goes way too high and low"
+                        // was.
                         camera.setExposureBias(start + Float(-value.translation.height / 120))
                         focusShownAt = Date()
                     }
