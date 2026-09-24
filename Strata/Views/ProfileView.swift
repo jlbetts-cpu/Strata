@@ -23,6 +23,7 @@ struct ProfileView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @State private var showsLookPicker = false
     @State private var vm = ProfileViewModel()
     @State private var showsSettings = false
     @State private var showsLibrary = false
@@ -605,9 +606,33 @@ struct ProfileView: View {
                 // them was on, which is a control for a thing that is not
                 // happening. It shows when the head is being used on at
                 // least one surface, and goes away again when it is not.
+                // **Behind a row now, not a strip of swatches sitting open.**
+                //
+                // The owner, twice: "why are the filter picker always
+                // visible." The first answer was to hide it when the head
+                // appears nowhere, and that was not the point: the moment one
+                // switch is on, which for most people is the profile picture,
+                // five swatches are open on the page again. A look is
+                // something somebody changes once and then forgets, so it is
+                // a row you open, with the current one named on the right,
+                // like every other settings row in the app.
                 if let made = heads.undressed, heads.isSomewhere {
-                    HeadLookPicker(head: made, selection: heads.look) { kind in
-                        heads.setLook(kind)
+                    DisclosureGroup(isExpanded: $showsLookPicker) {
+                        HeadLookPicker(head: made, selection: heads.look) { kind in
+                            heads.setLook(kind)
+                        }
+                    } label: {
+                        HStack {
+                            Label {
+                                Text("Look")
+                            } icon: {
+                                SettingsIcon(systemName: "camera.filters")
+                            }
+                            Spacer(minLength: GridConstants.gapTight)
+                            Text(heads.look.name)
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(AppColors.inkTertiary)
+                        }
                     }
                 }
 
