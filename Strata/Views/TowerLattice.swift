@@ -96,13 +96,29 @@ struct TowerLattice: View {
     /// arrived on the screen, and he is right that it reads as an overlay
     /// rather than as the surface: a soft wash crossing everything, in grey,
     /// for no reason anybody asked for. Nothing animates on arrival now.
-    /// **A landing is the only thing that moves the lattice**, it moves it
-    /// from where the block actually hit, and it is the block's colour.
+    /// **A landing is the only thing that moves the lattice**, and it moves
+    /// it from where the block actually hit.
+    ///
+    /// **In ink, not in the block's colour.** It carried the block's colour,
+    /// and the photograph's colour where there was one, for exactly one
+    /// build. The owner: "I feel like the colour of the pulses is what makes
+    /// it not look premium. I feel like it should just be a more visible
+    /// grey." He is right, and it is the design doc's own rule turned on me:
+    /// the blocks and the photographs carry every saturated colour in this
+    /// app, and the chrome is ink. A coloured flash under the tower is the
+    /// chrome borrowing the content's voice, which is the definition of
+    /// tacky here. Grey, and stronger, so it reads as the surface taking the
+    /// hit rather than as a light coming on.
+    ///
+    /// These are a share of `inkPrimary`, so a 2x2 lands at about a tenth of
+    /// full ink against a resting cell's two percent: four or five times the
+    /// cell you can already see, which is the "more visible" he asked for,
+    /// and still quiet enough to be a material rather than an effect.
     static func peak(for span: Int) -> Double {
         switch span {
-        case 4: return 0.26     // a 2x2
-        case 2: return 0.20     // a 2x1
-        default: return 0.15    // a 1x1
+        case 4: return 0.12     // a 2x2
+        case 2: return 0.09     // a 2x1
+        default: return 0.07    // a 1x1
         }
     }
 
@@ -259,10 +275,10 @@ struct TowerLattice: View {
         let envelope = Self.envelope(front: front, ripple: ripple)
         RippleCells(front: front, band: 0...Self.frontBand, ripple: ripple,
                     cellSize: cellSize, spacing: spacing, columns: columns)
-            .fill(ripple.colour.opacity(peak * envelope))
+            .fill(AppColors.inkPrimary.opacity(peak * envelope))
         RippleCells(front: front, band: Self.frontBand...Self.backBand, ripple: ripple,
                     cellSize: cellSize, spacing: spacing, columns: columns)
-            .fill(ripple.colour.opacity(peak * envelope * 0.45))
+            .fill(AppColors.inkPrimary.opacity(peak * envelope * 0.45))
     }
 
     /// How thick the ring is, in cells: the band at full strength, and the
@@ -303,9 +319,9 @@ struct LatticeRipple: Equatable {
     var row: Int
     var columnSpan: Int
     var rowSpan: Int
-    var colour: Color
-    /// When it hit. The canvas reads the clock rather than a counter, so a
-    /// dropped frame does not slow the ring down, it just misses it.
+    /// When it hit. The ring is driven by a keyframe track off this value, so
+    /// a new landing is a new trigger rather than a counter somebody has to
+    /// remember to reset.
     var started: Date = Date()
 
     /// How many cells the block covers, which is what the ripple is scaled
@@ -461,179 +477,3 @@ struct RippleCells: Shape {
     }
 }
 
-
-/// **The colour a landing ripples in when the block is a photograph.**
-///
-/// The owner, 2026-09-23: "make sure the ripple ripples like the color of the
-/// block or the photo of the block, like that would look sick."
-///
-/// A typed win has one colour and the lattice takes it. A win with a
-/// photograph on it has the photograph, and the surface should answer with
-/// what actually landed rather than with the category the win happens to be
-/// filed under.
-///
-/// **Nothing here may cost anything on the frame the block lands on.** So the
-/// category colour goes up immediately and this runs behind it: the caller
-/// gets the photograph's colour in a callback and swaps it in underneath the
-/// ring that is already running. A landing whose photograph is not in memory
-/// keeps the category colour and never waits for one.
-///
-/// **It reads only what the app is ALREADY holding.** `cachedThumbnail` is a
-/// cache peek: no disk, no decode, no scheduling, and no derivative baked on
-/// this account. On the tower the block being landed on is drawing its own
-/// photograph, so the thumbnail is usually there; when it is not, the
-/// category colour is the answer and that is a correct answer, not a
-/// degraded one.
-@MainActor
-enum LatticeTint {
-
-    /// **The band a photograph's colour is pulled into.**
-    ///
-    /// `FolderTint` on `apollo-rename` is the approved prior art and its test
-    /// pins saturation to 0.06...0.34 and brightness to 0.55...0.95. The
-    /// brightness half carries over almost unchanged and for the same reason:
-    /// a dark photograph averages to something near black, and near black on
-    /// a warm white page is a smudge rather than a colour. The top end comes
-    /// in a little, to 0.92, because a ring sits over white and has nothing
-    /// to be bright against.
-    ///
-    /// **The saturation band does NOT carry over, and that is deliberate.**
-    /// A folder's colour is drawn at full alpha as the folder's own surface.
-    /// A ring is the same colour at 15 to 26 percent over near white, which
-    /// divides its chroma by about four, so a folder's 0.34 ceiling would put
-    /// a photographed win's ring at a quarter of the chroma of the typed win's
-    /// ring beside it — the "switched off" failure `FolderTint` records about
-    /// its own Ink entry, in a place where it matters more. The floor of 0.35
-    /// is what stops a muddy brown or grey average reading as dirt on the
-    /// page; the ceiling of 0.75 is under every category colour in
-    /// `CategoryColors`, so a photograph can never ripple louder than a typed
-    /// win.
-    nonisolated static let saturation: ClosedRange<Double> = 0.35...0.75
-    nonisolated static let brightness: ClosedRange<Double> = 0.55...0.92
-
-    /// Derived colours, by the block's id. Bounded, because a long session
-    /// scrolling a year of wins would otherwise grow it without limit.
-    private static var derived: [UUID: Color] = [:]
-    private static var inFlight: Set<UUID> = []
-    nonisolated static let cacheLimit = 240
-
-    /// The photograph's colour if it has already been worked out. Free, and
-    /// the only thing a landing is allowed to ask for synchronously.
-    static func cached(for id: UUID) -> Color? { derived[id] }
-
-    /// Works out the photograph's colour off the main actor and hands it back.
-    /// Called back at most once per block, on the main actor, and never on
-    /// the landing frame.
-    static func tint(for id: UUID, fileName: String,
-                     then: @escaping @MainActor (Color) -> Void) {
-        if let hit = derived[id] { then(hit); return }
-        guard !inFlight.contains(id) else { return }
-        inFlight.insert(id)
-        // Read on the main actor, where `ThumbnailStore` lives, and hand the
-        // plain numbers to the background.
-        let widths = ThumbnailStore.widthBuckets
-        Task.detached(priority: .userInitiated) {
-            let found = colour(ofPhotograph: fileName, widths: widths)
-            await MainActor.run {
-                inFlight.remove(id)
-                guard let found else { return }
-                let colour = Color(hue: found.h, saturation: found.s, brightness: found.b)
-                if derived.count >= cacheLimit { derived.removeAll(keepingCapacity: true) }
-                derived[id] = colour
-                #if DEBUG
-                LatticeProbe.note(String(format: "tint %@ h=%.3f s=%.3f b=%.3f",
-                                         fileName, found.h, found.s, found.b))
-                #endif
-                then(colour)
-            }
-        }
-    }
-
-    /// For tests, and for a store reset: nothing here survives a photograph
-    /// being replaced otherwise.
-    static func forget() {
-        derived.removeAll()
-        inFlight.removeAll()
-    }
-
-    /// The smallest thumbnail of this photograph that is already in memory,
-    /// averaged and calmed. `nil` when the app is not holding one, which is
-    /// the caller's signal to stay on the category colour.
-    nonisolated static func colour(ofPhotograph fileName: String,
-                                   widths: [Int]) -> (h: Double, s: Double, b: Double)? {
-        for width in widths {
-            guard let image = ImageManager.shared.cachedThumbnail(fileName: fileName,
-                                                                  maxWidth: CGFloat(width)),
-                  let cg = image.cgImage,
-                  let mean = mean(of: cg)
-            else { continue }
-            return calmed(mean)
-        }
-        return nil
-    }
-
-    /// **An 8x8 average, weighted toward the colour in the picture.**
-    ///
-    /// A flat mean of a photograph is very often grey: a red jumper and a
-    /// green field average to mud, and mud at 20 percent over a warm white
-    /// page reads as a stain. Weighting each of the 64 cells by its own
-    /// saturation pulls the answer toward whatever the picture is actually
-    /// coloured by, and the 0.15 floor on the weight keeps a photograph that
-    /// really is neutral from being decided by its noisiest pixel. Hue is
-    /// averaged as a vector, because hue wraps and a mean of 355 and 5 is
-    /// not 180.
-    nonisolated static func mean(of image: CGImage) -> (h: Double, s: Double, b: Double)? {
-        let side = 8
-        var bytes = [UInt8](repeating: 0, count: side * side * 4)
-        let drew: Bool = bytes.withUnsafeMutableBytes { raw -> Bool in
-            guard let context = CGContext(data: raw.baseAddress, width: side, height: side,
-                                          bitsPerComponent: 8, bytesPerRow: side * 4,
-                                          space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
-            else { return false }
-            context.interpolationQuality = .medium
-            context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-            return true
-        }
-        guard drew else { return nil }
-        var hx = 0.0, hy = 0.0, sSum = 0.0, bSum = 0.0, weight = 0.0
-        for index in stride(from: 0, to: bytes.count, by: 4) {
-            let cell = hsb(r: Double(bytes[index]) / 255,
-                           g: Double(bytes[index + 1]) / 255,
-                           b: Double(bytes[index + 2]) / 255)
-            let w = 0.15 + cell.s
-            hx += cos(cell.h * 2 * .pi) * w
-            hy += sin(cell.h * 2 * .pi) * w
-            sSum += cell.s * w
-            bSum += cell.b * w
-            weight += w
-        }
-        guard weight > 0 else { return nil }
-        var hue = atan2(hy, hx) / (2 * .pi)
-        if hue < 0 { hue += 1 }
-        return (hue, sSum / weight, bSum / weight)
-    }
-
-    /// Into the band. See `saturation` and `brightness`.
-    nonisolated static func calmed(_ colour: (h: Double, s: Double, b: Double))
-    -> (h: Double, s: Double, b: Double) {
-        (colour.h,
-         min(max(colour.s, saturation.lowerBound), saturation.upperBound),
-         min(max(colour.b, brightness.lowerBound), brightness.upperBound))
-    }
-
-    nonisolated static func hsb(r: Double, g: Double, b: Double) -> (h: Double, s: Double, b: Double) {
-        let high = max(r, g, b), low = min(r, g, b)
-        let span = high - low
-        guard span > 0, high > 0 else { return (0, 0, high) }
-        var hue: Double
-        switch high {
-        case r: hue = (g - b) / span
-        case g: hue = 2 + (b - r) / span
-        default: hue = 4 + (r - g) / span
-        }
-        hue /= 6
-        if hue < 0 { hue += 1 }
-        return (hue, span / high, high)
-    }
-}

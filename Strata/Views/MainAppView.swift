@@ -1142,18 +1142,7 @@ struct MainAppView: View {
                     // where a landing really happens on a tower with a few
                     // blocks in it.
                     row: 3,
-                    columnSpan: cols, rowSpan: rows,
-                    colour: photoBlock.flatMap { LatticeTint.cached(for: $0.id) }
-                        ?? photoBlock?.look.displayCategory.style.baseColor
-                        ?? base)
-                if let photoBlock, let photo = photoBlock.look.imageFileName {
-                    let started = latticeRipple?.started
-                    LatticeTint.tint(for: photoBlock.id, fileName: photo) { colour in
-                        guard var live = latticeRipple, live.started == started else { return }
-                        live.colour = colour
-                        latticeRipple = live
-                    }
-                }
+                    columnSpan: cols, rowSpan: rows)
                 try? await Task.sleep(for: .seconds(1.5))
             }
         }
@@ -1209,23 +1198,8 @@ struct MainAppView: View {
         let ripple = LatticeRipple(column: block.column,
                                    row: block.row,
                                    columnSpan: block.columnSpan,
-                                   rowSpan: block.rowSpan,
-                                   colour: LatticeTint.cached(for: landedID)
-                                       ?? block.look.displayCategory.style.baseColor)
+                                   rowSpan: block.rowSpan)
         latticeRipple = ripple
-        if let photo = block.look.imageFileName {
-            LatticeTint.tint(for: landedID, fileName: photo) { colour in
-                // **Only the ring that asked, and `started` is left alone.**
-                // The keyframe track's trigger IS `started`, so changing the
-                // colour underneath a running ring carries on where it was;
-                // touching `started` would restart it from nothing halfway
-                // through, which is the one thing worse than the category
-                // colour.
-                guard var live = latticeRipple, live.started == ripple.started else { return }
-                live.colour = colour
-                latticeRipple = live
-            }
-        }
         let life = TowerLattice.duration(for: ripple.span)
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(life + 0.05))
