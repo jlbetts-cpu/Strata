@@ -117,7 +117,8 @@ enum MonthTower {
     /// touching cells of one colour, and on the tower that is true — they are
     /// one object. Here two touching blocks are two different days, and fusing
     /// them would destroy both the tap target and the meaning. Do not reuse
-    /// `MiniTowerView` here.
+    /// `MergedGroupView` here. (This said `MiniTowerView`, which is not a type
+    /// that exists, so the instruction named nothing.)
     static func pack(_ days: [Day]) -> Packed {
         var grid: [[Bool]] = []
         var out: [Block] = []

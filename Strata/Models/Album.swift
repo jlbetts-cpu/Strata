@@ -3,9 +3,10 @@ import Foundation
 /// One completed win, flattened off SwiftData.
 ///
 /// The grouping below claims to be pure, and this is what makes that true.
-/// `HistoryViewModel.sections(from:)` makes the same claim while taking
+/// The version History had before Memories replaced it, `HistoryViewModel`'s
+/// own `sections(from:)`, made the same claim while taking
 /// `[HabitLog]` — a `@Model`, which in practice needs a `Habit` and a
-/// container to construct, so its tests are not really store-free. Flattening
+/// container to construct, so its tests were not really store-free. Flattening
 /// at the boundary means everything downstream is a value function over value
 /// types, testable with struct literals.
 ///

@@ -204,8 +204,20 @@ struct MemoriesTitle: View {
 
 /// The app's mark: the owner's `S`, on one of the app's blocks.
 ///
-/// **The mark and the icon are the same drawing on the same ground**, so what
-/// is on the home screen is what is in Settings.
+/// **The mark and the icon are the same drawing and they are NOT on the same
+/// ground.** This said they were, and it was false: the app's
+/// `AppColors.warmBlack` is `0x403D39`, and `tools/make_app_icon.py` has its own
+/// constant of the same name at `0x1C1A18`. Two colours, one word, two files.
+/// Measured: 64 against 28 on the red byte (2.3x), and 0.047 against 0.011 in
+/// relative luminance (4.5x). The icon has no rim either. So the home screen and
+/// Settings show one letter on two different objects, and a sentence in a
+/// comment is what kept anybody from looking.
+/// `docs/research/visual-cohesion.md` section 4.4 measured the same gap, and its
+/// recommendation is to keep the ICON's darker ground, because that is the one
+/// that has to hold on a wall of squircles.
+/// **Not changed here.** It moves the app icon's colour and the mark in
+/// Settings, it cannot be judged from a diff, and this session could not build
+/// or screenshot. It needs the owner's eye on one shot of each.
 ///
 /// It was a three-block ziggurat for a while, argued for from research: a
 /// single-letter monogram carries no meaning of its own and works only by

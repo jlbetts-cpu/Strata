@@ -14,6 +14,15 @@ struct ProfileAvatar: View {
     /// middle, hair clear of the edge.
     static let headShare: CGFloat = 0.76
 
+    /// **The app has one hairline and this file was drawing a second one.**
+    /// `docs/design-system-future.md` section 6: a hairline is `1 / displayScale`
+    /// in ink at low alpha. `PlanSheet`, `FilmLookTray` and the map's panels all
+    /// do exactly that; these two circles were the only places in the app using
+    /// `GridConstants.headerDividerHeight` (a flat 0.5) as a stroke width, which
+    /// is a hairline on a 2x phone and 50% too heavy on a 3x one. A line that is
+    /// only a hairline on some phones is the hedge, not the number.
+    @Environment(\.displayScale) private var displayScale
+
     private var store: ProfileStore { .shared }
 
     var body: some View {
@@ -33,8 +42,9 @@ struct ProfileAvatar: View {
                 .frame(width: side, height: side)
                 .clipShape(Circle())
                 .overlay {
-                    Circle().strokeBorder(Color.primary.opacity(0.08),
-                                          lineWidth: GridConstants.headerDividerHeight)
+                    // One hairline, one token. See `displayScale` above.
+                    Circle().strokeBorder(GridConstants.fillHairline,
+                                          lineWidth: 1 / displayScale)
                 }
                 .accessibilityHidden(true)
         } else {
@@ -67,6 +77,9 @@ struct ProfileAvatar: View {
 /// there is a picture: it is there to be measured.
 struct ProfileButton: View {
     let action: () -> Void
+
+    /// The same one hairline as `ProfileAvatar`, for the same reason.
+    @Environment(\.displayScale) private var displayScale
 
     private var store: ProfileStore { .shared }
     private let side = GlassIconButton.defaultSide
@@ -119,8 +132,8 @@ struct ProfileButton: View {
                         .frame(width: side, height: side)
                         .clipShape(Circle())
                         .overlay {
-                            Circle().strokeBorder(Color.primary.opacity(0.08),
-                                                  lineWidth: GridConstants.headerDividerHeight)
+                            Circle().strokeBorder(GridConstants.fillHairline,
+                                                  lineWidth: 1 / displayScale)
                         }
                 }
                 .contentShape(Circle())

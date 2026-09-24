@@ -22,8 +22,10 @@ import SwiftData
 ///
 /// So: one place, object by object, inside one transaction, no `try?` on a
 /// delete or a save, and in DEBUG a count of what is left for every model the
-/// store holds. `ResetGateTests` greps the whole app for `delete(model:` and
-/// fails if one comes back.
+/// store holds. `StoreResetTests.noBatchDeleteInTheSource` greps the whole
+/// checkout for `delete(model:` and fails if one comes back. (It was named
+/// `ResetGateTests` here, which is not a type that exists: a gate you cannot
+/// find reads exactly like a gate nobody wrote.)
 enum StoreReset {
 
     /// What was left after the sweep, by model name. Zero everywhere is the

@@ -561,8 +561,8 @@
 				DEVELOPMENT_TEAM = W34J6358L7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Strata Neo";
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Strata Neo";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph, and to make your head if you choose to.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only checks while the camera is open.";
@@ -601,8 +601,8 @@
 				DEVELOPMENT_TEAM = W34J6358L7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Strata Neo";
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Strata Neo";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera so a win can be a photograph, and to make your head if you choose to.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata remembers where a photo was taken, so your wins can appear on your map. It only checks while the camera is open.";

@@ -1,90 +1,29 @@
 import SwiftUI
 
-/// The two things every block view shares: how a time is written, and what is
+/// The two things the block views share: the one date formatter, and what is
 /// drawn on the face.
 ///
 /// They used to live in `HabitBlockView.swift` alongside a block view that only
 /// `TowerView` rendered — and `TowerView` was referenced by nothing. Deleting
 /// the dead view would have taken these with it, so they moved here first.
-/// `FlippableBlockView` (the one the tower actually renders) and
-/// `TowerViewModel` both depend on them.
+/// `FlippableBlockView` (the one the tower actually renders) and `BlockFace`
+/// are what depend on them now.
+///
+/// **There is no time on a block, so there is no time formatting here.**
+/// `endTime`, `format12Hour` (both of them), `timeRange`, `dateLabel` and
+/// `displayText` went with the timestamps: every one of them had no caller,
+/// and a helper that writes a time the app does not draw reads like a feature
+/// you cannot find. `dateFormatter` is the only member left with a caller.
 
 // MARK: - Time Formatting Helpers
 
 enum BlockTimeFormatter {
-    /// Computes end time from a start "HH:mm" string + duration in minutes.
-    static func endTime(_ startStr: String, durationMinutes: CGFloat) -> String {
-        let parts = startStr.split(separator: ":")
-        guard !parts.isEmpty, let h = Int(parts[0]) else { return startStr }
-        let m = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
-        let totalMinutes = h * 60 + m + Int(durationMinutes)
-        let endH = (totalMinutes / 60) % 24
-        let endM = totalMinutes % 60
-        return String(format: "%02d:%02d", endH, endM)
-    }
-
-    /// Converts "14:00" → "2 PM", "14:30" → "2:30 PM"
-    static func format12Hour(_ timeStr: String) -> String {
-        let parts = timeStr.split(separator: ":")
-        guard !parts.isEmpty, let h = Int(parts[0]) else { return timeStr }
-        let m = parts.count > 1 ? String(parts[1]) : "00"
-        let period = h < 12 ? "AM" : "PM"
-        let hour12 = h % 12 == 0 ? 12 : h % 12
-        return m == "00" ? "\(hour12) \(period)" : "\(hour12):\(m) \(period)"
-    }
-
     static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
 
-    private static let localeTimeFormatter: DateFormatter = {
-        let fmt = DateFormatter()
-        fmt.timeStyle = .short
-        return fmt
-    }()
-
-    /// Formats a Date using the user's locale (e.g. "3:30 PM" or "15:30")
-    static func format12Hour(_ date: Date) -> String {
-        localeTimeFormatter.string(from: date)
-    }
-
-    /// Returns a single timestamp for a block: completion time if available, otherwise scheduled start.
-    static func timeRange(scheduledTime: String?, durationMinutes: CGFloat, completedAt: Date?) -> String? {
-        if let completed = completedAt {
-            return format12Hour(completed)
-        } else if let time = scheduledTime {
-            return format12Hour(time)
-        }
-        return nil
-    }
-
-    /// Converts "2026-03-19" → "3/19"
-    static func dateLabel(from dateString: String) -> String {
-        let parts = dateString.split(separator: "-")
-        guard parts.count == 3,
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else { return dateString }
-        return "\(month)/\(day)"
-    }
-
-    /// Returns the appropriate display text based on filter mode.
-    /// Day → time range, Week/Month → date label.
-    static func displayText(
-        filterMode: TowerFilterMode,
-        dateString: String,
-        scheduledTime: String?,
-        durationMinutes: CGFloat,
-        completedAt: Date?
-    ) -> String? {
-        switch filterMode {
-        case .day:
-            return timeRange(scheduledTime: scheduledTime, durationMinutes: durationMinutes, completedAt: completedAt)
-        case .week, .month:
-            return dateLabel(from: dateString)
-        }
-    }
 }
 
 
@@ -105,12 +44,9 @@ private struct PhotoTitleShadow: ViewModifier {
 
 struct BlockContentOverlay: View {
     let title: String
-    /// Nothing draws this any more. The icon went (see `body`), and with it the
-    /// only thing that read the category here. It stays for one reason: it
-    /// arrives from `BlockFace.iconCategory`, which `ReplayFrame` names at its
-    /// call site, so removing it is an edit to a file outside this pass. Take
-    /// both out together.
-    let category: HabitCategory
+    /// No `category`. The icon went (see `body`) and took the only thing that
+    /// read one here with it; the property, and `BlockFace.iconCategory` that
+    /// fed it, were threaded through two views and a replay to reach nothing.
     let rowSpan: Int
     /// No `timeText`. Nothing has drawn a time on a block since the tower
     /// stopped showing timestamps, and every call site was passing `nil`

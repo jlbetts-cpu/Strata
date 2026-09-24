@@ -119,23 +119,9 @@ struct MainAppView: View {
     // Drop queue: habits completed in timeline, awaiting tower release
     @State private var pendingDrops: [Habit] = []
 
-    // Block flyaway bridge (Today → Tower visual connection)
-    @State private var flyawayActive: Bool = false
-    @State private var flyawayCategory: HabitCategory? = nil
-    @State private var flyawayLanded: Bool = false
-
     /// The block whose edit sheet is open. It also hides that block on the
     /// tower while the sheet is up (`AnimatedBlockView`).
     @State private var expandedBlockID: UUID? = nil
-
-
-    // #109: Comeback celebration
-    @AppStorage("lastCompletionDateString") private var lastCompletionDateString: String = ""
-
-    // #386: Perfect day anticipation
-
-
-    @AppStorage("lastDayBoundaryCheck") private var lastDayBoundaryCheck: String = ""
 
     @State private var showTowerConfetti = false
     @AppStorage("lastCelebrationDate") private var lastCelebrationDate: String = ""
@@ -702,21 +688,6 @@ struct MainAppView: View {
         }
         .onChange(of: towerManager.activeTower?.id) {
             reloadTowerWithAnimation()
-        }
-        // Block flyaway bridge — mini block flies from Today to Tower tab
-        .overlay {
-            if flyawayActive, let category = flyawayCategory {
-                FlyawayBlockView(category: category, landed: $flyawayLanded)
-                    .onChange(of: flyawayLanded) { _, landed in
-                        if landed {
-                            HapticsEngine.squish(mass: 1)
-                            SoundEngine.blockImpact(mass: 1)
-                            flyawayActive = false
-                            flyawayLanded = false
-                        }
-                    }
-                    .allowsHitTesting(false)
-            }
         }
         // Spotlight deep link handler
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
@@ -2044,12 +2015,11 @@ struct MainAppView: View {
         let validIDs = Set(towerVM.placedBlocks.map(\.id))
         animCoord.purgeStaleState(validIDs: validIDs)
 
-        // The anticipation and comeback banners are gone with the capsules
-        // that displayed them; only the bookkeeping their absence still needs
-        // is kept.
-        let todayStr = TimelineViewModel.dateString(from: Date())
-        let todayCompleted = cachedFilteredLogs.filter { $0.dateString == todayStr && $0.completed }.count
-        if todayCompleted > 0 { lastCompletionDateString = todayStr }
+        // The anticipation and comeback banners went with the capsules that
+        // displayed them, and so has their bookkeeping: the one value still
+        // written here, `lastCompletionDateString`, was read by nothing, and
+        // working it out was a filter over every log of the period on a hot
+        // path.
 
         // Debounced Spotlight reindex — only when habit count changes (create/delete)
         if habits.count != lastIndexedHabitCount {
@@ -2647,8 +2617,7 @@ struct MainAppView: View {
                 visibleBlocks: visibleBlocks, animCoord: animCoord, towerVM: towerVM,
                 groupedIDs: groupedIDs,
                 mergeDestinedIDs: towerVM.groupedBlockIDs,
-                colW: colW, gridH: gridH, safeAreaTop: safeAreaTop,
-                collapsedHeaderHeight: collapsedHeaderHeight,
+                colW: colW, gridH: gridH,
                 cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
                 reduceMotion: reduceMotion, colorScheme: colorScheme,
                 onTapExpandBlock: { id in
@@ -2659,7 +2628,6 @@ struct MainAppView: View {
                     }
                 },
                 liftedBlockID: carriedBlockID,
-                liftActive: isRearranging,
                 onLift: { id in beginRearrange(id) },
                 onDrop: { carried, target in commitRearrange(carried, onto: target) },
                 onHover: { id, targeted in hover(id, targeted: targeted) }
@@ -2880,15 +2848,12 @@ struct MainAppView: View {
         let mergeDestinedIDs: Set<UUID>
         let colW: CGFloat
         let gridH: CGFloat
-        let safeAreaTop: CGFloat
-        let collapsedHeaderHeight: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
         let reduceMotion: Bool
         let colorScheme: ColorScheme
         let onTapExpandBlock: (UUID) -> Void
         let liftedBlockID: UUID?
-        let liftActive: Bool
         let onLift: (UUID) -> Void
         let onDrop: (UUID, UUID) -> Void
         let onHover: (UUID, Bool) -> Void
@@ -2916,9 +2881,8 @@ struct MainAppView: View {
                     // evaluation's values with the last one's.
                     look: PlacedBlock.Look(habit: block.habit, log: block.log),
                     frame: f, animState: animState,
-                    isNewlyDropped: isNewlyDropped, staggerDelay: stagger,
-                    gridH: gridH, safeAreaTop: safeAreaTop,
-                    collapsedHeaderHeight: collapsedHeaderHeight,
+                    isNewlyDropped: isNewlyDropped,
+                    gridH: gridH,
                     cornerRadius: cornerRadius, expandedBlockID: expandedBlockID,
                     reduceMotion: reduceMotion, colorScheme: colorScheme,
                     isFoundation: towerVM.foundationBlockIDs.contains(block.id),
@@ -2927,11 +2891,7 @@ struct MainAppView: View {
                     willMerge: mergeDestinedIDs.contains(block.id),
                     isCovered: towerVM.coveredBlockIDs.contains(block.id),
                     onTapExpandBlock: onTapExpandBlock,
-                    liftedBlockID: liftedBlockID,
-                    liftActive: liftActive,
-                    onLift: onLift,
-                    onDrop: onDrop,
-                    onHover: onHover
+                    liftedBlockID: liftedBlockID
                 )
                 .frame(width: f.width, height: f.height)
                 // Hold a block and drag it onto another to rearrange.
@@ -3016,10 +2976,7 @@ struct MainAppView: View {
         let frame: CGRect
         let animState: BlockAnimationState
         let isNewlyDropped: Bool
-        let staggerDelay: Double
         let gridH: CGFloat
-        let safeAreaTop: CGFloat
-        let collapsedHeaderHeight: CGFloat
         let cornerRadius: CGFloat
         let expandedBlockID: UUID?
         let reduceMotion: Bool
@@ -3027,18 +2984,12 @@ struct MainAppView: View {
         let isFoundation: Bool
         let isCrown: Bool
         let isGroupMember: Bool
-        /// True once this block has settled into a merged run.
-        /// True as soon as the tower knows it BELONGS to one, even mid-flight.
+        /// True as soon as the tower knows this block BELONGS to a merged run,
+        /// even mid-flight.
         let willMerge: Bool
         let isCovered: Bool
         let onTapExpandBlock: (UUID) -> Void
         let liftedBlockID: UUID?
-        let liftActive: Bool
-        /// Reports the carried block and where the finger is, in the grid's
-        /// own space. Nil location means the drag ended.
-        let onLift: (UUID) -> Void
-        let onDrop: (UUID, UUID) -> Void
-        let onHover: (UUID, Bool) -> Void
 
         @Environment(\.modelContext) private var modelContext
 
@@ -3472,66 +3423,6 @@ private struct StableCameraTab: View, Equatable {
         CameraView(onCaptured: onCaptured, fillsScreen: true)
     }
 }
-
-// MARK: - Block Flyaway (Today → Tower visual bridge)
-
-private struct FlyawayBlockView: View {
-    let category: HabitCategory
-    @Binding var landed: Bool
-    @State private var progress: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { geo in
-            let screenW = geo.size.width
-            let screenH = geo.size.height
-
-            // Target: Tower tab icon — first of 4 equal tabs (Fitts 1954)
-            let targetX = screenW / 8.0
-            let targetY = screenH + 24.5 // Center of 49pt tab bar below content
-
-            // Start: center of overlay (habit rows are upper-half)
-            let startX = screenW / 2.0
-            let startY = screenH * 0.45
-
-            let t = progress
-            let dx = targetX - startX
-            let dy = targetY - startY
-
-            // Cubic ease-out: decelerate into target (Apple collect pattern)
-            let easedT = 1.0 - pow(1.0 - t, 3.0)
-
-            // Parabolic arc peak at t≈0.5 (natural throw-and-catch — Heider & Simmel 1944)
-            let arcPeak: CGFloat = -60
-            let arcOffset = arcPeak * 4.0 * t * (1.0 - t)
-
-            let currentX = dx * easedT
-            let currentY = dy * t + arcOffset
-            let scale = 1.0 - t * 0.65
-
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(category.style.gradient)
-                .frame(width: 32, height: 32)
-                .frame(minWidth: 44, minHeight: 44)
-                .shadow(color: .black.opacity(0.15 * (1.0 - t * 0.5)), radius: 4, y: 2)
-                .scaleEffect(scale)
-                .offset(x: currentX, y: currentY)
-                .opacity(1.0 - t * 0.3)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-        .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(GridConstants.blockFlyaway) {
-                progress = 1.0
-            }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
-                landed = true
-            }
-        }
-    }
-}
-
-// MARK: - Tower Aurora (rare, earned, beautiful — Skinner 1938)
 
 #Preview {
     MainAppView()

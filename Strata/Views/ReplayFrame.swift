@@ -286,7 +286,7 @@ struct ReplayFrame: View {
                     let f = script.blockFrame(index)
                     let image = images[block.win.photo]
                     BlockFace(title: block.win.title, category: block.win.category,
-                              iconCategory: block.win.category, rowSpan: block.rowSpan,
+                              rowSpan: block.rowSpan,
                               width: f.width, height: f.height, cornerRadius: radius,
                               hasPhoto: image != nil || block.win.photo.map { expectsPhoto?($0) ?? false } == true,
                               showOverlay: titleOpacity > 0,

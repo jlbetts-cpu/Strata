@@ -6,9 +6,29 @@ import SwiftUI
 /// a dedicated page whose entire job was to hold one button, and puts the
 /// action in the place where its result appears.
 ///
-/// It is drawn as an outline rather than a filled block on purpose: it is the
-/// absence of a block, which is what makes it read as a slot waiting to be
-/// filled rather than as a block that is somehow blank.
+/// It is the absence of a block rather than a filled one, and that distinction
+/// outlives every change to how it is drawn: this has to read as a slot waiting
+/// to be filled, never as a block that is somehow blank.
+///
+/// **It is a pane of glass now, and it was a dashed outline** (the owner,
+/// 2026-09-23: "I think the + square doesn't match the aesthetic of things. I
+/// feel like that should be updated, maybe more liquid glass feel"). He is
+/// right: a dashed rectangle is the one piece of chrome on this screen that
+/// reads as a placeholder in a design tool rather than as part of an
+/// instrument. And the glass buys the thing the dash was standing in for:
+/// `TowerLattice` reads through the pane, so the slot is visibly EMPTY rather
+/// than merely drawn as empty. `SlotGlass.swift` has why it is its own recipe
+/// and not `glassRoundedRect`.
+///
+/// **The three things it deliberately does not take from a block**, because
+/// those three are what a block IS (CLAUDE.md: "the blocks are the identity;
+/// chrome is not", and do not give a surface a white rim or a frosted edge):
+/// the top-lit white rim, the blurred bottom band, and a shadow. It is a hole
+/// in the lattice; it stands on nothing, so it casts nothing.
+///
+/// **Only the look changed.** The frame, the position, the 44pt-plus tap area,
+/// the gesture and everything in `fire` are untouched, which is why
+/// `TowerGestureTests` and `MapGestureTests` still pass unedited.
 struct NextSlotButton: View {
     let reduceMotion: Bool
     let cornerRadius: CGFloat
@@ -24,6 +44,8 @@ struct NextSlotButton: View {
 
     /// -1 = compressing under the finger, +1 = released.
     @State private var charge: CGFloat = 0
+    /// The moment after you let go, 0 to 1 and back. It lifts the pane's edge;
+    /// it used to be a white blur behind the whole slot. See `body`.
     @State private var glow: Double = 0
     @State private var isDown = false
     /// How far the finger has been dragged from where it went down.
@@ -66,7 +88,7 @@ struct NextSlotButton: View {
     /// not on release.
     ///
     /// It still tops out where it did. The slot must stay a GHOST — see the
-    /// note on `body` — so this drives a tint and an outline, never a surface.
+    /// note on `body`, so this drives a tint and an edge, never a surface.
     private var colourStrength: Double {
         max(isDown ? 0.60 : 0, drawProgress)
     }
@@ -78,21 +100,49 @@ struct NextSlotButton: View {
     /// faint artefact rather than as the thing you press.
     @Environment(\.colorScheme) private var scheme
 
-    private var outline: Color {
-        // Heavier in the dark: a light dash on a dark ground reads thinner
-        // than a dark dash on a light one at the same alpha, so matching the
-        // numbers would not match the appearance.
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    /// The pane's edge: one continuous hairline, where it used to be a dash.
+    ///
+    /// **The alphas are the dash's own**, and the width came down to carry the
+    /// same weight of line rather than a heavier one. The dash was 1.5pt on a
+    /// 4pt-on, 4pt-off pattern, so half of its perimeter was ink: 1.5 x 0.5 =
+    /// 0.75 of a point-width of ink per point of edge. At 1pt continuous it is
+    /// 1.0, about a third more, which is the direction to err in, because the
+    /// one complaint this control has ever had was that it could not be found
+    /// ("how am i supposed to know where to hold to drag", which is what
+    /// `AppColors.slotInk` exists for).
+    ///
+    /// Heavier in the dark: a light line on a dark ground reads thinner than a
+    /// dark line on a light one at the same alpha, so matching the numbers
+    /// would not match the appearance.
+    ///
+    /// It takes the block's colour as you draw, and lifts for the moment after
+    /// you let go: see `glow` on `body`.
+    private var edge: Color {
+        let lift = glow * 0.35
+        if colourStrength > 0 {
+            return previewCategory.style.baseColor
+                .opacity(min(0.30 + colourStrength * 0.55 + lift, 1))
+        }
         let base = scheme == .dark ? 0.42 : 0.26
-        return AppColors.slotInk.opacity(isDown ? base + 0.10 : base)
+        return AppColors.slotInk.opacity(min((isDown ? base + 0.10 : base) + lift, 1))
     }
 
     /// A shallow recess, so the slot reads as somewhere a block goes.
     ///
     /// Still the absence of a block rather than a blank one — that distinction
-    /// is deliberate and worth keeping — but an outline alone gives the eye no
+    /// is deliberate and worth keeping, but an edge alone gives the eye no
     /// surface to land on. A socket does. It deepens the instant a finger goes
     /// down, which is the response apple-design.md §1 asks for on pointer-down
     /// rather than on release.
+    ///
+    /// **The values are unchanged by the glass**, on purpose: `ReplayLoadingSlot`
+    /// draws the same two numbers so that the slot a replay waits in matches the
+    /// real one at rest, and a glass pane over a 4% ink socket is still a 4% ink
+    /// socket. Only the edge and the material differ between the two now.
     private var recess: Color {
         let base = scheme == .dark ? 0.075 : 0.038
         return AppColors.slotInk.opacity(isDown ? base * 2 : base)
@@ -109,24 +159,19 @@ struct NextSlotButton: View {
         // The ghost only ever says WHERE and HOW BIG, which is all a
         // placeholder should claim. It still previews the colour, because the
         // tower's next colour is worth deciding in front of you rather than
-        // revealing after — but as a tint on the outline and a wash inside it,
+        // revealing after, but as a tint inside the pane and on its edge,
         // never as the block's own surface.
         ZStack {
             // The recess, which tints toward the block's colour as you draw.
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(recess)
+            // Ink in front of the glass rather than behind it: a flat tint
+            // composites the same either way, and the pane keeps the lattice
+            // showing through underneath.
+            shape.fill(recess)
 
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(previewCategory.style.baseColor.opacity(colourStrength * 0.14))
+            shape.fill(previewCategory.style.baseColor.opacity(colourStrength * 0.14))
 
-            // The outline stays dashed the whole way, and takes on the colour.
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(
-                    colourStrength > 0
-                        ? AnyShapeStyle(previewCategory.style.baseColor.opacity(0.30 + colourStrength * 0.55))
-                        : AnyShapeStyle(outline),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
-                )
+            // One continuous hairline. See `edge`.
+            shape.strokeBorder(edge, lineWidth: GridConstants.strokeThin)
 
             Image(systemName: "plus")
                 .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
@@ -136,11 +181,17 @@ struct NextSlotButton: View {
                 )
                 .scaleEffect(1 + charge * 0.18)
         }
-        .background(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.white.opacity(glow * 0.9))
-                .blur(radius: 6 * glow)
-        )
+        // **The glass goes behind the pane's own shading, not over it.**
+        //
+        // And it replaces a white blur. `glow` used to drive a white rectangle
+        // behind the slot at up to 0.9, blurred by 6pt: a halo, which
+        // `docs/design-system-future.md` section 8 refuses outright, and which
+        // over glass would read as a light coming on behind the tower. The
+        // release is worth acknowledging, so the same `slotBloomIn` /
+        // `slotBloomOut` timings now lift the pane's own EDGE instead: the
+        // thing that catches light on a piece of glass is its edge, and an
+        // edge cannot smear outside the cell the slot is pointing at.
+        .glassSlot(cornerRadius: cornerRadius)
         // Scaled down from the centre, so the ghost stays inside the cell it
         // is pointing at.
         .animation(GridConstants.tapSquashSpring, value: isDown)

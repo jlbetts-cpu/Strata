@@ -13,6 +13,43 @@ import SwiftUI
 ///
 /// **Read it, don't skim it.** Each page gets one line of title and at most two
 /// of body. The earlier version ran to four and nobody would have read them.
+///
+/// **The premium pass, 2026-09-23.** The owner: "I just want our app to be the
+/// cleanest and most minimal feel while maintaining the future aesthetic, and
+/// premium is number one. It has to feel premium to touch and to look at in
+/// every state, every setting... every single state should look like a
+/// screenshot moment."
+///
+/// He named an app he admires for its onboarding. **Nothing of its interface is
+/// here, deliberately**: this app was rejected under App Store guideline 4.1(a)
+/// for copycat metadata, on an account under extended review, and that guideline
+/// names copying another app's interface. What was taken is the set of
+/// principles nobody owns, applied through this app's own language:
+///
+/// - **One idea per page.** Page 0 says what the app is, page 1 teaches the one
+///   gesture, page 2 the camera, page 3 the map, page 4 the head, page 5 who
+///   made it.
+/// - **Type does the work.** The title is the app's own screen-title rung (34,
+///   `Typography.screenTitle`) over body at 17, left-aligned to the page margin
+///   like every other screen. It was 17 Medium over 17 Regular, centred, which
+///   is a caption above a caption with no hierarchy between them.
+/// - **A visible sense of progress.** `OnboardingProgress`: a cell of the
+///   tower's grid per page, filling as you go. Not dots.
+/// - **The value shown, not described.** The real packer, the real block sizes
+///   and colours, the real slot, the real lattice, his real photographs.
+/// - **One thumb move.** One full-width pill on the bottom margin, and the pill
+///   never moves between pages; the copy grows upward off it.
+///
+/// **Kept from his earlier calls**, so a later session does not undo them: the
+/// pages are full-bleed; the camera page is his photograph with nothing added;
+/// the map page is a picture of the map rather than a live one; some, not all,
+/// of the opening blocks carry photographs; the tutorial is the real first-fit
+/// packer and stops at three rows; the sizes are called Quick, Regular and Deep;
+/// the primary action is a plain capsule and not block styling, and disabled is
+/// an outline pill rather than a faded one; the head is offered and never
+/// required; the thank-you page makes one offer and asks for nothing; the
+/// wordmark is 32 on the camera's own line; and the only permission asked for is
+/// location, on the page that has just explained it.
 struct OnboardingView: View {
 
     var onFinish: () -> Void
@@ -28,8 +65,13 @@ struct OnboardingView: View {
     /// The size the finger is drawing right now. The slot grows with it,
     /// exactly as the tower's does.
     @State private var drawingSize: BlockSize = .small
+    /// The landing the tutorial's lattice is answering, if it is answering one.
+    @State private var ripple: LatticeRipple?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
+    /// Whatever the thing presenting onboarding says about heads, so the value
+    /// this view publishes narrows it rather than overriding it.
+    @Environment(\.headsAwake) private var coveringHeadsAwake
     @State private var location = LocationService.shared
     @State private var heads = HeadStore.shared
     @State private var showsHeadMaker = false
@@ -47,20 +89,7 @@ struct OnboardingView: View {
             stage.ignoresSafeArea()
             scrim
             VStack(spacing: 0) {
-                // Not on the camera page: that screenshot has the real
-                // wordmark in it already, and two would be one too many.
-                //
-                // **The camera's size, on the camera's line.** It was 26pt
-                // from its own offset, so on the one page that shows the
-                // real wordmark — baked into the camera screenshot — the word
-                // grew 6pt and dropped about 10 as you swiped onto it, then
-                // shrank back on the way off. Matching `CameraView.Header`
-                // and the head maker also means the app you land in after
-                // onboarding has its wordmark exactly where onboarding left it.
-                StrataWordmark(size: 32, color: onDark ? .white : AppColors.inkPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, GridConstants.headerArtworkTopPadding)
-                    .opacity(step == 2 ? 0 : 1)
+                header
                 Spacer(minLength: 0)
                 words
                 actions
@@ -74,6 +103,15 @@ struct OnboardingView: View {
             #endif
             await runFall()
         }
+        // **The head on the page underneath sleeps while the maker is up.**
+        //
+        // A cover does not make the page under it disappear, so the head page's
+        // own head went on blinking and glancing behind the maker, which is work
+        // nobody can see (CLAUDE.md: a head sleeps when it cannot be seen).
+        // BEFORE the cover modifier, or the maker's own head would sleep too,
+        // and ANDed with what this view inherits, because onboarding is itself
+        // presented as a cover from Settings. Same shape as `ProfileView`.
+        .environment(\.headsAwake, coveringHeadsAwake && !showsHeadMaker)
         // A made head moves you on. Closing the maker without one leaves you
         // here, where "Not now" is one press away.
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
@@ -86,6 +124,56 @@ struct OnboardingView: View {
 
     /// Whether this page's words are standing on a dark ground.
     private var onDark: Bool { step == 2 || step == 3 }
+
+    // MARK: - The header
+
+    /// The name of the thing, and how far through you are.
+    ///
+    /// That is `docs/design-system-future.md` section 7 for this screen: where
+    /// am I, and how much is here. It is the one row that does not change from
+    /// page to page, which is what makes the six pages read as one screen
+    /// rather than six.
+    private var header: some View {
+        // **Top-aligned, and the readout centred on the cap by hand.**
+        //
+        // The wordmark is a DRAWING, so its frame top IS its cap top and it is
+        // only as tall as that cap (CLAUDE.md, "a drawn header is not type").
+        // A centre or baseline rule would hang the row off whichever element is
+        // taller; aligning to the top and offsetting the small one by half the
+        // difference is what `MemoriesView.titleRow` and the head maker both do.
+        HStack(alignment: .top, spacing: GridConstants.gapItem) {
+            // Not on the camera page: that screenshot has the real
+            // wordmark in it already, and two would be one too many.
+            //
+            // **The camera's size, on the camera's line.** It was 26pt
+            // from its own offset, so on the one page that shows the
+            // real wordmark, baked into the camera screenshot, the word
+            // grew 6pt and dropped about 10 as you swiped onto it, then
+            // shrank back on the way off. Matching `CameraView.Header`
+            // and the head maker also means the app you land in after
+            // onboarding has its wordmark exactly where onboarding left it.
+            //
+            // White over a photograph, like the camera's and the maker's, not
+            // the `onDark` ink scale: those three are the same drawing on the
+            // same kind of ground and they should not drift apart by 5% of
+            // white.
+            StrataWordmark(size: Self.wordmark,
+                           color: onDark ? .white : AppColors.inkPrimary)
+                .opacity(step == 2 ? 0 : 1)
+
+            Spacer(minLength: 0)
+
+            // **The progress stays on the camera page**, which is the whole
+            // point of putting it here: the wordmark drops out there and the
+            // top line would otherwise be empty on one page out of six.
+            OnboardingProgress(step: step, count: Self.lastStep + 1, onDark: onDark)
+                .offset(y: (Self.wordmark - OnboardingProgress.cell) / 2)
+        }
+        .padding(.top, GridConstants.headerArtworkTopPadding)
+    }
+
+    /// The wordmark's cap height, and the line the header is measured from.
+    private static let wordmark: CGFloat = 32
 
     // MARK: - The stage
 
@@ -210,6 +298,25 @@ struct OnboardingView: View {
             }
         }
         .frame(width: width, height: height, alignment: .bottomLeading)
+        // **The tower stands on the same surface it will stand on tomorrow.**
+        //
+        // `TowerLattice` is what the Wins tab draws behind the real tower, and
+        // without it the first screen of the app showed a tower on nothing and
+        // then handed you a tower on a grid. It is also the page that has to
+        // teach what a block IS: you can see the cells, so you can see that a
+        // Quick takes one of them and a Deep takes four, and that a photograph
+        // is a cell with a picture in it.
+        //
+        // **Applied after the frame, not before it.** The blocks are placed
+        // with `.offset`, which moves the drawing and not the layout, so the
+        // ZStack's own size is one block: the grid's bounds only exist once
+        // `.frame` has set them, and a background asked for before that would
+        // be one cell wide. Same family of trap as CLAUDE.md's note that a
+        // block's hit area is bigger than what it draws.
+        .background(alignment: .bottomLeading) {
+            TowerLattice(cellSize: Self.cell, contentHeight: height)
+                .frame(width: width, alignment: .bottomLeading)
+        }
         .offset(y: -60)
     }
 
@@ -291,6 +398,20 @@ struct OnboardingView: View {
             }
         }
         .frame(width: width, height: height, alignment: .bottomLeading)
+        // The same surface as page 0 and as the Wins tab, and here it is doing
+        // the teaching: the slot is one empty cell among the empty cells, which
+        // is what a slot is. The pane of glass the slot is drawn as
+        // (`NextSlotButton`) shows these cells through it.
+        //
+        // **And it answers the landing.** `LatticeRipple` is what the real
+        // tower's surface does when a block arrives, in the block's own place
+        // and scaled by its size, so the block you place with your finger gets
+        // the same reply here as the ones you place tomorrow. Nothing animates
+        // because this page appeared; this moves because a finger let go.
+        .background(alignment: .bottomLeading) {
+            TowerLattice(cellSize: Self.cell, contentHeight: height, ripple: ripple)
+                .frame(width: width, alignment: .bottomLeading)
+        }
         .offset(y: -50)
     }
 
@@ -339,6 +460,13 @@ struct OnboardingView: View {
             grid = next
             built.append((spot.column, spot.row, size.columnSpan, size.rowSpan, category))
         }
+        // The surface answers, from the cell the block just filled. Outside the
+        // spring on purpose: the ring is a keyframe track of its own, triggered
+        // by this value's `started`, and it is not cleared afterwards because a
+        // finished track rests at a phase that draws no cells at all (see
+        // `TowerLattice.rings`).
+        ripple = LatticeRipple(column: spot.column, row: spot.row,
+                               columnSpan: size.columnSpan, rowSpan: size.rowSpan)
         drawingSize = .small
         if size != .small { hasDrawn = true }
         HapticsEngine.success()
@@ -430,19 +558,38 @@ struct OnboardingView: View {
 
     // MARK: - Words
 
+    /// The page's one idea, in two sizes.
+    ///
+    /// **Type does the work here, and it was not doing any.** The title was
+    /// `headerMedium` and the body `bodyLarge`: 17 Medium over 17 Regular, which
+    /// is a caption above a caption, with the weight as the only thing telling
+    /// you which is which. The title is the app's one screen-title rung now
+    /// (`Typography.screenTitle`, 34 at the default setting, the same size
+    /// Memories and a day are set at), so the page has a hierarchy you can read
+    /// without looking for it, and the body carries the sentence.
+    ///
+    /// **Left, to the page margin, and not centred.** Every other screen in the
+    /// app names itself on the left at `GridConstants.horizontalPadding`, so
+    /// centred copy was the one place the walkthrough stopped looking like the
+    /// app it introduces. Left-aligning also gives a 34pt title somewhere to
+    /// wrap: centred, a three-line title is three different measures.
+    ///
+    /// **The inks are the app's two scales** rather than `Color.white` and a
+    /// hand-typed 0.82. CLAUDE.md's rule, which cost four measurements: an ink
+    /// for a fixed dark ground is not the same object as an ink for the page.
     private var words: some View {
-        VStack(spacing: GridConstants.gapTight) {
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             Text(title)
-                .font(Typography.headerMedium)
-                .foregroundStyle(onDark ? Color.white : AppColors.inkPrimary)
-                .multilineTextAlignment(.center)
+                .font(Typography.screenTitle)
+                .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                .fixedSize(horizontal: false, vertical: true)
             Text(subtitle)
                 .font(Typography.bodyLarge)
-                .foregroundStyle(onDark ? Color.white.opacity(0.82) : AppColors.inkSecondary)
-                .multilineTextAlignment(.center)
+                .foregroundStyle(onDark ? AppColors.onDarkSecondary : AppColors.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, GridConstants.gapItem)
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, GridConstants.gapSection)
     }
 
@@ -470,7 +617,13 @@ struct OnboardingView: View {
 
     private var subtitle: String {
         switch step {
-        case 0: return "Finish something and it becomes a block: quick, regular or deep, depending on what it took."
+        // **One idea, and the sizes belong to the next page.** This read
+        // "Finish something and it becomes a block: quick, regular or deep,
+        // depending on what it took", which taught the three sizes one page
+        // before the page whose whole job is to teach the three sizes, and it
+        // was the longest line in the walkthrough. The first screen has one
+        // thing to say and somebody has to believe it.
+        case 0: return "Finish something and it becomes a block."
         case 1: return hasDrawn
             ? "Pull nothing and it's a quick one. The size is how much it took."
             : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
@@ -546,8 +699,20 @@ struct OnboardingView: View {
                 }
             }
             .font(Typography.bodySmall)
-            .foregroundStyle(onDark ? Color.white.opacity(0.6) : AppColors.inkQuiet)
+            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkQuiet)
+            // **Its room is held on the last page, its touches are not.**
+            //
+            // `.opacity(0)` does not stop hit testing, so the thank-you page had
+            // an invisible button under the pill that ended the walkthrough.
+            // Nothing broken came of it, since it called `onFinish` too,
+            // which is what Start does, but an invisible control that fires is the
+            // definition of the broken UI he asked not to be able to find, and
+            // it is the sort of thing that only stays harmless by luck. The
+            // space stays reserved either way, because the pill above it must
+            // not move between pages.
             .opacity(step < Self.lastStep ? 1 : 0)
+            .allowsHitTesting(step < Self.lastStep)
+            .accessibilityHidden(step >= Self.lastStep)
         }
     }
 

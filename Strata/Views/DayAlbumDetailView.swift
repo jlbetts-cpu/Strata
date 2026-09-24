@@ -17,9 +17,11 @@ struct DayAlbumDetailView: View {
     /// showing yesterday. A fresh instance is safe: it is a plain `@Observable`
     /// class that takes logs and gives back geometry.
     ///
-    /// `MiniTowerPacker` would not do here — it yields `MiniBlock`, which
-    /// carries no `HabitLog`, so the block faces (photo, title, icon) cannot be
-    /// drawn. It stays the right tool for the covers.
+    /// Packing alone would not do here. `GridPacker.firstFit` (which is what
+    /// `MiniTowerPacker` became) gives back a cell and nothing else, so the
+    /// block faces (photograph, title) have no `HabitLog` to draw from. It
+    /// stays the right tool for the covers, where a coloured cell is all there
+    /// is to draw.
     @State private var vm = TowerViewModel()
     @State private var logs: [HabitLog] = []
     @State private var viewing: String?

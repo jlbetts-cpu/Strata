@@ -76,72 +76,6 @@ final class TimelineViewModel {
         catch { lastSaveError = error }
     }
 
-    // MARK: - Skip a Habit
-
-    func skipHabit(_ habit: Habit) {
-        guard let context = modelContext else { return }
-        skippedHabitIDs.insert(habit.id)
-
-        let dateStr = currentDateString
-        let habitID = habit.id
-        let descriptor = FetchDescriptor<HabitLog>(
-            predicate: #Predicate { log in
-                log.dateString == dateStr && log.habit?.id == habitID
-            }
-        )
-
-        if let existing = try? context.fetch(descriptor).first {
-            existing.skipped = true
-        } else {
-            let log = HabitLog(habit: habit, dateString: dateStr)
-            log.skipped = true
-            context.insert(log)
-        }
-        do { try context.save(); lastSaveError = nil }
-        catch { lastSaveError = error }
-    }
-
-    // MARK: - Undo Completion
-
-    func undoCompletion(_ habit: Habit) {
-        guard let context = modelContext else { return }
-
-        let dateStr = currentDateString
-        let habitID = habit.id
-        let descriptor = FetchDescriptor<HabitLog>(
-            predicate: #Predicate { log in
-                log.dateString == dateStr && log.habit?.id == habitID
-            }
-        )
-
-        if let existing = try? context.fetch(descriptor).first {
-            existing.markIncomplete()
-            do { try context.save(); lastSaveError = nil }
-            catch { lastSaveError = error }
-        }
-    }
-
-    // MARK: - Undo Skip
-
-    func undoSkip(_ habit: Habit) {
-        guard let context = modelContext else { return }
-        skippedHabitIDs.remove(habit.id)
-
-        let dateStr = currentDateString
-        let habitID = habit.id
-        let descriptor = FetchDescriptor<HabitLog>(
-            predicate: #Predicate { log in
-                log.dateString == dateStr && log.habit?.id == habitID
-            }
-        )
-
-        if let existing = try? context.fetch(descriptor).first {
-            existing.skipped = false
-            do { try context.save(); lastSaveError = nil }
-            catch { lastSaveError = error }
-        }
-    }
-
     // MARK: - Time-Gated Visibility
 
     /// Resolves a habit's scheduled hour as a fractional value (e.g. 14.5 for 14:30).
@@ -163,21 +97,4 @@ final class TimelineViewModel {
         return nil
     }
 
-    // MARK: - Completion Progress
-
-    var completionRate: Double {
-        guard !todaysHabits.isEmpty else { return 0 }
-        return Double(completedToday.count) / Double(todaysHabits.count)
-    }
-
-    // MARK: - Tower Vitality (Peripheral Pulse — Proposal C)
-
-    /// Rolling vitality score (0.0 = dormant, 0.5 = neutral, 1.0 = thriving)
-    /// Based on today's completion rate. Tower Claude can use this for ambient visual treatment.
-    /// - 0.0-0.3: dormant (desaturated, still, "resting")
-    /// - 0.3-0.7: neutral (standard appearance)
-    /// - 0.7-1.0: thriving (warm, breathing, alive)
-    var towerVitality: Double {
-        completionRate
-    }
 }

@@ -11,10 +11,10 @@ enum CategorySuggestionEngine {
         (.mindfulness, ["meditate", "journal", "breathe", "reflect", "gratitude", "pray", "mindful", "calm", "relax", "silence", "quiet"]),
     ]
 
-    private static let sizeKeywords: [(BlockSize, [String])] = [
-        (.small, ["quick", "water", "stretch", "breathe", "gratitude", "floss", "vitamin"]),
-        (.hard, ["gym", "workout", "deep work", "session", "project", "study"]),
-    ]
+    // No size keywords. `suggestSize` guessed a block size from words like
+    // "gym" or "quick" and had no caller: the size is drawn by hand, by
+    // dragging the slot out, which is the one thing about a win the person
+    // says with a gesture rather than with words.
 
     /// Suggests a category by matching any word in the title against keywords.
     /// Uses substring matching so "running" matches "run".
@@ -35,32 +35,4 @@ enum CategorySuggestionEngine {
         return nil
     }
 
-    /// Suggests a block size based on title keywords.
-    /// Returns nil if no match (caller should use default .small).
-    static func suggestSize(for title: String) -> BlockSize? {
-        let lowered = title.lowercased()
-
-        // Check multi-word keywords first (e.g. "deep work")
-        for (size, keywords) in sizeKeywords {
-            for keyword in keywords where keyword.contains(" ") {
-                if lowered.contains(keyword) { return size }
-            }
-        }
-
-        // Then single-word keywords with substring match
-        let words = lowered
-            .components(separatedBy: .whitespaces)
-            .filter { !$0.isEmpty }
-
-        for word in words {
-            for (size, keywords) in sizeKeywords {
-                for keyword in keywords where !keyword.contains(" ") {
-                    if word == keyword || word.hasPrefix(keyword) {
-                        return size
-                    }
-                }
-            }
-        }
-        return nil
-    }
 }

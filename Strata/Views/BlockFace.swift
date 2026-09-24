@@ -10,10 +10,13 @@ import SwiftUI
 struct BlockFace<Photo: View>: View {
     let title: String
     /// The colour: `habit.displayCategory`.
+    ///
+    /// There is no second category here any more. `iconCategory` carried
+    /// `habit.category` down to `BlockContentOverlay` for an icon that was
+    /// removed, and nothing read it at the other end. CLAUDE.md's rule still
+    /// holds and still matters wherever both facts are in play: draw with
+    /// `displayCategory`, take an icon from `category`.
     let category: HabitCategory
-    /// What the title overlay is told, `habit.category`. See CLAUDE.md:
-    /// colour and category are two different facts on a block.
-    let iconCategory: HabitCategory
     let rowSpan: Int
     let width: CGFloat
     let height: CGFloat
@@ -153,7 +156,6 @@ struct BlockFace<Photo: View>: View {
             if showOverlay {
                 BlockContentOverlay(
                     title: title,
-                    category: iconCategory,
                     rowSpan: rowSpan,
                     hasImage: hasPhoto
                 )

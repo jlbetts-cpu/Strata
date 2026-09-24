@@ -34,9 +34,9 @@ struct WarmBackground: View {
     /// **Dynamic**, so every consumer adapts without knowing it did.
     ///
     /// Making it adaptive is what gives the whole app dark mode: the page,
-    /// the drawer, the pinned headings, the badge on a map block and every
-    /// scroll-edge wash all fade into it, so they follow the system together
-    /// or not at all.
+    /// the drawer, a pinned heading's wash (`pinnedHeaderWash()`), the badge on
+    /// a map block and every scroll-edge wash all fade into it, so they follow
+    /// the system together or not at all.
     ///
     /// The dark values are a warm charcoal, not black. `AppColors.warmBlack`
     /// is 0x403D39 — the app's black has always had brown in it — and the

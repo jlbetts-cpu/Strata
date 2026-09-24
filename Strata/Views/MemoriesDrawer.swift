@@ -1,25 +1,5 @@
 import SwiftUI
 
-/// The page, pulled up over the map.
-///
-/// Apple Maps' own anatomy: a full-bleed map with a card you drag up over it.
-/// It is the only arrangement that lets the map be the whole screen and keeps
-/// everything the tab used to be one gesture away.
-///
-/// **Not a system sheet.** A `.sheet` with `presentationDetents` presented from
-/// inside a `Tab` sits on the window's presenting controller, and at a small
-/// detent it occupies exactly the band the floating tab bar lives in — the bar
-/// is neither resized nor raised, and `presentationBackgroundInteraction`
-/// restores interaction with content BEHIND the sheet, not with chrome it is
-/// sitting on top of. iOS 26's `tabViewBottomAccessory` is the native answer
-/// and the deployment target is 18.0, so it could only ever be a gated
-/// flourish rather than the mechanism.
-///
-/// **Not a block, either.** CLAUDE.md is explicit that a white rim, a frosted
-/// band or a blurred edge is a block's claim — "you built this and it is
-/// standing on something". This is the ground the app stands on, sliding up
-/// over the map, so it is `WarmBackground` with the surface radius and a
-/// shadow. A shadow is not a rim.
 /// How far up the drawer is.
 ///
 /// **Outside the drawer, deliberately.** Nested in a generic type it would be
@@ -48,6 +28,34 @@ enum DrawerDetent: CaseIterable {
     case full
 }
 
+/// The page, pulled up over the map.
+///
+/// **This doc comment was attached to `DrawerDetent`**, so the enum carried two
+/// fused descriptions and the drawer itself carried none. Moved, unchanged.
+///
+/// Apple Maps' own anatomy: a full-bleed map with a card you drag up over it.
+/// It is the only arrangement that lets the map be the whole screen and keeps
+/// everything the tab used to be one gesture away.
+///
+/// **Not a system sheet.** A `.sheet` with `presentationDetents` presented from
+/// inside a `Tab` sits on the window's presenting controller, and at a small
+/// detent it occupies exactly the band the floating tab bar lives in: the bar
+/// is neither resized nor raised, and `presentationBackgroundInteraction`
+/// restores interaction with content BEHIND the sheet, not with chrome it is
+/// sitting on top of. iOS 26's `tabViewBottomAccessory` is the native answer
+/// and the deployment target is 18.0, so it could only ever be a gated
+/// flourish rather than the mechanism.
+///
+/// **Not a block, either.** CLAUDE.md is explicit that a white rim, a frosted
+/// band or a blurred edge is a block's claim: "you built this and it is
+/// standing on something". This is the ground the app stands on, sliding up
+/// over the map, so it is `WarmBackground` with the surface radius and a
+/// shadow. A shadow is not a rim.
+///
+/// **And not glass, which is the same answer from the other direction.** The
+/// panel covers the map completely at `.full`, so there is nothing under it to
+/// refract: it IS the page now, not a control floating over one. See the rule at
+/// the top of `GlassIconButton.swift`.
 struct MemoriesDrawer<Content: View>: View {
     @Binding var detent: DrawerDetent
     /// How the page is raised, when the screen has its own way of doing it:

@@ -23,11 +23,6 @@ import SwiftUI
 struct SectionHeading: View {
     let text: String
 
-    /// Whether it will be pinned to the top of a scroll view. A pinned header
-    /// that is not opaque has the grid scrolling through the type behind it —
-    /// so it takes the page's own ground, and only when it needs it.
-    var pinned = false
-
     var body: some View {
         Text(text)
             .font(Typography.sectionLabel)
@@ -46,24 +41,48 @@ struct SectionHeading: View {
             .padding(.top, GridConstants.gapSection)
             .padding(.bottom, GridConstants.gapLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Pinned, it needs a ground of its own or the grid scrolls through
-            // the type — but a flat one draws a box around the word. Same wash
-            // as the page header: opaque under the type, gone below it.
-            .background {
-                if pinned {
-                    LinearGradient(
-                        stops: [
-                            .init(color: WarmBackground.top, location: 0.0),
-                            .init(color: WarmBackground.top.opacity(0.92), location: 0.70),
-                            .init(color: WarmBackground.top.opacity(0), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .padding(.bottom, -12)
-                    .allowsHitTesting(false)
-                }
-            }
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - The ground under a pinned heading
+
+extension View {
+    /// The wash a heading needs when it is PINNED to the top of a scroll view.
+    ///
+    /// A pinned header that is not opaque has the content scrolling through the
+    /// type behind it. A flat fill fixes that and draws a box around the word
+    /// instead, so this is the page header's own wash: the ground at full
+    /// strength under the type, gone 12pt below it. Fading INTO
+    /// `WarmBackground.top` rather than into a second copy of that colour is the
+    /// whole reason `top` is a named token (see `WarmBackground`).
+    ///
+    /// **It was a `pinned` boolean on `SectionHeading` that nothing ever passed.**
+    /// A flag with one value in the whole app is a decision nobody made, and the
+    /// wash could never have served the app's one real pinned header anyway,
+    /// because that header is a `MonthPicker` (a `Menu`) and not a
+    /// `SectionHeading`. `PhotoGalleryGrid` had meanwhile settled the gallery's
+    /// month headings the other way and written down that they are deliberately
+    /// NOT pinned. So the capability is a modifier now, callable by whatever
+    /// actually pins, and the flag is gone.
+    ///
+    /// **Apply it OUTSIDE the padding of the thing that pins**, never inside it:
+    /// a wash that stops short of the header's own top and bottom insets leaves
+    /// a strip of content showing above and below the word, which reads worse
+    /// than no wash at all.
+    func pinnedHeaderWash() -> some View {
+        background {
+            LinearGradient(
+                stops: [
+                    .init(color: WarmBackground.top, location: 0.0),
+                    .init(color: WarmBackground.top.opacity(0.92), location: 0.70),
+                    .init(color: WarmBackground.top.opacity(0), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .padding(.bottom, -12)
+            .allowsHitTesting(false)
+        }
     }
 }

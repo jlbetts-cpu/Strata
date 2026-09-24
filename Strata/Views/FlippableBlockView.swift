@@ -85,7 +85,6 @@ struct FlippableBlockView: View {
                 // way words sit on a wall, and the wall is still one wall.
                 BlockContentOverlay(
                     title: block.habit.title,
-                    category: block.habit.category,
                     rowSpan: block.rowSpan,
                     hasImage: false
                 )
@@ -150,7 +149,6 @@ struct FlippableBlockView: View {
         BlockFace(
             title: block.habit.title,
             category: block.habit.displayCategory,
-            iconCategory: block.habit.category,
             rowSpan: block.rowSpan,
             width: width,
             height: height,

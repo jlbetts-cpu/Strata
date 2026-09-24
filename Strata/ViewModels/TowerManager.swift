@@ -65,23 +65,7 @@ final class TowerManager {
         activeTowerIDStorage = tower.id.uuidString
     }
 
-    func createTower(name: String, emoji: String, context: ModelContext) -> Tower {
-        let descriptor = FetchDescriptor<Tower>(sortBy: [SortDescriptor(\.order)])
-        let towers = (try? context.fetch(descriptor)) ?? []
-        let nextOrder = (towers.last?.order ?? -1) + 1
-
-        let tower = Tower(name: name, emoji: emoji, order: nextOrder)
-        context.insert(tower)
-        try? context.save()
-        return tower
-    }
-
-    func renameTower(_ tower: Tower, to newName: String) {
-        tower.name = newName
-    }
-
-    func allTowers(context: ModelContext) -> [Tower] {
-        let descriptor = FetchDescriptor<Tower>(sortBy: [SortDescriptor(\.order)])
-        return (try? context.fetch(descriptor)) ?? []
-    }
+    // `createTower`, `renameTower` and `allTowers` were here and had no
+    // callers: they are the API of a tower picker that was never built. There
+    // is one tower, and `ensureDefaultTower` is the only thing that makes it.
 }

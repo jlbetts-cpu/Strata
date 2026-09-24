@@ -73,6 +73,11 @@ struct SettingsView: View {
     @State private var resetFailed = false
     @State private var showExportShare = false
     @State private var exportURL: URL?
+    /// The backup could not be built. Every failure in `exportData` used to
+    /// `return` in silence, so pressing the button did nothing at all and
+    /// there was no way for anyone to say what had happened. Shown here for
+    /// the same reason as `resetFailed`.
+    @State private var exportFailed = false
 
     // MARK: - App Info
 
@@ -464,6 +469,11 @@ struct SettingsView: View {
         } message: {
             Text("Strata could not reset your data, so every win and photo is still here. Try again.")
         }
+        .alert("The backup was not made", isPresented: $exportFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Strata could not write the backup file. Nothing was changed, so your wins and photos are all still here. Try again.")
+        }
         #if DEBUG
         .task {
             // `-strataAutoReset`: runs the same action the button does, so the
@@ -589,7 +599,10 @@ struct SettingsView: View {
             }
         )
 
-        guard let data = try? encoder.encode(export) else { return }
+        guard let data = try? encoder.encode(export) else {
+            exportFailed = true
+            return
+        }
 
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyy-MM-dd"
@@ -608,7 +621,10 @@ struct SettingsView: View {
         try? fm.removeItem(at: folder)
         guard (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
               (try? data.write(to: folder.appendingPathComponent("wins.json"))) != nil
-        else { return }
+        else {
+            exportFailed = true
+            return
+        }
 
         // Copied, never moved. These are the user's only copy.
         let photos = folder.appendingPathComponent("photos", isDirectory: true)
@@ -633,12 +649,18 @@ struct SettingsView: View {
             let destination = fm.temporaryDirectory
                 .appendingPathComponent("\(name).zip")
             try? fm.removeItem(at: destination)
-            try? fm.copyItem(at: url, to: destination)
+            // Only if the copy went. `zipped` was assigned whatever the
+            // destination URL would have been, so a failed copy handed the
+            // share sheet a file that is not there.
+            guard (try? fm.copyItem(at: url, to: destination)) != nil else { return }
             zipped = destination
         }
         try? fm.removeItem(at: folder)
 
-        guard let zipped else { return }
+        guard let zipped else {
+            exportFailed = true
+            return
+        }
         exportURL = zipped
         showExportShare = true
     }

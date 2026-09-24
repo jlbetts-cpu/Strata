@@ -74,23 +74,16 @@ struct PlacedBlock: Identifiable, Equatable {
     }
 }
 
-struct PlacedIncompleteBlock: Identifiable {
-    let id: UUID
-    let habit: Habit
-    let column: Int
-    let row: Int
-    let columnSpan: Int
-    let rowSpan: Int
-
-    func frame(cellSize: CGFloat) -> CGRect {
-        GridConstants.blockFrame(column: column, row: row, columnSpan: columnSpan, rowSpan: rowSpan, cellSize: cellSize)
-    }
-}
+// `PlacedIncompleteBlock` was here, with `packPending`, `ghostPosition` and
+// `incompleteBlocks` below: the outlines of what you still meant to do,
+// stacked above the tower. Nothing built them and nothing drew them, and their
+// documentation described the screen as showing "what you did, and what is
+// still outlined above it", which it has never done. A win is something you
+// have already finished, so there is nothing pending to outline.
 
 @Observable
 final class TowerViewModel {
     private(set) var placedBlocks: [PlacedBlock] = []
-    private(set) var incompleteBlocks: [PlacedIncompleteBlock] = []
     private(set) var totalRows: Int = 0
     private(set) var currentGrid: [[Bool]] = []
     var isLoading: Bool = true
@@ -224,7 +217,6 @@ final class TowerViewModel {
         }
         let covered = BlockMerge.covered(in: placed)
         if coveredBlockIDs != covered { coveredBlockIDs = covered }
-        if !incompleteBlocks.isEmpty { incompleteBlocks = [] }
         if currentGrid != grid {
             currentGrid = grid
             ghostPositionCache.removeAll()
@@ -342,54 +334,6 @@ final class TowerViewModel {
                 && other.memberIDs == group.memberIDs
                 && other.bottomRow == group.bottomRow
         }
-    }
-
-    /// Today's unfinished habits, packed onto the tower above what is built.
-    ///
-    /// This is what replaced the Today tab. An unfinished habit is not a row on
-    /// another screen — it is the cell it is going to occupy, outlined, sitting
-    /// on top of the blocks that are already standing. The tower then shows the
-    /// whole day at once: what you did, and what is still outlined above it.
-    ///
-    /// Packed in list order onto a copy of the built grid, so they take the
-    /// same cells the real blocks would and the tower's shape is honest about
-    /// where the day is going.
-    ///
-    /// Returns the grid with them marked, so the next slot can be placed above
-    /// the pending ones rather than underneath them.
-    func packPending(_ habits: [Habit]) -> (blocks: [PlacedIncompleteBlock], gridAfter: [[Bool]]) {
-        var grid = currentGrid
-        var out: [PlacedIncompleteBlock] = []
-        for habit in habits {
-            let size = habit.blockSize
-            guard let pos = findPosition(
-                columnSpan: size.columnSpan,
-                rowSpan: size.rowSpan,
-                grid: &grid
-            ) else { continue }
-            out.append(PlacedIncompleteBlock(
-                id: habit.id,
-                habit: habit,
-                column: pos.column,
-                row: pos.row,
-                columnSpan: size.columnSpan,
-                rowSpan: size.rowSpan
-            ))
-        }
-        return (out, grid)
-    }
-
-    /// Takes the next free cell for the slot and returns the grid with it
-    /// claimed, so the outlined blocks can be stacked ABOVE it.
-    ///
-    /// The order matters and it is the whole point: built blocks, then the
-    /// slot resting on them, then what you still mean to do floating above.
-    /// Packing the outlines first put them underneath, so every landing block
-    /// shoved them around to reach the gap it wanted.
-    /// The next free cell on a grid that already has the pending blocks in it.
-    func ghostPosition(for blockSize: BlockSize, on grid: [[Bool]]) -> (column: Int, row: Int)? {
-        var copy = grid
-        return findPosition(columnSpan: blockSize.columnSpan, rowSpan: blockSize.rowSpan, grid: &copy)
     }
 
     // MARK: - Boolean Grid Matrix Packing

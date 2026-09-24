@@ -233,21 +233,18 @@ private struct DayPhotoSlideshow: View {
     }
 }
 
-/// `‹ SEPTEMBER ›`, where the month itself is a menu.
-///
-/// The chevrons step one month at a time, which is what you want most of the
-/// time. Tapping the name opens a native menu of every month there is, which
-/// is what you want when the thing you are looking for is last summer —
-/// eleven presses away by chevron.
-///
-/// A `Menu` rather than a wheel or a sheet: it is the platform's own control
-/// for "choose one of these", it renders as UIKit's menu with no styling of
-/// ours on it, and it needs no room on the page when it is closed.
-///
-/// The chevrons are **disabled and dimmed at the edges, never hidden**: a
-/// control that vanishes reads as a bug, and a disabled button is what
-/// VoiceOver can describe. No wraparound — a year is not a carousel.
 /// Which month the tower is showing, and how to change it.
+///
+/// **Three paragraphs about a pair of chevrons used to sit above this**, headed
+/// `‹ SEPTEMBER ›`, describing how they stepped one month at a time and how they
+/// were dimmed rather than hidden at the ends of the range. The chevrons were
+/// removed on the owner's call (below) and their documentation outlived them,
+/// which is exactly the trap CLAUDE.md names about the water: a doc comment for
+/// a deleted control reads precisely like a control you cannot find. Deleted.
+///
+/// A `Menu` rather than a wheel or a sheet: it is the platform's own control for
+/// "choose one of these", it renders as UIKit's menu with no styling of ours on
+/// it, and it needs no room on the page when it is closed.
 ///
 /// **A menu, and nothing else.** It carried a `‹` and a `›` on either side of
 /// the title as well, which the owner's call removed: "why does there have to
