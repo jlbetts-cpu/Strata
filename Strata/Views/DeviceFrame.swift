@@ -51,7 +51,17 @@ struct DeviceFrame<Screen: View>: View {
     /// gutter rather than a number chosen by eye, and it is the app's warm black
     /// rather than pure black, so the device belongs to a palette whose black has
     /// always had brown in it.
-    var bezel: CGFloat = GridConstants.spacing
+    var bezel: CGFloat = DeviceFrame.defaultBezel
+
+    /// The band's width, as a number a caller can do arithmetic with: the screen
+    /// inside the shell is the shell less twice this, and anything composed to
+    /// fit that screen needs to know it.
+    ///
+    /// **Computed, not stored.** CLAUDE.md: static STORED properties are not
+    /// allowed in a generic type at all, which is why `DrawerMetrics` exists,
+    /// and this type is generic over what is on its screen. `aspect` above is
+    /// computed for the same reason.
+    static var defaultBezel: CGFloat { GridConstants.spacing }
 
     private var outerRadius: CGFloat {
         GridConstants.blockCornerRadius(forCell: width)

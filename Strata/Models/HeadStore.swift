@@ -215,7 +215,13 @@ final class HeadStore {
         isProfilePicture = defaults.bool(forKey: Key.picture)
         showsOnMap = defaults.bool(forKey: Key.map)
         showsCameraSticker = defaults.bool(forKey: Key.sticker)
-        showsOnTower = defaults.bool(forKey: Key.tower)
+        // **On by default, for the beta.** The owner: "where is the head, it
+        // disappeared." It had not: a fresh install starts every switch off,
+        // and the tower one was off with them, so the feature he had just
+        // asked for was invisible to him and would have been invisible to
+        // every beta tester. `object(forKey:)` distinguishes never-set from
+        // deliberately-off, so somebody who turns it off keeps it off.
+        showsOnTower = defaults.object(forKey: Key.tower) as? Bool ?? true
         look = defaults.string(forKey: Key.look).flatMap(FilmLook.Kind.init(rawValue:)) ?? .none
         #if DEBUG
         if DebugHarness.seedsMadeHead { Self.writeMadeHeadFixture() }

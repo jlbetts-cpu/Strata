@@ -125,8 +125,7 @@ struct OnboardingView: View {
             // thing that changes between pages is the composition's height, and
             // band 3 absorbs it.
             VStack(spacing: 0) {
-                OnboardingProgress(step: step, count: Self.lastStep + 1)
-                    .padding(.top, GridConstants.gapItem)
+                topBand
                 words
                 art
                 actions
@@ -160,6 +159,56 @@ struct OnboardingView: View {
     }
 
     // MARK: - The bands
+
+    /// Band 1: the way back, and how far through you are. Nothing else.
+    ///
+    /// The owner, 2026-09-23, with a picture: "I would prefer if there was a
+    /// back button in the onboarding like this so I can go back to previous
+    /// pages with ease."
+    private var topBand: some View {
+        HStack(spacing: GridConstants.gapItem) {
+            back
+            OnboardingProgress(step: step, count: Self.lastStep + 1)
+        }
+        .padding(.top, GridConstants.gapItem)
+    }
+
+    /// **Its room is held on page 0, where there is nothing to go back to.**
+    ///
+    /// This is the opposite of the call on the decline button, and the reason is
+    /// the same rule read in the other direction: the shared furniture must not
+    /// move between pages. Reserving space under the primary button would have
+    /// moved the button, so it was not reserved; NOT reserving space here would
+    /// change the progress rule's width between page 0 and page 1, so it is.
+    ///
+    /// The quietest control on the page: a chevron, no disc, no fill, no glass.
+    /// Its glyph sits ON the margin and the 44pt target grows to the right
+    /// (`alignment: .leading`), so the tap area is the HIG's minimum without the
+    /// mark being pushed a centimetre into the page.
+    private var back: some View {
+        Button {
+            HapticsEngine.lightTap()
+            // **Going back replays nothing.** The opening cascade is in a
+            // `.task`, which does not run again; the tutorial's blocks and its
+            // grid are state that is simply still there; the lattice's ripple
+            // rests at a phase that draws no cells. There is nothing here that
+            // re-arms.
+            withAnimation(GridConstants.naturalSettle) { step -= 1 }
+        } label: {
+            Image(systemName: "chevron.left")
+                .iconSize(GridConstants.iconToolbar, relativeTo: .headline, weight: .medium)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(width: Self.backSlot, height: Self.backSlot, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
+        .opacity(step > 0 ? 1 : 0)
+        .allowsHitTesting(step > 0)
+        .accessibilityHidden(step == 0)
+    }
+
+    private static let backSlot: CGFloat = GlassIconButton.defaultSide
 
     /// **The wordmark is gone from every page** (the owner, 2026-09-23: "the
     /// logo is really not necessary"). He is right twice over: the app's name is
@@ -210,7 +259,7 @@ struct OnboardingView: View {
                 case 0: tower(in: box)
                 case 1: workshop(in: box)
                 case 2: screenshot("DemoViewfinder", in: box)
-                case 3: screenshot("DemoMap", in: box)
+                case 3: memories(in: box)
                 case Self.headStep: headPage
                 case Self.lastStep: thanks
                 default: EmptyView()
@@ -241,6 +290,20 @@ struct OnboardingView: View {
     /// complete phone that fits. It is not run off the bottom of the page to
     /// reach the margin: a device with no bottom is a crop, and a crop is the
     /// broken-looking state he asked never to see.
+    /// The Memories tab, composed inside the same phone the camera is in.
+    ///
+    /// The owner sent a photograph of the real screen: it is a map with his
+    /// pictures on it AND the app's own chrome, and what was here was the map
+    /// alone. `MemoriesStill` carries the argument and the composition.
+    private func memories(in box: CGSize) -> some View {
+        let width = min(box.width, box.height * DeviceFrame<EmptyView>.aspect)
+        let height = width / DeviceFrame<EmptyView>.aspect
+        let band = DeviceFrame<EmptyView>.defaultBezel * 2
+        return DeviceFrame(width: width) {
+            MemoriesStill(width: width - band, height: height - band)
+        }
+    }
+
     private func screenshot(_ asset: String, in box: CGSize) -> some View {
         let width = min(box.width, box.height * DeviceFrame<EmptyView>.aspect)
         return DeviceFrame(width: width) {
@@ -525,12 +588,17 @@ struct OnboardingView: View {
     /// sheet: asking for something on the screen where you are thanking
     /// somebody turns the thank you into a transaction.
     private var thanks: some View {
-        // **On the left margin, like everything else on these pages.** It was
-        // centred, which put the one page with a caption on it in a different
-        // alignment from the other five: the brief of 2026-09-23 is that nothing
-        // is centred and everything hangs off the margin, and a portrait is not
-        // an exception to that just because it is round.
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+        // **Centred, like every other page's composition.**
+        //
+        // The owner, 2026-09-23: "the thank you genuinely screen looks broken,
+        // like it's not in the middle." It was on the left margin, which is
+        // right for the TEXT band and wrong here: the other five pages centre a
+        // tower, a board, a phone and a head in this slot, and a portrait hard
+        // against the left with the whole band empty beside it reads as
+        // something that failed to lay out rather than as a composition. The
+        // title and the line under it still hang off the margin; this is the
+        // composition, and compositions are centred.
+        VStack(spacing: GridConstants.gapItem) {
             Image("CreatorPortrait")
                 .resizable()
                 .scaledToFill()
@@ -539,32 +607,37 @@ struct OnboardingView: View {
                 .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
                 .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 14, y: 6)
                 .accessibilityLabel("Jayden, who made Strata")
-                // The same person twice: the photograph, and the head from his
-                // portfolio leaning in over its edge. Mostly outside the circle
-                // on purpose — a cut-out laid over a busy photograph loses its
-                // silhouette, laid over the page it keeps it. Winks on arrival.
-                .overlay(alignment: .bottomTrailing) {
-                    // Chin kept above the circle's bottom: at +10 it ran down
-                    // into the name, 13pt past the photograph. It can overlap
-                    // this far because the face in the photograph sits high —
-                    // the head covers shirt and trees, never the face.
-                    // `lookTarget` points up and left, at that face.
-                    CreatorHead(side: 92, greets: true,
-                                lookTarget: CGPoint(x: -0.8, y: -0.8))
-                        .offset(x: 22, y: -14)
-                }
+                // **The head sticker is off this page.**
+                //
+                // The owner, 2026-09-23: the page "looks broken", and the
+                // sticker is the part that reads that way. It hung off the
+                // portrait's bottom right over empty page, clipped by nothing,
+                // so the overlap looked like a mistake rather than like a head
+                // leaning in. CLAUDE.md records the pairing as deliberate ("the
+                // same person twice"), and this supersedes it for one reason
+                // that did not exist when it was decided: the page BEFORE this
+                // one is now a full page of that same head, alive, as its
+                // subject. Twice in two pages is a repeat, not a motif.
+                // Restoring it is one overlay.
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(spacing: 2) {
                 Text("Jayden")
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
                 Text("Founder, developer and product designer")
                     .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)
+                    .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .offset(y: -40)
+        // **And the hand offset is gone, which is what "not in the middle"
+        // actually was.** Measured on the screenshot he was looking at: the
+        // band ran 259 to 664 and the block sat at 302 to 541, which is 43
+        // above and 123 below. Every other page's composition is centred by the
+        // layout; this one was centred and then shoved up 40 by a number left
+        // over from the old bottom-aligned design, and 40 is exactly the gap
+        // between those two numbers. Nothing on these pages is positioned by
+        // hand now.
     }
 
     private static let linkedIn = "https://www.linkedin.com/in/jaydenbetts"
