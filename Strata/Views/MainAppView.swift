@@ -1157,17 +1157,18 @@ struct MainAppView: View {
         guard !reduceMotion,
               let block = towerVM.placedBlocks.first(where: { $0.id == landedID })
         else { return }
-        // **The block's own colour, and the PHOTOGRAPH's colour when it has
-        // one.** The owner, 2026-09-23: "make sure the ripple ripples like
-        // the color of the block or the photo of the block."
+        // **The ring carries no colour, and this comment used to say the
+        // opposite.** It asked for the block's category colour on this frame
+        // and the photograph's average swapped in underneath, worked out off
+        // the main actor from the smallest thumbnail. That was built, and the
+        // owner looked at it (2026-09-23): "I feel like the color of the
+        // pulses is what makes it not look premium, I feel like it should
+        // just be a more visible grey."
         //
-        // The category colour goes up on this frame, always, because this
-        // frame is the one the block lands on and nothing may be read,
-        // decoded or averaged on it. A photograph's colour that has already
-        // been worked out is free and is used instead; one that has not is
-        // worked out off the main actor from the smallest thumbnail the app
-        // is already holding, and swapped in underneath the ring that is by
-        // then already running. See `LatticeTint`.
+        // So the ripple carries WHERE and HOW BIG and nothing else, and
+        // `TowerLattice.peak(for:)` rings in ink. `LatticeTint` went with the
+        // feature. What is left here is free: four integers off a block that
+        // is already in hand, on the frame it lands on.
         let ripple = LatticeRipple(column: block.column,
                                    row: block.row,
                                    columnSpan: block.columnSpan,

@@ -85,8 +85,10 @@ struct TowerLatticeTests {
     // MARK: - The landing
 
     private func ripple(column: Int, row: Int, columnSpan: Int, rowSpan: Int) -> LatticeRipple {
-        LatticeRipple(column: column, row: row, columnSpan: columnSpan, rowSpan: rowSpan,
-                      colour: .red)
+        // No `colour:`. The ring carries WHERE and HOW BIG and nothing else
+        // since the owner rejected the tinted pulse; see the note at the foot
+        // of this file.
+        LatticeRipple(column: column, row: row, columnSpan: columnSpan, rowSpan: rowSpan)
     }
 
     private func cells(_ r: LatticeRipple, front: CGFloat,
@@ -241,9 +243,16 @@ struct TowerLatticeTests {
             let reach = TowerLattice.reach(for: r.span)
             #expect(TowerLattice.envelope(front: edge, ripple: r) == 1.0)
             #expect(TowerLattice.envelope(front: reach, ripple: r) == 0.0)
-            // And monotone, so it never brightens on its way out.
+            // **Before it starts, nothing is lit.** `front == 0` is the ring's
+            // "not running" sentinel and `envelope` guards on it, so it is 0
+            // there and 1 at the first step out. That is a step UP, and the
+            // monotone sweep below therefore starts after it rather than on it
+            // — this loop used to run from step 0 and fail on the app's own
+            // intended behaviour.
+            #expect(TowerLattice.envelope(front: 0, ripple: r) == 0.0)
+            // And monotone from there, so it never brightens on its way out.
             var last = 1.0
-            for step in 0...100 {
+            for step in 1...100 {
                 let value = TowerLattice.envelope(front: CGFloat(step) / 100 * reach, ripple: r)
                 #expect(value <= last + 0.0001, "the ring brightened at \(value) after \(last)")
                 last = value
@@ -251,70 +260,26 @@ struct TowerLatticeTests {
         }
     }
 
-    // MARK: - A photograph's colour
-
-    /// **A photograph's colour has to come out somewhere the lattice can show
-    /// it at 15 to 26 percent alpha.** A dark or muddy average would read as
-    /// dirt on a warm white page rather than as a reaction.
-    ///
-    /// **Proven able to fail**: widen either band and a near-black photograph
-    /// comes back at 0.09 brightness.
-    @Test("A photograph's colour is pulled into the band")
-    func aPhotographsColourIsCalmed() {
-        let awkward: [(name: String, rgb: (Double, Double, Double))] = [
-            ("a night shot", (0.04, 0.05, 0.09)),
-            ("a grey wall", (0.55, 0.55, 0.56)),
-            ("a neon sign", (1.0, 0.0, 0.62)),
-            ("a blown sky", (0.97, 0.98, 1.0))
-        ]
-        for shot in awkward {
-            let measured = LatticeTint.hsb(r: shot.rgb.0, g: shot.rgb.1, b: shot.rgb.2)
-            let calmed = LatticeTint.calmed(measured)
-            #expect(LatticeTint.saturation.contains(calmed.s),
-                    "\(shot.name) came out at \(calmed.s) saturation")
-            #expect(LatticeTint.brightness.contains(calmed.b),
-                    "\(shot.name) came out at \(calmed.b) brightness")
-            // The hue is the photograph's and is never invented.
-            #expect(abs(calmed.h - measured.h) < 0.0001)
-        }
-    }
-
-    /// The average is weighted toward whatever the picture is coloured by, so
-    /// a photograph that is mostly neutral with one strong colour in it does
-    /// not come back grey.
-    ///
-    /// **Proven able to fail**: an unweighted mean of this image is at 0.30
-    /// saturation before clamping and its hue drifts toward the grey.
-    @Test("A photograph's colour follows the colour in it, not the grey")
-    func theAverageFollowsTheColour() {
-        let side = 64
-        var bytes = [UInt8](repeating: 0, count: side * side * 4)
-        for row in 0..<side {
-            for column in 0..<side {
-                let i = (row * side + column) * 4
-                // Three quarters dead neutral grey, one quarter strong blue.
-                let blue = column >= side * 3 / 4
-                bytes[i] = blue ? 20 : 128
-                bytes[i + 1] = blue ? 70 : 128
-                bytes[i + 2] = blue ? 220 : 128
-                bytes[i + 3] = 255
-            }
-        }
-        let provider = CGDataProvider(data: Data(bytes) as CFData)!
-        let image = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32,
-                            bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
-                            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
-                            provider: provider, decode: nil, shouldInterpolate: false,
-                            intent: .defaultIntent)!
-        let mean = LatticeTint.mean(of: image)
-        #expect(mean != nil)
-        guard let mean else { return }
-        // Blue sits at 0.625 round the wheel; a neutral grey has no hue at
-        // all and contributes at the weight floor.
-        let apart = abs(mean.h - 0.625)
-        #expect(min(apart, 1 - apart) < 0.15, "the average came back at hue \(mean.h)")
-        // **The number that separates weighted from unweighted.** A flat mean
-        // of this picture is 0.227 saturation; the weighted one is about 0.63.
-        #expect(mean.s > 0.30, "the average came back at \(mean.s) saturation, which is grey")
-    }
+    // MARK: - A photograph's colour: gone, on purpose
+    //
+    // **Two tests lived here and they are deleted rather than repaired**, which
+    // is the narrow case CLAUDE.md allows: they were pinning a decision the
+    // owner reversed, not behaviour the app still has.
+    //
+    // They measured `LatticeTint`, which sampled a landing photograph's average
+    // colour and calmed it into a saturation and brightness band so the ripple
+    // could ring in the colour of the block that caused it. The owner asked for
+    // that and then looked at it (2026-09-23): "I feel like the color of the
+    // pulses is what makes it not look premium, I feel like it should just be a
+    // more visible grey." The peaks are ink now, `LatticeTint` went with the
+    // feature, and there is nothing left for these two to assert.
+    //
+    // What they were worth is recorded here in case the colour ever comes back:
+    // the awkward inputs were a night shot at (0.04, 0.05, 0.09), a grey wall,
+    // a neon sign and a blown sky, and the weighted mean mattered because a flat
+    // mean of a mostly-neutral picture with one strong colour in it came back at
+    // 0.227 saturation, which is grey.
+    //
+    // Everything above this line still measures what ships: the geometry, the
+    // reach, and the envelope.
 }
