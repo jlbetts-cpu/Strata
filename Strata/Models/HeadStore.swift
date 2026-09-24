@@ -307,6 +307,16 @@ final class HeadStore {
         UserDefaults.standard.set(on, forKey: Key.sticker)
     }
 
+    /// **Whether the head is on any surface at all.**
+    ///
+    /// The look picker asks this before it draws: a row of treatments for a
+    /// head that appears nowhere is a control for something that is not
+    /// happening, which is the owner's note ("why are the filter picker
+    /// always visible").
+    var isSomewhere: Bool {
+        isProfilePicture || showsOnMap || showsCameraSticker || showsOnTower
+    }
+
     func setShowsOnTower(_ on: Bool) {
         showsOnTower = on
         UserDefaults.standard.set(on, forKey: Key.tower)

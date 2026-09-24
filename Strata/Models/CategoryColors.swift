@@ -218,10 +218,28 @@ enum AppColors {
     /// The dark value is the same warm white the empty slot and the primary
     /// buttons use, so every piece of ink in the app inverts together rather
     /// than one control at a time.
+    /// **The app's accent, and it is properly dark now.**
+    ///
+    /// The owner, 2026-09-23: "I would prefer the primary colour to be like
+    /// actually dark", after saying of the onboarding button that it "isn't
+    /// like black".
+    ///
+    /// It was 0.251, 0.239, 0.224, which is the warm black the tower's
+    /// blocks are drawn against. On a pale page that reads as dark grey
+    /// rather than as black, and a primary action that reads as grey reads
+    /// as disabled. This is 0.110, 0.102, 0.094: the same warmth, a quarter
+    /// of the luminance, and **it is the app icon's own black**, which is
+    /// `0x1C1A18` in `tools/make_app_icon.py`. The icon and the app's primary
+    /// action were two different blacks until now, four and a half times
+    /// apart in relative luminance, which is a thing nobody sees and
+    /// everybody feels.
+    ///
+    /// The dark mode value is unchanged: a warm near-white, so every piece of
+    /// ink in the app still inverts together.
     static let accentWarm = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.98, green: 0.97, blue: 0.96, alpha: 1)
-            : UIColor(red: 0.251, green: 0.239, blue: 0.224, alpha: 1)
+            : UIColor(red: 0.110, green: 0.102, blue: 0.094, alpha: 1)
     })
     // MARK: - Ink on the camera's own dark
 

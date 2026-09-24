@@ -597,7 +597,15 @@ struct ProfileView: View {
                 // different variety and choice of their head." The same four
                 // looks the camera has, on the head itself: your picture, the
                 // map, and the photos you add it to.
-                if let made = heads.undressed {
+                //
+                // **And it only appears when the head is somewhere to be
+                // seen.** The owner, 2026-09-23: "why are the filter picker
+                // always visible." Because it was: a row of five treatments
+                // sitting under the switches whether or not a single one of
+                // them was on, which is a control for a thing that is not
+                // happening. It shows when the head is being used on at
+                // least one surface, and goes away again when it is not.
+                if let made = heads.undressed, heads.isSomewhere {
                     HeadLookPicker(head: made, selection: heads.look) { kind in
                         heads.setLook(kind)
                     }

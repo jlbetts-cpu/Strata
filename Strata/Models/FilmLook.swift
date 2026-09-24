@@ -39,7 +39,7 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
 
     /// Which look. The raw value is what is stored on a win.
     nonisolated enum Kind: String, CaseIterable, Identifiable, Sendable {
-        case none, air, bright, silver
+        case none, air, bright, silver, mono
         var id: String { rawValue }
 
         /// What it is called on screen.
@@ -49,6 +49,7 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
             case .air:    return "Air"
             case .bright: return "Bright"
             case .silver: return "Silver"
+            case .mono:   return "Mono"
             }
         }
 
@@ -59,6 +60,7 @@ nonisolated struct FilmLook: Identifiable, Equatable, Sendable {
             case .air:    return "Air, warm and soft"
             case .bright: return "Bright, deep colour"
             case .silver: return "Silver, black and white"
+            case .mono:   return "Black and white, with real contrast."
             }
         }
     }
@@ -419,7 +421,7 @@ extension FilmLook {
     /// Three, and none. **Less is more** (the owner's call): a long list of
     /// looks is a list nobody reads, and the two that were cut both read as
     /// sad — muted plus cool plus heavy shadows is the recipe for gloom.
-    static let all: [FilmLook] = [none, air, bright, silver]
+    static let all: [FilmLook] = [none, air, bright, silver, mono]
 
     static func look(_ kind: Kind) -> FilmLook {
         all.first { $0.kind == kind } ?? none
@@ -498,4 +500,33 @@ extension FilmLook {
         grain: Grain(amount: 0.56, cell: 2.6, colour: 0),
         vignette: 0.05,
         likeness: Likeness(contrast: 1.05, brightness: 0.04, grayscale: 1))
+
+    /// **Black and white, with real contrast.**
+    ///
+    /// The owner, 2026-09-23: "can we have a filter that makes the head look
+    /// like my black and white one, none of the filters look that good."
+    ///
+    /// `silver` was already grey, and that is exactly why it did not look
+    /// like his: it desaturates and then barely touches the curve, so a cut
+    /// out head comes out flat grey rather than black and white. A real
+    /// monochrome conversion is a contrast decision, not a saturation one.
+    /// So this keeps the grade gentle on the photograph and puts the work in
+    /// the likeness: no colour at all, a third more contrast, and a small
+    /// lift so the darkest part of the hair does not close up into a blob.
+    static let mono = FilmLook(
+        kind: .mono,
+        exposure: 1.04, shoulder: 2.20, contrast: 0.34, pivot: 0.47,
+        blackLift: RGB(0.008, 0.008, 0.008),
+        inset: 0, restore: 0,
+        saturation: 0, saturationHigh: 0, saturationLow: 0,
+        highlightTint: .bytes(255, 255, 255), highlightAmount: 0.03,
+        skinProtection: 0,
+        mono: RGB(0.30, 0.59, 0.11),
+        neutralise: 0.60, shadowLift: 0.12,
+        bloom: Glare(threshold: 0.86, radius: 40, amount: 0.08),
+        glow: Glare(threshold: 0.20, radius: 32, amount: 0.18),
+        clarity: 0.52,
+        grain: Grain(amount: 0.40, cell: 2.4, colour: 0),
+        vignette: 0.04,
+        likeness: Likeness(saturation: 0, contrast: 1.34, brightness: 0.02, grayscale: 1))
 }
