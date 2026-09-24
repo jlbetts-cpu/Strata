@@ -1,5 +1,22 @@
 import SwiftUI
 
+// **SF Pro, not SF Pro Rounded.**
+//
+// The owner, 2026-09-23: "I feel like the app would look a lot cleaner with
+// SF Pro... I want the app to feel a lot more premium and cleaner."
+//
+// This is the second time he has made the same call: he moved the Apollo
+// build off Rounded in the same words ("I want SF Pro, no SF Pro Rounded, I
+// feel like that fits the editorial aesthetic more"). Rounded is friendly,
+// and friendly is not the register this app is in. The design language is a
+// bright 1990s Japanese future, an instrument in a well lit room, and an
+// instrument is set in a neutral grotesque. It also stops the two faces
+// fighting: Jaro is the character, and the text face's job is to get out of
+// its way.
+//
+// `CLAUDE.md` still records Rounded as settled. It is superseded by this,
+// and the note there says so.
+
 enum Typography {
     // MARK: - The scale: five sizes, two weights
     //
@@ -20,15 +37,15 @@ enum Typography {
     // countdown, the widget's counts, and symbol glyph sizes.
 
     /// 17 Medium. Headings, and a block's or a card's title.
-    static let headerMedium = Font.system(.headline, design: .rounded, weight: .medium)
+    static let headerMedium = Font.system(.headline, design: .default, weight: .medium)
     /// 15 Medium. Buttons.
-    static let headerSmall = Font.system(.subheadline, design: .rounded, weight: .medium)
+    static let headerSmall = Font.system(.subheadline, design: .default, weight: .medium)
     /// 17 Regular. What you read.
-    static let bodyLarge = Font.system(.body, design: .rounded)
+    static let bodyLarge = Font.system(.body, design: .default)
     /// 13 Regular. Footnotes and captions.
-    static let bodySmall = Font.system(.footnote, design: .rounded)
+    static let bodySmall = Font.system(.footnote, design: .default)
     /// 11 Medium. Chart axes and the smallest labels.
-    static let caption2 = Font.system(.caption2, design: .rounded, weight: .medium)
+    static let caption2 = Font.system(.caption2, design: .default, weight: .medium)
 
     // MARK: - The screen scale
     //
@@ -60,7 +77,7 @@ enum Typography {
     /// number picked to look impressive. The 48 it replaced came from a lowfi
     /// and made the title the loudest thing on a page whose subject is
     /// photographs and blocks.
-    static let screenTitle = Font.system(.largeTitle, design: .rounded, weight: .medium)
+    static let screenTitle = Font.system(.largeTitle, design: .default, weight: .medium)
 
     /// The same title in the owner's face (`StrataFont`), for a title that
     /// names the screen, through `DynamicScreenTitle` where the words are data.
@@ -87,11 +104,11 @@ enum Typography {
     static let screenTitleCap: CGFloat = screenTitleSize * 1443 / 2048
 
     /// The line under a screen title: "2 wins", a date, a count.
-    static let screenSubtitle = Font.system(.subheadline, design: .rounded)
+    static let screenSubtitle = Font.system(.subheadline, design: .default)
 
     /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
     /// One style for all of them, so a heading is recognisable as a heading.
-    static let sectionLabel = Font.system(.footnote, design: .rounded, weight: .medium)
+    static let sectionLabel = Font.system(.footnote, design: .default, weight: .medium)
     static let sectionKerning: CGFloat = 0.8
 
     /// Any number the app states as a fact about your day: the win tally, a

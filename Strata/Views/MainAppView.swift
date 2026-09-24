@@ -797,6 +797,7 @@ struct MainAppView: View {
     @ViewBuilder
     private var headerCount: some View {
         Text(verbatim: StrataFont.digits(towerVM.placedBlocks.count))
+            .companionObstacle("wins")
             // The owner's own digits, at the screen-title size — see
             // `Typography.tally`. Metrically compatible with the system
             // face, so it still scales with Dynamic Type and its cap
@@ -883,6 +884,7 @@ struct MainAppView: View {
         ) {
             isPlanning = true
         }
+        .companionObstacle("plan")
         // No profile button here. Profile lives on Memories only — the
         // owner's call: the tower is today's record and its corner belongs
         // to the plan; who you are and how your weeks have gone is the
@@ -2667,6 +2669,7 @@ struct MainAppView: View {
                 )
                 .frame(width: ghostFrame.width, height: ghostFrame.height)
                 .offset(x: ghostFrame.minX, y: flippedY(for: ghostFrame, gridH: gridH))
+                .companionObstacle("slot")
                 // No animation modifier here.
                 //
                 // `onSizeChanged` is already called inside a `slotSnap`

@@ -71,7 +71,6 @@ struct CameraView: View {
     @State private var lookRaw = FilmLook.Kind.none.rawValue
     /// Whether the looks panel is open. Shut on every appearance: it is a
     /// decision, not a state to come back to.
-    @State private var showLookTray = false
     /// The review photograph with the chosen look on it, at screen size. The
     /// real one is rendered full size only when the photograph is kept.
     @State private var looked: UIImage?
@@ -91,12 +90,16 @@ struct CameraView: View {
     /// aspect against the format's — arithmetic here would be a second copy of
     /// a conversion AVFoundation already does exactly.
     @State private var previewBox = PreviewLayerBox()
-    /// The graded surface drawn over the preview layer, and the frames that
-    /// feed it. Both are inert until a look is chosen, and both fail safe:
-    /// with no Metal device or no frames there is no overlay, and the plain
-    /// preview underneath is the viewfinder.
-    @State private var graded = GradedViewfinder()
-    @State private var frames = CameraPreviewFrames()
+    // **The live graded viewfinder is gone, at the owner's call.**
+    //
+    // 2026-09-23: "I don't think I like the live film simulation or the
+    // button, let's remove for now completely." So the viewfinder is the
+    // scene as the lens sees it again, and a look is applied to the
+    // photograph at the shutter, which is what it did before today and what
+    // `FilmLookStrip` on the review screen still does.
+    //
+    // The lens picker, the front flash change and the ruled thirds lines all
+    // came in the same pass and all stay: he asked for those.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Geometry, from the Figma frame (402 x 874)
@@ -216,7 +219,7 @@ struct CameraView: View {
             let h = geo.size.height + topInset + bottomInset - (fillsScreen ? 0 : tabGap)
 
             ZStack {
-                CameraPreview(session: camera.session, box: previewBox, graded: graded)
+                CameraPreview(session: camera.session, box: previewBox)
 
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
@@ -228,51 +231,6 @@ struct CameraView: View {
                     .allowsHitTesting(false)
 
                 header(topInset: topInset)
-
-                // **The button lives here, not in the header, because it and
-                // the tray are one shape.**
-                //
-                // This is `apollo-rename`'s `FilmLookTray`, brought over
-                // whole rather than rebuilt. The owner: "I wanted the actual
-                // look and button from the Apollo build, not some rip off
-                // that doesn't look remotely as good." He is right, and the
-                // rip off was mine: I told the port to put a glyph in the
-                // control row, which crowded the row AND split the button
-                // from its panel. A tray placed under a separate button is
-                // two pieces of glass with a gap; his note on the original
-                // was that they should merge "kind of like how the same
-                // colour blocks merge". So the tray owns the button and grows
-                // out of it, on the screen's own margin and the header's own
-                // top line.
-                FilmLookTray(
-                    selection: Binding(
-                        get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
-                        set: { lookRaw = $0.rawValue }),
-                    isOpen: $showLookTray)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity,
-                           alignment: .topTrailing)
-                    .padding(.trailing, GridConstants.horizontalPadding)
-                    .padding(.top, topInset + GridConstants.gapItem)
-                    .opacity(isDrawing ? 0 : 1)
-                    .allowsHitTesting(!isDrawing)
-
-                // **Tapping anywhere else closes the looks panel.**
-                //
-                // A clear layer under the panel and over the viewfinder, so
-                // the tap that dismisses does not ALSO focus the camera
-                // underneath it. That double action is the usual way this gets
-                // built wrong. It sits below `controls`, so the four settings
-                // beside the looks glyph still take their own taps.
-                if showLookTray {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) {
-                                showLookTray = false
-                            }
-                        }
-                        .accessibilityHidden(true)
-                }
 
                 // The count, over the frame. Big and central because you are
                 // standing in the shot looking at the lens, not at a corner.
@@ -340,23 +298,13 @@ struct CameraView: View {
             // never attaches, no frames arrive, the overlay stays hidden and
             // this is the camera exactly as it was before.
             //
-            // **The angle comes off the preview layer**, so the graded surface
-            // and the layer it covers cannot disagree about which way is up.
-            // Deriving it separately is what put the overlay 180 degrees out,
-            // twice.
-            frames.attach(graded.relay.output, to: camera,
-                          matching: previewBox.layer?.connection?.videoRotationAngle ?? 90,
-                          mirrored: camera.usesScreenFlash)
-            graded.look = FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none)
         }
         .onChange(of: lookRaw) { _, raw in
-            graded.look = FilmLook.look(FilmLook.Kind(rawValue: raw) ?? .none)
         }
         // The review covers the viewfinder completely, and the same phone is
         // busy grading the photograph that was just taken. Nothing is drawn
         // under it.
         .onChange(of: review == nil) { _, composing in
-            graded.isPaused = !composing
         }
         // The ring owns screen brightness while it is lit. It is the only
         // thing that makes the overlay actually EMIT: a warm wash on a screen
@@ -388,13 +336,10 @@ struct CameraView: View {
             // **Detached BEFORE the session is stopped**, while it is still
             // running and there is nothing in flight on the service's own
             // queue to collide with. See `CameraPreviewFrames.detach`.
-            frames.detach()
-            graded.stop()
             camera.stop()
             // A panel is a decision in progress, and leaving the screen ends
             // it. Coming back to an open tray would be the app remembering
             // something nobody asked it to.
-            showLookTray = false
             // Every exit path restores it. Leaving somebody's screen pinned at
             // full brightness because they walked away from the camera tab is
             // the kind of bug that gets noticed as battery drain, not as a
@@ -758,14 +703,8 @@ struct CameraView: View {
     ///
     /// The connection is NEW after a flip, a different device and a different
     /// input, so the rotation and the mirroring have to be set on it again.
-    /// Without this a selfie is graded the right way round and drawn the wrong
-    /// way round, which is a mirrored picture sitting on an unmirrored one.
-    /// The angle is read back off the preview layer rather than derived, for
-    /// the reason `CameraPreviewFrames.attach` gives.
     private func flip() {
         camera.flip()
-        frames.reorient(matching: previewBox.layer?.connection?.videoRotationAngle ?? 90,
-                        mirrored: camera.usesScreenFlash)
     }
 
     private func focus(at location: CGPoint) {
@@ -1421,12 +1360,6 @@ struct CameraView: View {
     /// countdown cancels it — which is what iOS Camera does, and the only
     /// sensible answer once you have walked into frame and changed your mind.
     private func shutterPressed() {
-        // The looks panel belongs to composing. Taking the photograph is the
-        // end of composing, so it closes with the shutter rather than being
-        // found still open behind a retake.
-        if showLookTray {
-            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) { showLookTray = false }
-        }
         if countdownTask != nil {
             cancelCountdown()
             return
@@ -1530,9 +1463,6 @@ final class PreviewLayerBox {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let box: PreviewLayerBox
-    /// The graded surface, when there is one. Nil for the head maker, which
-    /// wants the scene as the lens sees it and has its own frame output.
-    var graded: GradedViewfinder? = nil
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -1541,16 +1471,6 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.videoGravity = .resizeAspectFill
         box.layer = view.previewLayer
 
-        // **On top of the preview layer, never instead of it.** The layer
-        // keeps showing the scene the whole time, so a missing Metal device, a
-        // stalled pipeline or simply no look selected all resolve to the
-        // ordinary viewfinder rather than to black. It also stays the thing
-        // that converts a tap into a focus point, which a `MTKView` cannot do.
-        if let overlay = graded?.makeView() {
-            overlay.frame = view.bounds
-            overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            view.addSubview(overlay)
-        }
         return view
     }
 

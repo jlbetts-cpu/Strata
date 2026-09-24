@@ -39,7 +39,7 @@ struct PlanTextField: UIViewRepresentable {
     ///
     /// This was `.preferredFont(forTextStyle: .body)`, which is SF Pro. So the
     /// one screen in Strata that is mostly typing was the one screen set in a
-    /// face the rest of the app does not use: `Typography` is `design: .rounded`
+    /// face the rest of the app does not use: `Typography` is `design: .default`
     /// throughout and CLAUDE.md settles it as "SF Pro Rounded, two weights".
     /// Nothing errors, nothing looks broken, the letterforms are simply not the
     /// app's.
@@ -53,7 +53,7 @@ struct PlanTextField: UIViewRepresentable {
         let base = UIFont.preferredFont(
             forTextStyle: .body,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))
-        guard let rounded = base.fontDescriptor.withDesign(.rounded) else {
+        guard let rounded = base.fontDescriptor.withDesign(.default) else {
             return UIFont.preferredFont(forTextStyle: .body)
         }
         return UIFontMetrics(forTextStyle: .body)

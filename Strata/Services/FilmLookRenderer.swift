@@ -83,47 +83,6 @@ nonisolated final class FilmLookRenderer: @unchecked Sendable {
         return UIImage(cgImage: out, scale: image.scale, orientation: .up)
     }
 
-    /// **The look, live in the viewfinder: the whole pipeline, not part of it.**
-    ///
-    /// The owner, with an earlier build on his phone: "The live filters don't
-    /// actually work." They were applied at capture and nowhere else, so
-    /// choosing a look changed the swatch and the saved picture but not the
-    /// scene you were composing.
-    ///
-    /// It carries the texture and not only the colour, because a colour table
-    /// is the part the looks have LEAST in common: Air's character is its
-    /// glow, Bright's is its clarity, Silver's is the grain it carries through
-    /// the midtones. Stripping those leaves three tints of one another.
-    ///
-    /// `means` is handed in rather than measured, because measuring is a
-    /// synchronous GPU readback. See `measureMeans`. `phase` moves the grain,
-    /// so a caller passes a new one each frame.
-    ///
-    /// `sparingHighlights` drops halation and bloom, which are four Gaussian
-    /// blurs between them and the most expensive thing here. They are the
-    /// right things to give up first if a GPU cannot hold the frame rate:
-    /// they show at the edge of a blown window, where everything else in the
-    /// pipeline is what the look IS. Nothing sets it unless the device says
-    /// so. See `GradedViewfinder.frameCost`.
-    ///
-    /// `sparingBlurs` is the second rung: glow and clarity come off too,
-    /// leaving only what costs one pass per pixel: the colour table, the
-    /// tone curve, the shadow lift, the grain and the vignette. It is the
-    /// floor, and it still looks like a film look.
-    func live(_ look: FilmLook, to input: CIImage, means: [Double]?, phase: CGPoint,
-              sparingHighlights: Bool = false, sparingBlurs: Bool = false) -> CIImage {
-        guard look.kind != .none else { return input }
-        var look = look
-        if sparingHighlights || sparingBlurs {
-            look.halation = nil
-            look.bloom = nil
-        }
-        if sparingBlurs {
-            look.glow = nil
-            look.clarity = 0
-        }
-        return apply(look, to: input, means: means, grainPhase: phase)
-    }
 
     /// A `CIImage` rendered out, for a tray swatch taken from a camera frame.
     func uiImage(from image: CIImage) -> UIImage? {
