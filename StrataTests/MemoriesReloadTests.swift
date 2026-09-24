@@ -19,7 +19,7 @@ struct MemoriesReloadTests {
         StoreSaves.observe()
         let container = try ModelContainer(
             for: Habit.self, HabitLog.self, Tower.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         return ModelContext(container)
     }
 

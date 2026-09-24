@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import StoreKit
+// For `UTType.zip`, which is what the file importer accepts: a backup is one
+// zip, and naming the type stops somebody handing this a photograph.
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     /// Returns whether the record was actually emptied.
@@ -78,6 +81,28 @@ struct SettingsView: View {
     /// there was no way for anyone to say what had happened. Shown here for
     /// the same reason as `resetFailed`.
     @State private var exportFailed = false
+    /// Which step of the backup failed, so the alert says something a person
+    /// can act on rather than one sentence covering five different faults.
+    @State private var exportFailure = ""
+
+    // MARK: - Restore
+
+    /// The file picker for a backup zip.
+    @State private var showRestorePicker = false
+    /// The picked file, copied into this app's temporary directory.
+    ///
+    /// **A copy, not the picked URL.** A document picker hands back a
+    /// security-scoped URL whose access has to be started and stopped, and a
+    /// restore reads it twice — once to count what is inside, and again for
+    /// every photograph after somebody confirms. Copying first means nothing in
+    /// the flow depends on how long the file provider keeps that URL alive, and
+    /// a file that is on iCloud Drive rather than on the phone is pulled down
+    /// once, here, where the failure has a message.
+    @State private var restoreZip: RestoreBackupView.Picked?
+    /// The picked file could not even be copied. Shown for the same reason as
+    /// every other message on this screen: the alternative is a row that does
+    /// nothing.
+    @State private var restoreFailure = ""
 
     // MARK: - App Info
 
@@ -331,6 +356,31 @@ struct SettingsView: View {
                 // screen was lit by the platform and the next by the app.
                 .foregroundStyle(habits.isEmpty ? AppColors.inkQuiet : AppColors.inkPrimary)
 
+                // **The other half of the backup, beside it.**
+                //
+                // The owner: "there is no way to put the backup zip into the
+                // app." He found that out by reinstalling, believing his wins
+                // were in iCloud, and losing all of them — a backup nobody can
+                // restore is not a backup, and for months this section had
+                // exactly one of the two rows. They sit together because they
+                // are one feature and somebody looking for the second one looks
+                // where the first one is.
+                //
+                // **Never disabled.** Back Up Everything is disabled on an
+                // empty store because there is nothing to back up; an empty
+                // store is precisely when a restore matters most.
+                Button {
+                    HapticsEngine.lightTap()
+                    showRestorePicker = true
+                } label: {
+                    Label {
+                        Text("Restore From a Backup")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.and.arrow.down")
+                    }
+                }
+
                 Button(role: .destructive) {
                     showResetConfirmation = true
                 } label: {
@@ -359,6 +409,10 @@ struct SettingsView: View {
                 }
             } header: {
                 FormSectionLabel("Data")
+            } footer: {
+                // Said where the two rows are, because the fear this answers is
+                // "will restoring wipe what I have now".
+                Text("A backup is one zip file with your wins and your photographs in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
             }
 
             // MARK: - Section 4: Support
@@ -472,7 +526,35 @@ struct SettingsView: View {
         .alert("The backup was not made", isPresented: $exportFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Strata could not write the backup file. Nothing was changed, so your wins and photos are all still here. Try again.")
+            // The step that failed, not one sentence covering five faults. A
+            // full disk and a file system error are different problems and a
+            // person can do something about the first.
+            Text("\(exportFailure) Nothing was changed, so your wins and photos are all still here.")
+        }
+        // **`.zip` only.** Everything else in Files is the wrong file, and being
+        // told so by the picker is better than being told so by an alert.
+        .fileImporter(isPresented: $showRestorePicker,
+                      allowedContentTypes: [.zip],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { copyForRestore(url) }
+            case .failure(let error):
+                restoreFailure = "Strata could not open that file (\(error.localizedDescription))."
+            }
+        }
+        .alert("That file could not be opened", isPresented: Binding(
+            get: { !restoreFailure.isEmpty },
+            set: { if !$0 { restoreFailure = "" } })) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("\(restoreFailure) Nothing has been changed.")
+        }
+        // `item:`, so the screen cannot open before there is a file for it to
+        // read — a sheet on a Bool plus a separate optional is how a view ends
+        // up presenting an empty state for one frame.
+        .sheet(item: $restoreZip) { picked in
+            RestoreBackupView(zip: picked.url) { discardRestoreCopy() }
         }
         #if DEBUG
         .task {
@@ -482,6 +564,29 @@ struct SettingsView: View {
             guard DebugHarness.autoResets else { return }
             try? await Task.sleep(for: .seconds(1.5))
             runReset()
+        }
+        .task {
+            // `-strataRestoreFrom <file name in Documents>`: opens the restore
+            // screen on a backup already in the container.
+            //
+            // **Because nothing on this machine can drive a file picker.** The
+            // restore's own screen — the counts, the warnings, the confirm — can
+            // only be looked at if there is a way in that does not go through
+            // `UIDocumentPickerViewController`, and a feature whose whole point
+            // is that somebody READS it before tapping has to be looked at
+            // rather than measured. It skips the picker and nothing else: the
+            // same screen, the same plan, the same merge.
+            guard let name = DebugHarness.argument("-strataRestoreFrom") else { return }
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let url = documents.appendingPathComponent(name)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                restoreFailure = "There is no \(name) in Documents."
+                return
+            }
+            try? await Task.sleep(for: .seconds(0.5))
+            // Through the same copy the picker's path uses, so the flow under
+            // test is the real one.
+            copyForRestore(url)
         }
         #endif
     }
@@ -568,101 +673,70 @@ struct SettingsView: View {
 
     // MARK: - Export
 
+    /// Builds the backup and hands it to the share sheet.
+    ///
+    /// **The format and the file live in `BackupExport`, not here.** They were
+    /// written out in this function, in a `View`, which is why they could not be
+    /// tested and why the restore had nothing to read against: the round-trip
+    /// test — export, empty the store, restore, compare — is the only test that
+    /// proves a backup is a backup, and it cannot be written against a private
+    /// function that raises an alert. Every failure still surfaces here, now with
+    /// the step that failed.
     private func exportData() {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
-        let export = StrataExport(
-            exportDate: Date(),
-            appVersion: appVersion,
-            habits: habits.map { habit in
-                ExportHabit(
-                    title: habit.title,
-                    category: habit.category.rawValue,
-                    blockSize: habit.blockSize.rawValue,
-                    frequency: habit.frequency.map(\.rawValue),
-                    scheduledTime: habit.scheduledTime,
-                    createdAt: habit.createdAt
-                )
-            },
-            logs: logs.map { log in
-                ExportLog(
-                    habitTitle: log.habit?.title ?? "Unknown",
-                    dateString: log.dateString,
-                    completed: log.completed,
-                    completedAt: log.completedAt,
-                    skipped: log.skipped,
-                    note: log.note,
-                    caption: log.caption
-                )
-            }
-        )
-
-        guard let data = try? encoder.encode(export) else {
+        do {
+            exportURL = try BackupExport.makeZip(habits: habits, logs: logs,
+                                                 appVersion: appVersion)
+            showExportShare = true
+        } catch let failure as BackupArchive.WriteFailure {
+            exportFailure = failure.message
             exportFailed = true
-            return
+        } catch {
+            exportFailure = "Strata could not write the backup file (\(error.localizedDescription))."
+            exportFailed = true
         }
+    }
 
-        let stamp = DateFormatter()
-        stamp.dateFormat = "yyyy-MM-dd"
-        let name = "Strata Backup \(stamp.string(from: Date()))"
+    // MARK: - Restore
 
-        // **A backup, which means the photographs too.**
-        //
-        // This wrote a lone JSON file and called it an export. Every win's
-        // name, date and size was in it and not one picture — so restoring
-        // from it would have given somebody back a tower of empty blocks, and
-        // the photographs are the part nobody can retype. The owner asked for
-        // "a backup file if possible for saved data"; a backup that drops the
-        // irreplaceable half is not one.
+    /// Copies the picked file somewhere this app owns, then opens the preview.
+    ///
+    /// **The copy is the point.** A document picker's URL is security-scoped and
+    /// borrowed: access has to be started and stopped, and it can be a file that
+    /// is not on the phone yet. A restore reads the zip twice — once to count
+    /// what is in it, and again for each photograph after somebody has confirmed
+    /// — so borrowing that URL across a whole flow with a sheet in the middle of
+    /// it is how a restore fails half way through for a reason nobody can
+    /// explain. Copying once, here, makes every later read an ordinary file
+    /// read, and the one failure that can happen has a message.
+    private func copyForRestore(_ picked: URL) {
         let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
-        try? fm.removeItem(at: folder)
-        guard (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
-              (try? data.write(to: folder.appendingPathComponent("wins.json"))) != nil
-        else {
-            exportFailed = true
+        let scoped = picked.startAccessingSecurityScopedResource()
+        defer { if scoped { picked.stopAccessingSecurityScopedResource() } }
+
+        let destination = fm.temporaryDirectory
+            .appendingPathComponent("restore-\(UUID().uuidString).zip")
+        do {
+            try fm.copyItem(at: picked, to: destination)
+        } catch {
+            restoreFailure = "Strata could not read that file (\(error.localizedDescription))."
             return
         }
+        restoreZip = RestoreBackupView.Picked(url: destination)
+    }
 
-        // Copied, never moved. These are the user's only copy.
-        let photos = folder.appendingPathComponent("photos", isDirectory: true)
-        try? fm.createDirectory(at: photos, withIntermediateDirectories: true)
-        let source = ImageManager.shared.imageDirectory
-        // Originals only: `derived/` is a cache of copies the app remakes
-        // itself, and a backup of it is dead weight in somebody's mail.
-        for file in (try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        where ImageDerivatives.isOriginal(file) {
-            try? fm.copyItem(at: file, to: photos.appendingPathComponent(file.lastPathComponent))
+    /// Closes the restore screen and removes the app's copy of the zip.
+    ///
+    /// The person's own file is never touched: this deletes the copy
+    /// `copyForRestore` made, and nothing else. Leaving it would keep a
+    /// second copy of the whole library in the temporary directory.
+    private func discardRestoreCopy() {
+        if let url = restoreZip?.url {
+            try? FileManager.default.removeItem(at: url)
         }
-
-        // **Zipped by the system, with no dependency.** `NSFileCoordinator`'s
-        // `.forUploading` option hands back a zip of a directory — it is what
-        // AirDrop uses for a folder — so a backup is one file somebody can
-        // mail themselves without the app shipping an archiver.
-        var error: NSError?
-        var zipped: URL?
-        NSFileCoordinator().coordinate(readingItemAt: folder,
-                                       options: [.forUploading],
-                                       error: &error) { url in
-            let destination = fm.temporaryDirectory
-                .appendingPathComponent("\(name).zip")
-            try? fm.removeItem(at: destination)
-            // Only if the copy went. `zipped` was assigned whatever the
-            // destination URL would have been, so a failed copy handed the
-            // share sheet a file that is not there.
-            guard (try? fm.copyItem(at: url, to: destination)) != nil else { return }
-            zipped = destination
-        }
-        try? fm.removeItem(at: folder)
-
-        guard let zipped else {
-            exportFailed = true
-            return
-        }
-        exportURL = zipped
-        showExportShare = true
+        restoreZip = nil
+        // The storage line counts photographs on disk, and a restore has just
+        // changed that number.
+        Task { await measureStorage() }
     }
 
 }
@@ -762,32 +836,4 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-// MARK: - Export Models
-
-private struct StrataExport: Encodable {
-    let exportDate: Date
-    let appVersion: String
-    let habits: [ExportHabit]
-    let logs: [ExportLog]
-}
-
-private struct ExportHabit: Encodable {
-    let title: String
-    let category: String
-    let blockSize: String
-    let frequency: [String]
-    let scheduledTime: String?
-    let createdAt: Date
-}
-
-private struct ExportLog: Encodable {
-    let habitTitle: String
-    let dateString: String
-    let completed: Bool
-    let completedAt: Date?
-    let skipped: Bool
-    let note: String?
-    let caption: String
 }

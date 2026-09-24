@@ -66,6 +66,53 @@ enum StoreOpenError: Error, CustomStringConvertible {
     }
 }
 
+/// Whether the store the app ended up holding is mirrored to iCloud.
+///
+/// **Derived from the rung, never stored beside it.** A second variable saying
+/// "sync is on" is a variable that can disagree with the container that is
+/// actually open, and the disagreement would show up as an app claiming to
+/// back a person's wins up while it did not. Only the primary rung asks for
+/// CloudKit, so the rung IS the answer.
+///
+/// Note what this does NOT say: that sync is working. The store opening
+/// mirrored means the mirroring container loaded, which it does happily with
+/// no iCloud account, no network and a full iCloud. `StoreSyncStatus` is the
+/// thing that knows whether anything is moving.
+enum StoreSyncPlan: Equatable, Sendable {
+    /// Mirrored to the private database of the named container.
+    case mirrored(container: String)
+    /// On disk and local. Everything a person does is saved; nothing leaves
+    /// the phone. The reason is the recovery rung's reason, which is the
+    /// primary rung's error.
+    case localOnly(reason: String)
+
+    var isMirrored: Bool {
+        if case .mirrored = self { return true }
+        return false
+    }
+
+    var summary: String {
+        switch self {
+        case .mirrored(let container): return "mirrored(\(container))"
+        case .localOnly(let reason): return "localOnly(\(reason))"
+        }
+    }
+}
+
+extension StoreOpening {
+    /// Which of the two the app is actually doing.
+    var syncPlan: StoreSyncPlan {
+        switch self {
+        case .onDisk:
+            return .mirrored(container: SharedModelContainer.cloudKitContainerID)
+        case .recovered(let reason):
+            return .localOnly(reason: reason)
+        case .unavailable(let reason):
+            return .localOnly(reason: reason)
+        }
+    }
+}
+
 enum SharedModelContainer {
 
     /// Every model the store holds, in one place so the ladder's rungs cannot
@@ -73,6 +120,26 @@ enum SharedModelContainer {
     static var schema: Schema {
         Schema([Habit.self, HabitLog.self, MoodLog.self, Tower.self, PlanFolder.self, PlanItem.self])
     }
+
+    /// The iCloud container whose PRIVATE database the store mirrors to.
+    ///
+    /// **Named here rather than left to `.automatic`, for two reasons.**
+    /// `.automatic` reads the entitlement and takes the first container it
+    /// finds, which means that the moment the entitlement exists every
+    /// configuration in this file asks for CloudKit, including the recovery
+    /// rung whose whole job is not to. And a container written down can be
+    /// compared: this string, `Strata.entitlements` and
+    /// `StrataDebug.entitlements` must all say the same word.
+    /// `StoreCloudKitSchemaTests` pins that the primary rung asks for THIS
+    /// string and that no other rung asks for anything; it cannot read the
+    /// entitlement files, so the three staying in step is still checked by
+    /// eye, and a mismatch shows up as the store opening on the recovery rung
+    /// with `[strata-store] sync: localOnly(...)` in the log.
+    ///
+    /// The private database, not shared and not public: the person's Apple ID
+    /// is the login, their wins are theirs, and nothing here is meant to be
+    /// readable by anybody else.
+    static let cloudKitContainerID = "iCloud.JaydenBetts.Strata"
 
     /// How the store opened. Read under `lock`, like the container itself.
     static var opening: StoreOpening {
@@ -103,9 +170,16 @@ enum SharedModelContainer {
         _opening = result.opening
         if result.opening.savesToDisk { StoreStamp.observe() }
         logger.log("store opened: \(result.opening.summary, privacy: .private)")
+        logger.log("store sync: \(result.opening.syncPlan.summary, privacy: .private)")
         #if DEBUG
         NSLog("[strata-store] opened: \(result.opening.summary)")
+        NSLog("[strata-store] sync: \(result.opening.syncPlan.summary)")
         #endif
+        // Started from here because this is the moment sync begins: the
+        // mirroring container is now loaded and about to talk to iCloud on its
+        // own. Watching starts even when the plan is local, so that the log
+        // says which of the two it is rather than going quiet either way.
+        StoreSyncStatus.shared.begin(plan: result.opening.syncPlan)
         return result.container
     }
 
@@ -135,13 +209,24 @@ enum SharedModelContainer {
     /// whole new class of init failure (schema validation), so this has to be
     /// fixed before sync is switched on, not after.
     ///
-    /// 1. **primary** — the store the app uses. `cloudKitDatabase:` goes here
-    ///    when sync is turned on, and not before.
+    /// 1. **primary** — the store the app uses, mirrored to the private
+    ///    CloudKit database. This is where `cloudKitDatabase:` lives and the
+    ///    only place it does.
     /// 2. **recovery** — the same schema and the same file on disk, local,
-    ///    never asking for sync. The person keeps their app and keeps saving;
-    ///    only sync is off. Until CloudKit is enabled this rung differs from
-    ///    the first only in that it can never ask for it, which is exactly the
-    ///    failure it is there to catch.
+    ///    mirroring explicitly refused. The person keeps their app and keeps
+    ///    saving; only sync is off. **This is the rung that answers "the
+    ///    container does not exist yet".** Automatic signing has not made
+    ///    `iCloud.JaydenBetts.Strata`, or the entitlement is missing from this
+    ///    build, or the mirroring validator refuses the schema: all three are
+    ///    an error thrown out of `ModelContainer.init`, and all three land
+    ///    here, with the store opening in place and every win still readable.
+    ///
+    ///    Being signed out of iCloud, having no network and having a full
+    ///    iCloud are NOT this rung. The mirroring container loads happily in
+    ///    all three and reports the trouble asynchronously, which is the
+    ///    behaviour to want: the app opens, saves locally, and exports when it
+    ///    can. `StoreSyncStatus` is what notices, and it never blocks
+    ///    anything.
     /// 3. **holding** — nothing opened. The app puts `StoreUnavailableView` on
     ///    screen and does not pretend. The container returned here exists only
     ///    because `.modelContainer(_:)` needs one; nothing that reads or
@@ -189,21 +274,37 @@ enum SharedModelContainer {
     ///
     /// **Both disk rungs point at the same file, deliberately.** A "recovery"
     /// that moved or rebuilt the store would be the data loss this whole
-    /// change exists to prevent. The only thing that differs is whether sync
-    /// is asked for, and today neither asks: CloudKit is turned on in a later
-    /// phase, and when it is, that one line goes in the `.primary` branch here
-    /// and nowhere else.
+    /// change exists to prevent. The one thing that differs between them is
+    /// whether sync is asked for, and that is now the difference that matters:
+    /// `.primary` mirrors to CloudKit, `.recovery` is the same file with
+    /// mirroring explicitly refused.
     ///
-    /// The store also stays where it is rather than moving into the App Group.
-    /// The widget does not read it (`Shared/WidgetSnapshot.swift` says why: it
-    /// reads a JSON snapshot the app writes), so a relocation would be a
-    /// migration of somebody's real wins and photographs bought for nothing.
+    /// **`.none` on the recovery and holding rungs is load bearing, not
+    /// tidiness.** `ModelConfiguration`'s default is `cloudKitDatabase:
+    /// .automatic`, which reads the entitlement and takes the container it
+    /// finds there. The entitlement now has one. So left at the default, the
+    /// rung that exists to open the store WITHOUT sync would ask for sync
+    /// straight after the primary rung failed asking for sync, fail for the
+    /// same reason, and drop the app onto the blocking screen. The same goes
+    /// for the holding container, which must not touch the network at all.
+    ///
+    /// `groupContainer` is left at `.automatic`, which is how the store came to
+    /// live in the App Group, and it stays there. The widget does not read it
+    /// (`Shared/WidgetSnapshot.swift` says why: it reads a JSON snapshot the
+    /// app writes), so moving it now would be a migration of somebody's real
+    /// wins and photographs bought for nothing. An App Group store mirrors to
+    /// CloudKit exactly like any other.
     private static func configuration(_ rung: StoreRung, _ schema: Schema) -> ModelConfiguration {
         switch rung {
-        case .primary, .recovery:
-            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        case .primary:
+            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: false,
+                                      cloudKitDatabase: .private(cloudKitContainerID))
+        case .recovery:
+            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: false,
+                                      cloudKitDatabase: .none)
         case .holding:
-            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: true,
+                                      cloudKitDatabase: .none)
         }
     }
 
@@ -217,8 +318,14 @@ enum SharedModelContainer {
             return container
         }
         let empty = Schema([])
+        // `.none` here too. This container exists so that SwiftUI has something
+        // to hold on the screen that says the store did not open; asking iCloud
+        // for anything from it would be the app going to the network on the one
+        // path where it has already failed.
         if let container = try? ModelContainer(
-            for: empty, configurations: [ModelConfiguration(schema: empty, isStoredInMemoryOnly: true)]) {
+            for: empty,
+            configurations: [ModelConfiguration(schema: empty, isStoredInMemoryOnly: true,
+                                                cloudKitDatabase: .none)]) {
             return container
         }
         fatalError("SwiftData could not make an empty in-memory container")

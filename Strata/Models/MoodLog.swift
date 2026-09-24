@@ -7,6 +7,10 @@ final class MoodLog {
     // CloudKit's mirroring refuses a non-optional attribute with nothing to
     // fall back on, a default is not part of the version hash, and the
     // initialiser still assigns all four, so nothing moves.
+    //
+    // `imageURL` and `videoURL` are dead, and nothing outside `DebugHarness`
+    // makes a `MoodLog` at all. Both were kept when CloudKit went on; the
+    // reasoning is the block in `Habit`.
     var id: UUID = UUID()
     var dateString: String = "" // YYYY-MM-DD format
     /// 3, the middle of the scale, because a mood with no value in it is not

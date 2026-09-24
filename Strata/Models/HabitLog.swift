@@ -23,6 +23,13 @@ final class HabitLog {
     // CloudKit's mirroring refuses a non-optional attribute with nothing to
     // fall back on, a default is not part of the version hash, and the
     // initialiser still assigns all six, so nothing moves.
+    //
+    // Five fields on this model are dead: `imageURL`, `videoURL`,
+    // `imageFlipped`, `pendingXP` and `verifiedByHealthKit`, plus `surgeMode`,
+    // `xpCollected` and `isBonusBlock`, which only `StoreRecordDigest` reads.
+    // They were kept when CloudKit went on, deliberately; the reasoning and the
+    // condition for ever removing them is the one block in `Habit`, so that
+    // there is one copy of it.
     var id: UUID = UUID()
     var habit: Habit?
     var dateString: String = "" // YYYY-MM-DD format for easy lookup

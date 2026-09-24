@@ -21,11 +21,16 @@ struct StoreLadderTests {
     /// A container the ladder's rungs can be given without touching the real
     /// store on disk. The rung being tested is which one gets asked and what
     /// the ladder then SAYS, not which file it opened.
+    /// `cloudKitDatabase: .none` is explicit because the app now carries the
+    /// iCloud entitlement and `ModelConfiguration`'s default is `.automatic`,
+    /// which reads it. Left at the default, every container built here would
+    /// ask iCloud for a real container from a test run.
     private func stand(in _: ModelConfiguration) throws -> ModelContainer {
         try ModelContainer(
             for: SharedModelContainer.schema,
             configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                               isStoredInMemoryOnly: true))
+                                               isStoredInMemoryOnly: true,
+                                               cloudKitDatabase: .none))
     }
 
     @Test("an ordinary launch asks for the primary rung and nothing else")

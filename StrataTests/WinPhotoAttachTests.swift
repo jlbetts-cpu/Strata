@@ -18,7 +18,7 @@ struct WinPhotoAttachTests {
     private func context() throws -> ModelContext {
         let container = try ModelContainer(
             for: Habit.self, HabitLog.self, Tower.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         return ModelContext(container)
     }
 
@@ -75,7 +75,7 @@ struct WinCategoryTests {
     private func context() throws -> ModelContext {
         let container = try ModelContainer(
             for: Habit.self, HabitLog.self, Tower.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         return ModelContext(container)
     }
 
@@ -110,7 +110,7 @@ struct TodaysWinsTests {
     func listsTodaysWins() throws {
         let container = try ModelContainer(
             for: Habit.self, HabitLog.self, Tower.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = ModelContext(container)
         _ = try QuickWinService.logWin(title: "Ran", category: .health, context: context, tower: nil)
         _ = try QuickWinService.logWin(context: context, tower: nil)

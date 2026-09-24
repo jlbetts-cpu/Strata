@@ -154,6 +154,48 @@ final class Habit {
     // is the same shape `planItemID`, `sortOrder` and `isQuickWin` already use
     // further down this file. Each default is the value the initialiser would
     // have produced anyway, so the two cannot disagree.
+    //
+    // MARK: The dead fields, and the decision not to remove them
+    //
+    // **Nothing was deleted when CloudKit went on, and that was a decision
+    // rather than an oversight.** The moment looked like the cheap one:
+    // `tasks/backlog.md` lists fourteen dead fields and a "kept for migration"
+    // convention, the owner's own store was empty, and a CloudKit schema can
+    // only gain fields once it is deployed to production, never lose them.
+    //
+    // Measured by counting reads outside the model files, the dead list is
+    // longer than the backlog says. Never read anywhere: `healthKitType`,
+    // `healthKitThreshold`, `anchorHabitID`, `parentHabitID`,
+    // `isStepCompleted`, `isInProgress`, `isSaved`, `todoOrder` and
+    // `customDurationMinutes` (with `effectiveDurationMinutes`, the only thing
+    // that reads it, which has no callers either); on `HabitLog`, `imageURL`,
+    // `videoURL`, `imageFlipped`, `pendingXP` and `verifiedByHealthKit`; on
+    // `MoodLog`, `imageURL` and `videoURL`. Read only by `StoreRecordDigest`,
+    // which exists to notice values going missing: `creationXP`, `surgeMode`,
+    // `xpCollected`, `isBonusBlock`. Still alive: `imageData`, which
+    // `ImageMigrationRunner` reads to turn an old blob into a photograph on
+    // disk, and `subtasks`, which the backup export writes.
+    //
+    // They were kept, for three reasons in order of weight:
+    //
+    // 1. **Not one of them blocks CloudKit.** Every one is already optional or
+    //    defaulted, so removing them buys the mirroring validator nothing. The
+    //    work would be a tidy paid for with risk.
+    // 2. **A deleted field is somebody's data.** The owner's store is empty;
+    //    the build already out is not the only copy of this app. `imageData` is
+    //    the loud one, and it would have to go in the same pass for the pass to
+    //    be worth doing: a phone whose migration has never finished still has
+    //    its photographs in there and nowhere else.
+    // 3. **A column costs nothing to carry.** CloudKit charges for bytes, not
+    //    for fields, and a nil field is no bytes. The real cost is that the
+    //    production schema keeps their names for good, and that is a cost in
+    //    tidiness.
+    //
+    // The condition for removing them, if it is ever wanted: one pass, with a
+    // `VersionedSchema` and a `SchemaMigrationPlan` (this app has neither),
+    // after `imageData` has been proven empty on a real store, and BEFORE the
+    // CloudKit schema is deployed to production. After that deployment it stops
+    // being possible.
     var id: UUID = UUID()
     var title: String = ""
     /// `.unlabeled` because that is this app's word for "nobody has chosen

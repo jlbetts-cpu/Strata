@@ -13,12 +13,22 @@ import CoreData
 @Suite("SocialFields", .serialized)
 struct SocialFieldsTests {
 
+    /// `cloudKitDatabase: .none` on every container below, and it is not
+    /// decoration. The app carries the iCloud entitlement now, and
+    /// `ModelConfiguration` defaults to `.automatic`, which reads the
+    /// entitlement: left at the default these tests each stand up a real
+    /// mirroring store inside the test host. Measured, they did, and the run
+    /// filled with `CKAccountStatusNoAccount` recoveries and one real error
+    /// ("There is another instance of this persistent store actively syncing
+    /// with CloudKit in this process"). These tests are about the schema and the
+    /// stamp, not about iCloud.
     private func context() throws -> ModelContext {
         StoreStamp.observe()
         let container = try ModelContainer(
             for: SharedModelContainer.schema,
             configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                               isStoredInMemoryOnly: true))
+                                               isStoredInMemoryOnly: true,
+                                               cloudKitDatabase: .none))
         return ModelContext(container)
     }
 
@@ -69,7 +79,8 @@ struct SocialFieldsTests {
         }
         func open() throws -> ModelContainer {
             try ModelContainer(for: SharedModelContainer.schema,
-                               configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url))
+                               configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                                                  url: url, cloudKitDatabase: .none))
         }
         let old = Date(timeIntervalSinceReferenceDate: 600_000_000)
         var logID = UUID()
@@ -144,7 +155,8 @@ struct SocialFieldsTests {
             .appendingPathComponent("added-\(UUID().uuidString).store")
         let context = ModelContext(try ModelContainer(
             for: SharedModelContainer.schema,
-            configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url)))
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                               url: url, cloudKitDatabase: .none)))
         let tower = Tower(name: "Home")
         context.insert(tower)
         let habit = Habit(title: "Ran", category: .health)
@@ -172,7 +184,8 @@ struct SocialFieldsTests {
     private func open(_ url: URL) throws -> ModelContext {
         ModelContext(try ModelContainer(
             for: SharedModelContainer.schema,
-            configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url)))
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                               url: url, cloudKitDatabase: .none)))
     }
 
     @Test("the added fields read back off disk identically, and hold backfilled dates, not launch time")

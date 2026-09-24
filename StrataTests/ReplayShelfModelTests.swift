@@ -67,7 +67,7 @@ struct ReplayShelfModelTests {
     @Test("the shelf says it has not loaded until a reload has asked, even when it finds nothing")
     @MainActor func hasLoadedOnlyAfterAReload() async throws {
         let container = try ModelContainer(for: Habit.self, HabitLog.self, Tower.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let model = ReplayShelfModel()
         #expect(!model.hasLoaded)
         await model.reload(context: ModelContext(container), colorScheme: .light, displayScale: 1, now: Date())
@@ -79,7 +79,7 @@ struct ReplayShelfModelTests {
     @Test("a cancelled reload stops before it decides anything")
     @MainActor func cancelledReloadStops() async throws {
         let container = try ModelContainer(for: Habit.self, HabitLog.self, Tower.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = ModelContext(container)
         _ = try QuickWinService.logWin(title: "Ran", category: .health, context: context, tower: nil)
         let model = ReplayShelfModel()

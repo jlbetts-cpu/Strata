@@ -29,10 +29,16 @@ struct StoreMigrationTests {
             .appendingPathComponent("strata-migration-\(UUID().uuidString).store")
     }
 
+    /// `cloudKitDatabase: .none`: the app carries the iCloud entitlement now
+    /// and `ModelConfiguration` defaults to `.automatic`, which reads it. This
+    /// suite is about values surviving a reopen, and a mirroring store inside
+    /// the test host adds nothing to that but noise and a second syncing store
+    /// in one process.
     private func container(at url: URL) throws -> ModelContainer {
         try ModelContainer(
             for: SharedModelContainer.schema,
-            configurations: ModelConfiguration(schema: SharedModelContainer.schema, url: url))
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                               url: url, cloudKitDatabase: .none))
     }
 
     /// A record with something in every field a default was added to, plus the

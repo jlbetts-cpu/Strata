@@ -1097,17 +1097,14 @@ struct MainAppView: View {
                 // today is what the tower shows.
                 let sizes = [(1, 1), (2, 1), (2, 2), (2, 2)]
                 let (cols, rows) = sizes[step % sizes.count]
-                let wantsPhoto = step % sizes.count == 3
                 step += 1
-                let base = HabitCategory.allCases.first?.style.baseColor ?? .blue
-                // **The photograph whose category is least like the base
-                // colour the other three landings use.** Every seeded
-                // photograph is a wash hued off its own block's category, so
-                // a photo block picked at random can produce a ring the same
-                // colour as the category ring and prove nothing. Picking the
-                // furthest hue is what makes the two tellable apart in a
-                // screenshot. See CLAUDE.md: the fixture cannot judge this.
-                let photoBlock = wantsPhoto ? farthestPhotoBlock(from: base) : nil
+                // **The photograph the ring used to be tinted by is gone from
+                // this fixture, along with the tinting and the `wantsPhoto`
+                // flag that chose it.** It picked the block whose category hue
+                // was furthest from the others so two rings could be told apart
+                // in a screenshot; there is one ink ring now and nothing to
+                // tell apart. What the lab still varies is the SIZE, which is
+                // what `peak(for:)` reads.
                 latticeRipple = LatticeRipple(
                     column: 1,
                     // A few rows up, so the whole ring is inside the lattice
@@ -1122,27 +1119,6 @@ struct MainAppView: View {
         #endif
     }
 
-    #if DEBUG
-    /// The photographed block whose category colour is furthest round the hue
-    /// wheel from `base`. See `startLatticeLab`.
-    @MainActor
-    private func farthestPhotoBlock(from base: Color) -> PlacedBlock? {
-        func hue(_ colour: Color) -> CGFloat {
-            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            UIColor(colour).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            return h
-        }
-        let baseHue = hue(base)
-        return towerVM.placedBlocks
-            .filter { $0.look.imageFileName != nil }
-            .map { block -> (block: PlacedBlock, distance: CGFloat) in
-                let d = abs(hue(block.look.displayCategory.style.baseColor) - baseHue)
-                return (block, min(d, 1 - d))
-            }
-            .max { $0.distance < $1.distance }?
-            .block
-    }
-    #endif
 
     /// **Tells the lattice where it was hit, and clears it afterwards.**
     ///
