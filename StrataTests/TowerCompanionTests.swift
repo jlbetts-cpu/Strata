@@ -179,6 +179,7 @@ struct TowerCompanionTests {
     /// then has to survive.
     @Test func aThrowIsCapped() {
         var s = sim()
+        let w = world()
         s.touch(.began, at: CGPoint(x: 100, y: 100), in: w)
         s.touch(.ended, at: CGPoint(x: 100, y: 100),
                 velocity: CGVector(dx: 50_000, dy: -50_000), in: w)
