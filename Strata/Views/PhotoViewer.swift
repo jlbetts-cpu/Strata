@@ -293,7 +293,16 @@ struct PhotoViewer: View {
                 // it was a number that happened to work and would not have
                 // survived either of them changing size.
                 .padding(.horizontal, 44 + GridConstants.horizontalPadding)
-                .animation(GridConstants.crossFade, value: currentID)
+                // **One fade on one string.** A second
+                // `.animation(crossFade, value: currentID)` used to wrap this,
+                // so the title carried two of the app's motion tokens at once
+                // and the outer one was keyed to the value the note above
+                // says is the wrong one to read here. `currentID` is written
+                // when the deck SETTLES, by which point `shown` has already
+                // swapped the words mid-swipe, so the 0.2s ease was a
+                // transaction over a change that had already happened. The
+                // 0.12s `photoTitleFade`, keyed to the photograph actually on
+                // screen, is the one doing the work.
 
             HStack {
                 GlassIconButton(systemName: "xmark", tint: .white,

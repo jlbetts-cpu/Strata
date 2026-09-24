@@ -81,10 +81,20 @@ struct CachedImageView: View {
             && (image == nil || settledFileName != fileName)
         return ZStack {
             if holdsPlaceholder {
+                // **A well, not a breath.**
+                //
+                // This wore `ShimmerModifier`, which is a 1.1s
+                // `repeatForever` pulse, on EVERY photograph in the app that
+                // has not decoded yet: a gallery of thirty is thirty looping
+                // animations asking for frames. The design doc refuses loops
+                // outright, and the owner's note on the whole app is that it
+                // has to feel fast. A still slot in the app's own empty-cell
+                // token says "a picture belongs here" without costing a
+                // frame, and the picture fades in over it on `imageFadeIn`
+                // either way, so nothing about the arrival changes.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(AppColors.quietFill)
                     .frame(width: width, height: height)
-                    .modifier(ShimmerModifier())
                     // It leaves only once the picture on top is opaque, so
                     // leaving at once is invisible.
                     .transition(.identity)

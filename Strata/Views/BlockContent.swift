@@ -105,9 +105,16 @@ private struct PhotoTitleShadow: ViewModifier {
 
 struct BlockContentOverlay: View {
     let title: String
+    /// Nothing draws this any more. The icon went (see `body`), and with it the
+    /// only thing that read the category here. It stays for one reason: it
+    /// arrives from `BlockFace.iconCategory`, which `ReplayFrame` names at its
+    /// call site, so removing it is an edit to a file outside this pass. Take
+    /// both out together.
     let category: HabitCategory
     let rowSpan: Int
-    let timeText: String?
+    /// No `timeText`. Nothing has drawn a time on a block since the tower
+    /// stopped showing timestamps, and every call site was passing `nil`
+    /// through two views to reach a property nothing read.
     var hasImage: Bool = false
 
     /// A block nobody has named carries no text at all — no title, no time.
@@ -126,56 +133,57 @@ struct BlockContentOverlay: View {
         title == QuickWinService.untitled || title.isEmpty
     }
 
+    // No icon on the block.
+    //
+    // The colour already says which category it is, and the icon was repeating
+    // that in the one place where two same-coloured blocks are trying to look
+    // like one object — a corner mark halfway down a merged shape is the
+    // clearest possible statement that it is two. Icons still name categories
+    // where the colour alone cannot: the picker, the timeline rows, the plan
+    // list.
+    //
+    // So this is one title in one stack. The `ZStack` that used to hold the
+    // icon beside it went with the icon; a container with one child is a
+    // container claiming there are two things here.
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // No icon on the block.
-            //
-            // The colour already says which category it is, and the icon was
-            // repeating that in the one place where two same-coloured blocks
-            // are trying to look like one object — a corner mark halfway down a
-            // merged shape is the clearest possible statement that it is two.
-            // Icons still name categories where the colour alone cannot: the
-            // picker, the timeline rows, the plan list.
-
-            VStack(alignment: .leading, spacing: 2) {
-                Spacer()
-                if !isUnnamed {
-                    Text(title)
-                        .font(Typography.bodySmall.weight(.medium))
-                        .foregroundStyle(.white)
-                        // One size on every block, and an ellipsis when it
-                        // does not fit.
-                        //
-                        // `minimumScaleFactor` shrank the type to fit, so a
-                        // tower of ten blocks could carry six different text
-                        // sizes and the size read as emphasis nobody had
-                        // chosen — the shortest title looked the most
-                        // important. Truncation is honest: same size
-                        // everywhere, and the ones that run long say so.
-                        .lineLimit(rowSpan > 1 ? 2 : 1)
-                        .truncationMode(.tail)
-                        // On a photo the scrim is a light veil now, so the type
-                        // carries its own contrast instead of the block being
-                        // darkened until anything would be legible on it.
-                        //
-                        // Only on a photo. Off one it was a shadow at zero
-                        // opacity on every label on the tower, and a
-                        // zero-valued effect is still an effect.
-                        .modifier(PhotoTitleShadow(active: hasImage))
-
-                    // No time on the block.
+        VStack(alignment: .leading, spacing: 2) {
+            Spacer()
+            if !isUnnamed {
+                Text(title)
+                    .font(Typography.bodySmall.weight(.medium))
+                    .foregroundStyle(.white)
+                    // One size on every block, and an ellipsis when it does
+                    // not fit.
                     //
-                    // A tower of a dozen blocks was a dozen timestamps nobody
-                    // reads — the same information twelve times, in the one
-                    // place the app is meant to be a picture rather than a
-                    // log. What a block says is what you did; when you did it
-                    // is on the card if you ever want it.
-                }
+                    // `minimumScaleFactor` shrank the type to fit, so a
+                    // tower of ten blocks could carry six different text
+                    // sizes and the size read as emphasis nobody had
+                    // chosen — the shortest title looked the most
+                    // important. Truncation is honest: same size
+                    // everywhere, and the ones that run long say so.
+                    .lineLimit(rowSpan > 1 ? 2 : 1)
+                    .truncationMode(.tail)
+                    // On a photo the scrim is a light veil now, so the type
+                    // carries its own contrast instead of the block being
+                    // darkened until anything would be legible on it.
+                    //
+                    // Only on a photo. Off one it was a shadow at zero
+                    // opacity on every label on the tower, and a
+                    // zero-valued effect is still an effect.
+                    .modifier(PhotoTitleShadow(active: hasImage))
+
+                // No time on the block.
+                //
+                // A tower of a dozen blocks was a dozen timestamps nobody
+                // reads — the same information twelve times, in the one
+                // place the app is meant to be a picture rather than a
+                // log. What a block says is what you did; when you did it
+                // is on the card if you ever want it.
             }
-            .frame(maxWidth: .infinity, alignment: .bottomLeading)
-            .padding(.leading, 12)
-            .padding(.bottom, 12)
-            .padding(.trailing, 8)
         }
+        .frame(maxWidth: .infinity, alignment: .bottomLeading)
+        .padding(.leading, 12)
+        .padding(.bottom, 12)
+        .padding(.trailing, 8)
     }
 }

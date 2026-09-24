@@ -19,7 +19,6 @@ struct BlockFace<Photo: View>: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     let hasPhoto: Bool
-    var timeText: String? = nil
     var showOverlay: Bool = true
     /// The title overlay's opacity. Only a replay changes it, to fade titles
     /// out as its camera pulls back; everywhere else it is 1.
@@ -67,15 +66,21 @@ struct BlockFace<Photo: View>: View {
                     // photograph at a second size.
                     .scaleEffect(1.03)
 
-                RadialGradient(
-                    colors: [
-                        .clear,
-                        AppColors.warmBlack.opacity(0.12)
-                    ],
-                    center: UnitPoint(x: 0.5, y: 0.4),
-                    startRadius: min(width, height) * 0.25,
-                    endRadius: max(width, height) * 0.85
-                )
+                // **No vignette.** A radial gradient used to darken the
+                // photograph's edges to warmBlack 0.12 (measured: ~0.10 under
+                // the title on a 1x1). It came in with the batch of "visual
+                // polish" whose 6-stop gradient, specular highlight and ambient
+                // occlusion were all reverted, and it is the same mistake: a
+                // block is a flat lit plane, and this made every photographed
+                // one darker at the corners than the flat-coloured one beside
+                // it. Two kinds of block, one system.
+                //
+                // It was also the wrong tool for the only real problem it
+                // helped with. White type on a photograph needs contrast in the
+                // bottom left, not everywhere; the veil below is the local
+                // tool, and `GridConstants.photoVeilOpacity` is the dial. The
+                // owner's direction on darkness here has only ever gone one way
+                // (veil 0.80 -> 0.48 -> 0.26, shadow 0.12 -> 0.07).
 
                 // Anchored to where the TEXT starts, not to a fraction of
                 // height. Title + time + spacing + padding is ~40pt, so text
@@ -125,24 +130,20 @@ struct BlockFace<Photo: View>: View {
                 }
                 }
 
-            } else {
-                // Flat colour.
-                //
-                // This was a gradient washing lightTint at 0.7 across the top
-                // quarter. Measured off a screenshot it put ~30% white into the
-                // top of every block, which with the frosted band's ~20% at the
-                // bottom left the colour only actually reaching full saturation
-                // across the middle third. The block read as lit from two
-                // directions and washed out at both ends.
-                //
-                // The rim is what says "lit from above" now, and it says it
-                // with one crisp edge rather than a quarter-block of haze.
-                //
-                // The colour itself is drawn above, under every block; this
-                // branch is only what a block WITHOUT a photograph adds, which
-                // is nothing.
-                EmptyView()
             }
+
+            // **A block without a photograph adds nothing.** Not an `else`
+            // branch drawing an `EmptyView`: there is nothing here, and the
+            // absence should be readable as one.
+            //
+            // It was a gradient washing lightTint at 0.7 across the top
+            // quarter. Measured off a screenshot it put ~30% white into the top
+            // of every block, which with the frosted band's ~20% at the bottom
+            // left the colour only actually reaching full saturation across the
+            // middle third. The block read as lit from two directions and
+            // washed out at both ends. The rim is what says "lit from above"
+            // now, and it says it with one crisp edge rather than a
+            // quarter-block of haze.
 
             }
         }
@@ -154,7 +155,6 @@ struct BlockFace<Photo: View>: View {
                     title: title,
                     category: iconCategory,
                     rowSpan: rowSpan,
-                    timeText: timeText,
                     hasImage: hasPhoto
                 )
                 .opacity(overlayOpacity)

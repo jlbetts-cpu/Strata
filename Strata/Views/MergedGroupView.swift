@@ -26,6 +26,10 @@ struct MergedGroupView: View {
     /// it. Anywhere the cell is not the tower's, pass the ratio.
     var styleScale: CGFloat = 1
 
+    /// The rim eases off in dark mode, so the run has to know the appearance
+    /// for the same reason a single block does.
+    @Environment(\.colorScheme) private var colorScheme
+
     private var style: CategoryStyle { group.category.style }
 
     private var shape: MergedShape {
@@ -35,21 +39,6 @@ struct MergedGroupView: View {
             spacing: GridConstants.spacing,
             gridHeight: gridHeight,
             cornerRadius: GridConstants.blockCornerRadius * styleScale
-        )
-    }
-
-    /// Brightest along the top, exactly as a single block's rim is — but
-    /// measured across the whole run, which is what makes a tall group read as
-    /// one lit object rather than a column of separately lit ones.
-    private var rim: LinearGradient {
-        LinearGradient(
-            stops: [
-                .init(color: .white, location: 0.0),
-                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 0.55),
-                .init(color: .white.opacity(GridConstants.blockRimFalloff), location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
         )
     }
 
@@ -70,19 +59,30 @@ struct MergedGroupView: View {
 
             // Frosted band, clipped to the shape so it never spills into the
             // notches of an irregular run.
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: GridConstants.blockBandStart),
-                    .init(color: .white.opacity(GridConstants.blockScrimOpacity), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: bandHeight)
-            .offset(y: bandTop)
-            .clipShape(shape)
+            //
+            // `BlockWash` is the band a single block draws. It was a second
+            // copy of the same gradient here; one object, one definition.
+            BlockWash()
+                .frame(height: bandHeight)
+                .offset(y: bandTop)
+                .clipShape(shape)
 
-            shape.stroke(rim, lineWidth: GridConstants.blockRimWidth * styleScale)
+            // The rim is drawn INSIDE the silhouette, the way
+            // `BlockSurface.strokeBorder` draws it.
+            //
+            // `stroke` centres the line on the path, so 0.7pt of white hung
+            // outside the run, over the 4pt gutter, making it 1.4pt wider and
+            // taller than the blocks it replaces. `MergedShape` promises the
+            // opposite in its own doc comment: "a merged run is exactly as wide
+            // as the blocks it replaces". `MergedShape` is only `Shape`, not
+            // `InsettableShape`, so `strokeBorder` is unavailable; a
+            // double-width stroke clipped to the shape is the same edge.
+            shape
+                .stroke(
+                    BlockRim.gradient(in: colorScheme),
+                    lineWidth: GridConstants.blockRimWidth * styleScale * 2
+                )
+                .clipShape(shape)
         }
         .frame(width: gridWidth, height: gridHeight, alignment: .topLeading)
         .compositingGroup()

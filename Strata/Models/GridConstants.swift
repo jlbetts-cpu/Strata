@@ -311,9 +311,6 @@ enum GridConstants {
     static let imageFadeInDuration: Double = 0.25
     /// A decoded photograph fading in where it was waiting.
     static let imageFadeIn = Animation.easeIn(duration: imageFadeInDuration)
-    /// The loading shimmer's slow breath, back and forth for as long as it
-    /// shows.
-    static let shimmerPulse = Animation.easeInOut(duration: 1.1).repeatForever(autoreverses: true)
 
     // MARK: - Today Screen Motion (Timeline Claude)
 
@@ -525,8 +522,7 @@ enum GridConstants {
     /// stand. Under it a wait reads as the cover arriving, and an indicator
     /// that flashes for a frame is worse than none.
     static let replayLoadingDelay: Double = 0.15
-    /// One breath of that slot, in and out.
-    static let replayLoadingBreath: Double = 1.6
+
     /// The slot fading out as the replay starts.
     static let replayLoadingFade: Double = 0.24
 

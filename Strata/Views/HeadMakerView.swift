@@ -5,7 +5,7 @@ import UIKit
 ///
 /// The same viewfinder, wordmark, shutter block, flash and warm ring light as
 /// `CameraView`, on the front lens — never the system camera, which would look
-/// like leaving the app. A head-shaped outline draws itself in the middle of
+/// like leaving the app. A head-shaped outline comes up in the middle of
 /// the screen; the shutter turns solid once you are in it; pressed, its block
 /// fills while it watches you blink, smile and raise your brows; then the
 /// viewfinder gives way to the page and your head is left on it, alive.
@@ -21,10 +21,13 @@ struct HeadMakerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model = HeadMakerModel()
     @State private var previewBox = PreviewLayerBox()
-    /// 0 before the outline has drawn itself, 1 after.
+    /// 0 before the outline and its dim have arrived, 1 after.
     @State private var outlineDrawn: CGFloat = 0
     /// What the screen was set to before the ring light raised it.
     @State private var brightnessBeforeFlash: CGFloat?
+    /// What this head will be called. Filled in when the preview arrives, so
+    /// naming is something you can change rather than something you must do.
+    @State private var name = ""
 
     /// `CameraView`'s viewfinder ground.
     private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
@@ -162,8 +165,24 @@ struct HeadMakerView: View {
                     .fill(Color.black.opacity(0.6), style: FillStyle(eoFill: true))
                     .opacity(outlineDrawn)
             }
+            // **It arrives; it does not draw itself.** This was
+            // `.trim(from: 0, to: outlineDrawn)`, so the outline was stroked on
+            // stroke by stroke over 0.55s of `layoutReflow` the moment the
+            // camera came up. That is the thing on this screen that was there
+            // to look designed: the flourish is a path assembling itself, and
+            // the WORK is a complete shape you can stand your head in. The
+            // design language's §5 is explicit both ways: nothing animates
+            // because a screen appeared, and "if an animation makes the person
+            // wait for it, it is wrong however good it looks". Half a second
+            // is a long time to withhold the one guide this screen has, and a
+            // partial head shape is not a head shape.
+            //
+            // It still fades up rather than snapping in, because the camera
+            // going live IS something happening, on the reveal rung
+            // (`naturalSettle`, §5's curve for arriving). Same opacity the dim
+            // around it already came up on, so the hole and its edge arrive as
+            // one object instead of a line being drawn over a darkened room.
             HeadOutline()
-                .trim(from: 0, to: outlineDrawn)
                 .stroke(Color.white.opacity(isLinedUp ? 1 : 0.85),
                         style: StrokeStyle(lineWidth: isLinedUp ? 3 : 2,
                                            lineCap: .round,
@@ -171,6 +190,10 @@ struct HeadMakerView: View {
                 .frame(width: hole.width, height: hole.height)
                 .position(x: hole.midX, y: hole.midY)
                 .animation(GridConstants.motionSnappy, value: isLinedUp)
+                // Outside the `isLinedUp` animation on purpose: the arrival is
+                // its own transaction (`respond(to:)`), and the lining-up
+                // spring has no business governing it.
+                .opacity(outlineDrawn)
             // The camera's modelling ring, held on while the flash is armed.
             // It lights the face the frames are read from, and a face in good
             // light is a face Vision can find the eyes of.
@@ -398,8 +421,18 @@ struct HeadMakerView: View {
         .disabled(!lit)
         .animation(GridConstants.motionSnappy, value: lit)
         .accessibilityLabel(watching ? "Taking" : "Start")
+        // **The progress is the pips', and it is said once.** This hint used
+        // to read "\(landed.count) of \(sequence.count) done", which is the
+        // same
+        // sentence the row of marks immediately above it already carries as
+        // its own label. Two elements, six points apart, reporting one number
+        // is exactly the fault the comment over `shutter` cites against the
+        // tower header ("the filter said Day while the title said Today"), and
+        // it is the one the Memories page was cut back for on 2026-09-23. The
+        // marks are where that fact is drawn, so the marks keep it, and the
+        // shutter says what the shutter is for.
         .accessibilityHint(watching
-                           ? "\(model.landed.count) of \(HeadMakerModel.sequence.count) done"
+                           ? "Hold still while the expressions are taken"
                            : ready
                            ? "Takes a slow blink, a smile, raised eyebrows, a surprised face and a wink"
                            : "Line your head up in the outline first")
@@ -430,9 +463,25 @@ struct HeadMakerView: View {
                 // for an expression.
                 TappableHead(rig: rig, side: Self.previewSide, greets: true)
                 VStack(spacing: GridConstants.gapTight) {
-                    Text("Looking good")
+                    // **The name, and it never blocks finishing.** It arrives
+                    // filled in, so Save works without a keyboard ever
+                    // appearing; clearing it keeps the suggestion rather than
+                    // leaving a head with no name. The owner asked for several
+                    // heads on 2026-09-23 ("add your friend's head"), and a row
+                    // of unnamed faces is a row you have to guess at.
+                    //
+                    // Profile's own name field, to the point: a bare centred
+                    // field at header size, no well and no rule under it.
+                    TextField("Name", text: $name)
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
+                        .multilineTextAlignment(.center)
+                        .textContentType(.name)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .padding(.horizontal, GridConstants.gapSection)
+                        .accessibilityLabel("This head's name")
                     Text(previewCaption(rig))
                         .font(Typography.bodySmall)
                         .foregroundStyle(AppColors.inkSecondary)
@@ -455,6 +504,13 @@ struct HeadMakerView: View {
                     Spacer(minLength: 0)
                     Button {
                         if model.save() {
+                            // The head is on disk before the name is applied,
+                            // so a name that will not stick can never cost
+                            // somebody the head they just made. An empty field
+                            // is ignored and the suggestion stands.
+                            if let id = HeadStore.shared.activeID {
+                                HeadStore.shared.rename(id, to: name)
+                            }
                             HapticsEngine.success()
                             dismiss()
                         }
@@ -493,12 +549,19 @@ struct HeadMakerView: View {
     private func respond(to step: HeadMakerModel.Step) {
         switch step {
         case .lining:
-            withAnimation(reduceMotion ? nil : GridConstants.layoutReflow) { outlineDrawn = 1 }
+            // `naturalSettle`, §5's reveal rung, not `layoutReflow`: nothing
+            // here is reflowing, and 0.55s was outside the ladder for an
+            // arrival. See the outline in `viewfinder(hole:)`.
+            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) { outlineDrawn = 1 }
         case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             outlineDrawn = 1
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.
             setFlashBrightness(false)
+            // The first head takes the name in Profile, because it is you.
+            // After that they are numbered: guessing whose head it is would be
+            // worse than not guessing.
+            name = HeadStore.shared.suggestedName(person: ProfileStore.shared.name)
         default:
             break
         }

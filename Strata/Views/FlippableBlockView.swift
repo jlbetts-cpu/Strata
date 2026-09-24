@@ -87,7 +87,6 @@ struct FlippableBlockView: View {
                     title: block.habit.title,
                     category: block.habit.category,
                     rowSpan: block.rowSpan,
-                    timeText: nil,
                     hasImage: false
                 )
                 .frame(width: width, height: height)
@@ -157,10 +156,9 @@ struct FlippableBlockView: View {
             height: height,
             cornerRadius: cornerRadius,
             hasPhoto: hasImage,
-            // No time. `BlockContentOverlay` has not drawn one since the
-            // tower stopped showing timestamps, and formatting it per block
-            // per body was the only thing left of it.
-            timeText: nil,
+            // No time. `BlockContentOverlay` has not drawn one since the tower
+            // stopped showing timestamps, and the parameter that carried it is
+            // gone rather than being passed `nil` through two views.
             showOverlay: showOverlay
         ) {
             CachedImageView(

@@ -26,6 +26,10 @@ struct PhotoCollectionView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var sections: [GallerySection] = []
     @State private var title = ""
+    /// Whether `title` is the fallback count rather than a name, so the header
+    /// does not state the same number twice. Only a place can be in that
+    /// state, and only until its name arrives.
+    @State private var titleIsCount = false
     /// A place whose name has not arrived yet. Set by `load()`, cleared by the
     /// task that asks for it.
     @State private var pending: WinPlace?
@@ -70,7 +74,10 @@ struct PhotoCollectionView: View {
         .task(id: pending.map(PlaceNames.key(for:))) {
             guard let place = pending else { return }
             await PlaceNames.shared.resolve(place)
-            if let name = PlaceNames.shared.name(for: place) { title = name }
+            if let name = PlaceNames.shared.name(for: place) {
+                title = name
+                titleIsCount = false
+            }
             pending = nil
         }
         .fullScreenCover(item: $viewing) { photo in
@@ -92,13 +99,45 @@ struct PhotoCollectionView: View {
             // letter and fits (`DynamicScreenTitle`), SF otherwise.
             DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-            Text("\(photoCount) \(photoCount == 1 ? "photo" : "photos")")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
-                .opacity(sections.isEmpty ? 0 : 1)
+            // **The count is a readout**, line for line the way
+            // `DayAlbumDetailView` sets its own: the digits are the owner's
+            // face, tabular, and the word beside them is SF at the subtitle
+            // size (`design-system-future.md` §2). It was one interpolated
+            // string in SF, so the only number on this screen was the only
+            // count in the app that was not his digits, sitting above a grid
+            // opened from the same shelf as the day page, whose count is.
+            //
+            // `StrataFont.digits`, never `Text("\(n)")`: interpolation is a
+            // `LocalizedStringKey` and groups 1000 as "1,000", and the face
+            // has no comma. No optical inset, for the day page's reason: at
+            // 15pt the face's mean left bearing works out near 1pt.
+            HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
+                Text(verbatim: StrataFont.digits(photoCount))
+                    .font(StrataFont.relative(Self.countSize, to: .subheadline))
+                Text(photoCount == 1 ? "photo" : "photos")
+                    .font(Typography.screenSubtitle)
+            }
+            .foregroundStyle(AppColors.inkQuiet)
+            .accessibilityElement(children: .combine)
+            // **Hidden when the title is already the count.** A place whose
+            // name has not arrived is titled "12 here" (see `load()`), and
+            // under it this line said "12 photos": one number twice, ten
+            // points apart, in two different faces. §7 asks a screen to say
+            // how much is here once. The name replaces the title when it
+            // lands, and the line comes back with it.
+            //
+            // Opacity rather than an `if`, so the box stays reserved and the
+            // title does not move when the name arrives.
+            .opacity(sections.isEmpty || titleIsCount ? 0 : 1)
+            .accessibilityHidden(sections.isEmpty || titleIsCount)
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
+
+    /// The subheadline's own default size, so the digits and the word beside
+    /// them are one line of type rather than two sizes agreeing by accident.
+    /// `DayAlbumDetailView`'s number, and the two have to stay the same.
+    private static let countSize: CGFloat = 15
 
     private var photoCount: Int { sections.reduce(0) { $0 + $1.photos.count } }
 
@@ -121,6 +160,7 @@ struct PhotoCollectionView: View {
         let now = Date()
 
         let matching: [WinRecord]
+        titleIsCount = false
         switch source {
         case .interest(let key):
             matching = records.filter { $0.hasPhoto && Album.titleKey($0.title) == key }
@@ -136,10 +176,16 @@ struct PhotoCollectionView: View {
             // fail, so the count is what the screen opens on and the name
             // replaces it if it comes — see `PlaceNames`.
             if let place = matching.compactMap(\.place).first {
-                title = PlaceNames.shared.name(for: place) ?? "\(matching.count) here"
+                if let name = PlaceNames.shared.name(for: place) {
+                    title = name
+                } else {
+                    title = "\(matching.count) here"
+                    titleIsCount = true
+                }
                 pending = place
             } else {
                 title = "\(matching.count) here"
+                titleIsCount = true
             }
         case .moment(let id):
             guard let moment = AlbumMoment(id: id) else { sections = []; return }

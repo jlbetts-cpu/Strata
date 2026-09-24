@@ -134,12 +134,50 @@ struct DayAlbumDetailView: View {
             // date fits in it, SF otherwise (`DynamicScreenTitle`).
             DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-            Text("\(logs.count) \(logs.count == 1 ? "win" : "wins")")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
+            // **The count is a readout.** The design language's §2: counts
+            // and indices are the owner's face, tabular, never abbreviated
+            // when they fit. The whole line was SF, which made the one number
+            // on this screen the only count in the app that was not his
+            // digits, sitting directly above a tower whose day numerals are.
+            //
+            // `StrataFont.digits`, never `Text("\(n)")`: interpolation is a
+            // `LocalizedStringKey` and groups 1000 as "1,000", and the face
+            // has no comma.
+            //
+            // The word stays SF at the subtitle size, which is the split the
+            // tower's header already makes: the count is the fact and the
+            // word is a caption for it. No optical inset here, unlike the
+            // tally, because at 15pt the face's mean left bearing works out
+            // near 1pt, under the size worth correcting.
+            HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
+                Text(verbatim: StrataFont.digits(logs.count))
+                    .font(StrataFont.relative(Self.countSize, to: .subheadline))
+                    .contentTransition(.numericText())
+                Text(logs.count == 1 ? "win" : "wins")
+                    .font(Typography.screenSubtitle)
+            }
+            .foregroundStyle(AppColors.inkQuiet)
+            .accessibilityElement(children: .combine)
+            // **Nothing to count, so nothing counted.** On a day with no wins
+            // the readout said "0 wins" and the body under it said "Nothing
+            // logged this day": the same fact twice, one of them as a zero,
+            // which is how a correct screen reads as a broken one. The design
+            // language's §7 wants "how much is here" answered once, and on an
+            // empty day the sentence is the better of the two answers.
+            //
+            // Opacity rather than an `if`, so the box is still reserved and
+            // the title does not sit at a different height on an empty day.
+            // `PhotoCollectionView`'s header does the same.
+            .opacity(logs.isEmpty ? 0 : 1)
+            .accessibilityHidden(logs.isEmpty)
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
+
+    /// The subheadline's own default size, so the digits and the word beside
+    /// them are one line of type rather than two sizes agreeing by accident.
+    /// Both scale together from `.subheadline`.
+    private static let countSize: CGFloat = 15
 
     private var title: String {
         let df = DateFormatter()

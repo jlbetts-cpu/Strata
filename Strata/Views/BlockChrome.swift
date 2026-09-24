@@ -42,54 +42,19 @@ struct BlockSurface<Fill: View>: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    /// The rim, brightest along the top edge.
-    ///
-    /// The Figma border is one flat white. Drawn flat at this weight it reads
-    /// as an outline around a sticker; a block is a solid object lit from
-    /// above, and the edge facing the light is the one that catches it. Same
-    /// single border, unequal along its length — which is what a real edge
-    /// does, and it lets the top read clearly without the sides shouting.
-    /// **Measured, not argued.** Four treatments were rendered on the dark
-    /// ground at phone size and sampled across a block's top edge (ground 26,
-    /// block fill 172):
-    ///
-    ///     white, full          edge 255
-    ///     white, softer        edge 234
-    ///     dark outline         edge 143   <- DARKER than the block
-    ///     no rim               edge 185   <- antialiasing, no edge at all
-    ///
-    /// A dark outline is the worst of the four and it is worth saying why: it
-    /// pulls the edge TOWARDS the background, which is the opposite of what an
-    /// edge facing a light does, so the block stops reading as lit and starts
-    /// reading as cut out. No rim loses the edge entirely.
-    ///
-    /// So the rim stays white — but it is **eased off in dark mode**, because
-    /// the same rim is doing wildly different amounts of work in the two
-    /// appearances. On the light page it is 255 against a 245 ground, which is
-    /// barely there and is exactly how it was tuned. On the dark one it is 255
-    /// against 26, and a stroke that emphatic stops being a lit edge and
-    /// becomes an outline drawn around the block.
-    private var rim: LinearGradient {
-        let fall = GridConstants.blockRimFalloff
-        let peak = colorScheme == .dark ? 0.85 : 1.0
-        let rest = colorScheme == .dark ? fall * 0.7 : fall
-        return LinearGradient(
-            stops: [
-                .init(color: .white.opacity(peak), location: 0.0),
-                .init(color: .white.opacity(rest), location: 0.55),
-                .init(color: .white.opacity(rest), location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
     private var surface: some View {
         fill()
             .overlay(BlockWash(opacity: washOpacity))
             .clipShape(shape)
+            // `strokeBorder`, not `stroke`: the rim is drawn INSIDE the
+            // silhouette, so a block is exactly as wide as its cell. See
+            // `BlockRim` has the rest: a merged run used to stroke its path
+            // instead, which hung half the rim out over the 4pt gutter.
             .overlay(
-                shape.strokeBorder(rim, lineWidth: GridConstants.blockRimWidth * scale)
+                shape.strokeBorder(
+                    BlockRim.gradient(in: colorScheme),
+                    lineWidth: GridConstants.blockRimWidth * scale
+                )
             )
     }
 
@@ -135,6 +100,62 @@ struct BlockSurface<Fill: View>: View {
     }
 }
 
+/// The block's rim, brightest along the top edge. **One definition, for every
+/// block-shaped thing in the app.**
+///
+/// It lives out here because a merged run of blocks is one object with one
+/// edge, and `MergedGroupView` has to draw it on its own path rather than on a
+/// `RoundedRectangle`. It kept a private copy at the LIGHT-mode values, so in
+/// dark mode a fused run was outlined in full white (1.0 / 0.45) standing next
+/// to single blocks eased off to 0.85 / 0.315: the same edge, drawn two ways,
+/// on one screen. This copy is the measured one, so this copy wins.
+///
+/// The Figma border is one flat white. Drawn flat at this weight it reads
+/// as an outline around a sticker; a block is a solid object lit from
+/// above, and the edge facing the light is the one that catches it. Same
+/// single border, unequal along its length — which is what a real edge
+/// does, and it lets the top read clearly without the sides shouting.
+/// **Measured, not argued.** Four treatments were rendered on the dark
+/// ground at phone size and sampled across a block's top edge (ground 26,
+/// block fill 172):
+///
+///     white, full          edge 255
+///     white, softer        edge 234
+///     dark outline         edge 143   <- DARKER than the block
+///     no rim               edge 185   <- antialiasing, no edge at all
+///
+/// A dark outline is the worst of the four and it is worth saying why: it
+/// pulls the edge TOWARDS the background, which is the opposite of what an
+/// edge facing a light does, so the block stops reading as lit and starts
+/// reading as cut out. No rim loses the edge entirely.
+///
+/// So the rim stays white — but it is **eased off in dark mode**, because
+/// the same rim is doing wildly different amounts of work in the two
+/// appearances. On the light page it is 255 against a 245 ground, which is
+/// barely there and is exactly how it was tuned. On the dark one it is 255
+/// against 26, and a stroke that emphatic stops being a lit edge and
+/// becomes an outline drawn around the block.
+enum BlockRim {
+    static func gradient(in colorScheme: ColorScheme) -> LinearGradient {
+        let fall = GridConstants.blockRimFalloff
+        let peak = colorScheme == .dark ? 0.85 : 1.0
+        let rest = colorScheme == .dark ? fall * 0.7 : fall
+        return LinearGradient(
+            stops: [
+                .init(color: .white.opacity(peak), location: 0.0),
+                .init(color: .white.opacity(rest), location: 0.55),
+                .init(color: .white.opacity(rest), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+/// The frosted band: the bottom 26% of a block, lifted toward white.
+///
+/// One definition, used by `BlockSurface` and by `MergedGroupView`, which
+/// anchors it to the bottom of the whole run instead of to each block in it.
 struct BlockWash: View {
     var opacity: Double = GridConstants.blockScrimOpacity
 

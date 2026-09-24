@@ -35,6 +35,23 @@ struct HeadLookPicker: View {
     private func swatch(_ look: FilmLook) -> some View {
         let isChosen = selection == look.kind
         let radius = GridConstants.blockCornerRadius(forCell: Self.side)
+        // **A swatch waits for its own head rather than borrowing one.**
+        //
+        // It used to draw the undressed head under every label at 0.4 opacity
+        // until the dressed previews landed: for that moment five different
+        // looks were all showing the `none` look, dimmed by an alpha that is
+        // not a token, and each then jumped to full as its own picture
+        // arrived. `HeadPickerRow` sits one row under this in Profile and is
+        // deliberately the same swatch; it already refuses this ("every other
+        // one waits for its swatch rather than borrowing a face that is not
+        // its own"), and it is right. The slot is what a slot looks like until
+        // there is something true to put in it, which is what `quietFill` is
+        // for everywhere else in the app.
+        //
+        // `none` never waits: its look IS the head as it was made, which is
+        // already in memory.
+        let undressed: HeadRig? = look.kind == .none ? head : nil
+        let rig: HeadRig? = previews[look.kind] ?? undressed
         return Button {
             guard !isChosen else { return }
             HapticsEngine.tick()
@@ -44,10 +61,11 @@ struct HeadLookPicker: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .fill(AppColors.quietFill)
-                    HeadStill(rig: previews[look.kind] ?? head, side: Self.side * 0.78)
-                        .frame(width: Self.side, height: Self.side)
-                        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                        .opacity(previews[look.kind] == nil && look.kind != .none ? 0.4 : 1)
+                    if let rig {
+                        HeadStill(rig: rig, side: Self.side * 0.78)
+                            .frame(width: Self.side, height: Self.side)
+                            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                    }
                 }
                 .frame(width: Self.side, height: Self.side)
                 .overlay {

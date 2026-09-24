@@ -100,15 +100,30 @@ struct SettingsView: View {
 
                     StrataWordmark(size: 30)
 
-                    Text("Version \(appVersion)")
-                        .font(Typography.bodySmall)
+                    // **The model plate, and the one place inside the app
+                    // that says the full name.**
+                    //
+                    // The owner asked whether Neo needs to appear in the app
+                    // at all, and the answer we settled on is almost nowhere:
+                    // the wordmark, the launch and the camera all stay
+                    // "Strata", because nobody inside the app is choosing
+                    // between this and another app. It belongs on the App
+                    // Store shelf and under the icon. This row is the
+                    // exception, and it earns it: a name set beside a version
+                    // and a build is what a device's plate looks like, which
+                    // is the 1990s instrument register the whole design is
+                    // after. It also means a reviewer who opens the app finds
+                    // the full name without the app announcing itself.
+                    Text("Strata Neo \(appVersion)")
+                        .font(Typography.sectionLabel)
+                        .kerning(Typography.sectionKerning)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, GridConstants.gapWide)
                 .padding(.bottom, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Strata version \(appVersion)")
+                .accessibilityLabel("Strata Neo, version \(appVersion)")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)

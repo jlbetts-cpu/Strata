@@ -499,7 +499,7 @@ struct MemoriesMapView: View {
 
     // MARK: - Where it opens
 
-    /// **Your town, not the planet.**
+    /// **Where you are, then your town, then the planet.**
     ///
     /// `.automatic` frames every annotation, which is right in the middle and
     /// wrong at both ends: two places a country apart open on a continent, and
@@ -526,6 +526,39 @@ struct MemoriesMapView: View {
             return
         }
         didFrame = true
+
+        // **Where you are comes first, and the places arrange themselves
+        // around it.**
+        //
+        // The owner, 2026-09-23: "when going to the maps screen it should
+        // focus on where you are first, not just loose."
+        //
+        // It framed the bounding box of every pin, which is only the right
+        // answer while your pins are all in one town. One trip and the map
+        // opens on two cities and a lot of sea, which is the loose he means:
+        // technically it contains everything and it shows you nothing. When
+        // the phone already knows roughly where it is, that is the centre,
+        // and the span is sized to the places NEAR it rather than to the
+        // furthest one. The bounding box stays as the answer for when there
+        // is no fix at all.
+        if let fix = location.fix(maxAge: 900, maxAccuracy: 2000) {
+            let here = fix.coordinate
+            // How far the nearest handful of places sit from here, in
+            // degrees. A place on another continent does not get a vote.
+            let nearby = pins.map { pin in
+                max(abs(pin.place.latitude - here.latitude),
+                    abs(pin.place.longitude - here.longitude))
+            }.filter { $0 < 0.6 }
+            // A town if there is nothing near, widening only as far as a
+            // wide city to take in the places that are.
+            let reach = min(max((nearby.max() ?? 0) * 2.4, 0.03), 0.14)
+            camera = .region(MKCoordinateRegion(
+                center: here,
+                span: MKCoordinateSpan(latitudeDelta: reach, longitudeDelta: reach)
+            ))
+            return
+        }
+
         let lats = pins.map(\.place.latitude)
         let lons = pins.map(\.place.longitude)
         guard let minLat = lats.min(), let maxLat = lats.max(),
