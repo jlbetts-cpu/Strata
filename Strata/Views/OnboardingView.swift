@@ -33,12 +33,18 @@ import SwiftUI
 ///   `Typography.screenTitle`) over body at 17, left-aligned to the page margin
 ///   like every other screen. It was 17 Medium over 17 Regular, centred, which
 ///   is a caption above a caption with no hierarchy between them.
-/// - **A visible sense of progress.** `OnboardingProgress`: a cell of the
-///   tower's grid per page, filling as you go. Not dots.
+/// - **The same four bands on every page**, so paging through reads as one
+///   object with different contents rather than as six screens. See `body`.
 /// - **The value shown, not described.** The real packer, the real block sizes
-///   and colours, the real slot, the real lattice, his real photographs.
+///   and colours, the real slot, the real lattice, his real photographs, and
+///   the camera inside a phone we draw (`DeviceFrame`).
 /// - **One thumb move.** One full-width pill on the bottom margin, and the pill
 ///   never moves between pages; the copy grows upward off it.
+///
+/// **A rule, not a row of marks.** It was six cells in the corner and the owner
+/// said so ("the progress bar doesn't look good tbh"); it is one measured rule
+/// across the top of the page now, where the wordmark used to be and where his
+/// own reference puts it. `OnboardingProgress` carries the argument.
 ///
 /// **Kept from his earlier calls**, so a later session does not undo them: the
 /// pages are full-bleed; the camera page is his photograph with nothing added;
@@ -82,20 +88,51 @@ struct OnboardingView: View {
 
     private static let headStep = 4
     private static let lastStep = 5
-    private static let cell: CGFloat = 74
+    /// The cell size that takes the tower margin to margin.
+    ///
+    /// The owner, 2026-09-23: "why is the tower in the onboarding not margin to
+    /// margin". It was a fixed 74, which on a 393pt phone drew a 308pt tower in
+    /// a 361pt column: 26pt of air down each side, so the first screen of the app
+    /// showed a picture of a tower rather than the tower. The real tower derives
+    /// its cell from the width it is handed and so does this, off the same page
+    /// margin as every other screen. `cellSize(forGridWidth:)` floors, so the
+    /// grid lands within a couple of points of the margin and never over it.
+    private static func cell(forWidth width: CGFloat) -> CGFloat {
+        GridConstants.cellSize(forGridWidth: width)
+    }
 
     var body: some View {
         ZStack {
-            stage.ignoresSafeArea()
-            scrim
+            stage
+            // **Four bands, the same four on every page** (the owner, via the
+            // brief of 2026-09-23: "the use of white space isn't good, the
+            // onboarding still feels cramped and a bit unfinished... I would
+            // appreciate more of a balanced onboarding experience").
+            //
+            //   1. The progress rule, under the safe area.
+            //   2. The title, 24 under it, with one grey line 12 under that.
+            //   3. The composition, centred in whatever is left.
+            //   4. The action, 24 clear of the home indicator.
+            //
+            // **The title is at the TOP** (the owner, 2026-09-23: "the type I
+            // feel like it's too thin and it should be on the top"). It was at
+            // the bottom, sitting on the button, which put the first thing you
+            // read last on the page and left the composition to open it.
+            //
+            // **Only four vertical numbers are allowed here: 12, 24, 40, 48.**
+            // A fifth is how a page starts reading as unfinished, because the
+            // eye sees the rhythm break without being able to name it. The only
+            // thing that changes between pages is the composition's height, and
+            // band 3 absorbs it.
             VStack(spacing: 0) {
-                header
-                Spacer(minLength: 0)
+                OnboardingProgress(step: step, count: Self.lastStep + 1)
+                    .padding(.top, GridConstants.gapItem)
                 words
+                art
                 actions
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.bottom, GridConstants.gapSection)
+            .padding(.bottom, GridConstants.gapWide)
         }
         .task {
             #if DEBUG
@@ -122,126 +159,94 @@ struct OnboardingView: View {
         }
     }
 
-    /// Whether this page's words are standing on a dark ground.
-    private var onDark: Bool { step == 2 || step == 3 }
+    // MARK: - The bands
 
-    // MARK: - The header
-
-    /// The name of the thing, and how far through you are.
+    /// **The wordmark is gone from every page** (the owner, 2026-09-23: "the
+    /// logo is really not necessary"). He is right twice over: the app's name is
+    /// on the icon they just tapped and on the screen they are about to land in,
+    /// so a walkthrough repeating it says nothing, and it was the thing crowding
+    /// the top of every page and competing with the title for the same job. The
+    /// progress rule has that band now and the title carries the identity.
     ///
-    /// That is `docs/design-system-future.md` section 7 for this screen: where
-    /// am I, and how much is here. It is the one row that does not change from
-    /// page to page, which is what makes the six pages read as one screen
-    /// rather than six.
-    private var header: some View {
-        // **Top-aligned, and the readout centred on the cap by hand.**
-        //
-        // The wordmark is a DRAWING, so its frame top IS its cap top and it is
-        // only as tall as that cap (CLAUDE.md, "a drawn header is not type").
-        // A centre or baseline rule would hang the row off whichever element is
-        // taller; aligning to the top and offsetting the small one by half the
-        // difference is what `MemoriesView.titleRow` and the head maker both do.
-        HStack(alignment: .top, spacing: GridConstants.gapItem) {
-            // Not on the camera page: that screenshot has the real
-            // wordmark in it already, and two would be one too many.
-            //
-            // **The camera's size, on the camera's line.** It was 26pt
-            // from its own offset, so on the one page that shows the
-            // real wordmark, baked into the camera screenshot, the word
-            // grew 6pt and dropped about 10 as you swiped onto it, then
-            // shrank back on the way off. Matching `CameraView.Header`
-            // and the head maker also means the app you land in after
-            // onboarding has its wordmark exactly where onboarding left it.
-            //
-            // White over a photograph, like the camera's and the maker's, not
-            // the `onDark` ink scale: those three are the same drawing on the
-            // same kind of ground and they should not drift apart by 5% of
-            // white.
-            StrataWordmark(size: Self.wordmark,
-                           color: onDark ? .white : AppColors.inkPrimary)
-                .opacity(step == 2 ? 0 : 1)
-
-            Spacer(minLength: 0)
-
-            // **The progress stays on the camera page**, which is the whole
-            // point of putting it here: the wordmark drops out there and the
-            // top line would otherwise be empty on one page out of six.
-            OnboardingProgress(step: step, count: Self.lastStep + 1, onDark: onDark)
-                .offset(y: (Self.wordmark - OnboardingProgress.cell) / 2)
-        }
-        .padding(.top, GridConstants.headerArtworkTopPadding)
-    }
-
-    /// The wordmark's cap height, and the line the header is measured from.
-    private static let wordmark: CGFloat = 32
+    /// The air around the composition, above and below it. Band 3 is greedy, so
+    /// this is the minimum rather than the measurement: the slack becomes air.
+    private static let airArt: CGFloat = 40
 
     // MARK: - The stage
 
-    /// Full-bleed, always. No page has a picture floating in the middle of it.
-    @ViewBuilder
+    /// What the page stands on: the app's own ground, on every page.
+    ///
+    /// **Nothing is full-bleed any more, and that is a real trade.** The map
+    /// page WAS the whole screen and he liked it that way ("I love how the maps
+    /// screen takes up the whole screen"). Under the layout he asked for on
+    /// 2026-09-23 it stopped working: with the title at the top of the page the
+    /// copy lands on the brightest part of a pale map, and holding it up takes a
+    /// dark wash across the top third. CLAUDE.md is explicit that a wash over
+    /// type is the one thing that makes a map feel cheap, and photographed it
+    /// was: the subtitle sat exactly where the wash ran out.
+    ///
+    /// So both app screens are shown the same way now, in `DeviceFrame`, which
+    /// is section 10 rule 8 as well: one answer per problem, not two. The full
+    /// bleed version is one revert away if he prefers it.
     private var stage: some View {
-        switch step {
-        case 0:
-            ZStack { WarmBackground(); tower }
-        case 1:
-            ZStack { WarmBackground(); workshop }
-        case 2:
-            // **The whole screen, and nothing added.** The owner sent a frame
-            // of the real camera — his sunset, his composition guides, his
-            // focus box, the wordmark and the tab bar — and his instruction
-            // was to show it: "the photo I sent of the camera is stunning,
-            // just show that, dont need to show everything else." Two earlier
-            // versions drew our own ring on it or cropped its chrome away.
-            // Both were the same mistake: improving a photograph that did not
-            // need improving.
-            GeometryReader { geo in
-                Image("DemoViewfinder")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
-            }
-        case 3:
-            // **A photograph of the map, not a live one.** A real
-            // `MemoriesMapView` here spins up MapKit and fetches tiles over
-            // the network — the owner saw it: "make sure the map loads faster,
-            // right now I noticed some loading issues; no need to load in an
-            // entire map, just need a photo of the map." He is right, and it
-            // is the same call as the camera page. Onboarding is not the place
-            // to make somebody wait for a network round trip, and nothing here
-            // is interactive anyway. The picture IS the real map with the real
-            // clusterer and his real photographs on it — it was rendered by
-            // the app and then captured.
-            GeometryReader { geo in
-                Image("DemoMap")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
-            }
-        case Self.headStep:
-            ZStack { WarmBackground(); headPage }
-        default:
-            ZStack { WarmBackground(); thanks }
-        }
+        WarmBackground().ignoresSafeArea()
     }
 
-    /// Enough darkness under the words to read them, and none above.
+    // MARK: - The art
+
+    /// The page's subject, in the space the header and the copy leave it.
+    ///
+    /// **A `GeometryReader` is greedy**, so in this stack it is exactly the
+    /// leftover: the header, the words and the actions take their own heights
+    /// first and this gets the rest. That is what lets the tower size itself to
+    /// the page rather than to a constant, and it is why a long title on a small
+    /// phone now squeezes the picture instead of landing on top of it.
     @ViewBuilder
-    private var scrim: some View {
-        if onDark {
-            LinearGradient(
-                stops: [
-                    .init(color: AppColors.warmBlack.opacity(0.45), location: 0.0),
-                    .init(color: .clear, location: 0.22),
-                    .init(color: AppColors.warmBlack.opacity(0.55), location: 0.55),
-                    .init(color: AppColors.warmBlack.opacity(0.95), location: 0.80)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+    private var art: some View {
+        GeometryReader { geo in
+            let box = geo.size
+            ZStack {
+                switch step {
+                case 0: tower(in: box)
+                case 1: workshop(in: box)
+                case 2: screenshot("DemoViewfinder", in: box)
+                case 3: screenshot("DemoMap", in: box)
+                case Self.headStep: headPage
+                case Self.lastStep: thanks
+                default: EmptyView()
+                }
+            }
+            .frame(width: box.width, height: box.height)
+        }
+        .padding(.bottom, Self.airArt)
+    }
+
+    // MARK: - The camera
+
+    /// The camera, in a phone we draw.
+    ///
+    /// The owner, 2026-09-23: "I like how they put the photo of the app into an
+    /// actual like Apple device. I feel like it makes it look a lot cleaner.
+    /// Especially we can use that for the camera as like an intro."
+    ///
+    /// **The photograph is still whole and still untouched**, which was his
+    /// earlier instruction about this page and it still holds: "the photo I sent
+    /// of the camera is stunning, just show that, dont need to show everything
+    /// else." Two versions before that one drew our own ring on it or cropped
+    /// its chrome away, and both were the same mistake. A frame around a picture
+    /// is not a change to the picture.
+    ///
+    /// **As large as the slot allows, and whole.** The shell is capped by the
+    /// page margin on one axis and by the slot on the other, so it is the biggest
+    /// complete phone that fits. It is not run off the bottom of the page to
+    /// reach the margin: a device with no bottom is a crop, and a crop is the
+    /// broken-looking state he asked never to see.
+    private func screenshot(_ asset: String, in box: CGSize) -> some View {
+        let width = min(box.width, box.height * DeviceFrame<EmptyView>.aspect)
+        return DeviceFrame(width: width) {
+            Image(asset)
+                .resizable()
+                .scaledToFill()
         }
     }
 
@@ -255,13 +260,20 @@ struct OnboardingView: View {
     /// photo grid; the point of this screen is that a block is a block whether
     /// or not it has a picture on it, and the mix says that in one look.
     private static let openingPhotos: [Int: String] = [
-        0: "DemoPhoto5", 2: "DemoPhoto9", 4: "DemoPhoto2", 7: "DemoPhoto11"
+        0: "DemoPhoto5", 2: "DemoPhoto9", 4: "DemoPhoto2", 6: "DemoPhoto11"
     ]
 
+    /// **Seven blocks, and it was eight.** The eighth started a fourth row on
+    /// its own, and a fourth row is what stopped this page going margin to
+    /// margin: at four rows the tower is taller than the slot on a small phone,
+    /// so the cell would have had to come off the height instead of the width
+    /// and the air down the sides would have come back. Seven fills three rows
+    /// exactly, with no gap anywhere in the grid, which is also the better
+    /// picture of what the app does.
     private static let demo: [(size: BlockSize, category: HabitCategory)] = [
         (.medium, .health), (.small, .work), (.hard, .mindfulness),
         (.small, .social), (.medium, .creativity), (.small, .focus),
-        (.small, .health), (.medium, .work)
+        (.small, .health)
     ]
 
     private static let packed: [(c: Int, r: Int, w: Int, h: Int, category: HabitCategory)] = {
@@ -280,19 +292,19 @@ struct OnboardingView: View {
     /// Real sizes, real colours, placed by the real packer — the same
     /// first-fit scan the tower runs, so this is the app's arrangement rather
     /// than one that resembles it.
-    private var tower: some View {
+    private func tower(in box: CGSize) -> some View {
         let gutter = GridConstants.spacing
+        let cell = Self.cell(forWidth: box.width)
         let rows = Self.packed.map { $0.r + $0.h }.max() ?? 1
-        let height = CGFloat(rows) * Self.cell + CGFloat(rows - 1) * gutter
-        let columns = CGFloat(GridConstants.columnCount)
-        let width = columns * Self.cell + (columns - 1) * gutter
+        let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
+        let width = GridConstants.gridWidth(cellSize: cell)
 
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(Self.packed.enumerated()), id: \.offset) { index, item in
-                block(item.category, columns: item.w, rows: item.h,
+                block(item.category, columns: item.w, rows: item.h, cell: cell,
                       photo: Self.openingPhotos[index])
-                    .offset(x: CGFloat(item.c) * (Self.cell + gutter),
-                            y: -CGFloat(item.r) * (Self.cell + gutter)
+                    .offset(x: CGFloat(item.c) * (cell + gutter),
+                            y: -CGFloat(item.r) * (cell + gutter)
                                 + (landed > index ? 0 : -640))
                     .opacity(landed > index ? 1 : 0)
             }
@@ -313,11 +325,19 @@ struct OnboardingView: View {
         // `.frame` has set them, and a background asked for before that would
         // be one cell wide. Same family of trap as CLAUDE.md's note that a
         // block's hit area is bigger than what it draws.
+        // **Clipped to the tower's own rows.** `TowerLattice` carries three
+        // rows of overhang above whatever it is given, which on the Wins tab is
+        // right: the tower is still growing and the surface fades out above it.
+        // Here it would put a fading checkerboard into band 1, which is the one
+        // band that has to stay empty. Cut to the grid, the surface is a board
+        // with a top edge, and this demo fills every cell of it, so at rest it
+        // is invisible and during the fall you can see the slots the blocks are
+        // dropping into.
         .background(alignment: .bottomLeading) {
-            TowerLattice(cellSize: Self.cell, contentHeight: height)
-                .frame(width: width, alignment: .bottomLeading)
+            TowerLattice(cellSize: cell, contentHeight: height)
+                .frame(width: width, height: height, alignment: .bottom)
+                .clipped()
         }
-        .offset(y: -60)
     }
 
     private func runFall() async {
@@ -361,40 +381,40 @@ struct OnboardingView: View {
     ///
     /// Accurate in the other direction too: in the tower a tap opens the add
     /// form and only a DRAW logs directly, so the lesson here is the draw.
-    private var workshop: some View {
+    private func workshop(in box: CGSize) -> some View {
         let gutter = GridConstants.spacing
-        let columns = CGFloat(GridConstants.columnCount)
-        let width = columns * Self.cell + (columns - 1) * gutter
+        let cell = Self.cell(forWidth: box.width)
+        let width = GridConstants.gridWidth(cellSize: cell)
         let spot = ghostSpot
         // A FIXED height, not one that grows with the tower: a box that
         // changes size shoves the title and the button around every time a
         // block lands.
         let rows = Self.maxRows
-        let height = CGFloat(rows) * Self.cell + CGFloat(rows - 1) * gutter
+        let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
 
         return ZStack(alignment: .bottomLeading) {
             ForEach(Array(built.enumerated()), id: \.offset) { _, item in
-                block(item.category, columns: item.w, rows: item.h)
-                    .offset(x: CGFloat(item.c) * (Self.cell + gutter),
-                            y: -CGFloat(item.r) * (Self.cell + gutter))
+                block(item.category, columns: item.w, rows: item.h, cell: cell)
+                    .offset(x: CGFloat(item.c) * (cell + gutter),
+                            y: -CGFloat(item.r) * (cell + gutter))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
 
             if let spot {
                 NextSlotButton(
                     reduceMotion: reduceMotion,
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
+                    cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
                     previewCategory: Self.tutorialColours[built.count % Self.tutorialColours.count],
                     onSizeChanged: { drawingSize = $0 },
                     action: { size in place(size) },
                     onOpenMenu: { HapticsEngine.lightTap() }
                 )
-                .frame(width: Self.cell * CGFloat(drawingSize.columnSpan)
+                .frame(width: cell * CGFloat(drawingSize.columnSpan)
                             + gutter * CGFloat(drawingSize.columnSpan - 1),
-                       height: Self.cell * CGFloat(drawingSize.rowSpan)
+                       height: cell * CGFloat(drawingSize.rowSpan)
                             + gutter * CGFloat(drawingSize.rowSpan - 1))
-                .offset(x: CGFloat(spot.c) * (Self.cell + gutter),
-                        y: -CGFloat(spot.r) * (Self.cell + gutter))
+                .offset(x: CGFloat(spot.c) * (cell + gutter),
+                        y: -CGFloat(spot.r) * (cell + gutter))
             }
         }
         .frame(width: width, height: height, alignment: .bottomLeading)
@@ -408,11 +428,15 @@ struct OnboardingView: View {
         // and scaled by its size, so the block you place with your finger gets
         // the same reply here as the ones you place tomorrow. Nothing animates
         // because this page appeared; this moves because a finger let go.
+        // Cut to the three rows the tutorial can use, for the reason the
+        // opening tower's is: the overhang would fill the top of the page with
+        // a fading checkerboard. Cut, it is a board with four columns and three
+        // rows, which is exactly what this page is teaching.
         .background(alignment: .bottomLeading) {
-            TowerLattice(cellSize: Self.cell, contentHeight: height, ripple: ripple)
-                .frame(width: width, alignment: .bottomLeading)
+            TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
+                .frame(width: width, height: height, alignment: .bottom)
+                .clipped()
         }
-        .offset(y: -50)
     }
 
     private static let tutorialColours: [HabitCategory] = [
@@ -489,7 +513,6 @@ struct OnboardingView: View {
         }
         .frame(width: Self.headCircle, height: Self.headCircle)
         .clipShape(Circle())
-        .offset(y: -60)
         .accessibilityHidden(true)
     }
 
@@ -502,7 +525,12 @@ struct OnboardingView: View {
     /// sheet: asking for something on the screen where you are thanking
     /// somebody turns the thank you into a transaction.
     private var thanks: some View {
-        VStack(spacing: GridConstants.gapItem) {
+        // **On the left margin, like everything else on these pages.** It was
+        // centred, which put the one page with a caption on it in a different
+        // alignment from the other five: the brief of 2026-09-23 is that nothing
+        // is centred and everything hangs off the margin, and a portrait is not
+        // an exception to that just because it is round.
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             Image("CreatorPortrait")
                 .resizable()
                 .scaledToFill()
@@ -526,16 +554,16 @@ struct OnboardingView: View {
                         .offset(x: 22, y: -14)
                 }
 
-            VStack(spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Jayden")
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
                 Text("Founder, developer and product designer")
                     .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)
-                    .multilineTextAlignment(.center)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .offset(y: -40)
     }
 
@@ -574,23 +602,38 @@ struct OnboardingView: View {
     /// app it introduces. Left-aligning also gives a 34pt title somewhere to
     /// wrap: centred, a three-line title is three different measures.
     ///
-    /// **The inks are the app's two scales** rather than `Color.white` and a
-    /// hand-typed 0.82. CLAUDE.md's rule, which cost four measurements: an ink
-    /// for a fixed dark ground is not the same object as an ink for the page.
+    /// **The inks are the app's own** rather than `Color.white` and a hand-typed
+    /// 0.82, which is what they were when two of these pages stood on a
+    /// photograph. Every page stands on `WarmBackground` now, so there is one
+    /// pair: `inkPrimary` for the title and `inkSecondary` for the line under it.
     private var words: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             Text(title)
+                // **SF Pro, bold, and that is the owner's final call.**
+                //
+                // A third face was tried for exactly one build. He looked at
+                // the same headline set in SF Pro, Jaro, Geist and Instrument
+                // Sans and landed on "maybe let's just keep it at SF Pro
+                // tbh". Which is the right answer for the reason the design
+                // doc gives: two faces, and a third one is a decision nobody
+                // has to keep defending. Bold rather than medium is his other
+                // note here, that the type was too thin.
                 .font(Typography.screenTitle)
-                .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                .fontWeight(.bold)
+                .foregroundStyle(AppColors.inkPrimary)
+                // It never shrinks to fit. If a title does not fit, the copy is
+                // too long: section 10 rule 3.
                 .fixedSize(horizontal: false, vertical: true)
             Text(subtitle)
                 .font(Typography.bodyLarge)
-                .foregroundStyle(onDark ? AppColors.onDarkSecondary : AppColors.inkSecondary)
+                .foregroundStyle(AppColors.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, GridConstants.gapSection)
+        // 24 under the rule above it, 40 down to the composition.
+        .padding(.top, GridConstants.gapWide)
+        .padding(.bottom, Self.airArt)
     }
 
     /// **The sizes are called what the rest of the app calls them.** These
@@ -638,9 +681,43 @@ struct OnboardingView: View {
 
     // MARK: - Actions
 
+    /// **One rule for this band: the primary is last, and it never moves.**
+    ///
+    /// Its bottom edge is 24 above the safe area on all six pages, its height
+    /// is fixed, so it lands in exactly the same place every time. Anything
+    /// secondary stacks ABOVE it and the composition gives up the room, which
+    /// is how the thank-you page's LinkedIn button has always worked.
+    ///
+    /// **Which is why the head page's decline is above the button and not
+    /// under it.** The brief asked for both "the Skip sits 12 under the button"
+    /// and "do not let the button move between pages", and with a control
+    /// below it those two cannot both be true: a decline under the pill pushes
+    /// the pill up by its own height plus the gap on that one page, and paging
+    /// onto it would shift the primary action 30pt. Reserving the space on the
+    /// other five was ruled out in the same message, and it is the thing that
+    /// reads as unfinished anyway. So the gap moves to the other side of the
+    /// button, where it costs nothing and the pill is provably identical.
     private var actions: some View {
-        VStack(spacing: GridConstants.gapTight) {
+        VStack(spacing: GridConstants.gapItem) {
             if step == Self.lastStep { connectButton }
+
+            // **Only where something is genuinely optional, which is the head**
+            // (the owner, 2026-09-23: "there shouldn't be a skip button other
+            // than when doing the face, not every page of the onboarding, and
+            // the spacing looks off for that as well").
+            //
+            // On the other five pages it was an escape hatch out of a
+            // six-page walkthrough offered six times, under a button that
+            // already says what happens next. It declines the head here, not
+            // the tour: the thank you is still to come.
+            if offersHead {
+                Button("Not now") {
+                    HapticsEngine.lightTap()
+                    withAnimation(GridConstants.naturalSettle) { step += 1 }
+                }
+                .font(Typography.bodySmall)
+                .foregroundStyle(AppColors.inkQuiet)
+            }
 
             // **A native button.** It was a `BlockSurface` — the app's own
             // object, which sounded right and looked like a slab. The owner:
@@ -666,21 +743,31 @@ struct OnboardingView: View {
             } label: {
                 Text(actionTitle)
                     .font(Typography.headerMedium)
-                    // **Disabled is a different pill, not a faded one.**
+                    // **Disabled is a different control, not a faded one.**
                     //
-                    // Fading the whole control took the LABEL down with it:
-                    // the ground-coloured type on a half-strength ink pill
-                    // came out near-white on light grey. So waiting looks like
-                    // an outline-weight pill with ink type — legible, and
-                    // unmistakably not yet the thing you press.
-                    .foregroundStyle(canAdvance ? pillLabel
-                                                : AppColors.slotInk.opacity(0.55))
+                    // It was a 12% ink pill with a 55% ink label, which is a
+                    // pale copy of the filled one: photographed, "What else"
+                    // was grey type on grey, which is the exact thing he
+                    // complained about once already ("the button is lowkey
+                    // invisible during the onboarding flow, same colour as the
+                    // background, when its grey").
+                    //
+                    // An outline is not a paler pill, it is a different object,
+                    // and that is what section 10 rule 6 asks for: clearly
+                    // there or clearly not. The label is `inkTertiary`, which
+                    // measures 4.8:1 on this ground, so what it says is still
+                    // readable while it waits; the ring is `inkQuiet` at 3.1:1,
+                    // the floor for something that is a shape rather than text.
+                    .foregroundStyle(canAdvance ? pillLabel : disabledInk)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background {
-                        Capsule().fill(canAdvance
-                                       ? pillFill
-                                       : AppColors.slotInk.opacity(0.12))
+                        if canAdvance {
+                            Capsule().fill(pillFill)
+                        } else {
+                            Capsule().strokeBorder(disabledRing,
+                                                   lineWidth: GridConstants.strokeThin)
+                        }
                     }
                     .contentShape(Capsule())
             }
@@ -688,55 +775,30 @@ struct OnboardingView: View {
             .disabled(!canAdvance)
             .animation(GridConstants.gentleReveal, value: canAdvance)
 
-            // On the head page it declines the head, not the tour: the thank
-            // you is still to come.
-            Button(offersHead ? "Not now" : "Skip") {
-                HapticsEngine.lightTap()
-                if offersHead {
-                    withAnimation(GridConstants.naturalSettle) { step += 1 }
-                } else {
-                    onFinish()
-                }
-            }
-            .font(Typography.bodySmall)
-            .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkQuiet)
-            // **Its room is held on the last page, its touches are not.**
-            //
-            // `.opacity(0)` does not stop hit testing, so the thank-you page had
-            // an invisible button under the pill that ended the walkthrough.
-            // Nothing broken came of it, since it called `onFinish` too,
-            // which is what Start does, but an invisible control that fires is the
-            // definition of the broken UI he asked not to be able to find, and
-            // it is the sort of thing that only stays harmless by luck. The
-            // space stays reserved either way, because the pill above it must
-            // not move between pages.
-            .opacity(step < Self.lastStep ? 1 : 0)
-            .allowsHitTesting(step < Self.lastStep)
-            .accessibilityHidden(step >= Self.lastStep)
         }
     }
 
     private var canAdvance: Bool { step != 1 || hasDrawn }
 
-    /// The primary pill's fill. **A surface, not an ink.**
+    /// The primary pill's fill.
     ///
-    /// `slotInk` is an ink: warm black in light mode. On the camera and map
-    /// pages the ground behind the pill is a dark scrim (61,58,54), so a
-    /// warm-black pill measured 1.02:1 against it and only its white words
-    /// were left. On a dark ground the pill is the warm near-white dark mode
-    /// already shows, whatever the phone is set to.
-    private var pillFill: Color {
-        onDark ? Self.onDarkPill : AppColors.slotInk
-    }
+    /// **It is `inkPrimary`, and it was `slotInk`** (the owner,
+    /// 2026-09-23: "the button isn't like black... the buttons being like a
+    /// darker color"). `slotInk` is the app's warm black, 64,61,57, and against
+    /// this page it composites to a soft brown-grey rather than to a black.
+    /// `inkPrimary` is the strongest ink the app writes with and it is already
+    /// what the title above it is set in, so the page's two loudest things are
+    /// now the same ink: measured over the ground, the pill is 37,37,38 and its
+    /// label clears 13.9:1. No new colour was invented to get there.
+    private var pillFill: Color { AppColors.inkPrimary }
 
-    /// The pill's words: the page's ground on an ink pill, warm black on the
-    /// fixed near-white one.
-    private var pillLabel: Color {
-        onDark ? AppColors.warmBlack : WarmBackground.top
-    }
+    /// The pill's words: the page's own ground, on a pill of the page's own ink.
+    private var pillLabel: Color { WarmBackground.top }
 
-    /// `slotInk`'s dark value, fixed: the pill dark mode draws on these pages.
-    private static let onDarkPill = Color(red: 0.98, green: 0.97, blue: 0.96)
+    /// What the action says while it is waiting for you, and the ring around it.
+    private var disabledInk: Color { AppColors.inkTertiary }
+
+    private var disabledRing: Color { AppColors.inkQuiet }
 
     /// The head page, with no head made yet.
     private var offersHead: Bool { step == Self.headStep && heads.head == nil }
@@ -773,13 +835,13 @@ struct OnboardingView: View {
     // MARK: - Drawing
 
     private func block(_ category: HabitCategory, columns: Int, rows: Int,
-                       photo: String? = nil) -> some View {
+                       cell: CGFloat, photo: String? = nil) -> some View {
         let gutter = GridConstants.spacing
-        let width = Self.cell * CGFloat(columns) + gutter * CGFloat(columns - 1)
-        let height = Self.cell * CGFloat(rows) + gutter * CGFloat(rows - 1)
+        let width = cell * CGFloat(columns) + gutter * CGFloat(columns - 1)
+        let height = cell * CGFloat(rows) + gutter * CGFloat(rows - 1)
         return BlockSurface(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
-            scale: Self.cell / GridConstants.blockReferenceCell,
+            cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+            scale: cell / GridConstants.blockReferenceCell,
             // The photo blocks' own wash. A white veil at the block's usual
             // strength floors a photograph's luminance; the tower drops to
             // 0.06 for exactly this and so does the map.

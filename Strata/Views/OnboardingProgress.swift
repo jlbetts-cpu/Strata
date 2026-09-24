@@ -1,70 +1,65 @@
 import SwiftUI
 
-/// How far through the walkthrough you are, drawn as the tower's own cells.
+/// How far through the walkthrough you are: one rule, margin to margin, that
+/// fills.
 ///
-/// **A visible sense of progress, in this app's language rather than in the
-/// platform's.** A row of page dots is the generic answer, and it says nothing
-/// about what this app is. The tower's grid already means "one of these is a
-/// thing you did", so the walkthrough fills one cell per page and the row reads
-/// as the first four or five blocks of something being built. Same 4pt gutter
-/// (`GridConstants.spacing`) and the same radius the cell ladder gives a square
-/// this small (`GridConstants.blockCornerRadius(forCell:)`), which is
-/// `docs/design-system-future.md` section 3: a screen laying out a grid of
-/// things uses the same cell language rather than inventing a pattern.
+/// **It was six small rounded cells in the top right corner, and the owner was
+/// right about them** (2026-09-23: "the progress bar doesn't look good tbh").
+/// Six marks is six objects to count, they sat in a cluster in the corner with
+/// air around them, and a row of little squares in a corner is a pagination
+/// widget whatever it is drawn with. The tower's cell language does not rescue
+/// that: a cell means a win, and a page of a walkthrough is not a win.
 ///
-/// **Nothing here animates on appearance** (section 5 and section 8). The fill
-/// changes because somebody pressed the button, and it changes inside the
-/// caller's own transaction, so the row moves with the page rather than on a
-/// spring of its own.
+/// **It is the first thing on the page now**, across the top on the page's own
+/// margin, where the wordmark used to be: the owner's reference puts its rule
+/// there and he asked for the same. That position is also what stops it reading
+/// as an underline of whatever sits above it, which is what it did when it lived
+/// under the wordmark.
+///
+/// **A measured rule is the instrument's answer.** One element instead of six,
+/// spanning exactly the width the page's content spans, so it belongs to the
+/// same geometry as everything under it, and it says how far through you are
+/// without asking anybody to count. A scale on an instrument is a line with a
+/// mark on it.
+///
+/// `1 / displayScale` belongs to a separator (`docs/design-system-future.md`
+/// section 6); this is a readout, not a separator, so it has a thickness of its
+/// own. See `thickness`.
+///
+/// **Nothing animates on appearance** (sections 5 and 8). The fill's width
+/// changes because somebody pressed the button, inside the caller's own
+/// transaction, so it moves with the page rather than on a spring of its own.
 struct OnboardingProgress: View {
 
     /// The page you are on, from 0.
     let step: Int
     let count: Int
 
-    /// Whether the ground under it is the dark of a photograph.
-    ///
-    /// The camera and map pages are dark whatever the phone is set to, so the
-    /// adaptive inks are wrong there and the `onDark` scale is what the app
-    /// uses instead. CLAUDE.md: an ink is for text and inverts; ask what the
-    /// contrast is against.
-    let onDark: Bool
+    /// **A few points, fully rounded.** `GridConstants.spacing`, the grid's own
+    /// gutter, so the number comes from the system rather than from an eye. At
+    /// 2pt it read as a hairline that had gone wrong; at 4 it is a bar.
+    static let thickness: CGFloat = GridConstants.spacing
 
-    /// The side of one cell.
-    ///
-    /// Six of these and five gutters measure 92pt, a quarter of a 370pt
-    /// column, so the readout is a caption beside the wordmark rather than a
-    /// control competing with it.
-    static let cell: CGFloat = 12
+    /// The travelled part, in the strongest ink the app has, which is what the
+    /// title under it is set in.
+    private var ink: Color { AppColors.inkPrimary }
 
-    /// A page you have reached: 62% ink on the page, 75% white on a
-    /// photograph. Both are the app's own heading ink, which is the rank this
-    /// is: it names where you are and is not the thing you read.
-    private var filled: Color {
-        onDark ? AppColors.onDarkSecondary : AppColors.inkSecondary
-    }
-
-    /// A page still to come. The state is carried by ten times the ink rather
-    /// than by a shape or an outline, so there is nothing here to mistake for a
-    /// control: `quietFill` is the app's empty-cell token, and on a photograph
-    /// 6% white would be gone, so the dark scale's hairline value stands in.
-    private var empty: Color {
-        onDark ? AppColors.onDarkFaint : AppColors.quietFill
-    }
+    /// The part still to come: `quietFill`, the app's own empty-surface token.
+    private var track: Color { AppColors.quietFill }
 
     var body: some View {
-        HStack(spacing: GridConstants.spacing) {
-            ForEach(0..<count, id: \.self) { index in
-                RoundedRectangle(
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: Self.cell),
-                    style: .continuous
-                )
-                .fill(index <= step ? filled : empty)
-                .frame(width: Self.cell, height: Self.cell)
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous).fill(track)
+                Capsule(style: .continuous)
+                    .fill(ink)
+                    // **The first page is already one page of six**, so the rule
+                    // is never empty: an empty gauge on the opening screen reads
+                    // as something that failed to load.
+                    .frame(width: geo.size.width * CGFloat(step + 1) / CGFloat(max(count, 1)))
             }
         }
-        // One element, and it says the number rather than leaving VoiceOver to
-        // read six unlabelled squares.
+        .frame(height: Self.thickness)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(step + 1) of \(count)")
     }
