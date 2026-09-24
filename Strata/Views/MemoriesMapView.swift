@@ -630,38 +630,46 @@ struct MemoriesMapView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button {
-                HapticsEngine.lightTap()
-                if denied {
+            // **Gone, not hidden, when there is nothing left to ask.**
+            //
+            // The owner, on the shipped build: "the map looks odd when it's
+            // waiting for a win, like it's expecting a button that's not
+            // there to be there." It was: the button was dimmed to zero with
+            // `.opacity`, which hides the ink and keeps the 46pt of height
+            // and its top padding, so the panel had a button shaped hole in
+            // it. Opacity is for something that is still there; this one is
+            // not, so it leaves the layout.
+            if location.canAsk || denied {
+                Button {
+                    HapticsEngine.lightTap()
+                    if denied {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
-                } else {
+                    } else {
                     location.requestAccess()
-                }
-            } label: {
-                // It was white type with a `contentShape` and no fill, a
-                // button-shaped hit area with nothing to press. On a map, of
-                // all grounds, invisible chrome is the one thing that cannot
-                // work. It keeps its fill and takes the app's own primary
-                // pill: `slotInk` filled with the page's ground for a label,
-                // which is what `OnboardingView.pillFill` draws on a light
-                // ground and what makes this the same button as the one on
-                // the onboarding page that asks the same question. Both
-                // tokens invert, so the pill follows the panel it is on.
-                Text(denied ? "Open Settings" : "Turn On Places")
+                    }
+                } label: {
+                    // It was white type with a `contentShape` and no fill, a
+                    // button-shaped hit area with nothing to press. On a map, of
+                    // all grounds, invisible chrome is the one thing that cannot
+                    // work. It keeps its fill and takes the app's own primary
+                    // pill: `slotInk` filled with the page's ground for a label,
+                    // which is what `OnboardingView.pillFill` draws on a light
+                    // ground and what makes this the same button as the one on
+                    // the onboarding page that asks the same question. Both
+                    // tokens invert, so the pill follows the panel it is on.
+                    Text(denied ? "Open Settings" : "Turn On Places")
                     .font(Typography.headerSmall)
                     .foregroundStyle(WarmBackground.top)
                     .padding(.horizontal, 22)
                     .frame(height: 46)
                     .background(Capsule().fill(AppColors.slotInk))
                     .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, GridConstants.gapTight)
             }
-            .buttonStyle(.plain)
-            .padding(.top, GridConstants.gapTight)
-            // Once it is granted there is nothing left to ask, and a button
-            // that does nothing is worse than no button.
-            .opacity(location.canAsk || denied ? 1 : 0)
         }
         .frame(maxWidth: .infinity)
         .padding(GridConstants.gapSection)
