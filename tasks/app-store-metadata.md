@@ -45,13 +45,11 @@ sets `INFOPLIST_KEY_CFBundleDisplayName`.
 
 ## Subtitle
 
-    A photograph for every small win
+    Proof you did something
 
-31 characters, so trim to:
-
-    A photo for every small win
-
-27 of 30. It says what the app does in its own words, names no category that
+23 of 30. Superseded the earlier "a photo for every small win", because this
+one says what the app is FOR rather than what it contains, and it carries the
+brand's whole argument in three words. See `docs/brand.md`. It says what the app does in its own words, names no category that
 belongs to somebody else, and contains no comparison.
 
 ## Keywords
@@ -60,7 +58,12 @@ belongs to somebody else, and contains no comparison.
 name appears here, deliberately**: an irrelevant reference to a popular app in
 the keywords is one of the examples Apple gives for this exact guideline.
 
-    win,wins,habit,photo,journal,diary,camera,film,memory,daily,streak,log,blocks,tower,ritual
+    win,wins,photo,journal,diary,camera,film,memory,proof,daily,log,blocks,tower,record,evidence
+
+**"Habit" and "streak" are deliberately absent.** The owner: "I don't want to
+hear no habit in the description." Both words belong to the commodity category
+this app is not in, and "streak" names the scoreboard the whole design refuses.
+Losing them costs a little search traffic and buys the positioning.
 
 ## Promotional text
 

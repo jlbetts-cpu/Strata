@@ -25,10 +25,19 @@ scattered across rooms, messages, a tidy kitchen, a hard conversation, and
 none of it is anywhere by the evening. So the day reads as nothing, whatever
 was in it.
 
-**This app is a device for making effort visible.** Not a planner: the plan is
-about what has not happened. Not a habit tracker in the streak sense: a streak
-is a scoreboard that punishes a gap. A record of what was true, built out of
-objects you can see from across the room.
+**This app is a device for making effort visible.** Not a planner: a plan is
+about what has not happened yet. Not a tracker: a tracker keeps a score, and a
+score can be lost. A record of what was true, built out of objects you can see
+from across the room.
+
+**The word "habit" never appears in anything a person reads.** The owner's
+call, 2026-09-23: "I don't want to hear no habit in the description." He is
+right and it is worth writing down why. It is the name of a commodity category
+full of streaks and chore charts, it frames the app as being about repetition
+when this one is about evidence, and it drags in the scoreboard we spent the
+whole design removing. The app's own code still has a `Habit` type, which is
+fine: code is not copy. Nothing on a screen, in a listing, in a keyword or in
+a description may use it.
 
 ---
 
