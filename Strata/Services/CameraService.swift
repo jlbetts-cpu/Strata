@@ -50,14 +50,40 @@ final class CameraService: NSObject {
 
     // MARK: - Lifecycle
 
+    /// **Whether the person has actually said no, as opposed to not having
+    /// been asked.**
+    ///
+    /// `isAuthorized` is false in both cases and the view could not tell them
+    /// apart, so a refusal drew the same thing an unopened camera does: a
+    /// black rectangle with the wordmark and a shutter on it. That is the
+    /// screen the owner reported as "a blank black screen", and it is the
+    /// app's LAUNCH tab, so it is the first thing a tester who taps Don't
+    /// Allow ever sees. `CameraView` reads this to say so instead.
+    private(set) var isDenied = false
+
     func requestAccess() async {
+        #if DEBUG
+        if DebugHarness.cameraDenied {
+            isAuthorized = false
+            isDenied = true
+            return
+        }
+        #endif
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             isAuthorized = true
+            isDenied = false
         case .notDetermined:
             isAuthorized = await AVCaptureDevice.requestAccess(for: .video)
+            // Asked and answered, so a no here is a real no.
+            isDenied = !isAuthorized
         default:
+            // .denied and .restricted. A restricted camera cannot be granted
+            // from Settings either, but the sentence below does not promise
+            // it can: it says where the switch lives, and on a restricted
+            // device there simply is not one.
             isAuthorized = false
+            isDenied = true
         }
     }
 

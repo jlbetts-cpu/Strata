@@ -221,13 +221,25 @@ struct CameraView: View {
             ZStack {
                 CameraPreview(session: camera.session, box: previewBox)
 
+                // **What a refused camera says, instead of saying nothing.**
+                //
+                // Over the preview rather than instead of it, so the one
+                // layout serves both states and nothing below has to move.
+                if camera.isDenied { accessRefused }
+
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
                 viewfinderGestures(w: w, h: h)
 
                 // Kept mounted and ruled in or out, never inserted and
                 // removed. See `guides`.
-                guides(w: w, h: h, topInset: topInset, shown: camera.showsGuides)
+                // **Not while the camera is refused.** The thirds are for
+                // composing a frame and there is no frame, so they drew as
+                // two lines through the middle of the sentence explaining
+                // that. Same rule the guides already follow: they are for the
+                // picture, not for the screen.
+                guides(w: w, h: h, topInset: topInset,
+                       shown: camera.showsGuides && !camera.isDenied)
                     .allowsHitTesting(false)
 
                 header(topInset: topInset)
@@ -381,6 +393,59 @@ struct CameraView: View {
     /// recording a win must be the fastest thing in the app. That cost is real
     /// and is the thing to watch: if it drags, the fix is a Settings toggle,
     /// not a redesign.
+    /// **The camera tab, when the answer was no.**
+    ///
+    /// The owner, on build 33 from internal TestFlight: "why when I'm testing
+    /// it on internal I just get a blank black screen?"
+    ///
+    /// This is that screen. `CameraService.start` does
+    /// `guard isAuthorized else { return }` and returns, so the session never
+    /// runs, the preview layer has nothing to draw and the app's LAUNCH TAB is
+    /// a black rectangle with the wordmark and a dead shutter on it. A tester
+    /// who taps Don't Allow gets it on every launch from then on, with nothing
+    /// anywhere saying why or what to do, and on a phone it is indistinguishable
+    /// from an app that failed to start.
+    ///
+    /// Three lines and one button, in the viewfinder's own register: white on
+    /// black, the app's ink is for the page and would be invisible here. The
+    /// glass capsule is legitimate at this one — `GlassIconButton.swift`'s rule
+    /// is that glass belongs over content, and a viewfinder is the case it
+    /// names.
+    ///
+    /// It does not try to re-ask. Once the answer is no, iOS will not present
+    /// the prompt again, and a button that looked like it might is worse than
+    /// one that says where the switch really is.
+    private var accessRefused: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: GridConstants.gapItem) {
+                Text("Strata cannot see the camera")
+                    .font(Typography.screenTitle)
+                    .foregroundStyle(.white)
+                Text("A win can be a photograph. Turn the camera on for Strata in Settings and this becomes the viewfinder.")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.onDarkSecondary)
+                    .padding(.bottom, GridConstants.gapItem)
+                Button("Open Settings") {
+                    HapticsEngine.lightTap()
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(Typography.bodyLarge)
+                .foregroundStyle(.white)
+                .padding(.horizontal, GridConstants.gapWide)
+                .frame(height: GlassIconButton.defaultSide)
+                .glassCapsule()
+                .buttonStyle(.plain)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, GridConstants.gapWide)
+        }
+        // Above the preview, below the chrome: the shutter and the tab bar
+        // stay reachable, so the way out of this screen is where it always is.
+        .transition(.opacity)
+    }
+
     private func reviewLayer(image: UIImage, topInset: CGFloat,
                              bottomInset: CGFloat) -> some View {
         ZStack {
@@ -1210,8 +1275,13 @@ struct CameraView: View {
                 .scaleEffect(shutterScale)
         }
         .animation(GridConstants.slotSnap, value: drawnSize)
+        // **Quiet and inert while the camera is refused**, rather than a
+        // full-white button promising a photograph it cannot take. Kept on
+        // screen rather than removed: the row is the same row on both states,
+        // and the thing that explains the button is the sentence above it.
+        .opacity(camera.isDenied ? 0.3 : 1)
         .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
-        .gesture(draw)
+        .gesture(draw, isEnabled: !camera.isDenied)
         .accessibilityLabel("Take photo")
         .accessibilityValue(drawnSize.effortLabel)
         .accessibilityAddTraits(.isButton)

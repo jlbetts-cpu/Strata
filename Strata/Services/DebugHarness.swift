@@ -422,6 +422,15 @@ enum DebugHarness {
     /// Which onboarding page to open on, from `-strataOnboardingStep 0...3`.
     static var onboardingStep: Int? { argument("-strataOnboardingStep").flatMap(Int.init) }
 
+    /// Forces the camera's refused state, from `-strataCameraDenied 1`.
+    ///
+    /// **Because nothing on this machine can tap "Don't Allow".** `simctl
+    /// privacy` grants, revokes and resets; it cannot deny, so the one screen
+    /// a tester reaches by refusing was the one screen that could not be
+    /// photographed. See `CameraView.accessRefused`, which is the fix for the
+    /// owner's "blank black screen".
+    static var cameraDenied: Bool { argument("-strataCameraDenied") != nil }
+
 
     /// Raises the photographs page, from `-strataOpenDrawer full`.
     ///
@@ -885,7 +894,7 @@ enum DebugHarness {
             // onboarding alone left `isActive` false, so the app fell back to
             // the real `hasOnboarded` default and showed no onboarding at all
             // — the flag looked broken when it was simply never consulted.
-            || showsOnboarding || onboardingStep != nil
+            || showsOnboarding || onboardingStep != nil || cameraDenied
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.
