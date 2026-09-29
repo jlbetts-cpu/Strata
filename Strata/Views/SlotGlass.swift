@@ -58,10 +58,32 @@ extension GlassRecipe {
     /// `docs/design-system-future.md` says chrome is ink and grey, and a slot
     /// that warmed up as you pulled it would be inventing a brand accent at the
     /// exact moment the person is looking straight at it.
+    /// **`.regular`, not `.clear`, and that reverses an earlier call here.**
+    ///
+    /// The owner, twice: "the + square doesn't match the aesthetic", and then
+    /// after the first attempt, "the + button is still not liquid glass yet
+    /// reflecting the light."
+    ///
+    /// He is right and the reason is in this file's own argument. `.clear` was
+    /// chosen so the lattice would read through the pane, on the reasoning that
+    /// the slot's claim to be EMPTY was the thing to protect -- and the figure
+    /// quoted for it is the giveaway: `.clear` removes only 22 to 37% of what is
+    /// behind it. A material that barely touches what is behind it also barely
+    /// bends light, so there was nothing to reflect and nothing to refract. It
+    /// was not glass; it was a very faint rectangle.
+    ///
+    /// Two things have changed since that call. The slot is no longer sitting on
+    /// a flat fill -- `DayGround` puts real light and colour behind it, so
+    /// `.regular` now has something to lens, which is exactly the condition
+    /// `GlassIconButton.swift` says glass needs and never had here. And the fear
+    /// it was guarding against is answerable more cheaply: what stops a slot
+    /// reading as a filled block is that it carries no colour of its own and
+    /// holds a `+`, not that you can see the lattice through it.
     static func slot(thickness: Double) -> Glass {
         let t = max(0, min(1, thickness))
-        guard t > 0 else { return .clear.interactive() }
-        return .clear.tint(.black.opacity(0.05 * t)).interactive()
+        guard t > 0 else { return .regular.interactive() }
+        // Thickening: ink, never a hue. See the note on §4 below.
+        return .regular.tint(.black.opacity(0.06 * t)).interactive()
     }
 
     /// The resting slot, for callers that never draw.
