@@ -32,9 +32,40 @@ import SwiftUI
 /// has.
 @available(iOS 26.0, *)
 extension GlassRecipe {
-    static var slot: Glass {
-        .clear.interactive()
+    /// **The slot's glass gets thicker the further the block is drawn out of it.**
+    ///
+    /// The owner, 2026-09-29: "it should do the liquid glass refraction as you
+    /// drag as well, like it's a physical liquid glass module."
+    ///
+    /// This is the system's own model rather than an effect invented here. Apple
+    /// on Liquid Glass: "when glass flexes and morphs to larger sizes, its
+    /// material characteristics change to simulate a thicker, more substantial
+    /// material, casting deeper shadows and showing more pronounced lensing and
+    /// refraction effects." The slot's frame already grows with the draw, so the
+    /// lensing already grows with it; what this adds is the second half of that
+    /// sentence, the material getting more substantial rather than only bigger.
+    ///
+    /// **`thickness` is 0 at a Quick and 1 at a Deep.** At 0 it is exactly the
+    /// `.clear` it always was, because `SlotGlass`'s original argument still
+    /// holds at rest: the lattice reading through the pane is the slot's whole
+    /// claim to be EMPTY, and `.regular` blurs out about 82% of what is behind
+    /// it where `.clear` removes 22 to 37. A slot at rest must not look like a
+    /// block somebody forgot to fill.
+    ///
+    /// But while you are drawing, it is not at rest and it is not claiming to be
+    /// empty -- it is a thing in your hand being pulled bigger, and a thicker
+    /// pane is the honest read of that. The tint is ink, never a colour: §4 of
+    /// `docs/design-system-future.md` says chrome is ink and grey, and a slot
+    /// that warmed up as you pulled it would be inventing a brand accent at the
+    /// exact moment the person is looking straight at it.
+    static func slot(thickness: Double) -> Glass {
+        let t = max(0, min(1, thickness))
+        guard t > 0 else { return .clear.interactive() }
+        return .clear.tint(.black.opacity(0.05 * t)).interactive()
     }
+
+    /// The resting slot, for callers that never draw.
+    static var slot: Glass { slot(thickness: 0) }
 }
 
 extension View {
@@ -53,9 +84,9 @@ extension View {
     /// frame, so the caller applies this to a view that has already filled the
     /// cell it is pointing at.
     @ViewBuilder
-    func glassSlot(cornerRadius r: CGFloat) -> some View {
+    func glassSlot(cornerRadius r: CGFloat, thickness: Double = 0) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(GlassRecipe.slot,
+            self.glassEffect(GlassRecipe.slot(thickness: thickness),
                              in: .rect(cornerRadius: r, style: .continuous))
         } else {
             self.background(.ultraThinMaterial,

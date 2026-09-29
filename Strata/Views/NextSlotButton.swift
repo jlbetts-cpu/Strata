@@ -191,7 +191,15 @@ struct NextSlotButton: View {
         // `slotBloomOut` timings now lift the pane's own EDGE instead: the
         // thing that catches light on a piece of glass is its edge, and an
         // edge cannot smear outside the cell the slot is pointing at.
-        .glassSlot(cornerRadius: cornerRadius)
+        // **The pane thickens under the finger, continuously.**
+        //
+        // `drawProgress`, not the size it has snapped to: the owner asked for
+        // "the liquid glass refraction as you drag", and a material that only
+        // changes at the three size thresholds would step rather than flex. This
+        // tracks the finger, so the glass is a thing being pulled rather than a
+        // thing in one of three states. It is 0 at rest, which is the `.clear`
+        // the slot has always been. See `GlassRecipe.slot(thickness:)`.
+        .glassSlot(cornerRadius: cornerRadius, thickness: drawProgress)
         // Scaled down from the centre, so the ghost stays inside the cell it
         // is pointing at.
         .animation(GridConstants.tapSquashSpring, value: isDown)

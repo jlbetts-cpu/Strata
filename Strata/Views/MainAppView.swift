@@ -902,6 +902,35 @@ struct MainAppView: View {
         // Memories tab's subject.
     }
 
+    /// **The day's two dominant colours, by how much of the tower they cover.**
+    ///
+    /// Area-weighted rather than counted: a single Deep is four cells and says
+    /// more about the shape of the day than four Quicks scattered through it.
+    /// Two, because `DayGround.maxStops` is two and mixing six washes makes grey.
+    ///
+    /// Cheap on purpose. It walks the blocks already in hand, does no decoding
+    /// and touches no photograph, and it is read on the same pass that draws
+    /// them.
+    private var dayColours: [Color] {
+        var area: [HabitCategory: Int] = [:]
+        for b in towerVM.placedBlocks {
+            area[b.look.displayCategory, default: 0] += b.columnSpan * b.rowSpan
+        }
+        return area.sorted { $0.value > $1.value }.map { $0.key.style.baseColor }
+    }
+
+    /// 0 on an empty tower, 1 once it fills the frame.
+    ///
+    /// **The wash comes up with the tower.** At full strength over a single
+    /// block the page would announce a colour for one win, which is both a lie
+    /// about the day and the "colour used to mean futuristic" §4 forbids. Twelve
+    /// cells is roughly the point at which the tower stops being a strip along
+    /// the bottom of the screen.
+    private var dayFill: Double {
+        let cells = towerVM.placedBlocks.reduce(0) { $0 + $1.columnSpan * $1.rowSpan }
+        return min(1, Double(cells) / 12)
+    }
+
     /// Which block is under a point in the grid's coordinate space.
     ///
     /// Arithmetic rather than hit testing: the grid is a fixed pitch, so the
@@ -1231,7 +1260,20 @@ struct MainAppView: View {
             // which is the frosted band that belongs to blocks and to nothing
             // else. The tower stands on the page's own ground with the tab
             // bar directly beneath it, and that is the whole page.
-            .background { WarmBackground().ignoresSafeArea() }
+            // **THE GROUND, WHICH NOW TAKES ITS COLOUR FROM THE DAY.**
+            //
+            // `DayGround` carries the argument. Behind a flag while it is being
+            // compared against the flat ground it replaces, because the thing
+            // this has to prove is not that it looks better -- it does -- but
+            // that it costs nothing to scroll a tower over. See the measurement
+            // in the commit that introduced it.
+            .background {
+                if DebugHarness.dayGround {
+                    DayGround(colours: dayColours, fill: dayFill)
+                } else {
+                    WarmBackground().ignoresSafeArea()
+                }
+            }
             // Tapping a block opens the same sheet that made it.
             //
             // It used to expand into `BlockExpansionCard` — a floating card
