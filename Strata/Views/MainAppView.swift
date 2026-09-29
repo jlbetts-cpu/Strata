@@ -291,6 +291,17 @@ struct MainAppView: View {
     }
     /// The block currently being carried, and the one it would land on.
     // MARK: - Rearranging the tower
+    // **NOTHING BELOW CAN RUN ANY MORE.** (2026-09-28)
+    //
+    // Every one of these was reached from `.draggable` on a placed block, and
+    // that gesture was removed at the owner's request; the grid's own comment at
+    // the block says why. They are left in the tree rather than cut out because
+    // they are interleaved with a page of unrelated view code and a block delete
+    // took eight things with it that had nothing to do with rearranging. Removing
+    // them is a sweep of its own, with a build between each one.
+    //
+    // Until then: `carriedBlockID` is never written, so `isRearranging` is always
+    // false and its three guards always take the other branch.
     //
     // The first version of this was wrong twice over and both are worth
     // writing down.
@@ -898,6 +909,17 @@ struct MainAppView: View {
     /// a lookup. Hit testing would have meant a gesture per block, and a drag
     /// that starts on one and ends on another is one gesture crossing several
      // MARK: - Rearranging
+    // **NOTHING BELOW CAN RUN ANY MORE.** (2026-09-28)
+    //
+    // Every one of these was reached from `.draggable` on a placed block, and
+    // that gesture was removed at the owner's request; the grid's own comment at
+    // the block says why. They are left in the tree rather than cut out because
+    // they are interleaved with a page of unrelated view code and a block delete
+    // took eight things with it that had nothing to do with rearranging. Removing
+    // them is a sweep of its own, with a build between each one.
+    //
+    // Until then: `carriedBlockID` is never written, so `isRearranging` is always
+    // false and its three guards always take the other branch.
 
     /// A block has been lifted. Remember where everything was, and take the
     /// carried one out of the tower so the gap closes under the finger.
@@ -2606,10 +2628,7 @@ struct MainAppView: View {
                         expandedBlockID = id
                     }
                 },
-                liftedBlockID: carriedBlockID,
-                onLift: { id in beginRearrange(id) },
-                onDrop: { carried, target in commitRearrange(carried, onto: target) },
-                onHover: { id, targeted in hover(id, targeted: targeted) }
+                liftedBlockID: nil
             )
 
             // The next slot, as a button.
@@ -2833,10 +2852,11 @@ struct MainAppView: View {
         let reduceMotion: Bool
         let colorScheme: ColorScheme
         let onTapExpandBlock: (UUID) -> Void
+        /// Always nil since the block drag was removed. Kept rather than deleted
+        /// because the block view reads it to decide whether anything is lifted,
+        /// and threading a constant `false` through the same path would be the
+        /// same statement in a worse place.
         let liftedBlockID: UUID?
-        let onLift: (UUID) -> Void
-        let onDrop: (UUID, UUID) -> Void
-        let onHover: (UUID, Bool) -> Void
 
         var body: some View {
             // Read the dance's phase counter here, at the top of the grid's
@@ -2874,50 +2894,33 @@ struct MainAppView: View {
                     liftedBlockID: liftedBlockID
                 )
                 .frame(width: f.width, height: f.height)
-                // Hold a block and drag it onto another to rearrange.
+                // **A PLACED BLOCK CANNOT BE PICKED UP, AND THAT IS THE FIX.**
                 //
-                // The system's drag and drop, and that is not a preference —
-                // it is the only mechanism that does both jobs. Every
-                // hand-rolled gesture was tried and measured with a UI test
-                // that swipes a 44-block tower: a `DragGesture` high-priority,
-                // the same simultaneous, a long press sequenced before one,
-                // and a bare `.onLongPressGesture` ALL reported 0.0pt of
-                // scroll, against a clean scroll with nothing attached. A
-                // ScrollView will not claim a pan another recogniser has
-                // claimed, and there is no public way to change that. A
-                // TapGesture is the one exception, which is why tapping a
-                // block to edit it was never a problem.
+                // The owner, 2026-09-28: "you can physically move the block...
+                // the glitch is you can drag the box which makes the box
+                // disappear, just remove the drag all together, not needed."
                 //
-                // Drag and drop does not compete: the system owns the press
-                // that lifts, so a press that becomes a pan stays a pan. It
-                // also brings the lift animation, a preview under the finger,
-                // auto-scroll at the tower's edges, and a cancel that puts the
-                // block back. See `BlockMove`, and `TowerOrdering` for the
-                // part of this that can be tested.
-                // The payload is an autoclosure evaluated at lift, which is
-                // the only place the id of the block being dragged is
-                // available at all — `isTargeted` hands you a Bool and
-                // nothing else, and the payload only reappears in the drop.
-                // The state write is deferred so it does not happen inside a
-                // view-update pass.
-                .draggable({
-                    Task { @MainActor in onLift(block.id) }
-                    return BlockMove(id: block.id)
-                }()) {
-                    // Nothing follows the finger. The block has already left
-                    // its slot and the tower has closed the gap, so a chip
-                    // travelling around above the page would be a second copy
-                    // of something that is already visible in its proposed
-                    // position.
-                    Color.clear.frame(width: 1, height: 1)
-                }
-                .dropDestination(for: BlockMove.self) { items, _ in
-                    guard let moved = items.first, moved.id != block.id else { return false }
-                    onDrop(moved.id, block.id)
-                    return true
-                } isTargeted: { targeted in
-                    onHover(block.id, targeted)
-                }
+                // This was `.draggable` plus `.dropDestination`: hold a block,
+                // drag it onto another, and the tower repacked around the new
+                // order. The disappearing box was the drag PREVIEW, which was
+                // deliberately `Color.clear.frame(width: 1, height: 1)` on the
+                // reasoning that the block "has already left its slot and the
+                // tower has closed the gap", so a chip under the finger would be
+                // a second copy of it. What that actually produces is a block
+                // that vanishes the moment you press and move, with nothing
+                // under the finger and nothing in the grid. It reads as a bug
+                // whatever the intent was, and he found it as one.
+                //
+                // Rearranging is gone rather than repaired, because he asked for
+                // that and because the tower is a record of what happened, in the
+                // order it happened.
+                //
+                // WHAT IS NOT AFFECTED, because he named both: drawing a size out
+                // of the slot, and out of the camera's shutter, are untouched —
+                // "I love the drag to size the block, please don't remove that".
+                // Tapping a block still opens it (`onTapExpandBlock`, a
+                // TapGesture, which the note above records as the one recogniser
+                // a ScrollView never fought over).
                 // The dance has to be read HERE.
                 //
                 // These three lived inside `AnimatedBlockView`, which is an
