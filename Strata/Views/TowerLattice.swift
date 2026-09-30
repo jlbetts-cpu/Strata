@@ -167,9 +167,32 @@ struct TowerLattice: View {
                 // top of the screen and every visible cell came out at full
                 // strength. In points it always lands where the tower ends:
                 // clear at the top, full by the time it reaches the block.
+                // **THE FADE IS ONE ROW, AND IT WAS EATING THE WHOLE LATTICE.**
+                //
+                // It ran from clear at the top to full at `overhang / height`,
+                // with a note saying the fade was "spent on the overhang, not on
+                // the whole height". The intent was right; the arithmetic was
+                // not. `overhang` is three rows and `height` is however tall the
+                // lattice happens to be, so on a SHORT tower -- which is most
+                // days, and every new user -- that fraction covers most of what
+                // is on screen, and the cells you can see are the ones being
+                // faded away.
+                //
+                // Measured, and this is the whole reason the lattice "was not
+                // visible" through every round of this: with the mask replaced
+                // by solid black, a pane at full strength reads 255 against a
+                // 224 ground. With the mask in place it read 225. The opacity
+                // was never the problem and no amount of tuning it could have
+                // been the fix -- including the hairline I drew round every cell
+                // to rescue it.
+                //
+                // One row, in points, from the top of the lattice. Enough that
+                // the grid does not end in a hard line above the tower, short
+                // enough that every cell below the first row is at full
+                // strength.
                 LinearGradient(stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: .black, location: min(overhang / height, 1)),
+                    .init(color: .black, location: min(pitch / max(height, 1), 1)),
                     .init(color: .black, location: 1)
                 ], startPoint: .top, endPoint: .bottom)
             }

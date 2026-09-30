@@ -104,6 +104,26 @@ struct DayGround: View {
                 scene
                 photographs
                 WarmBackground.top.opacity(Self.veil)
+                // **THE GROUND IS SEATED BELOW WHITE, AND THAT IS WHAT MAKES
+                // THE TRANSPARENCY VISIBLE.**
+                //
+                // The owner, 2026-09-30: "I like our light direction though. I
+                // just want the transparency and cleanness to be more clear."
+                //
+                // You can only SEE that something is transparent if there is a
+                // difference between where the sheet is and where it is not. The
+                // page had drifted to 236-241 everywhere, so a white pane at 62%
+                // landed 2 to 4 levels above the gap beside it and nothing read
+                // as see-through -- which is also the headroom wall that had me
+                // drawing a hairline round every cell.
+                //
+                // His own reference board is built on this: pin after pin sits
+                // on a light neutral grey and lets white elements float above
+                // it. A few levels of ground is what buys every translucent
+                // thing on the page its legibility, and it costs the light
+                // nothing -- the sky, the sun and the grain are all still there,
+                // simply seated rather than blown out.
+                Color.black.opacity(Self.seat)
                 grain
             }
         }
@@ -180,6 +200,12 @@ struct DayGround: View {
     /// **Low enough to deny on sight.** You should not be able to point at it;
     /// you should only notice the page looks flat when it is gone.
     static let grainStrength: Double = 0.055
+
+    /// **How far below white the page sits.** The one number that decides
+    /// whether anything on this page reads as translucent. Too little and the
+    /// panes vanish into the ground; too much and the "light" direction he likes
+    /// turns into a grey app.
+    static let seat: Double = 0.055
 
     /// A 128px tile of monochrome noise, built once and shared.
     ///
