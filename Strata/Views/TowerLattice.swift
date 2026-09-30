@@ -82,10 +82,11 @@ struct TowerLattice: View {
     /// the cheap he asked this not to be. The cells have to be findable and
     /// then forgotten: enough that the tower reads as built into something,
     /// not enough to count them without looking for them.
-    /// **This is now how opaque the sheet is, not how dark the ink is**, and
-    /// the number moved with the meaning. At 0.34 of 6% black it was 2% ink and
-    /// invisible; as a white pane it is the difference between a cell and the
-    /// gap beside it, which is what makes the lattice readable at all.
+    /// **How opaque the pane is.** It was a fraction of black ink until the
+    /// cells stopped being paint; as a white pane over a scene it is the
+    /// difference between a cell and the gap beside it, which is the whole of
+    /// the translucency. The two failure modes it sits between — too thin to
+    /// find, too thick to see through — are pinned in `TowerLatticeTests`.
     static let strength: Double = 0.55
 
     /// **What the surface is worth at the peak of a landing**, over the
@@ -201,11 +202,46 @@ struct TowerLattice: View {
     /// drawn on a page, the light varies down the tower because the scene does,
     /// and the whole thing finally has the depth the flat version could not.
     ///
-    /// **A fill, not a material.** `.ultraThinMaterial` on forty-odd cells in a
-    /// scrolling grid is a blur pass each, and CLAUDE.md's standing instruction
-    /// is that placing a block must not cost a frame. A white fill composites
-    /// for free and is genuinely translucent; if a real blur is ever wanted, it
-    /// gets measured first.
+    /// **A MATERIAL, NOT A FILL, AND THAT IS THE DIFFERENCE BETWEEN GLASS AND
+    /// PAINT.**
+    ///
+    /// The first go at this used white at 55%, on the reasoning that forty-odd
+    /// `.ultraThinMaterial` cells would be forty blur passes in a scrolling
+    /// grid. The reasoning was wrong twice.
+    ///
+    /// Wrong on the look, which is the part that matters: Apple's description
+    /// of the material is that it "dynamically bends, shapes, and concentrates
+    /// light" and "adapts to the content underneath". A flat white fill is
+    /// translucency with no refraction — it lets a colour through and does
+    /// nothing to it. That is the difference the owner kept seeing and I kept
+    /// answering with a different opacity.
+    ///
+    /// Wrong on the cost too: `shape` is ONE `Shape` that already contains every
+    /// cell rectangle, so filling it with a material is a single backdrop pass
+    /// for the whole lattice, not one per cell. The thing that would have been
+    /// expensive is forty separate views, which was never how this was drawn.
+    ///
+    /// **AND THEN THE MATERIAL WAS TRIED, AND WAS WORSE, AND THE REASON IS THE
+    /// USEFUL PART.**
+    ///
+    /// `.ultraThinMaterial` is the correct primitive on paper and it was built
+    /// and photographed: the cells nearly vanished. A backdrop blur blurs what
+    /// is behind it, and what is behind this is a smooth `MeshGradient`. Blur a
+    /// smooth gradient and you get the same smooth gradient. The material's
+    /// entire defining behaviour had nothing to act on, so all that survived was
+    /// a faint lightening — which is the one thing a plain white fill already
+    /// does, more cheaply and with a number you can steer.
+    ///
+    /// So a material is right when there is DETAIL behind it, and this backdrop
+    /// is deliberately smooth. If the scene ever gains texture, come back to
+    /// this: one material fill on `shape` is a single backdrop pass, because
+    /// `shape` already contains every cell rectangle, and the "forty blur
+    /// passes" worry that first ruled it out was never true.
+    ///
+    /// Either way it is not `.glassEffect`. Apple's layering model puts Liquid
+    /// Glass in the functional layer floating ABOVE content, and the lattice is
+    /// the surface the tower is built on. The glass in this app stays where it
+    /// belongs — the tab bar, the slot, the buttons.
     private var resting: some View {
         shape.fill(Color.white.opacity(Self.strength))
             .frame(height: height)
