@@ -921,10 +921,17 @@ struct OnboardingView: View {
     /// what the title above it is set in, so the page's two loudest things are
     /// now the same ink: measured over the ground, the pill is 37,37,38 and its
     /// label clears 13.9:1. No new colour was invented to get there.
-    private var pillFill: Color { AppColors.inkPrimary }
+    /// **The reference blue, which is the app's first accent.**
+    ///
+    /// It was `inkPrimary`, and a black capsule cannot have a bright core — the
+    /// ethereal treatment was on it and invisible. The owner chose the colour
+    /// knowing it breaks §4; see `AppColors.accent`.
+    private var pillFill: Color { AppColors.accent }
 
     /// The pill's words: the page's own ground, on a pill of the page's own ink.
-    private var pillLabel: Color { WarmBackground.top }
+    /// White on the accent, not the page's ground: the reference's glyph is
+    /// pure white and it is what carries on a lit blue.
+    private var pillLabel: Color { .white }
 
     /// What the action says while it is waiting for you, and the ring around it.
     private var disabledInk: Color { AppColors.inkTertiary }

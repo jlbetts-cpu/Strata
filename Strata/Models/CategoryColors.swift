@@ -259,6 +259,25 @@ enum AppColors {
     /// 12.0:1, quiet 6.7:1. Faint is a hairline rather than text and is not
     /// held to a text ratio.
     static let onDarkStrong = Color.white.opacity(0.95)
+    /// **The app's one accent, and it is an exception the owner chose.**
+    ///
+    /// 2026-09-30. `docs/design-system-future.md` §4 says chrome is ink and
+    /// grey and that a tint is only ever borrowed from content. This is neither
+    /// — it is a brand accent painted onto a control, which that section
+    /// forbids. The owner sent the reference, was told the rule it broke and the
+    /// two alternatives that would have kept it, and chose this. The rule is
+    /// amended in the doc rather than quietly ignored here.
+    ///
+    /// **Sampled, not invented.** Read off the reference image: the core of the
+    /// pill measures hue 0.552, saturation 0.698, brightness 0.988, and the rim
+    /// falls to about 0.06 saturation at the same hue. `EtherealFill` derives
+    /// the rim itself, so only the core is stored.
+    ///
+    /// It has ONE job: the primary action. It is not a palette, it does not
+    /// appear on chrome elsewhere, and if it starts showing up on labels and
+    /// icons then §4 has been lost rather than amended.
+    static let accent = Color(hue: 0.552, saturation: 0.698, brightness: 0.988)
+
     static let onDarkSecondary = Color.white.opacity(0.75)
     static let onDarkQuiet = Color.white.opacity(0.55)
     static let onDarkFaint = Color.white.opacity(0.14)

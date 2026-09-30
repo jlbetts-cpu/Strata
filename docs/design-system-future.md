@@ -81,6 +81,17 @@ a page. Structure is always the real geometry of the content.
   day's colour, the photograph. Never a brand accent painted onto chrome.
 - No glow. No neon. No colour used to mean "futuristic".
 
+**ONE EXCEPTION, added 2026-09-30 by the owner: `AppColors.accent`.** A blue,
+sampled off a reference he supplied, on the primary action and nowhere else. It
+is a brand accent painted onto chrome, which is exactly what the rule above
+forbids, and he chose it having been shown the rule and the two alternatives
+that would have kept it (borrowing the next block's colour, or leaving the button
+in ink).
+
+The exception is one control, not a licence. The rule still holds everywhere
+else, and if the accent starts appearing on labels, icons or surfaces then §4 has
+been lost rather than amended.
+
 ---
 
 ## 5. Motion
