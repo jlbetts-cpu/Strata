@@ -73,6 +73,7 @@ struct OnboardingView: View {
     @State private var drawingSize: BlockSize = .small
     /// The landing the tutorial's lattice is answering, if it is answering one.
     @State private var ripple: LatticeRipple?
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     /// Whatever the thing presenting onboarding says about heads, so the value
@@ -887,13 +888,24 @@ struct OnboardingView: View {
                                     .padding(.horizontal, 8)
                                 Capsule(style: .continuous)
                                     .fill(EtherealFill.gradient(pillFill))
+                                // **THE BLOCK'S OWN RIM, NOT A SECOND OPINION
+                                // ABOUT WHAT A LIT EDGE LOOKS LIKE.**
+                                //
+                                // The owner: "make sure it has the same rim
+                                // design we made in the box, like that outline
+                                // fade on the bottom."
+                                //
+                                // It was a hand-written white 0.30 to 0.08,
+                                // which is the same IDEA and a different curve
+                                // — brightest at the top, easing to a rest
+                                // value at 55% and holding it, rather than
+                                // fading all the way out. `BlockRim` is that
+                                // curve, it is already the rim on every
+                                // block-shaped thing in the app, and it eases
+                                // itself off in dark mode. One definition.
                                 Capsule(style: .continuous)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [.white.opacity(0.30),
-                                                     .white.opacity(0.08)],
-                                            startPoint: .top, endPoint: .bottom),
-                                        lineWidth: 1)
+                                    .strokeBorder(BlockRim.gradient(in: colorScheme),
+                                                  lineWidth: GridConstants.blockRimWidth)
                             }
                         } else {
                             Capsule().strokeBorder(disabledRing,
