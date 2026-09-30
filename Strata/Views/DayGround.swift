@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// **A sheet hung up against the day itself.**
+/// **A sheet with light behind it, and no colour in it.**
 ///
 /// The owner wanted "a subtle grassy field on a sunny day behind it... like it's
 /// a sheet put up to the sky", and then asked for the research rather than more
@@ -88,7 +88,7 @@ struct DayGround: View {
     /// the sky vanished: they stopped being texture behind a scene and became the
     /// scene. They are here to give the surface VARIATION for glass to bend, not
     /// to colour it.
-    static let photoStrength: Double = 0.16
+    static let photoStrength: Double = 0.0
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var scheme
@@ -268,9 +268,17 @@ struct DayGround: View {
         // texture, being able to fit the coloured blocks and photos on top of
         // it." A backdrop that a 2x2 red block has to compete with is not a
         // backdrop.
-        sky(0.26), sky(0.17), sky(0.32),
-        sky(0.13), sun,       sky(0.20),
-        foot(0.08), foot(0.05), foot(0.10),
+        // **NO COLOUR.** The owner, 2026-09-30: "I like the white light
+        // ethereal vibe right now, I don't think I like all the colour."
+        //
+        // So the scene keeps its STRUCTURE and loses its hue. These are nine
+        // near-whites a few levels apart, with the barest temperature to them --
+        // a touch cool along the top, a touch warm at the foot -- which is what
+        // stops a field of one colour reading as a flat fill. The light and the
+        // depth survive; the sky and the sun do not.
+        white(0.968, 0.58), white(0.972, 0.58), white(0.964, 0.58),
+        white(0.976, 0.58), white(0.992, 0.12), white(0.970, 0.58),
+        white(0.958, 0.08), white(0.966, 0.08), white(0.954, 0.08),
     ]
 
     private static let night: [Color] = [
@@ -285,15 +293,11 @@ struct DayGround: View {
         Color(hue: 0.60, saturation: 0.38, brightness: 0.16),
     ]
 
-    private static func sky(_ s: Double) -> Color {
-        Color(hue: 0.575, saturation: s, brightness: 0.99)
+    /// A near-white at a given brightness, carrying only enough hue to have a
+    /// temperature. 3% saturation is under the threshold at which anybody can
+    /// name a colour; it is the difference between "white" and "dead white".
+    private static func white(_ brightness: Double, _ hue: Double) -> Color {
+        Color(hue: hue, saturation: 0.03, brightness: brightness)
     }
 
-    /// The bottom of the scene: the same sky hue, barely saturated, bright.
-    /// Light rather than ground — the owner cut the green.
-    private static func foot(_ s: Double) -> Color {
-        Color(hue: 0.575, saturation: s, brightness: 1.0)
-    }
-
-    private static let sun = Color(hue: 0.12, saturation: 0.22, brightness: 1.0)
 }
