@@ -442,6 +442,7 @@ enum DebugHarness {
     static var dayGround: Bool { argument("-strataDayGround") != nil }
 
 
+
     /// Raises the photographs page, from `-strataOpenDrawer full`.
     ///
     /// The drawer rests hidden and opens on a button, so without this it
