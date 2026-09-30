@@ -1,118 +1,143 @@
 import SwiftUI
 
-/// **An environment behind the page, not a tint on it.**
+/// **A sheet hung up against a sunny field.**
 ///
-/// The owner, 2026-09-29, after two attempts that were both tint: "it isn't
-/// about the colour, you shouldn't be tweaking colour... the look should feel
-/// like there is something behind the white screen, like an environment. This
-/// isn't just adding light to the scene, it's about letting the light reflect
-/// through."
+/// The owner, 2026-09-29, after three attempts that were all tint: "I want there
+/// to feel like there is a subtle grassy field on a sunny day behind it, like
+/// subtly, like it should feel like it's a sheet put up to the sky."
 ///
-/// **That is a different thing and the earlier versions could not have become
-/// it.** They were radial gradients of the day's colour laid over a flat fill:
-/// more colour, in the same plane, with no structure in it. Something uniform
-/// has nothing to reflect, nothing to refract and nothing to magnify — which is
-/// also exactly why the slot could not be made to look like glass by changing
-/// its material. A magnifier over blank paper is invisible. The material was
-/// never the problem; the emptiness behind it was.
+/// That is a scene, and it is why nothing before this worked. Every earlier
+/// version tried to make a near-white surface *slightly interesting* — a wash, a
+/// temperature ramp, a hue borrowed from the biggest block, which always came out
+/// red because the biggest block is usually red. All of them were adjustments to
+/// a blank page. None of them had anything behind them, so there was nothing for
+/// glass to refract and nothing for the eye to read as depth.
 ///
-/// So this is a field with real spatial structure. `MeshGradient` rather than a
-/// stack of radials because a mesh has interior control points: the surface
-/// bends and pools instead of falling off evenly from a centre, which is what
-/// makes it read as a room with something in it rather than a spotlight aimed at
-/// the page.
+/// **So this is built the way the thing it is imitating is built: a real scene,
+/// and then cloth over it.**
 ///
-/// **AND IT CARRIES NO COLOUR FROM THE DAY, WHICH IS THE THIRD CORRECTION.**
+/// ```
+///   sky, sun, grass          ← saturated enough to actually be those things
+///   ───────────────────
+///   white veil at 86%        ← the sheet
+/// ```
 ///
-/// Three versions of this borrowed the dominant block's hue, on the strength of
-/// §4's "a tint is only ever borrowed from content". Every one of them was told
-/// the same thing: "it just reads red." They did, and they always would have —
-/// the dominant colour of a tower is whatever the biggest block happens to be,
-/// so "borrowed from content" on a full-page surface means the entire app is
-/// tinted by one win. The owner said it plainly and I kept not hearing it: "it
-/// isn't about the colour, you shouldn't be tweaking colour... it should feel
-/// like there is something behind the white screen."
+/// That order matters and is the whole technique. Trying to paint the *result*
+/// directly means mixing nine nearly-white colours by eye and hoping they read
+/// as a landscape, which is what failed three times. Painting a believable scene
+/// and then diffusing it is what fabric actually does to light, so the hues that
+/// survive are the ones that would survive, at the intensity they would survive
+/// at. The sky stays faintly blue, the grass stays faintly green, the sun stays
+/// warm, and none of it is nameable at a glance.
 ///
-/// Depth is not hue. The field is neutral now: light and dark a few levels
-/// apart, cool at the top and a shade warmer at the foot, arranged so the eye
-/// reads a surface with a direction to it. The colour in this app stays where §4
-/// put it in the first place — in the blocks and the photographs.
+/// **It is fixed, not derived from the day.** §4 of
+/// `docs/design-system-future.md` says a tint is only ever borrowed from
+/// content, and this deliberately is not: it is a backdrop, the same on every
+/// day of a person's life, the way the wall behind a shelf is the same wall. The
+/// rule exists to stop chrome inventing a brand accent that competes with the
+/// blocks — a green field at 14% behind a sheet is not competing with anything,
+/// and the version that DID obey the rule is the one that made the whole app
+/// look red.
 struct DayGround: View {
 
-    /// Kept in the signature and unused, so the call sites and the tests do not
-    /// churn while this is being judged. If the field is still neutral when it
-    /// ships, both of these go.
+    /// Kept in the signature and unused. The field is a fixed scene now, not
+    /// anything borrowed from the day. Both go once that is settled.
     let colours: [Color]
     let fill: Double
 
-    /// Reduced transparency asks for less of exactly this. The field flattens to
-    /// the plain ground and every lens over it goes quiet with it.
+    /// **How much cloth is between you and the field.**
+    ///
+    /// The single number that decides whether this reads as a backdrop or as a
+    /// photograph somebody left on. Lower and the scene starts being a scene,
+    /// which is not what a page behind a tower should be. Higher and it goes
+    /// back to the blank white this exists to replace.
+    static let veil: Double = 0.86
+
+    /// Reduced transparency asks for less of exactly this: the sheet goes
+    /// opaque and the page is the plain ground again.
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    /// Dark mode gets the same structure at a different altitude. A field of
-    /// light neutrals on a charcoal page would be fog; these are the warm
-    /// charcoals `WarmBackground` already uses, varied by the same amounts.
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack {
-            WarmBackground()
-            if !reduceTransparency {
-                field.ignoresSafeArea()
+            if reduceTransparency {
+                WarmBackground()
+            } else {
+                scene
+                // The sheet. `WarmBackground.top` rather than pure white so the
+                // page's own ground and this agree at the edges, and so dark
+                // mode dims the scene instead of bleaching it.
+                WarmBackground.top.opacity(Self.veil)
             }
         }
         .ignoresSafeArea()
     }
 
-    /// A 3x3 mesh. Three is enough for a surface and few enough to stay calm:
-    /// the interior point is the only one that can pool, and one pool reads as a
-    /// room where four read as a pattern.
-    private var field: some View {
+    /// Sky at the top, sun in it, grass along the bottom.
+    ///
+    /// A 3x3 `MeshGradient` because a mesh has interior control points: the
+    /// horizon can bow and the sun can pool, where stacked gradients can only
+    /// fall off evenly from a centre. The sun sits off to one side because light
+    /// in a room comes from somewhere, and a centred one reads as a vignette.
+    private var scene: some View {
         MeshGradient(width: 3, height: 3,
                      points: Self.points,
-                     colors: meshColours,
+                     colors: scheme == .dark ? Self.night : Self.day,
                      smoothsColors: true)
     }
 
-    /// **The interior point is off centre and low**, which is the whole trick.
-    ///
-    /// On a regular lattice a mesh is a smooth ramp and reads as a gradient.
-    /// Pulling the middle point down and left makes the field pool there and
-    /// stretch away above it, so there is a place the light comes from and a
-    /// direction it falls off in. Low, because that is where the tower stands
-    /// and where the colour in the room actually is.
+    /// The interior point is high and to the right — the sun — and the bottom
+    /// row is pulled up slightly in the middle, which bows the horizon and stops
+    /// the grass reading as a straight band across the page.
     private static let points: [SIMD2<Float>] = [
-        .init(0.0, 0.0), .init(0.5, 0.0),   .init(1.0, 0.0),
-        .init(0.0, 0.5), .init(0.36, 0.62), .init(1.0, 0.5),
-        .init(0.0, 1.0), .init(0.5, 1.0),   .init(1.0, 1.0),
+        .init(0.0, 0.0),  .init(0.5, 0.0),   .init(1.0, 0.0),
+        // **The middle row sits high, which puts the horizon high.**
+        //
+        // It was at 0.46 and the green only arrived in the last few hundred
+        // pixels — which are the pixels the tower covers, so the field was
+        // measurably there and effectively invisible. Pulling this row up gives
+        // the sky-to-grass interpolation the whole lower half to happen in, so
+        // the ground shows in the empty part of the lattice where there is
+        // actually something to see it against.
+        .init(0.0, 0.30), .init(0.68, 0.22), .init(1.0, 0.27),
+        .init(0.0, 1.0),  .init(0.5, 0.94),  .init(1.0, 1.0),
     ]
 
-    /// Nine neutrals. The structure is entirely in how they differ from each
-    /// other, which is the point: a mesh of one colour is a flat fill with extra
-    /// steps.
-    private var meshColours: [Color] {
-        (0..<9).map { Self.neutral(at: $0, dark: scheme == .dark) }
+    /// **Saturated on purpose.** These are read through 86% cloth, so anything
+    /// timid here arrives as nothing at all. Judged by what comes out, not by
+    /// how they look written down.
+    private static let day: [Color] = [
+        sky(0.50), sky(0.34), sky(0.62),
+        sky(0.26), sun,       sky(0.40),
+        grass(0.46), grass(0.36), grass(0.52),
+    ]
+
+    /// Night is the same scene after dark: the sky deepens, the sun is gone, the
+    /// field goes to almost nothing. The same shape, so the page does not become
+    /// a different place when the lights go out.
+    private static let night: [Color] = [
+        Color(hue: 0.60, saturation: 0.45, brightness: 0.30),
+        Color(hue: 0.60, saturation: 0.40, brightness: 0.34),
+        Color(hue: 0.60, saturation: 0.48, brightness: 0.28),
+        Color(hue: 0.60, saturation: 0.38, brightness: 0.26),
+        Color(hue: 0.11, saturation: 0.30, brightness: 0.34),
+        Color(hue: 0.60, saturation: 0.42, brightness: 0.24),
+        Color(hue: 0.33, saturation: 0.35, brightness: 0.18),
+        Color(hue: 0.33, saturation: 0.30, brightness: 0.20),
+        Color(hue: 0.33, saturation: 0.38, brightness: 0.16),
+    ]
+
+    private static func sky(_ s: Double) -> Color {
+        Color(hue: 0.575, saturation: s, brightness: 0.99)
     }
 
-    /// The field's own greys, before any day colour.
-    ///
-    /// **They are not all the same value, and that is the point.** A mesh of one
-    /// colour is a flat fill with extra steps. These run a few levels apart, cool
-    /// at the top and a shade warmer at the foot, so even a day with nothing
-    /// logged has a surface rather than a blank.
-    private static func neutral(at i: Int, dark: Bool) -> Color {
-        let light: [Double] = [0.972, 0.968, 0.962,
-                               0.966, 0.978, 0.958,
-                               0.952, 0.962, 0.948]
-        let night: [Double] = [0.118, 0.112, 0.106,
-                               0.110, 0.126, 0.102,
-                               0.098, 0.106, 0.094]
-        let v = dark ? night[i] : light[i]
-        // Blue at the top, warmth at the foot: the same two-ended light the
-        // contact sheet picked, built into the surface rather than layered on it.
-        let hue = i < 3 ? 0.58 : 0.08
-        let sat = dark ? 0.06 : 0.035
-        return Color(hue: hue, saturation: sat, brightness: v)
+    private static func grass(_ s: Double) -> Color {
+        Color(hue: 0.29, saturation: s, brightness: 0.88)
     }
 
+    /// Warm, barely coloured, very bright. A sun seen through cloth is a bright
+    /// patch rather than a disc, which is also why it is a mesh point and not a
+    /// circle drawn on top.
+    private static let sun = Color(hue: 0.12, saturation: 0.22, brightness: 1.0)
 }
