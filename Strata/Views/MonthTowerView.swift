@@ -68,7 +68,10 @@ struct MonthTowerView: View {
                     // The colour is still under the picture, not replaced by
                     // it: it is what the block IS while the photograph
                     // decodes, and it is what shows through the rim.
-                    block.category.style.baseColor
+                    GeometryReader { geo in
+                        Rectangle().fill(EtherealFill.gradient(
+                            block.category.style.baseColor, size: geo.size))
+                    }
                     DayPhotoSlideshow(fileNames: block.photoFileNames,
                                       size: size,
                                       phase: block.dayOfMonth)

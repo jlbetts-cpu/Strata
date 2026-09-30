@@ -31,16 +31,8 @@ import SwiftUI
 /// frame cost — and a 40px decode is smaller than the icons in the tab bar.
 /// `.blur()` over three full photographs would have been the expensive way to
 /// arrive at a worse picture.
-struct DayGround: View {
+struct GroundField: View {
 
-    /// Kept from when the field borrowed the day's hue. Unused; both go once
-    /// this settles.
-    let colours: [Color]
-    let fill: Double
-
-    /// Up to `maxPhotos` file names from today's blocks, biggest block first.
-    /// Empty is the normal case early in a day and draws the sky alone.
-    var photos: [String] = []
 
     /// **Three.** One photograph is a wash and reads as a mistake; six average
     /// into mud, which is the same lesson the two-hue version learned. Three
@@ -98,78 +90,19 @@ struct DayGround: View {
 
     var body: some View {
         ZStack {
-            if reduceTransparency {
-                WarmBackground()
-            } else {
-                scene
-                photographs
-                WarmBackground.top.opacity(Self.veil)
-                // **THE GROUND IS SEATED BELOW WHITE, AND THAT IS WHAT MAKES
-                // THE TRANSPARENCY VISIBLE.**
-                //
-                // The owner, 2026-09-30: "I like our light direction though. I
-                // just want the transparency and cleanness to be more clear."
-                //
-                // You can only SEE that something is transparent if there is a
-                // difference between where the sheet is and where it is not. The
-                // page had drifted to 236-241 everywhere, so a white pane at 62%
-                // landed 2 to 4 levels above the gap beside it and nothing read
-                // as see-through -- which is also the headroom wall that had me
-                // drawing a hairline round every cell.
-                //
-                // His own reference board is built on this: pin after pin sits
-                // on a light neutral grey and lets white elements float above
-                // it. A few levels of ground is what buys every translucent
-                // thing on the page its legibility, and it costs the light
-                // nothing -- the sky, the sun and the grain are all still there,
-                // simply seated rather than blown out.
-                Color.black.opacity(Self.seat)
-                grain
-            }
+            scene
+            Color.black.opacity(Self.seat)
+            grain
         }
         .ignoresSafeArea()
-        .task(id: photos.prefix(Self.maxPhotos).joined()) { await load() }
     }
 
-    /// The day, at forty pixels.
-    ///
-    /// Each picture takes a third of the width and the full height, so the page
-    /// reads left to right as the day did. `.interpolation(.high)` on a 40px
-    /// source blown up this far is what makes it a smooth field rather than
-    /// visible squares — the one place in the app where the expensive
-    /// interpolation is the cheap answer.
-    @ViewBuilder
-    private var photographs: some View {
-        if !loaded.isEmpty {
-            GeometryReader { geo in
-                HStack(spacing: 0) {
-                    ForEach(Array(loaded.enumerated()), id: \.offset) { _, image in
-                        Image(uiImage: image)
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: geo.size.width / CGFloat(loaded.count),
-                                   height: geo.size.height)
-                            .clipped()
-                    }
-                }
-                // The seams between three rectangles would be three vertical
-                // lines down the page. A single soft blur over the whole strip
-                // is one pass on an image that is already tiny, and it is the
-                // only blur here.
-                // **18 over a 40px decode.** At 60 the sum of the two was a flat
-                // colour;
-                // stacking a 60pt pass on top averaged all three pictures into a
-                // single flat colour, which is the exact opposite of the reason
-                // they are here. Measured, the page had 7 to 14 levels of spread
-                // across its whole width -- less texture than the mesh it was
-                // supposed to be adding texture to. This is only enough to hide
-                // the two seams where the three pictures meet.
-                .blur(radius: 18)
-                .opacity(Self.photoStrength)
-            }
-        }
-    }
+    // **THE PHOTOGRAPH BACKDROP IS GONE FROM HERE**, and the reasoning it
+    // carried is in `docs/reference-board.md` and in the commit that removed it:
+    // any blur strong enough to make a photograph anonymous is strong enough to
+    // remove its structure, so it gave colour and never texture. It was already
+    // switched off; leaving a dead loader running on every screen in the app is
+    // a worse thing than losing the note.
 
     /// **Grain, which is where the texture actually comes from.**
     ///
@@ -231,22 +164,6 @@ struct DayGround: View {
                          intent: .defaultIntent)!
         return UIImage(cgImage: cg)
     }()
-
-    private func load() async {
-        let wanted = Array(photos.prefix(Self.maxPhotos))
-        guard !wanted.isEmpty else { loaded = []; return }
-        var out: [UIImage] = []
-        for name in wanted {
-            // `.prefetch` lane, not `.visible`: this is scenery, and must
-            // never take a decode slot from a block somebody is looking at.
-            if let image = await ImageManager.shared.loadThumbnail(
-                fileName: name, maxWidth: Self.photoPixels, lane: .prefetch,
-                countsAsForeground: false) {
-                out.append(image)
-            }
-        }
-        loaded = out
-    }
 
     /// The room, and what shows when there are no photographs: sky, sun, light.
     private var scene: some View {

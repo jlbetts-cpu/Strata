@@ -431,15 +431,6 @@ enum DebugHarness {
     /// owner's "blank black screen".
     static var cameraDenied: Bool { argument("-strataCameraDenied") != nil }
 
-    /// Draws the day-coloured ground instead of the flat one, from
-    /// `-strataDayGround 1`.
-    ///
-    /// A flag rather than a straight replacement because the two have to be
-    /// photographed and TIMED against each other: a wash under a scrolling grid
-    /// of blocks is the classic way to lose frames, and the owner's standing
-    /// instruction is "make sure there is no latency, I definitely don't want to
-    /// see that when placing blocks."
-    static var dayGround: Bool { argument("-strataDayGround") != nil }
 
 
 
@@ -905,7 +896,7 @@ enum DebugHarness {
             // onboarding alone left `isActive` false, so the app fell back to
             // the real `hasOnboarded` default and showed no onboarding at all
             // — the flag looked broken when it was simply never consulted.
-            || showsOnboarding || onboardingStep != nil || cameraDenied || dayGround
+            || showsOnboarding || onboardingStep != nil || cameraDenied
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.

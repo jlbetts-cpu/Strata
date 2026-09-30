@@ -906,7 +906,7 @@ struct MainAppView: View {
     ///
     /// Area-weighted rather than counted: a single Deep is four cells and says
     /// more about the shape of the day than four Quicks scattered through it.
-    /// Two, because `DayGround.maxStops` is two and mixing six washes makes grey.
+    /// Two, because `GroundField.maxStops` is two and mixing six washes makes grey.
     ///
     /// Cheap on purpose. It walks the blocks already in hand, does no decoding
     /// and touches no photograph, and it is read on the same pass that draws
@@ -920,7 +920,7 @@ struct MainAppView: View {
     }
 
     /// **The day's photographs, biggest block first**, for the backdrop to stand
-    /// on. At most `DayGround.maxPhotos`, and only ones that actually have a
+    /// on. At most `GroundField.maxPhotos`, and only ones that actually have a
     /// file: a day of unphotographed wins draws the sky alone, which is correct
     /// rather than a fallback.
     ///
@@ -931,7 +931,7 @@ struct MainAppView: View {
             .filter { $0.look.imageFileName != nil }
             .sorted { $0.columnSpan * $0.rowSpan > $1.columnSpan * $1.rowSpan }
             .compactMap(\.look.imageFileName)
-            .prefix(DayGround.maxPhotos)
+            .prefix(GroundField.maxPhotos)
             .map { $0 }
     }
 
@@ -1276,20 +1276,10 @@ struct MainAppView: View {
             // which is the frosted band that belongs to blocks and to nothing
             // else. The tower stands on the page's own ground with the tab
             // bar directly beneath it, and that is the whole page.
-            // **THE GROUND, WHICH NOW TAKES ITS COLOUR FROM THE DAY.**
-            //
-            // `DayGround` carries the argument. Behind a flag while it is being
-            // compared against the flat ground it replaces, because the thing
-            // this has to prove is not that it looks better -- it does -- but
-            // that it costs nothing to scroll a tower over. See the measurement
-            // in the commit that introduced it.
-            .background {
-                if DebugHarness.dayGround {
-                    DayGround(colours: dayColours, fill: dayFill, photos: dayPhotos)
-                } else {
-                    WarmBackground().ignoresSafeArea()
-                }
-            }
+            // The ground is `WarmBackground` for every screen in the app now,
+            // field and all — see that type. This tab no longer has a private
+            // one, and the debug flag that used to switch it is gone with it.
+            .background { WarmBackground().ignoresSafeArea() }
             // Tapping a block opens the same sheet that made it.
             //
             // It used to expand into `BlockExpansionCard` — a floating card

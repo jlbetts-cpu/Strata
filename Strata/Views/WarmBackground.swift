@@ -58,8 +58,34 @@ struct WarmBackground: View {
     /// gradient's midpoint, so the page is the same brightness to the eye,
     /// and because it is `top` everywhere, every wash that fades into `top`
     /// meets the ground at every height.
+    /// **THE FIELD LIVES HERE NOW, SO EVERY SCREEN HAS IT.** (2026-09-30)
+    ///
+    /// The owner: "I don't want to not see that glass and pretty style
+    /// throughout the screens, focus on the background too — we made a lot of
+    /// updates with it on the Wins screen, make sure that transfers over."
+    ///
+    /// It was `DayGround`, mounted on the tower tab alone and behind a debug
+    /// flag, which is why the rest of the app still looked like the old one. It
+    /// is folded into `WarmBackground` instead of being added to fourteen call
+    /// sites, because this type ALREADY is the app's ground: Memories, the
+    /// sheets, Settings, the replay, onboarding and the rest all draw it. One
+    /// change, and the style is everywhere the ground is.
+    ///
+    /// `Self.top` stays exactly what it was — a flat colour — because a dozen
+    /// washes, fades and scroll edges fade INTO it and would tear if it became
+    /// a gradient. The field is what `WarmBackground()` draws; `top` is the
+    /// colour it settles to.
     var body: some View {
-        Self.top
-            .accessibilityHidden(true)
+        ZStack {
+            Self.top
+            if !reduceTransparency {
+                GroundField()
+            }
+        }
+        .accessibilityHidden(true)
     }
+
+    /// Reduced transparency asks for less of exactly this, and the flat colour
+    /// above is already a complete answer.
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 }

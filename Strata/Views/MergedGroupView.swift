@@ -55,7 +55,12 @@ struct MergedGroupView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            shape.fill(style.baseColor)
+            // Lit from inside, like every other coloured surface in the app
+            // now. A merged run is one body, so the glow is sized to the whole
+            // run rather than per member — which is the point of merging.
+            GeometryReader { geo in
+                shape.fill(EtherealFill.gradient(style.baseColor, size: geo.size))
+            }
 
             // Frosted band, clipped to the shape so it never spills into the
             // notches of an irregular run.
