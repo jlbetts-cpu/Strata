@@ -71,14 +71,14 @@ struct DayGround: View {
     static let photoPixels: CGFloat = 40
 
     /// How much cloth is between you and all of it.
-    static let veil: Double = 0.62
+    static let veil: Double = 0.82
 
     /// **How present the photographs are, and 0.75 was measured and was far too
     /// much.** At that strength three pictures took the whole page mint green and
     /// the sky vanished: they stopped being texture behind a scene and became the
     /// scene. They are here to give the surface VARIATION for glass to bend, not
     /// to colour it.
-    static let photoStrength: Double = 0.26
+    static let photoStrength: Double = 0.16
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var scheme
@@ -94,6 +94,7 @@ struct DayGround: View {
                 scene
                 photographs
                 WarmBackground.top.opacity(Self.veil)
+                grain
             }
         }
         .ignoresSafeArea()
@@ -140,6 +141,61 @@ struct DayGround: View {
         }
     }
 
+    /// **Grain, which is where the texture actually comes from.**
+    ///
+    /// The owner asked for "more texture" in the same breath as "more subtle",
+    /// and those only sound contradictory. Colour cannot supply texture here —
+    /// anything strong enough to have visible structure is strong enough to
+    /// compete with the blocks, and the photograph experiment proved the same
+    /// thing from the other side: any blur that makes a picture anonymous also
+    /// makes it smooth.
+    ///
+    /// Grain has no such problem. It is texture with no colour and no shape, so
+    /// it reads as the surface being MADE of something — paper, cloth, film —
+    /// without adding a single thing for a block to argue with. It is also what
+    /// separates a printed page from a computed gradient, which is most of the
+    /// difference between "expensive" and "flat" on a near-white screen.
+    ///
+    /// One 128px image, generated once, tiled. No shader, no filter, no per
+    /// frame cost.
+    private var grain: some View {
+        Image(uiImage: Self.noise)
+            .resizable(resizingMode: .tile)
+            .opacity(Self.grainStrength)
+            .blendMode(.overlay)
+            .allowsHitTesting(false)
+            .ignoresSafeArea()
+    }
+
+    /// **Low enough to deny on sight.** You should not be able to point at it;
+    /// you should only notice the page looks flat when it is gone.
+    static let grainStrength: Double = 0.055
+
+    /// A 128px tile of monochrome noise, built once and shared.
+    ///
+    /// Deterministic rather than random: a tile that changed between launches
+    /// would be a different surface every time the app opened, and nothing else
+    /// in this app redecorates itself behind the owner's back.
+    private static let noise: UIImage = {
+        let side = 128
+        var bytes = [UInt8](repeating: 0, count: side * side * 4)
+        var seed: UInt64 = 0x5EED_1234_ABCD_0001
+        for i in 0..<(side * side) {
+            // xorshift: cheap, deterministic, and good enough for grain.
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+            let v = UInt8(truncatingIfNeeded: seed >> 24)
+            let j = i * 4
+            bytes[j] = v; bytes[j + 1] = v; bytes[j + 2] = v; bytes[j + 3] = 255
+        }
+        let provider = CGDataProvider(data: Data(bytes) as CFData)!
+        let cg = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32,
+                         bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                         provider: provider, decode: nil, shouldInterpolate: false,
+                         intent: .defaultIntent)!
+        return UIImage(cgImage: cg)
+    }()
+
     private func load() async {
         let wanted = Array(photos.prefix(Self.maxPhotos))
         guard !wanted.isEmpty else { loaded = []; return }
@@ -171,9 +227,14 @@ struct DayGround: View {
     ]
 
     private static let day: [Color] = [
-        sky(0.50), sky(0.34), sky(0.62),
-        sky(0.26), sun,       sky(0.40),
-        foot(0.16), foot(0.10), foot(0.20),
+        // **Halved, because the blocks have to sit ON this.** The owner:
+        // "it looks way too strong, it should be more subtle, more light, more
+        // texture, being able to fit the coloured blocks and photos on top of
+        // it." A backdrop that a 2x2 red block has to compete with is not a
+        // backdrop.
+        sky(0.26), sky(0.17), sky(0.32),
+        sky(0.13), sun,       sky(0.20),
+        foot(0.08), foot(0.05), foot(0.10),
     ]
 
     private static let night: [Color] = [
