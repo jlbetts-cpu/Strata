@@ -53,7 +53,23 @@ struct BlockFace<Photo: View>: View {
             // becomes a photograph, so it never looks like it is loading — and
             // a win that has no photograph at all still has a colour, which is
             // what makes a tower of them read as a tower.
-            category.style.baseColor
+            // **LIT FROM INSIDE, NOT PAINTED.** (2026-09-30)
+            //
+            // This was `category.style.baseColor` — one flat colour — and the
+            // owner asked for the blocks to carry the same glass the reference
+            // buttons do: "I want the blocks to have this kinda glass
+            // transparency as well in them, for the inner colour instead of
+            // just flat."
+            //
+            // `EtherealFill` carries the argument. The short version is that the
+            // gradient is radial and inside-out: most saturated at a core above
+            // centre, thinning to almost white at the rim. A block stops being a
+            // coloured rectangle and starts being a body with a light in it, and
+            // it costs one gradient.
+            GeometryReader { geo in
+                Rectangle().fill(EtherealFill.gradient(category.style.baseColor,
+                                                       size: geo.size))
+            }
 
             if hasPhoto {
                 photo()

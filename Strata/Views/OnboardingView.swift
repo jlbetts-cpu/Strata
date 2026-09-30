@@ -866,7 +866,35 @@ struct OnboardingView: View {
                     .frame(height: 50)
                     .background {
                         if canAdvance {
-                            Capsule().fill(pillFill)
+                            // **LIT FROM INSIDE.** (2026-09-30)
+                            //
+                            // The owner, with the reference: "can we make the
+                            // main buttons like this, I think this looks super
+                            // clean." It was a flat capsule of `inkPrimary`.
+                            //
+                            // Same recipe the blocks now use, so the button and
+                            // the thing it makes are visibly the same material:
+                            // an inside-out radial, most saturated at a core
+                            // above centre, thinning toward the rim. Plus the
+                            // reference's two other moves — a light rim that is
+                            // brightest at the top, and a bloom behind rather
+                            // than a shadow beneath, because a lit object lights
+                            // the page instead of shading it.
+                            ZStack {
+                                Capsule(style: .continuous)
+                                    .fill(pillFill.opacity(0.5))
+                                    .blur(radius: 16)
+                                    .padding(.horizontal, 8)
+                                Capsule(style: .continuous)
+                                    .fill(EtherealFill.gradient(pillFill))
+                                Capsule(style: .continuous)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [.white.opacity(0.30),
+                                                     .white.opacity(0.08)],
+                                            startPoint: .top, endPoint: .bottom),
+                                        lineWidth: 1)
+                            }
                         } else {
                             Capsule().strokeBorder(disabledRing,
                                                    lineWidth: GridConstants.strokeThin)
