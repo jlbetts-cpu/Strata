@@ -64,14 +64,31 @@ struct TowerLatticeTests {
                 "the lattice reaches \(right) and the tower reaches \(width)")
     }
 
-    /// A field of cells at the token's own strength was a checkerboard when
-    /// it was photographed. This pins the decision, not the taste: whatever
-    /// the number becomes, it stays under half of `quietFill`.
-    @Test("An empty cell stays quieter than a well")
+    /// **`strength` changed meaning on 2026-09-29 and this assertion changed
+    /// with it, which is the whole reason it is being rewritten rather than
+    /// renumbered.**
+    ///
+    /// It used to be a fraction of `quietFill` — black ink painted ON TOP of the
+    /// page — and the ceiling of 0.5 was there because a field of dark cells read
+    /// as a checkerboard against the blocks. That number is meaningless now: a
+    /// cell is a WHITE TRANSLUCENT PANE over a scene, so the same figure is no
+    /// longer ink at all, it is how much cloth is between you and the sky.
+    ///
+    /// The property worth protecting is not the old number, it is that the
+    /// lattice stays between its two failure modes, and both have now actually
+    /// happened in this project:
+    ///
+    /// - **Too thin** and the cells disappear. Measured at the old 2% effective
+    ///   ink: three levels out of 255, and the page read as empty no matter what
+    ///   was put behind it.
+    /// - **Too thick** and the panes go opaque, the scene stops showing through,
+    ///   and the lattice is the flat grey fill this replaced.
+    @Test("A cell is a pane, not paint and not a wall")
     func theLatticeStaysQuiet() {
-        #expect(TowerLattice.strength > 0, "an invisible lattice is not a lattice")
-        #expect(TowerLattice.strength <= 0.5,
-                "at \(TowerLattice.strength) of quietFill the cells compete with the blocks")
+        #expect(TowerLattice.strength >= 0.25,
+                "at \(TowerLattice.strength) the panes are too thin to find")
+        #expect(TowerLattice.strength <= 0.8,
+                "at \(TowerLattice.strength) nothing shows through and it is a fill again")
     }
 
     /// Nothing is drawn for a tower that has not been measured yet, rather

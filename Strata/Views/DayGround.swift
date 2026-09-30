@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// **A sheet hung up against a sunny field.**
+/// **A sheet hung up against a bright sky.**
 ///
 /// The owner, 2026-09-29, after three attempts that were all tint: "I want there
 /// to feel like there is a subtle grassy field on a sunny day behind it, like
@@ -47,11 +47,15 @@ struct DayGround: View {
 
     /// **How much cloth is between you and the field.**
     ///
-    /// The single number that decides whether this reads as a backdrop or as a
-    /// photograph somebody left on. Lower and the scene starts being a scene,
-    /// which is not what a page behind a tower should be. Higher and it goes
-    /// back to the blank white this exists to replace.
-    static let veil: Double = 0.86
+    /// **It came down from 0.86 when the sheet moved into the lattice.**
+    ///
+    /// While this was the only translucent thing on the screen it had to do all
+    /// the diffusing itself, so the scene was buried under it. Now the cells are
+    /// the panes and this is only the haze between them, so the scene can be
+    /// closer to the surface: what you see through a gap is nearly the scene,
+    /// and what you see through a cell is the scene through cloth. That
+    /// difference is the depth.
+    static let veil: Double = 0.55
 
     /// Reduced transparency asks for less of exactly this: the sheet goes
     /// opaque and the page is the plain ground again.
@@ -110,7 +114,10 @@ struct DayGround: View {
     private static let day: [Color] = [
         sky(0.50), sky(0.34), sky(0.62),
         sky(0.26), sun,       sky(0.40),
-        grass(0.46), grass(0.36), grass(0.52),
+        // **NO GREEN.** "I don't think I like the green, I think more blue and
+        // just light." So the foot of the scene is a pale cool light rather
+        // than a field: the sky comes all the way down and simply brightens.
+        foot(0.16), foot(0.10), foot(0.20),
     ]
 
     /// Night is the same scene after dark: the sky deepens, the sun is gone, the
@@ -132,8 +139,10 @@ struct DayGround: View {
         Color(hue: 0.575, saturation: s, brightness: 0.99)
     }
 
-    private static func grass(_ s: Double) -> Color {
-        Color(hue: 0.29, saturation: s, brightness: 0.88)
+    /// The bottom of the scene: the same sky hue, barely saturated, bright.
+    /// Light rather than ground.
+    private static func foot(_ s: Double) -> Color {
+        Color(hue: 0.575, saturation: s, brightness: 1.0)
     }
 
     /// Warm, barely coloured, very bright. A sun seen through cloth is a bright

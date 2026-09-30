@@ -82,7 +82,11 @@ struct TowerLattice: View {
     /// the cheap he asked this not to be. The cells have to be findable and
     /// then forgotten: enough that the tower reads as built into something,
     /// not enough to count them without looking for them.
-    static let strength: Double = 0.34
+    /// **This is now how opaque the sheet is, not how dark the ink is**, and
+    /// the number moved with the meaning. At 0.34 of 6% black it was 2% ink and
+    /// invisible; as a white pane it is the difference between a cell and the
+    /// gap beside it, which is what makes the lattice readable at all.
+    static let strength: Double = 0.55
 
     /// **What the surface is worth at the peak of a landing**, over the
     /// resting cells, in the block's own colour.
@@ -176,8 +180,34 @@ struct TowerLattice: View {
         TowerLatticeShape(cellSize: cellSize, spacing: spacing, columns: columns)
     }
 
+    /// **The cells are the sheet, and the gaps are where you see past it.**
+    ///
+    /// The owner, 2026-09-29, for the third time and this time unmistakably:
+    /// "you keep doing colours but not doing the translucent backing like I
+    /// asked."
+    ///
+    /// He was right and I had been answering a different question every time.
+    /// The cells were `quietFill` — black at 6%, multiplied by 0.34, so 2% ink
+    /// painted ON TOP of whatever was behind them. That is opaque thinking: a
+    /// surface that ADDS darkness can never let anything through, so no matter
+    /// what went in the background, the lattice sat in front of it as paint.
+    /// Measured earlier in the session, it came to three levels out of 255,
+    /// which is why the page read as empty however much was put behind it.
+    ///
+    /// Inverted: a cell is now a white translucent pane. The scene behind shows
+    /// through it, dimmed and cooled the way something does through cloth, and
+    /// the GAPS between cells are where you see the scene at full strength. So
+    /// the lattice reads as panes held up against a sky rather than as a grid
+    /// drawn on a page, the light varies down the tower because the scene does,
+    /// and the whole thing finally has the depth the flat version could not.
+    ///
+    /// **A fill, not a material.** `.ultraThinMaterial` on forty-odd cells in a
+    /// scrolling grid is a blur pass each, and CLAUDE.md's standing instruction
+    /// is that placing a block must not cost a frame. A white fill composites
+    /// for free and is genuinely translucent; if a real blur is ever wanted, it
+    /// gets measured first.
     private var resting: some View {
-        shape.fill(AppColors.quietFill.opacity(Self.strength))
+        shape.fill(Color.white.opacity(Self.strength))
             .frame(height: height)
     }
 
