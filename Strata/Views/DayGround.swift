@@ -1,67 +1,90 @@
 import SwiftUI
 
-/// **A sheet hung up against a bright sky.**
+/// **A sheet hung up against the day itself.**
 ///
-/// The owner, 2026-09-29, after three attempts that were all tint: "I want there
-/// to feel like there is a subtle grassy field on a sunny day behind it, like
-/// subtly, like it should feel like it's a sheet put up to the sky."
+/// The owner wanted "a subtle grassy field on a sunny day behind it... like it's
+/// a sheet put up to the sky", and then asked for the research rather than more
+/// guessing. The research is what produced the version this is:
 ///
-/// That is a scene, and it is why nothing before this worked. Every earlier
-/// version tried to make a near-white surface *slightly interesting* — a wash, a
-/// temperature ramp, a hue borrowed from the biggest block, which always came out
-/// red because the biggest block is usually red. All of them were adjustments to
-/// a blank page. None of them had anything behind them, so there was nothing for
-/// glass to refract and nothing for the eye to read as depth.
+/// **A backdrop blur has nothing to do to a smooth gradient.** `.ultraThinMaterial`
+/// on the lattice is the correct primitive by Apple's own description — the
+/// material "adapts to the content underneath" — and it was built, photographed,
+/// and made the cells nearly vanish. Blur a smooth mesh and you get the same
+/// smooth mesh. Every translucent surface in this app was failing to look like
+/// glass for one reason: **there was no detail behind it to bend.**
 ///
-/// **So this is built the way the thing it is imitating is built: a real scene,
-/// and then cloth over it.**
+/// So the backdrop has detail now, and the only honest detail this app owns is
+/// **the person's own photographs.** They go behind the tower at a size where
+/// nothing is recognisable — just their colour and their variation — which is
+/// both the texture glass needs and, for an app whose whole claim is "a camera
+/// for the things that went right", the correct thing to be standing on.
 ///
 /// ```
-///   sky, sun, grass          ← saturated enough to actually be those things
-///   ───────────────────
-///   white veil at 86%        ← the sheet
+///   sky mesh              ← the room, when there are no photographs yet
+///   photographs           ← the day, at 40px, blown up: colour and variation
+///   veil                  ← the sheet
 /// ```
 ///
-/// That order matters and is the whole technique. Trying to paint the *result*
-/// directly means mixing nine nearly-white colours by eye and hoping they read
-/// as a landscape, which is what failed three times. Painting a believable scene
-/// and then diffusing it is what fabric actually does to light, so the hues that
-/// survive are the ones that would survive, at the intensity they would survive
-/// at. The sky stays faintly blue, the grass stays faintly green, the sun stays
-/// warm, and none of it is nameable at a glance.
-///
-/// **It is fixed, not derived from the day.** §4 of
-/// `docs/design-system-future.md` says a tint is only ever borrowed from
-/// content, and this deliberately is not: it is a backdrop, the same on every
-/// day of a person's life, the way the wall behind a shelf is the same wall. The
-/// rule exists to stop chrome inventing a brand accent that competes with the
-/// blocks — a green field at 14% behind a sheet is not competing with anything,
-/// and the version that DID obey the rule is the one that made the whole app
-/// look red.
+/// **The blur is free and that is not a trick, it is the trick.** A photograph
+/// decoded at 40 pixels wide and drawn across a third of the screen IS a blur:
+/// the detail is gone before it is ever rasterised. No blur pass, no filter, no
+/// frame cost — and a 40px decode is smaller than the icons in the tab bar.
+/// `.blur()` over three full photographs would have been the expensive way to
+/// arrive at a worse picture.
 struct DayGround: View {
 
-    /// Kept in the signature and unused. The field is a fixed scene now, not
-    /// anything borrowed from the day. Both go once that is settled.
+    /// Kept from when the field borrowed the day's hue. Unused; both go once
+    /// this settles.
     let colours: [Color]
     let fill: Double
 
-    /// **How much cloth is between you and the field.**
-    ///
-    /// **It came down from 0.86 when the sheet moved into the lattice.**
-    ///
-    /// While this was the only translucent thing on the screen it had to do all
-    /// the diffusing itself, so the scene was buried under it. Now the cells are
-    /// the panes and this is only the haze between them, so the scene can be
-    /// closer to the surface: what you see through a gap is nearly the scene,
-    /// and what you see through a cell is the scene through cloth. That
-    /// difference is the depth.
-    static let veil: Double = 0.55
+    /// Up to `maxPhotos` file names from today's blocks, biggest block first.
+    /// Empty is the normal case early in a day and draws the sky alone.
+    var photos: [String] = []
 
-    /// Reduced transparency asks for less of exactly this: the sheet goes
-    /// opaque and the page is the plain ground again.
+    /// **Three.** One photograph is a wash and reads as a mistake; six average
+    /// into mud, which is the same lesson the two-hue version learned. Three
+    /// across the page is a day, and the eye cannot count them at this size.
+    static let maxPhotos = 3
+
+    /// **The width the photographs are decoded at, in pixels.** This is the blur
+    /// radius in disguise, and it is the number that decides whether this is
+    /// texture or just a colour cast.
+    ///
+    /// It was 40 and that was measured as too few: three 40px pictures stretched
+    /// across a third of the screen each are three smooth blobs, and the page
+    /// came out with 6 to 9 levels of spread across its whole width. Colour, no
+    /// structure — which is the one thing they were added for, since a material
+    /// or a lens has nothing to bend without it.
+    ///
+    /// **120 was then tried, with the blur raised to match, and measured NO
+    /// BETTER: 9/5/4 levels against 9/6.** More pixels and more blur cancel, and
+    /// that is the finding rather than a number to keep tuning.
+    ///
+    /// **Any blur strong enough to make a photograph unrecognisable is strong
+    /// enough to remove its structure.** So blurred photographs cannot be both
+    /// anonymous and textured, and the original hope for them -- give a material
+    /// or a lens something real to bend -- is not reachable this way. What they
+    /// DO give, and what they are kept for, is honest colour: a page tinted by
+    /// the actual pictures of your day rather than by a palette someone chose.
+    /// 40 is back because it measured the same as 120 and decodes less.
+    static let photoPixels: CGFloat = 40
+
+    /// How much cloth is between you and all of it.
+    static let veil: Double = 0.62
+
+    /// **How present the photographs are, and 0.75 was measured and was far too
+    /// much.** At that strength three pictures took the whole page mint green and
+    /// the sky vanished: they stopped being texture behind a scene and became the
+    /// scene. They are here to give the surface VARIATION for glass to bend, not
+    /// to colour it.
+    static let photoStrength: Double = 0.26
+
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
     @Environment(\.colorScheme) private var scheme
+
+    /// Loaded once, off the main actor, and held. Never reloaded on scroll.
+    @State private var loaded: [UIImage] = []
 
     var body: some View {
         ZStack {
@@ -69,21 +92,71 @@ struct DayGround: View {
                 WarmBackground()
             } else {
                 scene
-                // The sheet. `WarmBackground.top` rather than pure white so the
-                // page's own ground and this agree at the edges, and so dark
-                // mode dims the scene instead of bleaching it.
+                photographs
                 WarmBackground.top.opacity(Self.veil)
             }
         }
         .ignoresSafeArea()
+        .task(id: photos.prefix(Self.maxPhotos).joined()) { await load() }
     }
 
-    /// Sky at the top, sun in it, grass along the bottom.
+    /// The day, at forty pixels.
     ///
-    /// A 3x3 `MeshGradient` because a mesh has interior control points: the
-    /// horizon can bow and the sun can pool, where stacked gradients can only
-    /// fall off evenly from a centre. The sun sits off to one side because light
-    /// in a room comes from somewhere, and a centred one reads as a vignette.
+    /// Each picture takes a third of the width and the full height, so the page
+    /// reads left to right as the day did. `.interpolation(.high)` on a 40px
+    /// source blown up this far is what makes it a smooth field rather than
+    /// visible squares — the one place in the app where the expensive
+    /// interpolation is the cheap answer.
+    @ViewBuilder
+    private var photographs: some View {
+        if !loaded.isEmpty {
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    ForEach(Array(loaded.enumerated()), id: \.offset) { _, image in
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: geo.size.width / CGFloat(loaded.count),
+                                   height: geo.size.height)
+                            .clipped()
+                    }
+                }
+                // The seams between three rectangles would be three vertical
+                // lines down the page. A single soft blur over the whole strip
+                // is one pass on an image that is already tiny, and it is the
+                // only blur here.
+                // **18 over a 40px decode.** At 60 the sum of the two was a flat
+                // colour;
+                // stacking a 60pt pass on top averaged all three pictures into a
+                // single flat colour, which is the exact opposite of the reason
+                // they are here. Measured, the page had 7 to 14 levels of spread
+                // across its whole width -- less texture than the mesh it was
+                // supposed to be adding texture to. This is only enough to hide
+                // the two seams where the three pictures meet.
+                .blur(radius: 18)
+                .opacity(Self.photoStrength)
+            }
+        }
+    }
+
+    private func load() async {
+        let wanted = Array(photos.prefix(Self.maxPhotos))
+        guard !wanted.isEmpty else { loaded = []; return }
+        var out: [UIImage] = []
+        for name in wanted {
+            // `.prefetch` lane, not `.visible`: this is scenery, and must
+            // never take a decode slot from a block somebody is looking at.
+            if let image = await ImageManager.shared.loadThumbnail(
+                fileName: name, maxWidth: Self.photoPixels, lane: .prefetch,
+                countsAsForeground: false) {
+                out.append(image)
+            }
+        }
+        loaded = out
+    }
+
+    /// The room, and what shows when there are no photographs: sky, sun, light.
     private var scene: some View {
         MeshGradient(width: 3, height: 3,
                      points: Self.points,
@@ -91,38 +164,18 @@ struct DayGround: View {
                      smoothsColors: true)
     }
 
-    /// The interior point is high and to the right — the sun — and the bottom
-    /// row is pulled up slightly in the middle, which bows the horizon and stops
-    /// the grass reading as a straight band across the page.
     private static let points: [SIMD2<Float>] = [
         .init(0.0, 0.0),  .init(0.5, 0.0),   .init(1.0, 0.0),
-        // **The middle row sits high, which puts the horizon high.**
-        //
-        // It was at 0.46 and the green only arrived in the last few hundred
-        // pixels — which are the pixels the tower covers, so the field was
-        // measurably there and effectively invisible. Pulling this row up gives
-        // the sky-to-grass interpolation the whole lower half to happen in, so
-        // the ground shows in the empty part of the lattice where there is
-        // actually something to see it against.
         .init(0.0, 0.30), .init(0.68, 0.22), .init(1.0, 0.27),
         .init(0.0, 1.0),  .init(0.5, 0.94),  .init(1.0, 1.0),
     ]
 
-    /// **Saturated on purpose.** These are read through 86% cloth, so anything
-    /// timid here arrives as nothing at all. Judged by what comes out, not by
-    /// how they look written down.
     private static let day: [Color] = [
         sky(0.50), sky(0.34), sky(0.62),
         sky(0.26), sun,       sky(0.40),
-        // **NO GREEN.** "I don't think I like the green, I think more blue and
-        // just light." So the foot of the scene is a pale cool light rather
-        // than a field: the sky comes all the way down and simply brightens.
         foot(0.16), foot(0.10), foot(0.20),
     ]
 
-    /// Night is the same scene after dark: the sky deepens, the sun is gone, the
-    /// field goes to almost nothing. The same shape, so the page does not become
-    /// a different place when the lights go out.
     private static let night: [Color] = [
         Color(hue: 0.60, saturation: 0.45, brightness: 0.30),
         Color(hue: 0.60, saturation: 0.40, brightness: 0.34),
@@ -130,9 +183,9 @@ struct DayGround: View {
         Color(hue: 0.60, saturation: 0.38, brightness: 0.26),
         Color(hue: 0.11, saturation: 0.30, brightness: 0.34),
         Color(hue: 0.60, saturation: 0.42, brightness: 0.24),
-        Color(hue: 0.33, saturation: 0.35, brightness: 0.18),
-        Color(hue: 0.33, saturation: 0.30, brightness: 0.20),
-        Color(hue: 0.33, saturation: 0.38, brightness: 0.16),
+        Color(hue: 0.60, saturation: 0.35, brightness: 0.18),
+        Color(hue: 0.60, saturation: 0.30, brightness: 0.20),
+        Color(hue: 0.60, saturation: 0.38, brightness: 0.16),
     ]
 
     private static func sky(_ s: Double) -> Color {
@@ -140,13 +193,10 @@ struct DayGround: View {
     }
 
     /// The bottom of the scene: the same sky hue, barely saturated, bright.
-    /// Light rather than ground.
+    /// Light rather than ground — the owner cut the green.
     private static func foot(_ s: Double) -> Color {
         Color(hue: 0.575, saturation: s, brightness: 1.0)
     }
 
-    /// Warm, barely coloured, very bright. A sun seen through cloth is a bright
-    /// patch rather than a disc, which is also why it is a mesh point and not a
-    /// circle drawn on top.
     private static let sun = Color(hue: 0.12, saturation: 0.22, brightness: 1.0)
 }

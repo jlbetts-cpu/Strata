@@ -919,6 +919,22 @@ struct MainAppView: View {
         return area.sorted { $0.value > $1.value }.map { $0.key.style.baseColor }
     }
 
+    /// **The day's photographs, biggest block first**, for the backdrop to stand
+    /// on. At most `DayGround.maxPhotos`, and only ones that actually have a
+    /// file: a day of unphotographed wins draws the sky alone, which is correct
+    /// rather than a fallback.
+    ///
+    /// Biggest first because a Deep is four cells of somebody's day and a Quick
+    /// is one, so the picture that mattered most gets the most of the page.
+    private var dayPhotos: [String] {
+        towerVM.placedBlocks
+            .filter { $0.look.imageFileName != nil }
+            .sorted { $0.columnSpan * $0.rowSpan > $1.columnSpan * $1.rowSpan }
+            .compactMap(\.look.imageFileName)
+            .prefix(DayGround.maxPhotos)
+            .map { $0 }
+    }
+
     /// 0 on an empty tower, 1 once it fills the frame.
     ///
     /// **The wash comes up with the tower.** At full strength over a single
@@ -1269,7 +1285,7 @@ struct MainAppView: View {
             // in the commit that introduced it.
             .background {
                 if DebugHarness.dayGround {
-                    DayGround(colours: dayColours, fill: dayFill)
+                    DayGround(colours: dayColours, fill: dayFill, photos: dayPhotos)
                 } else {
                     WarmBackground().ignoresSafeArea()
                 }
