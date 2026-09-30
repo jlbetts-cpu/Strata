@@ -70,8 +70,18 @@ struct DayGround: View {
     /// 40 is back because it measured the same as 120 and decodes less.
     static let photoPixels: CGFloat = 40
 
-    /// How much cloth is between you and all of it.
-    static let veil: Double = 0.82
+    /// **How much cloth is between you and all of it — and it sets the page's
+    /// brightness, which is what makes the lattice readable.**
+    ///
+    /// At 0.82 the whole page sat at 240 and the cells vanished into it: a white
+    /// pane has nothing left to give on a ground that bright, and the fix I
+    /// reached for first was to outline them, which the owner rejected on sight
+    /// and was right to. A drawn line is not light.
+    ///
+    /// So this carries it instead. The ground sits lower, the panes are the
+    /// brightest thing on the page, and the lattice is readable with nothing
+    /// drawn around it — which is what a sheet lit from behind looks like.
+    static let veil: Double = 0.70
 
     /// **How present the photographs are, and 0.75 was measured and was far too
     /// much.** At that strength three pictures took the whole page mint green and

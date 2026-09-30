@@ -724,10 +724,25 @@ enum GridConstants {
     /// than as clean. Wider and fainter reads as air under the block instead
     /// of a drop shadow on it — which is the difference between "structured"
     /// and "stuck on".
-    static let blockShadowRadius: CGFloat = 7
+    ///
+    /// **Softened again on 2026-09-29 for the ethereal read the owner asked
+    /// for**: "the shadows are more subtle creating that ethereal feel."
+    ///
+    /// Wider and fainter, which is the same direction the note above already
+    /// argues and simply further along it. A shadow says a block is a solid
+    /// thing resting on the page; the point of this pass is that the page is now
+    /// a sheet with light behind it, and something resting on a lit sheet casts
+    /// almost nothing. The radius grows as the opacity falls so the block keeps
+    /// its footing — a shadow that only gets fainter starts to look like a
+    /// rendering mistake, where one that gets fainter AND wider reads as air.
+    ///
+    /// Dark mode falls proportionally rather than to the same number: on a
+    /// charcoal ground a shadow is most of what separates a block from the page,
+    /// and taking it to 0.07 there would flatten the tower outright.
+    static let blockShadowRadius: CGFloat = 10
     static let blockShadowY: CGFloat = 2
-    static let blockShadowOpacity: Double = 0.07
-    static let blockShadowOpacityDark: Double = 0.20
+    static let blockShadowOpacity: Double = 0.045
+    static let blockShadowOpacityDark: Double = 0.15
 
     static let checkCircleSize: CGFloat = 24
 

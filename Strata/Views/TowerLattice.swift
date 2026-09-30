@@ -87,7 +87,8 @@ struct TowerLattice: View {
     /// difference between a cell and the gap beside it, which is the whole of
     /// the translucency. The two failure modes it sits between — too thin to
     /// find, too thick to see through — are pinned in `TowerLatticeTests`.
-    static let strength: Double = 0.55
+    static let strength: Double = 0.62
+
 
     /// **What the surface is worth at the peak of a landing**, over the
     /// resting cells, in the block's own colour.
@@ -243,8 +244,20 @@ struct TowerLattice: View {
     /// the surface the tower is built on. The glass in this app stays where it
     /// belongs — the tab bar, the slot, the buttons.
     private var resting: some View {
-        shape.fill(Color.white.opacity(Self.strength))
-            .frame(height: height)
+        // **A PANE, AND NOTHING DRAWN AROUND IT.**
+        //
+        // A hairline was added here and the owner rejected it on sight, and he
+        // was right: a drawn line is the one thing this whole pass is trying not
+        // to do. Every cue in this design has to be made of light.
+        //
+        // The line was there because the cells had gone to ONE level of contrast
+        // against the gap beside them. The mistake was fixing the wrong end. A
+        // white pane cannot be brighter than a ground that is already at 240, so
+        // the answer was never to outline the pane — it was to stop the ground
+        // being that bright. `DayGround` sits lower now, and the panes are the
+        // brightest thing on the page again, which is what a sheet lit from
+        // behind actually looks like.
+        shape.fill(Color.white.opacity(Self.strength))        .frame(height: height)
     }
 
     /// **The landing, drawn as the cells it reaches.**
