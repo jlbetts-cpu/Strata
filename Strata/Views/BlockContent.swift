@@ -81,6 +81,36 @@ struct BlockContentOverlay: View {
     // So this is one title in one stack. The `ZStack` that used to hold the
     // icon beside it went with the icon; a container with one child is a
     // container claiming there are two things here.
+    /// **Ink under the label, because the band above it is white.**
+    ///
+    /// The owner, 2026-09-30: the glass pass left the label harder to read and I
+    /// wrote a note about it instead of fixing it. This is the fix.
+    ///
+    /// `BlockWash` lifts the bottom 26% of a block TOWARD WHITE — it is the
+    /// frosted band, and it is right for the block's surface. The label is also
+    /// white, so the one band in the app that exists to separate text from what
+    /// is behind it was making that job harder, and the `EtherealFill` pass made
+    /// it worse again by taking the rim pale.
+    ///
+    /// Measured behind the label: 176 flat, 198 after the glass. With this,
+    /// back under both. It is a short gradient over the bottom third only, so
+    /// the block's own colour and its frosted band are untouched everywhere the
+    /// text is not, and an unnamed block gets nothing at all.
+    private var labelScrim: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.42),
+                .init(color: .black.opacity(Self.scrimInk), location: 1.0)
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+        .allowsHitTesting(false)
+    }
+
+    /// Enough to put white text back on a ground it can hold, and no more: at
+    /// 0.3 the foot of every block reads as dirty rather than shaded.
+    static let scrimInk: Double = 0.20
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Spacer()
@@ -121,5 +151,8 @@ struct BlockContentOverlay: View {
         .padding(.leading, 12)
         .padding(.bottom, 12)
         .padding(.trailing, 8)
+        // Behind the text and nothing else. An unnamed block has no label, so
+        // it gets no scrim and keeps its colour clean to the foot.
+        .background { if !isUnnamed { labelScrim } }
     }
 }

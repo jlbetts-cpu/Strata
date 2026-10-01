@@ -82,12 +82,18 @@ struct TowerLattice: View {
     /// the cheap he asked this not to be. The cells have to be findable and
     /// then forgotten: enough that the tower reads as built into something,
     /// not enough to count them without looking for them.
+    /// **0.34, after 0.62 was too much.** The owner, 2026-09-30: "I think the
+    /// lattice looks better more subtle, right now it's too visible." It went to
+    /// 0.62 while the fade bug was still eating most of it; once that was fixed
+    /// the same number was suddenly doing twice the work it had been. A value
+    /// chosen against a broken renderer is not a value.
+    ///
     /// **How opaque the pane is.** It was a fraction of black ink until the
     /// cells stopped being paint; as a white pane over a scene it is the
     /// difference between a cell and the gap beside it, which is the whole of
     /// the translucency. The two failure modes it sits between — too thin to
     /// find, too thick to see through — are pinned in `TowerLatticeTests`.
-    static let strength: Double = 0.62
+    static let strength: Double = 0.34
 
 
     /// **What the surface is worth at the peak of a landing**, over the

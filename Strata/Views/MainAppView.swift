@@ -77,6 +77,8 @@ struct MainAppView: View {
     /// Set when onboarding finishes; consumed by `dropWelcomeWinIfNeeded`.
     static let welcomeWinKey = "pendingWelcomeWin"
 
+    /// Live ripples on the page's own surface. Swept as they die.
+    @State private var touchRipples: [TouchRipple] = []
     @State private var selectedTab: StrataTab = MainAppView.initialTab()
     // #270: Tower filter persistence across launches
     /// The tower shows today, and only today.
@@ -1280,6 +1282,20 @@ struct MainAppView: View {
             // field and all — see that type. This tab no longer has a private
             // one, and the debug flag that used to switch it is gone with it.
             .background { WarmBackground().ignoresSafeArea() }
+            // Touch the page and it answers. See `TouchRipple`: rings on water,
+            // never a highlight, and it consumes nothing — a tap on a block, the
+            // slot or the tab bar still reaches them.
+            .touchRipples($touchRipples)
+            #if DEBUG
+            // One ripple in the middle, so the effect can be photographed.
+            .task {
+                guard DebugHarness.ripple else { return }
+                while !Task.isCancelled {
+                    touchRipples = [TouchRipple(at: CGPoint(x: 200, y: 330), born: Date())]
+                    try? await Task.sleep(for: .milliseconds(700))
+                }
+            }
+            #endif
             // Tapping a block opens the same sheet that made it.
             //
             // It used to expand into `BlockExpansionCard` — a floating card

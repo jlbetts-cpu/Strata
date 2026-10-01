@@ -431,6 +431,15 @@ enum DebugHarness {
     /// owner's "blank black screen".
     static var cameraDenied: Bool { argument("-strataCameraDenied") != nil }
 
+    /// Spawns a touch ripple at the middle of the page on launch, from
+    /// `-strataRipple 1`.
+    ///
+    /// **Because nothing on this machine can tap**, and a ripple is gone in
+    /// 0.62s, so there is no way to photograph the one state it has. Same
+    /// reason `-strataCameraDenied` exists: the states worth checking are the
+    /// ones that need a finger.
+    static var ripple: Bool { argument("-strataRipple") != nil }
+
 
 
 
@@ -896,7 +905,7 @@ enum DebugHarness {
             // onboarding alone left `isActive` false, so the app fell back to
             // the real `hasOnboarded` default and showed no onboarding at all
             // — the flag looked broken when it was simply never consulted.
-            || showsOnboarding || onboardingStep != nil || cameraDenied
+            || showsOnboarding || onboardingStep != nil || cameraDenied || ripple
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.
