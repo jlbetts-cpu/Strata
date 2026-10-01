@@ -635,3 +635,49 @@ The ratio is also the source's: Figma's 40px on a 272px block.
 Not bulk-deleted because about twenty of them carry the only surviving record
 of a measurement, and because 57 deletions in a file three agents were editing
 is a conflict rather than a cleanup.
+
+
+---
+
+# Dark mode, 2026-10-01
+
+**The whole 22-screen pass measured one appearance.** `MainAppView` pins only
+the camera to dark; every other tab follows the system, on the owner's own
+instruction recorded in that file: "we should make the design work in both dark
+and light mode while still keeping the etheral vibe." So half of what ships had
+never been looked at, and all three of the things wrong with it were the same
+kind of mistake: **a value tuned on a white page and reused on a black one.**
+
+| Finding | light | dark, before | dark, after |
+|---|---|---|---|
+| **The lattice pane against the gutter beside it** | 1.03:1 | **2.91:1** | 1.11:1 |
+| **The ground's spread, 5th to 95th percentile** | 3 levels | **21** | 6 |
+| **The ground's red minus blue** | 0.0 | **-15.7** | 0.0 |
+
+**The lattice.** Its pane is WHITE at an opacity, and white means two completely
+different amounts depending on what is under it: over a 247 page 0.34 adds three
+levels, over a 40 page it adds seventy three. The owner's words were "the lattic
+doesnt blend in like light mode", and it was reading as a grid of grey boxes.
+The dark value is derived from the light one's RATIO now rather than inheriting
+its number, and `TowerLatticeTests` pins the two bands apart so nobody reads one
+and applies it to the other.
+
+**The ground, twice.** First "it has a weird looking light": nine mesh nodes
+ranging 0.16 to 0.34 brightness, a 2.1x spread, where the day array's nine
+whites span 1.03x. Then, after that was compressed, "why is the dark mode like
+bluish like it doesnt look premium": the night array was nine BLUES at
+saturation 0.30 to 0.48, and the day array is nine whites at saturation 0.
+
+That second one is the interesting failure, because the file already had the
+argument written in it, twice, about the day array: a page with an opinion about
+its own colour is a page the illustrations and the photographs then have to
+argue with. Nobody had ever applied the same sentence after dark.
+`WarmBackground.top`'s dark value was never the problem: it is rgb(29, 28, 28),
+already neutral. The blue was this one array sitting on top of it.
+
+**Two wrong versions on the way, both worth not repeating.** Compressing the
+brightness and leaving the saturation varying took the spread from 21 to 8 and
+left the swing at 17: a cast rather than a lamp, but still a cast. Pinning the
+saturation at 0.32 and moving only brightness made the cast even across the
+page and therefore more obviously a choice. Neither was the question. The
+question was why the page had a hue at all.

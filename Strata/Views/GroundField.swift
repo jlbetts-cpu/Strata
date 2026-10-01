@@ -226,60 +226,45 @@ struct GroundField: View {
         white(0.974, 0), white(0.980, 0), white(0.970, 0),
     ]
 
-    /// **THE NIGHT FIELD WAS SEVEN TIMES AS UNEVEN AS THE DAY ONE.**
+    /// **NEUTRAL, LIKE THE DAY FIELD, AND IT WAS NAVY.**
     ///
-    /// The owner, 2026-10-01: "the dark mode should still look clean and dark
-    /// mode rn it has a weird looking light." Measured on the empty Wins page,
-    /// over the band between the header and the board, in both appearances:
+    /// The owner, 2026-10-01: "why is the dark mode like bluish like it doesnt
+    /// look premium." He is right and the fix is the one this file already
+    /// argues for twice, in its own words, about the DAY array: a page with an
+    /// opinion about its own colour is a page the illustrations and the
+    /// photographs then have to argue with. The day array is nine whites at
+    /// `saturation: 0`. The night array was nine blues at saturation 0.30 to
+    /// 0.48, and nobody had ever applied the same sentence to it.
     ///
-    /// |  | light | dark, before |
-    /// |---|---|---|
-    /// | ground spread, 5th to 95th percentile | **3** levels | **21** |
-    /// | red minus blue swing | **6** | **25** |
+    /// Measured on the empty Wins page before this: the ground sat around
+    /// rgb(31, 38, 47) with a red-minus-blue swing of 15, against a light page
+    /// that is rgb(247, 247, 247) with a swing of 6. So the dark page had a
+    /// hue and the light page did not, which is the whole of "it doesn't look
+    /// premium": a tinted ground reads as a theme, and a neutral one reads as
+    /// a material.
     ///
-    /// So the light page is flat to within three levels and the dark one had a
-    /// visible gradient across it plus a blue cast that moved by 25. That is
-    /// the "weird light": not one lamp, a field whose nine nodes ranged over
-    /// 0.16 to 0.34 brightness, a 2.1x spread, where the day array's nine
-    /// whites range 0.970 to 1.000, a 1.03x spread.
+    /// **And `WarmBackground.top` was never the problem.** Its dark value is
+    /// rgb(29, 28, 28), already neutral and a hair warm. The blue was this
+    /// array alone, sitting on top of it.
     ///
-    /// **The day array had been given this pass and the night array never
-    /// had.** Its own doc already argues the case for the day one, twice: a
-    /// page with an opinion about its own colour is a page the illustrations
-    /// and the photographs then have to argue with. The same sentence is true
-    /// after dark and nobody had applied it.
+    /// Nine neutral darks now, through the same `white` helper the day array
+    /// uses, straddling `top`'s 0.112 the way the day whites straddle its
+    /// 0.992. The brightness band is 0.098 to 0.128, which is the same
+    /// proportional spread, so the field still gives the glass and the lattice
+    /// something to sit on and still does not read as a light.
     ///
-    /// Compressed to brightness 0.175 to 0.225 and saturation 0.30 to 0.36,
-    /// which is the same proportional spread the day whites have, so the
-    /// structure survives and the lamp does not. The hue stays 0.60 on all
-    /// nine: one of them was 0.11 until this morning and put a brown lamp over
-    /// the replay.
-    ///
-    /// What was NOT done: flattening it to one colour. The field's whole job
-    /// is to give the glass and the lattice something to sit on that is not a
-    /// dead fill, and a dark page with no structure at all is the "cheap"
-    /// the owner has named twice. Three levels of movement is a surface. Ten
-    /// is a light.
-    /// **One saturation, and only the brightness moves.** The first compression
-    /// took the measured ground spread from 21 levels to 8 and the red-minus-
-    /// blue swing from 25 to 17, against a light page's 3 and 6. The 17 was
-    /// the saturation still varying: red minus blue is brightness TIMES
-    /// saturation, so letting both move multiplies their spreads together and
-    /// the page ends up bluer in some places than others, which is a cast
-    /// rather than a surface.
-    ///
-    /// Saturation is 0.32 on all nine now and brightness moves 0.182 to 0.213,
-    /// which is the same proportional spread the day array's whites have.
+    /// **This went through two wrong versions before here, both worth not
+    /// repeating.** The first compressed the brightness and left the
+    /// saturation varying, which took the spread from 21 levels to 8 and left
+    /// the swing at 17: a cast rather than a lamp, but still a cast. The
+    /// second pinned saturation at 0.32 and only moved brightness, which made
+    /// the cast even across the page and therefore more obviously a colour
+    /// choice. Neither was the question. The question was why the page had a
+    /// hue at all.
     private static let night: [Color] = [
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.198),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.207),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.191),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.188),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.213),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.185),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.183),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.194),
-        Color(hue: 0.60, saturation: 0.32, brightness: 0.182),
+        white(0.118, 0), white(0.124, 0), white(0.112, 0),
+        white(0.108, 0), white(0.128, 0), white(0.104, 0),
+        white(0.102, 0), white(0.114, 0), white(0.098, 0),
     ]
 
     /// A near-white at a given brightness, carrying only enough hue to have a
