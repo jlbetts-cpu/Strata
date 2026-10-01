@@ -813,8 +813,38 @@ struct MainAppView: View {
     /// `ViewThatFits` went with it. It was there because the count, "wins" and
     /// two controls did not fit one row at an accessibility text size; two
     /// controls always do.
+    /// "Wednesday 1 October". Built once: a `DateFormatter` made inside a body
+    /// is made on every evaluation, which is the fault `Album.Formats` exists
+    /// to record.
+    private static let headerDate: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
+        return f
+    }()
+
     private var towerHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
+            // **TODAY, WHICH IS THE ONE THING THIS SCREEN NEVER SAID.**
+            //
+            // The count came off at the owner's word and left the row with a
+            // `Spacer` and two controls, so the header was one button alone in
+            // a corner with nothing on the other side of it — a control that
+            // had been left behind rather than a header.
+            //
+            // The date is not decoration put there to balance it. The tower is
+            // TODAY's tower: `towerFilterMode` is today only, the slot adds to
+            // today, the whole page is one day — and nothing on it said which
+            // day. A person opening the app at midnight, or after a few days
+            // away, had no way to tell from this screen whether what they were
+            // looking at was still yesterday.
+            //
+            // `inkSecondary` and body-sized, because it is a caption on the
+            // thing rather than a title for it. The tower is still the subject.
+            Text(Self.headerDate.string(from: Date()))
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
             headerReplayPill
             headerPlan
