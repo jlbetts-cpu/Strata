@@ -128,23 +128,32 @@ struct SettingsView: View {
                     // rest of the app is made of and cannot drift again.
                     StrataMark(side: 72)
 
-                    StrataWordmark(size: 30)
-
-                    // **The model plate, and the one place inside the app
-                    // that says the full name.**
+                    // **NO WORDMARK, HERE OR ANYWHERE** (2026-09-30). The
+                    // owner: "keep it off everywhere for now, since we are
+                    // going to change the name anyway."
                     //
-                    // The owner asked whether Neo needs to appear in the app
-                    // at all, and the answer we settled on is almost nowhere:
-                    // the wordmark, the launch and the camera all stay
-                    // "Strata", because nobody inside the app is choosing
-                    // between this and another app. It belongs on the App
-                    // Store shelf and under the icon. This row is the
-                    // exception, and it earns it: a name set beside a version
-                    // and a build is what a device's plate looks like, which
-                    // is the 1990s instrument register the whole design is
-                    // after. It also means a reviewer who opens the app finds
-                    // the full name without the app announcing itself.
-                    Text("Strata Neo \(appVersion)")
+                    // It came off the camera first, for a reason that was about
+                    // that screen — the app's name over a live lens. This is
+                    // the general case: every name in the running app is a
+                    // name that has to be re-set the day it changes, and
+                    // setting it in three places only means forgetting one.
+                    // The mark above carries the identity until there is a
+                    // name to carry.
+
+                    // **The model plate, with the name taken out of it.**
+                    //
+                    // It read "Strata Neo 1.0 (34)", and that line earned its
+                    // place: a name set beside a version and a build is what a
+                    // device's plate looks like, which is the register the
+                    // design was after, and it meant a reviewer opening the app
+                    // found the full name without the app announcing itself.
+                    //
+                    // Both halves of that are on hold rather than wrong. The
+                    // version is the half that is still true today; the name is
+                    // the half that is about to change, and a plate carrying a
+                    // name the App Store no longer agrees with is worse than a
+                    // plate carrying none.
+                    Text(verbatim: appVersion)
                         .font(Typography.sectionLabel)
                         .kerning(Typography.sectionKerning)
                         .foregroundStyle(AppColors.inkQuiet)
@@ -153,7 +162,7 @@ struct SettingsView: View {
                 .padding(.top, GridConstants.gapWide)
                 .padding(.bottom, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Strata Neo, version \(appVersion)")
+                .accessibilityLabel("Version \(appVersion)")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)

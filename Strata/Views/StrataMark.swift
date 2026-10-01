@@ -146,33 +146,21 @@ private struct DrawnLettering: View {
     }
 }
 
-/// The app's name, set rather than drawn.
-///
-/// **The owner's own letterforms are off** (2026-09-30): "let's replace the
-/// other custom font with more of a Hey Tea kind of aesthetic font, like just a
-/// normal sans serif."
-///
-/// The drawing was a wide, light, squared-off monoline with rounded corners —
-/// genuinely good, and genuinely the space-age thing this whole direction is
-/// moving away from. The Hey Tea reference points the other way: a plain
-/// semibold sans, tracked tight, and nothing else. A logotype that calls no
-/// attention to its own letterforms is what lets an illustration beside it be
-/// the thing you look at, which is the point of the next pass.
-///
-/// The SVGs are still in the asset catalogue. Reverting is this file.
-struct StrataWordmark: View {
-    /// Cap height.
-    var size: CGFloat = 28
-    var color: Color = .primary
+// **`StrataWordmark` is deleted** (2026-09-30). The owner: "keep it off
+// everywhere for now, since we are going to change the name anyway."
+//
+// It had no callers left once the camera, the head maker and Settings dropped
+// it, and a view that sets a word nobody draws is dead code with a name
+// attached. The mechanism survives below in `DrawnLettering` — a word, a cap
+// height, a weight — so whatever the app ends up called is a four-line struct,
+// not a rebuild.
 
-    var body: some View {
-        DrawnLettering(text: "Strata", size: size, color: color,
-                       relativeTo: .largeTitle)
-    }
-}
-
-/// The Memories screen's title, in the same hand as the app's name — which is
-/// now no hand at all. See `StrataWordmark`.
+/// The Memories screen's title.
+///
+/// **In no hand at all now**, like everything else: the drawn letterforms came
+/// off on 2026-09-30 and this is a `Text` in a plain semibold sans. It is a
+/// screen's name rather than the app's, so it survived the cull that took the
+/// wordmark — nothing about it is going to be renamed.
 ///
 /// **This one had the better argument for staying and still goes.** The drawing
 /// was photographed against the one SETTING of the same word, light, dark and
