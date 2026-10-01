@@ -41,10 +41,13 @@ import SwiftUI
 /// - **One thumb move.** One full-width pill on the bottom margin, and the pill
 ///   never moves between pages; the copy grows upward off it.
 ///
-/// **A rule, not a row of marks.** It was six cells in the corner and the owner
-/// said so ("the progress bar doesn't look good tbh"); it is one measured rule
-/// across the top of the page now, where the wordmark used to be and where his
-/// own reference puts it. `OnboardingProgress` carries the argument.
+/// **No progress indicator at all.** It was six cells in the corner, then one
+/// measured rule across the top where the wordmark used to be, and the owner's
+/// verdict on the rule is the end of the line: "the progress bar is lowkey
+/// clutter ngl." Six screens is not far enough to need a gauge, and the page
+/// already has a back button saying which way is behind you. The reading
+/// survives as the top band's accessibility label, for the one audience that
+/// cannot see how much copy is left.
 ///
 /// **Kept from his earlier calls**, so a later session does not undo them: the
 /// pages are full-bleed; the camera page is his photograph with nothing added;
@@ -167,32 +170,76 @@ struct OnboardingView: View {
     /// back button in the onboarding like this so I can go back to previous
     /// pages with ease."
     ///
-    /// **Two rows, not one, because of what one row did to page 0** (the owner,
-    /// 2026-09-23: "the screen progress bar looks weird on the first page since
-    /// there is no back button"). The button and the rule shared a row, so the
-    /// rule began a thumb-width in from the leading margin with nothing in that
-    /// space: on page 0 the first thing on the first screen was a gauge that had
-    /// been pushed aside by an invisible object. `OnboardingProgress`'s own
-    /// opening line is "one rule, margin to margin", and in one row that was
-    /// never true on any page.
+    /// **A row of its own, which outlived the rule it was separated from.** The
+    /// button and the progress rule used to share one row, and on page 0 that
+    /// put the first thing on the first screen — a gauge — a thumb-width in from
+    /// the margin, pushed aside by an invisible object. Stacking them fixed it.
+    /// The rule is gone now and the stack stays: the button sits where iOS puts
+    /// a back button, in a navigation row above the content, and on page 0 that
+    /// row is empty air, which is what an app with nowhere to go back to looks
+    /// like.
     ///
-    /// Stacked, the rule spans the page margin on every page and the button sits
-    /// where iOS puts a back button: in the navigation row above the content. On
-    /// page 0 that row is empty air, which is what an app with nowhere to go back
-    /// to looks like, and the rule under it does not move by a point when the
-    /// button arrives.
+    /// **NO PROGRESS RULE.** The owner, 2026-09-30: "the progress bar is lowkey
+    /// clutter ngl."
     ///
-    /// The alternative was letting the rule fill the vacated slot on page 0 and
-    /// shrink when the button appears. Rejected: the rule's track and its fill
-    /// would both change width in the same transaction, and a gauge whose scale
-    /// moves while its reading moves cannot be read as either.
+    /// It was softened one commit ago — `inkPrimary` to `inkSecondary`, 38 on a
+    /// 247 page to 97 — and softening was answering the wrong question. The
+    /// thing wrong with a full-width bar across the top of six white pages is
+    /// not how dark it is; it is that it is a second piece of chrome on a page
+    /// that already has a back button, and six screens is not far enough to
+    /// need a gauge. Premium is subtraction.
+    ///
+    /// **The reading survives where it is actually used.** It is on the band as
+    /// an accessibility label, so VoiceOver still says "step 3 of 6" — which is
+    /// the one audience the rule was genuinely load-bearing for, because they
+    /// cannot see how much copy is left.
     private var topBand: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             back
-            OnboardingProgress(step: step, count: Self.lastStep + 1)
+            mark
         }
         .padding(.top, GridConstants.gapItem)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Step \(step + 1) of \(Self.lastStep + 1)")
     }
+
+    /// **The illustration's room, held open before there is an illustration.**
+    ///
+    /// The owner, 2026-09-30: "the onboarding still doesn't feel really clean. I
+    /// want to leave room for illustrations and more white space."
+    ///
+    /// Both halves of that are the same slot. It is `markSide` square on the
+    /// leading margin of every page, between the rule and the title, and until
+    /// he draws into it it is simply air — which is the other thing he asked
+    /// for. Holding the height whether or not the asset exists is the whole
+    /// point: the day the drawings land, nothing below them moves.
+    ///
+    /// **Same place, same size, on all six**, so the set reads as a set. That is
+    /// the one thing a corner mark has to do that a big centred illustration
+    /// cannot: `docs/illustrations.md` asks for six of these and they only work
+    /// if they are clearly the same object six times.
+    ///
+    /// `UIImage(named:)` rather than `Image(_:)` because `Image` of a missing
+    /// asset draws a warning placeholder; this has to draw nothing.
+    @ViewBuilder
+    private var mark: some View {
+        Color.clear
+            .frame(width: Self.markSide, height: Self.markSide)
+            .overlay {
+                if let art = UIImage(named: "OnboardingMark\(step)") {
+                    Image(uiImage: art)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(AppColors.inkPrimary)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+
+    /// Big enough to read as a drawing rather than an icon, small enough that
+    /// six of them are a set of marks rather than six illustrations.
+    private static let markSide: CGFloat = 56
 
     /// **Its room is held on page 0, where there is nothing to go back to**, so
     /// the rule below it never moves between pages. Held with `.opacity`, not by
@@ -251,7 +298,11 @@ struct OnboardingView: View {
     ///
     /// The air around the composition, above and below it. Band 3 is greedy, so
     /// this is the minimum rather than the measurement: the slack becomes air.
-    private static let airArt: CGFloat = 40
+    /// **56, not 40.** The band below the copy is where the page breathes, and
+    /// the owner asked for more of it. It is still one of the four numbers this
+    /// file allows itself — see the note on `body` — because 56 is 40 plus the
+    /// grid's own 16, not a fifth value invented for the occasion.
+    private static let airArt: CGFloat = 56
 
     // MARK: - The stage
 
