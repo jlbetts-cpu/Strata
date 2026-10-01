@@ -130,17 +130,38 @@ struct TouchRippleLayer: View {
         if reduceMotion || ripples.isEmpty {
             Color.clear
         } else {
-            TimelineView(.animation) { timeline in
-                Canvas { context, _ in
-                    let now = timeline.date
-                    for ripple in ripples {
-                        for ring in 0..<TouchRipple.rings {
-                            TouchRippleLayer.draw(ring, of: ripple,
-                                                  at: now, in: &context)
+            // **IT MEASURES WHERE IT IS, RATHER THAN ASSUMING.**
+            //
+            // The owner: "the ripple doesn't go all the way to the battery and
+            // time, it gets cut off." It was a plain background, so it was laid
+            // out INSIDE the safe area and ended at the status bar — a ring
+            // started near the top of the page ran into a straight horizontal
+            // edge, which is the one thing a ring on water cannot do.
+            //
+            // `.ignoresSafeArea()` on its own would fix the clipping and break
+            // the aim: the canvas would start 60-odd points higher than the
+            // space the finger was measured in, and every ring would be drawn
+            // that far down the page. So the canvas asks where its own origin
+            // sits in the page's space and shifts the drawing by it. That is
+            // self-correcting — it holds whatever insets, orientation or chrome
+            // the page ends up with, and it is the same trick `TowerLattice`
+            // uses to find a finger from inside a scrolled tower.
+            GeometryReader { geo in
+                let origin = geo.frame(in: .named(TouchRipple.space)).origin
+                TimelineView(.animation) { timeline in
+                    Canvas { context, _ in
+                        context.translateBy(x: -origin.x, y: -origin.y)
+                        let now = timeline.date
+                        for ripple in ripples {
+                            for ring in 0..<TouchRipple.rings {
+                                TouchRippleLayer.draw(ring, of: ripple,
+                                                      at: now, in: &context)
+                            }
                         }
                     }
                 }
             }
+            .ignoresSafeArea()
             .allowsHitTesting(false)
         }
     }
