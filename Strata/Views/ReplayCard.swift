@@ -78,9 +78,12 @@ enum ReplayCard {
     // MARK: - The shelf's poster
 
     /// A month's poster on the shelf, in points.
-    static let monthPosterWidth: CGFloat = 132
+    /// **One width for every poster on the shelf.** It was 132 for a month and
+    /// 96 for a week on a row of its own; see `ReplayShelf` for why that became
+    /// one row. 132 is the one that survives, because the card has to hold a
+    /// drawn tower and a week's is already the sparser of the two.
+    static let posterWidth: CGFloat = 132
     /// A week's, smaller, in the row under the months.
-    static let weekPosterWidth: CGFloat = 96
 
     /// Room above the row's tallest tower and below every base, in frame
     /// points (about 9pt on a month poster).

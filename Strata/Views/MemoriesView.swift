@@ -165,7 +165,7 @@ struct MemoriesView: View {
                             // it, not every band of a screen. The page header
                             // answers it, and a shelf of seven cards is
                             // countable by looking.
-                            SectionHeading(text: "ALBUMS")
+                            SectionHeading(text: "Albums")
                                 .id("MemoriesShelf")
                             shelf
                         }

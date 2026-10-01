@@ -23,23 +23,43 @@ import SwiftUI
 struct SectionHeading: View {
     let text: String
 
+    /// **A TITLE OVER A SHELF, NOT A LABEL OVER A FORM GROUP.** (2026-10-01)
+    ///
+    /// The owner, on the Memories page: "the UI still feels very cramped, and a
+    /// lot looks like it should be remade and redesigned, not just tweaked."
+    ///
+    /// This was 13pt kerned small caps in `inkSecondary` — the iOS settings
+    /// label, and the right thing above a group of switches. Above a shelf of
+    /// photographs it is wrong in a way that compounds: the page's own title is
+    /// 34pt ink, and every band under it was introduced by a mark two whole
+    /// tiers quieter, so the page read as one title followed by four footnotes,
+    /// each announcing something large. Nothing in the middle, which is what
+    /// "cramped" means when the spacing is already generous — there was no
+    /// hierarchy for the eye to rest on between the title and the pictures.
+    ///
+    /// It is the app's middle tier now, in ink, in title case: the same weight
+    /// the month picker beside it wears, so the page reads title, then month,
+    /// then sections. Which is what Photos does, and what this page is.
+    ///
+    /// **Only three callers**, all of them shelves on this page —
+    /// `FormSectionLabel` is the separate component Profile and Settings use
+    /// and it keeps the small caps, because a label over a form group and a
+    /// title over a shelf of pictures are different jobs.
     var body: some View {
         Text(text)
-            .font(Typography.sectionLabel)
-            .kerning(Typography.sectionKerning)
-            // **Case comes from the style, not from the caller.** This is the
-            // whole bug: "ALBUMS" was uppercase because somebody typed it that
-            // way and "September" was not because it is a month's name.
-            .textCase(.uppercase)
-            // Uppercase and kerned, so it is wide for its point size: at the
-            // accessibility sizes "SEPTEMBER" ran off the edge. It wraps to a
-            // second line before it shrinks, and shrinks before it clips.
+            .font(Typography.headerMedium)
+            // Wraps before it shrinks, and shrinks before it clips.
             .lineLimit(2)
             .minimumScaleFactor(0.7)
-            .foregroundStyle(AppColors.inkSecondary)
+            .foregroundStyle(AppColors.inkPrimary)
             .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapSection)
-            .padding(.bottom, GridConstants.gapLabel)
+            // **Air above, and the owner asked for it twice**: "make the white
+            // space a big part of the designs." A section break on this page is
+            // the biggest gap on it — `gapSection` plus the grid's own 8 —
+            // because the thing it separates is one kind of content from
+            // another, not one row from the next.
+            .padding(.top, GridConstants.gapSection + GridConstants.gapTight)
+            .padding(.bottom, GridConstants.gapItem)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
     }

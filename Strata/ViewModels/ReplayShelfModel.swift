@@ -164,7 +164,9 @@ final class ReplayShelfModel {
         let order = Array(months.prefix(3)) + weeks + Array(months.dropFirst(3))
         for replay in order {
             guard !superseded() else { return }
-            let width = replay.period.kind == .month ? ReplayCard.monthPosterWidth : ReplayCard.weekPosterWidth
+            // One width for both, since the shelf is one row — see
+            // `ReplayCard.posterWidth`.
+            let width = ReplayCard.posterWidth
             let scale = width * displayScale / ReplayCard.size.width
             let rowHeight = heights[replay.period.kind] ?? 0
             let key = Self.key(replay, scheme: colorScheme)

@@ -17,14 +17,20 @@ struct AlbumCarousel: View {
     /// shelf above this row learned the same thing.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Two tower cells across, so a cover on the shelf is the same size as a
-    /// 2x2 on the tower above it. Derived rather than typed: on any screen the
-    /// shelf and the tower agree.
-    private var cardWidth: CGFloat {
-        let cell = GridConstants.cellSize(
-            forGridWidth: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2)
-        return cell * 2 + GridConstants.spacing
-    }
+    /// **The replay poster's width, so the two shelves are siblings.**
+    ///
+    /// It was two tower cells across — about 178pt — which made a perfectly good
+    /// argument (a cover is the size of a 2x2 on the tower above it) and put a
+    /// 178pt square card directly under a 132pt one. The owner, on the page as a
+    /// whole: "a lot looks like it should be remade and redesigned, not just
+    /// tweaked." Three horizontal shelves at three widths, stacked, is most of
+    /// what that means.
+    ///
+    /// The tower argument loses to the page argument. Nothing on this screen is
+    /// beside the tower; two shelves of cards ARE beside each other, one
+    /// directly under the next, and a reader comparing them is comparing their
+    /// sizes whether or not either size has a derivation.
+    private var cardWidth: CGFloat { ReplayCard.posterWidth }
     /// `gapItem`, not the lowfi's 15. A shelf of cards is a set of items and
     /// takes the same step the photo grid does.
     private let gap: CGFloat = GridConstants.gapItem

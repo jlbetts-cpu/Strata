@@ -48,11 +48,26 @@ struct ReplayShelf: View {
     var body: some View {
         if !model.months.isEmpty || !model.weeks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeading(text: "REPLAYS")
+                SectionHeading(text: "Replays")
                     .id("MemoriesReplays")
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
-                    if !model.months.isEmpty { row(model.months, width: ReplayCard.monthPosterWidth) }
-                    if !model.weeks.isEmpty { row(model.weeks, width: ReplayCard.weekPosterWidth) }
+                    // **ONE ROW, NOT TWO.**
+                    //
+                    // Months ran at 132pt and weeks at 96 on a second row under
+                    // them, which put two shelves of the same kind of thing at
+                    // two sizes back to back — and then the albums carousel at a
+                    // third size directly under that. Three horizontal strips of
+                    // cards, none of them siblings. That is most of what the
+                    // owner means by the page needing to be remade rather than
+                    // tweaked: the page had no rhythm because nothing on it was
+                    // the same size as anything else.
+                    //
+                    // A month replay and a week replay are the same object with
+                    // a different span, and the card already says which by its
+                    // name underneath. Newest first, whatever the span, so the
+                    // row is in the order things happened rather than sorted by
+                    // a property nobody is looking for.
+                    row(model.months + model.weeks, width: ReplayCard.posterWidth)
                 }
             }
         }
