@@ -44,6 +44,17 @@ enum GridConstants {
     /// left two of them wrong in a way that only shows as a last row you
     /// cannot quite reach.
     static let tabBarClearance: CGFloat = 110
+    /// **One caller, and it is the wrong one.** `MainAppView` reads this as the
+    /// corner of every block in the LIVE tower, so at its 82pt cell a block is
+    /// 8, which is 9.8% of the side, while the merged run standing beside it is
+    /// `blockCornerRadius * styleScale` = a flat 12, and the same block on
+    /// `StaticTowerView` is `cell * 0.147` = 12.05. Three values for one object,
+    /// measured 2026-10-01. This is also the pre-ladder spelling of
+    /// `radiusControl`, which is the same 8 for small controls.
+    ///
+    /// **Not changed, because it changes how the home screen looks** and that is
+    /// a decision to make by looking, not from a diff. The numbers are here so
+    /// whoever makes it does not have to find them again.
     static let cornerRadius: CGFloat = 8
     /// Habit blocks on tower + timeline.
     ///
@@ -76,9 +87,19 @@ enum GridConstants {
     /// a deliberate flick — and blocks were lifting when someone meant to
     /// scroll the tower. It is also comfortably above the ~0.25s that reads as
     /// a tap, so the tap-to-edit gesture is unaffected.
+    /// **No call sites** (measured 2026-10-01): the only `LongPressGesture` left
+    /// in the app is the replay's, on `replayHoldToPause`. Kept rather than
+    /// deleted, the way `Typography.caption2` is, because the measurement is the
+    /// whole value of it: if a hold on a block ever comes back, 0.35 is the
+    /// number that was wrong and the paragraph above says why.
     static let liftHoldDuration: Double = 0.4
-    static let cornerRadiusSmall: CGFloat = 8   // Pills, chips, badges
-    static let cornerRadiusMicro: CGFloat = 4   // Matrix sparkline blocks, tiny indicators
+
+    // **`cornerRadiusSmall` (8) and `cornerRadiusMicro` (4) are deleted**
+    // (2026-10-01). Both had zero call sites, and both were the pre-ladder
+    // spelling of a rung that still exists: `radiusControl` is the same 8 for
+    // "small controls, icon wells, drop indicators" and `radiusMark` the same 4
+    // for "tiny marks: heatmap cells, day dots, bars". Two names for one number
+    // is how a ladder stops being one.
 
     // MARK: - Radius Ladder (chrome)
     //

@@ -1896,6 +1896,10 @@ struct MainAppView: View {
 
         #if DEBUG
         DebugHarness.seed(context: modelContext, tower: towerManager.activeTower)
+        // Before the restore screen opens, and from values that never reach
+        // the context, so the plan it draws has real work in it. See
+        // `DebugHarness.writeDebugBackup`.
+        if let n = DebugHarness.seedBackup { DebugHarness.writeDebugBackup(count: n) }
         rerollNextWinCategory()
         debugAutoWinsLeft = DebugHarness.autoWins
         debugAutoChecksLeft = DebugHarness.autoChecks

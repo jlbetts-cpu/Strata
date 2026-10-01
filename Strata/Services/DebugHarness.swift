@@ -389,6 +389,68 @@ enum DebugHarness {
     /// would be judging an empty rectangle.
     static var seedsPlaces: Bool { argument("-strataSeedPlaces") != nil }
 
+    /// **A real backup in the container, from `-strataSeedBackup <n>`.**
+    ///
+    /// `-strataRestoreFrom` already existed and skips the file picker, which
+    /// nothing on this machine can drive. What was missing is a file for it to
+    /// open: the only way to get one was to export the live store, and a
+    /// backup made from the store you are restoring INTO merges to
+    /// `winsToAdd == 0`, which hits `plan.isEmptyOfWork` and lands on the one
+    /// state of this screen that has no button at all. So the screen the audit
+    /// most wanted to look at was the screen the harness could only reach in
+    /// its least interesting state.
+    ///
+    /// These habits and logs are built with fresh identifiers and never
+    /// inserted into the context, so every one of them is new to the store and
+    /// the restore has real work to plan. Written to Documents under a fixed
+    /// name, which is what `-strataRestoreFrom` takes:
+    ///
+    ///     -strataSeedBackup 40 -strataOpenSheet settings \
+    ///         -strataRestoreFrom strata-debug-backup.zip
+    ///
+    /// No photographs: `BackupExport.photographs()` reads the real image
+    /// directory and a zip of a seeded roll takes long enough to push the
+    /// screenshot past the launch. The plan's photograph count is a label, and
+    /// the counts it is drawn from are the document's.
+    static var seedBackup: Int? { argument("-strataSeedBackup").flatMap(Int.init) }
+
+    static let debugBackupName = "strata-debug-backup.zip"
+
+    @MainActor
+    static func writeDebugBackup(count: Int) {
+        let titles = ["Walked", "Wrote it down", "Called Mum", "Ran 5k", "Sketch",
+                      "Inbox zero", "Stretched", "Read a chapter", "Tidied desk"]
+        let categories = HabitCategory.allCases
+        let sizes = BlockSize.allCases
+        var habits: [Habit] = []
+        var logs: [HabitLog] = []
+        for i in 0..<count {
+            let habit = Habit(
+                title: titles[i % titles.count],
+                category: categories[i % categories.count],
+                blockSize: sizes[i % sizes.count],
+                sortOrder: i
+            )
+            habits.append(habit)
+            let day = Calendar.current.date(byAdding: .day, value: -(i / 3), to: Date()) ?? Date()
+            logs.append(HabitLog(habit: habit,
+                                 dateString: DateUtils.dateString(from: day),
+                                 completed: true))
+        }
+        do {
+            let zip = try BackupExport.makeZip(habits: habits, logs: logs,
+                                               appVersion: "debug", photographs: [])
+            let documents = FileManager.default.urls(for: .documentDirectory,
+                                                     in: .userDomainMask)[0]
+            let destination = documents.appendingPathComponent(debugBackupName)
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.moveItem(at: zip, to: destination)
+            NSLog("[strata-probe] seedBackup wrote \(count) wins to \(destination.lastPathComponent)")
+        } catch {
+            NSLog("[strata-probe] seedBackup failed: \(error)")
+        }
+    }
+
     /// Shows onboarding, from `-strataShowOnboarding`.
     ///
     /// **Inverted on purpose.** Onboarding is skipped by default under the
@@ -440,17 +502,13 @@ enum DebugHarness {
     /// ones that need a finger.
     static var ripple: Bool { argument("-strataRipple") != nil }
 
-
-
-
-    /// Raises the photographs page, from `-strataOpenDrawer full`.
-    ///
-    /// The drawer rests hidden and opens on a button, so without this it
-    /// cannot be photographed at all — nothing on this machine can tap the
-    /// simulator.
-    static var openDrawer: DrawerDetent? {
-        argument("-strataOpenDrawer") == nil ? nil : .full
-    }
+    // **`openDrawer` is deleted** (2026-10-01). It raised a drawer that came off
+    // on 2026-09-30, and nothing in the app read it after that: the page IS the
+    // Memories screen now, so there is nothing to raise. `-strataOpenDrawer` is
+    // still passed by five UI test launches (`MapGestureTests` x2,
+    // `TowerGestureTests`, `ImageLoadingPerfTests`, `RealPhotoTests`) and has
+    // been a no-op in all of them since that date: a stale launch argument, not
+    // a broken one.
 
     /// Puts a seeded win somewhere real.
     ///

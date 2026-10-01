@@ -576,13 +576,20 @@ struct SettingsView: View {
             ReplayView(replay: replay, isSample: true) { previewing = nil }
         }
         .scrollContentBackground(.hidden)
-        // The primary, on the platform's own controls. See `ProfileView`.
-        .tint(AppColors.accentPrimary)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Settings", drawn: false)
         .toolbar {
             settingsToolbar
         }
+        // **The primary, on the platform's own controls, and BELOW the
+        // toolbar.** See `ProfileView`, where this was measured: with the tint
+        // applied above `.toolbar`, Profile's Done still rendered (10, 10, 10).
+        // A toolbar item is hosted by the navigation bar rather than by the
+        // content it was declared on, so a tint set upstream of the title and
+        // the toolbar never reaches it, and the one control the colour exists
+        // for is the one control that does not get it. Moved here for the same
+        // reason, before this screen's own toolbar grows a coloured action.
+        .tint(AppColors.accentPrimary)
         .task {
             await checkNotificationStatus()
         }

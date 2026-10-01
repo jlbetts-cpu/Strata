@@ -25,6 +25,14 @@ struct HeadMarker: View {
     /// like the player marker so it should be treated as one." A player marker
     /// is the one thing on a map that is never in question, so this is the one
     /// annotation allowed to be the biggest thing on screen at a glance.
+    ///
+    /// **That claim is true by construction now, and it was not before**
+    /// (2026-10-01). A lone win used to be drawn at the size a finger gave it,
+    /// so a Deep win came out a 2x2: measured off the shipping capture,
+    /// 89.0 x 89.0pt against this 52. The head was the biggest thing on screen
+    /// only on a map that happened to hold no big lone wins. Every block is one
+    /// 44pt cell now (`PlaceMap.Cluster.size`), so 52 clears the largest
+    /// annotation the map can draw by 8pt, at every zoom.
     static let side: CGFloat = 52
 
     var body: some View {

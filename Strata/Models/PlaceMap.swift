@@ -45,10 +45,12 @@ enum PlaceMap {
         let category: HabitCategory
         let photoFileName: String
         let place: WinPlace
-        /// How big the win itself was. **`var` with a default**, so every
-        /// existing literal keeps compiling — a `let` with a default is
-        /// dropped from the synthesized memberwise initializer entirely.
-        var size: BlockSize = .small
+        // `size` lived here, carrying `WinRecord.size` through so a lone block
+        // could be drawn at the size a finger chose for it. Nothing reads it
+        // now: every block on the map is one cell. See `Cluster.size` for the
+        // three measurements, and note that leaving the field in place would
+        // have meant a map model that still looks like it knows how big a win
+        // was while nothing asks it.
     }
 
     /// One block, as a route: which place leads it, at which scale it was
@@ -82,14 +84,50 @@ enum PlaceMap {
         /// not change.
         var id: String { key.spot }
 
-        /// **One win is its own size; a crowd is one cell.**
+        /// **Every block on the map is one cell.**
         ///
-        /// The owner: "they should still stay in the same area dont need to
-        /// get bigger." A block already says how many it holds, on its badge.
-        var size: BlockSize { winCount == 1 ? loneSize : .small }
-
-        /// The single member's own size, when there is a single member.
-        var loneSize: BlockSize = .small
+        /// The owner: "they should still stay in the same area dont need to get
+        /// bigger." That settles a crowd, and it used to settle only a crowd:
+        /// this read `winCount == 1 ? loneSize : .small`, where `loneSize` was
+        /// the size the win's own finger drew, so a lone Deep win was a 2x2 on
+        /// the map and twenty-four wins in one place were a 1x1.
+        ///
+        /// **Three measurements took the exception off** (2026-10-01).
+        ///
+        /// 1. *The encoding ran backwards at the one end anybody reads.*
+        ///    Measured off the shipping capture at 402x874: the largest block on
+        ///    screen was 89.0 x 89.0pt and held ONE win, 7,921 square points;
+        ///    the block holding 24 was 44 x 44, 1,936. Four times the area for a
+        ///    twenty-fourth of the content, and the biggest object on the map
+        ///    was always the emptiest.
+        /// 2. *Area was carrying two quantities and the key to which one only
+        ///    appeared on half of them.* A 2x2 meant "one win, logged deep" and
+        ///    a 1x1 meant either "one small win" or "twenty-four". The only
+        ///    thing that told them apart was the badge, and the badge is drawn
+        ///    only on a crowd, which is to say only on the small ones. There is
+        ///    no legend on a map.
+        /// 3. *The size fed the clustering that decided the size.* `cluster`
+        ///    merges two places when their blocks AS DRAWN cover each other past
+        ///    `maxOverlap`, and the drawn size depended on the win count, which
+        ///    is what a merge changes. Worked through the published arithmetic:
+        ///    two lone 2x2 places merge out to 59.9pt apart, a 2x2 beside a
+        ///    crowd out to 52.3pt, two one-cell blocks only out to 29.3pt. So
+        ///    two lone Deep wins 59pt apart covered 34.4% of each other, merged,
+        ///    and were then drawn as a single 44pt block, where the pair they
+        ///    became does not touch at all. The map showed one block where this
+        ///    file's own rule says two, and the overlap invariant in
+        ///    `PlaceMapTests` could not catch it because it reads the size AFTER
+        ///    the merge. With one size the rule is a fixed point and the
+        ///    feedback is gone.
+        ///
+        /// What is given up is real and smaller than it sounds: a win logged
+        /// Deep no longer looks Deep on the map. It never did for long, because
+        /// the shape vanished the moment a second photograph landed in the same
+        /// place, so the only wins that showed their size were the ones with
+        /// least to say. The tower, the day album and the place collection all
+        /// still draw a win at the size a finger chose. The map answers where,
+        /// and the badge answers how many.
+        var size: BlockSize { .small }
 
         /// Where the block is drawn: exactly on its leading place.
         var anchor: (latitude: Double, longitude: Double) { (latitude, longitude) }
@@ -132,10 +170,7 @@ enum PlaceMap {
                        title: record.title,
                        category: record.category,
                        photoFileName: name,
-                       place: place,
-                       // The size the win was logged at, so a lone block on
-                       // the map is drawn at the size a finger chose for it.
-                       size: record.size)
+                       place: place)
         }
     }
 
@@ -212,6 +247,13 @@ enum PlaceMap {
     /// A block's size on screen, in points. Mirrors `PlaceBlock` in
     /// `MemoriesMapView`, and has to: overlap is measured against what is
     /// actually drawn.
+    ///
+    /// **It still takes a size although only `.small` is ever passed.** The
+    /// arithmetic is what the two files have to agree on, and keeping it
+    /// general is how the one-size rule in `Cluster.size` stays a statement
+    /// made in one place rather than a 44 hard-coded in two. It is also what
+    /// made the old exception measurable: a 2x2 reaches 59.9pt, a 2x2 beside a
+    /// one-cell block 52.3, two one-cell blocks 29.3.
     static func blockPoints(for size: BlockSize) -> (width: Double, height: Double) {
         let cell = 44.0, gutter = 2.0
         return (cell * Double(size.columnSpan) + gutter * Double(size.columnSpan - 1),
@@ -286,10 +328,24 @@ enum PlaceMap {
     ///
     /// Places are taken busiest first (then newest), and each either leads a
     /// block of its own or joins the first block it would cover past
-    /// `maxOverlap`. Then any two blocks that still cover each other past it —
-    /// a block shrinks to one cell when it gains a second win, which changes
-    /// what it covers — are joined, the less busy into the busier, until none
-    /// do. Every block stands on its leading place.
+    /// `maxOverlap`. Then any two blocks that still cover each other past it
+    /// are joined, the less busy into the busier, until none do. Every block
+    /// stands on its leading place.
+    ///
+    /// **The second pass used to be load-bearing and now is not** (2026-10-01).
+    /// Its note read "a block shrinks to one cell when it gains a second win,
+    /// which changes what it covers", which was the honest description of a
+    /// feedback loop: the drawn size depended on the win count, a merge changed
+    /// the win count, so a merge changed what everything covered and the loop
+    /// had to run again. Blocks are one size now (`Cluster.size`), and a group
+    /// stands on its LEAD, which does not move when members join, so coverage
+    /// between any two groups is fixed the moment they are seated. Each
+    /// candidate is already tested against every group that exists, so by
+    /// induction the first pass cannot leave an overlapping pair and this loop
+    /// should never fire. It is kept rather than deleted because that is a
+    /// proof and not a measurement, it costs one sweep over a handful of
+    /// groups, and `PlaceMapTests` asserts the invariant it guards at nine
+    /// zoom levels, so a day when it does fire will be visible.
     ///
     /// - Parameter minAccuracy: a photograph whose fix is vaguer than a
     ///   block's own width on screen is not drawn. A reduced-accuracy fix is
@@ -307,7 +363,11 @@ enum PlaceMap {
             let x: Double
             let y: Double
             var wins: Int { members.reduce(0) { $0 + $1.pins.count } }
-            var size: BlockSize { wins == 1 ? (lead.pins.first?.size ?? .small) : .small }
+            /// One cell, always. This used to be `wins == 1 ? lead's own size
+            /// : .small`, which made the overlap test below depend on the win
+            /// count, which is the thing a merge changes. See `Cluster.size`:
+            /// the loop merged pairs out to 59.9pt that do not touch once drawn.
+            var size: BlockSize { .small }
             var newest: Date { members.map(\.newest).max() ?? .distantPast }
         }
 
@@ -368,8 +428,7 @@ enum PlaceMap {
                 winCount: all.count,
                 category: MonthTower.dominantCategory(all.map { (category: $0.category, at: $0.completedAt) }),
                 photoFileNames: names,
-                newest: group.newest,
-                loneSize: all.count == 1 ? all[0].size : .small
+                newest: group.newest
             )
         }
         // **Newest on top.** Annotations draw in order, so the block drawn last

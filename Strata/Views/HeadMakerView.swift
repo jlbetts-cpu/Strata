@@ -31,9 +31,14 @@ struct HeadMakerView: View {
     @State private var outlineDrawn: CGFloat = 0
     /// What the screen was set to before the ring light raised it.
     @State private var brightnessBeforeFlash: CGFloat?
-    /// What this head will be called. Filled in when the preview arrives, so
-    /// naming is something you can change rather than something you must do.
+    /// What somebody typed, and nothing until they do. Empty means they were
+    /// happy with `suggestion`, which is what the head is then called.
     @State private var name = ""
+    /// What this head will be called if nobody says otherwise. Worked out when
+    /// the preview arrives and DRAWN rather than typed into the field, so that
+    /// naming stays something you can change rather than something you must do,
+    /// and so the line reads as the hint it is. See `nameField`.
+    @State private var suggestion = ""
 
     /// `CameraView`'s viewfinder ground.
     private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
@@ -42,7 +47,6 @@ struct HeadMakerView: View {
     /// Room either side of the shutter for a control and its label, so the
     /// shutter stays dead centre whatever sits beside it.
     private static let sideSlot: CGFloat = 88
-    /// `CameraView`'s shutter: a 66pt block inside a 14pt rim.
     /// One line of the prompt, reserved so the outline does not move when a
     /// prompt changes length.
     private static let promptHeight: CGFloat = 24
@@ -70,6 +74,11 @@ struct HeadMakerView: View {
     /// white because this screen is dark. Nothing ships under this name yet;
     /// `illustrationSlot` holds its room open and draws nothing until it does.
     private static let noFaceDrawing = "HeadMakerNoFace"
+    /// The Camera section's own drawing, white: a figure with a hand over the
+    /// lens. Shared rather than drawn again: see `illustrationSlot` for why
+    /// this screen's dead end is the camera's dead end. Nothing ships under
+    /// this name yet either.
+    private static let noCameraDrawing = "CameraNoAccess"
 
     var body: some View {
         GeometryReader { outer in
@@ -129,6 +138,14 @@ struct HeadMakerView: View {
         .onChange(of: model.hint) { _, hint in
             guard model.step == .lining, let hint else { return }
             AccessibilityNotification.Announcement(hint.caption).post()
+        }
+        // A sentence that replaces another sentence in place is the one kind of
+        // change VoiceOver can miss entirely: nothing moved, nothing gained
+        // focus, and the person may be nowhere near the caption. The error
+        // haptic answers the press for everybody else.
+        .onChange(of: model.saveFailure) { _, failure in
+            guard !failure.isEmpty else { return }
+            AccessibilityNotification.Announcement(failure).post()
         }
     }
 
@@ -278,12 +295,19 @@ struct HeadMakerView: View {
         .allowsHitTesting(false)
     }
 
+    /// **One list of the asking steps, not three.** This file wrote out
+    /// "blink, smile, brows, surprised, wink, blinkAgain" by hand in three
+    /// places (here, in `showsPips` and in `shutter`), and its own comment
+    /// records the bill for that: "The comment here said four, in three places",
+    /// after the surprised face made it five. The list lives on the model now,
+    /// built from the sequence it already publishes, and this is the one thing
+    /// the screen adds to it: making the head is still pointing the camera at
+    /// somebody, so the outline stays closed and the shutter stays lit through
+    /// it.
+    private var taking: Bool { model.isAsking || model.step == .making }
+
     private var isLinedUp: Bool {
-        switch model.step {
-        case .lining: return model.hint == nil
-        case .blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making: return true
-        default: return false
-        }
+        model.step == .lining ? model.hint == nil : taking
     }
 
     /// The two states where there is nothing left to point the camera at.
@@ -310,11 +334,23 @@ struct HeadMakerView: View {
     /// "viewBox square or 4:3", and a square centred on the outline's centre
     /// claims only the height a square drawing will use.
     ///
-    /// `.unavailable` gets the room and not the drawing. The planned figure is
-    /// holding a frame up because a face could not be found in one, which is
-    /// not what a missing camera is; the drawing for that is the Camera
-    /// section's own ("a figure with a hand over the lens") and it is not
-    /// this screen's to invent.
+    /// **`.unavailable` holds the Camera section's drawing, not one of its
+    /// own.** It used to get the room and nothing else, on the reasoning that
+    /// the planned figure holds a frame up because a face was not found in one,
+    /// which a missing camera is not. That half was right and the conclusion
+    /// was wrong, because of what `.unavailable` actually is: `CameraService`
+    /// leaves `isConfigured` false both when there is no camera and when there
+    /// is one the app has not been allowed to use, and on a phone only the
+    /// second ever happens. So this state is the Camera tab's refused state,
+    /// reached through a different door. The doc already plans a drawing for
+    /// that door, white, and the right move is to walk through it rather than
+    /// to invent a twenty-fourth drawing: one situation, one drawing, and the
+    /// two screens say the same thing about the same switch.
+    ///
+    /// It holds for the other half too, thinly. A hand over the lens is about
+    /// as true of a camera that is not there as any one figure could be, and
+    /// the alternative is a drawing commissioned for a state only the simulator
+    /// can reach.
     ///
     /// `UIImage(named:)` rather than `Image(_:)` because `Image` of a missing
     /// asset draws a warning placeholder and this has to draw nothing. Same
@@ -323,7 +359,7 @@ struct HeadMakerView: View {
         Color.clear
             .frame(width: hole.width, height: hole.width)
             .overlay {
-                if let art = UIImage(named: Self.noFaceDrawing) {
+                if let asset = drawing, let art = UIImage(named: asset) {
                     Image(uiImage: art)
                         .renderingMode(.template)
                         .resizable()
@@ -332,9 +368,20 @@ struct HeadMakerView: View {
                 }
             }
             .position(x: hole.midX, y: hole.midY)
-            .opacity(model.step == .failed ? 1 : 0)
+            .opacity(drawing == nil ? 0 : 1)
             .animation(GridConstants.crossFade, value: model.step)
             .accessibilityHidden(true)
+    }
+
+    /// Which drawing this state holds, or none. The two states that have one
+    /// are terminal and neither can follow the other, so nothing ever swaps
+    /// drawings mid-fade.
+    private var drawing: String? {
+        switch model.step {
+        case .failed: return Self.noFaceDrawing
+        case .unavailable: return Self.noCameraDrawing
+        default: return nil
+        }
     }
 
     // MARK: - Chrome
@@ -394,7 +441,24 @@ struct HeadMakerView: View {
     private var prompt: String {
         switch model.step {
         case .starting:    return " "
-        case .unavailable: return "The camera isn't available here."
+        // **The dead end had a way out and never said so.** This was one
+        // sentence for two situations: a camera that is not there, and a
+        // camera the app has not been allowed to use. On a phone it is always
+        // the second, and "isn't available here" is both wrong about it and
+        // silent about the switch that fixes it, on the one screen somebody
+        // reached by choosing to make a head. `CameraView` names the
+        // permission and says where it lives; this now says the same thing in
+        // the one line this screen has for a sentence, and the button under it
+        // goes there.
+        //
+        // The camera's own wording, short of its title: "Turn the camera on
+        // for Strata in Settings and this becomes the viewfinder." The second
+        // half is the camera tab explaining what it would be; here the person
+        // already knows what they came for.
+        case .unavailable:
+            return model.isDenied
+                ? "Turn the camera on for Strata in Settings."
+                : "The camera isn't available here."
         case .lining:
             // Once the shutter will take, say so. Holding the correction up
             // while the shutter is already lit is the screen contradicting
@@ -461,10 +525,6 @@ struct HeadMakerView: View {
     /// shutter is pressed, and it is centred under a centred prompt where that
     /// shows. `.lining` and `.making` have no current mark; the frame holds the
     /// width they would otherwise give back.
-    ///
-    /// **Its height is reserved whether or not it is drawn**, the camera's
-    /// own rule for the zoom pill: a mark that appears by pushing the shutter
-    /// down moves the one control on this screen that must not move.
     private var pips: some View {
         let steps = HeadMakerModel.sequence.map(\.step)
         let rowWidth = Self.pipCurrentSide
@@ -474,7 +534,14 @@ struct HeadMakerView: View {
             ForEach(steps, id: \.self) { step in
                 let done = model.landed.contains(step)
                 let current = HeadMakerModel.pip(for: model.step) == step
-                RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
+                // **`ShutterBlock.cornerFraction`, not a literal 0.147.** The
+                // whole argument for this shape is that a mark is a small one
+                // of the thing the shutter draws, and that argument was being
+                // made by two files agreeing on a number by hand. It is the
+                // shared view's number now, which is the same lift the shutter
+                // itself just had.
+                RoundedRectangle(cornerRadius: Self.pipSide * ShutterBlock.cornerFraction,
+                                 style: .continuous)
                     .fill(done ? Color.white : AppColors.onDarkQuiet)
                     .frame(width: current ? Self.pipCurrentSide : Self.pipSide,
                            height: Self.pipSide)
@@ -491,22 +558,39 @@ struct HeadMakerView: View {
         .accessibilityLabel("\(model.landed.count) of \(steps.count) done")
     }
 
-    private var showsPips: Bool {
-        switch model.step {
-        case .lining, .blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making: return true
-        default: return false
-        }
-    }
+    private var showsPips: Bool { taking || model.step == .lining }
 
     @ViewBuilder
     private var controls: some View {
         switch model.step {
+        // **One button, and it says what it will do.** `.failed` is reachable
+        // only from `make()`, which fails before a head exists, so Try Again
+        // means take it again and costs nothing to press. `.unavailable` is
+        // the one with a choice: when the camera is off for Strata rather than
+        // absent there is a switch to go and turn on, and a button that only
+        // closed was the second half of a dead end that was never one.
+        //
+        // The close control top right is unchanged and is still the way out of
+        // all three, so nothing here is the only exit.
         case .failed, .unavailable:
             Button {
                 HapticsEngine.lightTap()
-                if model.step == .failed { model.retake() } else { dismiss() }
+                switch model.step {
+                case .failed:
+                    model.retake()
+                default:
+                    // It does not try to re-ask, for `CameraView`'s reason:
+                    // once the answer is no, iOS will not present the prompt
+                    // again, and a button that looked like it might is worse
+                    // than one that says where the switch really is.
+                    if model.isDenied, let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    } else {
+                        dismiss()
+                    }
+                }
             } label: {
-                Text(model.step == .failed ? "Try Again" : "Close")
+                Text(model.step == .failed ? "Try Again" : (model.isDenied ? "Open Settings" : "Close"))
                     .font(Typography.headerSmall)
                     .foregroundStyle(AppColors.onDarkStrong)
                     .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
@@ -557,9 +641,9 @@ struct HeadMakerView: View {
         .accessibilityLabel(flashIsOn ? "Flash on" : "Flash off")
     }
 
-    /// `CameraView`'s shutter: one block at the block's own 14.7% corner, in a
-    /// rim. Dim until your head is in the outline, and solid from the moment
-    /// it will take until the head is made.
+    /// `ShutterBlock`: one block at the block's own 14.7% corner, in a rim.
+    /// An empty rim until your head is in the outline, and solid from the
+    /// moment it will take until the head is made.
     ///
     /// **It used to fill from the bottom as a timer, and that had to go.** A
     /// stage now ends when the expression lands rather than when a clock runs
@@ -571,7 +655,7 @@ struct HeadMakerView: View {
     /// title said Today" — so there is one.
     private var shutter: some View {
         let ready = model.canCapture
-        let watching: Bool = [.blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making].contains(model.step)
+        let watching = taking
         let lit = ready || watching
         // **One control, drawn in one place.** This and `CameraView`'s were
         // two copies of the same rim and block from the same bounds and the
@@ -640,40 +724,26 @@ struct HeadMakerView: View {
                 // for an expression.
                 TappableHead(rig: rig, side: Self.previewSide, greets: true)
                 VStack(spacing: GridConstants.gapTight) {
-                    // **The name, and it never blocks finishing.** It arrives
-                    // filled in, so Save works without a keyboard ever
-                    // appearing; clearing it keeps the suggestion rather than
-                    // leaving a head with no name. The owner asked for several
-                    // heads on 2026-09-23 ("add your friend's head"), and a row
-                    // of unnamed faces is a row you have to guess at.
+                    nameField
+                    // **The failure takes the caption's place rather than
+                    // sitting under it.** Two sentences here would be the one
+                    // thing this page cannot afford: the caption says what the
+                    // head can do, which is a thing to know before you press
+                    // Save and not while you are being told the press did not
+                    // take. One slot, whichever sentence is the live one.
                     //
-                    // Profile's own name field, to the point: a bare centred
-                    // field at header size, no well and no rule under it.
-                    TextField("Name", text: $name)
-                        .font(Typography.headerMedium)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        .multilineTextAlignment(.center)
-                        .textContentType(.name)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .submitLabel(.done)
-                        // **A field with no well is still a target.** A bare
-                        // centred `TextField` at `headerMedium` is 20.3pt of
-                        // line box and nothing else, so the only way into the
-                        // name was a 20.3pt strip, under half the 44 every
-                        // other control on this screen measures. The well stays
-                        // off (it is Profile's own field, to the point); what it
-                        // gets is the height, and a `contentShape` so the air
-                        // above and below the word takes the tap too.
-                        .frame(minHeight: GlassIconButton.defaultSide)
-                        .contentShape(Rectangle())
-                        .padding(.horizontal, GridConstants.gapSection)
-                        .accessibilityLabel("This head's name")
-                    Text(previewCaption(rig))
+                    // `inkPrimary`, not the caption's `inkSecondary`: it is the
+                    // only line on the page that has changed since you looked
+                    // away, and 14.2:1 against the caption's 6.1 on this page's
+                    // (246, 246, 246) is what says so, without a colour this
+                    // page has no other use for.
+                    Text(model.saveFailure.isEmpty ? previewCaption(rig) : model.saveFailure)
                         .font(Typography.bodySmall)
-                        .foregroundStyle(AppColors.inkSecondary)
+                        .foregroundStyle(model.saveFailure.isEmpty
+                                         ? AppColors.inkSecondary : AppColors.inkPrimary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, GridConstants.gapSection)
+                        .animation(GridConstants.crossFade, value: model.saveFailure)
                 }
                 Spacer(minLength: 0)
                 HStack(spacing: 0) {
@@ -694,17 +764,50 @@ struct HeadMakerView: View {
                             // The head is on disk before the name is applied,
                             // so a name that will not stick can never cost
                             // somebody the head they just made. An empty field
-                            // is ignored and the suggestion stands.
+                            // means the drawn suggestion was accepted, which is
+                            // the name the page has been showing all along.
                             if let id = HeadStore.shared.activeID {
-                                HeadStore.shared.rename(id, to: name)
+                                HeadStore.shared.rename(id, to: name.isEmpty ? suggestion : name)
                             }
                             HapticsEngine.success()
                             dismiss()
                         }
                     } label: {
-                        Text("Save")
+                        // **The verb changes with what the press will do.** A
+                        // save that failed and a button still reading Save is
+                        // a press with no visible answer; the sentence above
+                        // carries what happened and this carries what happens
+                        // next. It is not "Try Again", which is Retake's
+                        // meaning on this same row and would make the two
+                        // controls read as the same offer.
+                        Text(model.saveFailure.isEmpty ? "Save" : "Try Saving Again")
                             .font(Typography.headerSmall)
-                            .foregroundStyle(AppColors.accentWarm)
+                            // **`accentPrimary`, measured.** This was
+                            // `accentWarm`, which is a near-black ink on a light
+                            // page: off the preview capture, Save rendered
+                            // (28, 26, 24) and the name above it (36, 36, 36) on
+                            // a (246, 246, 246) ground. The two loudest things
+                            // on the screen were a label and a button at the
+                            // same weight of black, with nothing saying which
+                            // one you press. That is word for word the fault
+                            // the Profile audit found and fixed the same day,
+                            // where Done was also `accentWarm` at (28, 26, 24)
+                            // beside a title at (37, 37, 37).
+                            //
+                            // Keeping it was once right: the add sheet, Profile,
+                            // Settings, Plan and Restore all wore `accentWarm`
+                            // for this job, and changing one screen would have
+                            // made it the one that disagreed. Profile's Done and
+                            // Restore's Cancel have since moved, so the fleet is
+                            // the other way round now.
+                            //
+                            // 4.34:1 on this page's ground, which is the weight
+                            // the token itself documents (4.38:1 on the light
+                            // page) and the weight the audit accepted for Done.
+                            // The name field giving up its near-black at the
+                            // same time is the other half: one blue word is the
+                            // strongest thing on the page.
+                            .foregroundStyle(AppColors.accentPrimary)
                             .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide,
                                    alignment: .trailing)
                             .contentShape(Rectangle())
@@ -715,6 +818,69 @@ struct HeadMakerView: View {
                 .padding(.bottom, GridConstants.gapSection)
             }
         }
+    }
+
+    /// **The name, and it never blocks finishing.** The owner asked for several
+    /// heads on 2026-09-23 ("add your friend's head"), and a row of unnamed
+    /// faces is a row you have to guess at. So a name is always decided, Save
+    /// works without a keyboard ever appearing, and nothing here has to be
+    /// touched.
+    ///
+    /// **Nothing said it could be typed into.** Measured off the preview
+    /// capture: "Head 2" rendered (36, 36, 36) on a (246, 246, 246) page, a
+    /// centred near-black line directly under the head, identical in every
+    /// visual respect to a title. Somebody who wanted to call it "Me" had no
+    /// reason to try.
+    ///
+    /// The lightest treatment that says editable is the one already true: this
+    /// is a SUGGESTION, not a name somebody chose. So it is drawn as the hint
+    /// it is, at `inkQuiet`, and the field under it is empty until somebody
+    /// types. That composites to (135, 135, 135) on this page, 3.3:1, which is
+    /// the ratio `inkQuiet` is held to and the category its own doc names
+    /// first: "a chevron, a placeholder, a hint". It is also what Profile's
+    /// name field does, two taps away, for the measurement written over it.
+    ///
+    /// Everything louder was tried on paper and costs more than it returns: an
+    /// underline or a well is a boxed form field on a page whose whole argument
+    /// is emptiness, a pencil glyph is a twenty-fourth drawing nobody asked
+    /// for, and a caret needs focus, which needs the keyboard this screen is
+    /// built to not need.
+    ///
+    /// **Drawn rather than handed to `prompt:`**, for the reason written over
+    /// `ProfileView.nameField`: the style set on a prompt's `Text` is not
+    /// applied by every control that takes one, and a contrast fix that may or
+    /// may not land is not a fix.
+    ///
+    /// **A field with no well is still a target.** A bare centred `TextField`
+    /// at `headerMedium` is 20.3pt of line box and nothing else, so the only
+    /// way into the name was a 20.3pt strip, under half the 44 every other
+    /// control on this screen measures. The height and the `contentShape` are
+    /// on the stack, so the air above and below the word takes the tap too.
+    private var nameField: some View {
+        ZStack {
+            if name.isEmpty {
+                Text(suggestion)
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkQuiet)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            TextField("", text: $name)
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .textContentType(.name)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .accessibilityLabel("This head's name")
+                // The suggestion is what this head will be called, so it is
+                // what VoiceOver reads, empty field or not.
+                .accessibilityValue(name.isEmpty ? suggestion : name)
+        }
+        .multilineTextAlignment(.center)
+        .frame(minHeight: GlassIconButton.defaultSide)
+        .contentShape(Rectangle())
+        .padding(.horizontal, GridConstants.gapSection)
     }
 
     /// Says what this head can do, honestly — including what it can't.
@@ -761,7 +927,17 @@ struct HeadMakerView: View {
             // The first head takes the name in Profile, because it is you.
             // After that they are numbered: guessing whose head it is would be
             // worse than not guessing.
-            name = HeadStore.shared.suggestedName(person: ProfileStore.shared.name)
+            //
+            // **Worked out here and applied on Save**, rather than left to the
+            // store's own default, because the two do not agree: `HeadStore`
+            // names a nameless save with `suggestedName()` and no person, which
+            // for a first head is "Me" even when Profile knows you are Jayden.
+            // The screen must not show one name and save another.
+            //
+            // A name somebody typed survives a Retake on purpose: it is the
+            // same head being made again, and retyping it is work this screen
+            // has already made somebody do once.
+            suggestion = HeadStore.shared.suggestedName(person: ProfileStore.shared.name)
         default:
             break
         }

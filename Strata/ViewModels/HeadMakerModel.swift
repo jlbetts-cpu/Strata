@@ -30,6 +30,28 @@ final class HeadMakerModel {
     /// there are and how many are done — the other half of "idk if it is
     /// working" is not knowing how much is left.
     private(set) var landed: Set<Step> = []
+    /// **`.unavailable` is two different situations and only one of them has a
+    /// way out.** `CameraService.start()` leaves `isConfigured` false both when
+    /// there is no usable camera and when there is one the app has not been
+    /// allowed to use, and on a phone the second is the only one that really
+    /// happens: every iPhone has a front lens. So this screen's dead end was,
+    /// in practice, always a permission the person could turn back on, under a
+    /// sentence that told them nothing and a button that only closed.
+    ///
+    /// Held here rather than read off the service while drawing, for two
+    /// reasons: the view stops reaching into the camera's internals for a fact
+    /// about this screen's state, and `applyDebugState` can set it, which is
+    /// the only way either half of `.unavailable` can be photographed on a
+    /// simulator that has no camera to refuse.
+    private(set) var isDenied = false
+    /// What went wrong the last time the finished head was offered to the
+    /// disk, or empty when nothing has gone wrong.
+    ///
+    /// **Separate from `failure`, because the two recover in opposite
+    /// directions.** A capture that came to nothing has nothing to keep and
+    /// starts over; a save that came to nothing is holding a finished head in
+    /// memory and must not.
+    private(set) var saveFailure = ""
 
     let camera = CameraService()
     let engine = HeadCaptureEngine()
@@ -73,6 +95,7 @@ final class HeadMakerModel {
     func start() async {
         await camera.start()
         guard camera.isConfigured else {
+            isDenied = camera.isDenied
             step = .unavailable
             return
         }
@@ -165,6 +188,24 @@ final class HeadMakerModel {
 
     /// Whether the face is where the outline asks for it.
     var isLinedUp: Bool { step == .lining && hint == nil }
+
+    /// **The steps where an expression is being asked for, in one place.**
+    ///
+    /// `HeadMakerView` carried this list by hand three times, for the outline's
+    /// lined-up look, the marks' visibility and the shutter's lit state, each
+    /// written out as six cases. The file's own comment records what that costs:
+    /// "The comment here said four, in three places, after the surprised face
+    /// made it five." A sixth expression would have to be remembered in three
+    /// places that no compiler checks, and the one that forgot would quietly
+    /// unlight the shutter in the middle of a capture.
+    ///
+    /// Built from `sequence` plus the second blink, which is the same source
+    /// `phase(for:)` and `pip(for:)` already read, so there is nothing left to
+    /// keep in step.
+    static let asking: Set<Step> = Set(sequence.map(\.step)).union([.blinkAgain])
+
+    /// Whether an expression is being asked for right now.
+    var isAsking: Bool { Self.asking.contains(step) }
 
     /// **Nobody may be stuck outside their own head.**
     ///
@@ -370,18 +411,62 @@ final class HeadMakerModel {
         hint = .noFace
         caught = false
         landed = []
+        saveFailure = ""
         step = .lining
         engine.begin(.lining)
     }
 
+    /// **What a save failure can say that its button cannot: the head is still
+    /// here.** That is the whole fault being fixed, so it is the sentence.
+    ///
+    /// No cause is named, unlike the other two. Those two know what went wrong
+    /// and can say what to change (more light, a plainer wall). This one cannot:
+    /// `HeadStore.save` throws from four places, and room on the phone is only
+    /// the likeliest of them. A guessed cause printed as a fact is worse than
+    /// no cause, and the only thing true in all four cases is the reassurance.
+    static let saveFailureMessage = "Couldn't save your head. It's still here, so nothing is lost."
+
     /// True when the head is on disk.
+    ///
+    /// **A failed save used to throw away the head.** This called `fail(_:)`,
+    /// which moves the screen to `.failed`, and the only control on that state
+    /// runs `retake()`: a disk hiccup discarded a blink, a smile, raised brows,
+    /// a surprised face and a wink, and restarted the camera at the outline.
+    /// Somebody who had just done all five lost all five to a write that could
+    /// have been tried again a second later.
+    ///
+    /// Nothing needs rebuilding. The rig and the payload are derived and in
+    /// `result` by the time this runs, so the recovery is to keep standing
+    /// where we are: the step stays `.preview`, the head stays on the page, and
+    /// this returns false with `saveFailure` set. The page says what happened
+    /// and the Save button becomes the retry. Retake is still beside it for
+    /// somebody who would rather start over, which is now a choice rather than
+    /// the only thing on offer.
+    ///
+    /// **An alert was the other candidate and lost**, though it is what
+    /// `MainAppView` does for a win that would not save. An alert here puts a
+    /// modal between the person and a button that is already on screen and
+    /// already the right one, and it hides the head while saying the head is
+    /// safe. The in-place message keeps the evidence of that claim visible.
+    ///
+    /// Pressing again re-runs `HeadStore.save` on the same payload. That is
+    /// safe to repeat: every save writes to a folder named after a fresh id,
+    /// and a half written one is removed by the store on its own way out, so a
+    /// retry can neither collide with the failed attempt nor reach a head that
+    /// already exists.
     func save() -> Bool {
         guard let result else { return false }
         do {
             try HeadStore.shared.save(result.payload)
+            saveFailure = ""
             return true
         } catch {
-            fail("Couldn't save your head.")
+            saveFailure = Self.saveFailureMessage
+            // The same register `make()` uses for the other direction: this
+            // screen answers with a feeling before it answers with a sentence,
+            // because the person is looking at their own head and not at the
+            // caption under it.
+            HapticsEngine.error()
             return false
         }
     }
@@ -394,6 +479,14 @@ final class HeadMakerModel {
     /// number: one fact, said once, by whichever element owns it. So the
     /// sentence keeps the part only it can carry, which is where to stand or
     /// what to change, and the verb belongs to the button.
+    ///
+    /// **Both callers are in `make()` now, and both run before `result` is
+    /// set**, so `.failed` means one thing: no head was made and there is
+    /// nothing in hand to lose. That is what lets its one button say Try Again
+    /// and mean `retake()`. The third caller was `save()`, where the same
+    /// button meant throwing a finished head away, and it has gone (see
+    /// `save()`). If a fourth ever appears, check it has nothing to keep before
+    /// sending it to a state whose only way on is starting over.
     private func fail(_ message: String) {
         failure = message
         step = .failed
@@ -429,10 +522,29 @@ final class HeadMakerModel {
             caught = true
         case "failed":
             fail("Couldn't get a clear picture. Somewhere a little brighter should do it.")
+        // Both halves of the dead end. `denied` is the one a person can
+        // actually reach on a phone, and it is the one with a way out, so it
+        // is the one worth looking at; `unavailable` is the simulator's.
+        case "unavailable":
+            step = .unavailable
+        case "denied":
+            isDenied = true
+            step = .unavailable
         case "preview", "lift":
             if let rig = HeadRig.creator() {
                 result = Result(rig: rig, payload: HeadStore.Payload(faces: [:], shut: nil))
                 step = .preview
+            }
+        // The preview with a save behind it that did not take. Worth its own
+        // state rather than pressing Save in `preview`: that press does fail
+        // here, because this payload has no faces and `HeadStore.rig(from:)`
+        // refuses it, but a state you can only reach by pressing something is
+        // a state nobody photographs.
+        case "savefailed":
+            if let rig = HeadRig.creator() {
+                result = Result(rig: rig, payload: HeadStore.Payload(faces: [:], shut: nil))
+                step = .preview
+                saveFailure = Self.saveFailureMessage
             }
         default:
             hint = .moveCloser

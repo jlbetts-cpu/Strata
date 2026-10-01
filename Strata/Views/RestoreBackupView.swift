@@ -316,29 +316,15 @@ struct RestoreBackupView: View {
     /// 14.0:1. Adopting the accent today would spread a failure rather than end
     /// a drift. See `OnboardingView.pillLabel` for the three measured ways out:
     /// once one is picked, these two and onboarding's belong in one component.
+    /// **`PrimaryCapsule` now, and the comment above this was right.** It said
+    /// these two and onboarding's belong in one component "once one is picked",
+    /// meaning the colour. It is picked: `accentPrimary`, flat, measured at
+    /// 4.69:1 for a white word across the whole pill. This screen's confirm was
+    /// `inkPrimary`, a near black, which is the same thing that made Cancel
+    /// three lines up read as a label rather than as a control.
     private func primaryButton(_ title: String, action: @escaping () async -> Void) -> some View {
-        Button {
-            HapticsEngine.lightTap()
-            Task { await action() }
-        } label: {
-            Text(title)
-                .font(Typography.headerMedium)
-                .foregroundStyle(WarmBackground.top)
-                .frame(maxWidth: .infinity)
-                .frame(height: Self.pillHeight)
-                .background { Capsule().fill(AppColors.inkPrimary) }
-                .contentShape(Capsule())
-        }
-        // `PressResponse.swift`: "Use this rather than `.plain` on anything that
-        // is not already Liquid Glass." The confirm on this screen is the one
-        // press in the app that commits a restore, and it answered with a haptic
-        // and nothing on the glass.
-        .buttonStyle(.pressWord)
+        PrimaryCapsule(title: title) { Task { await action() } }
     }
-
-    /// The height of a primary action, the same number `OnboardingView` and
-    /// `StoreUnavailableView` use.
-    private static let pillHeight: CGFloat = 50
 
     @ToolbarContentBuilder
     private var closeButton: some ToolbarContent {

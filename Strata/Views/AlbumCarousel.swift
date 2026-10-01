@@ -120,29 +120,10 @@ struct AlbumCard: View {
     }
 }
 
-/// How a cover answers a finger: it gives, and it is over in 0.06s.
-///
-/// **`ReplayShelf`'s `PosterPress`, to the point.** That is the press on the
-/// row directly above this one inside the same panel, and the two are one
-/// control. It is declared here rather than shared because `ReplayShelf.swift`
-/// belongs to another pass; they should be one type when they can be in one
-/// place.
-///
-/// `tapSquashSpring` is the app's press rung and `tapScaleY` the amount every
-/// other pressable surface gives by, so a cover does not get a number of its
-/// own. **Uniform, not the block's squash**: `tapScaleX`/`tapScaleY` together
-/// are a thing landing on a floor, and this is a card being pressed into the
-/// page, with its own name and caption inside the same label.
-///
-/// Under Reduce Motion nothing scales. The haptic on the press and the opening
-/// itself still happen, so the card still answers.
-private struct CardPress: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed && !reduceMotion
-        return configuration.label
-            .scaleEffect(down ? GridConstants.tapScaleY : 1)
-            .animation(GridConstants.tapSquashSpring, value: down)
-    }
-}
+// **`CardPress` is deleted** (2026-10-01). Its own note said it was
+// `MemoriesShelf`'s `PosterPress` "to the point", and it was: the two bodies
+// were identical to the character. The difference is that `PosterPress` is on
+// two live posters and this one was on nothing: there is no `Button` left in
+// this file. So the duplicate the comment apologised for was also the dead
+// half of the pair, and the shared control the note asked for is the one that
+// survived.

@@ -45,15 +45,31 @@ and whose segment is twice the area of a 44pt button, and the map's seven
 second photograph cycle, which is the owner's instruction and carries
 information no still frame can.
 
-**One app-wide failure found, measured and NOT fixed, because it is the owner's
-call.** A block's white 13pt title measures **1.71:1 on the orange, 2.23 on the
-pink, 2.28 on the purple and 2.70 on the green**, against 4.5. No scrim reaches
-it: white on the orange needs the ground down to luminance 0.183, and the
-heaviest veil this app uses, reserved for photographs, only gets it to 2.48.
-The only fix is dark ink on the pale categories, which changes how every block
-in the app looks. `CategoryColors.text` already exists for exactly this, is set
-to white on all seven and is read by nothing, so the decision is one line per
-category when it is made. The measurement is written beside it.
+**One app-wide failure, measured, built both ways, and settled by the owner
+against the number.** A block's white 13pt title measures **1.71:1 on the
+orange, 2.23 pink, 2.28 purple, 2.70 green**, against the 4.5 a word that size
+is held to. Scored against all seven fills, white clears 4.5 on NONE of them
+and a near black clears it on ALL of them, worst case 6.01. The dark version
+was built, rendered on the real tower and measured at **6.00 to 9.77:1**.
+
+He was shown the two side by side and chose white: "I much prefered the white
+ink look over the dark ink." So white ships, and this entry stays, because the
+number does not go away and the next pass should not spend an afternoon
+rediscovering it and reaching for the same fix.
+
+**The reason it is a defensible call and not just a preference**: these blocks
+are a picture of a day before they are a list of labels, and white type reads
+as part of the surface where dark type reads as writing ON it. What carries the
+legibility instead is `BlockWash`, which lifts the bottom 26% of a block where
+the title sits, and `TitleShadow`'s dark halo under it. **That halo is the dial
+if a title ever reads badly on a real phone in daylight**, which is the one
+test none of this has had.
+
+Three fixes were measured and do not work, so nobody tries them again: a
+heavier veil (`photoVeilOpacity` at 0.26, the heaviest in the app and reserved
+for photographs, only reaches 2.48 on the orange), darkening the palette (white
+needs the orange down to luminance 0.183, which is a different palette), and a
+per-category split (there are no deep categories to split off).
 
 ---
 

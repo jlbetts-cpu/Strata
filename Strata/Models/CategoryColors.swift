@@ -46,16 +46,54 @@ struct CategoryStyle {
     /// sits in that band, so the label's local ground is the brightest part of
     /// the thing it is written on.
     ///
-    /// **So the only fix is this field, and it is a brand decision.** Dark ink
-    /// on the pale categories, white kept on the deep ones, which is what every
-    /// mature pastel palette does and what would take the orange to about 6:1
-    /// and the green to about 3.8. It changes how every block in the app looks,
-    /// so it is not a thing a session should flip while the owner is away.
+    /// **THE OWNER LOOKED AT BOTH AND CHOSE WHITE. 2026-10-01.** He was sent
+    /// the tower rendered each way, side by side, with the numbers on it, and
+    /// his answer was "I much prefered the white ink look over the dark ink".
+    /// So white it is, and this note stays so the next pass does not spend an
+    /// afternoon rediscovering the measurement and reaching for the same fix.
     ///
-    /// When it is decided, it is one line per category here plus one read in
-    /// `BlockContent`. The measurement is written down so the decision can be
-    /// made on numbers rather than remade from scratch.
+    /// What is still true is the number. Scored against all seven fills:
+    ///
+    /// | category | white | near black |
+    /// |---|---|---|
+    /// | orange `FDB54F` | **1.76** | 9.86 |
+    /// | purple `AF9CFA` | **2.34** | 7.42 |
+    /// | pink `EC85B4` | **2.45** | 7.11 |
+    /// | blue `40A9FF` | **2.52** | 6.91 |
+    /// | red `F97066` | **2.79** | 6.25 |
+    /// | green `0EAD74` | **2.90** | 6.01 |
+    /// | grey `9C9791` | **2.90** | 6.01 |
+    ///
+    /// Not one clears 4.5 with white, and every one clears it with a near
+    /// black, worst case 6.01. Built and measured on the real tower, the dark
+    /// version came out between 6.00 and 9.77 against white's 1.71 to 2.70.
+    ///
+    /// **It is a taste call over a guideline, made by the person whose app it
+    /// is, with the evidence in front of him.** The thing the number does not
+    /// capture is that these blocks are a picture of a day before they are a
+    /// list of labels, and white type reads as part of the surface where dark
+    /// type reads as writing ON it. He has said more than once that the blocks
+    /// are the app.
+    ///
+    /// **What carries the legibility instead**, and what should be defended if
+    /// anything here moves again: the title sits in `BlockWash`'s band, which
+    /// lifts the bottom 26% of a block, and `BlockContent.TitleShadow` puts a
+    /// dark halo under it. If a title ever becomes hard to read on a real
+    /// phone in daylight, that halo is the dial, not this field.
+    ///
+    /// Three things were measured and do NOT work, so nobody tries them again:
+    /// a heavier veil under the caption (`photoVeilOpacity` at 0.26, which is
+    /// the heaviest this app uses and is reserved for photographs, only
+    /// reaches 2.48 on the orange); darkening the palette (white needs the
+    /// orange down to luminance 0.183, which is a different palette); and a
+    /// per-category split (there are no deep categories to split off, they are
+    /// all pastel).
     let text: Color
+
+    /// **The dark ink that was tried and turned down**, kept as one line so
+    /// the comparison can be rebuilt in a minute rather than rederived. See
+    /// `text` above. Nothing reads it.
+    static let blockInk = Color(red: 0.10, green: 0.10, blue: 0.10)
 
     /// Lighter tint for gradient top (simulates light hitting the surface)
     let lightTint: Color

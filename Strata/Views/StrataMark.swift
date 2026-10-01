@@ -123,6 +123,29 @@ private struct DrawnLettering: View {
     /// rather than a fixed point value, so it holds at 17pt and at 30.
     private static let trackingShare: CGFloat = -0.022
 
+    /// **The third weight, and the measurement that keeps it.**
+    ///
+    /// `Typography` has two cuts, Regular and Medium, and this is the one place
+    /// in the app that sets a third. It is not an oversight and it is not buried
+    /// inside onboarding's device frame: `MemoriesTitle` is the Memories
+    /// screen's own title, over MapKit's labels, at full size.
+    ///
+    /// Measured out of `SFNS.ttf`'s own variable axes rather than guessed. SF
+    /// Pro's named instances put Medium at `wght` 510 and Semibold at 590, and
+    /// at `opsz` 33.55, the point size this view resolves to from the 23.96pt
+    /// screen-title cap, a capital's stem is **0.1097 em at Medium against
+    /// 0.1256 at Semibold: 3.68pt against 4.21pt, 14.5% more stroke.** The `M`
+    /// advance goes 1459 to 1486 units, 1.9% wider.
+    ///
+    /// **So putting it on the ladder costs 0.53pt of stem on a title that has to
+    /// hold against a live map**, which is the exact thing the drawn letterforms
+    /// were photographed winning on. `MemoriesTitle`'s own note says the font's
+    /// stroke was "about a fifth lighter" than the drawing; 14.5% is that claim
+    /// measured, close and in the right direction. The weight is what bought the
+    /// drawing's heft back when it came off, so dropping it hands back the
+    /// deficit the comparison was about. One title, in one view, named here so
+    /// the exception is on the record instead of contradicting `Typography` in
+    /// silence.
     var body: some View {
         let points = cap / Self.capOverEm
         Text(text)

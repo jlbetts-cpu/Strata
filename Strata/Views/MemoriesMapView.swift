@@ -5,14 +5,27 @@ import SwiftUI
 /// Where you have been, as blocks.
 ///
 /// Every photographed win that knows its place, clustered into the app's own
-/// object and sized by how much you did there — the same rank encoding the
-/// month tower uses, through `PlaceMap`.
+/// object through `PlaceMap`.
+///
+/// **Size says nothing here, and that is now true rather than nearly true**
+/// (2026-10-01). This line used to read "sized by how much you did there, the
+/// same rank encoding the month tower uses", and the capture it was written
+/// over disproves it: the largest block on screen was 89.0 x 89.0pt and held
+/// ONE win, while the block holding 24 was 44pt. The owner has settled that a
+/// crowd does not grow ("they should still stay in the same area dont need to
+/// get bigger"), so the rank encoding cannot survive on this screen, and the
+/// honest move was to finish the rule rather than keep half of it. Every block
+/// on the map is one cell. The badge is the only thing that says how many. See
+/// `PlaceMap.Cluster.size` for the three measurements that decided it.
 ///
 /// **MapKit cannot be recoloured.** `MapStyle` offers elevation, points of
 /// interest, traffic and an emphasis, and nothing else; there is no palette to
-/// set. So the only levers are what to strip and what to put on top, and both
-/// are used: every point of interest is excluded, the emphasis is muted, and
-/// the blocks are the only saturated thing on the screen.
+/// set. So the only levers are what to strip, and both of those are used:
+/// every point of interest is excluded below `labelZoom` and the emphasis is
+/// muted. Measured on the capture, that leaves the tiles at saturation 0.035
+/// to 0.039 against the blocks' 0.52 to 0.86, which is the whole of "the
+/// blocks are the only saturated thing on the screen". **There is no longer a
+/// wash on top**, and the arithmetic that took it off is in `map`.
 struct MemoriesMapView: View {
     let pins: [PlaceMap.Pin]
     /// Whether the pins have been read. The empty state waits for it: the
@@ -40,6 +53,15 @@ struct MemoriesMapView: View {
     ///     (the camera, for scale)    mean   9   edges 2.0%
     ///     (Memories as it was)       mean 207   edges 3.9%
     ///
+    /// **The two scrim rows are history, not an option** (2026-10-01). The
+    /// scrim is gone; see `map`. It is worth saying what it looks like read
+    /// back now: a mean luminance is a measurement of the whole frame, blocks
+    /// included, so every row above that improves on a wash improves by
+    /// darkening the photographs along with the tiles. The edge figures move
+    /// the same way. A metric that cannot tell the content from the ground was
+    /// the wrong instrument for a figure and ground question, and it is what
+    /// kept a wash on this screen for a month.
+    ///
     /// The standard ground FAILS the thing it was meant to fix: at 232 it is
     /// brighter than the 207 page it replaces, and it is full of place names
     /// and road shields that MapKit will not let us remove — `excludingAll`
@@ -55,15 +77,20 @@ struct MemoriesMapView: View {
         case quiet
         /// Real imagery. Dark and textured, the register the camera works in.
         case satellite
-        /// **Apple's dark palette, warmed by our own scrim.**
+        /// **Apple's dark palette.**
         ///
         /// MapKit cannot be recoloured — there is no palette API and there
         /// never has been. But it HAS two palettes, and only one of them was
         /// ever tried: the map renders light or dark from the environment's
         /// colour scheme, so forcing `.dark` on the map alone is a real second
-        /// ground rather than the same one tinted. On it the app's warm scrim
-        /// actually bites, because it is darkening something already dark
-        /// instead of greying something pale.
+        /// ground rather than the same one tinted.
+        ///
+        /// This used to say the warm scrim "actually bites" here, because it
+        /// darkens something already dark rather than greying something pale.
+        /// Measured, it is the reverse: the palette renders at mean luminance
+        /// 63.6 and warmBlack is 60.7, so the 0.20 wash moved the tiles 0.6 of
+        /// one level and took a photograph at 180 down to 156. It bit nothing
+        /// but the blocks. See `map`.
         case night
     }
 
@@ -296,23 +323,77 @@ struct MemoriesMapView: View {
         // map rather than as something stuck to the corner of the screen.
         .safeAreaPadding(.bottom, DrawerMetrics.tabBarClearance - 22)
         .safeAreaPadding(.leading, 6)
-        // **A scrim we own.**
+        // **There is no scrim any more, and the reason is arithmetic**
+        // (2026-10-01).
         //
-        // MapKit cannot be recoloured, so this is the only lever left after
-        // stripping points of interest and muting the emphasis. Measured, it
-        // is doing real work: the standard ground came out at mean luminance
-        // 232 — BRIGHTER than the Memories page it was meant to fix, which was
-        // 207 — and imagery at 117 against the camera's 9. The scrim pulls the
-        // tiles down towards the app's own register and lets the blocks be the
-        // only saturated thing on the screen.
-        .overlay {
-            Rectangle()
-                .fill(AppColors.warmBlack.opacity(scrimOpacity))
-                // Nothing announces itself. The wash lifting as the names
-                // arrive is a thing you should never catch happening.
-                .animation(GridConstants.gentleReveal, value: scrimOpacity)
-                .allowsHitTesting(false)
-        }
+        // A `Rectangle` filled with `warmBlack` at 0.03 to 0.34 sat here as an
+        // `.overlay` on the `Map`, and its note claimed it "lets the blocks be
+        // the only saturated thing on the screen". MapKit's annotations live
+        // INSIDE the map, so an overlay on the map is an overlay on the blocks
+        // as well. Proved off the shipping capture rather than argued: the
+        // count badge's capsule is declared rgb(249, 249, 251) and rendered
+        // rgb(231, 230, 232), which solves to alpha 0.097 against warmBlack.
+        // That is the 0.10 the quiet ground asks for, landing in full on a
+        // photograph's own chrome.
+        //
+        // **A uniform wash cannot raise any contrast ratio, ever.** Compositing
+        // two things against one ink at alpha a takes each luminance to kL + c
+        // with k = 1 - a and c = a * L(ink). Every ratio on the screen is of
+        // the form (L + 0.05) over (L + 0.05), and scaling both terms down by k
+        // while adding the same c to each always lands closer to 1:1 than the
+        // pair it started from. Figure and ground are washed by exactly the
+        // same factor, so the separation the comment promised was never
+        // available from this object, on any ground, at any alpha.
+        //
+        // Measured on the capture, each block against the tile beside it, with
+        // the scrim and then with the composite solved back off:
+        //
+        //     red 2x2    on pale fill   2.51 -> 2.62
+        //     blue 1x1   on pale fill   2.61 -> 2.74
+        //     green 1x1  on park        3.02 -> 3.19
+        //     purple 2x1 on pale fill   2.28 -> 2.37
+        //     orange 1x1 on pale fill   1.92 -> 1.98
+        //
+        // Five pairs, five losses, and the price of them was 10% of every
+        // photograph's luminance. Saturation, the word the old note actually
+        // used, goes the same way: the scrim moved the tiles 0.035 to 0.036 and
+        // the blocks 0.534 to 0.521, so it desaturated the content thirteen
+        // times harder than it desaturated the ground.
+        //
+        // On `.night`, the other ground that ships, it is worse than useless.
+        // Apple's dark palette renders at mean luminance 63.6 and warmBlack is
+        // 60.7, so a 0.20 wash moves the tiles by 0.6 of one level out of 255
+        // while taking a photograph at 180 down to 156. Forty times the effect
+        // on the content as on the thing it was aimed at.
+        //
+        // **What was tried and rejected**, in order:
+        //
+        // - *Keep it where the ground is loud.* `.night` is a shipping ground
+        //   and is the case above. `.satellite` is reachable only through
+        //   `-strataMapStyle`, so a rule kept for it is a rule that ships for
+        //   nobody.
+        // - *Move it under the annotations.* SwiftUI will do this: MapKit draws
+        //   every overlay below every annotation, so a world-covering
+        //   `MapPolygon` in the map's own content is a wash on the tiles alone.
+        //   It was rejected because on a PALE map it pulls the wrong way. The
+        //   blocks are darker than the tiles here, luminance 0.06 to 0.27
+        //   against the ground's 0.80, so darkening only the ground moves it
+        //   towards them. Measured on the red block: 2.62 with no wash at all,
+        //   2.23 with a tiles-only wash at 0.10, 1.67 at 0.26. A tiles-only wash
+        //   pays only where the ground is darker than the content, which is
+        //   `.satellite`, which does not ship.
+        // - *A gentler alpha.* The arithmetic above has no zero crossing. The
+        //   best alpha is 0.
+        // - *Brightening the blocks back by as much as the wash took.* A
+        //   photograph cannot be un-darkened; it clips at the top. `BlockSurface`
+        //   is already carrying a 0.06 wash here for a different reason.
+        //
+        // What does deliver the claim is already in this file and costs the
+        // photographs nothing: `worthNaming` strips the points of interest and
+        // the emphasis is muted below `labelZoom`. Measured on the same capture,
+        // the tiles sit at saturation 0.035 to 0.039 and the blocks at 0.52 to
+        // 0.86. The blocks ARE the only saturated thing on the screen, and that
+        // was never the scrim's doing.
         #if DEBUG
         // **`id:`, not a bare `.task`.** A bare one runs once at appear and
         // captures the view value it had then — which is before the fetch
@@ -820,18 +901,11 @@ struct MemoriesMapView: View {
         }
     }
 
-    /// How hard the scrim pulls the tiles towards the app's ground.
-    ///
-    /// It lifts as you arrive. Far out there is nothing under it but colour
-    /// fields and it can do its full work; close in there are names under it,
-    /// and a wash over type is the one thing that makes a map feel cheap.
-    private var scrimOpacity: Double {
-        switch style {
-        case .satellite: return isClose ? 0.22 : 0.34
-        case .quiet: return isClose ? 0.03 : 0.10
-        case .night: return isClose ? 0.10 : 0.20
-        }
-    }
+    // `scrimOpacity` lived here and is gone. It returned 0.03 / 0.10 on quiet,
+    // 0.10 / 0.20 on night and 0.22 / 0.34 on satellite, lifting as you arrived
+    // so a wash never sat over the place names. The measurements that took the
+    // whole object off the map are written at the modifier it used to be, in
+    // `map`.
 }
 
 /// One place, drawn as one of the app's blocks.
@@ -911,15 +985,18 @@ private struct PlaceBlock: View {
                 .frame(width: size.width, height: size.height)
                 .clipped()
         } else if !name.isEmpty {
-            // **The size it is actually drawn at**, which is one of two
-            // numbers and no more: a lone win keeps the size a finger drew,
-            // and every crowd is one cell. Asking for 88 for everything meant
-            // a 2x2 block drew an 88pt picture across 90pt at 3x — soft, and
-            // the owner saw it: "the photos dont even zoom in."
+            // **The size it is actually drawn at**, which is now one number
+            // and no more: every block on the map is one cell. It used to be
+            // two, because a lone win kept the size a finger drew for it, and
+            // the lesson that put this line here still holds either way.
+            // Asking for 88 for everything meant a 2x2 block drew an 88pt
+            // picture across 90pt at 3x, which is soft, and the owner saw it:
+            // "the photos dont even zoom in."
             //
-            // Two widths is also why this is safe. `CachedImageView` keys its
+            // One width is also why this is safe. `CachedImageView` keys its
             // cache on the requested width, and a block's size no longer
-            // changes with the camera, so nothing re-decodes as you zoom.
+            // changes with the camera or with what joins it, so nothing
+            // re-decodes as you zoom.
             CachedImageView(fileName: name,
                             width: size.width,
                             height: size.height,
@@ -984,13 +1061,25 @@ private struct PlaceBlock: View {
     /// below it the map is a region and a block is an area.
     var showsCount = false
 
-    /// **One size of photograph for every block on the map.** A block
-    /// changes size as you zoom — a lone place wears the size its win was
-    /// drawn at, a crowd is one cell — and each size used to ask for its own
-    /// decode, so a block that had just shown its picture went grey while
-    /// the picture was made again at the new width. Decoded once at the
-    /// largest a block can be, every size after that is already in memory.
-    static let decodeWidth: CGFloat = cell * 2 + cell * GridConstants.spacing / GridConstants.blockReferenceCell
+    /// **One size of photograph for every block on the map**, and now it is
+    /// the size they are drawn at.
+    ///
+    /// The rule is unchanged and was always "decode once at the largest a block
+    /// can be": each size asking for its own decode is what made a block go
+    /// grey while its picture was remade at a new width. What changed is the
+    /// answer. A block could be a 2x2, so this read `cell * 2 + gutter` and
+    /// came out at 90. Every block is one cell now (`PlaceMap.Cluster.size`),
+    /// so the largest a block can be is `cell`, and asking for 90 means every
+    /// photograph on the map is read at 270 device pixels to be drawn across
+    /// 132 on a 3x phone: 2.05 times the width, 4.2 times the pixels, for every
+    /// picture in the cache at once.
+    ///
+    /// The one thing to watch on the first launch after this lands: the store
+    /// keys its derivatives on the exact width asked for, so the 270px copies
+    /// are orphaned and every visible block reads its picture once more. That
+    /// is the path this file already designs for, the block comes up on its own
+    /// fill and the photograph fades in on top, and it happens once.
+    static let decodeWidth: CGFloat = cell
 
     /// One cell, on the map. Smaller than the tower's, because a map is denser
     /// than a tower and a 2x2 has to fit on a phone beside its neighbours.
@@ -1252,7 +1341,11 @@ extension PlaceBlock {
     ///   0.10 scrim. MapKit's pale ground renders at rgb(233, 233, 224) right
     ///   beside it: **1.01:1**. So the part of the badge hanging over the map
     ///   had no disc at all, and the digits read as one more MapKit label among
-    ///   ENFIELD, BARNET and the road shields.
+    ///   ENFIELD, BARNET and the road shields. Taking the scrim off later the
+    ///   same day did not rescue it and was never going to: both values rise
+    ///   together, rgb(249, 249, 251) on rgb(251, 250, 242), which is 1.01:1
+    ///   again. A near-white disc on a near-white map has no answer except not
+    ///   being on the map.
     ///
     /// On the block both go away. The block is the ground the disc was always
     /// claiming to have: the numeral measures 8.15:1 on the capsule, and the
@@ -1260,16 +1353,55 @@ extension PlaceBlock {
     /// what a light label on a saturated block always is, and it is the same
     /// relationship the tower's day numerals already have.
     ///
-    /// Inset by `GridConstants.spacing`, the block grid's own gutter, so the
-    /// badge stands one gutter in from an edge rather than on a number of its
-    /// own. That clears the rim (0.97pt at this cell) and the 6.1pt corner.
+    /// Inset by `GridConstants.spacing`, which is the block grid's gutter at
+    /// the reference cell rather than at this one: the map's own gutter is
+    /// 44 x 4 / 86.5 = 2.03pt. 4 is kept anyway, and the reason is the corner
+    /// rather than the grid. At 2.03 the capsule would sit inside the block's
+    /// 6.1pt radius and its own corner would be cut by it; at 4 it clears both
+    /// that and the 0.97pt rim.
     ///
-    /// **What is NOT changed is the capsule's own size**, and that is an open
-    /// question rather than a decision: at 24x22 on the 44pt cell every badged
-    /// block wears (see `Cluster.size`: a crowd is always one cell) it covers
-    /// half the block's height. It is tuned, and `ClusterCountBadgeTests` pins
-    /// its height and minimum width against three digits wrapping, so shrinking
-    /// it is a change to be looked at and re-run rather than reasoned about.
+    /// **The capsule's size WAS the open question and is now answered**
+    /// (2026-10-01). Measured off the capture and then off the real metrics
+    /// rather than tuned, on the 44pt cell every badged block wears:
+    ///
+    ///     digits   was            now           of the block
+    ///     1        24.3 x 22      18.0 x 18     27.6% -> 16.7%
+    ///     2        32.3 x 22      24.3 x 18     36.7% -> 22.6%
+    ///     3        40.6 x 22      32.6 x 18     46.2% -> 30.3%
+    ///
+    /// It was half the block's height and 55% of its width for one digit, and
+    /// 73% of its width for two: the "24" in the capture left a 7.7pt strip of
+    /// photograph beside it. It is 41% of the height now, and 41% of the width
+    /// for one digit.
+    ///
+    /// **Both numbers came out of the numeral's own metrics.**
+    /// `Typography.numeral(13)` resolves to SF at 13pt Medium: digit advance
+    /// 8.27pt, cap height 9.16, line box 15.31. Sampled off the built badge the
+    /// "3" measured 9.7pt of ink with 6.3 above and 5.7 below inside a 21.7pt
+    /// capsule, so twelve of the twenty-two points were air and the capsule
+    /// stood at 2.24 times its own cap. At 18 it is 1.96 times, 4.4pt of air
+    /// each side of the cap and 1.3 each side of the line box, and horizontally
+    /// `GridConstants.spacing` leaves about 4.5 beside a digit. Vertical air 4.4
+    /// against horizontal 4.5 is a capsule; 6.4 against 8.0 was not. Nothing
+    /// about the numeral changes: same face, same size, same 8.15:1 on the
+    /// capsule.
+    ///
+    /// What was NOT done, and why.
+    ///
+    /// - *A 6pt horizontal padding.* It is not a token. The grid's own gutter
+    ///   is, it is already the number this badge is inset by, and it gets the
+    ///   one-digit capsule to a true 18 x 18 disc, which the old `minWidth`
+    ///   note claimed it already was and the measurement says it never was.
+    /// - *16 as the height.* The line box is 15.31. A capsule clearing its own
+    ///   text by 0.7pt is not a badge, it is a crop, and `minHeight` would stop
+    ///   driving the frame at all.
+    /// - *An 11pt numeral.* The badge is the only thing on this screen that
+    ///   states a number about you, and now that every block is one cell it is
+    ///   the only quantity on the map at all. Shrinking the digit pays for the
+    ///   photograph with the one piece of information on top of it.
+    ///
+    /// `ClusterCountBadgeTests` pins both numbers against three digits
+    /// wrapping, so it moves with them rather than being relaxed.
     var countBadge: some View {
         ClusterCountBadge(count: shownCount)
             .padding(GridConstants.spacing)
@@ -1296,9 +1428,27 @@ extension PlaceBlock {
 struct ClusterCountBadge: View {
     let count: Int
 
-    /// The capsule's floor: round for one or two digits, wider past that.
-    static let minWidth: CGFloat = 24
-    static let height: CGFloat = 22
+    /// The capsule's floor: round for one digit, wider past that.
+    ///
+    /// **24 x 22 until 2026-10-01**, when it was measured against the block it
+    /// sits on rather than against itself. The full working is on
+    /// `PlaceBlock.countBadge`; the numbers are 24.3 x 22 rendered for one
+    /// digit, which is half the 44pt cell's height and 27.6% of its area, and
+    /// 18.0 x 18 now, 41% and 16.7%.
+    ///
+    /// **`minWidth` was decorative and is now load-bearing.** Its own note said
+    /// "round for one or two digits", and it never was: SF 13 Medium sets a
+    /// digit at 8.27pt advance, so with `gapTight` on each side one digit came
+    /// to 24.3 and the 24 floor was already beaten. The capsule was a 1.10:1
+    /// oval calling itself a circle. At `GridConstants.spacing` the natural
+    /// width is 16.3, the floor bites, and 18 x 18 is a disc.
+    ///
+    /// Both numbers are asserted by `ClusterCountBadgeTests`, and the height one
+    /// can genuinely fail: the test reads the badge's own `sizeThatFits` in a
+    /// 10pt-wide offer, so a height under the numeral's 15.31pt line box stops
+    /// driving the frame and the measured height stops matching this constant.
+    static let minWidth: CGFloat = 18
+    static let height: CGFloat = 18
 
     var body: some View {
         Text(verbatim: StrataFont.digits(count))
@@ -1318,7 +1468,15 @@ struct ClusterCountBadge: View {
             // Tabular already, so no `.monospacedDigit()`: it does nothing
             // to a custom face.
             .lineLimit(1)
-            .padding(.horizontal, GridConstants.gapTight)
+            // **The grid's gutter, not `gapTight`.** It was 8 a side, which on
+            // an 8.27pt digit is 66% padding and is what made a one-digit
+            // capsule 24.3 wide and 22 tall: wider than it is tall, on the
+            // badge whose own note claimed it was round. `GridConstants.spacing`
+            // is the same token the badge is already inset from the block's
+            // corner by, so it is now one number twice rather than 4 outside
+            // and 8 in. Measured at 13pt Medium: one digit 18.0 x 18, two 24.3,
+            // three 32.6, against 24.3 / 32.3 / 40.6 before.
+            .padding(.horizontal, GridConstants.spacing)
             .frame(minWidth: Self.minWidth, minHeight: Self.height)
             .background {
                 Capsule().fill(PlaceBlock.badgeDisc)

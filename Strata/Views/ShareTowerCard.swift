@@ -57,59 +57,43 @@ struct ShareTowerCard: View {
     /// The count and the date are gone with it. The blocks say how many there
     /// are by being there; a number beside them is the same fact twice, and a
     /// date is something the post already carries.
+    ///
+    /// **And it is `StaticTowerView` now, not a second copy of it.** This card
+    /// is where that view was extracted FROM, and the copy left behind here had
+    /// drifted no further than one spelling of `rows`, but it was still a
+    /// second tower, and the extraction's whole argument is that there must not
+    /// be one.
+    ///
+    /// **The one real difference was the height fit.** `StaticTowerView` sizes
+    /// its cell off the width and a cap; this card also had to fit 640pt of
+    /// story. The cap carries it: `min(byHeight, 82)` into `maxCell` makes the
+    /// view compute `min(byWidth, byHeight, 82)`, which is the expression that
+    /// was here. At this card's 316pt content width `byWidth` is 76, so the 82
+    /// never binds through the width and the height is the only thing the cap
+    /// is doing. `onTapBlock` stays nil: the share card has nowhere to go, and
+    /// `FlippableBlockView` fires its tap gesture whether or not a closure is
+    /// attached, so handing it one that calls nothing changes neither the image
+    /// nor the behaviour.
     private var tower: some View {
-        let columns = CGFloat(GridConstants.columnCount)
-        let spacing = GridConstants.spacing
         let available = CGSize(
             width: Self.size.width - 44,
             height: Self.size.height - 96
         )
-        let byWidth = (available.width - (columns - 1) * spacing) / columns
+        // Capped so three blocks do not become billboards, and capped AGAIN by
+        // what 640pt of story has room for.
         let byHeight = rows > 0
-            ? (available.height - CGFloat(rows - 1) * spacing) / CGFloat(rows)
-            : byWidth
-        // Capped so three blocks do not become billboards.
-        let cell = min(byWidth, byHeight, 82)
-        let gridW = columns * cell + (columns - 1) * spacing
-        let gridH = rows > 0 ? CGFloat(rows) * cell + CGFloat(rows - 1) * spacing : 0
-        let radius = cell * 0.147
+            ? (available.height - CGFloat(rows - 1) * GridConstants.spacing) / CGFloat(rows)
+            : 82
 
-        return VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                Color.clear.frame(width: gridW, height: gridH)
-
-                ForEach(mergeGroups) { group in
-                    MergedGroupView(
-                        group: group,
-                        cellSize: cell,
-                        gridWidth: gridW,
-                        gridHeight: gridH
-                    )
-                }
-
-                ForEach(blocks) { block in
-                    let f = GridConstants.blockFrame(
-                        column: block.column, row: block.row,
-                        columnSpan: block.columnSpan, rowSpan: block.rowSpan,
-                        cellSize: cell
-                    )
-                    FlippableBlockView(
-                        block: block,
-                        width: f.width,
-                        height: f.height,
-                        cornerRadius: radius,
-                        modelContext: modelContext,
-                        isGroupMember: groupedIDs.contains(block.id),
-                        isCovered: coveredIDs.contains(block.id)
-                    )
-                    .frame(width: f.width, height: f.height)
-                    .offset(x: f.minX, y: gridH - f.minY - f.height)
-                }
-            }
-            .frame(width: gridW, height: gridH)
-
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        return StaticTowerView(
+            blocks: blocks,
+            mergeGroups: mergeGroups,
+            groupedIDs: groupedIDs,
+            coveredIDs: coveredIDs,
+            modelContext: modelContext,
+            width: available.width,
+            maxCell: min(byHeight, 82)
+        )
     }
 
 }

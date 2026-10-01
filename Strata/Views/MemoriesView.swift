@@ -793,6 +793,15 @@ struct CountReadout: View {
 /// **It belongs in `SectionHeading.swift`**, and is here because that file is
 /// being edited elsewhere. Move it when the two can be in one place.
 ///
+/// **No call sites, and neither has `CountReadout` below it** (measured
+/// 2026-10-01: the two together are about 100 lines that nothing draws). Not
+/// deleted, because they are the only built answer to the design language's §7
+/// (every section says what it is AND how much is here), and the audit's check
+/// 3 fails a privately rebuilt component, which is what the next person would do
+/// with no built one to reach for. Whether §7 still applies is the owner's call,
+/// and until it is made this note is here so nobody rebuilds these two from
+/// scratch or deletes them thinking they are debris.
+///
 /// **Why the readout mirrors the heading's vertical padding.** The two have to
 /// sit on one line, and `.firstTextBaseline` would be the natural way to say
 /// so, except that the heading's own text is wrapped in three paddings and a

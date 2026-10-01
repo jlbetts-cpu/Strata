@@ -92,44 +92,29 @@ struct StoreUnavailableView: View {
     ///
     /// It is the same filled capsule `RestoreBackupView` uses, which is the
     /// app's other non-walkthrough primary action: `inkPrimary`, the page's
-    /// ground for the word, `pillHeight` tall. Computed over the sampled page:
+    /// ground for the word, `PrimaryCapsule.height` tall. Computed over the sampled page:
     /// the capsule is 14.0:1 against the ground, where the slab was 1.15, and
     /// its label 15.3:1 against the capsule. Nothing new was invented and there
     /// is one fewer primary action in the app.
     ///
-    /// **It is deliberately NOT the walkthrough's lit accent capsule.** That
-    /// one's white label measures 2.03:1 and is the open question on
-    /// `OnboardingView.pillLabel`; adopting it here would spread a failure
-    /// rather than end a drift. When that is answered, all three belong in one
-    /// component.
+    /// **It IS the walkthrough's capsule now, because the question is
+    /// answered.** The note here used to say adopting it would spread a
+    /// failure, and it was right at the time: its white label measured 2.03:1
+    /// on `AppColors.accent`. The pill is `accentPrimary` flat now, 4.69:1
+    /// across its whole width, so the reason to keep a private copy is gone
+    /// and all three are one component. See `PrimaryCapsule`.
     private var retry: some View {
-        Button {
-            HapticsEngine.tick()
+        // **`PrimaryCapsule`.** This was a private capsule in `inkPrimary`,
+        // and so was the restore's, and the walkthrough's was the blue: three
+        // copies of one control that had drifted into two colours. The screen
+        // where somebody is stuck and looking for something to press is the
+        // last place the one action should be ink.
+        PrimaryCapsule(title: "Try Again") {
             if onRetry() { return }
             withAnimation(GridConstants.crossFade) { triedAgain = true }
-        } label: {
-            Text("Try Again")
-                .font(Typography.headerMedium)
-                .foregroundStyle(WarmBackground.top)
-                .frame(maxWidth: .infinity)
-                // The target, measured on the label rather than declared on the
-                // button, and the same 50 the walkthrough's pill is. It was 52,
-                // which is a fifth height for no reason anybody wrote down.
-                .frame(height: Self.pillHeight)
-                .background { Capsule().fill(AppColors.inkPrimary) }
-                .contentShape(Capsule())
         }
-        // `PressResponse.swift`: "Use this rather than `.plain` on anything that
-        // is not already Liquid Glass." The app shipped with 36 `.plain` buttons
-        // and no call site for the component written to answer "every button
-        // with a clean animation". This is one of them.
-        .buttonStyle(.pressWord)
         .accessibilityHint("Tries to open your wins again.")
     }
-
-    /// The height of a primary action, the same number `OnboardingView` and
-    /// `RestoreBackupView` use.
-    private static let pillHeight: CGFloat = 50
 }
 
 #Preview("Store unavailable") {

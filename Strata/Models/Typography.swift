@@ -22,9 +22,19 @@ enum Typography {
     // MARK: - The scale: five sizes, two weights
     //
     // 34, 17, 15, 13 and 11, at Regular and Medium (docs/research/font.md
-    // (c)). Semibold is gone from the app: the owner's face has one cut, and
-    // its heavy drawn stem already does the job a third weight did. Every
-    // token is a text STYLE, so Dynamic Type moves the lot together.
+    // (c)). Semibold came off the scale: the owner's face had one cut, and its
+    // heavy drawn stem already did the job a third weight did. Every token is a
+    // text STYLE, so Dynamic Type moves the lot together.
+    //
+    // **One exception, and it is not in this file.** This said "semibold is gone
+    // from the app", and that has been false since the drawn letterforms came
+    // off on 2026-09-30: `DrawnLettering` in `StrataMark.swift` sets
+    // `MemoriesTitle` semibold, because that title stands over a live map and
+    // the weight is what replaced the drawing's stroke. The measurement is
+    // written beside it: 14.5% more stem than Medium, 3.68pt against 4.21pt at
+    // the title's size, read out of SF's own `wght` axis. A claim about the
+    // whole app that one screen breaks is worse than the exception itself, so
+    // the exception is named.
     //
     // Merged on 2026-09-16, each into the rung it was nearest: headerLarge
     // (20) and blockTitle (16) into `headerMedium`, bodyMedium (16) into
@@ -135,40 +145,21 @@ enum Typography {
 }
 
 // MARK: - Jaro
-
-/// The display face, used for the app's own name and its mark. Nothing else.
-///
-/// It was removed on 2026-09-09 and restored the same day, on the owner's
-/// call. The argument for removing it was that a heavy angular slab fought the
-/// pale rounded mark beside it — which was true of the FIVE-COLOUR mark it was
-/// sitting next to, and that mark is gone. Against a single pink block with a
-/// white letter on it, which is what the mark is again, Jaro is the letter.
-///
-/// It was also briefly on the tally numeral. Jaro's digits are as geometric as
-/// its letters, which made the one number on each screen read as part of the
-/// logo rather than as a count of your day. **The wordmark and the mark, and
-/// that is the whole of its job.**
-///
-/// It is a variable font with an optical-size axis (6-72, default 14). iOS
-/// picks an instance by point size on its own once the font is registered, so
-/// a large wordmark gets the display cut and a small one a tighter one without
-/// anything here asking for it. That registration is `UIAppFonts` in
-/// Info.plist — without it `Font.custom` falls back to the system face
-/// silently, which looks exactly like the font not loading.
-///
-/// Licensed under the SIL Open Font License; `Strata/Resources/Jaro-OFL.txt`
-/// ships beside it, which is what that licence requires.
-enum JaroFont {
-    /// PostScript name, read out of the font's own `name` table rather than
-    /// guessed.
-    static let name = "Jaro-Regular"
-
-    static func size(_ points: CGFloat) -> Font {
-        .custom(name, size: points)
-    }
-
-    /// Scales with Dynamic Type, which a plain `.custom(_:size:)` does not.
-    static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .custom(name, size: points, relativeTo: style)
-    }
-}
+//
+// **`JaroFont` is deleted** (2026-10-01), with zero call sites, for the second
+// time: `tasks/overnight-report.md` records it going on 2026-09-09 and it came
+// back. `docs/research/visual-cohesion.md` lists it twice as dead ("registered
+// at launch and used nowhere"). Nothing in the app set a word in Jaro: the
+// wordmark went on 2026-09-30 and the mark is the pre-drawn `StrataSMark`
+// asset, which carries no font at all.
+//
+// **The TTF stays and must stay.** `Strata/Resources/Jaro.ttf` (145,616 bytes)
+// is what `tools/make_app_icon.py` and `tools/make_logo.py` derive the icon and
+// the `S` from, offline, and `Jaro-OFL.txt` ships beside it because the SIL
+// licence requires it.
+//
+// **Its `UIAppFonts` entry is left alone, and it is now registering a face no
+// Swift reads.** `Info.plist:7` loads Jaro.ttf at every launch; the only reader
+// was this enum. Dropping that line is the remaining 145 KB and needs a launch
+// to confirm nothing in the asset catalogue resolves through it, which this pass
+// could not run.

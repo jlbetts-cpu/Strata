@@ -197,141 +197,18 @@ extension TowerWidgetView {
     }
 }
 
-/// The top of the tower, packed the way the app packs it.
-///
-/// **Deliberately not `BlockSurface`.** The real block draws its surface twice
-/// and masks one copy through a blur to reproduce the Figma rim — worth every
-/// cycle at full size in the app, and wrong here: the blur is 1.78% of the
-/// block's width, which at widget scale is well under a pixel, so it would
-/// cost an offscreen pass to render nothing. What carries a block's identity
-/// at this size is the flat colour and the rim brightest along the top edge,
-/// and that is what this draws.
-struct TowerMark: View {
-    let blocks: [WidgetSnapshot.Block]
-    let columns: Int
-
-    var body: some View {
-        GeometryReader { geo in
-            let placed = Self.pack(blocks, columns: columns)
-            let rows = max((placed.map { $0.row + $0.block.rows }.max() ?? 0), 1)
-            // **Fill the box, don't sit in the corner of it.** Sizing the cell
-            // off the width alone left a two-block tower as two small squares
-            // in the bottom-left of a mostly empty medium widget. Take
-            // whichever of width and height is the binding constraint, and cap
-            // it so a single block does not become a slab.
-            let byWidth = geo.size.width / CGFloat(columns)
-            let byHeight = geo.size.height / CGFloat(rows)
-            let cell = max(min(byWidth, byHeight, geo.size.height / 2), 1)
-            let height = CGFloat(rows) * cell
-
-            ZStack(alignment: .topLeading) {
-                ForEach(placed.indices, id: \.self) { i in
-                    let item = placed[i]
-                    brick(item.block, cell: cell)
-                        // **Row 0 at the BOTTOM.** First-fit packs downward,
-                        // so drawing rows in packing order stands the tower on
-                        // its head: the partial row — the newest blocks —
-                        // ended up along the floor, with the full rows above
-                        // it. A tower stands on its complete rows.
-                        .offset(x: CGFloat(item.column) * cell,
-                                y: CGFloat(rows - item.row - item.block.rows) * cell)
-                }
-            }
-            .frame(width: geo.size.width, height: height, alignment: .topLeading)
-            // Bottom-aligned: a tower stands on the ground, and the newest
-            // blocks are the ones worth seeing when there is not room for all.
-            .offset(y: max(geo.size.height - height, 0))
-        }
-    }
-
-    private func brick(_ block: WidgetSnapshot.Block, cell: CGFloat) -> some View {
-        let gutter: CGFloat = 1.5
-        let w = CGFloat(block.columns) * cell - gutter
-        let h = CGFloat(block.rows) * cell - gutter
-        let shape = RoundedRectangle(cornerRadius: max(w * 0.147, 1.5), style: .continuous)
-        return shape
-            .fill(Color(hex6: block.hex))
-            // **The photograph, over its colour.** A tower of flat squares is
-            // not what the app shows, and the owner said so: "it doesnt show
-            // the pictures on the blocks." The colour stays underneath rather
-            // than being replaced, which is what the tower does too — it is
-            // what the block IS while the picture loads, and what shows
-            // through a photograph that does not fill the frame.
-            .overlay {
-                if let photo = block.photo, let image = Self.image(named: photo) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .clipShape(shape)
-                }
-            }
-            .overlay {
-                // Lit from above by the rim, exactly as in the app: full white
-                // along the top edge, falling away elsewhere. No vertical
-                // gradient on the fill — the block is one flat colour.
-                RoundedRectangle(cornerRadius: max(w * 0.147, 1.5), style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [.white.opacity(0.85), .white.opacity(0.18)],
-                                       startPoint: .top, endPoint: .bottom),
-                        lineWidth: 0.8)
-            }
-            .frame(width: max(w, 1), height: max(h, 1))
-    }
-
-    /// Thumbnails out of the group container, cached for the life of the
-    /// render. A widget draws once and is torn down, so a process-wide cache
-    /// would be memory the system never gets back.
-    private static func image(named file: String) -> UIImage? {
-        guard let directory = WidgetSnapshot.photoDirectory else { return nil }
-        return UIImage(contentsOfFile:
-            directory.appendingPathComponent(file).path)
-    }
-
-    // MARK: - Packing
-
-    struct Placed {
-        let block: WidgetSnapshot.Block
-        let column: Int
-        let row: Int
-    }
-
-    /// **The app's own packer, not a copy of it.**
-    ///
-    /// This used to be a re-implementation of first fit living here, which is
-    /// the arrangement drifting from the tower's the moment either is
-    /// touched — and the tower is what the widget is a picture of: "make sure
-    /// the tower works the same way it does in the app." `GridPacker` moved to
-    /// Shared/ so both compile the same function.
-    ///
-    /// It is deliberately not monotonic, and that is inherited rather than
-    /// introduced: a 2x2 leaves a 1x1 hole beside it that a later, smaller
-    /// block drops into. The widget wants exactly that, because the app does
-    /// it.
-    static func pack(_ blocks: [WidgetSnapshot.Block], columns: Int) -> [Placed] {
-        var grid: [[Bool]] = []
-        var out: [Placed] = []
-        for block in blocks {
-            guard let spot = GridPacker.firstFit(
-                columnSpan: min(block.columns, columns),
-                rowSpan: block.rows,
-                columns: columns,
-                grid: &grid) else { continue }
-            out.append(Placed(block: block, column: spot.column, row: spot.row))
-        }
-        return out
-    }
-
-}
-
-extension Color {
-    /// `RRGGBB`, as written in the snapshot.
-    init(hex6: String) {
-        let value = UInt64(hex6, radix: 16) ?? 0
-        self.init(red: Double((value >> 16) & 0xFF) / 255,
-                  green: Double((value >> 8) & 0xFF) / 255,
-                  blue: Double(value & 0xFF) / 255)
-    }
-}
+// **`TowerMark` and `Color(hex6:)` are deleted** (2026-10-01), 123 lines with
+// zero call sites. It drew the tower as bricks when that was the widget's whole
+// face; `StrataWidget` and `WidgetPreviewRenderer` both draw
+// `TowerPhotoBackground` now, so nothing asked it for a tower. Its private
+// packer went with it (`GridPacker.firstFit` stays, because the app's tests pin
+// it) and
+// so did `Color(hex6:)`, whose only reader was its brick fill.
+//
+// It also carried this target's only two copies of the 14.7% block corner,
+// which is the ratio `StaticTowerView` documents for the app. There are none
+// left here, and the widget cannot drift from the app's blocks any more because
+// it no longer draws one.
 
 extension WidgetSnapshot {
     /// What the gallery and the placeholder show — a tower that looks like

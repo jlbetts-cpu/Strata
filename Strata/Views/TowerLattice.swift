@@ -1,24 +1,14 @@
 import SwiftUI
-#if DEBUG
-import os
-/// `-strataLatticeLog`: one line per landing, for checking WHICH colour the
-/// surface answered a photographed win in. Off unless the flag is passed, and
-/// the message is an autoclosure so a run without it builds no strings.
-/// Never on the per-frame draw path: a probe that formatted a string for
-/// every band of every frame was, itself, work on the frame the block lands
-/// on.
-enum LatticeProbe {
-    static let isOn = ProcessInfo.processInfo.arguments.contains("-strataLatticeLog")
-    static let log = Logger(subsystem: "Strata", category: "lattice")
-    static func note(_ message: @autoclosure () -> String) {
-        guard isOn else { return }
-        // Evaluated into a local first: the log's own interpolation escapes
-        // what it is handed, and a non-escaping autoclosure cannot be.
-        let text = message()
-        log.notice("[PERF-LAT] \(text, privacy: .public)")
-    }
-}
-#endif
+
+// **`LatticeProbe` is deleted** (2026-10-01). It logged one line per landing
+// under `-strataLatticeLog`, and every `note(_:)` call had already been taken
+// off: the flag was the only reference left in the repo, so passing it did
+// nothing. A probe with no call sites is not a diagnostic, it is a flag that
+// lies about being one. The two things worth keeping from it are written down
+// rather than compiled: the message must be an autoclosure so a run without the
+// flag builds no strings, and it must be evaluated into a local before the
+// logger interpolates it, because `Logger` escapes what it is handed and a
+// non-escaping autoclosure cannot be. Never put one on the per-frame draw path.
 
 /// **The surface the tower is built on.**
 ///

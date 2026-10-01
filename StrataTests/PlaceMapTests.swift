@@ -207,21 +207,94 @@ struct PlaceMapTests {
     // MARK: - What a block shows
 
     /// The owner, on a phone: "they should still stay in the same area dont
-    /// need to get bigger." A lone win keeps the size a finger drew for it;
-    /// a crowd is one cell with its count on it.
-    @Test("a lone win keeps its size, a crowd is one cell")
+    /// need to get bigger."
+    ///
+    /// **This used to assert the exception and now asserts the rule**
+    /// (2026-10-01). It read `blockSize(count: 1, lone: .hard) == .hard`, with
+    /// the message "one win should keep its own size", which is one of the
+    /// gates the audit warns about: it was pinning the thing that was wrong.
+    /// Measured on the shipping capture, the largest block on screen was
+    /// 89.0 x 89.0pt and held ONE win while the block holding 24 was 44pt, so
+    /// size on this map was anti-correlated with everything size looks like it
+    /// means. `PlaceMap.Cluster.size` carries the three measurements.
+    ///
+    /// It is not relaxed: the same three cases are asked, with the win's own
+    /// size varied across all three `BlockSize` cases rather than only `.hard`,
+    /// and the assertion is stronger than the one it replaces because it now
+    /// has to hold for every input rather than for one.
+    @Test("every block on the map is one cell, whatever is in it")
     func sizeSaysWhatItKnows() {
-        func blockSize(count: Int, lone: BlockSize = .small) -> BlockSize? {
-            let pins = (1...count).map {
-                var p = pin(lat: 51.5074, lon: -0.1278, day: $0)
-                p.size = lone
-                return p
-            }
+        func blockSize(count: Int) -> BlockSize? {
+            let pins = (1...count).map { pin(lat: 51.5074, lon: -0.1278, day: $0) }
             return PlaceMap.cluster(pins, zoom: 12).first?.size
         }
-        #expect(blockSize(count: 1, lone: .hard) == .hard, "one win should keep its own size")
+        #expect(blockSize(count: 1) == .small, "a lone win is one cell too")
         #expect(blockSize(count: 2) == .small)
         #expect(blockSize(count: 30) == .small)
+    }
+
+    /// **A merge must not depend on a size that the merge changes**, and the
+    /// gate for that is the size itself rather than a separation.
+    ///
+    /// The defect, worked through the published arithmetic: two blocks join
+    /// when they cover each other past `maxOverlap` AS DRAWN, and the drawn
+    /// size used to depend on the win count, which is exactly what a join
+    /// changes. `blockPoints` gives the three reaches: two 2x2s join out to
+    /// 59.9pt, a 2x2 beside a one-cell block 52.3, two one-cell blocks 29.3.
+    /// So two lone Deep wins 59pt apart covered 34.4% of each other, merged,
+    /// and the block they became was drawn at 44pt, where the pair does not
+    /// touch at all.
+    ///
+    /// **The overlap invariant above could not catch that, and the reason is
+    /// worth writing down rather than quietly fixing.** It reads each cluster's
+    /// size AFTER the merge, by which time the answer is one 44pt block with
+    /// nothing left to overlap. A gate that measures the result of a bug cannot
+    /// see the bug.
+    ///
+    /// Nor can a separation catch it any more, which is the second thing worth
+    /// writing down: the field that made a block bigger is gone, so no test can
+    /// construct the input that used to fail. What CAN fail is this. If any
+    /// size variation comes back and reaches a cluster, at any zoom, over a
+    /// fixture busy enough to merge and split repeatedly, it fails here before
+    /// it reaches a screenshot.
+    @Test("every cluster is one cell, at every zoom, over a busy fixture")
+    func oneSizeIsAFixedPoint() {
+        var pins: [PlaceMap.Pin] = []
+        for i in 0..<60 {
+            let hub = [(51.5074, -0.1278), (51.5155, -0.1410), (51.4975, -0.1357)][i % 3]
+            let spread = i % 4 == 0 ? 0.03 : 0.002
+            pins.append(pin(lat: hub.0 + Double((i * 37) % 21 - 10) / 10 * spread,
+                            lon: hub.1 + Double((i * 53) % 21 - 10) / 10 * spread,
+                            day: (i % 28) + 1, hour: i % 24))
+        }
+        for step in stride(from: PlaceMap.step(zoom: 9), through: PlaceMap.step(zoom: 17), by: 1) {
+            for cluster in PlaceMap.cluster(pins, step: step) {
+                // One interpolated literal, not two joined with `+`. Swift
+                // Testing's second argument is a `Comment`, which is
+                // `ExpressibleByStringInterpolation`, so a literal converts and
+                // a concatenation is a `String` expression that does not.
+                #expect(cluster.size == .small,
+                        "step \(step): a block holding \(cluster.winCount) is \(cluster.size), so coverage depends on the win count again")
+            }
+        }
+    }
+
+    /// And where the one remaining size puts the join, stated once so it is a
+    /// number somebody can check rather than a threshold nobody has read.
+    ///
+    /// Two one-cell blocks cover each other past `maxOverlap` out to 29.3pt
+    /// apart. This asks each side of that: 20pt is one block, 31pt is two. If
+    /// the reach ever moves, the drawn size moved with it.
+    @Test("the join sits where two one-cell blocks stop covering each other")
+    func theJoinSitsAtOneCell() {
+        let base = pin(lat: 51.5074, lon: -0.1278, day: 1)
+        let step = PlaceMap.step(zoom: 12)
+        func blocks(_ points: Double) -> Int {
+            PlaceMap.cluster([base, east(of: base, points: points, step: step, day: 2)],
+                             step: step).count
+        }
+        #expect(blocks(20.0) == 1, "inside 29.3pt two one-cell blocks cover a third of each other")
+        #expect(blocks(31.0) == 2, "past 29.3pt they do not, so they are two places")
     }
 
     @Test("category ties break by earliest, like a day's does")

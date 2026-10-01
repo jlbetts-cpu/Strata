@@ -42,6 +42,14 @@ private struct TitleShadow: ViewModifier {
 
     func body(content: Content) -> some View {
         content.shadow(
+            // Black under both, because the type is white on both. This was a
+            // white halo for the hour the dark ink was in: a dark shadow under
+            // a dark word thickens the word rather than separating it. The ink
+            // went back to white, so the halo did too.
+            //
+            // **This is the dial that carries a block's legibility now**, and
+            // it is the one to reach for if a title ever reads badly in
+            // daylight. See `CategoryStyle.text`.
             color: .black.opacity(onPhoto ? Legibility.ink : Legibility.ink * 0.62),
             radius: Legibility.radius * (onPhoto ? 1 : 0.7),
             x: 0, y: Legibility.y)
@@ -50,9 +58,10 @@ private struct TitleShadow: ViewModifier {
 
 struct BlockContentOverlay: View {
     let title: String
-    /// No `category`. The icon went (see `body`) and took the only thing that
-    /// read one here with it; the property, and `BlockFace.iconCategory` that
-    /// fed it, were threaded through two views and a replay to reach nothing.
+    /// No `category`. It was threaded back in for an hour while a block's
+    /// title was written in `category.style.text`, and it went out again with
+    /// the dark ink: a property nothing reads is the thing this comment was
+    /// originally written about.
     let rowSpan: Int
     /// No `timeText`. Nothing has drawn a time on a block since the tower
     /// stopped showing timestamps, and every call site was passing `nil`
@@ -117,6 +126,13 @@ struct BlockContentOverlay: View {
             if !isUnnamed {
                 Text(title)
                     .font(Typography.bodySmall.weight(.medium))
+                    // **White, and the owner chose it over a measured
+                    // alternative.** A dark ink was built, rendered on the
+                    // real tower and put in front of him, because white here
+                    // measures 1.71:1 on the orange against the 4.5 a 13pt
+                    // word is held to and dark measures 6.00 to 9.77. He
+                    // preferred white. The whole table and the three fixes
+                    // that do not work are on `CategoryStyle.text`.
                     .foregroundStyle(.white)
                     // One size on every block, and an ellipsis when it does
                     // not fit.
