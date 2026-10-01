@@ -27,7 +27,17 @@ import SwiftUI
 enum EtherealFill {
 
     /// How much more saturated the core is than the colour handed in.
-    static let coreBoost: Double = 0.12
+    ///
+    /// **A QUARTER OF WHAT IT WAS.** The owner, 2026-09-30, looking at a whole
+    /// tower rather than one block: "all the blocks have individual splotches
+    /// and they are too strong."
+    ///
+    /// He is describing an arithmetic fact. At 0.12 over 0.82 this moved the
+    /// green channel of a red block by FORTY-NINE levels between its core and
+    /// its corner, which is more than the whole page varies across itself. One
+    /// block of that is a lit object; nine of them in a stack is nine separate
+    /// marks, and the eye counts marks.
+    static let coreBoost: Double = 0.035
 
     /// **How far the rim is pulled toward white.**
     ///
@@ -55,8 +65,13 @@ enum EtherealFill {
     /// about THIS one. Written down so nobody builds it a second time: the
     /// flatness he saw was the label scrim coming off, not the gradient, and
     /// what the blocks actually wanted was a stronger EDGE. See `BlockRim`.
-    static let rimSaturation: Double = 0.82
-    static let rimLift: Double = 0.05
+    /// **And 0.94, not 0.82, for the same reason.** The direction of this
+    /// number has never changed — every move has been toward keeping the block
+    /// full — and this is simply the end of it. What survives is a lift you can
+    /// see across a tower and cannot point at on one block, which is what
+    /// "subtle" has to mean when there are forty of them.
+    static let rimSaturation: Double = 0.94
+    static let rimLift: Double = 0.03
 
     /// Where the light is, as a unit point. **Centred, near enough.** It was
     /// (0.42, 0.34) on the reasoning that light comes from above; measured
@@ -65,10 +80,29 @@ enum EtherealFill {
     /// the RIM, which is a separate thing and already brightest at the top.
     static let core = UnitPoint(x: 0.46, y: 0.5)
 
-    /// `reachFraction` is relative to the half-size: 0.5 lands the rim colour
-    /// exactly on the edge midpoints. A hair over that keeps a trace of the hue
-    /// at the very corner, which is what stops the shape looking cut out.
-    static let reachFraction: CGFloat = 0.52
+    /// `reachFraction` is relative to the half-size, so 0.5 lands the far colour
+    /// exactly on the edge midpoints.
+    ///
+    /// **Carried well past the corner on purpose.** A gradient that ARRIVES
+    /// inside the shape has an edge in it: a ring where the change stops, with
+    /// flat colour outside it. That ring is half of what reads as a splotch —
+    /// the other half is the hotspot at the middle. At 0.78 the falloff is still
+    /// going when it runs off the block, so there is no ring anywhere and the
+    /// whole face is one continuous slope.
+    static let reachFraction: CGFloat = 0.78
+
+    /// **SMOOTHSTEP, NOT A STRAIGHT RAMP, AND THIS IS THE OTHER HALF OF IT.**
+    ///
+    /// A two-stop gradient interpolates linearly in radius, so its derivative
+    /// has a corner at both ends: the eye finds the centre of the bright patch
+    /// and the place it stops, and on a large field it bands — visible as faint
+    /// concentric rings across a merged run.
+    ///
+    /// These stops sample `3t² - 2t³`, which leaves at zero slope and arrives at
+    /// zero slope. Nowhere on the block does the rate of change jump, so there
+    /// is nothing to catch: it reads as a surface that is lit rather than as a
+    /// gradient that has been applied to one.
+    private static let ramp: [Double] = [0, 0.12, 0.28, 0.5, 0.72, 0.88, 1]
 
     /// **An ELLIPSE, so it is the shape of whatever it fills.**
     ///
@@ -87,12 +121,22 @@ enum EtherealFill {
     /// sides. `.overhead` is the lone-object case and is what everything outside
     /// the tower uses.
     static func fill(_ colour: Color, aim: BlockAim = .overhead) -> EllipticalGradient {
-        EllipticalGradient(
-            colors: [core(of: colour), rim(of: colour)],
+        let a = core(of: colour), b = rim(of: colour)
+        return EllipticalGradient(
+            stops: ramp.map { t in
+                Gradient.Stop(color: mix(a, b, by: t * t * (3 - 2 * t)), location: t)
+            },
             center: aim.core,
             startRadiusFraction: 0,
             endRadiusFraction: Self.reachFraction
         )
+    }
+
+    private static func mix(_ a: Color, _ b: Color, by t: Double) -> Color {
+        let (h1, s1, b1) = hsb(a), (h2, s2, b2) = hsb(b)
+        return Color(hue: h1 + (h2 - h1) * t,
+                     saturation: s1 + (s2 - s1) * t,
+                     brightness: b1 + (b2 - b1) * t)
     }
 
     static func core(of colour: Color) -> Color {
