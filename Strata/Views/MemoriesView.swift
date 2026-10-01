@@ -137,8 +137,6 @@ struct MemoriesView: View {
                             // down and cut off by the tab bar.
                             monthTower
                         }
-                    } header: {
-                        if !pageIsEmpty && !pageIsUndecided { monthHeader }
                     }
 
                     if !pageIsEmpty {
@@ -465,18 +463,25 @@ struct MemoriesView: View {
                 // opposite job with one fewer concept: there is nothing to come
                 // back FROM, so there is nothing to say Done to.
                 //
-                // Shown only when there is a map to open. It is gated on PINS
-                // rather than on photographs, because a photograph without a
-                // place puts nothing on it — and the map's own empty state is
-                // where location gets asked for, which is why this cannot be
-                // gated on anything location has to answer first.
-                if !vm.pins.isEmpty {
-                    GlassIconButton(systemName: "map", onPage: true,
-                                    accessibilityLabel: "Map") {
-                        path.append(.map)
-                    }
-                    .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
+                // **ALWAYS THERE**, and gating it was my own mistake twice over.
+                //
+                // The owner: "make sure you are adding the map button, I still
+                // don't see it in the Memories." It was there — gated on
+                // `vm.pins`, which is empty until a photograph has a PLACE, and
+                // a place only arrives once location has been granted, and the
+                // only screen that asks for location is the map. A closed loop,
+                // and the comment I wrote beside the gate said so in the same
+                // breath as adding it.
+                //
+                // The map opens on its own empty state, which is where the
+                // asking belongs. That is the same reasoning the old
+                // photographs button had written on it, which is how this was
+                // avoidable.
+                GlassIconButton(systemName: "map", onPage: true,
+                                accessibilityLabel: "Map") {
+                    path.append(.map)
                 }
+                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
                 ProfileButton { openProfile?() }
                 // Centred on the title's cap by hand. A drawn title is only as
                 // tall as its cap, so a baseline or centre rule against a 44pt
@@ -486,7 +491,24 @@ struct MemoriesView: View {
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapItem)
-            .padding(.bottom, GridConstants.gapTight)
+            // **THE MONTH IS IN THE HEADER NOW, AND IT DOES NOT MOVE.**
+            //
+            // The owner: "I don't like that the September dropdown moves — what
+            // is the point of that? Keep it in one place."
+            //
+            // It was a pinned section header, which is a thing that travels up
+            // the page and then sticks. That was right when it governed a tower
+            // somewhere down a long scroll: pinning kept it with the thing it
+            // controls for exactly as long as that thing is on screen. It is
+            // wrong now, because the calendar is the FIRST thing on the page,
+            // so the picker's whole journey is the few points between where it
+            // starts and where it pins — motion with no destination, which
+            // reads as the control being loose.
+            //
+            // In the fixed band it is simply where it is. The page scrolls
+            // under it, which is what the band is for.
+            monthHeader
+                .padding(.bottom, GridConstants.gapTight)
         }
     }
 
@@ -587,7 +609,12 @@ struct MemoriesView: View {
                 transitionNamespace: photoTransition
             )
             .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, GridConstants.gapTight)
+            // **Air, and the owner asked for it by name**: "make the white
+            // space a big part of the designs." The calendar used to start a
+            // `gapTight` under the picker, which on a fixed band reads as the
+            // control sitting ON the grid rather than above it. A full `gapWide`
+            // separates the thing that chooses from the thing it chose.
+            .padding(.top, GridConstants.gapWide)
             // The month is REPLACED, not moved, so it cross-fades. A spring
             // would claim the blocks travelled somewhere.
             .id(vm.monthTitle)

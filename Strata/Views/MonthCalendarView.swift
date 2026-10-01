@@ -46,7 +46,8 @@ struct MonthCalendarView: View {
     let packed: MonthTower.Packed
     /// The month being shown, for its length and its first weekday.
     let month: Date
-    /// The calendar to lay out in. Monday-first, matching the view model's.
+    /// The calendar, for the month's length and for where today falls. It no
+    /// longer decides a column, since the columns are not weekdays.
     let calendar: Calendar
     let width: CGFloat
     var onSelect: (String) -> Void = { _ in }
@@ -56,33 +57,40 @@ struct MonthCalendarView: View {
 
     // MARK: - Geometry
 
-    static let columns = 7
+    /// **FOUR, AND NO WEEKDAYS.** The owner, having seen the seven-column
+    /// version: "I think I liked the 4 per row or whatever it was — don't need
+    /// the day of the week, just need all the days, because I want each day to
+    /// be tappable, and we can keep the quick block size for each day."
+    ///
+    /// Which keeps the half of the calendar he asked for and drops the half he
+    /// did not. What he wanted was that every day is THERE and every day can be
+    /// pressed — a month you can see the shape of and reach into. What a
+    /// seven-column layout adds on top of that is weekday alignment, and that
+    /// costs the thing this page is actually for: at seven columns the cell is
+    /// 48pt, which is not a block, and a day's photograph in it is a stamp.
+    ///
+    /// At four, the cell is the tower's own — `GridConstants.cellSize` on this
+    /// width, the size a Quick win is — so a day on this page and a win on the
+    /// Wins page are the same object at the same size. The days simply run in
+    /// order, which is all a month has to do to be read as one when every cell
+    /// carries its own number.
+    static let columns = 4
     private var spacing: CGFloat { GridConstants.spacing }
     private var cell: CGFloat {
         max((width - spacing * CGFloat(Self.columns - 1)) / CGFloat(Self.columns), 1)
     }
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: cell) }
 
-    /// How many empty cells before the 1st.
-    ///
-    /// `weekday` is 1-based from the calendar's own `firstWeekday`, so this is
-    /// the offset from it rather than from Sunday — which is the whole reason
-    /// the calendar is handed in rather than taken from `.current`. The view
-    /// model lays its months out Monday-first and a header row that disagreed
-    /// with the grid by one column would be worse than no header at all.
-    private var leadingBlanks: Int {
-        guard let first = calendar.date(from: calendar.dateComponents([.year, .month], from: month))
-        else { return 0 }
-        let weekday = calendar.component(.weekday, from: first)
-        return (weekday - calendar.firstWeekday + 7) % 7
-    }
+    // **No leading blanks.** The seven-column version offset the 1st to its
+    // real weekday, which is what makes a calendar a calendar and is exactly
+    // what four columns gives up. The days run from the first cell.
 
     private var dayCount: Int {
         calendar.range(of: .day, in: .month, for: month)?.count ?? 30
     }
 
     private var rows: Int {
-        Int(ceil(Double(leadingBlanks + dayCount) / Double(Self.columns)))
+        Int(ceil(Double(dayCount) / Double(Self.columns)))
     }
 
     /// The day's block, by day of month, so a cell can ask for its own.
@@ -104,12 +112,11 @@ struct MonthCalendarView: View {
         let days = byDay
         let today = todayIfVisible
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            weekdays
             VStack(spacing: spacing) {
                 ForEach(0..<rows, id: \.self) { row in
                     HStack(spacing: spacing) {
                         ForEach(0..<Self.columns, id: \.self) { column in
-                            let day = row * Self.columns + column - leadingBlanks + 1
+                            let day = row * Self.columns + column + 1
                             if day >= 1, day <= dayCount {
                                 MonthCalendarCell(
                                     day: day,
@@ -146,28 +153,9 @@ struct MonthCalendarView: View {
         .frame(width: width, alignment: .leading)
     }
 
-    /// The weekday initials, in the grid's own columns.
-    ///
-    /// Taken from the calendar rather than written out, so a Monday-first
-    /// layout and a Sunday-first one both get the right letters, and a phone
-    /// set to another language gets its own.
-    private var weekdays: some View {
-        HStack(spacing: spacing) {
-            ForEach(0..<Self.columns, id: \.self) { column in
-                Text(Self.initial(for: column, calendar: calendar))
-                    .font(Typography.caption2)
-                    .foregroundStyle(AppColors.inkTertiary)
-                    .frame(width: cell)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private static func initial(for column: Int, calendar: Calendar) -> String {
-        let symbols = calendar.veryShortStandaloneWeekdaySymbols
-        let index = (calendar.firstWeekday - 1 + column) % symbols.count
-        return symbols[index]
-    }
+    // **`weekdays` and `initial(for:calendar:)` are gone** with the seven-column
+    // layout. A row of letters over columns that do not mean weekdays would be
+    // a label that lies.
 }
 
 /// One day. A pane when nothing happened, a block when something did.
@@ -189,10 +177,20 @@ private struct MonthCalendarCell: View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
     }
 
-    /// The day number's size, solved off the cell so it holds at any width.
-    /// A calendar's number is a label on a cell, not a tally — a quarter of the
-    /// side is where it stops being readable and starts being decoration.
-    private var numberSize: CGFloat { side * 0.30 }
+    /// **0.16 of the cell, which is the month tower's own number.**
+    ///
+    /// It was 0.30, and the owner: "why are the dates huge when they should be
+    /// the same size as the tower?" He is right and the number has a source —
+    /// `MonthTowerView` set its day at `cell * 0.16` and solved it off the CELL
+    /// rather than off the type scale, precisely because the numeral is the
+    /// block's coordinate and has to stay in proportion to the block. At an
+    /// 87pt cell that is 14pt against the 26pt I had put there.
+    ///
+    /// Which is the difference between a label on a block and a tally. This
+    /// page already has one number that is allowed to be large — the win count
+    /// under a replay card — and a calendar of 30 big numerals competes with
+    /// every photograph in it.
+    private var numberSize: CGFloat { side * 0.16 }
 
     var body: some View {
         if let block {
@@ -260,6 +258,26 @@ private struct MonthCalendarCell: View {
     private var empty: some View {
         shape
             .fill(AppColors.slotInk.opacity(Self.wellInk * (isFuture ? 0.45 : 1)))
+            // **AND IT WEARS THE LIT EDGE.** The owner: "make sure the empty
+            // days are nice lattice."
+            //
+            // A flat tint is a grey square; what makes the lattice read as a
+            // SURFACE with cells in it is that each pane has an edge made of
+            // light. A fill alone could not do that here, because a white pane
+            // cannot be brighter than a white page — but a faint recess with a
+            // lit rim can, and that is what every empty thing in this app
+            // already is: the tower's slot, the photo well. Same `BlockRim`,
+            // scaled off the cell the way `ColourSwatch` scales its own, so an
+            // empty day and a filled one are the same object with and without
+            // a win in it.
+            .overlay {
+                shape.strokeBorder(
+                    BlockRim.gradient(in: colorScheme),
+                    lineWidth: max(1, GridConstants.blockRimWidth
+                                      * side / GridConstants.blockReferenceCell)
+                )
+                .opacity(isFuture ? 0.45 : 1)
+            }
             .frame(width: side, height: side)
             .overlay(alignment: .bottomLeading) {
                 number(isFuture ? AppColors.inkTertiary.opacity(0.5) : AppColors.inkQuiet,
