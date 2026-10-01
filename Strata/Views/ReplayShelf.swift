@@ -40,6 +40,7 @@ struct ReplayShelf: View {
 
     /// Posters are drawn in the page's scheme and cached per scheme.
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     /// Read here and handed to `PosterPress`: a `ButtonStyle` is not a view,
     /// so an `@Environment` read inside one is not kept up to date.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -129,6 +130,25 @@ struct ReplayShelf: View {
         }
         .frame(width: width, height: height)
         .clipShape(shape)
+        // **AN EDGE, SO A CARD IS A CARD.**
+        //
+        // The owner, 2026-09-30: "the replay boxes area isn't even clear, it
+        // just looks like floating blocks."
+        //
+        // He is describing what a poster IS: a drawing of a tower on the page's
+        // own ground. Clipped to a rounded rectangle and set on a page of the
+        // same colour, the rectangle has no edge anywhere the tower does not
+        // reach it — so what you see is the blocks, loose, with no card around
+        // them. The `quietFill` slot underneath only shows while the poster is
+        // still being drawn.
+        //
+        // A hairline settles it, and it is INK rather than the white rim every
+        // block wears: a white edge needs something darker to be light against,
+        // and this card is white on white. `fillHairline` is the app's own
+        // token for exactly this, already the edge on a profile photograph.
+        .overlay {
+            shape.strokeBorder(GridConstants.fillHairline, lineWidth: 1 / displayScale)
+        }
         // **Nothing fades in when the poster arrives.** It used to cross-fade
         // on `gentleReveal` as each render landed, which is a shelf animating
         // because it appeared: section 5 keeps motion for what a person did.

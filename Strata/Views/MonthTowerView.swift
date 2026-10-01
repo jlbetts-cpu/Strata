@@ -171,7 +171,7 @@ private struct MonthDayBlock: View {
 /// A block with one photograph does not cycle, and a block with none draws
 /// nothing at all — no placeholder, no shimmer. A day is allowed to just be a
 /// colour.
-private struct DayPhotoSlideshow: View {
+struct DayPhotoSlideshow: View {
     let fileNames: [String]
     let size: CGSize
     /// What makes this block's clock its own. The day of the month, so two
@@ -321,30 +321,43 @@ struct MonthPicker: View {
                     }
                 }
             } label: {
-                HStack(spacing: GridConstants.spacing) {
-                    // The same ink as `SectionHeading`, deliberately. The
-                    // page can show SEPTEMBER twice — once here as the control
-                    // over the tower, once below as the gallery's own month —
-                    // and at two different weights of ink that reads as two
-                    // different kinds of thing. It is the same fact twice,
-                    // which is the mistake the tower's header already made
-                    // once ("the filter said Day while the title said Today").
-                    // One label style on the page, whatever the label is for.
-                    Text(title)
-                        .font(Typography.sectionLabel)
-                        .kerning(Typography.sectionKerning)
-                        .textCase(.uppercase)
-                        .foregroundStyle(AppColors.inkSecondary)
+                // **A CONTROL, NOT A LABEL WITH A CHEVRON GLUED ON.**
+                //
+                // The owner, 2026-09-30: "why does the September dropdown look
+                // like that, it doesn't look good at all."
+                //
+                // It was set as a `SectionHeading` — small caps, kerned, in
+                // `inkSecondary` — on the argument that the page can show
+                // SEPTEMBER twice and two weights of ink would read as two
+                // different kinds of thing. That argument is sound and it
+                // produced the wrong object: this is the only control on the
+                // page that changes what the whole page is about, and it was
+                // rendered as the quietest mark on it. A heading that happens
+                // to be tappable is the thing it was already warned against
+                // three comments up.
+                //
+                // So it takes the shape every other control in the app takes —
+                // the header's own month pill on the Wins tab, which this is
+                // the sibling of — and it is set in ink rather than in grey,
+                // because the month IS the subject here. The gallery's own
+                // month heading below stays a heading; one of them is a
+                // control and one is a label, and now they look like it.
+                HStack(spacing: GridConstants.gapTight) {
+                    Text(title.capitalized)
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .contentTransition(.opacity)
                     Image(systemName: "chevron.down")
-                        .iconSize(GridConstants.iconChevron, relativeTo: .footnote, weight: .medium)
-                        .foregroundStyle(AppColors.inkQuiet)
+                        .iconSize(GridConstants.iconChevron, relativeTo: .footnote, weight: .semibold)
+                        .foregroundStyle(AppColors.inkSecondary)
                 }
-                .padding(.horizontal, GridConstants.gapTight)
-                .frame(height: 44)
-                .contentShape(Rectangle())
+                // Layout first, glass after.
+                .padding(.horizontal, GridConstants.gapLabel)
+                .frame(height: GlassIconButton.defaultSide)
+                .glassCapsule(onPage: true)
+                .contentShape(Capsule())
             }
             .accessibilityLabel("Month, \(title). Choose another")
             .accessibilityIdentifier("MonthPicker")

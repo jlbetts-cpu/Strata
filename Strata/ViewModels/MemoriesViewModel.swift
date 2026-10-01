@@ -109,7 +109,7 @@ final class MemoriesViewModel {
         return (sameYear ? Album.Formats.month : Album.Formats.monthYear).string(from: month).uppercased()
     }
 
-    private static let mondayCalendar: Calendar = {
+    static let mondayCalendar: Calendar = {
         var c = Calendar.current
         c.firstWeekday = 2   // Monday, so a week section is Mon–Sun
         return c

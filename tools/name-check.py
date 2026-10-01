@@ -29,10 +29,20 @@ obvious by eye.  Run this before falling in love with a name, not after.
 
     python3 tools/name-check.py mochi sumi nubbi
 
-WHAT THE VERDICT MEANS.  `RISK` is anything over 40,000 ratings in the results:
-big enough that a reviewer knows it.  `clean` means the biggest neighbour is
-small enough that nobody would confuse the two.  Zero results is the best
-possible answer -- it means the word is genuinely yours.
+WHAT THE VERDICT MEANS.
+
+    RISK       something over 40,000 ratings is in the results.  Big enough
+               that a reviewer knows it, which is the 4.1(a) failure mode.
+    TAKEN      an app is already called EXACTLY this.
+    CROWDED    two or more apps ship `Name: something`.  App Store Connect
+               enforces unique names, so that pattern is what a developer does
+               when the bare word is already gone.
+    clean-ish  somebody uses the word, but small and once.
+    CLEAN      nothing in the store carries the word at all.
+
+The count that matters is the second column: HOW MANY apps carry the word, not
+how loud the loudest one is.  A name nobody has heard of and six people already
+use is not an original name.
 
 The iTunes endpoint rate-limits, so this backs off and retries rather than
 reporting a false clean.  A name that "returns nothing" because the request
@@ -47,8 +57,15 @@ import urllib.request
 
 # Over this many ratings and a reviewer has heard of it.
 FAMOUS = 40_000
+# **FIFTY, NOT EIGHT.**  The first version asked for eight results and reported
+# the biggest of them, and that is how `sturdy` came back as "seven results, the
+# biggest a savings bank" when the truth is NINE apps already carry the word.
+# Eight is roughly the number of results a store search returns before it starts
+# listing loosely related apps, which made it a reasonable-looking cap and a
+# silently wrong one: the thing this gate exists to find is not the loudest
+# neighbour, it is HOW MANY people already took the word.
 ENDPOINT = ("https://itunes.apple.com/search"
-            "?term=%s&entity=software&country=us&limit=8")
+            "?term=%s&entity=software&country=us&limit=50")
 
 
 def search(term, tries=4):
@@ -75,11 +92,39 @@ def check(term):
         return
     results = data.get("results", [])
     famous = [r for r in results if (r.get("userRatingCount") or 0) > FAMOUS]
-    verdict = "RISK " if famous else ("CLEAN" if results else "CLEAN (nothing at all)")
-    print("%-10s  %s   %d results" % (term, verdict, len(results)))
-    for r in results[:4]:
-        print("      %-36s %9s ratings"
-              % ((r.get("trackName") or "")[:36], r.get("userRatingCount") or 0))
+    # **Apps whose NAME actually contains the word**, which is the question
+    # somebody choosing a name is really asking. A search returns anything the
+    # index thinks is related; only these are people who took the word.
+    owns = [r for r in results
+            if term.lower().replace(" ", "") in (r.get("trackName") or "").lower().replace(" ", "")]
+    # **`Name: subtitle` is the tell that the bare name is gone.** App Store
+    # Connect enforces unique app names, so a developer who wanted `Sturdy` and
+    # could not have it ships `Sturdy: GLP-1 Tracker`. Two or three of these is
+    # a strong sign the plain word is already reserved by somebody.
+    colons = [r for r in owns if (r.get("trackName") or "").lower().startswith(term.lower() + ":")]
+    exact = [r for r in owns if (r.get("trackName") or "").strip().lower() == term.lower()]
+
+    if famous:
+        verdict = "RISK "
+    elif exact:
+        verdict = "TAKEN"
+    elif len(colons) >= 2:
+        verdict = "CROWDED"
+    elif owns:
+        verdict = "clean-ish"
+    else:
+        verdict = "CLEAN"
+
+    print("%-10s  %-9s  %d apps carry the word (%d results searched)"
+          % (term, verdict, len(owns), len(results)))
+    for r in owns[:6]:
+        print("      %-40s %8s ratings" % ((r.get("trackName") or "")[:40],
+                                           r.get("userRatingCount") or 0))
+    if exact:
+        print("      ^ SOMEBODY IS ALREADY CALLED EXACTLY THIS")
+    elif colons:
+        print("      ^ %d use `%s: something`, which is what people ship when the"
+              " bare name is gone" % (len(colons), term))
     if famous:
         print("      ^ in the neighbourhood of: "
               + ", ".join((f.get("trackName") or "")[:28] for f in famous))

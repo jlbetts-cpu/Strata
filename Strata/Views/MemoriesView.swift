@@ -214,19 +214,23 @@ struct MemoriesView: View {
             }
                 #endif
                 }
-            // The scroll edge, and nothing else. Light and semi-transparent —
-            // it is there to take the hard cut off the top of the content, not
-            // to draw a band across it.
-            .overlay(alignment: .top) {
-                LinearGradient(
-                    colors: [WarmBackground.top.opacity(0.85),
-                             WarmBackground.top.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 18)
-                .allowsHitTesting(false)
-            }
+            // **THE SCROLL EDGE IS GONE, AND IT WAS THE SEAM.**
+            //
+            // The owner: "the header isn't even the same page."
+            //
+            // He is describing a measurement. This faded from
+            // `WarmBackground.top` at 85%, and `top` is the ground BEFORE
+            // `GroundField` and its `seat` darken it — so over the real page
+            // it painted a stripe four levels BRIGHTER than everything around
+            // it. Sampled down the right margin: 247 through the header, 252
+            // across this band, 247 again below. A line you cannot quite see
+            // and cannot stop seeing, exactly under the title.
+            //
+            // It was there to soften the cut when content scrolled under a
+            // floating header. The header does not float any more — the page is
+            // the screen and the header sits above the scroll in its own band —
+            // so there is no cut to soften and nothing left for this to do but
+            // draw the line it was accused of.
             }
             // Covered by a photograph, a replay or a pushed page: nobody can
             // see the month, so its slideshows hold still. It used to also ask
@@ -568,47 +572,20 @@ struct MemoriesView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 36)
         } else {
-            MonthTowerView(
+            // **A CALENDAR, NOT A PACKED TOWER.** See `MonthCalendarView` for
+            // the whole argument; the short version is that first-fit packing
+            // threw away the one thing a month has, which is that a day's
+            // position means which day it is. The lattice this used to need as
+            // a BACKGROUND is inside it now, one pane per cell, which is also
+            // what makes an empty month read as a month.
+            MonthCalendarView(
                 packed: vm.month,
+                month: vm.selectedMonth,
+                calendar: MemoriesViewModel.mondayCalendar,
                 width: monthGridWidth,
                 onSelect: { path.append(.day($0)) },
                 transitionNamespace: photoTransition
             )
-            // **The slots the days sit in.**
-            //
-            // The same surface the Wins tab's tower stands on, from the same
-            // shape, for the reason the owner gave for building it (2026-09-23,
-            // about the tower): "they just don't feel like they fit when there
-            // is a bunch of images... the easy fix would be to add structure
-            // to the background, like a grid of some sort that helps structure
-            // the screen." A month with photographs in half its days is that
-            // same collage, and it was the last grid in the app still floating
-            // on the bare page rather than filling cells.
-            //
-            // **`TowerLatticeShape`, not `TowerLattice`.** The view carries
-            // three rows of overhang above its content and spends its fade in
-            // them, which is right for a tower standing at the bottom of a
-            // viewport and wrong inside a scrolling page: here the overhang
-            // would reach up through the month picker and the page header. A
-            // month is a CLOSED block of days, so its lattice is exactly its
-            // own grid, every empty cell of the rectangle the days pack into
-            // and nothing above it. Strength and fill are the lattice's own
-            // tokens, so the two surfaces cannot drift apart.
-            //
-            // Safe as a background because `MonthTowerView`'s frame IS its
-            // grid (`gridWidth` x `gridHeight`, with no cell cap), so the
-            // cells this draws are the cells the blocks land in by
-            // construction. `StaticTowerView` centres a capped grid inside a
-            // wider frame, which is why the day screen's tower cannot be given
-            // one from outside; that one belongs in the view itself.
-            .background {
-                TowerLatticeShape(cellSize: monthCell,
-                                  spacing: GridConstants.spacing,
-                                  columns: GridConstants.columnCount)
-                    .fill(AppColors.quietFill.opacity(TowerLattice.strength))
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, GridConstants.gapTight)
             // The month is REPLACED, not moved, so it cross-fades. A spring
