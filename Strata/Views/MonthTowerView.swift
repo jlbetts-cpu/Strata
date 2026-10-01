@@ -12,6 +12,14 @@ import SwiftUI
 /// So the cell comes from the grid — four columns at the page width, exactly as
 /// on the Wins tab — and a busy month is simply taller.
 struct MonthTowerView: View {
+    /// **The same lamp the day tower stands under.**
+    ///
+    /// A month is a tower too — four columns, row 0 on the ground, the same
+    /// blocks — and it was lit flat: every block's glow dead centre and every
+    /// rim brightest along its top. Two pages showing the same object under two
+    /// different lights is exactly the thing the owner meant by "make the whole
+    /// app feel like a cohesive experience". One lamp, hung over this grid the
+    /// way `MainAppView` hangs it over the day's. See `BlockLight`.
     let packed: MonthTower.Packed
     /// The width to draw into. Explicit rather than a `GeometryReader`, for the
     /// reason `StaticTowerView` documents: a view that must report its own
@@ -46,11 +54,40 @@ struct MonthTowerView: View {
             }
         }
         .frame(width: gridWidth, height: gridHeight, alignment: .topLeading)
+        .environment(\.blockLight, BlockLight.over(rows: packed.rows))
     }
 
     // MARK: - One day
 
     private func dayBlock(_ block: MonthTower.Block, size: CGSize) -> some View {
+        MonthDayBlock(block: block, size: size, cell: cell, onSelect: onSelect)
+    }
+
+}
+
+/// One day of the month, as a block.
+///
+/// **A view rather than a method, so it can read the lamp.** `BlockLight` is an
+/// environment value — one lamp set on the grid, every block working out its
+/// own corner from where it stands — and a `private func` on the parent is
+/// evaluated in the parent's environment, so it would have got the same aim for
+/// every day of the month. The day tower's `FlippableBlockView` is a view for
+/// exactly the same reason.
+private struct MonthDayBlock: View {
+    let block: MonthTower.Block
+    let size: CGSize
+    let cell: CGFloat
+    var onSelect: (String) -> Void
+
+    @Environment(\.blockLight) private var blockLight
+
+    private var aim: BlockAim {
+        blockLight?.aim(column: block.column, row: block.row,
+                        columnSpan: block.columnSpan, rowSpan: block.rowSpan)
+            ?? .overhead
+    }
+
+    var body: some View {
         Button {
             HapticsEngine.lightTap()
             onSelect(block.dateString)
@@ -62,13 +99,15 @@ struct MonthTowerView: View {
                 // alpha. The tower's photo blocks drop to 0.06 for exactly
                 // this reason and these are the same object.
                 washOpacity: block.photoFileNames.isEmpty
-                    ? GridConstants.blockScrimOpacity : 0.06
+                    ? GridConstants.blockScrimOpacity : 0.06,
+                aim: aim
             ) {
                 ZStack {
                     // The colour is still under the picture, not replaced by
                     // it: it is what the block IS while the photograph
                     // decodes, and it is what shows through the rim.
-                    Rectangle().fill(EtherealFill.fill(block.category.style.baseColor))
+                    Rectangle().fill(EtherealFill.fill(block.category.style.baseColor,
+                                                       aim: aim))
                     DayPhotoSlideshow(fileNames: block.photoFileNames,
                                       size: size,
                                       phase: block.dayOfMonth)

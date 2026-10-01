@@ -250,7 +250,10 @@ struct ProfileView: View {
                 // that is neither in `AppColors` nor taken from content.
                 // `quietFill` is the token for a shape that is only there to be
                 // a shape.
-                .fill(colour.map { AnyShapeStyle($0.style.baseColor) } ?? AnyShapeStyle(AppColors.quietFill))
+                // Lit like a block when it IS a colour; a plain well when it
+                // is the absence of one. See `ColourSwatch`.
+                .fill(colour.map { AnyShapeStyle(EtherealFill.fill($0.style.baseColor)) }
+                        ?? AnyShapeStyle(AppColors.quietFill))
                 .frame(width: Self.swatchSide, height: Self.swatchSide)
                 // **"No colour" still has to read as a choice.** `quietFill` is
                 // 6% ink, so on its own it all but vanishes beside six
@@ -303,6 +306,20 @@ struct ProfileView: View {
                 streakFigure(vm.bestStreak, label: "Best")
             }
             .padding(.vertical, GridConstants.gapTight)
+        // **The app's own surface, not the platform's.**
+        //
+        // Photographed beside the tower, a stock `Form` row is an OPAQUE white
+        // card on a ground that has light in it — paper laid over a lit sheet,
+        // which is a different material from everything the tower is made of.
+        // `PageSurface` is the non-block half of the vocabulary: translucent,
+        // so the ground comes through it the way it comes through a lattice
+        // pane, and wearing `BlockRim`'s edge rather than no edge at all.
+        //
+        // Only on the one-row sections. A multi-row section would get one card
+        // PER ROW, because that is what `listRowBackground` means, and a
+        // stack of five rimmed cards where the platform draws one group is
+        // worse than the platform's own answer.
+        .listRowBackground(PageSurface())
         } header: {
             FormSectionLabel("Streak")
         } footer: {
@@ -371,6 +388,8 @@ struct ProfileView: View {
                 }
             }
             .padding(.vertical, GridConstants.gapTight)
+            // The app's own surface. See the note on `streak`.
+            .listRowBackground(PageSurface())
         } header: {
             FormSectionLabel("Wins per \(unit.name)")
         }
@@ -736,6 +755,8 @@ struct ProfileView: View {
                     SettingsIcon(systemName: "gearshape")
                 }
             }
+            // The app's own surface. See the note on `streak`.
+            .listRowBackground(PageSurface())
         }
     }
 

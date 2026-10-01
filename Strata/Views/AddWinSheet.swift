@@ -471,9 +471,9 @@ struct AddWinSheet: View {
                     withAnimation(GridConstants.motionSmooth) { category = cat }
                 } label: {
                     ZStack {
-                        Circle()
-                            .fill(cat.style.baseColor)
-                            .frame(width: 34, height: 34)
+                        // The same object a block is: lit from inside, with
+                        // the same rim. See `ColourSwatch`.
+                        ColourSwatch(colour: cat.style.baseColor, side: 34)
                         if let icon = cat.iconName {
                             Image(systemName: icon)
                                 .iconSize(13, relativeTo: .footnote, weight: .medium)
