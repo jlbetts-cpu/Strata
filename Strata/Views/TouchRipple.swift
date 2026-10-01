@@ -16,10 +16,21 @@ import SwiftUI
 /// material: touch it and it answers, without claiming anything happened.
 ///
 /// **It must never be mistaken for a button.** So it is rings on water, not a
-/// highlight: no fill, no colour, no sound, no haptic, and it is gone in well
-/// under a second. A control in this app responds by compressing — `charge`,
-/// `tapSquashSpring` — and nothing here does that. If this ever grows a tint or
-/// a tap-through, it has become an affordance and is lying.
+/// highlight: no fill, no colour, and it is gone in well under a second. A
+/// control in this app responds by compressing — `charge`, `tapSquashSpring` —
+/// and nothing here does that. If this ever grows a tint or a tap-through, it
+/// has become an affordance and is lying.
+///
+/// **It does have a haptic now, and the reason is the rule below it.** The
+/// first version said "no haptic", on the argument that a haptic is what a
+/// control gives you. That was right while the ripple fired on EVERY tap,
+/// including taps that opened a sheet — a tick there would have been a second
+/// voice answering the same touch as the button. Now that it only ever fires
+/// where there is no control, the tick is the only thing saying anything at
+/// all, and what it says is "that was a surface". `HapticsEngine.surface` is
+/// the faintest rung in the engine, a third of a `lightTap`, and it is below
+/// everything else on purpose: every other haptic in this app is telling you
+/// about something you did.
 ///
 /// **Why the rings are a white one and a grey one, offset.** Straight off the
 /// reference: neumorphism is one light source, so every raised edge carries a
@@ -83,10 +94,46 @@ struct TouchRipple: Identifiable, Equatable {
     static let offset: CGFloat = 5
     static let shadowBlur: CGFloat = 9
     static let bandWidth: CGFloat = 16
-    static let shadeStrength: Double = 0.62
+    static let shadeStrength: Double = 0.88
     static let lightStrength: Double = 1.0
-    /// #AEAEC0, the reference's shadow colour.
-    static let shade = Color(red: 0.682, green: 0.682, blue: 0.753)
+
+    /// **THE RING'S TWO COLOURS ARE THE PAGE'S, NOT THE REFERENCE'S.**
+    ///
+    /// The owner, 2026-09-30: "make sure the ripple colour matches the
+    /// background as well." He had just had the ground moved off cool and onto
+    /// warm, for the same reason — a value difference across a TEMPERATURE
+    /// difference stops reading as the same material.
+    ///
+    /// The shadow was `#AEAEC0` straight off the neumorphism reference, which
+    /// is a BLUE grey: hue 0.667 against a page that now sits around 0.12. A
+    /// blue-grey ring on a warm page is a bruise, not a dent in it.
+    ///
+    /// So both sides are derived from `WarmBackground.top` and carry its hue
+    /// whatever that becomes. What is kept from the reference is the RELATIONSHIP
+    /// — its `#AEAEC0` sits about a fifth of the way down from its own `#F0F0F3`
+    /// page, and that fifth is what makes the surface look pressed rather than
+    /// painted. One rule for both appearances, so the ring follows the ground
+    /// into dark mode instead of needing a second constant that drifts.
+    static let shade = Color(uiColor: UIColor { traits in
+        let (h, s, b) = Self.groundHSB(traits)
+        return UIColor(hue: h, saturation: min(1, s + 0.06),
+                       brightness: max(0.02, b - 0.21), alpha: 1)
+    })
+
+    /// The lit side: the page, taken up. On the light page that lands on white;
+    /// on the dark one it is a warm grey, because white would be a hole in it.
+    static let light = Color(uiColor: UIColor { traits in
+        let (h, s, b) = Self.groundHSB(traits)
+        return UIColor(hue: h, saturation: s * 0.5,
+                       brightness: min(1, b + 0.22), alpha: 1)
+    })
+
+    private static func groundHSB(_ traits: UITraitCollection) -> (CGFloat, CGFloat, CGFloat) {
+        let ground = UIColor(WarmBackground.top).resolvedColor(with: traits)
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ground.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return (h, s, b)
+    }
 
     /// Whether this ring is still worth drawing, so the layer that draws them
     /// can take itself down — and, more importantly, so the lattice's own
@@ -191,7 +238,7 @@ struct TouchRippleLayer: View {
             layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
             layer.translateBy(x: -TouchRipple.offset, y: -TouchRipple.offset)
             layer.stroke(circle,
-                         with: .color(.white.opacity(TouchRipple.lightStrength * front.fade)),
+                         with: .color(TouchRipple.light.opacity(TouchRipple.lightStrength * front.fade)),
                          lineWidth: band)
         }
         context.drawLayer { layer in
@@ -211,10 +258,8 @@ extension View {
     /// owner asked for it "all over the screen, in the header as well", and the
     /// header is a `safeAreaInset`, which is outside the content it insets.
     ///
-    /// `.simultaneousGesture` rather than `.onTapGesture`, deliberately: a tap
-    /// that lands on a block, the slot or the tab bar must still reach it. This
-    /// only ever adds a ripple; it never consumes the touch, so there is no way
-    /// for it to break something by being attached in the wrong place.
+    /// The gesture lives on a plate BEHIND the content, not on the content, so
+    /// a tap that any control claims never reaches it. See the modifier.
     func touchRipples(_ ripples: Binding<[TouchRipple]>) -> some View {
         modifier(TouchRippleModifier(ripples: ripples))
     }
@@ -237,18 +282,45 @@ private struct TouchRippleModifier: ViewModifier {
             // This is why it is worth the ring being quite strong: most of what
             // it crosses on a full tower is hidden, and what shows is the part
             // of the page nothing is standing on.
-            .background { TouchRippleLayer(ripples: ripples) }
+            // **AN ORDINARY TAP ON THE CONTAINER, AND THAT IS THE WHOLE
+            // GATING MECHANISM.**
+            //
+            // The owner: "the ripple only shows up when you click on an area
+            // with no button, not one with a button — right, that's the right
+            // way to go about it." It is, and the gesture was doing the exact
+            // opposite: a `.simultaneousGesture`, which is the one kind that
+            // CANNOT be swallowed. Every tap rippled — opening a win, pressing
+            // the slot, changing tab — so the page was answering touches
+            // something else had already answered. Two voices for one event.
+            //
+            // SwiftUI gives a CHILD's gesture priority over its container's, so
+            // a plain `.onTapGesture` here is exactly the rule he asked for and
+            // needs nothing to know about anything else: a block, a button, the
+            // slot and the tab bar each take their own tap, and only a tap that
+            // nothing claimed reaches this. A control added tomorrow is excluded
+            // the moment it is added.
+            //
+            // **A plate behind the content was tried first and does not work.**
+            // The obvious shape — a transparent, hit-testable rectangle in the
+            // background, so only unclaimed taps fall through to it — never
+            // fired once. Built, tapped on a real simulator with the handler
+            // logging, and the log stayed empty for taps on the page, on the
+            // header and on empty grid alike.
+            //
+            // Verified the same way, which is the only way this could be
+            // verified at all since nothing here can tap: a tap on the empty
+            // page logs, and a tap on a block opens the edit sheet and logs
+            // nothing.
+            .onTapGesture(coordinateSpace: .named(TouchRipple.space)) { location in
+                HapticsEngine.surface()
+                ripples.append(TouchRipple(at: location, born: Date()))
+                sweep()
+            }
+            .background { TouchRippleLayer(ripples: ripples).allowsHitTesting(false) }
             // One space for the whole page, so the lattice — which is inside a
             // scroll view, inside the tower, several frames deep — can work out
             // where the finger was relative to its own cells.
             .coordinateSpace(.named(TouchRipple.space))
-            .simultaneousGesture(
-                SpatialTapGesture(coordinateSpace: .named(TouchRipple.space))
-                    .onEnded { value in
-                        ripples.append(TouchRipple(at: value.location, born: Date()))
-                        sweep()
-                    }
-            )
     }
 
     /// **Dead rings are dropped on a timer, not on the next tap.**

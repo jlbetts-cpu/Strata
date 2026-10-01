@@ -44,10 +44,30 @@ struct WarmBackground: View {
     /// somewhere. Pure black would be the ethereal thing this app is going
     /// for turning into a void: there would be no ground for a block to stand
     /// on, only an absence behind it.
+    /// **AND IT IS WARM, WHICH IT WAS NOT.**
+    ///
+    /// The owner, 2026-09-30: "I don't like how much the buttons stick out like
+    /// a sore thumb, like there is no continuity. I think it's because the
+    /// background is greyish so it doesn't really mesh well."
+    ///
+    /// He is right and the measurement is sharper than the word "greyish".
+    /// Sampled beside the header's pill, the page read (230, 232, 234) — blue
+    /// four levels ABOVE red — while the pill read (249, 249, 248) and the tab
+    /// bar (232, 228, 223), both neutral-to-warm. And the page did not even
+    /// agree with itself: at mid-height it read (237, 236, 232), warm. So the
+    /// ground flipped temperature down its own height, and it was at its
+    /// coolest exactly where both buttons live.
+    ///
+    /// That is what reads as "doesn't mesh". A nineteen-level value gap is
+    /// ordinary — chrome is meant to be lighter than its page — but a value gap
+    /// ACROSS a temperature reversal makes the button a different material
+    /// rather than a brighter piece of the same one.
+    ///
+    /// Warm now, and the same warm the chrome is, all the way down.
     static let top = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.112, green: 0.108, blue: 0.102, alpha: 1)
-            : UIColor(red: 0.956, green: 0.962, blue: 0.972, alpha: 1)
+            : UIColor(red: 0.972, green: 0.969, blue: 0.962, alpha: 1)
     })
 
     /// **One colour, not a gradient.** It was a top-to-bottom gradient

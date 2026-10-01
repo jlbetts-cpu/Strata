@@ -1260,9 +1260,17 @@ struct MainAppView: View {
         gridH - f.minY - f.height
     }
 
+    /// **Measurement only, and it must take no touches.**
+    ///
+    /// A `Color` is hit-testable in SwiftUI however transparent it is, and this
+    /// one covers the whole page as a background of the tower. Under the new
+    /// touch-ripple plate — which sits further back still, so that only a tap no
+    /// control claimed reaches it — this swallowed every one of them, and the
+    /// page answered nothing anywhere. Tapped on a real simulator to find it.
     private var geometryTracker: some View {
         GeometryReader { geo in
             Color.clear
+                .allowsHitTesting(false)
                 .onAppear {
                     screenHeight = geo.size.height
                     safeAreaTop = geo.safeAreaInsets.top
@@ -2507,11 +2515,18 @@ struct MainAppView: View {
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .topLeading) {
-                    // Top anchor for FAB scroll
+                    // Top anchor for FAB scroll. Measurement only — see
+                    // `geometryTracker` on why a clear colour has to say so.
                     Color.clear.frame(height: 1)
+                        .allowsHitTesting(false)
                         .id("TowerTop")
 
                     Color.clear
+                        // Measurement only — see `geometryTracker`. This one
+                        // covers the whole grid, so without it the tower's empty
+                        // cells are the one place on the page that cannot
+                        // answer a touch.
+                        .allowsHitTesting(false)
                         .frame(width: gridW,
                                height: max(gridH, 1) + footerReserve)
                         // Where the grid really is, so a fall can start above

@@ -193,8 +193,20 @@ struct GroundField: View {
         // a touch cool along the top, a touch warm at the foot -- which is what
         // stops a field of one colour reading as a flat fill. The light and the
         // depth survive; the sky and the sun do not.
-        white(0.968, 0.58), white(0.972, 0.58), white(0.964, 0.58),
-        white(0.976, 0.58), white(0.992, 0.12), white(0.970, 0.58),
+        // **AND THE TOP IS NO LONGER COOL.** It was hue 0.58 across the top
+        // three points — a blue near-white — on the reasoning that a sheet held
+        // up to the sky is cool at the top and warm at the foot. Measured on
+        // the built page that put the coolest part of the ground exactly where
+        // the header's two buttons sit, and the owner saw it: "the background
+        // is greyish so it doesn't really mesh well."
+        //
+        // The temperature difference survives, because a field of one colour
+        // reads as a flat fill — but it is now a difference WITHIN warm (0.14
+        // at the top against 0.08 at the foot) rather than a reversal across
+        // neutral. And the top is lifted, so the gap to a 249 pill is about
+        // eight levels instead of nineteen.
+        white(0.994, 0.14), white(0.997, 0.14), white(0.991, 0.14),
+        white(0.990, 0.14), white(0.992, 0.12), white(0.986, 0.14),
         white(0.958, 0.08), white(0.966, 0.08), white(0.954, 0.08),
     ]
 

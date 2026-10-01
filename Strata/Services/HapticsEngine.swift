@@ -43,6 +43,21 @@ enum HapticsEngine {
         lightGenerator.prepare()
     }
 
+    /// **The page answering a touch.** The faintest thing this engine can make.
+    ///
+    /// `lightTap` at 0.5 is a confirmation — it says something happened. This
+    /// says only that the surface is there, which is the whole claim of
+    /// `TouchRipple`: you touched a material and it is a material. A third of
+    /// that intensity is about the floor of what the Taptic Engine will render
+    /// as a distinct event rather than a buzz, and it is deliberately below
+    /// every other rung here, because everything else in this app that makes a
+    /// haptic is telling you about a thing you did.
+    static func surface() {
+        guard isEnabled else { return }
+        lightGenerator.impactOccurred(intensity: 0.17)
+        lightGenerator.prepare()
+    }
+
     /// Notification success — milestone moments ("All done!", achievements)
     static func success() {
         guard isEnabled else { return }
