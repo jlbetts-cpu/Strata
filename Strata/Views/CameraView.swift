@@ -125,8 +125,10 @@ struct CameraView: View {
         /// a fourth grey nobody chose.
         static let colour = AppColors.onDarkQuiet
         static let width: CGFloat = 1
-        /// How much of the frame the bottom fade occupies.
-        static let fadeHeight: CGFloat = 0.20
+        // **`fadeHeight` is gone.** It was the bottom dissolve expressed as a
+        // fraction of the frame, which is the wrong unit for it: the thing the
+        // grid has to stop short of is the control row, and the row is placed
+        // in points from the bottom edge. `guides` solves it from the row now.
     }
 
     /// **The line the top of this screen is measured from.**
@@ -211,7 +213,7 @@ struct CameraView: View {
                 // two lines through the middle of the sentence explaining
                 // that. Same rule the guides already follow: they are for the
                 // picture, not for the screen.
-                guides(w: w, h: h,
+                guides(w: w, h: h, bottomInset: bottomInset,
                        shown: camera.showsGuides && !camera.isDenied)
                     .allowsHitTesting(false)
 
@@ -417,10 +419,25 @@ struct CameraView: View {
     /// from an app that failed to start.
     ///
     /// Three lines and one button, in the viewfinder's own register: white on
-    /// black, the app's ink is for the page and would be invisible here. The
-    /// glass capsule is legitimate at this one — `GlassIconButton.swift`'s rule
-    /// is that glass belongs over content, and a viewfinder is the case it
-    /// names.
+    /// black, the app's ink is for the page and would be invisible here.
+    ///
+    /// **The glass capsule is gone, and the reason it was wrong is written at
+    /// the top of `GlassIconButton.swift`.** That file's one rule is: before
+    /// adding a caller, answer what is UNDERNEATH it. "A viewfinder" was the
+    /// answer given here, and on this state it is not true: the session never
+    /// started, so there is no scene, no refraction and nothing for the
+    /// material to be a material over. `GlassRecipe.onPage` documents the same
+    /// failure in the other direction: `.regular` over a smooth near-white
+    /// field collapses to a flat opaque capsule, because blurring a flat field
+    /// returns the same flat field.
+    ///
+    /// Measured on the built screen, over pure black: the capsule rendered
+    /// rgb(19, 19, 19) against an rgb(0, 0, 0) ground, which is **1.13:1** on a
+    /// 3:1 floor for a shape. It was not a quiet container, it was an absent
+    /// one, and nothing about it could be tuned toward 3:1 without it becoming
+    /// a 36% grey slab on a black screen. The word carries the button at
+    /// 21:1 and takes the app's press response, which is what every plain
+    /// action button on the platform is.
     ///
     /// It does not try to re-ask. Once the answer is no, iOS will not present
     /// the prompt again, and a button that looked like it might is worse than
@@ -429,24 +446,43 @@ struct CameraView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: GridConstants.gapItem) {
-                Text("Strata cannot see the camera")
+                // **"cannot see" is out.** Head and camera copy in this app
+                // never reads as watching, and "see" beside "camera" is the
+                // exact register that rule guards. It was also simply wrong
+                // about the fault: the lens is there and working, the app has
+                // not been allowed to use it, and naming the permission is
+                // what makes the button below make sense.
+                Text("Strata cannot use the camera")
                     .font(Typography.screenTitle)
                     .foregroundStyle(.white)
                 Text("A win can be a photograph. Turn the camera on for Strata in Settings and this becomes the viewfinder.")
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.onDarkSecondary)
                     .padding(.bottom, GridConstants.gapItem)
-                Button("Open Settings") {
+                Button {
                     HapticsEngine.lightTap()
                     guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                     UIApplication.shared.open(url)
+                } label: {
+                    Text("Open Settings")
+                        // The middle tier, not the body tier. It was
+                        // `bodyLarge`, the same size and weight as the
+                        // sentence above it, so the only thing separating the
+                        // action from the explanation was that one was white
+                        // and one was 75% white. `headerSmall` is the tier the
+                        // review screen's Retake and Use Photo are set in, so
+                        // the camera's actions are one size everywhere.
+                        .font(Typography.headerSmall)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, GridConstants.gapWide)
+                        // Unchanged: the drawn word is the size it is drawn,
+                        // the thing a thumb has to find is 44.
+                        .frame(height: GlassIconButton.defaultSide)
+                        .contentShape(Rectangle())
                 }
-                .font(Typography.bodyLarge)
-                .foregroundStyle(.white)
-                .padding(.horizontal, GridConstants.gapWide)
-                .frame(height: GlassIconButton.defaultSide)
-                .glassCapsule()
-                .buttonStyle(.plain)
+                // `.pressWord`, not `.press`: the file's own note says a word
+                // at 6% reads as a wobble, so it moves less and dims more.
+                .buttonStyle(.pressWord)
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, GridConstants.gapWide)
@@ -462,16 +498,44 @@ struct CameraView: View {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer(minLength: 0)
+                // **THE SPACERS HAD NO MINIMUM AND A PORTRAIT SHOT USES EVERY
+                // POINT, SO THE PICTURE LANDED ON THE CHROME.**
+                //
+                // Measured on the built review at 402x874 with the 3:4 frame a
+                // phone actually produces in portrait: the photograph ran
+                // 80.7 to 603.3 and the first film-look swatch began at 604.
+                // **A 0.7pt gap**, on a screen where every other gap is 24 or
+                // 40. It was not a tuning miss, it was the spacers: at
+                // `minLength: 0` the picture is free to take the entire region
+                // and a 3:4 one does, so the bottom spacer resolves to nothing
+                // and the strip is simply the next thing after the photograph.
+                // The side margins told the same story from the other end:
+                // 5.0pt left and 5.3pt right, which is not "edge to edge", it
+                // is edge to edge missing by a sliver, and a sliver reads as a
+                // misalignment rather than as a margin.
+                //
+                // `gapLabel` as the floor on both, which is the gap between a
+                // heading and what it heads and the smallest one on this
+                // screen. It costs the picture 32pt of height, so a 3:4 frame
+                // goes from 391.7 x 522.7 to 367.7 x 490.3: 16 above, 16
+                // below, 17.2 either side. A print with even air on four sides
+                // rather than one touching two things and nearly touching two
+                // more.
+                //
+                // **A fuller 24 was tried and is wrong here.** It takes the
+                // picture to 355.7 wide, 9% narrower, and the photograph is
+                // the subject of this screen; buying an eight-point gap with
+                // that is the wrong trade.
+                Spacer(minLength: GridConstants.gapLabel)
 
-                // **Edge to edge, the way the system camera shows a shot.**
+                // **As large as the air allows, not literally to the edges.**
                 //
                 // It was an inset print with the app's surface radius, which
                 // is right in the VIEWER — a photograph you are revisiting is
                 // an object on a page — and wrong here. This is the frame you
-                // just took, still warm, and every camera on the phone shows
-                // it filling the screen. Insetting it made the review feel
-                // like a preview of a card rather than the picture itself.
+                // just took, still warm. So it stays as big as it can be and
+                // takes no radius, and the only thing that changed is that its
+                // room is now guaranteed rather than left over.
                 Image(uiImage: looked ?? image)
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),
@@ -494,8 +558,36 @@ struct CameraView: View {
                                 for: BlockCropOutline.crop(photo: image.size, block: drawnSize)),
                             look: FilmLook.look(FilmLook.Kind(rawValue: lookRaw) ?? .none))
                     }
+                    // **The size control hangs off the PICTURE, not off the
+                    // top of the screen.**
+                    //
+                    // It was a second `VStack` in this `ZStack` padded to
+                    // `topInset + Header.topPadding`, which put it at a fixed
+                    // 81pt down the screen whatever the photograph did. With
+                    // the 3:4 frame that lands at exactly the photograph's own
+                    // top edge (measured: capsule top 81.0 against picture
+                    // top 80.7), so the control looked glued to the edge of
+                    // the print rather than floating in it. With a LANDSCAPE
+                    // 4:3 frame it is worse and it is a plain bug: the picture
+                    // is 301.5pt tall and centres at y 191.4, leaving the
+                    // control stranded 110pt above it in the black, pointing
+                    // at nothing.
+                    //
+                    // An overlay on the image fixes both at once, because the
+                    // image's layout frame under `.aspectRatio(_:.fit)` IS the
+                    // drawn picture's rectangle, the same fact the crop
+                    // outline above already relies on. Declared last so it
+                    // takes its own taps: the head sticker's drag covers the
+                    // whole picture and later siblings are hit first.
+                    //
+                    // `gapLabel` inside the top edge, the same floor the
+                    // spacers above and below the picture now use, so the
+                    // control sits in the print rather than on its rim.
+                    .overlay(alignment: .top) {
+                        sizePicker.padding(.top, GridConstants.gapLabel)
+                    }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: GridConstants.gapLabel)
 
                 FilmLookStrip(photo: image, selection: Binding(
                     get: { FilmLook.Kind(rawValue: lookRaw) ?? .none },
@@ -566,55 +658,87 @@ struct CameraView: View {
             // either of them changes.
             .task(id: LookRequest(photo: image, look: lookRaw)) { await showLook(on: image) }
 
-            // **The size in a word, at the top, not a square in the middle.**
-            //
-            // A white rounded rectangle sat between Retake and Use Photo,
-            // drawing the footprint of the block you had pulled out of the
-            // shutter. The owner: "there is a random square in the middle."
-            // It was — nothing on that screen explained it, and the bottom row
-            // of a camera review is somewhere everybody already knows the
-            // shape of: one word left, one word right, nothing between them.
-            // The size still matters, so it is said rather than drawn.
-            // **The size, still changeable.** It was the word alone, which
-            // said what you had drawn and offered no way to change your mind
-            // without retaking the photograph. The owner: "on that screen you
-            // should be able to change its size on the top." Three words, the
-            // one you are on lit — the same language the shutter's draw
-            // gesture speaks, and the crop outline below follows it.
-            VStack {
-                HStack(spacing: 0) {
-                    ForEach(BlockSize.allCases, id: \.self) { option in
-                        Button {
-                            guard option != drawnSize else { return }
-                            HapticsEngine.tick()
-                            withAnimation(GridConstants.slotSnap) { drawnSize = option }
-                        } label: {
-                            // Sentence case in `headerSmall`: these are
-                            // choices, not headings. Uppercase kerned words
-                            // are `SectionHeading`'s style, and the add sheet
-                            // spells the same three options in sentence case.
-                            Text(option.effortLabel)
-                                .font(Typography.headerSmall)
-                                .foregroundStyle(option == drawnSize
-                                                 ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
-                                .padding(.horizontal, GridConstants.gapItem)
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
-                    }
+        }
+    }
+
+    /// **The size in a word, at the top, not a square in the middle.**
+    ///
+    /// A white rounded rectangle sat between Retake and Use Photo, drawing the
+    /// footprint of the block you had pulled out of the shutter. The owner:
+    /// "there is a random square in the middle." It was: nothing on that
+    /// screen explained it, and the bottom row of a camera review is somewhere
+    /// everybody already knows the shape of: one word left, one word right,
+    /// nothing between them. The size still matters, so it is said rather than
+    /// drawn.
+    ///
+    /// **The size, still changeable.** It was the word alone, which said what
+    /// you had drawn and offered no way to change your mind without retaking
+    /// the photograph. The owner: "on that screen you should be able to change
+    /// its size on the top." Three words, the one you are on lit, in the same
+    /// language the shutter's draw gesture speaks, and the crop outline below
+    /// follows it.
+    ///
+    /// **Its own property, and placed by the picture rather than by the
+    /// screen.** See the overlay in `reviewLayer` for why.
+    private var sizePicker: some View {
+        HStack(spacing: 0) {
+            ForEach(BlockSize.allCases, id: \.self) { option in
+                Button {
+                    guard option != drawnSize else { return }
+                    HapticsEngine.tick()
+                    withAnimation(GridConstants.slotSnap) { drawnSize = option }
+                } label: {
+                    // Sentence case in `headerSmall`: these are choices, not
+                    // headings. Uppercase kerned words are `SectionHeading`'s
+                    // style, and the add sheet spells the same three options
+                    // in sentence case.
+                    Text(option.effortLabel)
+                        .font(Typography.headerSmall)
+                        // **`onDarkQuiet` was the wrong token on this ground.**
+                        //
+                        // The `onDark` scale is defined against the
+                        // viewfinder's BLACK, and `CategoryColors` states its
+                        // ratios there: strong 18.8:1, secondary 12.0:1, quiet
+                        // 6.7:1. The ground here is not black, it is whatever
+                        // photograph you just took. Measured on the built
+                        // review, with the capsule rendering rgb(108, 102,
+                        // 130) over a mid-tone frame, the two unlit words
+                        // came out at **2.91:1** against a 4.5:1 floor. The
+                        // lit one was fine at 5.07:1, which is how this got
+                        // past: one of the three words passed.
+                        //
+                        // Secondary, not quiet. On the same measured ground
+                        // under the darker panel below, 0.75 white lands at
+                        // 5.83:1 and the lit word at 8.1:1, so the two are
+                        // still plainly different and both are readable.
+                        .foregroundStyle(option == drawnSize
+                                         ? AppColors.onDarkStrong : AppColors.onDarkSecondary)
+                        // The app's named treatment for light type over
+                        // imagery it does not control. The panel carries most
+                        // of it; this is what holds the words up over a
+                        // blown-out sky, where a translucent material is at
+                        // its lightest.
+                        .legibleOnImagery()
+                        .padding(.horizontal, GridConstants.gapItem)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                // The app's own capsule for a control whose label is a word,
-                // not a private grey. It was a flat 35% black back when this
-                // was a LABEL saying which size you had drawn; now that it is
-                // three words you can press, it is the same kind of thing as
-                // the Memories header's control and wears the same material.
-                .glassCapsule()
-                .padding(.top, topInset + Header.topPadding)
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
             }
         }
+        // **This panel carries TYPE, and it was wearing the glyph recipe.**
+        //
+        // `glassCapsule()` is `.regular.interactive()` with no ink, which is
+        // the material `GlassIconButton.swift` describes as right for a
+        // control holding one chevron: "a button can be almost invisible
+        // because it holds one chevron, and the chevron is legible against
+        // anything. Four rows of names need a ground." Three names need one
+        // too. That file's own measured table puts bare `.regular` at 1.56:1
+        // over a bright sky and `.regular` plus 30% ink at 5.44:1, and
+        // `GlassRecipe.typePanel` is that second row.
+        //
+        .glassCapsule(carriesType: true)
     }
 
     /// What the shown preview is of: a photograph and a look together, so
@@ -821,7 +945,40 @@ struct CameraView: View {
     /// appeared. `gentleReveal` is 0.22s and all but critically damped: an
     /// overshoot here would run the line past its own end, and nothing about
     /// a button press is momentum.
-    private func guides(w: CGFloat, h: CGFloat, shown: Bool) -> some View {
+    private func guides(w: CGFloat, h: CGFloat, bottomInset: CGFloat,
+                        shown: Bool) -> some View {
+        // **THE GUIDES STOP WHERE THE CONTROL ROW STARTS, IN POINTS.**
+        //
+        // The fade used to be a FRACTION of the frame (clear at 0.89h) while
+        // the control row is placed from the frame's BOTTOM EDGE
+        // (`bottomInset + shutterBottomGap`). Two anchors in opposite
+        // directions, so where the grid met the row was whatever the
+        // arithmetic happened to produce on that phone.
+        //
+        // Measured on the built screen at 402x874, h = 873, bottomInset = 82:
+        // the fade went clear at 777 and the shutter's rim starts at 671, so
+        // the whole control row sat inside the grid. The vertical at 268.2 ran
+        // straight THROUGH the flip glyph (ink 265.3 to 289.3) and the one at
+        // 134.2 cleared the flash glyph by 3.2pt. At the glyph row the lines
+        // still measured rgb 42 to 60 on black; over a daylit scene they are
+        // 55% white crossing a 21pt symbol.
+        //
+        // So the clear point is now the row's own top, computed from the same
+        // expression that places the row. On any screen the two agree by
+        // construction rather than by coincidence.
+        //
+        // **The fade cannot simply start higher to compensate.** The lower
+        // horizontal rule sits at 2/3 h = 582, and anything that dims it while
+        // the upper one at 291 stays full renders a rule of thirds with two
+        // weights, which is worse than the collision. So the run is bounded
+        // below by that rule plus `gapTight`: 590 to 671 here, an 81pt
+        // dissolve on a 1pt line, where it was 183.
+        let rowTop = h - bottomInset - shutterBottomGap
+            - Self.shutterBounds(.small).height
+        let clear = max(0, min(h, rowTop))
+        let solid = max(0, min(clear, h * Guide.horizontalY[1] + GridConstants.gapTight))
+        let span = max(h, 1)
+
         // **BOTH VERTICALS RUN THE WHOLE HEIGHT NOW.**
         //
         // The first one used to be cut, and the break was good: it held the
@@ -865,18 +1022,19 @@ struct CameraView: View {
         // again while a line is still drawing sends it back from where it is,
         // because a spring animates from the presentation value.
         .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: shown)
-        // The grid dissolves before it reaches the tab bar.
+        // The grid dissolves before it reaches the controls.
         //
-        // Ruled lines running hard into a floating bar is the one place this
-        // screen looked pasted together — two systems meeting at an edge
-        // neither of them drew. Fading them out over the last stretch means
-        // the page stops rather than being cut off.
+        // Ruled lines running hard into chrome is the one place this screen
+        // looked pasted together: two systems meeting at an edge neither of
+        // them drew. Fading them out over the last stretch means the page
+        // stops rather than being cut off. See the note at the top of this
+        // function for where the two stops come from.
         .mask(
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0),
-                    .init(color: .black, location: 1 - Guide.fadeHeight * 1.6),
-                    .init(color: .clear, location: 1 - Guide.fadeHeight * 0.55)
+                    .init(color: .black, location: solid / span),
+                    .init(color: .clear, location: clear / span)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -899,15 +1057,22 @@ struct CameraView: View {
         // A row also makes the arrangement honest: the settings sit either
         // side of the shutter, inside the arc a thumb already sweeps.
         //
-        // **The margin is what is left over, not a fixed 44.** The row was
-        // four glyphs and a shutter, which is 256pt, and 44 either side left
-        // 58pt of air on a 402pt phone. The looks glyph makes it five and
-        // 300pt, which still fits there but is 13pt wider than an SE has
-        // room for, and a row that overflows its own margin is a row that
-        // looks squeezed on the smallest phone and correct on the biggest.
-        // Solving for the margin instead keeps the air even on every screen,
-        // floored at the app's own page margin.
-        let rowWidth = Self.controlSide * 5 + Self.shutterBounds(.small).width
+        // **The margin is what is left over, not a fixed 44.** Four glyphs and
+        // a shutter is 256pt, and 44 either side leaves 58pt of air on a 402pt
+        // phone. A row that overflows its own margin looks squeezed on the
+        // smallest phone and correct on the biggest, so solving for the margin
+        // instead keeps the air even on every screen, floored at the app's own
+        // page margin.
+        //
+        // **The multiplier was 5 and there are 4 glyphs.** It was right while
+        // the looks button was in this row; that button moved to the top right
+        // and the arithmetic did not follow, so the row has been solving for a
+        // 300pt object that is 256pt wide. On a 402pt screen it does not show,
+        // because `(402 - 300) / 2` is 51 and the `min(44, ...)` caps it
+        // anyway. On an SE's 375 it does: the stale figure gives a 37.5pt
+        // margin where the real one gives the full 44, so the row was pinched
+        // by 6.5pt a side on the one phone the cap was written to protect.
+        let rowWidth = Self.controlSide * 4 + Self.shutterBounds(.small).width
         let rowMargin = max(GridConstants.horizontalPadding,
                             min(44, (w - rowWidth) / 2))
         return ZStack(alignment: .bottom) {
@@ -1019,11 +1184,50 @@ struct CameraView: View {
             }
             .padding(.horizontal, rowMargin)
             .padding(.bottom, bottomInset + shutterBottomGap)
+            // **FIVE CONTROLS FOR A CAMERA THAT CANNOT RUN.**
+            //
+            // The refused screen kept this whole row. The shutter was dimmed
+            // to 0.3 and its gesture disabled, and the four glyphs were left
+            // live, so a tap on "Show the grid" flipped a stored preference
+            // that `guides` suppresses while denied, the flip button turned a
+            // session that is not running, and the timer counted down to a
+            // photograph that cannot be taken. Measured on the built screen:
+            // zero of five controls could change anything, and the disabled
+            // shutter alone was 3,836pt^2 of rgb(77, 77, 77), the largest
+            // object on the page and the brightest thing on it after the
+            // headline it was competing with.
+            //
+            // The note it carried said the row stayed so the way out of the
+            // screen stayed where it always is. That was already untrue: the
+            // way out is the tab bar, which is the system's and is not in this
+            // view at all, and the close button below is a sibling of the row
+            // rather than part of it, so it survives this.
+            //
+            // The subject of a refused camera is one sentence and one button.
+            // Everything else is subtraction.
+            //
+            // Ruled out rather than removed, which is the same choice `body`
+            // already makes for the review state: an `if` would unmount the
+            // row and remount it the moment permission changed, and the
+            // shutter is
+            // the one thing on this screen that must never arrive by animating
+            // itself in. `accessibilityHidden` as well as `allowsHitTesting`,
+            // because a 0-opacity button is still a button to VoiceOver and
+            // reading out four controls that do nothing is the same bug with
+            // the screen turned off.
+            .opacity(camera.isDenied ? 0 : 1)
+            .allowsHitTesting(!camera.isDenied)
+            .accessibilityHidden(camera.isDenied)
 
             if let onClose {
                 GlassIconButton(
                     systemName: "xmark",
-                    tint: .white,
+                    // The token, not a raw white. This and the head maker's
+                    // close are the same button on the two dark screens and
+                    // this was the last place on the pair that wrote the
+                    // colour out by hand. 0.95 against 1.0 is not a visible
+                    // change; a screen with its own idea of white is.
+                    tint: AppColors.onDarkStrong,
                     glyphSize: 16,
                     accessibilityLabel: "Close camera",
                     action: onClose
@@ -1223,32 +1427,33 @@ struct CameraView: View {
     }
 
     private var shutter: some View {
-        let bounds = Self.shutterBounds(drawnSize)
-        let inner = CGSize(width: bounds.width - 14, height: bounds.height - 14)
-        let outerRadius = min(bounds.width, bounds.height) * 0.147
-        return ZStack {
-            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                .strokeBorder(.white, lineWidth: 1)
-                .frame(width: bounds.width, height: bounds.height)
-
-            // ONE block, in the shape you are drawing.
-            //
-            // It was a grid of cells — two squares for a 2x1, four for a 2x2 —
-            // which was wrong twice over: it read as a keypad, and a 2x1 in
-            // this app is not two blocks, it is one block two cells wide.
-            RoundedRectangle(cornerRadius: min(inner.width, inner.height) * 0.147,
-                             style: .continuous)
-                .fill(.white)
-                .frame(width: inner.width, height: inner.height)
-                .scaleEffect(shutterScale)
-        }
+        // One control, drawn in one place. See `ShutterBlock`: this and the
+        // head maker's were two copies of the same rim and block, and the
+        // audit improved one of them and left them disagreeing.
+        let block = ShutterBlock(size: drawnSize, lit: true, scale: shutterScale)
+        return block
         .animation(GridConstants.slotSnap, value: drawnSize)
-        // **Quiet and inert while the camera is refused**, rather than a
-        // full-white button promising a photograph it cannot take. Kept on
-        // screen rather than removed: the row is the same row on both states,
-        // and the thing that explains the button is the sentence above it.
-        .opacity(camera.isDenied ? 0.3 : 1)
-        .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
+        // **THE ONE PIECE OF CHROME HERE THAT HAD NO ANSWER FOR A WHITE WALL.**
+        //
+        // Every other mark on the viewfinder already carries `Legibility`: the
+        // four glyphs, the countdown, the timer's digit, the exposure sun. The
+        // shutter, the biggest object on the screen and the only primary
+        // action, did not, and it is white fill inside a white 1pt rim with a
+        // 6pt gap that shows the scene THROUGH it. On the simulator's black
+        // frame it measures 255 on 0 and looks perfect. Point it at a lit wall
+        // and every part of it is white on white: the rim, the fill and the gap
+        // all go to the same value, and the only control that takes a
+        // photograph disappears.
+        //
+        // A scrim under the row was the other candidate and is the thing the
+        // house rule rejects: it is a band of ink laid over the picture, on a
+        // screen whose whole argument is that the picture is the only lit
+        // thing on it. This is the treatment the app already named for exactly
+        // this case ("white type over imagery it does not control"), applied
+        // to the one control that was missing it. On black it costs nothing,
+        // because a 42% black blur on black is black.
+        .legibleOnImagery()
+        .contentShape(block.shape)
         .gesture(draw, isEnabled: !camera.isDenied)
         .accessibilityLabel("Take photo")
         .accessibilityValue(drawnSize.effortLabel)

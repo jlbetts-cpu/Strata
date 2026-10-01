@@ -245,12 +245,19 @@ struct ReplayFrame: View {
     /// fact. The words "Your week" are the app talking about itself, which
     /// the person the video is sent to does not need.
     ///
-    /// It arrives up 8pt with opacity as the reveal starts, and a Settings
-    /// preview's "Sample" follows it 80ms later.
+    /// It arrives up 8pt with opacity in the hold after the last block lands,
+    /// settling exactly as the camera starts to pull out, and a Settings
+    /// preview's "Sample" follows it 80ms later. It used to start WITH the
+    /// reveal and was lost under it: see `ReplayScript.titleStart`.
     private var rangeLine: some View {
         let range = script.titleArrival(0, at: t)
         let badge = script.titleArrival(1, at: t)
-        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+        // `gapTight`, not the 6 on the line above. That 6 is the Wins tab's
+        // own number (`MainAppView.headerCount`), and it is an optical gap
+        // between a 34pt numeral and a 15pt caption; it was copied down here
+        // where the pair is two words at the same size, which is the ladder's
+        // "things that belong to each other" and therefore 8.
+        return HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
             Text(rangeText)
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkQuiet)

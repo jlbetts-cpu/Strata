@@ -312,6 +312,30 @@ struct ReplayView: View {
     /// over its bottom row. Instead Save Video's and Share's words may shrink,
     /// to 80% at most, when the row is short of room (an iPhone SE at
     /// xxLarge). Replay is a glyph and never does.
+    ///
+    /// **And the row settles when a word changes; it does not jump.** The row
+    /// is CENTRED in the frame (`ReplayFrame.close` puts it in a full-width
+    /// frame whose horizontal alignment is `.center`), so its width is its
+    /// content's width and every capsule's position is solved from it.
+    /// Measured at 17pt on a 402pt screen: at rest the row is 44 + 12 + 113 +
+    /// 12 + 74 = 255pt and Replay's left edge sits at 73.5. "Save Video"
+    /// becoming "Saved to Photos" takes the capsule from 113 to 152 and the
+    /// row to 294, so Replay's edge lands at 54.0: a 19.5pt step LEFT by a
+    /// glyph button under the other thumb, because a label two capsules away
+    /// changed. Share steps the same distance right.
+    ///
+    /// Reserving the widest title's width instead was worked through and is
+    /// worse: the resting "Save Video" capsule would carry 39pt of air it is
+    /// not using, and a pill padded for a word it is not showing reads as
+    /// loose.
+    ///
+    /// So the reflow is animated rather than removed, and it passes the motion
+    /// rule on its own terms: nothing here moves unless a finger pressed Save
+    /// Video or Share. `gentleReveal` is the ladder's rung for content
+    /// arriving, 0.22s at 0.85 damping, so a 39pt change overshoots by about a
+    /// point. It is keyed to the two titles and nothing else, so the export
+    /// ring's progress ticking over sixty times a second installs no animation
+    /// at all.
     private func controls(script: ReplayScript) -> some View {
         HStack(spacing: GridConstants.gapItem) {
             // Quieter than the two words beside it: the glyph in secondary ink.
@@ -325,6 +349,8 @@ struct ReplayView: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { shareAnchor.rect = $0 }
         }
         .frame(height: GlassIconButton.defaultSide)
+        .animation(GridConstants.gentleReveal, value: video.saveTitle)
+        .animation(GridConstants.gentleReveal, value: video.shareState)
     }
 
     private func saveVideo() {

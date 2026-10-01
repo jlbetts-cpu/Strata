@@ -15,6 +15,46 @@ struct CategoryStyle {
     var baseHexString: String { String(format: "%06X", baseHex) }
     let border: Color
     let glow: Color
+
+    /// **THE ONE APP-WIDE FAILURE THE SCREEN AUDIT FOUND AND DID NOT FIX, AND
+    /// IT IS THE OWNER'S CALL.** (2026-10-01)
+    ///
+    /// Every category sets this to `.white`, and nothing reads it: `BlockFace`
+    /// and `BlockContent` draw a block's title in a hard white of their own.
+    /// So this field is the decision already sketched and never made.
+    ///
+    /// Measured off the built tower, a white 13pt title against the fill
+    /// beside it:
+    ///
+    /// | block | fill | ratio |
+    /// |---|---|---|
+    /// | Ran 5k, orange | (255, 184, 87) | **1.71:1** |
+    /// | Cooked, pink | (242, 143, 188) | 2.23:1 |
+    /// | Sketch, purple | (178, 158, 254) | 2.28:1 |
+    /// | Walk, green | (22, 179, 123) | 2.70:1 |
+    ///
+    /// against the 4.5:1 a 13pt word is held to. It is the single largest
+    /// legibility failure in the app and it is on the app's central object,
+    /// on every screen that draws a block.
+    ///
+    /// **No scrim reaches it.** White on the orange needs the ground down to
+    /// luminance 0.183, and `photoVeilOpacity` at 0.26, which is the heaviest
+    /// veil the app uses and is reserved for photographs, only gets it to
+    /// 2.48:1. A veil dark enough would stop the block being its colour, and
+    /// the colour is the content. `BlockWash` makes it worse rather than
+    /// better: it lifts the bottom 26% of a block toward WHITE and the title
+    /// sits in that band, so the label's local ground is the brightest part of
+    /// the thing it is written on.
+    ///
+    /// **So the only fix is this field, and it is a brand decision.** Dark ink
+    /// on the pale categories, white kept on the deep ones, which is what every
+    /// mature pastel palette does and what would take the orange to about 6:1
+    /// and the green to about 3.8. It changes how every block in the app looks,
+    /// so it is not a thing a session should flip while the owner is away.
+    ///
+    /// When it is decided, it is one line per category here plus one read in
+    /// `BlockContent`. The measurement is written down so the decision can be
+    /// made on numbers rather than remade from scratch.
     let text: Color
 
     /// Lighter tint for gradient top (simulates light hitting the surface)
@@ -201,6 +241,15 @@ enum AppColors {
     /// decorative glyphs rather than text somebody has to read, which is the
     /// line the guideline itself draws. Pushed to text contrast they stop
     /// being quiet, and the quiet is the point.
+    ///
+    /// **Never a sentence, a count or a subtitle.** Those are `inkTertiary`,
+    /// which clears 4.5:1 on the page. The screen audit found this used for
+    /// running text on two screens at once: the day album's win count, which
+    /// is the only thing on that page that says how big the day was, and its
+    /// empty state, which is that page's one sentence. Both composited to
+    /// rgb(137, 136, 134) on rgb(249, 247, 244), which is 3.31:1. The token
+    /// was behaving exactly as documented; the callers had read "quiet" as a
+    /// volume rather than as a category.
     static let inkQuiet = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(white: 1, alpha: 0.55)

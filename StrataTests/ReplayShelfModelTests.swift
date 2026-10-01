@@ -188,10 +188,37 @@ struct ReplayPosterTests {
         let smallDrawn = GridConstants.gridHeight(rows: small.rows, cellSize: cell) * scale
         #expect(big.rows > small.rows)
         #expect(bigDrawn > smallDrawn)
-        // The tallest fills the poster less its margins, and nothing leaves it.
-        #expect(bigDrawn <= ReplayCard.size.height - 2 * ReplayCard.posterMargin + 0.001)
+
+        // **The old assertion here was that nothing ever leaves the poster,
+        // and that is no longer the contract.** It was moved rather than
+        // relaxed, because what changed is a decision and not the behaviour it
+        // was protecting: `rowTowerHeight` now caps at
+        // `legibleTowerHeight`, so a row of ordinary months still scales by
+        // height and stays inside the frame, and a row containing a month too
+        // tall to draw legibly stops shrinking and CROPS instead. A 138 win
+        // September used to come out at scale 0.15, which drew the four column
+        // grid 51 points wide inside a 360 point poster and left the month
+        // row's thumbnail showing a fifteen point stripe of confetti on white.
+        //
+        // So both halves are asserted, and each can fail.
+        let frameHeight = ReplayCard.size.height - 2 * ReplayCard.posterMargin
+        if ReplayShelfModel.rowTowerHeight([big, small]) < ReplayShelfModel.legibleTowerHeight {
+            // Under the ceiling: unchanged, the tallest fits exactly.
+            #expect(bigDrawn <= frameHeight + 0.001)
+        } else {
+            // At or over it: the scale has stopped shrinking, so the tower is
+            // allowed past the top edge and the grid must still fill the width.
+            #expect(bigDrawn > frameHeight)
+        }
+
+        // **The grid never exceeds the poster's width, and over the ceiling it
+        // fills at least 85% of it.** The second half is the whole point of
+        // the floor: a poster whose picture is a thread is not a picture.
         let width = GridConstants.gridWidth(cellSize: cell) * scale
         #expect(width <= ReplayCard.size.width - 2 * ReplayCard.posterMargin + 0.001)
+        if ReplayShelfModel.rowTowerHeight([big, small]) >= ReplayShelfModel.legibleTowerHeight {
+            #expect(width >= 0.85 * ReplayCard.size.width - 0.001)
+        }
     }
 
     @Test("a taller tower joining the row changes every poster's signature, and the scheme keys the cache")

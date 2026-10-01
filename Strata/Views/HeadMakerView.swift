@@ -3,13 +3,19 @@ import UIKit
 
 /// Making your head, in Strata's own camera.
 ///
-/// The same viewfinder, wordmark, shutter block, flash and warm ring light as
+/// The same viewfinder, shutter block, flash and warm ring light as
 /// `CameraView`, on the front lens — never the system camera, which would look
 /// like leaving the app. A head-shaped outline comes up in the middle of
-/// the screen; the shutter turns solid once you are in it; pressed, its block
-/// fills while it watches you blink, smile and raise your brows; then the
-/// viewfinder gives way to the page and your head is left on it, alive.
+/// the screen; the shutter turns solid once you are in it; pressed, it asks
+/// for a blink, a smile and raised brows in turn; then the viewfinder gives
+/// way to the page and your head is left on it, alive.
 /// Plan: `docs/profile-and-head-plan.md` §5.2.
+///
+/// **No wordmark, and nothing here describes this as watching.** The mark came
+/// off every screen. The sentence above used to read "while it watches you
+/// blink", which is the one register this screen can never use: it points a
+/// camera at somebody's face, so the copy and these comments both stay on the
+/// side of making a thing rather than observing a person.
 ///
 /// No rule-of-thirds lines (the owner's call): the outline is the only
 /// composition there is to follow.
@@ -31,25 +37,39 @@ struct HeadMakerView: View {
 
     /// `CameraView`'s viewfinder ground.
     private static let ground = Color(red: 0.031, green: 0.031, blue: 0.031)
-    /// The wordmark at the camera's own size.
-    private static let wordmarkSize: CGFloat = 32
     /// The new head, shown near the size of the thank-you page's.
     private static let previewSide: CGFloat = 200
     /// Room either side of the shutter for a control and its label, so the
     /// shutter stays dead centre whatever sits beside it.
     private static let sideSlot: CGFloat = 88
     /// `CameraView`'s shutter: a 66pt block inside a 14pt rim.
-    private static let shutterRim: CGFloat = 14
     /// One line of the prompt, reserved so the outline does not move when a
     /// prompt changes length.
     private static let promptHeight: CGFloat = 24
     /// A head is about three quarters as wide as it is tall.
     private static let headAspect: CGFloat = 0.76
-    /// One of the four marks that say how many expressions there are and how
-    /// many have landed. A small block, at the block's own 14.7% corner —
-    /// four of the thing this whole app is made of.
+    /// One of the marks that say how many expressions there are and how many
+    /// have landed. A small block, at the block's own 14.7% corner: five of
+    /// the thing this whole app is made of. (The comment here said four, in
+    /// three places, after the surprised face made it five.)
     private static let pipSide: CGFloat = 7
-    private static let pipGap: CGFloat = 6
+    /// **The ladder's tightest rung, not a sixth number.** This was a bare 6,
+    /// which is the one spacing value on the screen that is not on the scale
+    /// (the rest are 16, 24 and 32). `gapTight` is 8, which is what it is for:
+    /// the marks are five parts of one row, not five separate things, so they
+    /// are not on `gapItem`. It also lands where Apple's own page control sits,
+    /// a little more air between the marks than the marks are wide. The row is
+    /// centred, so the 8pt it adds to the row's width moves nothing else.
+    private static let pipGap: CGFloat = GridConstants.gapTight
+    /// The mark for the expression being asked for right now: a 2x1 of the
+    /// same block rather than a brighter 1x1. See `pips` for the measurement
+    /// that ruled the brighter one out.
+    private static let pipCurrentSide: CGFloat = pipSide * 2
+    /// The name of the drawing `docs/illustrations.md` asks for on the state
+    /// where no face was found: a figure holding a frame up to its own face,
+    /// white because this screen is dark. Nothing ships under this name yet;
+    /// `illustrationSlot` holds its room open and draws nothing until it does.
+    private static let noFaceDrawing = "HeadMakerNoFace"
 
     var body: some View {
         GeometryReader { outer in
@@ -115,12 +135,40 @@ struct HeadMakerView: View {
     // MARK: - Where the head goes
 
     /// The outline, in full-screen points: centred in the space between the
-    /// wordmark and the prompt, as tall as that space comfortably allows.
+    /// close button and the prompt block, as tall as that space comfortably
+    /// allows.
+    ///
+    /// **Both ends were measuring something that is not on the screen.**
+    ///
+    /// The top reserved `wordmarkSize`, 32pt, for a wordmark that came off on
+    /// the owner's instruction. What is actually in that row is one 44pt
+    /// `GlassIconButton`, so the top was 12pt short of the thing it was
+    /// clearing.
+    ///
+    /// The bottom was worse, and it is the one that showed. It subtracted the
+    /// shutter, one `gapWide` and the prompt, and stopped: the pip row and the
+    /// gap above it were added to `chrome` later and never reached here. On a
+    /// 402x874 screen that put the outline's floor at 656pt while the prompt's
+    /// own box actually starts at 649. That is 31pt of overlap, and it only
+    /// stayed invisible because the outline's height is capped by the screen's
+    /// WIDTH and never reaches its floor. What it did do is drag the centre
+    /// down by half the error: measured on the capture, 86pt of air above the
+    /// outline against 61pt below it, on a shape whose whole job is to be the
+    /// centre of the screen.
+    ///
+    /// So the block is built from the same pieces `chrome` stacks, in the same
+    /// order, rather than re-listed by hand. Recomputed at 402x874 against a
+    /// 62pt top inset and a 34pt bottom: 71.7pt above and 71.7pt below.
     private func headHole(screen: CGSize, insets: EdgeInsets) -> CGRect {
-        let top = insets.top + GridConstants.headerArtworkTopPadding + Self.wordmarkSize + GridConstants.gapWide
+        let top = insets.top + GridConstants.headerArtworkTopPadding
+            + GlassIconButton.defaultSide + GridConstants.gapWide
+        // What `chrome`'s bottom VStack occupies, top of the prompt to the
+        // bottom of the shutter.
+        let promptBlock = Self.promptHeight + GridConstants.gapWide
+            + Self.pipSide + GridConstants.gapWide
+            + CameraView.shutterBounds(.small).height
         let bottom = screen.height - insets.bottom - GridConstants.gapSection
-            - CameraView.shutterBounds(.small).height - GridConstants.gapWide - Self.promptHeight
-            - GridConstants.gapWide
+            - promptBlock - GridConstants.gapWide
         let available = max(bottom - top, 1)
         let height = min(available * 0.92, screen.width * 0.72 / Self.headAspect)
         let width = height * Self.headAspect
@@ -153,6 +201,20 @@ struct HeadMakerView: View {
         ZStack {
             Self.ground
             CameraPreview(session: model.camera.session, box: previewBox)
+            // **When it has stopped, it looks stopped.** `fail(_:)` puts the
+            // engine back to idle but leaves the capture session running, so
+            // the failed state was a live picture of your face with "Couldn't
+            // get a clear picture" written across it: a screen still working
+            // at the one moment it has admitted it cannot. It is also the
+            // ground the drawing needs. `docs/illustrations.md` asks for a
+            // white figure here, and white flat art over a lit face is
+            // unreadable whatever size it is drawn at.
+            //
+            // The session is left running rather than torn down, because Try
+            // Again has to come back instantly and a restart is about a second.
+            Self.ground
+                .opacity(stilled ? 1 : 0)
+                .animation(GridConstants.crossFade, value: stilled)
             // **Where your head goes, unmistakably.** From a phone: "the frame
             // [should be] more clear, like where you should put your face."
             // The outline was a one-point dash at 55% white, which on a live
@@ -182,8 +244,19 @@ struct HeadMakerView: View {
             // (`naturalSettle`, §5's curve for arriving). Same opacity the dim
             // around it already came up on, so the hole and its edge arrive as
             // one object instead of a line being drawn over a darkened room.
+            //
+            // **One white, and it is the scale's.** The line was
+            // `.white.opacity(isLinedUp ? 1 : 0.85)`, and 0.85 is not a value
+            // this app has: `AppColors`'s own note says the dark screens each
+            // reached for a white opacity of their own until an audit counted
+            // more than twenty of them, and names this screen as one of the
+            // three. 0.85 and 0.95 are 17.0:1 and 18.8:1 on the viewfinder's
+            // ground, which is no signal at all; what actually says you are in
+            // the outline is the dash closing up and the line going from 2pt to
+            // 3pt. So the state is carried by the two channels that can be
+            // seen, and the colour is one token.
             HeadOutline()
-                .stroke(Color.white.opacity(isLinedUp ? 1 : 0.85),
+                .stroke(AppColors.onDarkStrong,
                         style: StrokeStyle(lineWidth: isLinedUp ? 3 : 2,
                                            lineCap: .round,
                                            dash: isLinedUp ? [] : [8, 7]))
@@ -194,6 +267,7 @@ struct HeadMakerView: View {
                 // its own transaction (`respond(to:)`), and the lining-up
                 // spring has no business governing it.
                 .opacity(outlineDrawn)
+            illustrationSlot(hole: hole)
             // The camera's modelling ring, held on while the flash is armed.
             // It lights the face the frames are read from, and a face in good
             // light is a face Vision can find the eyes of.
@@ -212,6 +286,57 @@ struct HeadMakerView: View {
         }
     }
 
+    /// The two states where there is nothing left to point the camera at.
+    private var stilled: Bool {
+        model.step == .failed || model.step == .unavailable
+    }
+
+    /// **The drawing's room, held open before there is a drawing.**
+    ///
+    /// `docs/illustrations.md` asks for one here: a figure holding a frame up
+    /// to its own face, for the state where no face was found, drawn white
+    /// because this screen is dark. Until it exists this is air, which is the
+    /// honest version of what the state already was.
+    ///
+    /// **Its room is the outline's room**, the same centre and the same width,
+    /// so the thing you were looking at is answered in place rather than the
+    /// page rearranging itself around a failure. Measured on the capture
+    /// before this: 515pt of nothing between the close button and the message,
+    /// and 98.1% of the page pure black, because the failed state was being
+    /// laid out by a viewfinder, which is bottom weighted because a
+    /// viewfinder's subject is the picture, and there was no picture.
+    ///
+    /// Square, not the outline's 0.76 portrait: the doc's format line is
+    /// "viewBox square or 4:3", and a square centred on the outline's centre
+    /// claims only the height a square drawing will use.
+    ///
+    /// `.unavailable` gets the room and not the drawing. The planned figure is
+    /// holding a frame up because a face could not be found in one, which is
+    /// not what a missing camera is; the drawing for that is the Camera
+    /// section's own ("a figure with a hand over the lens") and it is not
+    /// this screen's to invent.
+    ///
+    /// `UIImage(named:)` rather than `Image(_:)` because `Image` of a missing
+    /// asset draws a warning placeholder and this has to draw nothing. Same
+    /// pattern, and the same reason, as `OnboardingView.mark`.
+    private func illustrationSlot(hole: CGRect) -> some View {
+        Color.clear
+            .frame(width: hole.width, height: hole.width)
+            .overlay {
+                if let art = UIImage(named: Self.noFaceDrawing) {
+                    Image(uiImage: art)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(AppColors.onDarkStrong)
+                }
+            }
+            .position(x: hole.midX, y: hole.midY)
+            .opacity(model.step == .failed ? 1 : 0)
+            .animation(GridConstants.crossFade, value: model.step)
+            .accessibilityHidden(true)
+    }
+
     // MARK: - Chrome
 
     private var chrome: some View {
@@ -224,10 +349,19 @@ struct HeadMakerView: View {
                 // reply rather than slipped in, because he named the camera and
                 // not this.
                 Spacer(minLength: 0)
-                GlassIconButton(systemName: "xmark", tint: .white, glyphSize: 16,
+                // **The offset went with the wordmark.** It was
+                // `(wordmarkSize - defaultSide) / 2`, which centred a 44pt disc
+                // on a 32pt mark's cap: with nothing to centre on it was just
+                // 6pt of lift, and it put this button 6pt above the line every
+                // other artwork header in the app sits on
+                // (`headerArtworkTopPadding`). Measured on the capture: top at
+                // 75.0pt, against the 80.8pt `CameraView`'s own close sits on,
+                // which is the same inset plus the same padding and no offset.
+                // That file deleted its `wordmarkSize` when the mark came off;
+                // this one kept the arithmetic that depended on it.
+                GlassIconButton(systemName: "xmark", tint: AppColors.onDarkStrong,
+                                glyphSize: 16,
                                 accessibilityLabel: "Close") { dismiss() }
-                    // Centred on the wordmark's cap, like the Memories gear.
-                    .offset(y: (Self.wordmarkSize - GlassIconButton.defaultSide) / 2)
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.headerArtworkTopPadding)
@@ -237,7 +371,11 @@ struct HeadMakerView: View {
             VStack(spacing: GridConstants.gapWide) {
                 Text(prompt)
                     .font(Typography.headerMedium)
-                    .foregroundStyle(.white)
+                    // `AppColors`'s dark scale, not a raw white. Its own note
+                    // names the head maker as one of the three screens that
+                    // made the scale necessary, and this was the last raw white
+                    // on it.
+                    .foregroundStyle(AppColors.onDarkStrong)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(minHeight: Self.promptHeight)
@@ -284,39 +422,73 @@ struct HeadMakerView: View {
         }
     }
 
-    /// Four marks: how many expressions there are, and how many have landed.
+    /// Five marks: how many expressions there are, and how many have landed.
     ///
     /// The other half of "idk if it is working" is not knowing how much is
-    /// left. They are shown from the moment the outline does, dim and empty,
+    /// left. They are shown from the moment the outline does, quiet and empty,
     /// so pressing the shutter is not a step into the dark — you can see
-    /// there are four things before you agree to any of them.
+    /// there are five things before you agree to any of them.
+    ///
+    /// **Its height is reserved whether or not it is drawn**, the camera's
+    /// own rule for the zoom pill: a mark that appears by pushing the shutter
+    /// down moves the one control on this screen that must not move.
+    /// **Two facts, two channels.** Lightness says done or not. Width says
+    /// which one is being asked for. They used to share lightness, and sharing
+    /// it made the row say the opposite of what it meant.
+    ///
+    /// The empty mark was `.white.opacity(0.28)` and the current one was that
+    /// plus a 1pt white border. On a 7pt square a 1pt border is 24 of the 49
+    /// square points, so the current mark's mean lightness was 0.49 of white
+    /// from the ring plus 0.51 of 0.28 from the fill: 0.63, against 0.28 for a
+    /// mark not yet asked for and 1.0 for one that is done. The mark that means
+    /// "you are here, and it has not landed" rendered two thirds of the way to
+    /// done. Growing the square does not fix it, because a bright ring always
+    /// adds lightness in the one direction it must not: at 12pt the mean is
+    /// still 0.78, at 16pt 0.73.
+    ///
+    /// So the current mark is a 2x1 of the same block at the same lightness,
+    /// which is this app's own shape vocabulary (`CameraView`'s shutter: "a 2x1
+    /// in this app is not two blocks, it is one block two cells wide") and the
+    /// corner stays the height's 14.7% so the two read as the same object.
+    ///
+    /// **And the fill is a token, because 0.28 failed.** Measured off the
+    /// capture, the empty marks came out rgb(71, 71, 71) on the viewfinder's
+    /// ground: 2.26:1, against the 3:1 a shape has to clear. `onDarkQuiet` is
+    /// 6.2:1, and it is the scale's own quietest readable step.
+    ///
+    /// **The row's width is reserved too.** With one mark 7pt wider than the
+    /// rest, a row sized to its content would breathe by 7pt the moment the
+    /// shutter is pressed, and it is centred under a centred prompt where that
+    /// shows. `.lining` and `.making` have no current mark; the frame holds the
+    /// width they would otherwise give back.
     ///
     /// **Its height is reserved whether or not it is drawn**, the camera's
     /// own rule for the zoom pill: a mark that appears by pushing the shutter
     /// down moves the one control on this screen that must not move.
     private var pips: some View {
-        HStack(spacing: Self.pipGap) {
-            ForEach(HeadMakerModel.sequence.map(\.step), id: \.self) { step in
+        let steps = HeadMakerModel.sequence.map(\.step)
+        let rowWidth = Self.pipCurrentSide
+            + Self.pipSide * CGFloat(steps.count - 1)
+            + Self.pipGap * CGFloat(steps.count - 1)
+        return HStack(spacing: Self.pipGap) {
+            ForEach(steps, id: \.self) { step in
                 let done = model.landed.contains(step)
+                let current = HeadMakerModel.pip(for: model.step) == step
                 RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
-                    .fill(.white.opacity(done ? 1 : 0.28))
-                    .frame(width: Self.pipSide, height: Self.pipSide)
-                    // The one being asked for now, so the row says WHERE you
-                    // are and not only how far along.
-                    .overlay {
-                        if HeadMakerModel.pip(for: model.step) == step, !done {
-                            RoundedRectangle(cornerRadius: Self.pipSide * 0.147, style: .continuous)
-                                .strokeBorder(.white, lineWidth: 1)
-                        }
-                    }
+                    .fill(done ? Color.white : AppColors.onDarkQuiet)
+                    .frame(width: current ? Self.pipCurrentSide : Self.pipSide,
+                           height: Self.pipSide)
             }
         }
-        .frame(height: Self.pipSide)
+        .frame(width: rowWidth, height: Self.pipSide)
         .legibleOnImagery()
         .opacity(showsPips ? 1 : 0)
         .animation(GridConstants.crossFade, value: model.landed)
         .animation(GridConstants.crossFade, value: showsPips)
-        .accessibilityLabel("\(model.landed.count) of \(HeadMakerModel.sequence.count) done")
+        // The mark widens because somebody finished the expression before it,
+        // on the snappy rung the outline's own state change uses.
+        .animation(GridConstants.motionSnappy, value: model.step)
+        .accessibilityLabel("\(model.landed.count) of \(steps.count) done")
     }
 
     private var showsPips: Bool {
@@ -336,7 +508,7 @@ struct HeadMakerView: View {
             } label: {
                 Text(model.step == .failed ? "Try Again" : "Close")
                     .font(Typography.headerSmall)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColors.onDarkStrong)
                     .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
                     .contentShape(Rectangle())
             }
@@ -371,8 +543,12 @@ struct HeadMakerView: View {
             setFlashBrightness(model.camera.isFlashOn)
         } label: {
             Image(systemName: flashIsOn ? "bolt.fill" : "bolt.slash.fill")
+                // A glyph's point size, not a type tier: `CameraView.glyphButton`
+                // is this same 21 and the two rows have to match, or the flash
+                // is a different size in two places a thumb treats as one
+                // control.
                 .font(.system(size: 21, weight: .regular))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColors.onDarkStrong)
                 .legibleOnImagery()
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .contentShape(Rectangle())
@@ -394,29 +570,26 @@ struct HeadMakerView: View {
     /// the tower header already made once — "the filter said Day while the
     /// title said Today" — so there is one.
     private var shutter: some View {
-        let outer = CameraView.shutterBounds(.small)
-        let inner = CGSize(width: outer.width - Self.shutterRim, height: outer.height - Self.shutterRim)
-        let outerRadius = outer.width * 0.147
-        let innerRadius = inner.width * 0.147
         let ready = model.canCapture
         let watching: Bool = [.blink, .smile, .brows, .surprised, .wink, .blinkAgain, .making].contains(model.step)
         let lit = ready || watching
+        // **One control, drawn in one place.** This and `CameraView`'s were
+        // two copies of the same rim and block from the same bounds and the
+        // same corner, and the day the audit went through both they came out
+        // disagreeing: this one an empty rim when unlit, that one still a
+        // dimmed fill. `ShutterBlock` carries the shape, the rim, the corner
+        // and the unlit state, with the measurements that chose them. No
+        // `Legibility` here: that treatment answers a white wall seen through
+        // a viewfinder, and this screen's ground is its own dimmed outline.
+        let block = ShutterBlock(size: .small, lit: lit)
 
         return Button {
             model.beginCapture()
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                    .strokeBorder(.white, lineWidth: 1)
-                    .frame(width: outer.width, height: outer.height)
-                RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                    .fill(.white.opacity(lit ? 1 : 0.3))
-                    .frame(width: inner.width, height: inner.height)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: outerRadius, style: .continuous))
+            block.contentShape(block.shape)
         }
         .buttonStyle(.plain)
-        // **Disabled on `lit`, not on `ready`** — measured, because a disabled
+        // **Disabled on `lit`, not on `ready`**, measured, because a disabled
         // plain button is dimmed by the environment and the block came out at
         // 128 of 255 during capture instead of white. A shutter that goes
         // half grey the moment it starts taking says the opposite of what is
@@ -484,6 +657,16 @@ struct HeadMakerView: View {
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
                         .submitLabel(.done)
+                        // **A field with no well is still a target.** A bare
+                        // centred `TextField` at `headerMedium` is 20.3pt of
+                        // line box and nothing else, so the only way into the
+                        // name was a 20.3pt strip, under half the 44 every
+                        // other control on this screen measures. The well stays
+                        // off (it is Profile's own field, to the point); what it
+                        // gets is the height, and a `contentShape` so the air
+                        // above and below the word takes the tap too.
+                        .frame(minHeight: GlassIconButton.defaultSide)
+                        .contentShape(Rectangle())
                         .padding(.horizontal, GridConstants.gapSection)
                         .accessibilityLabel("This head's name")
                     Text(previewCaption(rig))
@@ -559,6 +742,19 @@ struct HeadMakerView: View {
             withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) { outlineDrawn = 1 }
         case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             outlineDrawn = 1
+        // **It was latched on, and a screenshot could never show it.**
+        // `outlineDrawn` is set to 1 at `.lining` and nothing ever put it back,
+        // so a failure after lining up left the dashed head outline and its
+        // 0.6 dim drawn over "Couldn't get a clear picture": the screen still
+        // telling you where to stand under a sentence saying it had stopped
+        // trying. The captures never caught it because `-strataOpenHeadMaker
+        // failed` jumps straight to the state and never passes through
+        // `.lining`, so `outlineDrawn` is still 0 in every photograph of it.
+        //
+        // `crossFade`, not the reveal rung: this is a thing leaving, and §5's
+        // out-curve is the short one.
+        case .failed, .unavailable:
+            withAnimation(reduceMotion ? nil : GridConstants.crossFade) { outlineDrawn = 0 }
         case .preview:
             // The page is lit by the room, not by a ring the viewfinder needed.
             setFlashBrightness(false)

@@ -196,7 +196,7 @@ enum DebugHarness {
         Int(argument("-strataSeedMood") ?? "0") ?? 0
     }
 
-    /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block|edit`.
+    /// Sheet to present on launch, from `-strataOpenSheet settings|profile|add|block|edit|plan`.
     /// These are modals with no other scriptable route in. `settings` opens
     /// Profile and pushes Settings, since Settings lives only inside Profile.
     static var openSheet: String? {

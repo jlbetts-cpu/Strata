@@ -866,10 +866,15 @@ struct MainAppView: View {
         // Works out at the 4pt this used to hard-code; the other headers move
         // to meet it.
         .padding(.top, GridConstants.headerTopPadding(forTitleSize: GridConstants.tallyNumeral))
-        // Air between the count and the top of a tall tower. Without it a
+        // Air between the header and the top of a tall tower. Without it a
         // tower that reaches the top of the scroll runs straight into the
-        // number and the page reads as crowded.
-        .padding(.bottom, 20)
+        // date and the page reads as crowded.
+        //
+        // `gapWide`, not the 20 it hard-coded. 20 is not on the ladder
+        // (8/12/16/24/32) and it was the only value on this screen that was
+        // not, which is a check-7 failure whatever it looks like: a fifth
+        // value is a value nobody can reuse.
+        .padding(.bottom, GridConstants.gapWide)
     }
 
     /// The count and the word for what it counts. Never wrapped: at
@@ -1979,6 +1984,12 @@ struct MainAppView: View {
         case "settings": selectedTab = .memories; profileOpensSettings = true; profileOrigin = .memories
         case "profile":  selectedTab = .memories; profileOrigin = .memories
         case "add":      selectedTab = .tower; winDraft = WinDraft()
+        // The plan is behind a header button, and a header button is the one
+        // thing no screenshot script can press. Added for the screen audit:
+        // a screen with no scriptable route in is a screen that gets rated
+        // off its source instead of off its pixels, which is how the add
+        // sheet sat 49% empty without anybody noticing.
+        case "plan":     selectedTab = .tower; isPlanning = true
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         // The edit sheet's title, which is otherwise behind a long press.
         case "edit":     selectedTab = .tower; editingHabit = habits.first
@@ -2700,9 +2711,32 @@ struct MainAppView: View {
                     minHeight: viewportHeight,
                     alignment: .bottom
                 )
-                // Outside the bottom-anchored grid, so it centres on the
-                // viewport rather than on the ghost footing.
-                .overlay {
+                // **TOP, NOT CENTRE, AND ON THE MARGIN.**
+                //
+                // It centred on the viewport, which put it at 446pt on a
+                // 874pt screen: directly on top of the lattice's first two
+                // rows. The copy was printed across the ghost cells, so it
+                // read as debris on the surface rather than as a caption of
+                // it, and the page had the date at 16pt on the left, the copy
+                // centred, the slot bottom-left and the filter top-right —
+                // four things in four places with nothing relating them.
+                //
+                // Centring also opened a 311pt void between the header and
+                // the copy, a third of the screen, which is what an empty
+                // page looks like when nothing has been composed and
+                // everything has been positioned.
+                //
+                // The copy belongs with the DATE, not floating over the
+                // grid. "Nothing yet today" is a statement about the day and
+                // the day is named directly above it; "Tap the slot" is an
+                // instruction that points down the page at the slot. So the
+                // page reads top to bottom in one column on one margin: what
+                // day it is, what state it is in, what to do, and then the
+                // empty tower with its slot at the bottom. The lattice is
+                // left as what a lattice is for, an untouched field, and the
+                // white space between the two is no longer a gap in a layout
+                // but the room the tower has to grow into.
+                .overlay(alignment: .top) {
                     if !towerVM.isLoading && towerVM.totalRows == 0 {
                         towerEmptyStateMessage
                     }
@@ -2751,6 +2785,12 @@ struct MainAppView: View {
             // and jump along the tops of the blocks, making sure to jump out
             // of the way of the blocks falling."
             //
+            // The header is pinned over this scroll view and had nothing
+            // between it and the tower: scrolled down one screen, the date
+            // was printed on a salmon block across that block's own label.
+            // See `ScrollEdge.swift` for the measurement and for the three
+            // alternatives that were rejected.
+            .softScrollEdge(.top)
             // On the ScrollView rather than on its content, or he scrolls
             // away with the tower. Off unless the Profile switch is on, and
             // while it is off this builds no view, starts no clock and asks
@@ -3009,7 +3049,12 @@ struct MainAppView: View {
     /// What is left points at the slot — the only thing on the screen — and
     /// says what pressing it is for, once, quietly.
     private var towerEmptyStateMessage: some View {
-        VStack(spacing: GridConstants.gapTight) {
+        // Leading, on the page's own margin, because every other thing on
+        // this screen is: the date, the grid and the slot all start at
+        // `horizontalPadding`. Centred copy on a left-aligned page is two
+        // alignment systems on one screen, and the eye has to find a new
+        // start for one line out of three.
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             // The same ink pair as Memories' empty state, so the two empty
             // screens speak at one volume. It was tertiary over quiet.
             Text("Nothing yet today")
@@ -3022,9 +3067,11 @@ struct MainAppView: View {
             Text("Tap the slot to log your first win.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(AppColors.inkSecondary)
-                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The overlay sits outside the grid's horizontal padding, so the
+        // copy has to carry the margin itself or it starts at 0.
+        .padding(.horizontal, hPad)
     }
 
     // MARK: - Tower Block Views (Extracted for observation isolation)

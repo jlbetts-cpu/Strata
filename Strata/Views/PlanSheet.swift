@@ -65,8 +65,9 @@ struct PlanSheet: View {
     /// out at 54, which is what the separator's hand-written sum said.
     private static let textLeading: CGFloat =
         GridConstants.horizontalPadding - bulletInset + tapTarget + GridConstants.spacing
-    /// The tap-to-write space under the last line. Deep enough to be the
-    /// obvious place to aim at rather than a strip you find by accident.
+    /// The tap-to-write space under the last line, when the list is long
+    /// enough that there is no spare page to give it. On a short list it takes
+    /// everything that is left instead. See `content`.
     private static let tailHeight: CGFloat = 160
 
     /// Today's list: everything one-off, plus the repeats due today.
@@ -160,39 +161,90 @@ struct PlanSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(items) { item in
-                    row(item)
-                    // **A hairline in ink, not a `Divider`.** Section 6: chrome
-                    // separates with a hairline and with translucency, and a
-                    // hairline is `1 / displayScale` in ink at low alpha, never
-                    // a grey line. `Divider` draws the platform's separator
-                    // colour at the platform's weight, which is the one grey
-                    // this page had.
-                    Rectangle()
-                        .fill(AppColors.quietFill)
-                        .frame(height: 1 / displayScale)
-                        .padding(.leading, Self.textLeading)
-                        .padding(.trailing, GridConstants.horizontalPadding)
+        // **The whole empty page answers a tap, not the first 160pt of it.**
+        //
+        // Measured off the built sheet at 402x874 with five lines on it: the
+        // last line ended at 403pt, so 471pt of the page was empty and only
+        // 160 of them did anything. Pressing the middle of a blank page and
+        // getting nothing is the opposite of what a page of bullets promises,
+        // and it is invisible from the source: the tail was a number, and a
+        // number cannot be wrong against a screen it has never been compared
+        // to.
+        //
+        // The `GeometryReader` is what makes the fix arithmetic rather than a
+        // guess: the stack is held to at least the viewport's own height and
+        // the tail is the flexible thing in it, so it takes exactly whatever
+        // the lines left over. On a list taller than the screen the
+        // `minHeight` stops binding and the tail falls back to its 160, which
+        // is still deep enough to be aimed at rather than found by accident.
+        GeometryReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                // Read once. `items` filters `allItems` on every access, and
+                // the separator below has to ask how many there are.
+                let lines = items
+                VStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(lines) { item in
+                            row(item)
+                            // **Between two lines, never after the last one.**
+                            //
+                            // The hairline was drawn in the `ForEach` body with
+                            // the row, so five lines got five separators where
+                            // five lines have four boundaries. Measured at
+                            // 402x874: a rule at y=403.0 with the page's last
+                            // ink at 389 and 471pt of nothing under it, which
+                            // is a line separating a list from the empty half
+                            // of a sheet. A separator is a statement about two
+                            // things; drawn against one it is a rule across the
+                            // page.
+                            //
+                            // Compared by id rather than by an enumerated
+                            // index, so the `ForEach` stays keyed on identity:
+                            // keyed on position instead, the focused line's
+                            // `UITextField` would be re-identified every time a
+                            // line above it was added or backspaced away, which
+                            // is how a caret ends up jumping rows.
+                            if item.id != lines.last?.id { separator }
+                        }
+                    }
+
+                    if lines.isEmpty { hint }
+
+                    // Pressing the empty space below the list starts a new
+                    // line, which is what a page of bullets does. Without it
+                    // the only way to add is the button in the corner, and the
+                    // corner is not where anyone looks when they are writing.
+                    Color.clear
+                        .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture { addLine() }
+                        .accessibilityLabel("Add a line")
+                        .accessibilityAddTraits(.isButton)
                 }
-
-                if items.isEmpty { hint }
-
-                // Pressing the empty space below the list starts a new line,
-                // which is what a page of bullets does. Without it the only
-                // way to add is the button in the corner, and the corner is
-                // not where anyone looks when they are writing.
-                Color.clear
-                    .frame(height: Self.tailHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture { addLine() }
-                    .accessibilityLabel("Add a line")
-                    .accessibilityAddTraits(.isButton)
+                .padding(.top, GridConstants.gapTight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: proxy.size.height, alignment: .top)
             }
-            .padding(.top, GridConstants.gapTight)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// **A hairline in ink, not a `Divider`.**
+    ///
+    /// Section 6: chrome separates with a hairline and with translucency, and a
+    /// hairline is `1 / displayScale` in ink at low alpha, never a grey line.
+    /// `Divider` draws the platform's separator colour at the platform's
+    /// weight, which is the one grey this page had.
+    ///
+    /// Inset to `textLeading`, so it runs under the words and not under the
+    /// bullets: the bullets are a column of objects and a rule through them
+    /// would cut the column rather than divide the lines.
+    private var separator: some View {
+        Rectangle()
+            .fill(AppColors.quietFill)
+            .frame(height: 1 / displayScale)
+            .padding(.leading, Self.textLeading)
+            .padding(.trailing, GridConstants.horizontalPadding)
     }
 
     /// What the page looks like before anything is written on it.
@@ -204,44 +256,91 @@ struct PlanSheet: View {
     /// ghosted, with the invitation beside it. Tapping anywhere here starts
     /// writing, which is what the empty space below already did and what
     /// nobody could tell.
+    ///
+    /// **ONE waiting line, not three things in a corner.**
+    ///
+    /// It was a ghost bullet, a grey bar standing in for text, and a sentence
+    /// underneath, and measured at 402x874 the three started at three
+    /// different places: the bullet on the page margin at 16.0pt, the grey bar
+    /// at 54, and the sentence at **18.3**, which is a margin the app does not
+    /// have. The sentence was `gapItem` indented from a stack that was itself
+    /// pulled back by the bullet's target inset, so 12 - 10 came out at 2
+    /// points of nothing. An empty screen is the one somebody meets before
+    /// they know what the feature is for, and this one asked them to read
+    /// three objects to learn one thing.
+    ///
+    /// So the grey bar goes. It said "text goes here" while real text sat
+    /// twelve points under it saying the same thing in words, and at 1.20:1
+    /// against the page it was the faintest ink on the sheet, which is the
+    /// skeleton a screen shows while it is still loading rather than one that
+    /// is finished and waiting. The sentence takes its place, at `textLeading`
+    /// (54.0pt), which is the column a line's own words sit in. What is left is
+    /// a single waiting row: the bullet's silhouette, with the invitation
+    /// written where the line will be.
+    ///
+    /// **And it sits where the first real line sits.** The old one carried
+    /// `gapWide` of top padding against a row's 4, so the ghost's block started
+    /// at 174.0pt where a first line's bullet starts at 154.3, so tapping it
+    /// made the page jump twenty points as the thing you pressed was replaced
+    /// by the thing it was pretending to be. It carries the row's own vertical
+    /// padding now, and the swap is invisible.
     private var hint: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-            HStack(spacing: GridConstants.spacing) {
-                // **A block, not a circle.** This is a ghost of the bullet
-                // beside a real line, and that bullet is a BLOCK — the whole
-                // point of the plan is that a line becomes one. A dotted
-                // circle is a ghost of something the app does not have: "why
-                // is there a circle dotted when it should be a square."
-                //
-                // Same corner rule as the real one, off the same cell size, so
-                // the outline is the exact silhouette of what will land in it.
-                // **`bulletSide`, not 22.** The comment above is the test and
-                // the outline failed it: the bullet that lands here is 24, so a
-                // 22pt ghost was the silhouette of nothing, two points off the
-                // real one and a point off the page margin with it.
-                RoundedRectangle(
-                    cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
-                    style: .continuous)
-                    .strokeBorder(AppColors.slotInk.opacity(0.40),
-                                  style: StrokeStyle(lineWidth: GridConstants.strokeDefault,
-                                                     dash: [GridConstants.ghostBlockDashLength]))
-                    .frame(width: Self.bulletSide, height: Self.bulletSide)
-                    .frame(width: Self.tapTarget, height: Self.tapTarget)
-                // `radiusMark`, the ladder's rung for a tiny mark. The 3 was
-                // a fourth radius for a thing the ladder already answers.
-                RoundedRectangle(cornerRadius: GridConstants.radiusMark, style: .continuous)
-                    .fill(AppColors.slotInk.opacity(0.10))
-                    .frame(width: 150, height: 11)
-            }
+        // **Centred, not baseline-aligned, and that is what lands it.**
+        //
+        // The row's `.firstTextBaseline` cannot be borrowed here. Its `-27`
+        // guide is calibrated against a `UITextField`, whose baseline SwiftUI
+        // derives from the view's own box; a `Text` reports the font's real
+        // one, which sits elsewhere, and reusing the number put the ghost
+        // eleven points off the line it was meant to stand on.
+        //
+        // Centring needs no number and is exact where it matters. The ghost's
+        // 44pt box is taller than a two-line invitation (40.6pt at the default
+        // size), so the `HStack` is 44 and the box sits flush at its top,
+        // which is where a real row's bullet box sits too, because the bullet
+        // is the tallest thing in that row as well. Measured on the built
+        // sheet: line one's bullet glyph starts at 154.3pt, and so does this.
+        HStack(spacing: GridConstants.spacing) {
+            // **A block, not a circle.** This is a ghost of the bullet
+            // beside a real line, and that bullet is a BLOCK — the whole
+            // point of the plan is that a line becomes one. A dotted
+            // circle is a ghost of something the app does not have: "why
+            // is there a circle dotted when it should be a square."
+            //
+            // Same corner rule as the real one, off the same cell size, so
+            // the outline is the exact silhouette of what will land in it.
+            // **`bulletSide`, not 22.** The comment above is the test and
+            // the outline failed it: the bullet that lands here is 24, so a
+            // 22pt ghost was the silhouette of nothing, two points off the
+            // real one and a point off the page margin with it.
+            //
+            // It failed the same test on ink and weight, which is what
+            // `PlanBullet.outlineInk` and `outlineWidth(forSide:)` are for:
+            // 0.40 at 1.5 measured 2.13:1 against this page where the real
+            // bullet measures 3.31:1, so the ghost missed the 3:1 a UI shape
+            // is held to while claiming to be the same shape.
+            RoundedRectangle(
+                cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
+                style: .continuous)
+                .strokeBorder(PlanBullet.outlineInk,
+                              style: StrokeStyle(
+                                lineWidth: PlanBullet.outlineWidth(forSide: Self.bulletSide),
+                                dash: [GridConstants.ghostBlockDashLength]))
+                .frame(width: Self.bulletSide, height: Self.bulletSide)
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
 
+            // A line's own size and a line's own column, one step quieter.
+            // `bodySmall` put the invitation a tier below everything it is
+            // standing in for, which is how it ended up reading as a notice
+            // ABOUT the page rather than as the first thing written on it.
             Text("Write what you mean to do, then press its block when you have.")
-                .font(Typography.bodySmall)
+                .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
-                .padding(.leading, GridConstants.gapItem)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
         .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.top, GridConstants.gapWide)
+        .padding(.vertical, GridConstants.spacing)
         .contentShape(Rectangle())
         .onTapGesture { addLine() }
         .accessibilityElement()
@@ -297,8 +396,19 @@ struct PlanSheet: View {
                     onBackspaceWhenEmpty: { backspace(item) }
                 )
                 if let summary = item.repeatSummary(calendar: calendar) {
+                    // `bodySmall`, the token `Typography` names for "footnotes
+                    // and captions". `caption2` is 11 Medium, documented there
+                    // for chart axes and the smallest labels, and the only
+                    // other two call sites in the app are a chart's axes. A
+                    // repeat summary is a caption under a line.
+                    //
+                    // Costs nothing in layout: a row's height is set by the
+                    // bullet's 44pt box, and 17pt of line plus 2 plus a 13pt
+                    // footnote comes to 42, so the row is 44 either way. This
+                    // is the screen's type tiers agreeing with the system, not
+                    // a size change.
                     Text(summary)
-                        .font(Typography.caption2)
+                        .font(Typography.bodySmall)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
             }

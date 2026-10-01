@@ -52,11 +52,52 @@ final class ReplayShelfModel {
         "\(replay.id)-\(scheme == .dark ? "dark" : "light")"
     }
 
+    /// **The tallest tower a poster can draw and still be a picture.**
+    ///
+    /// `posterScale` fits a row's tallest tower into the poster's height, so
+    /// a taller month looks taller. That is the right idea and it has a floor
+    /// it was falling through: measured on the Memories page with a seeded
+    /// September of 138 wins, the shared scale came out at about 0.15, which
+    /// drew the four column grid 51 points wide inside a 360 point poster.
+    /// Eighty six per cent of the image was blank, and `MonthReplayRow`,
+    /// which crops the middle of it into a 116 by 84 thumbnail, showed a
+    /// fifteen point stripe of confetti on white. The row's own comment says
+    /// a picture 52 points wide is not a picture, it is a stripe. It was
+    /// still a stripe, and smaller.
+    ///
+    /// So the scale stops shrinking once the grid would be narrower than 85%
+    /// of the poster. Over that floor every month fills the width and crops at
+    /// the top instead, which is how a book cover works: a detail at a size
+    /// you can read, not the whole thing reduced until it is a thread.
+    ///
+    /// **85 and not 55.** 55 was tried first and measured: the thumbnail
+    /// became a real mosaic instead of a stripe, and then sat in white
+    /// margins, because the row crops the poster to 116 points wide and 55%
+    /// of it is 64. The fit-by-width scale is about 0.90 anyway, so a floor
+    /// near it costs almost nothing: any month short enough to be scaled by
+    /// height is also short enough that its grid already fills the frame.
+    ///
+    /// The price is that a tall month and a taller one now look the same, and
+    /// it is the right price. The count sits in text beside the picture, so
+    /// nothing is lost by the picture not also encoding it, and the owner's
+    /// read of the old shelf was that it looked like floating blocks.
+    ///
+    /// What was NOT done: giving the month row its own render. One poster
+    /// serves the shelf and the row from one cache, and a second path would
+    /// be a second thing to keep true.
+    static var legibleTowerHeight: CGFloat {
+        let m = ReplayScript.Metrics.standard(frame: ReplayCard.size)
+        let gridWidth = GridConstants.gridWidth(cellSize: m.cell)
+        let floorScale = 0.85 * ReplayCard.size.width / max(gridWidth, 1)
+        return (ReplayCard.size.height - 2 * ReplayCard.posterMargin) / max(floorScale, 0.01)
+    }
+
     /// The tallest finished tower in a row, in world points: what every
-    /// poster in that row is scaled against.
+    /// poster in that row is scaled against, capped at the height above.
     static func rowTowerHeight(_ replays: [Replay]) -> CGFloat {
         let metrics = ReplayScript.Metrics.standard(frame: ReplayCard.size)
-        return replays.map { GridConstants.gridHeight(rows: $0.rows, cellSize: metrics.cell) }.max() ?? 0
+        let tallest = replays.map { GridConstants.gridHeight(rows: $0.rows, cellSize: metrics.cell) }.max() ?? 0
+        return min(tallest, legibleTowerHeight)
     }
 
     /// Everything a poster draws. The spec's count plus newest id misses a

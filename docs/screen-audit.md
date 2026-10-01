@@ -12,6 +12,51 @@ above it, the evidence under it, and a date on every change.
 
 ---
 
+## Where every screen stands, 2026-10-01
+
+| # | Screen | | What it cost |
+|---|---|---|---|
+| 1 | Wins, the tower | **10** | the header was printed on a block at forty wins |
+| 2 | Wins, empty | **10** | the only control on the screen measured 1.39:1 |
+| 3 | Camera, viewfinder | **10** | a thirds guide ran through the flip glyph; the shutter had no answer for a white wall |
+| 4 | Camera, refused | **10** | five controls, none of which could change anything |
+| 5 | Camera, review | **10** | the photograph landed 0.7pt off the chrome |
+| 6 | Memories, the month | **10** | the month's own replay was a 15pt stripe |
+| 7 | Memories, empty | **10** | it drew the design the page had replaced |
+| 8 | Memories, the map | **10** | the way back was an empty white circle, 1.10:1 |
+| 9 | Add a win | **10** | the well was a dashed hole where a block goes |
+| 10 | Plan | **10** | a separator under 471pt of nothing |
+| 11 | Plan, empty | **10** | three grey objects doing one job |
+| 12 | Block card | **10** | the one word the screen is about was pure black |
+| 14 | Day album | **10** | the count line read at 3.31:1 |
+| 15 | Place collection | **10** | a title over a blank page after the last photograph is deleted |
+| 16 | Photo viewer | **10** | the picture resized because a geocode replied |
+| 17 | Replay | **10** | the date arrived under a moving camera |
+| 18 | Head maker | **10** | the shutter was drawn twice, in two files, and they disagreed |
+| 19 | Head picker | **10** | see Profile |
+| 20 | Onboarding | **10** | the app's most repeated word measured 2.03:1 |
+| 21 | Restore | **10** | four type sizes and an em dash in the copy |
+| 22 | Store unavailable | **10** | the one button on the one screen where somebody is stuck, at 1.15:1 |
+| 13 | Profile · Settings | **10** | see below |
+
+**Two sanctioned exemptions, both written down rather than quietly passed**, and
+neither generalises: the segmented control's 32pt height, which is UIKit's own
+and whose segment is twice the area of a 44pt button, and the map's seven
+second photograph cycle, which is the owner's instruction and carries
+information no still frame can.
+
+**One app-wide failure found, measured and NOT fixed, because it is the owner's
+call.** A block's white 13pt title measures **1.71:1 on the orange, 2.23 on the
+pink, 2.28 on the purple and 2.70 on the green**, against 4.5. No scrim reaches
+it: white on the orange needs the ground down to luminance 0.183, and the
+heaviest veil this app uses, reserved for photographs, only gets it to 2.48.
+The only fix is dark ink on the pale categories, which changes how every block
+in the app looks. `CategoryColors.text` already exists for exactly this, is set
+to white on all seven and is read by nothing, so the decision is one line per
+category when it is made. The measurement is written beside it.
+
+---
+
 ## What a 10 means
 
 A number I can argue for, so that "9" and "10" are different claims rather than
@@ -115,19 +160,9 @@ That measurement is the next thing on this screen.
 | 10 Motion | PASS. |
 | | **and the composition**: the copy is centre, the slot bottom-left, the one control top-right. Three things in three places with nothing relating them. |
 
-### Not yet audited
-
-3–22. Every other screen. Each needs its own capture, its own ten checks and
-its own measurements; the two above took a pass each and found one real failure
-each, which is the rate to expect rather than a reason to go faster.
-
-**The order they will be done in**, most-used first, because a screen somebody
-sees ten times a day earns the attention before one they see at install:
-
-Add a win · Camera · Memories (map) · Block card · Photo viewer · Day album ·
-Replay · Profile · Plan · Settings · Head maker · Camera review · Camera
-refused · Memories empty · Head picker · Place collection · Onboarding ·
-Restore · Store unavailable.
+**Superseded 2026-10-01.** The rating above was written before the tower was
+measured with forty wins in it, and the open check it names is not the one that
+fails. See "1. Wins, the tower" below, rewritten.
 
 ### 9. Add a win · **9/10** (2026-10-01)
 
@@ -166,3 +201,364 @@ and 0.998 renders at 255. Back to 0.965, measured at (246, 246, 246) on a
 **This is the argument for the audit existing.** The value looked right in the
 source, the change that broke it was correct in its own terms, and nothing but
 sampling the built screen would have found it.
+
+---
+
+# The second pass, 2026-10-01
+
+Nine agents measuring in parallel, one build and one simulator, every screen
+captured from a seeded fixture and measured in points off the PNG.
+
+**Three things this pass established about the method**, before any screen:
+
+1. **A fixture is a state, and the state that breaks a screen is usually the
+   one no fixture reaches.** Wins was rated 9/10 off a tower of twelve. At
+   forty, the pinned header prints on a block. Nothing about twelve could ever
+   have shown it.
+2. **A capture that silently lands on the wrong screen looks exactly like a
+   capture.** `photo-viewer.png` and `day-album.png` came back byte identical
+   and both showed the camera: `-strataOpenDay` and `-strataOpenPhoto` set a
+   route without setting a tab, and the app opens on the camera. Found by an
+   agent checking the md5s, not by anyone looking at them. Every capture run
+   now prints its dominant colour and flags a blank frame.
+3. **A heavy seed takes longer to write than a screenshot takes to fire.**
+   Seven of twenty eight captures were the launch screen because the app was
+   still seeding at five seconds. They are indistinguishable from a black
+   design until you measure one: (8, 8, 8) at 98% is never a screen.
+
+---
+
+### 1. Wins, the tower · **10/10** (2026-10-01, re-rated)
+
+The 9/10 above named check 2 as its open one: the slot might fall below the
+fold on a tall tower. **That check passes**, measured on a seeded forty: the
+scroll rests at the crown and the slot is the second object down the page.
+
+The failure was check 9, and it needed a tower tall enough to scroll to find.
+
+| Finding | Before | After |
+|---|---|---|
+| **The header is printed on the tower** | the date in `inkSecondary` drawn directly onto a salmon block, across that block's own white label; the status bar clock in black on the same salmon; the filter button's glass sampling a blue block and turning blue | `.softScrollEdge(.top)`, iOS 26's progressive blur at the scroll boundary. See `ScrollEdge.swift` for the three alternatives rejected, one of which was the bar this screen had deliberately removed |
+| **A fifth spacing value** | the header's `.padding(.bottom, 20)`, the only value on the screen off the 8/12/16/24/32 ladder | `gapWide` |
+
+### 2. Wins, empty · **10/10** (2026-10-01, re-rated)
+
+The 7/10 above named the copy overlapping the lattice. That was real and it was
+a symptom. Measured, **everything on the lower two thirds of this screen was
+within 5 values of the page**, including the only thing on it you can press.
+
+| Finding | Before | After |
+|---|---|---|
+| **The slot's edge** | peak (212, 211, 210) on a (247, 247, 247) page, **1.39:1**, against the 3:1 WCAG asks of a control's boundary. The lattice ghosts beside it measured 4/255 from the page, so nothing down there was distinguishable from anything | **3.11:1**. The ink had to overshoot, to 0.80, because a 1pt border at 3x straddles the pixel grid and a third of it is lost to antialiasing. The rendered line is lighter than this screen's own body text |
+| **The plus** | `iconCategory`, 13pt, which is the size of a category mark in the CORNER of a block, here the only mark inside an 86.5pt square. Rendered 2pt wide at **2.92:1** | 22% of the cell, so it grows as the size is drawn out of the slot. **3.42:1** |
+| **The copy, centred on the viewport** | at 446pt of 874, on top of the lattice's first two rows, with a **311pt void** above it, and centred on a page where the date, the grid and the slot are all at 16 | under the date, on the margin: 16.3 and 17.3 against the date's 16.7. The page reads top to bottom in one column: what day it is, what state it is in, what to do, and then the empty tower |
+
+What was NOT done: the lattice was not raised to meet the slot, and the recess
+was not darkened into a grey square. The scaffolding and the control should
+differ in kind, not both get louder.
+
+### 9. Add a win · **10/10** (2026-10-01, re-rated)
+
+The 9/10 above left the title field's contrast unsampled. Sampled, it is not
+low, it is **the only pure black on the sheet**: a `TextField` with no
+`foregroundStyle` falls through to `UIColor.label`, which is (0, 0, 0) on light
+and pure white on dark, where everything else is `inkPrimary` at (37, 37, 37).
+The one word the screen is about was the one drawn in an ink the system does
+not own.
+
+| Finding | Before | After |
+|---|---|---|
+| **The well was a hole, drawn in a vocabulary that exists nowhere else** | a 3.5% recess with a **dashed** 1.5pt border, whose comment claimed it matched the tower's slot. The tower's slot is a solid stroke. The border was `slotInk` 0.26, the same value measured at 1.39:1 on the tower. And it was the largest object on the sheet, so the one OPTIONAL part of a win had the loudest position and was drawn as an absence | the block it is making, through `BlockSurface` and `EtherealFill`: the same surface, rim, wash and corner the tower uses. Pick a colour and the block turns that colour. Pick a size and it becomes that size. Add a photograph and the photograph becomes the block, which is what happens when it lands |
+| **The camera glyph on the new block** | white on the red category, **2.70:1**, and no weight or size fixes it: white against that red tops out at 2.78 | on the 0.35 ink disc this file already uses for the replace affordance, so a photographed block and an unphotographed one answer in one language |
+| **The title's ink** | (0, 0, 0), 18.91:1 | `inkPrimary`, 13.81:1, the sheet's own |
+| **Cancel and Add** | bare `Text` in a toolbar, 68 x 36 off the accessibility tree | 44 x 44, the fix `PlanSheet` already carried with the owner's "really easy to miss click" on it |
+| **The selection ring hung off the margin** | 14.0pt, where the name, both labels, the picker and the well start at 16. `swatchInset` was half the air around the 34pt CHIP, and the widest thing in that frame is the 38pt RING | 16.0. The six circles move to 18.0, which on round shapes is invisible |
+| **Delete's label on its own pill** | `.bordered` fills with the tint at 0.182, so systemRed gives (245, 209, 210) under a (255, 56, 60) label: **2.54:1** | `B3000F`: pill (231, 199, 201), label **4.59:1**. `D70015` only reaches 3.50 |
+
+**The one sanctioned exception in the whole audit is on this screen.** The
+segmented control measures 32pt, which is UIKit's own metric and not something
+a SwiftUI frame can change without rebuilding the control and throwing away
+Dynamic Type, the adjustable trait and the drag that carries the thumb. One
+segment is 134 x 32, which is 4,288 square points against a 44 x 44 button's
+1,936: the 44pt rule is a proxy for "can you hit it" and here the proxy and the
+thing it stands for disagree. Written down in `EtherealControls` rather than
+quietly passed, and it does not generalise.
+
+### 6. Memories, the month · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The month's replay thumbnail was not a picture** | a **15pt** stripe of confetti on white. `posterScale` fits a row's tallest tower into the poster's height, and a seeded September of 138 wins scaled to about 0.15, drawing the four column grid 51 points wide inside a 360 point poster: 86% of the image was blank, and the row crops the middle of it. The row's own comment says a picture 52 points wide is a stripe. It was still a stripe, and smaller | the scale stops shrinking once the grid would be narrower than 85% of the poster. Over that floor a month fills the width and crops at the top, which is how a book cover works |
+| **Two paddings doing one job** | 22pt above the replay row and **56** below it: `gapSection` on the row and `gapWide` on the calendar, each defensible alone, stacked. An element with 22 above and 56 below belongs to the thing above it and is spaced as if it belongs to nothing | one rhythm, `gapWide` throughout. The picker, the replay and the calendar are one section about one month, and the page's biggest gap is kept for the real break below the calendar |
+
+The price of the poster floor is that a tall month and a taller one now look
+the same. That is the right price: the count sits in text beside the picture,
+so nothing is lost by the picture not also encoding it, and the comparison was
+never visible in the degenerate case anyway, because at 0.15 a tall month and a
+taller one are both a line.
+
+Measured and clean on this page: the Liquid Glass tab bar over twenty
+saturated blocks keeps its labels at **13.6 to 16.5:1**. Its adaptive
+legibility is doing the work, so the colour bleeding through it is not a
+contrast failure.
+
+### 3. Camera, viewfinder · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **A thirds guide runs through the flip glyph** | the guide at x 268.2 sits inside the glyph's ink, 265.3 to 289.3. The cause is structural: the guides' fade is a FRACTION of the frame and the control row is placed from the BOTTOM edge, so the two were anchored from opposite ends and only agreed by luck on this device | the fade clears at `h - bottomInset - shutterBottomGap - 80`, which is the shutter's own top, by construction on every screen |
+| **The shutter had no bright-frame treatment** | a white rim, a white fill and a scene-coloured gap. On black that is 255 against 0. On a lit white wall every part of it is white on white | `legibleOnImagery()`, the treatment this app already names for exactly this, and it costs nothing on black. A scrim under the row was the other candidate and was rejected: it is a band of ink over the picture, on a screen whose whole argument is that the picture is the only lit thing on it |
+| Control row width arithmetic | `controlSide * 5` for a row of four glyphs, solving for 300pt on a 256pt row | `* 4`. On an SE the margin goes 37.5 to a full 44 |
+
+**This one needs a device.** The bright-frame case cannot be photographed on
+this simulator, which has no camera. The fix is reasoned from the app's own
+`Legibility` treatment and measured on black. One look through a real lens at a
+white wall closes it.
+
+### 4. Camera, permission refused · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **Five controls, none of which could change anything** | the shutter was dimmed and disabled; the four glyphs were left live, so the grid toggle flipped a preference the denied state suppresses, flip turned a session that is not running, and the timer counted down to a photograph that cannot be taken. The dead shutter alone was 3,836 square points of rgb(77, 77, 77): the largest object on the page and the brightest thing after the headline it was competing with | the row is ruled out, hit testing off, hidden from VoiceOver. The close button is a sibling and survives |
+| **The primary action's container is invisible** | `glassCapsule` renders rgb(19, 19, 19) on rgb(0, 0, 0): **1.13:1** against a 3.0 floor. Glass answers what is underneath it, and here the session never started, so there is no scene to refract. Nothing container-shaped reaches 3:1 on pure black without becoming a 36% grey slab | the capsule is gone. The word carries it at 21:1 |
+| **The copy** | "Strata cannot **see** the camera" | "cannot **use**". "see" beside "camera" is the exact register the house rule guards, and it was also wrong about the fault: the lens works, the app has not been allowed to use it |
+
+### 5. Camera, review · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The picture lands on the chrome** | photograph 80.7 to 603.3, first look swatch at 604.0: a **0.7pt** gap, on a screen where every other gap is 24 or 40. Structural: `Spacer(minLength: 0)` above and below, and a 3:4 frame, which is what a phone makes in portrait, takes the whole region, so the bottom spacer resolves to nothing | `minLength: gapLabel` both sides |
+| **The size control was positioned by the screen, not by the picture** | pinned at `topInset + Header.topPadding`, which on a 3:4 frame happens to be flush with the picture's top edge and on a landscape 4:3 one strands it 110pt above the picture in the black | `.overlay(alignment: .top)` on the image, 16pt in, correct on every aspect |
+| **An unselected size word is unreadable** | `onDarkQuiet` on `glassCapsule`: **2.91:1** on a measured capsule of rgb(108, 102, 130), against 4.5 for text. The LIT word passed at 5.07, which is how it survived a reading | `GlassRecipe.typePanel` and `onDarkSecondary`: **5.83:1** on the same ground |
+| **The film strip's gutter changed with the selection** | declared 8, rendered 9.7 / 11.4 / 11.4, because `scaleEffect(0.94)` shrinks the drawn square and not its box | 8 / 8 / 8. The scale was a third signal anyway: the rim already goes 1pt faint to 2pt strong and the name quiet to strong |
+
+The structural root is worth stating on its own: **the `onDark*` scale is
+defined against the viewfinder's black**, where it measures 18.8 / 12.0 / 6.7,
+and the review screen's ground is an arbitrary photograph. A token that is
+correct for one of those is not a token for the other.
+
+Shared-file change this screen asked for and got: `glassCapsule(carriesType:)`,
+so the capsule shape can reach `GlassRecipe.typePanel`. Until it existed, the
+capsule had no route to the one recipe measured for words over imagery, and the
+camera was reaching it through `glassRoundedRect` at radius 22.
+
+### 10. Plan · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **A separator after the last line** | five rules for five lines, where five lines have four boundaries. The last sat at y=403.0 with 471pt of nothing under it, so the page ended on a line drawn under empty space | four |
+| **Only part of the empty page answered a tap** | a fixed 160pt tail: **160 of the 471pt** below the last line did anything | the whole remainder, via the proxy's own height, falling back to 160 on a list taller than the screen |
+| Repeat caption on the wrong token | `caption2`, 11 Medium, which `Typography` documents for chart axes and whose only other call sites are chart axes | `bodySmall` |
+
+### 11. Plan, empty · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The ghost outline, the only shape on the screen** | **2.13:1**, under the 3:1 a shape is held to, while its own comment claimed it was "the exact silhouette" of a bullet that measures 3.31 | 3.31:1, reading `PlanBullet`'s own two numbers, now exported so they cannot drift apart again |
+| **Three left edges on one page** | 16.0, 54.0 and **18.3**, a margin this app does not have. Structural: the sentence carried `gapItem` inside a stack already pulled back by the bullet's 10pt target inset, so 12 minus 10 left two points of nothing | two, 16.0 and 54.0, both the page's own |
+| **The ghost jumped when you used it** | ghost block at 174.0, the first real line's bullet at 154.3: a 20pt shift the moment you tapped | 154.3. The ghost carries the row's own vertical padding, as a real bullet does |
+| **Three grey objects doing one job** | a dashed outline at 2.13:1, a 150x11 bar at **1.20:1** (the faintest ink on the sheet, and the idiom a screen uses while it is still LOADING), and a sentence at 6.13:1 | two, in one waiting row |
+
+### 14. Day album · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The count line is below text contrast** | `inkQuiet`, composited to rgb(137, 136, 134) on rgb(249, 247, 244): **3.31:1**. `inkQuiet`'s own doc says it is held to 3:1 BECAUSE it is for glyphs and not for text somebody reads. It was carrying the one thing on the page that says how big the day was | `inkTertiary`, rgb(112, 111, 110), **4.69:1**. Same on the empty state, which is the page's only sentence |
+| **Two haptics on one tap** | `FlippableBlockView` fires `lightTap()` and then calls `onTapBlock`, which fired it again | one |
+| **The tower's width came from the device** | `UIScreen.main.bounds.width - 32`, with an unused `GeometryReader` two lines above it | the proxy's width. Identical on this phone, correct in landscape, on iPad and in Slide Over |
+
+The token's doc comment now carries the line that would have stopped both
+callers: never a sentence, a count or a subtitle.
+
+### 16. Photo viewer · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The stage resized because a server replied** | `dateHeight` was `placeLine == nil ? 34 : 56`, and `placeLine` is a reverse geocode. When the name came back the band grew 22pt and the photograph you were looking at got smaller. That is check 10's exact words: something that animates because it appeared | a constant band, top aligned, so the caption lands on the same y on every photograph and the print never moves |
+| **Chrome over a magnified picture** | `scaleEffect` does not clip, so a zoomed photograph drew from y=58 straight under two 44pt glass controls at y=58 to 102. A bright frame under `.regular` glass with a hard white glyph is about **1.1:1** | clipped to the page box. The chrome is on black at any magnification |
+| **Every filmstrip thumbnail but one was a 36 x 47pt target** | `scaleEffect(0.78)` and `offset(y: 5)` move the hit area as well as the drawing, on a control whose only job is to be tapped | 46 x 60 for all of them, and it stops sliding while you scrub |
+| **Two left margins on one screen** | the print band at **20.0**, the chrome at 16 | 16.0. A landscape print also gains 8pt of width |
+| The place line's weight | `sectionLabel`, 13 **Medium**, the token for an uppercase section heading: the secondary caption was drawn heavier than the 15 Regular primary above it, in the same ink | `bodySmall` |
+
+### 12. Block card · **10/10** (2026-10-01)
+
+Not a separate view: the block card is `AddWinSheet` in its editing mode, which
+is why its findings are the add sheet's. All six are listed under "9. Add a
+win" above, and every one of them was found by measuring this screen rather
+than that one. Two screens sharing a file is a reason to measure both, not a
+reason to measure one.
+
+### 7. Memories, empty · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The empty state advertised the design it had replaced** | a centred cluster of four DASHED ghost blocks, packed the way the month TOWER used to pack them, on a page that is now a calendar | deleted. The real calendar renders thirty one empty cells with their numbers in them, which is both the true shape and the thing the owner asked for by name: "add some lattice at the end of the calendar in the empty spots just so it doesnt look like empty state completely" |
+| **A dash this app does not have** | the ghosts and the add sheet's photo well were the only dashed things in it. The tower's slot is a solid stroke and the calendar's empty days are solid wells | both gone on the same day |
+| **Centred copy on a left aligned page** | headline and sentence centred, 72pt down a blank page, where the title, the picker and the calendar all start at 16 | a subhead on the margin, under the picker, above the calendar |
+
+Two bespoke empty treatments and one private component (`ghostRow`) deleted.
+The empty state is now the page with nothing in it, which is a better promise
+of the thing than a drawing of a different thing.
+
+### 20. Onboarding, six pages · **10/10** (2026-10-01)
+
+**The cross-page table is the finding that only a table could produce**, and it
+came back clean: the pill is identical to a tenth of a point on all six pages,
+766.0 to 815.7. The 1pt spread in the title tops is letterform (a pointed cap
+overshooting), the 16.3 to 18.0 spread on the left is side bearing on one 16pt
+margin, and the body's two positions differ by exactly 41.0, which is one
+largeTitle line. Nothing on these six pages is positioned by hand.
+
+| Finding | Before | After |
+|---|---|---|
+| **The primary pill's word could not be read, and it is the app's most repeated piece of type** | white on `AppColors.accent`: **2.03:1** against the 4.5 a 17pt word is held to. Nothing about choosing that blue was a decision about the label, because the one relationship that matters here had never been measured. `accentPrimary`'s own doc has the blue measured three ways and not once as a white word ON it | `accentPrimary`, flat, white label. Sampled at four points across the built pill: the fill is (0, 123, 178) at every one and white on it is **4.69:1** at every one. Flat and not lit because the ethereal rim makes the number depend on how long the word is: 4.69 under "Go on" and **4.24** at the far end of "Make your head" |
+| **Two blues for one job** | this pill was the only control left on `accent` after the owner moved the primary to `accentPrimary`; check 5 allows one | one |
+| **The waiting pill was halved before it was drawn** | ring **1.71:1**, label **1.96:1**, both exactly half their declared alpha with no antialiased edges. A disabled plain button is dimmed by the environment, which `HeadMakerView` had already found from the other direction and routed around. So the state the owner complained about twice, "the button is lowkey invisible during the onboarding flow", was still invisible and the fix written for it was being halved on the way to the glass | ring 4.6:1, label 6.0:1, and no `Button` or `.disabled` anywhere near it |
+| **"Not now" was an 18pt target** | the label is `bodySmall` with no frame, so the hit area was the text's own line box, on a page where the back disc beside it is 44 | 44. The 44pt box adds 13pt of its own air, so the optical gap to the pill goes 12 to 25 without the pill moving |
+| **The lattice on page 2 is the lesson and measures 1.03:1** | cells 248, gutters 244. The component's own note says why: a white pane cannot be brighter than a ground already at 245, and the Wins tab solves it with `GroundField`'s seat, which is made of photographs the walkthrough does not have yet. Raising the strength cannot fix it; white tops out at 255, which is 1.07:1 | the board gets its own seat at 0.07, so the ground under it falls to about 232 and the panes read on it |
+| `PressResponse` had zero call sites | 36 `.plain` in the app and one component written to replace them | 3 here |
+
+### 22. Store unavailable · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The only button on the one screen where somebody is stuck was invisible** | a privately built slab filling at **1.15:1** against the page. The only thing drawing the button was the word in it | the filled capsule `RestoreBackupView` already uses: **14.0:1** |
+| **A 32pt margin** | the one screen in the app not on 16 | 16 |
+| **Two Spacers nobody chose** | 258pt of void, the copy, 263pt of void, the button | copy on the top margin, one section break, action on the bottom margin at 766 to 816, which is the walkthrough's exact position |
+
+### 21. Restore from backup · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **Four type sizes** | 34 / 17 / **15** / 13. The 15 is `screenSubtitle`, the line under a SCREEN title, and this screen's title is in the toolbar | 34 / 17 / 13 |
+| **The one word you press read as a label** | Cancel in `accentWarm`, which in light mode is (28, 26, 24), a near black | `accentPrimary`, 4.38:1, which is what Settings, Profile and the month replay row already use |
+| **A 24pt margin** | the app is 16 | 16 |
+| **An em dash in UI copy** | `?? "—"` on the From and To rows | "None", the word the row above already used |
+
+**Two debug flags were asked for and are the right ask:** `-strataSeedBackup <n>`
+to write a real archive into Documents, because a backup made from the live
+store restores to zero and lands on the one state with no button at all, and
+`-strataRestoreStage ready|restoring|done|failed`, because four of this screen's
+five states have never been looked at by anybody and two of them follow a data
+loss.
+
+### 18. Head maker · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The shutter was drawn twice** | `CameraView.shutter` and `HeadMakerView.shutter` each built a rim and a block from the same bounds and the same 14.7% corner, in two files, sharing two numbers. The audit improved one of them on the same day it read the other, and they came out disagreeing | `ShutterBlock`, one view, with the measurements that chose the unlit state in its doc |
+| **The unlit shutter was the second largest piece of grey on the page** | `.white.opacity(0.3)` dimmed a second time by the disabled-button environment: **rgb(38, 38, 38) over 3,983 square points, 1.33:1**. Raising the 0.3 to `onDarkQuiet` was rejected by measurement, because rgb(140) over 4,356 square points makes the one control you cannot use the brightest thing on the screen, which is word for word the fault already written up against the camera's refused state | the fill goes and the rim carries it at rgb(128), **5.1:1**. It also reads as this app's own sentence: an empty slot that fills with a block the moment it is ready |
+| **The outline was off centre, and the cause predates the mark row** | `headHole`'s floor subtracted the shutter, one gap and the prompt, and stopped. The pip row was added later and never reached it. Measured air: **86pt above, 61pt below** | built from the same pieces the chrome stacks: **71.7 above, 71.7 below** |
+| **A deleted wordmark was still laying out the header** | `wordmarkSize = 32` reserved space for a mark that came off every screen, and the close button carried a -6pt offset to centre on its cap. The camera deleted both when the mark went; this file kept the arithmetic | gone, close button at the camera's own inset |
+| **The "you are here" mark read as nearly done** | a 1pt white ring on a 7pt square is 24 of its 49 square points: mean lightness **0.63**, against 0.28 for not yet and 1.0 for done. Growing the square does not help, because a bright ring always adds lightness in the one direction it must not | a 2x1 of the same block at the same lightness. Lightness says done, width says where |
+| **The outline stayed drawn through a failure** | a failure after lining up left the dashed outline and its dim over "Couldn't get a clear picture": the screen still telling you where to stand under a sentence saying it had stopped. No screenshot could show it, because the debug flag jumps straight into `failed` without passing `lining` | fades out |
+| **"Try again" said twice, 90pt apart** | all three failure sentences ended in it, above a button reading Try Again | the sentence keeps what only it can carry, the verb belongs to the button |
+| Raw white opacities on the screen whose ground is the reason the `onDark` scale exists | 5 | 0 |
+
+### 8. Memories, the map · **10/10** (2026-10-01, with one written exemption)
+
+| Finding | Before | After |
+|---|---|---|
+| **The way back was invisible** | a white chevron on its own near-white disc: **1.10:1**. On the capture it is an empty white circle | an ink glyph on a light-pinned disc, **19.70:1** over every ground on the map |
+| **The count badge was on the wrong block** | `.offset(x: 8, y: -8)` put it 8pt OUTSIDE the block's bounds, and `PlaceMap.maxOverlap` lets two places touch, so the "2" sat bodily on the orange block to the right of the purple one it counted | inset 4pt inside the block's own corner. Nothing is drawn outside a block |
+| **The badge's ground was invisible** | its capsule renders (231, 230, 232) under the scrim against MapKit's (233, 233, 224): **1.01:1**, so the digits read as one more map label among the road shields | its ground is the block: numeral **8.15:1** |
+
+**The structural finding on this screen is worth keeping.** The glass disc was
+scored against the map's ground in five places and clears 3:1 against none of
+them and never will, because it is a near-white material and so is most of a
+map:
+
+| ground | rgb | disc vs ground | white glyph | ink glyph |
+|---|---|---|---|---|
+| pale fill | (233, 233, 224) | 1.15:1 | 1.07:1 | 19.70:1 |
+| park green | (203, 224, 198) | 1.31:1 | 1.07:1 | 19.70:1 |
+| road grey | (213, 213, 206) | 1.38:1 | 1.07:1 | 19.70:1 |
+| water blue | (132, 181, 221) | 2.04:1 | 1.07:1 | 19.70:1 |
+
+So the GLYPH is the whole control and its ground is the disc, which is the one
+thing on screen that does not change as you pan. A light-pinned disc under an
+ink glyph is the only pairing that holds over the quiet, satellite and night
+grounds alike. The recentre button was already built that way and measures
+18.9:1; the back button was the one control that was not.
+
+**The second sanctioned exemption in the audit, on check 10.** Every block with
+more than one photograph cross-fades to the next on a seven second timer, with
+nobody doing anything, which the rubric fails. It stays, because it is the
+owner's own instruction ("multiple photos in the same spot should just become a
+bundle, keep it in one bundle cycling through") and because it carries
+information no still frame can: that there is more than one picture here. It is
+written down rather than quietly passed, and like the segmented control's it
+does not generalise.
+
+### 15. Place / curated collection · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **The count line fails text contrast** | `inkQuiet` composites to (137, 136, 134) on (249, 247, 244): **3.31:1**, and on a place whose name has not resolved it is the only line on screen that is not a photograph | `inkTertiary`, **4.69:1** |
+| **The screen can draw a title over a blank page** | open a place, open its last photograph, delete it: nothing matches, and what is left is a name, a hidden count and 800pt of ground. Check 1 has no subject at that moment | the day album's sentence, gated so it cannot flash before the store is read |
+
+**A process point, recorded because it will happen again.** The count line's
+3.31:1 had already been found by the agent auditing the day album, named
+correctly, and left with the comment "it is not this file's to change". It WAS
+that file's. A finding that is written down and not routed to somebody who owns
+the file is a finding that does not land.
+
+### 12. Profile · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **No accent on a page the Form already tints** | Done was `accentWarm`, (28, 26, 24): a near black at 16.2:1 beside a title at (37, 37, 37) and 14.3:1. Two words in the bar at the same weight, nothing saying which one was the button | `accentPrimary`, 4.38:1. No green anywhere on the screen |
+| **The name's placeholder** | **(190, 190, 192), 1.73:1**, under even the 3:1 a plain UI element gets | `inkQuiet`, 3.3:1 |
+| **The avatar's ground was a system grey** | `.quaternary`, (203, 203, 202), 1.51:1, and `ProfileView`'s own colour swatch ten points below it refuses `.quaternary` by name. The default underneath them both did not | `quietFill`, and the default is fixed rather than shimmed, so the drawing planned for this slot lands on a near-white disc instead of on a mid-grey blob already doing its job |
+| **A fourth and a fifth type size** | 28 for the streak numeral, which is not one of the five rungs, and 11 for the chart axis, whose only two call sites in the app were this chart | 34 / 17 / 13 |
+| **A void where a section break should be** | 75.3pt between the title's cap and the picture, against a 71.3pt card-to-card break, so the page's biggest gap was above its subject | about 64 |
+| Two blacks on rows of one rank | (0, 0, 0) and (38, 38, 38) | one |
+| Selection rings at full ink | `inkPrimary` 1.0 at a literal 2 | 0.55 at `strokeMedium`, which the add sheet settled on the same day, and whose comment already claimed Profile wore it when Profile did not |
+
+### 13. Settings · **10/10** (2026-10-01)
+
+| Finding | Before | After |
+|---|---|---|
+| **Every row was under 44** | measured **42.65pt**. The two sections settle the cause between them: Replays has no switch and measures the same, so the switch is not the driver. `SettingsIcon`'s 30pt frame plus 12.65 of row inset is | 32 plus the same inset: 44.65 |
+| **A 96pt void above the mark** | against a 69.7pt card-to-card section break, and 24 of it was a `gapWide` added on top of two insets that were already stacked | about 61 |
+| **The one row with no glyph** | "Reminder Time" began in the icon column, 43pt left of the other eleven | a clock glyph, and the column holds |
+| Two reds on one destructive row | `warmRed` on the glyph and the system red on the word | one |
+
+Measured and clean: the switches are (19, 139, 194), which is `switchOn`. **No
+green survives anywhere in Settings**, which is the thing the owner asked for by
+name.
+
+### 19. Head picker · **10/10** (2026-10-01)
+
+Inside Profile, below the fold. Its three failures were the same three as the
+page it lives on, which is the argument for auditing a component where it
+renders rather than where it is written: the full-ink selection ring, head and
+look names at `inkQuiet` (3.3:1 on running text), and a 6pt spacing that is not
+on the ladder.
+
+### 17. Replay · **10/10** (2026-10-01)
+
+The choreography was read out of `ReplayScript` and solved in Python against
+the real pacing, metrics and packer, at 402x874: a week of 22 wins is 14.02s
+and a month of 108 is 23.74s, and both have a shape (open, build with a day
+pulse, hold, reveal, dance, close) rather than a loop of one beat.
+
+| Finding | Before | After |
+|---|---|---|
+| **Two things moved at once that belonged in sequence** | the date's 0.45s arrival started at `revealStart`, so it ran across the first **45%** of a week's camera pull-out and 32% of a month's. A fifteen point caption arriving beside a whole tower changing scale is an arrival nobody sees. Meanwhile `holdAfterLast` left **0.5s in which nothing moved at all**, directly before it | the date starts at `revealStart - arrive`: overlap 0.45s to **0.00**, dead hold 0.50s to **0.05**, and the replay is not one frame longer. It reads as a sentence: the number stops, the period it belongs to appears under it, then the camera shows you the tower |
+| **A glyph button stepped sideways when a label changed** | "Save Video" becoming "Saved to Photos" takes the centred row from 255 to 294pt, so the Replay button's edge jumps **19.5pt** under the other thumb, instantly | the same reflow on `gentleReveal`, keyed to the two titles only so the export ring's per-frame progress installs nothing |
+| **The night ground had a warm lamp in the middle of it** | `GroundField.night[4]` is hue **0.11** among eight at 0.60. Sampled on the replay, the screen with the most empty dark ground: (273, 192) came out rgb(85, 77, 60), red 25 above blue, and (60, 180) on the same line rgb(46, 55, 68), red 22 below. A **47 level reversal across 213 points** on a page whose brightest value is 85 | hue 0.60, brightness unchanged. The DAY array had been given this pass twice and carries the reasoning; the night array had never had the same read |
+| An off-ladder gap, privately typed | 6pt between the date and the Sample badge | `gapTight` |
+
+The test that pinned the bug was moved rather than relaxed: `titleAndClose`
+asserted the date STARTED at `revealStart`, which is the thing that was wrong.
+Every assertion keeps its shape against the new anchor, and two were added so
+the new rule can fail.
+
+**Measured and left, with the number written down rather than tuned blind:**
+`danceLift` is 10 world points and scales with the camera while `danceTilt`
+does not, so a week's celebration lifts a block 5.74pt on a 51.1pt cell and a
+month's lifts it **1.28pt on an 11.4pt cell**. Scaling the lift by the inverse
+would make a month's blocks rise 77% of their own height and detach from the
+tower, so it was not done. A coherent wave across 108 blocks is detectable
+below a point and that could not be photographed either way.

@@ -579,11 +579,50 @@ struct OnboardingView: View {
         // a fading checkerboard. Cut, it is a board with four columns and three
         // rows, which is exactly what this page is teaching.
         .background(alignment: .bottomLeading) {
-            TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
-                .frame(width: width, height: height, alignment: .bottom)
-                .clipped()
+            // **THE BOARD NEEDS A GROUND, OR THE LESSON IS INVISIBLE.**
+            //
+            // Measured on this page: cells 248, gutters 244, which is 1.03:1.
+            // The lattice draws its cells as WHITE PANES, and a white pane
+            // over a 245 ground has four values of room to be seen in. The
+            // component's own note says exactly this and says what fixed it on
+            // the Wins tab: "a white pane cannot be brighter than a ground
+            // that is already at 240, so the answer was never to outline the
+            // pane, it was to stop the ground being that bright. `DayGround`
+            // sits lower now."
+            //
+            // The Wins tab gets that lower ground from `GroundField`, which is
+            // made of the blurred photographs you have taken. On the walkthrough
+            // there are none, so the ground is flat `WarmBackground.top` and
+            // the panes have nowhere to go. Raising `TowerLattice.strength`
+            // cannot fix it: white on 245 tops out at 255, which is 1.07:1 at
+            // full opacity.
+            //
+            // This page is the one where the board is the LESSON. You are
+            // being taught that a Quick takes one cell and a Deep takes four,
+            // and you cannot be taught it by cells you cannot see. So the
+            // board gets the seat the Wins ground has, at a little over twice
+            // the strength because it has to work on a flat page rather than
+            // on a field: the ground under the board falls to about 232 and
+            // the panes read at about 240 on it, with the board itself a
+            // visible 13 under the page. That is a board on a page, which is
+            // what it is.
+            ZStack(alignment: .bottomLeading) {
+                Rectangle()
+                    .fill(AppColors.slotInk.opacity(Self.boardSeat))
+                    .frame(width: width, height: height)
+                TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
+                    .frame(width: width, height: height, alignment: .bottom)
+                    .clipped()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+                                        style: .continuous))
         }
     }
+
+    /// The ground under the tutorial board. `GroundField.seat` is 0.030 and
+    /// sits under a field of blurred photographs; this is a flat page with
+    /// none, so it carries the whole difference itself.
+    private static let boardSeat: Double = 0.07
 
     private static let tutorialColours: [HabitCategory] = [
         .mindfulness, .health, .creativity, .work, .social
@@ -649,10 +688,17 @@ struct OnboardingView: View {
     /// page, one head, shown the way it would be your picture: in a circle
     /// on a colour, blinking and glancing. Yours once you have made one; until
     /// then the creator's, the same head the next page leans over his photo.
+    /// **The disc is lit, because the real one is.** `ProfileView` fills a head's
+    /// disc with `EtherealFill.fill(baseColor)` and this filled it with the flat
+    /// `baseColor`, so the page that introduces your head showed it on a
+    /// different surface from the page it lives on. Measured on the 2026-10-01
+    /// shot: a flat 174,152,250 across the whole 200pt circle, where every other
+    /// coloured object in the app carries the core-to-rim lift. One recipe, and
+    /// it is already written.
     private var headPage: some View {
         ZStack {
             Circle()
-                .fill(HabitCategory.creativity.style.baseColor)
+                .fill(EtherealFill.fill(HabitCategory.creativity.style.baseColor))
             if let rig = heads.head ?? HeadRig.creatorRig {
                 TappableHead(rig: rig, side: Self.headCircle * ProfileAvatar.headShare, greets: true)
             }
@@ -703,7 +749,13 @@ struct OnboardingView: View {
                 // subject. Twice in two pages is a repeat, not a motif.
                 // Restoring it is one overlay.
 
-            VStack(spacing: 2) {
+            // **`GridConstants.spacing`, and it was a hand-typed 2.** Four is
+            // the grid's own gutter and it is what `RestoreBackupView` already
+            // puts between a count and the word under it, which is the same
+            // pairing: a name and the line that says what it is. A raw 2 is the
+            // only number on these six pages that came from neither ladder, and
+            // the audit's check 7 catches exactly that. The pair moves 2pt.
+            VStack(spacing: GridConstants.spacing) {
                 Text("Jayden")
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
@@ -725,19 +777,44 @@ struct OnboardingView: View {
 
     private static let linkedIn = "https://www.linkedin.com/in/jaydenbetts"
 
+    /// The one offer on the last page.
+    ///
+    /// **It was wearing a second black and a ring nobody could see.** Measured
+    /// on the 2026-10-01 shot of page 6: the label sampled 64,61,57 (`slotInk`,
+    /// the tower's warm black) while the title 450pt above it sampled 36,36,36
+    /// (`inkPrimary`) — two blacks on one page, which is the thing
+    /// `AppColors` exists to stop. And the ring, `slotInk` at 35%, sampled 180
+    /// on a 243 ground: **1.89:1**, against the 3:1 the guideline asks of a
+    /// shape. The only thing saying "this is a button" was a line you cannot
+    /// see.
+    ///
+    /// So: the page's own ink for the word, and `inkQuiet` for the ring, which
+    /// is a token rather than a hand-typed 35% of a different black. Computed
+    /// over the sampled ground: the label clears 14.3:1, which is what the title
+    /// on this page already measures, and the ring 3.3:1 against the 3.0 floor.
+    ///
+    /// The height is `pillHeight`, shared with the primary below it, so the two
+    /// capsules on this page are provably the same object and not two 50s that
+    /// happen to agree.
     private var connectButton: some View {
         Button {
             if let url = URL(string: Self.linkedIn) { openURL(url) }
         } label: {
             Text("Connect on LinkedIn")
                 .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.slotInk)
+                .foregroundStyle(AppColors.inkPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Capsule().strokeBorder(AppColors.slotInk.opacity(0.35), lineWidth: 1))
+                .frame(height: Self.pillHeight)
+                .background(Capsule().strokeBorder(AppColors.inkQuiet,
+                                                   lineWidth: GridConstants.strokeThin))
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        // `PressResponse.swift`: "Use this rather than `.plain` on anything that
+        // is not already Liquid Glass." Every button on these six pages was
+        // `.plain`, which draws the label and nothing else, so the one shared
+        // component written to answer "every button with a clean animation" had
+        // no call sites in the app at all.
+        .buttonStyle(.pressWord)
     }
 
     // MARK: - Words
@@ -866,121 +943,194 @@ struct OnboardingView: View {
             // six-page walkthrough offered six times, under a button that
             // already says what happens next. It declines the head here, not
             // the tour: the thank you is still to come.
-            if offersHead {
-                Button("Not now") {
-                    HapticsEngine.lightTap()
-                    withAnimation(GridConstants.naturalSettle) { step += 1 }
-                }
-                .font(Typography.bodySmall)
-                .foregroundStyle(AppColors.inkQuiet)
-            }
+            if offersHead { decline }
 
-            // **A native button.** It was a `BlockSurface` — the app's own
-            // object, which sounded right and looked like a slab. The owner:
-            // "simplify the button, it shouldnt have the block styling, just
-            // make it simple like an apple native button." A block is a win.
-            // A button is not a win.
-            // **A filled capsule we control, not `.borderedProminent`.**
-            //
-            // The native prominent style greys itself out when disabled, and
-            // grey on this page's ground is grey on grey — the owner: "the
-            // button is lowkey invisible during the onboarding flow, same
-            // colour as the background, when its grey." A primary action that
-            // vanishes when it is waiting for you is the worst moment to
-            // vanish, because that is exactly when somebody is looking for it.
-            //
-            // Same shape and weight as the system's, so it still reads as an
-            // ordinary iOS button; the only difference is that WE decide what
-            // disabled looks like, and it is the same pill at 55% rather than
-            // a different, paler control.
+            action
+        }
+        // On the whole band, not on the button, because the two states of the
+        // action are now two different views and the cross-fade between them is
+        // the thing being animated.
+        .animation(GridConstants.gentleReveal, value: canAdvance)
+    }
+
+    /// **"Not now", with a target you can actually hit.**
+    ///
+    /// The label is `bodySmall` and carried no frame, so the Button's hit area
+    /// was the text's own line box: **18pt tall**, against the 44 the HIG asks
+    /// for and against the 44 the back disc on the same page already is. It was
+    /// also set in `inkQuiet`, which `AppColors` documents as held to 3:1
+    /// "deliberately, these are UI elements and decorative glyphs rather than
+    /// text somebody has to read". This is text somebody has to read: it is the
+    /// only way to decline the head. Computed over the sampled page ground
+    /// (243,243,243), `inkQuiet` lands at 3.3:1 and `inkSecondary` at 6.0:1,
+    /// against the 4.5 a word is held to. A decline you can barely read is a
+    /// dark pattern rather than a quiet one.
+    ///
+    /// **And it answers the owner's note that it "sits tight above the primary
+    /// button".** He is right and the cause is the target, not the gap: the
+    /// VStack's 12 was 12 from the pill to a line box with no padding in it, so
+    /// the word sat 12pt off a 50pt capsule. A 44pt box around the same word
+    /// puts 13pt of its own air under the text, so the optical gap goes
+    /// **12 to 25** without the pill moving a point and without a fifth
+    /// vertical number: the stack spacing is still `gapItem`.
+    ///
+    /// The frame and the `contentShape` are on the LABEL, not on the Button. A
+    /// `.frame` outside a Button grows the view and not the hit test, which is
+    /// how a 44pt target gets declared and not measured.
+    private var decline: some View {
+        Button {
+            HapticsEngine.lightTap()
+            withAnimation(GridConstants.naturalSettle) { step += 1 }
+        } label: {
+            Text("Not now")
+                .font(Typography.bodySmall)
+                .foregroundStyle(AppColors.inkSecondary)
+                .frame(height: Self.tapFloor)
+                .padding(.horizontal, GridConstants.gapLabel)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+    }
+
+    /// The primary action, in one of its two states.
+    ///
+    /// **A native button.** It was a `BlockSurface`, the app's own object,
+    /// which sounded right and looked like a slab. The owner: "simplify the
+    /// button, it shouldnt have the block styling, just make it simple like an
+    /// apple native button." A block is a win. A button is not a win.
+    ///
+    /// **THE WAITING STATE IS NOT A DISABLED `Button`, AND THAT IS A
+    /// MEASUREMENT.** (2026-10-01)
+    ///
+    /// It was one Button with `.buttonStyle(.plain)` and `.disabled(!canAdvance)`,
+    /// switching its own background. The comment above it said the label was
+    /// `inkTertiary` "at 4.8:1" and the ring `inkQuiet` "at 3.1:1", which is what
+    /// those two inks measure when they are drawn. They were not being drawn.
+    /// Sampled off page 2 of the 2026-10-01 screenshots, where "What else" waits
+    /// for you to draw a block:
+    ///
+    ///     ring, declared inkQuiet 0.45     rendered 188 on 243   1.71:1
+    ///     label, declared inkTertiary 0.55 rendered 176 on 243   1.96:1
+    ///
+    /// Both are exactly HALF the alpha they ask for, to three decimal places,
+    /// and the stems are flat runs rather than antialiased edges, so this is not
+    /// coverage. **A disabled plain button is dimmed by the environment**, which
+    /// `HeadMakerView` already found and wrote down the other way round: its
+    /// shutter "came out at 128 of 255 during capture instead of white", and it
+    /// routed around the dim by not disabling the button.
+    ///
+    /// So the state the owner has complained about twice ("the button is lowkey
+    /// invisible during the onboarding flow, same colour as the background, when
+    /// its grey") was still invisible, and the fix that was written for it was
+    /// being halved before it reached the glass. An outline was the right idea:
+    /// it is a different object rather than a paler pill, which is what section
+    /// 10 rule 6 asks for. It just has the least ink of anything on the page to
+    /// carry a ratio with, so it is the first thing a 0.5 multiplier kills.
+    ///
+    /// The waiting pill is therefore plain views with no `Button` and no
+    /// `.disabled` anywhere near them, so nothing can halve it. Computed over
+    /// the same sampled ground: ring `inkTertiary` 4.6:1 and label
+    /// `inkSecondary` 6.0:1, against floors of 3 and 4.5. **Re-shoot page 2 and
+    /// sample `row 791` and the ring at `col 201` y 766 to prove it**: the only
+    /// way this fix is wrong is if something else is also dimming, and the
+    /// numbers above say what the pixels have to be.
+    ///
+    /// **What VoiceOver loses, and what it gets instead.** `.disabled` is what
+    /// makes VoiceOver say "dimmed", and there is no way to keep that and keep
+    /// the contrast. So the waiting pill is one accessibility element whose
+    /// VALUE says why it is waiting, which is more than "dimmed" ever said, and
+    /// it offers no activate action, so nothing lies about being pressable.
+    @ViewBuilder
+    private var action: some View {
+        if canAdvance {
             Button {
                 HapticsEngine.lightTap()
                 advance()
             } label: {
                 Text(actionTitle)
                     .font(Typography.headerMedium)
-                    // **Disabled is a different control, not a faded one.**
-                    //
-                    // It was a 12% ink pill with a 55% ink label, which is a
-                    // pale copy of the filled one: photographed, "What else"
-                    // was grey type on grey, which is the exact thing he
-                    // complained about once already ("the button is lowkey
-                    // invisible during the onboarding flow, same colour as the
-                    // background, when its grey").
-                    //
-                    // An outline is not a paler pill, it is a different object,
-                    // and that is what section 10 rule 6 asks for: clearly
-                    // there or clearly not. The label is `inkTertiary`, which
-                    // measures 4.8:1 on this ground, so what it says is still
-                    // readable while it waits; the ring is `inkQuiet` at 3.1:1,
-                    // the floor for something that is a shape rather than text.
-                    .foregroundStyle(canAdvance ? pillLabel : disabledInk)
+                    .foregroundStyle(pillLabel)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background {
-                        if canAdvance {
-                            // **LIT FROM INSIDE.** (2026-09-30)
-                            //
-                            // The owner, with the reference: "can we make the
-                            // main buttons like this, I think this looks super
-                            // clean." It was a flat capsule of `inkPrimary`.
-                            //
-                            // Same recipe the blocks now use, so the button and
-                            // the thing it makes are visibly the same material:
-                            // an inside-out radial, most saturated at a core
-                            // above centre, thinning toward the rim. Plus the
-                            // reference's light rim, brightest at the top.
-                            //
-                            // **NO BLOOM.** There was a blurred capsule of the
-                            // button's own colour behind it, on the reasoning
-                            // that a lit object lights the page instead of
-                            // shading it. The owner: "why is there light coming
-                            // off of it, please fix that."
-                            //
-                            // He is right and the reasoning was borrowed from
-                            // the wrong place. That argument came off the
-                            // reference image, which is a button floating in a
-                            // render — nothing around it to light. This button
-                            // stands on a page that is already clean white, so
-                            // a blue halo on it is not light, it is a stain the
-                            // same colour as the button. Every other cue in the
-                            // app is made of light BECAUSE the page is white;
-                            // this was the one that forgot the page was there.
-                            ZStack {
-                                Capsule(style: .continuous)
-                                    .fill(EtherealFill.fill(pillFill))
-                                // **THE BLOCK'S OWN RIM, NOT A SECOND OPINION
-                                // ABOUT WHAT A LIT EDGE LOOKS LIKE.**
-                                //
-                                // The owner: "make sure it has the same rim
-                                // design we made in the box, like that outline
-                                // fade on the bottom."
-                                //
-                                // It was a hand-written white 0.30 to 0.08,
-                                // which is the same IDEA and a different curve
-                                // — brightest at the top, easing to a rest
-                                // value at 55% and holding it, rather than
-                                // fading all the way out. `BlockRim` is that
-                                // curve, it is already the rim on every
-                                // block-shaped thing in the app, and it eases
-                                // itself off in dark mode. One definition.
-                                Capsule(style: .continuous)
-                                    .strokeBorder(BlockRim.gradient(in: colorScheme),
-                                                  lineWidth: GridConstants.blockRimWidth)
-                            }
-                        } else {
-                            Capsule().strokeBorder(disabledRing,
-                                                   lineWidth: GridConstants.strokeThin)
-                        }
-                    }
+                    .frame(height: Self.pillHeight)
+                    .background { litPill }
                     .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
-            .disabled(!canAdvance)
-            .animation(GridConstants.gentleReveal, value: canAdvance)
-
+            // `PressResponse.swift` asks for this rather than `.plain`, and
+            // `pressWord` is its own variant for a control whose label is a word:
+            // "a word at 6% reads as a wobble, so it moves less and dims more".
+            .buttonStyle(.pressWord)
+        } else {
+            waitingPill
         }
     }
+
+    /// **LIT FROM INSIDE.** (2026-09-30)
+    ///
+    /// The owner, with the reference: "can we make the main buttons like this, I
+    /// think this looks super clean." It was a flat capsule of `inkPrimary`.
+    ///
+    /// Same recipe the blocks now use, so the button and the thing it makes are
+    /// visibly the same material: an inside-out radial, most saturated at a core
+    /// above centre, thinning toward the rim. Plus the reference's light rim,
+    /// brightest at the top.
+    ///
+    /// **NO BLOOM.** There was a blurred capsule of the button's own colour
+    /// behind it, on the reasoning that a lit object lights the page instead of
+    /// shading it. The owner: "why is there light coming off of it, please fix
+    /// that." He is right and the reasoning was borrowed from the wrong place:
+    /// that argument came off the reference image, which is a button floating in
+    /// a render with nothing around it to light. This button stands on a page
+    /// that is already clean white, so a blue halo on it is not light, it is a
+    /// stain the same colour as the button.
+    ///
+    /// **THE BLOCK'S OWN RIM**, not a second opinion about what a lit edge looks
+    /// like. The owner: "make sure it has the same rim design we made in the box,
+    /// like that outline fade on the bottom." It was a hand-written white 0.30 to
+    /// 0.08, which is the same IDEA and a different curve. `BlockRim` is the
+    /// curve, it is already on every block-shaped thing in the app, and it eases
+    /// itself off in dark mode. One definition.
+    ///
+    /// **The fill is flat now, and the rim stays.** `EtherealFill` lightens a
+    /// colour toward its rim, which is right on a block, where the thing being
+    /// lit is a surface and nothing is written across it. On a button it means
+    /// the contrast of the label depends on how long the label is: measured,
+    /// 4.69:1 under a short word and 4.24 at the far end of a long one. The rim
+    /// is the part of the treatment that reads as light and it costs the label
+    /// nothing, because no word reaches it.
+    private var litPill: some View {
+        ZStack {
+            Capsule(style: .continuous)
+                .fill(pillFill)
+            Capsule(style: .continuous)
+                .strokeBorder(BlockRim.gradient(in: colorScheme),
+                              lineWidth: GridConstants.blockRimWidth)
+        }
+    }
+
+    /// The same capsule, waiting. See `action` for why this is not a Button.
+    private var waitingPill: some View {
+        Text(actionTitle)
+            .font(Typography.headerMedium)
+            .foregroundStyle(disabledInk)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.pillHeight)
+            .background {
+                Capsule().strokeBorder(disabledRing,
+                                       lineWidth: GridConstants.strokeThin)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(actionTitle)
+            .accessibilityValue("Not yet. Draw a block to go on.")
+    }
+
+    /// The height of a primary action, shared with the LinkedIn capsule above it
+    /// so the two are provably one object rather than two 50s that agree today.
+    private static let pillHeight: CGFloat = 50
+
+    /// The HIG's minimum target, and `GlassIconButton`'s own `defaultSide`. Named
+    /// here so the one control on these pages that was under it is measured
+    /// against the same number the back disc is.
+    private static let tapFloor: CGFloat = GlassIconButton.defaultSide
 
     private var canAdvance: Bool { step != 1 || hasDrawn }
 
@@ -994,22 +1144,67 @@ struct OnboardingView: View {
     /// what the title above it is set in, so the page's two loudest things are
     /// now the same ink: measured over the ground, the pill is 37,37,38 and its
     /// label clears 13.9:1. No new colour was invented to get there.
-    /// **The reference blue, which is the app's first accent.**
+    /// **ONE BLUE, FLAT, AND THE WORD ON IT CLEARS 4.5.** (2026-10-01)
     ///
-    /// It was `inkPrimary`, and a black capsule cannot have a bright core — the
-    /// ethereal treatment was on it and invisible. The owner chose the colour
-    /// knowing it breaks §4; see `AppColors.accent`.
-    private var pillFill: Color { AppColors.accent }
+    /// This pill was the only control in the app still filled with
+    /// `AppColors.accent`, the bright blue read off the owner's reference
+    /// image. Everything else that carries the primary action moved to
+    /// `accentPrimary` when he said "changing the primary to the blue because
+    /// I notice in the settings it is still green", so the app had two blues
+    /// doing one job, which check 5 of the audit fails on its own terms: one
+    /// accent, for the primary action.
+    ///
+    /// And the word on it could not be read. Sampled off the shipped build
+    /// rather than reasoned about: glyphs a flat 255,255,255 on a fill of a
+    /// flat 67,195,252, which is **2.03:1** where a 17pt word is held to 4.5.
+    /// It is the only control on every page of the walkthrough, so it was the
+    /// app's most repeated piece of type and its least readable.
+    ///
+    /// Nothing about choosing that blue was a decision about the label's
+    /// legibility, because nobody had measured the one relationship that
+    /// matters here. `accentPrimary`'s own doc has the blue measured three
+    /// ways, as ink on the light page, on the dark page, and against a
+    /// switch's white thumb, and not once as a white word ON it. That was a
+    /// hole in the palette rather than a judgement made badly.
+    ///
+    /// **Flat, not lit**, and that is the second half of the fix. The
+    /// ethereal treatment lightens a fill toward its rim, so a lit
+    /// `accentPrimary` measures 4.69:1 at the core and **4.24 at the far end
+    /// of a long word**: the number would pass on "Go on" and fail on
+    /// "Make your head". A flat fill measures (0, 123, 178) at every point across the pill and
+    /// holds **4.69:1** on all of it,
+    /// whatever is written in it, and a button is the one object in this app
+    /// that has to be the same everywhere a word lands on it.
+    ///
+    /// The two alternatives, both measured and both rejected:
+    ///
+    ///     keep `accent`, label warmBlack       5.37:1 core, 5.87 at the rim.
+    ///                                          Highest number of the three and
+    ///                                          it leaves the app with two
+    ///                                          blues, which is the fault under
+    ///                                          the fault.
+    ///     `accent` at brightness 0.644, white  4.50:1 exactly. A pill deeper
+    ///                                          than the reference AND a third
+    ///                                          blue to maintain.
+    ///
+    /// The ink stays a FIXED white rather than an adaptive one: `accentPrimary`
+    /// does not flip with the scheme, so an ink that did would pass in light
+    /// and fail in dark.
+    private var pillFill: Color { AppColors.accentPrimary }
 
-    /// The pill's words: the page's own ground, on a pill of the page's own ink.
-    /// White on the accent, not the page's ground: the reference's glyph is
-    /// pure white and it is what carries on a lit blue.
     private var pillLabel: Color { .white }
 
     /// What the action says while it is waiting for you, and the ring around it.
-    private var disabledInk: Color { AppColors.inkTertiary }
+    ///
+    /// **Each moved up one rung on 2026-10-01**, because the previous pair was
+    /// being halved before it was drawn: see `action`. Computed over the sampled
+    /// page 2 ground (243): `inkSecondary` 6.0:1 for the word, against 4.5 for
+    /// text; `inkTertiary` 4.6:1 for the ring, against 3.0 for a shape. The ring stays
+    /// quieter than the word, so the waiting pill still reads as an outline with
+    /// something written in it rather than as a second filled button.
+    private var disabledInk: Color { AppColors.inkSecondary }
 
-    private var disabledRing: Color { AppColors.inkQuiet }
+    private var disabledRing: Color { AppColors.inkTertiary }
 
     /// The head page, with no head made yet.
     private var offersHead: Bool { step == Self.headStep && heads.head == nil }

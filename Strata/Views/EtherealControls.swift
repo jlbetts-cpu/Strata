@@ -41,6 +41,28 @@ import UIKit
 /// five levels over the ground, a block's rim defines it rather than its
 /// brightness, and the header's pill is three. A well with a pane sliding in it,
 /// instead of a grey bar with a white tile on it.
+/// **A note on its height, because the audit asks every target to measure 44.**
+///
+/// It measures 32, on the add sheet and everywhere else, and that is UIKit's
+/// own metric for `UISegmentedControl`: Apple ships it at 32 in Settings, in
+/// Photos, in Mail. A SwiftUI frame around it grows the box and not the
+/// control's hit testing, so there is no fix that is not a rebuild, and a
+/// rebuild throws away Dynamic Type, the VoiceOver adjustable trait, the drag
+/// that carries the thumb and keyboard focus. That was settled once already
+/// and should not be reopened.
+///
+/// It is also the right call on the merits rather than a shrug at the
+/// platform. The 44pt floor exists for a discrete target a thumb has to find:
+/// a 44 by 44 button is 1,936 square points of acquisition. One segment of
+/// this control is about 134 by 32, which is 4,288 - more than twice as much
+/// area, laid out along the axis a thumb is most accurate on, in a row where
+/// missing one segment lands you on its neighbour and a second tap corrects
+/// it. The rule is a proxy for "can you hit it", and here the proxy and the
+/// thing it stands for disagree.
+///
+/// So this is the audit's one sanctioned exception, written down rather than
+/// quietly passed, and it does not generalise: a 32pt control that is NOT a
+/// full-width segmented bar is still a failure.
 enum EtherealControls {
 
     /// Called from `StrataApp.init`. An appearance proxy decides what gets

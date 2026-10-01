@@ -1230,11 +1230,49 @@ extension PlaceBlock {
     ///
     /// Not a rim, not a frosted band, no blur: CLAUDE.md is explicit that
     /// those are a block's claim, and a badge is not a block.
+    ///
+    /// **It sits INSIDE the block now, and the reason is not taste**
+    /// (2026-10-01). It was `.offset(x: 8, y: -8)`, which put the capsule 8pt
+    /// above and 8pt to the right of the block's own bounds, and the note that
+    /// went with it argued the overhang was what made it read as attached.
+    /// Measured off the built screen at 402x874, it does the opposite twice
+    /// over:
+    ///
+    /// - **It lands on the neighbour.** `PlaceMap.maxOverlap` lets two blocks
+    ///   cover each other by up to a third before they merge, so a block may be
+    ///   touching the one beside it and still be two places. Anything drawn
+    ///   outside a block's bounds is therefore drawn on whatever is next to it.
+    ///   In the capture that is not hypothetical: of the three badges on
+    ///   screen, the "2" sits bodily on the ORANGE block to its right rather
+    ///   than on the purple one it counts, and the "3" and the "2" below it
+    ///   each clip the block above. A count attached to the wrong block is not
+    ///   a near miss, it is the wrong number.
+    /// - **Its own ground is invisible.** The capsule is declared at
+    ///   rgb(249, 249, 251) and renders at rgb(231, 230, 232) under the map's
+    ///   0.10 scrim. MapKit's pale ground renders at rgb(233, 233, 224) right
+    ///   beside it: **1.01:1**. So the part of the badge hanging over the map
+    ///   had no disc at all, and the digits read as one more MapKit label among
+    ///   ENFIELD, BARNET and the road shields.
+    ///
+    /// On the block both go away. The block is the ground the disc was always
+    /// claiming to have: the numeral measures 8.15:1 on the capsule, and the
+    /// capsule on the blue block under it 1.87:1. That edge is soft, which is
+    /// what a light label on a saturated block always is, and it is the same
+    /// relationship the tower's day numerals already have.
+    ///
+    /// Inset by `GridConstants.spacing`, the block grid's own gutter, so the
+    /// badge stands one gutter in from an edge rather than on a number of its
+    /// own. That clears the rim (0.97pt at this cell) and the 6.1pt corner.
+    ///
+    /// **What is NOT changed is the capsule's own size**, and that is an open
+    /// question rather than a decision: at 24x22 on the 44pt cell every badged
+    /// block wears (see `Cluster.size`: a crowd is always one cell) it covers
+    /// half the block's height. It is tuned, and `ClusterCountBadgeTests` pins
+    /// its height and minimum width against three digits wrapping, so shrinking
+    /// it is a change to be looked at and re-run rather than reasoned about.
     var countBadge: some View {
         ClusterCountBadge(count: shownCount)
-            // Just off the corner, so it reads as attached to the block rather
-            // than as part of the photograph.
-            .offset(x: 8, y: -8)
+            .padding(GridConstants.spacing)
             .accessibilityHidden(true)
     }
 
@@ -1321,6 +1359,90 @@ private extension View {
             self.background(.ultraThinMaterial, in: shape)
                 .overlay { shape.strokeBorder(GridConstants.fillHairline, lineWidth: hairline) }
         }
+    }
+}
+
+/// The way back to Memories.
+///
+/// **The one it replaces was invisible, and it is the control the owner asked
+/// for by name**: "make sure there is a way to get back to the Memories from
+/// the map." The map's route in `MemoriesView` drew a `GlassIconButton` with
+/// `tint: .white` under a forced `.dark` colour scheme, on the reasoning that
+/// a control floating over a map is floating over imagery. The pale `.quiet`
+/// ground is not imagery, and glass takes its brightness from what is behind
+/// it rather than from the scheme it is handed. Sampled off the built screen:
+///
+///     chevron   rgb(255, 255, 255)
+///     its disc  rgb(248, 248, 242)
+///     ratio     1.10:1          (a shape needs 3.0)
+///
+/// On the screenshot it is an empty white circle. The person who most needs
+/// this button is the one who does not know the swipe, and it has been showing
+/// them nothing.
+///
+/// **And a darker disc is not the fix, because the DISC is not what carries
+/// this control.** The map's own ground was sampled in five places on the same
+/// capture and the glass disc was scored against each, which is the test a
+/// control on a map has to pass: MapKit's ground is not one colour, it changes
+/// under the chrome as you pan, and a value tuned over the pale fill is a
+/// different value over a park.
+///
+///     ground               rgb              disc vs ground   white glyph   ink glyph
+///     pale fill            (233, 233, 224)       1.15:1         1.07:1       19.70:1
+///     park green           (203, 224, 198)       1.31:1         1.07:1       19.70:1
+///     road grey            (213, 213, 206)       1.38:1         1.07:1       19.70:1
+///     motorway shield      (209, 227, 204)       1.27:1         1.07:1       19.70:1
+///     water blue           (132, 181, 221)       2.04:1         1.07:1       19.70:1
+///
+/// The disc clears 3:1 against NOTHING on this map, and it never will: it is a
+/// near-white material and so is most of a standard map. So the glyph is the
+/// whole control. A white one is 1.07:1 on every ground there is, and an ink
+/// one is 19.70:1 on every ground there is, because its ground is the disc and
+/// the disc is the one thing on this screen that does not change as you pan.
+/// That is also why the material stays pinned light rather than following the
+/// map: a light disc under an ink glyph is the only pairing that holds over the
+/// pale `.quiet` ground AND over `.satellite` and `.night`, where the disc
+/// gains contrast against the tiles and the glyph keeps every bit of its own.
+///
+/// So it is the same object as `RecentreButton` below, down to the line:
+/// pinned light in both appearances, the system's own glyph colour, 44pt, on
+/// the margin. That configuration is not a guess: the recentre button on the
+/// same capture measures rgb(0, 0, 0) on rgb(242, 248, 236), **18.9:1**, and
+/// the two controls are now one control in two corners.
+///
+/// **It carries its own placement**, so the page that pushes the map only has
+/// to say where back goes. The numbers are the ones that were in `MemoriesView`
+/// and they are the app's own: the leading margin, and `headerArtworkTopPadding`
+/// so the chevron's centre lands on the same line every other screen's title
+/// cap does.
+///
+/// **It stays top-leading, which is NOT where a thumb reaches** on an 874pt
+/// screen: measured, its centre sits at 103pt from the top, and the disc runs
+/// 16.0 to 60.0pt across and 80.7 to 124.7 down, so it is a true 44 on the
+/// 16pt margin. The reach is accepted rather than overlooked. Back is
+/// top-leading on every iOS screen including the one this map was pushed from,
+/// the bottom-trailing corner is already the recentre button's, and a map whose
+/// dismiss is at the bottom would be the only one on the phone. What it must
+/// NOT rely on is the edge swipe: nothing in the app disables it, but the left
+/// edge of this screen is also where a pan west starts, and a way back that
+/// competes with the screen's main gesture is not a way back. That is the whole
+/// argument for this button being visible, which until now it was not.
+struct MapBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        GlassIconButton(systemName: "chevron.left",
+                        accessibilityLabel: "Back to Memories") {
+            action()
+        }
+        // Light in both appearances, exactly as `RecentreButton` is pinned,
+        // and for the same measured reason: glass follows the system, and a
+        // dark disc on the night map is invisible. The glyph is left at
+        // `GlassIconButton`'s default `.primary`, which under a pinned light
+        // scheme is the near-black the recentre chevron already measures.
+        .environment(\.colorScheme, .light)
+        .padding(.leading, GridConstants.horizontalPadding)
+        .padding(.top, GridConstants.headerArtworkTopPadding)
     }
 }
 

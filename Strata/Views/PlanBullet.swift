@@ -29,6 +29,36 @@ struct PlanBullet: View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
     }
 
+    // MARK: - The empty slot's outline, as two numbers anybody can borrow
+    //
+    // **The plan's ghost row was a copy of these, and the copy had drifted.**
+    // `PlanSheet`'s empty state calls its dashed square "the exact silhouette
+    // of what will land in it", which is a claim this outline can be measured
+    // against. The ghost was written out at `strokeDefault` (1.5) in 0.40 ink
+    // while the real bullet is 1.80 in 0.60, so sampled off the built sheet at
+    // 402x874 the ghost came out at **2.13:1** against the page where the real
+    // bullet measures 3.31:1. That is under the 3:1 a UI shape is held to, on
+    // the one shape an empty plan is entirely made of.
+    //
+    // Exported rather than re-typed, because a copy of a number is a number
+    // that can stop matching the thing it was copied from. That is the same
+    // fault `PlanSheet.textLeading` was derived to end on the separator's
+    // inset.
+
+    /// The ink an unchecked slot's boundary is drawn in.
+    static let outlineInk = AppColors.slotInk.opacity(0.60)
+
+    /// The weight of that boundary, at whatever side it is drawn.
+    ///
+    /// The rim's own width from the token, scaled to this side the same way
+    /// `BlockSurface` scales it. The 1.4 this replaced was a copy of
+    /// `blockRimWidth`. The 3.4 stays a literal: it is this outline being
+    /// deliberately heavier than a block's rim, because an empty checkbox IS
+    /// its boundary.
+    static func outlineWidth(forSide side: CGFloat) -> CGFloat {
+        GridConstants.blockRimWidth * (side / GridConstants.blockReferenceCell) * 3.4
+    }
+
     var body: some View {
         ZStack {
             // The empty slot. Neutral: the outline says "a block goes here",
@@ -46,15 +76,11 @@ struct PlanBullet: View {
                 // measures 3.35:1 on light and 6.34:1 on dark, both clearing
                 // the 3:1 WCAG asks of a UI element. 0.55 was 2.96 and missed.
                 //
-                // The rim's own width from the token, scaled to this side the
-                // same way `BlockSurface` scales it. The 1.4 was a copy of
-                // `blockRimWidth`, and a copy of a number is a number that can
-                // stop matching the thing it was copied from. The 3.4 stays a
-                // literal: it is this outline being deliberately heavier than a
-                // block's rim, because an empty checkbox IS its boundary.
-                .strokeBorder(AppColors.slotInk.opacity(0.60),
-                              lineWidth: GridConstants.blockRimWidth
-                                  * (side / GridConstants.blockReferenceCell) * 3.4)
+                // Both numbers come from the pair above, so the plan's ghost
+                // row and this one cannot say different things about the same
+                // shape.
+                .strokeBorder(Self.outlineInk,
+                              lineWidth: Self.outlineWidth(forSide: side))
                 .opacity(isDone ? 0 : 1)
 
             // The block, once it is real.

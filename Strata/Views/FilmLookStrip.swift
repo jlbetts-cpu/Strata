@@ -42,7 +42,12 @@ struct FilmLookStrip: View {
                 selection = look.kind
             }
         } label: {
-            VStack(spacing: 6) {
+            // `gapTight`, not a loose 6. The glyph-and-its-label gap is the
+            // rung this is: 6 was the only number on the whole review screen
+            // that was not on the ladder, and one off-ladder value is how a
+            // ladder stops being one. It costs the strip 2pt of height, which
+            // the picture above it gives back out of a 490pt frame.
+            VStack(spacing: GridConstants.gapTight) {
                 ZStack {
                     if let preview = previews[look.kind] {
                         Image(uiImage: preview)
@@ -67,7 +72,23 @@ struct FilmLookStrip: View {
                         .strokeBorder(isChosen ? AppColors.onDarkStrong : AppColors.onDarkFaint,
                                       lineWidth: isChosen ? 2 : 1)
                 }
-                .scaleEffect(isChosen ? 1 : 0.94)
+                // **The 0.94 on the unchosen swatches is gone, and it was
+                // eating the row's gutter.**
+                //
+                // `scaleEffect` does not change a layout box, so all four
+                // boxes stayed 58pt and the DRAWN squares did not: an unchosen
+                // one lost 1.74pt a side. Measured on the built review, the
+                // declared 8pt gutter rendered as **9.7 / 11.4 / 11.4**: one
+                // number on the ladder arriving on screen as two that are not,
+                // and the pattern moves every time you pick a different look,
+                // so the row's rhythm depends on which swatch is selected.
+                //
+                // It was the third signal of the same thing. The rim already
+                // goes from a 1pt `onDarkFaint` hairline to a 2pt
+                // `onDarkStrong` one, and the name below goes from quiet to
+                // strong. Dropping the scale costs nothing a person can miss
+                // and gives the row back one gutter: 8 / 8 / 8, four squares
+                // of 58.
 
                 Text(look.kind.name)
                     .font(Typography.bodySmall)

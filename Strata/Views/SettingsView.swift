@@ -159,20 +159,55 @@ struct SettingsView: View {
                         .foregroundStyle(AppColors.inkQuiet)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, GridConstants.gapWide)
-                .padding(.bottom, GridConstants.gapTight)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Version \(appVersion)")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+            // **The gap above the mark was the biggest thing on the screen.**
+            //
+            // Measured off the built screen at 402x874: 96.0pt of empty page
+            // between the title's cap and the top of the mark, against 69.7pt
+            // between one section's card and the next. Check 7 asks that a
+            // section break be the biggest gap on the page; this beat one by
+            // 26.3pt, and it did it in the opening of the composition, so the
+            // screen read as having been pushed down rather than laid out.
+            //
+            // Three things were stacked to make it: the list's own
+            // first-section inset, the row's default vertical inset, and a
+            // `gapWide` (24) added here on top of both. The 24 goes, the row's
+            // own inset is written down rather than inherited, and what is left
+            // is the one gap that belongs to the platform. The bottom inset
+            // carries the `gapTight` the VStack used to pad with, so the number
+            // lives in one place. Profile's identity section is now exactly the
+            // same shape, for the same reason, so the two still read as one
+            // place when you push from one to the other.
+            .listRowInsets(EdgeInsets(top: 0,
+                                      leading: GridConstants.horizontalPadding,
+                                      bottom: GridConstants.gapTight,
+                                      trailing: GridConstants.horizontalPadding))
 
             // MARK: - Section 1: Notifications
 
             Section {
+                // **One black down the column.** Measured off the built
+                // screen: a row whose label is inked `AppColors.inkPrimary`
+                // renders (38, 38, 38) and a row left to the platform renders
+                // (0, 0, 0). Preview Your Week and Daily Reminder are four rows
+                // apart, the same rank, 15.1:1 beside 21:1.
+                //
+                // The buttons on this screen were inked a pass ago, because a
+                // `Button` in a `Form` otherwise paints its label with the tint
+                // and would have given Settings six blue rows against the one
+                // accent check 5 allows. The toggles, the picker and the link
+                // were not, because they do not take the tint, so nothing looked
+                // wrong in the source. It looks wrong on the screen. The ink
+                // goes on the `Text`, not on the row, so a disabled row still
+                // greys.
                 Toggle(isOn: $notificationsEnabled) {
                     Label {
                         Text("Daily Reminder")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "bell")
                     }
@@ -187,11 +222,22 @@ struct SettingsView: View {
                 }
 
                 if notificationsEnabled {
+                    // **It gets a glyph, because every other row has one.**
+                    // This was the one row on either screen with no icon, so its
+                    // label began in the icon column while the eleven rows
+                    // around it began 43pt further in. A column that one row
+                    // steps out of is not a column.
                     DatePicker(
-                        "Reminder Time",
                         selection: $reminderTime,
                         displayedComponents: .hourAndMinute
-                    )
+                    ) {
+                        Label {
+                            Text("Reminder Time")
+                                .foregroundStyle(AppColors.inkPrimary)
+                        } icon: {
+                            SettingsIcon(systemName: "clock")
+                        }
+                    }
                     .datePickerStyle(.compact)
                     .onChange(of: reminderTime) { _, newTime in
                         let calendar = Calendar.current
@@ -207,7 +253,12 @@ struct SettingsView: View {
                 // told when the value changes, so the switch cannot show one
                 // thing while the store holds another.
                 Toggle(isOn: $replayRemindersOn) {
-                    Label { Text("Weekly and Monthly Replays") } icon: { SettingsIcon(systemName: "square.stack.3d.up") }
+                    Label {
+                        Text("Weekly and Monthly Replays")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "square.stack.3d.up")
+                    }
                 }
                 .tint(AppColors.switchOn)
                 .onChange(of: replayRemindersOn) { _, on in
@@ -244,6 +295,7 @@ struct SettingsView: View {
                 )) {
                     Label {
                         Text("Completion Sounds")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "speaker.wave.2")
                     }
@@ -253,6 +305,7 @@ struct SettingsView: View {
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
                         Text("Haptic Feedback")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
                     }
@@ -289,6 +342,7 @@ struct SettingsView: View {
                 Toggle(isOn: $savesToCameraRoll) {
                     Label {
                         Text("Save to Photos")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "photo.on.rectangle.angled")
                     }
@@ -302,6 +356,7 @@ struct SettingsView: View {
                 Toggle(isOn: $remembersPlaces) {
                     Label {
                         Text("Remember Places")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "mappin.and.ellipse")
                     }
@@ -394,7 +449,13 @@ struct SettingsView: View {
                     showResetConfirmation = true
                 } label: {
                     Label {
+                        // **One red on the row, not two.** The glyph is
+                        // `AppColors.warmRed` (#E85D4A) and the word was taking
+                        // the destructive role's own red, the system #FF3B30:
+                        // two reds four points apart on one line, on the one row
+                        // in the app where the colour IS the meaning.
                         Text("Reset All Data")
+                            .foregroundStyle(AppColors.warmRed)
                     } icon: {
                         // **The one that keeps its colour.** Red here is not
                         // decoration, it is the meaning: this row erases
@@ -483,6 +544,7 @@ struct SettingsView: View {
                 } label: {
                     Label {
                         Text("Privacy")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "hand.raised")
                     }
@@ -634,6 +696,15 @@ struct SettingsView: View {
         }
     }
 
+    /// **It takes the tint, and it used to override it.**
+    ///
+    /// This carried `.foregroundStyle(AppColors.accentWarm)`, which is the warm
+    /// near-black. Measured on Profile, which had the identical button: the word
+    /// rendered (28, 26, 24) at 16.2:1 beside a title at (37, 37, 37) and
+    /// 14.3:1, so the bar held two words of the same black and nothing said
+    /// which one was the button. The `Form` below sets
+    /// `.tint(AppColors.accentPrimary)` so that the platform's own controls
+    /// carry the primary, and this was the one control opting out.
     private var settingsDoneButton: some View {
         Button {
             HapticsEngine.lightTap()
@@ -641,7 +712,6 @@ struct SettingsView: View {
         } label: {
             Text("Done").font(Typography.headerSmall)
         }
-        .foregroundStyle(AppColors.accentWarm)
     }
 
     private func requestNotificationPermission() async {
@@ -782,7 +852,23 @@ struct SettingsIcon: View {
     /// red because it erases everything, not for decoration.
     var tint: Color? = nil
 
-    private static let side: CGFloat = 30
+    /// **The row's height, which is what this number actually sets.**
+    ///
+    /// Measured off the built Settings screen at 402x874: the Notifications
+    /// section's card is 85.3pt tall for two rows and the Replays section's is
+    /// 85.7pt for two, so a row is 42.65pt. That is 1.35pt under the 44pt check
+    /// 8 asks for, measured rather than declared.
+    ///
+    /// The two sections settle which term sets it. Notifications' rows carry a
+    /// switch and Replays' rows do not, and they measure the same, so the switch
+    /// is not the driver. What both have is this frame, and 30 + 12.65 of row
+    /// inset is the 42.65 on the screen. 32 puts a row at 44.65 and keeps the
+    /// icon column on the 4pt grid.
+    ///
+    /// The glyph inside it does not change: it measures 15.3 by 16.7pt against a
+    /// label cap of 12.2, so it is already the taller of the two and the air is
+    /// what makes a bare glyph quiet.
+    private static let side: CGFloat = 32
 
     var body: some View {
         Image(systemName: systemName)

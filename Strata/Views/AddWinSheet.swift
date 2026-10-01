@@ -94,8 +94,36 @@ struct AddWinSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    TextField(isEditing ? "Name" : "What did you do?", text: $title)
+                    // **THE PLACEHOLDER IS A TOKEN NOW, AND IT WAS 1.73:1.**
+                    //
+                    // The open check on this screen in `docs/screen-audit.md`
+                    // was that the placeholder's contrast had never been
+                    // sampled. Sampled, on the identical pattern in
+                    // `ProfileView`: a bare `TextField`'s own placeholder
+                    // renders (190, 190, 192) on a (247, 247, 247) page, which
+                    // is 1.73:1 and under even the 3:1 a plain UI element is
+                    // held to, let alone the 4.5 of the sentence it is
+                    // standing in for. `inkQuiet` is the token for a
+                    // placeholder and measures 3.3:1 there, and a `prompt` is
+                    // the only way to set its colour without rebuilding the
+                    // field.
+                    TextField(
+                        isEditing ? "Name" : "What did you do?",
+                        text: $title,
+                        prompt: Text(isEditing ? "Name" : "What did you do?")
+                            .foregroundStyle(AppColors.inkQuiet)
+                    )
                         .font(Typography.headerMedium)
+                        // **PURE BLACK, AND NOTHING ELSE ON THE SHEET IS.**
+                        //
+                        // A `TextField` with no `foregroundStyle` falls
+                        // through to `UIColor.label`, which is (0, 0, 0) on
+                        // light and pure (255, 255, 255) on dark. Measured at
+                        // 18.91:1 where every other ink on this sheet is
+                        // `inkPrimary` at (37, 37, 37) and 13.81:1. So the one
+                        // word the whole screen is about was the one word
+                        // drawn in an ink the design system does not own.
+                        .foregroundStyle(AppColors.inkPrimary)
                         .focused($titleFocused)
                         .submitLabel(.done)
                         .onSubmit { Task { await save() } }
@@ -326,7 +354,13 @@ struct AddWinSheet: View {
             HapticsEngine.lightTap()
             dismiss()
         } label: {
+            // **44, measured.** Bare `Text` in a toolbar measured 68 by 36 off
+            // the accessibility tree. `PlanSheet` carries the same fix with
+            // the owner's own words on it, "really easy to miss click", and
+            // this sheet never got it.
             Text("Cancel").font(Typography.headerSmall)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .foregroundStyle(AppColors.inkSecondary)
     }
@@ -334,6 +368,8 @@ struct AddWinSheet: View {
     private var confirmButton: some View {
         Button { Task { await save() } } label: {
             Text(isEditing ? "Save" : "Add").font(Typography.headerSmall)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
             .disabled(!canSave)
             .foregroundStyle(canSave ? AppColors.accentWarm : AppColors.inkQuiet)
@@ -380,67 +416,111 @@ struct AddWinSheet: View {
             if photo == nil { choosingSource = true } else { peeking = true }
         } label: {
             ZStack {
-                if let photo {
-                    // **Bounded here, not only by the frame below.**
+                // **THE WELL IS THE BLOCK, NOT A HOLE WHERE ONE GOES.**
+                //
+                // It was a recess in `slotInk` at 3.5% with a DASHED 1.5pt
+                // border, and three things were wrong with that at once.
+                //
+                // The dash exists nowhere else in this app. The comment above
+                // it claimed it matched "the tower's empty slot", and the
+                // tower's slot is a solid stroke; so the one thing on this
+                // sheet that said it was quoting the system was quoting
+                // something that does not exist.
+                //
+                // The border was `slotInk.opacity(0.26)`, which the audit
+                // measured on the tower at 1.39:1 against the page. The
+                // largest object on the sheet was outlined in a line you
+                // cannot see.
+                //
+                // And the hierarchy was upside down. The well is the biggest
+                // thing here by a long way, and a photograph is the one
+                // OPTIONAL part of a win, so the sheet gave its loudest
+                // position to its quietest content and drew it as an absence.
+                //
+                // So it is drawn as the block it is making, through
+                // `BlockSurface` and `EtherealFill`: the same surface, rim,
+                // wash and corner the tower uses. Pick a colour and the block
+                // turns that colour. Pick a size and it becomes that size.
+                // Add a photograph and the photograph becomes the block, which
+                // is literally what happens when it lands. The sheet stops
+                // describing the win and starts showing it, the empty space
+                // below it is filled by the subject rather than by a hole, and
+                // every value on it comes from the block system instead of
+                // from three numbers written here.
+                BlockSurface(
+                    cornerRadius: wellRadius,
+                    // A photograph gets the lighter wash, as `BlockFace` gives
+                    // it: 0.10 of white over a picture floors the composite and
+                    // caps white text below 4.5:1 however dark the picture is.
+                    washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06
+                ) {
+                    if let photo {
+                        // **Bounded here, not only by the frame below.**
+                        //
+                        // `scaledToFill` with nothing to fill wants the image's
+                        // natural size — three thousand points across for a real
+                        // photograph — and `clipShape` clips DRAWING, not hit
+                        // testing. So the well's touch area covered the whole
+                        // sheet and swallowed taps on the title field above it:
+                        // the owner's report was "once a photo is added you can
+                        // edit the title no more". Nothing errored, nothing looked
+                        // wrong, the field simply stopped answering.
+                        Image(uiImage: photo)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: w, height: h)
+                            .clipped()
+                    } else {
+                        Rectangle().fill(EtherealFill.fill(category.style.baseColor))
+                    }
+                }
+                .frame(width: w, height: h)
+
+                if photo == nil {
+                    // **THE GLYPH NEEDS A GROUND, AND WHITE ALONE CANNOT GIVE
+                    // IT ONE.**
                     //
-                    // `scaledToFill` with nothing to fill wants the image's
-                    // natural size — three thousand points across for a real
-                    // photograph — and `clipShape` clips DRAWING, not hit
-                    // testing. So the well's touch area covered the whole
-                    // sheet and swallowed taps on the title field above it:
-                    // the owner's report was "once a photo is added you can
-                    // edit the title no more". Nothing errored, nothing looked
-                    // wrong, the field simply stopped answering.
+                    // Measured on the built sheet with the red category
+                    // chosen: a white camera on rgb(251, 107, 97) came out at
+                    // 2.70:1, under the 3:1 a graphic has to clear. And no
+                    // amount of white fixes it, because white against this red
+                    // tops out at 2.78 whatever weight or size it is drawn at.
+                    // Contrast does not improve with boldness.
                     //
-                    // Same family as the `.offset` trap CLAUDE.md records on
-                    // the month tower, and as the onboarding wordmark that an
-                    // unbounded `scaledToFill` dragged off the left edge.
-                    Image(uiImage: photo)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: w, height: h)
-                        .clipped()
-                } else {
-                    // The tower's empty slot, at this size. A photo well is
-                    // literally "a block goes here, with a picture on it", and
-                    // the app already has a way of saying that — a recess with
-                    // a dashed edge. A flat grey rectangle said nothing.
-                    RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
-                        // `slotInk`, not `warmBlack`: an ink that inverts, as the
-                        // tower's slot and the Memories ghosts use. A fixed
-                        // dark ink measured about 1.1:1 on the dark sheet.
-                        .fill(AppColors.slotInk.opacity(0.035))
+                    // A block's own LABEL clears it because `BlockWash` lifts
+                    // the bottom 26% of every block toward white and the label
+                    // sits in that band. This glyph is in the middle, where
+                    // there is no wash, so it has to bring its own.
+                    //
+                    // The disc is the pattern this file already uses for the
+                    // replace affordance on a filled well, at the same 0.35,
+                    // so a photographed block and an unphotographed one answer
+                    // in one language.
                     VStack(spacing: GridConstants.gapTight) {
                         Image(systemName: "camera.fill")
                             // An icon size from a token, which also scales with
                             // Dynamic Type (CLAUDE.md, Conventions). A weighted
                             // text style does neither.
                             .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                            .foregroundStyle(AppColors.inkQuiet)
+                            .foregroundStyle(.white)
+                            .padding(GridConstants.gapItem)
+                            .background(Circle().fill(.black.opacity(0.35)))
                         if size != .small {
                             Text("Add a photo")
                                 .font(Typography.bodySmall)
-                                .foregroundStyle(AppColors.inkQuiet)
+                                .foregroundStyle(AppColors.onDarkStrong)
                         }
                     }
                 }
             }
             .frame(width: w, height: h)
-            .clipShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
             // And the hit area is the shape, not whatever the content grew to.
             .contentShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
-            .overlay {
-                // Empty, it is a slot: dashed, like the one at the top of the
-                // tower. Filled, it is a block: a white rim, like every other
-                // block with a photograph on it.
-                RoundedRectangle(cornerRadius: wellRadius, style: .continuous)
-                    .strokeBorder(
-                        photo == nil ? AppColors.slotInk.opacity(0.26) : AppColors.onDarkQuiet,
-                        style: photo == nil
-                            ? StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength])
-                            : StrokeStyle(lineWidth: GridConstants.blockRimWidth)
-                    )
-            }
+            // No overlay stroke. `BlockSurface` draws the rim, which is the
+            // whole point of going through it: a block's edge is a gradient
+            // that follows the light, not a flat line, and a second stroke
+            // over it was the "two shadows under one object" fault in
+            // another costume.
             .overlay(alignment: .bottomTrailing) {
                 if photo != nil {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
@@ -547,7 +627,8 @@ struct AddWinSheet: View {
                                 // to be obvious; it does not have to shout.
                                 .strokeBorder(AppColors.inkPrimary.opacity(0.55),
                                               lineWidth: GridConstants.strokeMedium)
-                                .frame(width: 38, height: 38)
+                                .frame(width: Self.selectionRingSide,
+                                       height: Self.selectionRingSide)
                         }
                     }
                     .frame(width: 44, height: 44)
@@ -564,8 +645,24 @@ struct AddWinSheet: View {
         .padding(.leading, -Self.swatchInset)
     }
 
-    /// Half the difference between the 44pt target and the 34pt circle in it.
-    private static let swatchInset: CGFloat = (44 - 34) / 2
+    /// The selection ring's diameter: on the swatch's own edge, two points
+    /// outside a 34pt circle.
+    private static let selectionRingSide: CGFloat = 38
+
+    /// Half the difference between the 44pt target and the WIDEST thing drawn
+    /// inside it, which is the 38pt ring and not the 34pt circle.
+    ///
+    /// Measured off the built sheet with a colour chosen: the ring's leading
+    /// edge came out at 14.0 while the name, both labels, the picker and the
+    /// well all start at 16. The pass that pulled this row onto the margin
+    /// measured the chip and left the mark two points outside it, so the row
+    /// was on the margin exactly until you used it.
+    ///
+    /// The price is that the six circles sit at 18.0 instead of 16.0. That is
+    /// the better trade: two points on a row of round shapes is invisible,
+    /// because a circle's optical edge is inside its box anyway, and a mark
+    /// that appears and shoves the row off the margin is a thing that moves.
+    private static let swatchInset: CGFloat = (44 - selectionRingSide) / 2
 
     /// Size, named.
     ///
@@ -622,7 +719,14 @@ struct AddWinSheet: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.large)
-        .tint(.red)
+        // **Not `.red`.** `.bordered` fills with the tint at 0.182 over the
+        // page, so systemRed gives a pill of (245, 209, 210) with its own
+        // label at (255, 56, 60) on it: 2.54:1, against 4.5 for text. The
+        // button stays the platform's, which is the settled call, and only
+        // the red is darkened until the label clears. Measured: this one gives
+        // a pill of (231, 199, 201) and a label at 4.59:1. `D70015`, the
+        // obvious next step down, only reaches 3.50.
+        .tint(Color(hex: 0xB3000F))
         // **Its own width, pinned left.** Stretched edge to edge it was the
         // only centred thing on a form where every label, field and control
         // starts at the same left margin: "the delete button looks weird in

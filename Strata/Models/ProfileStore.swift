@@ -108,15 +108,24 @@ final class ProfileStore {
     /// than chrome — it is the same colour, lit the same way, as the block it
     /// will put on the tower and the swatch it was picked with.
     var backgroundStyle: AnyShapeStyle {
+        // **`quietFill`, and it was `.quaternary`.** Measured on the built
+        // Profile at (203, 203, 202) on a 247 page, which is 1.51:1 and is a
+        // system hierarchical grey rather than one of this app's. The design
+        // doc refuses those by name and `ProfileView`'s own colour swatch ten
+        // points below this one already refused it in a comment; the default
+        // underneath them both did not. It is the avatar's ground, so it is
+        // what the drawing in `docs/illustrations.md` will land on.
         background.map { AnyShapeStyle(EtherealFill.fill($0.style.baseColor)) }
-            ?? AnyShapeStyle(.quaternary)
+            ?? AnyShapeStyle(AppColors.quietFill)
     }
 
     /// Initials on the chosen colour: black or white, whichever reads better
     /// against it. Computed from the colour's own value, not picked by eye —
     /// amber takes black, green takes white.
     var initialsInk: Color {
-        guard let background else { return .primary.opacity(0.85) }
+        // The token, not `.primary` at an opacity, which is `inkPrimary`
+        // written the one way the conventions forbid.
+        guard let background else { return AppColors.inkPrimary }
         let hex = background.style.baseHex
         func channel(_ shift: UInt) -> Double {
             let c = Double((hex >> shift) & 0xFF) / 255

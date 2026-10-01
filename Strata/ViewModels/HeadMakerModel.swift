@@ -281,7 +281,7 @@ final class HeadMakerModel {
         engine.begin(.idle)
         let takes = engine.takes
         guard let open = takes[.open], let openEyes = open.eyeCentres else {
-            fail("Couldn't get a clear picture. Try again somewhere a little brighter.")
+            fail("Couldn't get a clear picture. Somewhere a little brighter should do it.")
             return
         }
 
@@ -356,7 +356,7 @@ final class HeadMakerModel {
 
         guard !Task.isCancelled else { return }
         guard let payload, let rig = HeadStore.rig(from: payload) else {
-            fail("Couldn't finish your head. Try again in front of a plainer background.")
+            fail("Couldn't finish your head. A plainer background behind you will help.")
             return
         }
         result = Result(rig: rig, payload: payload)
@@ -381,11 +381,19 @@ final class HeadMakerModel {
             try HeadStore.shared.save(result.payload)
             return true
         } catch {
-            fail("Couldn't save your head. Try again.")
+            fail("Couldn't save your head.")
             return false
         }
     }
 
+    /// **The message says what happened; the button says what to do.** All
+    /// three of these used to end in "Try again", and the only control on the
+    /// failed screen is a button reading "Try Again" about 90pt below the
+    /// sentence. That is the fault `HeadMakerView.shutter` is annotated against
+    /// twice over, where two elements six points apart each reported the same
+    /// number: one fact, said once, by whichever element owns it. So the
+    /// sentence keeps the part only it can carry, which is where to stand or
+    /// what to change, and the verb belongs to the button.
     private func fail(_ message: String) {
         failure = message
         step = .failed
@@ -420,7 +428,7 @@ final class HeadMakerModel {
             landed = [.blink, .smile]
             caught = true
         case "failed":
-            fail("Couldn't get a clear picture. Try again somewhere a little brighter.")
+            fail("Couldn't get a clear picture. Somewhere a little brighter should do it.")
         case "preview", "lift":
             if let rig = HeadRig.creator() {
                 result = Result(rig: rig, payload: HeadStore.Payload(faces: [:], shut: nil))

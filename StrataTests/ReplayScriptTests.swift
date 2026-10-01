@@ -448,22 +448,33 @@ struct ReplayScriptTests {
         #expect(jump == [Slot(new: "1", old: nil), Slot(new: "0", old: "9"), Slot(new: "4", old: "9")])
     }
 
-    @Test("the date arrives with the reveal, a preview's Sample 80ms behind, eased out; the controls with the close")
+    /// **Moved with the choreography rather than relaxed to let it through.**
+    /// This used to assert that the date STARTED at `revealStart`, which is
+    /// exactly what was wrong: a 0.45s arrival then ran under the first 45% of
+    /// the camera's 1.0s pull-out and was never seen. Every assertion below is
+    /// the same shape against the new anchor, plus the two that make the new
+    /// rule able to fail: the date is SETTLED by the time the camera moves,
+    /// and it never begins while a block is still in the air.
+    @Test("the date arrives in the hold after the last landing and is settled by the reveal, a preview's Sample 80ms behind, eased out; the controls with the close")
     func titleAndClose() {
         let s = script(.week, wins: 12)
-        #expect(s.titleArrival(0, at: s.revealStart - 0.01).opacity == 0)
-        #expect(s.titleArrival(0, at: s.revealStart).offset == s.pacing.arriveSlide)
-        let t = s.revealStart + 0.1
+        #expect(s.titleStart >= (s.landings.last?.time ?? 0) - 1e-9,
+                "the date started at \(s.titleStart)s, while a block was still falling")
+        #expect(s.titleArrival(0, at: s.revealStart).opacity == 1,
+                "the date was still arriving at \(s.revealStart)s, when the camera starts to move")
+        #expect(s.titleArrival(0, at: s.titleStart - 0.01).opacity == 0)
+        #expect(s.titleArrival(0, at: s.titleStart).offset == s.pacing.arriveSlide)
+        let t = s.titleStart + 0.1
         #expect(s.titleArrival(0, at: t).opacity > s.titleArrival(1, at: t).opacity)
         // Eased out: more than halfway at a quarter of the time.
-        #expect(s.titleArrival(0, at: s.revealStart + s.pacing.arrive / 4).opacity > 0.5)
-        #expect(s.titleArrival(1, at: s.revealStart + s.pacing.closeStagger + s.pacing.arrive) == .init(opacity: 1, offset: 0))
+        #expect(s.titleArrival(0, at: s.titleStart + s.pacing.arrive / 4).opacity > 0.5)
+        #expect(s.titleArrival(1, at: s.titleStart + s.pacing.closeStagger + s.pacing.arrive) == .init(opacity: 1, offset: 0))
         // The date is fully in before the controls start arriving.
         #expect(s.titleArrival(1, at: s.closeStart).opacity == 1)
         #expect(s.closeArrival(at: s.closeStart - 0.01).opacity == 0)
         #expect(s.closeArrival(at: s.duration) == .init(opacity: 1, offset: 0))
         var last = -1.0
-        for t in stride(from: s.revealStart, through: s.duration, by: 1.0 / 60) {
+        for t in stride(from: s.titleStart, through: s.duration, by: 1.0 / 60) {
             let o = s.titleArrival(0, at: t).opacity
             #expect(o >= last)
             last = o

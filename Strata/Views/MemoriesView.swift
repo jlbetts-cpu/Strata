@@ -141,12 +141,31 @@ struct MemoriesView: View {
                             poster: replays.cards[ReplayShelfModel.key(monthReplay, scheme: colorScheme)],
                             title: vm.monthTitle.capitalized
                         ) { playing = monthReplay }
-                        .padding(.bottom, GridConstants.gapSection)
+                        // **NO BOTTOM PADDING, BECAUSE THE CALENDAR ALREADY
+                        // CARRIES ONE.**
+                        //
+                        // Measured on the built page: 22pt above this row and
+                        // 56 below it. `gapSection` here and `gapWide` on
+                        // `MonthCalendarView` are each defensible alone and
+                        // they stack, which is the same fault as two shadows
+                        // under one object. An element with 22 above and 56
+                        // below reads as belonging to the thing above it and
+                        // spaced as if it belongs to nothing.
+                        //
+                        // The picker, this row and the calendar are one
+                        // section about one month: you choose the month, you
+                        // play the month, you read the month. So they take
+                        // one rhythm, `gapWide` throughout, and the page's
+                        // biggest gap is kept for the real section break
+                        // below the calendar where "More" begins.
                     }
 
                     Section {
                         if pageIsEmpty {
+                            // The copy, and then the real calendar under it.
+                            // See `emptyState`.
                             emptyState
+                            monthTower
                         } else if pageIsUndecided {
                             // Neither the empty state nor an empty month for
                             // the moment the shelf takes to answer.
@@ -287,27 +306,13 @@ struct MemoriesView: View {
                     .ignoresSafeArea()
                     .toolbar(.hidden, for: .navigationBar)
                     // **A WAY BACK.** The owner: "make sure there is a way to
-                    // get back to the Memories from the map."
-                    //
-                    // The navigation bar is hidden here — a bar across the top
-                    // of a map is a bar across the map — and the swipe from the
-                    // edge is not a thing anybody should have to know about,
-                    // least of all on a screen whose whole gesture vocabulary is
-                    // pan and pinch, where a drag from the left edge is how you
-                    // move the map west.
-                    //
-                    // Light in both appearances and NOT `onPage`: it is floating
-                    // over imagery, which is the case `.regular` glass is for
-                    // and the case `GlassRecipe.onPage` is explicitly not. See
-                    // `GlassIconButton`.
+                    // get back to the Memories from the map." It is in
+                    // `MapBackButton` now, with its own measurements: the
+                    // white-on-glass version built here measured 1.10:1
+                    // against its own disc, which is an empty white circle on
+                    // a map that is mostly white.
                     .overlay(alignment: .topLeading) {
-                        GlassIconButton(systemName: "chevron.left", tint: .white,
-                                        accessibilityLabel: "Back to Memories") {
-                            path.removeLast()
-                        }
-                        .environment(\.colorScheme, .dark)
-                        .padding(.leading, GridConstants.horizontalPadding)
-                        .padding(.top, GridConstants.headerArtworkTopPadding)
+                        MapBackButton { path.removeLast() }
                     }
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))
@@ -624,18 +629,24 @@ struct MemoriesView: View {
 
     @ViewBuilder
     private var monthTower: some View {
-        if vm.month.isEmpty {
-            // A quiet row of slots, not a sentence. Same reasoning as the
-            // page's own empty state: show the shape of what is missing.
-            VStack(spacing: GridConstants.gapItem) {
-                ghostRow(cell: 46)
-                Text("Nothing in \(vm.monthTitle.capitalized) yet.")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(AppColors.inkSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 36)
-        } else {
+        do {
+            // **AN EMPTY MONTH IS STILL A MONTH, SO IT IS STILL THE CALENDAR.**
+            //
+            // There used to be a branch here: a row of three dashed ghost
+            // blocks and the sentence "Nothing in October yet.", centred.
+            // It was written when this page was a packed tower, and it drew
+            // the shape of a thing the page had stopped being. A calendar
+            // whose month is empty already renders thirty one empty cells
+            // with their numbers in them, which is both the real shape and
+            // the thing the owner asked for by name: "add some lattice at
+            // the end of the calendar in the empty spots just so it doesnt
+            // look like empty state completely."
+            //
+            // So the branch is gone, and with it `ghostRow` and the dashed
+            // outline, which existed nowhere else in the app except the add
+            // sheet's photo well, where it has also just been removed. One
+            // component fewer, and the empty state is now the page.
+            //
             // **A CALENDAR, NOT A PACKED TOWER.** See `MonthCalendarView` for
             // the whole argument; the short version is that first-fit packing
             // threw away the one thing a month has, which is that a day's
@@ -664,98 +675,48 @@ struct MemoriesView: View {
         }
     }
 
-    /// What this page looks like before there is anything on it.
+    /// What this page says before there is anything on it.
     ///
-    /// **Show the shape of the thing that is missing.** It was two lines of
-    /// grey type in the middle of a blank page, which the owner called dull
-    /// and which is — it tells you nothing is here and then gives your eye
-    /// nothing to do. A page waiting for a month of wins can show the outline
-    /// of one: the same empty slot the tower uses, in the arrangement the
-    /// month tower packs into, so what you are looking at is a promise of the
-    /// real thing rather than an apology for its absence.
-    ///
-    /// Ghosts, not blocks. A filled block here would be a win that does not
-    /// exist, and this app does not draw those.
-    /// One row of empty slots, at whatever size the caller needs.
-    ///
-    /// Shared by the page's empty state and the month's, so "nothing here
-    /// yet" looks like one idea in two places rather than two designs.
-    private func ghostRow(cell: CGFloat) -> some View {
-        let gutter = GridConstants.spacing
-        let radius = GridConstants.blockCornerRadius(forCell: cell)
-        return HStack(spacing: gutter) {
-            ForEach([2, 1, 1], id: \.self) { span in
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(AppColors.slotInk.opacity(0.16),
-                                  style: StrokeStyle(lineWidth: 1.5,
-                                                     dash: [GridConstants.ghostBlockDashLength]))
-                    .background {
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .fill(AppColors.slotInk.opacity(0.035))
-                    }
-                    .frame(width: CGFloat(span) * cell + CGFloat(span - 1) * gutter,
-                           height: cell)
-            }
-        }
-    }
-
+    /// **Show the shape of the thing that is missing**, which is still the
+    /// right instruction and used to be followed with a drawing of the wrong
+    /// thing. The calendar under this copy is the shape, so nothing here has
+    /// to draw one.
     private var emptyState: some View {
-        let cell: CGFloat = 62
-        let gutter = GridConstants.spacing
-        let radius = GridConstants.blockCornerRadius(forCell: cell)
-        // One of each size, packed the way the month tower would pack them.
-        let ghosts: [(c: CGFloat, r: CGFloat, w: CGFloat, h: CGFloat)] = [
-            (0, 0, 2, 1), (2, 0, 1, 1), (0, 1, 1, 1), (1, 1, 2, 2)
-        ]
-
-        return VStack(spacing: GridConstants.gapSection) {
-            ZStack(alignment: .topLeading) {
-                ForEach(Array(ghosts.enumerated()), id: \.offset) { _, g in
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(AppColors.slotInk.opacity(0.16),
-                                      style: StrokeStyle(lineWidth: 1.5,
-                                                         dash: [GridConstants.ghostBlockDashLength]))
-                        .background {
-                            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                                .fill(AppColors.slotInk.opacity(0.035))
-                        }
-                        .frame(width: g.w * cell + (g.w - 1) * gutter,
-                               height: g.h * cell + (g.h - 1) * gutter)
-                        .offset(x: g.c * (cell + gutter), y: g.r * (cell + gutter))
-                        // **No entrance.** They used to fade up in order,
-                        // staggered off the index, "so the page arrives
-                        // rather than appearing". The design language refuses
-                        // that outright (§5, §8): "nothing animates because a
-                        // screen appeared. Things animate because a person
-                        // did something, and they animate where it happened."
-                        // Nobody has done anything here yet, which is the
-                        // whole subject of this screen, so there is nothing
-                        // for it to be answering.
-                        .opacity(0.9)
-                }
-            }
-            // **`.topLeading`, or the ghosts sit 33pt right and down.** The
-            // ghosts are placed with `.offset`, which moves the drawing and
-            // not the layout, so the ZStack's own size is only its biggest
-            // child (128pt). A centred frame centres that 128pt box, pushing
-            // every ghost off centre and into the headline below.
-            .frame(width: 3 * cell + 2 * gutter, height: 3 * cell + 2 * gutter,
-                   alignment: .topLeading)
-
-            VStack(spacing: GridConstants.gapTight) {
-                Text("Your first month starts here")
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkPrimary)
-                Text("Every win you log becomes a block, and they collect here by month.")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(AppColors.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 36)
-            }
+        // **A SUBHEAD, NOT A POSTER.**
+        //
+        // It was a centred cluster of four dashed ghost blocks packed the way
+        // the month tower used to pack them, with a centred headline and a
+        // centred sentence under it, 72pt down an otherwise blank page. Three
+        // things were wrong at once.
+        //
+        // The ghosts drew a packed tower, and this page is a calendar. The
+        // empty state was still advertising the design it had replaced.
+        //
+        // The dash is a vocabulary this app does not have. The tower's slot
+        // is a solid stroke and the calendar's empty days are solid wells;
+        // the only other dashed thing in the app was the add sheet's photo
+        // well, which has just stopped being one for the same reason.
+        //
+        // And it was centred on a page whose title, picker and calendar all
+        // start at 16. Centred copy on a left aligned page is two alignment
+        // systems on one screen, and the same fault the empty tower had.
+        //
+        // So the art is deleted rather than redrawn: the real calendar sits
+        // under this copy and shows a real empty month, which is a better
+        // promise of the thing than a drawing of a different thing. This is
+        // what is left, and it is the page's one sentence on its own margin.
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            Text("Your first month starts here")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+            Text("Every win you log becomes a block, and they collect here by month.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(AppColors.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 72)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.top, GridConstants.gapWide)
     }
 }
 

@@ -199,6 +199,8 @@ struct ReplayScript {
     let fitScale: CGFloat
     let revealStart: Double
     let revealDuration: Double
+    /// When the date under the count begins to arrive. See `titleArrival`.
+    let titleStart: Double
     let danceStart: Double
     let closeStart: Double
     let duration: Double
@@ -251,9 +253,16 @@ struct ReplayScript {
             landingTimes = landings.map(\.time)
             cameraCurve = MonotoneCurve(points: [(0, 0)])
             finalRise = 0
-            revealStart = pacing.open + pacing.reduceMotionSpan + pacing.closeFade
+            let reveal = pacing.open + pacing.reduceMotionSpan + pacing.closeFade
+            revealStart = reveal
             revealDuration = 0
-            danceStart = revealStart
+            // The same rule as the moving version below: the date lands as
+            // the reveal starts, and never before the last day's blocks have
+            // finished fading in. A month's thirty days leave only 0.2s
+            // between the last day and the reveal, which is less than
+            // `arrive`, so the fade wins there and the date simply follows it.
+            titleStart = max((dayStartsLocal.last ?? 0) + pacing.closeFade, reveal - pacing.arrive)
+            danceStart = reveal
             danceDelays = Array(repeating: 0, count: n)
             closeStart = revealStart
             duration = closeStart + Self.closeLength(pacing)
@@ -514,6 +523,28 @@ struct ReplayScript {
             candidateRevealStart = max(candidateRevealStart, lastDayStart + pacing.emptyHold * compression)
         }
         revealStart = candidateRevealStart
+        // **The date arrives in the hold, not on top of the camera move.**
+        //
+        // It used to start at `revealStart`, so a 0.45s arrival in the top
+        // left ran across the first 45% of a 1.0s camera pull-out (1.4s in a
+        // month). The caption is about fifteen points tall and the thing
+        // moving beside it is the whole tower changing scale, so the arrival
+        // was spent: you cannot watch a 15pt line settle while the picture
+        // behind it is zooming, and by the time the camera stops the date is
+        // simply there, with no moment of its own.
+        //
+        // `holdAfterLast` is 0.5s and `arrive` is 0.45s, so the beat already
+        // exists: the last block has landed, the count has stopped rolling,
+        // and nothing is moving. The date takes it and settles exactly as the
+        // reveal begins, which costs the replay no time at all and reads as a
+        // sentence: the number stops, the period it belongs to appears under
+        // it, then the camera shows you the whole tower.
+        //
+        // `max(lastLanding, ...)` is the guard for the other direction: a
+        // trailing empty day can push `revealStart` well past the last
+        // landing, and this must never start the date while a block is still
+        // in the air.
+        titleStart = max(lastLanding, revealStart - pacing.arrive)
         // Even when the finished tower fits at scale 1, the camera may have
         // had to rise during the build to keep the newest block in frame,
         // and that rise still has to ease back to 0, or it jumps.
@@ -526,8 +557,12 @@ struct ReplayScript {
     }
 
     /// From the close's start to the end: the controls arriving, and one
-    /// stagger more, so under Reduce Motion (where the title starts with the
-    /// close) the range has arrived too.
+    /// stagger more, so a Settings preview's "Sample", the last thing to
+    /// arrive and one stagger behind the date, is in before the replay stops.
+    /// Under Reduce Motion the date used to start with the close and this
+    /// length was what let it finish; it now leads the close by 0.2s
+    /// (`titleStart`), and the stagger is kept because "Sample" still trails
+    /// it and a month's close is only 0.53s long.
     private static func closeLength(_ pacing: Pacing) -> Double {
         pacing.closeStagger + pacing.arrive
     }
@@ -681,9 +716,11 @@ struct ReplayScript {
     func countOpacity(at t: Double) -> Double { Self.smooth(t / pacing.headerFade) }
 
     /// The date under the count (0), and a Settings preview's "Sample" after
-    /// it (1), arriving as the reveal starts.
+    /// it (1), arriving in the hold after the last landing so that the date
+    /// has SETTLED by the time the camera starts to pull out. See `titleStart`
+    /// in `init` for why it is no longer `revealStart`.
     func titleArrival(_ item: Int, at t: Double) -> Arrival {
-        arrival(from: revealStart + Double(item) * pacing.closeStagger, at: t)
+        arrival(from: titleStart + Double(item) * pacing.closeStagger, at: t)
     }
 
     /// The close: the controls arriving under the tower.

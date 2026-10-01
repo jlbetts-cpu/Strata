@@ -100,6 +100,27 @@ struct NextSlotButton: View {
     /// faint artefact rather than as the thing you press.
     @Environment(\.colorScheme) private var scheme
 
+    /// The cell this slot fills, read back out of its own corner.
+    ///
+    /// `GridConstants.blockCornerRadius(forCell:)` is `12 * (cell / 86.5)`,
+    /// so this is that relation inverted: exact, not an estimate. It avoids
+    /// adding a parameter to a view with three call sites, one of which is
+    /// in onboarding where the slot is drawn at a different size.
+    private var cell: CGFloat {
+        cornerRadius * GridConstants.blockReferenceCell / GridConstants.blockCornerRadius
+    }
+
+    /// **The plus, sized off the slot rather than off the icon scale.**
+    ///
+    /// It was `GridConstants.iconCategory`, which is 13 and is the size of a
+    /// category icon ON a block: a mark that sits in the corner of something
+    /// else. Here it is the only mark inside an 86.5pt square, so 13 made it
+    /// 15% of the thing it was labelling and it measured 2pt wide on screen.
+    ///
+    /// 22% of the cell, so it grows with the block as the size is drawn out
+    /// of the slot and the invitation stays the same weight at every size.
+    private var plusSize: CGFloat { cell * 0.22 }
+
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
@@ -127,7 +148,30 @@ struct NextSlotButton: View {
             return previewCategory.style.baseColor
                 .opacity(min(0.30 + colourStrength * 0.55 + lift, 1))
         }
-        let base = scheme == .dark ? 0.42 : 0.26
+        // **0.26 RENDERED AT 1.39:1 AGAINST THE PAGE, AND THIS IS THE ONLY
+        // ACTION ON AN EMPTY SCREEN.**
+        //
+        // Measured off the built screen, device pixel by device pixel: the
+        // stroke's full-strength pixel came out at (212, 211, 210) on a
+        // (247, 247, 247) page. WCAG 1.4.11 asks 3:1 of the boundary that
+        // identifies a control, and 1.39 is not a quiet version of 3, it is
+        // an absent version of it. On an empty tower the slot is the only
+        // thing a person can do, surrounded by twelve lattice ghosts that
+        // measured 4/255 from the page, so nothing on the lower two thirds
+        // of the screen was distinguishable from the screen.
+        //
+        // 0.80 lands the stroke at about (143, 143, 143), which is 3.0:1.
+        // The number looks high and the line does not: it renders LIGHTER
+        // than this screen's own body text, and it is one hairline around
+        // one square on an otherwise empty page. A third of the ink is lost
+        // to antialiasing, because a 1pt border at 3x straddles the pixel
+        // grid and only the centre pixel is ever full strength, which is why
+        // the designed value has to overshoot the measured one.
+        //
+        // What was NOT done: the lattice was not raised to meet it, and the
+        // recess was not darkened into a grey square. The slot and the
+        // scaffolding around it should differ in KIND, not both get louder.
+        let base = scheme == .dark ? 0.70 : 0.80
         return AppColors.slotInk.opacity(min((isDown ? base + 0.10 : base) + lift, 1))
     }
 
@@ -174,10 +218,15 @@ struct NextSlotButton: View {
             shape.strokeBorder(edge, lineWidth: GridConstants.strokeThin)
 
             Image(systemName: "plus")
-                .iconSize(GridConstants.iconCategory, relativeTo: .body, weight: .medium)
+                .iconSize(plusSize, relativeTo: .body, weight: .medium)
+                // 0.55 measured at (144, 142, 140) inside a (242, 242, 242)
+                // recess, which is 2.92:1 and misses the 3:1 floor by four
+                // hundredths. 0.62 lands it at about 132 and 3.2:1. The
+                // margin is deliberate: this is the only glyph on an empty
+                // screen and it should not be one rounding away from failing.
                 .foregroundStyle(
                     AppColors.slotInk
-                        .opacity((isDown ? 0.72 : 0.55) * (1 - colourStrength))
+                        .opacity((isDown ? 0.78 : 0.62) * (1 - colourStrength))
                 )
                 .scaleEffect(1 + charge * 0.18)
         }

@@ -125,10 +125,20 @@ extension View {
     /// **Read the rule at the top of this file before adding a caller.** Three
     /// of this app's glass capsules are on a plain page rather than over
     /// content, and they are the open question in the audit, not the precedent.
+    ///
+    /// **`carriesType`**, as `glassRoundedRect` already has. A capsule holding
+    /// WORDS over a photograph is a different problem from one holding a
+    /// chevron, and until this flag existed the capsule shape had no way to
+    /// reach `GlassRecipe.typePanel`, which is the recipe measured for exactly
+    /// that. The camera's size picker found it: its unselected word came out
+    /// at 2.91:1 on a capsule of rgb(108, 102, 130), against a 4.5 floor for
+    /// text, and the selected one passed at 5.07, which is how it survived a
+    /// reading. With the panel recipe the same word measures 5.83.
     @ViewBuilder
-    func glassCapsule(onPage: Bool = false) -> some View {
+    func glassCapsule(onPage: Bool = false, carriesType: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(onPage ? GlassRecipe.onPage : .regular.interactive(),
+            self.glassEffect(carriesType ? GlassRecipe.typePanel
+                                         : (onPage ? GlassRecipe.onPage : .regular.interactive()),
                              in: .capsule)
 
         } else {

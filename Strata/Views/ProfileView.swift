@@ -88,10 +88,16 @@ struct ProfileView: View {
         // like labels rather than like things to press. See
         // `AppColors.accentPrimary` for why it is the accent's hue at a
         // different weight rather than the accent itself.
-        .tint(AppColors.accentPrimary)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)
         .toolbar { doneToolbar }
+        // **AFTER `.toolbar`, not before it.** Measured: with the tint applied
+        // above, Done still rendered (10, 10, 10). A toolbar item is hosted by
+        // the navigation bar rather than by the content it was declared on, so
+        // a tint set upstream of the title and the toolbar does not reach it,
+        // and the one control the colour was for was the one control that
+        // never got it. Below them it does.
+        .tint(AppColors.accentPrimary)
         // Profile's head sleeps under the maker and the photo library. Before
         // those modifiers, so the maker's own preview head stays awake.
         // ANDed with what arrives, so a cover above Profile still pauses it.
@@ -152,21 +158,76 @@ struct ProfileView: View {
                     backgroundSwatches
                         .transition(.opacity)
                 }
-                TextField("Your name", text: Binding(get: { store.name },
-                                                     set: { store.setName($0) }))
-                    .font(Typography.headerMedium)
-                    .multilineTextAlignment(.center)
-                    .textContentType(.name)
-                    .submitLabel(.done)
+                nameField
             }
             .frame(maxWidth: .infinity)
-            // No top padding of its own. The form already opens with a
-            // section inset under the bar; adding `gapWide` to it measured
-            // 85pt of empty page between the title and the picture.
-            .padding(.bottom, GridConstants.gapTight)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+        // **The row's own insets, written down rather than inherited.**
+        //
+        // Measured off the built sheet at 402x874: 75.3pt of empty page between
+        // the title's cap and the top of the picture, against 71.3pt between the
+        // streak card and the trend card. Check 7 of the audit asks that a
+        // section break be the biggest gap on the page, and this beat one by
+        // 4.0pt, in the one place where it is the first thing anybody sees.
+        //
+        // The note that used to be here said the section had no top padding of
+        // its own, because adding `gapWide` had measured 85pt. That was true and
+        // it stopped one step early: what is left after taking the 24 away is
+        // still the list's own first-section inset PLUS the row's default
+        // vertical inset, stacked. Zeroing the row's leaves the list's, which is
+        // the part that belongs to the platform. The bottom inset carries the
+        // `gapTight` the VStack used to pad with, so that number now lives in
+        // one place rather than two.
+        //
+        // `contentMargins(.top:for: .scrollContent)` looked like the tidier
+        // answer and is the wrong one: it adds a margin around the scroll's
+        // content rather than replacing the list's first-section inset, so it
+        // could only ever have made this gap bigger.
+        .listRowInsets(EdgeInsets(top: 0,
+                                  leading: GridConstants.horizontalPadding,
+                                  bottom: GridConstants.gapTight,
+                                  trailing: GridConstants.horizontalPadding))
+    }
+
+    /// Your name, with the hint drawn rather than left to the platform.
+    ///
+    /// **Measured: the platform's placeholder is 1.73:1 here.** A `TextField`'s
+    /// own placeholder renders (190, 190, 192) against this page's
+    /// (247, 247, 247). It is the only piece of text on Profile under the 4.5:1
+    /// the audit asks of text, and it is under even the 3:1 a plain UI element
+    /// gets. It matters more here than it would in a list row, because this is a
+    /// bare centred line with no row, no label and no box around it: the hint IS
+    /// the control, and at that ratio the top of the screen reads as switched
+    /// off.
+    ///
+    /// `AppColors.inkQuiet` is the token written for exactly this case, in its
+    /// own words "a chevron, a placeholder, a hint", and it is held to 3:1 on
+    /// purpose. It composites to (136, 136, 136) on this page, 3.3:1.
+    ///
+    /// `prompt:` would have been the tidier way to reach it, and it is not
+    /// reliable: the style set on a prompt's `Text` is not applied by every
+    /// control that takes one, and a contrast fix that may or may not land is
+    /// not a fix. The accessibility label is set by hand because the title
+    /// string that used to supply it is now empty.
+    private var nameField: some View {
+        ZStack {
+            if store.name.isEmpty {
+                Text("Your name")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkQuiet)
+                    .allowsHitTesting(false)
+            }
+            TextField("", text: Binding(get: { store.name },
+                                        set: { store.setName($0) }))
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .multilineTextAlignment(.center)
+                .textContentType(.name)
+                .submitLabel(.done)
+                .accessibilityLabel("Your name")
+        }
     }
 
     /// The picture is the control, with no "Edit" under it (the owner's call;
@@ -277,7 +338,16 @@ struct ProfileView: View {
                 .overlay {
                     // The ring was `.primary.opacity(0.85)`, which is
                     // `AppColors.inkPrimary` written the way CLAUDE.md forbids.
-                    Circle().strokeBorder(AppColors.inkPrimary.opacity(selected ? 1 : 0),
+                    //
+                    // **0.55, not full strength.** `AddWinSheet` settled this on
+                    // 2026-10-01 and its comment says "Profile's own swatch ring
+                    // now wears it too", which was not true: this one was still
+                    // at 1.0, so the app had two answers to "which colour is
+                    // chosen" one sheet apart. Full ink on a row of pastels made
+                    // the chosen colour look stickered rather than chosen, and
+                    // the argument is the same here. Selection has to be
+                    // obvious; it does not have to shout.
+                    Circle().strokeBorder(AppColors.inkPrimary.opacity(selected ? 0.55 : 0),
                                           lineWidth: GridConstants.strokeMedium)
                 }
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
@@ -337,8 +407,20 @@ struct ProfileView: View {
     private func streakFigure(_ value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
+                // **`Typography.tally`, which is the token for this.** It was
+                // `StrataFont.relative(28, to: .title)`, and 28 is not one of
+                // the five sizes `Typography` has: the scale is 34, 17, 15, 13
+                // and 11, and this was a sixth rung invented for one screen.
+                // The token's own doc names this exact case, "any number the app
+                // states as a fact about your day: the win tally, a day's
+                // numeral on a month block, a photo count".
+                //
+                // Measured: the figure's cap goes 20.0pt to 23.8pt, and the
+                // streak card grows about 5pt. That is the right direction as
+                // well as the tidy one. The streak is the one fact on this page
+                // and it was set smaller than the screen's own title.
                 Text(verbatim: StrataFont.digits(value))
-                    .font(StrataFont.relative(28, to: .title))
+                    .font(Typography.tally)
                     .foregroundStyle(AppColors.inkPrimary)
                     .contentTransition(.numericText())
                 Text(value == 1 ? "day" : "days")
@@ -522,15 +604,36 @@ struct ProfileView: View {
                     // is adaptive. The 0.1 here was a `.primary.opacity`, the
                     // one thing CLAUDE.md says a colour must never be.
                     .foregroundStyle(AppColors.quietFill)
+                // **The axis reads at the page's body size, not at a size only
+                // the chart uses.**
+                //
+                // These two labels were `Typography.caption2` (11 Medium) and
+                // they were the only call sites it had in the whole running app.
+                // So Profile carried four text sizes at the default Dynamic Type
+                // setting (34 for the tally, 17, 13, 11) where check 4 allows
+                // three, and the fourth existed to serve one chart. A chart with
+                // a size of its own is a chart with a type scale of its own.
+                //
+                // `bodySmall` is 13 and is already on this card twice: the
+                // sentence directly above the plot and the Current and Best
+                // labels in the card over it. The axis still recedes, because it
+                // recedes on INK (inkSecondary, 0.62, measured 6.19:1) rather
+                // than on being two points smaller than everything else.
+                //
+                // Checked for collision before the change: at the week unit a
+                // label lands every 4 bars, so three of them, about 40pt wide at
+                // 13 against the 110pt they are spaced; at the month unit, four
+                // labels of about 26pt against 83pt. Nothing touches.
                 AxisValueLabel()
-                    .font(Typography.caption2)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)
             }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: unit.component, count: labelEvery)) { _ in
+                // The same size as the y axis above, for the same reason.
                 AxisValueLabel(format: labelFormat)
-                    .font(Typography.caption2)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.inkSecondary)
             }
         }
@@ -605,10 +708,26 @@ struct ProfileView: View {
                               swatches: headSwatches, active: heads.undressed,
                               onPick: { heads.use($0) })
 
+                // **One black down the column.** Measured on Settings, which is
+                // built the same way and was captured with its rows on screen: a
+                // row whose label is inked `AppColors.inkPrimary` renders
+                // (38, 38, 38) and a row that is left to the platform renders
+                // (0, 0, 0). Four rows apart, same rank, two blacks, 21:1 beside
+                // 15.1:1.
+                //
+                // The buttons on these two screens were inked a pass ago,
+                // because a `Button` in a `Form` otherwise paints its label with
+                // the tint and would have given Profile six blue rows against
+                // the one accent check 5 allows. The toggles, the pickers and the
+                // links were not, because they do not take the tint and so
+                // nothing looked wrong in the source. They look wrong on the
+                // screen. The ink goes on the `Text` rather than the row, so a
+                // disabled row still greys and a destructive one still reds.
                 Toggle(isOn: Binding(get: { heads.isProfilePicture },
                                      set: { heads.setProfilePicture($0) })) {
                     Label {
                         Text("Use as Profile Picture")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "person.crop.circle")
                     }
@@ -646,7 +765,10 @@ struct ProfileView: View {
                     } label: {
                         HStack {
                             Label {
+                                // One black down the column. See the note on
+                                // Use as Profile Picture above.
                                 Text("Look")
+                                    .foregroundStyle(AppColors.inkPrimary)
                             } icon: {
                                 SettingsIcon(systemName: "camera.filters")
                             }
@@ -675,6 +797,7 @@ struct ProfileView: View {
                                      set: { heads.setShowsOnTower($0) })) {
                     Label {
                         Text("Let My Head Onto the Tower")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "square.stack")
                     }
@@ -685,6 +808,7 @@ struct ProfileView: View {
                                      set: { heads.setShowsOnMap($0) })) {
                     Label {
                         Text("Show My Head on the Map")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "map")
                     }
@@ -695,6 +819,7 @@ struct ProfileView: View {
                                      set: { heads.setShowsCameraSticker($0) })) {
                     Label {
                         Text("Add My Head to Photos")
+                            .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "camera")
                     }
@@ -719,7 +844,15 @@ struct ProfileView: View {
                     confirmsDeleteHead = true
                 } label: {
                     Label {
+                        // **One red on the row, not two.** The glyph beside this
+                        // word is `AppColors.warmRed` (#E85D4A) and the word
+                        // itself was taking the destructive role's own red,
+                        // which is the system #FF3B30: two reds four points
+                        // apart on one line, and the app's palette losing to the
+                        // platform's on the one row where the colour is the
+                        // meaning.
                         Text("Delete \(deletableHeadName)")
+                            .foregroundStyle(AppColors.warmRed)
                     } icon: {
                         SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
                     }
@@ -753,7 +886,10 @@ struct ProfileView: View {
                 SettingsView(onResetAllData: onResetAllData, isPushed: true)
             } label: {
                 Label {
+                    // One black down the column. See the note on Use as Profile
+                    // Picture above.
                     Text("Settings")
+                        .foregroundStyle(AppColors.inkPrimary)
                 } icon: {
                     SettingsIcon(systemName: "gearshape")
                 }
@@ -775,6 +911,19 @@ struct ProfileView: View {
         }
     }
 
+    /// **It takes the tint, and it used to override it.**
+    ///
+    /// This carried `.foregroundStyle(AppColors.accentWarm)` and measured
+    /// (28, 26, 24) on the built sheet, 16.2:1, beside a title measuring
+    /// (37, 37, 37) at 14.3:1. Two words in the bar, the same weight of black,
+    /// and nothing on the screen said which one was the button. The Form two
+    /// lines up sets `.tint(AppColors.accentPrimary)` precisely so that the
+    /// platform's own controls carry the primary, and this was the one control
+    /// on the page opting out of it.
+    ///
+    /// Taking the override off leaves #007BB2, measured by the palette at 4.38:1
+    /// on a light page, and makes Profile's only coloured thing its only button,
+    /// which is what check 5 asks for.
     private var doneButton: some View {
         Button {
             HapticsEngine.lightTap()
@@ -782,7 +931,6 @@ struct ProfileView: View {
         } label: {
             Text("Done").font(Typography.headerSmall)
         }
-        .foregroundStyle(AppColors.accentWarm)
     }
 }
 

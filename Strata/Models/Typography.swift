@@ -46,6 +46,14 @@ enum Typography {
     /// 13 Regular. Footnotes and captions.
     static let bodySmall = Font.system(.footnote, design: .default)
     /// 11 Medium. Chart axes and the smallest labels.
+    /// **No call sites, and that is deliberate now.** Its doc said "chart axes
+    /// and the smallest labels", and the audit took both of its callers off it
+    /// on the same day: the plan's repeat caption and the profile chart's axis,
+    /// each because 11 Medium was a fourth size on a screen that already had
+    /// three. Kept rather than deleted so the next person reads this line
+    /// instead of reintroducing an 11pt rung on the strength of a stale
+    /// comment: if a label is too small for `bodySmall`, the screen has a
+    /// hierarchy problem and not a type problem.
     static let caption2 = Font.system(.caption2, design: .default, weight: .medium)
 
     // MARK: - The screen scale

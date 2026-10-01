@@ -231,7 +231,22 @@ struct GroundField: View {
         Color(hue: 0.60, saturation: 0.40, brightness: 0.34),
         Color(hue: 0.60, saturation: 0.48, brightness: 0.28),
         Color(hue: 0.60, saturation: 0.38, brightness: 0.26),
-        Color(hue: 0.11, saturation: 0.30, brightness: 0.34),
+        // **0.60, and it was 0.11.** The one node of the nine that was not on
+        // the night field's hue, sitting at (0.68, 0.22) of the page. Found by
+        // the screen audit on the replay, which is the screen with the most
+        // empty dark ground to show it on: sampled at (273, 192) the page came
+        // out rgb(85, 77, 60), red 25 levels ABOVE blue, and at (60, 180) on
+        // the same line rgb(46, 55, 68), red 22 BELOW. A 47 level reversal
+        // across 213 points, on a page whose brightest value is 85 of 255. It
+        // read as a brown lamp over the middle third.
+        //
+        // The DAY array was given this pass twice and carries the reasoning
+        // already: a page with an opinion about its own colour is a page the
+        // illustrations and the photographs then have to argue with. The night
+        // array looks like it never got the same read. The brightness is
+        // unchanged, so the field keeps its light and its structure; only the
+        // hue joins the other eight.
+        Color(hue: 0.60, saturation: 0.30, brightness: 0.34),
         Color(hue: 0.60, saturation: 0.42, brightness: 0.24),
         Color(hue: 0.60, saturation: 0.35, brightness: 0.18),
         Color(hue: 0.60, saturation: 0.30, brightness: 0.20),

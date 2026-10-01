@@ -123,11 +123,16 @@ struct PhotoViewer: View {
                             width: geo.size.width,
                             height: geo.size.height
                                 - Self.topInset - Self.bottomInset
-                                - dateHeight - Self.stripHeight
+                                - Self.dateHeight - Self.stripHeight
                         ), topPadding: Self.headerHeight)
 
                         dateLine
-                            .frame(height: dateHeight)
+                            // **Top-aligned, so the caption sits at the same
+                            // y on every photograph.** Centred in a two-line
+                            // band it would hang 9pt lower on a picture with
+                            // no place than on one with, and the place is a
+                            // fact about the win rather than about the layout.
+                            .frame(height: Self.dateHeight, alignment: .top)
 
                         Filmstrip(photos: photos, position: position,
                                   currentID: currentID, select: select)
@@ -140,6 +145,30 @@ struct PhotoViewer: View {
                 .padding(.top, Self.topInset)
                 .padding(.bottom, Self.bottomInset)
             }
+            // **This screen is dark, and it has to say so.**
+            //
+            // The viewer paints its own black ground, but every token that
+            // resolves off `colorScheme` was still answering with its LIGHT
+            // value when the phone is in light mode, which is most of the
+            // time. Two of them are drawn here: `GlassIconButton`'s
+            // `.regular.interactive()` material under the close and the `⋯`,
+            // and `quietFill`, the slot a filmstrip card shows while its
+            // thumbnail decodes. Light glass under a hard `.white` glyph on a
+            // black field is the wrong way round, and a light `quietFill`
+            // (black at 0.06) over black is nothing at all, so a strip of
+            // cold cards read as holes rather than as pictures arriving.
+            //
+            // **This is already the app's answer**, not a new idea: the map's
+            // back button carries the same line, with the same reasoning in
+            // `MemoriesView`: "light in both appearances... it is floating
+            // over imagery". Two call sites of one component over the same
+            // kind of ground disagreed, and the one without it was on the
+            // darkest screen in the app.
+            //
+            // Scoped to the ZStack, not the view: the delete confirmation and
+            // the share sheet are presented OVER this screen rather than on
+            // it, and they belong to the system's appearance, not to ours.
+            .environment(\.colorScheme, .dark)
         }
         .ignoresSafeArea()
         .statusBarHidden()
@@ -207,14 +236,50 @@ struct PhotoViewer: View {
     /// y=34 in screen coordinates is not pressable, which this app has already
     /// learned once.
     private static let topInset: CGFloat = 58
-    private static let bottomInset: CGFloat = 28
+    /// The gap under the strip. It was 28, which is a fifth value on a ladder
+    /// that goes 8 · 12 · 16 · 24 · 32, and it is the last gap on the page, so
+    /// the section step is the one it should be. It also buys the scrubber
+    /// room: the cards now end 40pt above the screen's bottom edge against the
+    /// device's 34pt home-indicator inset, where at 28 they ended at 35 and the
+    /// drag that scrubs the strip started one point clear of the drag that goes
+    /// home.
+    private static let bottomInset: CGFloat = GridConstants.gapSection
     private static let headerHeight: CGFloat = 44
-    /// The band under the picture. Taller when there is a place to name, so
-    /// the second line has somewhere to go rather than squeezing the deck.
-    private var dateHeight: CGFloat { placeLine == nil ? 34 : 56 }
-    private static let stripHeight: CGFloat = 74
+    /// The band under the picture, and it is ONE height.
+    ///
+    /// It was `placeLine == nil ? 34 : 56`, and `placeLine` is a reverse
+    /// geocode: a network answer that lands a moment after you arrive. So the
+    /// band grew 22pt when the name came back, the deck's stage shrank by the
+    /// same 22, and the PHOTOGRAPH resized because a server had replied.
+    /// Nobody did anything, which is the case check 10 exists for.
+    ///
+    /// Keying it on `current?.place != nil` instead (known the instant you
+    /// arrive, no network involved) fixes the network half and leaves the
+    /// other half: the stage would still change size on every swipe between a
+    /// located photograph and an unlocated one. A stage that measures every
+    /// picture against the same rectangle is worth more than the 22pt.
+    /// Landscape pictures are width-bound and lose nothing at all; a portrait
+    /// one gives up 3% of its height.
+    private static let dateHeight: CGFloat = 56
+    /// The strip's band: the card, and one tight gap either side of it.
+    ///
+    /// It was 74, which centred a 60pt card and left 7pt above and below: a
+    /// gap nobody chose, on no rung of the ladder, and 74 is the number next
+    /// to it in the file for an unrelated reason (`Filmstrip.side`, the size
+    /// the thumbnail decodes at). Derived, the band says what it is.
+    private static let stripHeight: CGFloat = Filmstrip.card.height
+        + GridConstants.gapTight * 2
     /// How far the print sits in from the edge of the screen.
-    private static let printInset: CGFloat = 20
+    ///
+    /// **It was 20, and the chrome above it is at 16.** Measured off a build:
+    /// `edges` put the picture's band at left 20.0 while the close button's
+    /// frame starts at 16, so the one screen in this app that is nothing but a
+    /// photograph had two left margins four points apart. It is the page
+    /// margin now, which also makes the gap between the bottom of a
+    /// height-bound print and its caption exactly one margin: the print is
+    /// inset 16, the caption's band is top-aligned under it, so the two meet at
+    /// 16 rather than at a number nobody chose.
+    private static let printInset: CGFloat = GridConstants.horizontalPadding
 
     // MARK: - The deck
 
@@ -358,8 +423,10 @@ struct PhotoViewer: View {
         // location not being shown at all, which is fair: a fact you cannot
         // finish reading has not been shown to you.
         //
-        // The second line only exists when there is a place, so the screen
-        // does not grow chrome for photographs that have none.
+        // The second line only exists when there is a place. The BAND it sits
+        // in exists either way now (`dateHeight`): the band used to grow when
+        // the geocode came back, which resized the photograph you were looking
+        // at, and a stage that changes size is worse than 22pt of black.
         VStack(spacing: 2) {
             Text(caption)
                 .font(Typography.screenSubtitle)
@@ -368,8 +435,16 @@ struct PhotoViewer: View {
                 // smaller size and the pin already say which is secondary.
                 .foregroundStyle(AppColors.onDarkQuiet)
             if let place = placeLine {
+                // **`bodySmall`, not `sectionLabel`.** Both are 13pt, so this
+                // is not a size change; `sectionLabel` is 13 MEDIUM and it is
+                // the token for an uppercase heading (ALBUMS, SEPTEMBER). The
+                // place was wearing it, which meant the SECONDARY line of this
+                // caption was drawn in a heavier weight than the primary line
+                // above it, in the same ink. The hierarchy ran backwards and
+                // the screen carried a heading style on something that is not
+                // a heading.
                 Label(place, systemImage: "mappin.and.ellipse")
-                    .font(Typography.sectionLabel)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(AppColors.onDarkQuiet)
                     .labelStyle(.titleAndIcon)
             }
@@ -566,8 +641,15 @@ struct Filmstrip: View {
     /// One card on the strip. Portrait, because a photograph is more often
     /// portrait than not and a square frame crops the subject out of it.
     static let card = CGSize(width: 46, height: 60)
-    static let gap: CGFloat = 10
-    static let radius: CGFloat = 7
+    /// The gap was 10, which is on no ladder this app keeps. `gapTight` is the
+    /// rung next to it and the right one for a strip of film: a gutter wide
+    /// enough to read as spacing turns a run of frames into a row of cards,
+    /// which is the mistake the gallery grid already records making.
+    static let gap: CGFloat = GridConstants.gapTight
+    /// The radius was 7, a fifth value on a ladder of 20 · 12 · 8 · 4. A 46pt
+    /// frame is a control, so it takes the control radius. One point, and the
+    /// point is that nothing on this screen should have its own number.
+    static let radius: CGFloat = GridConstants.radiusControl
     /// The size of the decode, as it always was.
     static let side: CGFloat = 74
     static var pitch: CGFloat { card.width + gap }
@@ -628,6 +710,19 @@ struct Filmstrip: View {
                         // or the arriving card is drawn under the one it
                         // replaces and the strip flickers as they cross.
                         .zIndex(distance < 0.5 ? 1 : 0)
+                        // **The target is the card's LAYOUT box, not its
+                        // drawn one.** `scaleEffect` and `offset` move the
+                        // hit area with the picture, so a frame one step out
+                        // from the middle was 46 × 0.78 = 35.9pt wide and sat
+                        // 5pt low: every thumbnail on this strip except the
+                        // one in the middle was under the 44pt floor, on a
+                        // control whose whole job is to be tapped. Neither
+                        // modifier changes the layout size, so a
+                        // `contentShape` after them is the unscaled 46 × 60,
+                        // and it also stops the target sliding about while
+                        // the strip scrubs. The depth is still drawn; only
+                        // the finger stopped believing it.
+                        .contentShape(Rectangle())
                         .onTapGesture { select(photo) }
                         .accessibilityLabel(photo.title ?? "Photo")
                     }
@@ -733,6 +828,27 @@ private struct PhotoPage: View {
                     .transition(.opacity)
             }
         }
+        // **The picture is clipped to its stage, so the chrome is never on a
+        // photograph at any magnification.**
+        //
+        // This screen's answer to "a white glyph on a white picture" is
+        // structural and was already most of the way there: the deck reaches
+        // up behind the header so the top of the screen swipes, but the PAGE
+        // inside it is padded down past the header, so at rest the close
+        // button and the `⋯` sit on black and nothing else. `scaleEffect` does
+        // not clip, though, so the moment you pinched in, the magnified
+        // picture was drawn from the deck's own top edge at y=58, straight
+        // under two 44pt controls at y=58..102, and down over the caption and
+        // the strip as well. A bright sky under `.regular` glass with a hard
+        // `.white` glyph on it measures about 1.1:1, and `.white` does not
+        // adapt the way a vibrant foreground would.
+        //
+        // The page's own box already starts below the header, so clipping to
+        // it is the whole fix, and it costs nothing at rest: an unzoomed
+        // picture is inside its box by `printInset` on every side.
+        // `contentShape` below restores the full rectangle to the finger, so
+        // pinch and pan are unchanged.
+        .clipped()
         // A fade, and only a fade. The picture arriving by appearing is the
         // one moment a viewer can look cheap.
         .animation(GridConstants.gentleReveal, value: image != nil)

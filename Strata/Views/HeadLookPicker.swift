@@ -57,7 +57,11 @@ struct HeadLookPicker: View {
             HapticsEngine.tick()
             onSelect(look.kind)
         } label: {
-            VStack(spacing: 6) {
+            // `gapTight`, not a loose 6. Six is not a rung of the spacing
+            // ladder (8 / 12 / 16 / 24 / 32) and it was the only value on
+            // either picker that was not, which is the fifth value check 7
+            // fails a screen for.
+            VStack(spacing: GridConstants.gapTight) {
                 ZStack {
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .fill(AppColors.quietFill)
@@ -69,15 +73,34 @@ struct HeadLookPicker: View {
                 }
                 .frame(width: Self.side, height: Self.side)
                 .overlay {
+                    // **0.55 ink, not full strength, and the system's own
+                    // stroke width.** `AddWinSheet` settled what a selection
+                    // ring is on 2026-10-01: "a full-strength `inkPrimary` ring
+                    // is a hard black outline floating off the thing it selects,
+                    // the only pure ink ring in the app". These two pickers were
+                    // the last places still drawing one, and they draw it around
+                    // a photograph of somebody's face, where a hard black
+                    // outline reads as a cut-out rather than as a choice.
+                    //
+                    // It can go quieter here than anywhere else, because this
+                    // swatch says "chosen" three times over: the ring, the step
+                    // up from 0.94 to full size, and the name under it going
+                    // from secondary ink to primary. The ring is the loudest of
+                    // the three and it is the one that did not need to be.
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(isChosen ? AppColors.inkPrimary : .clear, lineWidth: 2)
+                        .strokeBorder(AppColors.inkPrimary.opacity(isChosen ? 0.55 : 0),
+                                      lineWidth: GridConstants.strokeMedium)
                 }
                 .scaleEffect(isChosen ? 1 : 0.94)
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
                 Text(look.kind.name)
                     .font(Typography.bodySmall)
-                    .foregroundStyle(isChosen ? AppColors.inkPrimary : AppColors.inkQuiet)
+                    // `inkSecondary`, not `inkQuiet`, for the same reason as
+                    // `HeadPickerRow`'s name one row above: 6.19:1 where
+                    // `inkQuiet` measured 3.3:1, and `inkQuiet` is the token for
+                    // a hint rather than for a word somebody reads.
+                    .foregroundStyle(isChosen ? AppColors.inkPrimary : AppColors.inkSecondary)
             }
             .contentShape(Rectangle())
         }

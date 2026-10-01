@@ -65,7 +65,17 @@ struct RestoreBackupView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, GridConstants.gapWide)
+                // **`horizontalPadding`, and it was `gapWide`.** (2026-10-01)
+                //
+                // This screen was on a 24pt margin. Every other screen in Strata
+                // is on 16: the tower, Memories, a day, the walkthrough, the add
+                // sheet. A sheet that insets its content 8pt further than the
+                // page behind it reads as a different app's dialog, and the
+                // audit's own line is that every system is built on the same
+                // grid and the same margins. The vertical 24 stays: that one is
+                // the ladder's rung for air above and below a run of content,
+                // and it is not a margin.
+                .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.vertical, GridConstants.gapWide)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -85,6 +95,15 @@ struct RestoreBackupView: View {
         // The count as a numeral and the word as a caption under it, which is
         // the tower header's own arrangement: the number is the fact and the
         // word tells you which fact it is.
+        //
+        // **The caption is `bodyLarge`, and it was `screenSubtitle`.**
+        // (2026-10-01) The audit allows a screen three type tiers: the screen's
+        // title, an object's name, and body. This screen was setting four sizes
+        // (34 for the tally, 15 for this line, 17 for the facts under it and 13
+        // for the plan beneath those), and 15 is the one of them that belongs to
+        // no tier: `screenSubtitle` is the line under a SCREEN title, and the
+        // screen's title here is "Restore", up in the toolbar. This is a word
+        // naming a number, which is body. Three sizes now: 34, 17, 13.
         VStack(alignment: .leading, spacing: GridConstants.spacing) {
             // `StrataFont.digits`, never `Text("\(n)")`: interpolation groups a
             // thousand as "1,000" and the owner's face has no comma.
@@ -92,7 +111,7 @@ struct RestoreBackupView: View {
                 .font(Typography.tally)
                 .foregroundStyle(AppColors.inkPrimary)
             Text(summary.wins == 1 ? "win in this backup" : "wins in this backup")
-                .font(Typography.screenSubtitle)
+                .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
         }
         .accessibilityElement(children: .combine)
@@ -103,8 +122,13 @@ struct RestoreBackupView: View {
             }
             fact("Days", value: "\(summary.days)")
             fact("Photographs", value: photographLine(summary))
-            fact("From", value: summary.firstDay.map(Self.day) ?? "—")
-            fact("To", value: summary.lastDay.map(Self.day) ?? "—")
+            // **"None", not a dash.** These were a long dash, which is the one
+            // punctuation mark this app's copy is not allowed anywhere, and a
+            // dash is not a word: a person reading "From, long dash" learns
+            // nothing. The row right above it already says "None" for no
+            // photographs, so this is the word the screen already uses.
+            fact("From", value: summary.firstDay.map(Self.day) ?? "None")
+            fact("To", value: summary.lastDay.map(Self.day) ?? "None")
             fact("Backed up", value: Self.day(summary.exportDate))
             fact("Made by Strata", value: summary.appVersion, isLast: true)
         }
@@ -179,8 +203,11 @@ struct RestoreBackupView: View {
                 Text(verbatim: StrataFont.digits(report.winsAdded))
                     .font(Typography.tally)
                     .foregroundStyle(AppColors.inkPrimary)
+                // `bodyLarge`, for the reason the same pair in `contents(of:)`
+                // gives: 15 is the one size on this screen that belongs to none
+                // of the three tiers.
                 Text(report.winsAdded == 1 ? "win restored" : "wins restored")
-                    .font(Typography.screenSubtitle)
+                    .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
             .accessibilityElement(children: .combine)
@@ -272,8 +299,23 @@ struct RestoreBackupView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The same filled capsule the onboarding's primary action uses, so a
-    /// primary action looks the same wherever it is.
+    /// The app's filled primary capsule, shared with `StoreUnavailableView`.
+    ///
+    /// **This comment used to say "the same filled capsule the onboarding's
+    /// primary action uses" and had been wrong for a commit.** Onboarding's pill
+    /// became a lit `AppColors.accent` capsule with the block's rim on
+    /// 2026-09-30 and this stayed a flat `inkPrimary` one, so the app had three
+    /// primary actions in three places and a comment asserting it had one. That
+    /// is the drift `GlassIconButton.swift` and `SectionHeading.swift` each
+    /// record in their own words: a treatment redefined per screen drifts per
+    /// screen.
+    ///
+    /// **It stays ink rather than becoming the accent, and that is measured.**
+    /// Sampled off the 2026-10-01 walkthrough shots, the accent pill's white
+    /// label is 2.03:1 where the guideline asks 4.5 of a 17pt word; this one is
+    /// 14.0:1. Adopting the accent today would spread a failure rather than end
+    /// a drift. See `OnboardingView.pillLabel` for the three measured ways out:
+    /// once one is picked, these two and onboarding's belong in one component.
     private func primaryButton(_ title: String, action: @escaping () async -> Void) -> some View {
         Button {
             HapticsEngine.lightTap()
@@ -283,12 +325,20 @@ struct RestoreBackupView: View {
                 .font(Typography.headerMedium)
                 .foregroundStyle(WarmBackground.top)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(height: Self.pillHeight)
                 .background { Capsule().fill(AppColors.inkPrimary) }
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        // `PressResponse.swift`: "Use this rather than `.plain` on anything that
+        // is not already Liquid Glass." The confirm on this screen is the one
+        // press in the app that commits a restore, and it answered with a haptic
+        // and nothing on the glass.
+        .buttonStyle(.pressWord)
     }
+
+    /// The height of a primary action, the same number `OnboardingView` and
+    /// `StoreUnavailableView` use.
+    private static let pillHeight: CGFloat = 50
 
     @ToolbarContentBuilder
     private var closeButton: some ToolbarContent {
@@ -302,6 +352,15 @@ struct RestoreBackupView: View {
         }
     }
 
+    /// **`accentPrimary`, and it was `accentWarm`.** (2026-10-01)
+    ///
+    /// `accentWarm` in light mode is 28,26,24, a near-black: this Cancel was
+    /// drawn in ink, so it read as a label rather than as the thing you press to
+    /// walk away from a restore. Settings and Profile both tint their whole
+    /// sheet `AppColors.accentPrimary` and `MonthReplayRow` sets its link in it,
+    /// so every other "press this word" in the app is already that blue and this
+    /// one was not. The token's own doc has the number: 4.38:1 on the light page,
+    /// 3.62:1 on the dark one.
     private var cancelLabel: some View {
         Button {
             HapticsEngine.lightTap()
@@ -309,7 +368,7 @@ struct RestoreBackupView: View {
         } label: {
             Text(isFinished ? "Done" : "Cancel").font(Typography.headerSmall)
         }
-        .foregroundStyle(AppColors.accentWarm)
+        .foregroundStyle(AppColors.accentPrimary)
         .disabled(isRestoring)
     }
 

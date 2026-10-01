@@ -25,6 +25,16 @@ struct ProfileAvatar: View {
 
     private var store: ProfileStore { .shared }
 
+    /// What the circle is made of when no photograph fills it.
+    ///
+    /// A chosen colour is `ProfileStore.backgroundStyle`'s own lit fill, and
+    /// with no colour that property is `AppColors.quietFill`. It used to fall
+    /// back to `.quaternary`, measured (203, 203, 202) on a 247 page, which is
+    /// a system hierarchical grey and 1.51:1; this view carried a shim around
+    /// it for a few hours and the default itself is right now, so the shim is
+    /// gone. See `ProfileStore.backgroundStyle`.
+    private var ground: AnyShapeStyle { store.backgroundStyle }
+
     /// **No rim.** It had `BlockRim`, so an avatar would be the same kind of
     /// object as a block — and the owner's call on this screen is the platform's
     /// look, not ours. A lit edge is a block's claim to be a thing you built;
@@ -33,7 +43,11 @@ struct ProfileAvatar: View {
     var body: some View {
         if let head = HeadStore.shared.headForPicture {
             ZStack {
-                Circle().fill(store.backgroundStyle)
+                // The same ground as the empty circle below, for the same
+                // reason: a head's crown-to-chin is 0.76 of the circle, so what
+                // shows around it is this ring, and it was `.quaternary` here
+                // too.
+                Circle().fill(ground)
                 // Expressive: on Profile the head is the subject of the page.
                 LivingHeadView(rig: head, side: side * Self.headShare, liveliness: .expressive, traceID: "profile")
             }
@@ -54,9 +68,46 @@ struct ProfileAvatar: View {
                 .accessibilityHidden(true)
         } else {
             ZStack {
-                Circle().fill(store.backgroundStyle)
+                // **An empty slot, in the app's own word for one.**
+                //
+                // With no colour chosen this drew `ProfileStore.backgroundStyle`,
+                // which falls back to `.quaternary`. Measured off the built
+                // sheet, that renders (203, 203, 202) on a (247, 247, 247) page:
+                // a mid-grey blob 88pt across, 1.51:1 against the ground, and a
+                // system hierarchical grey rather than a colour from the palette.
+                // `ProfileView`'s own "no colour" swatch, ten points below this
+                // on the same screen, refuses `.quaternary` by name and says why:
+                // section 8 of `docs/design-system-future.md` will not take a
+                // colour that is neither in `AppColors` nor read off content.
+                //
+                // The app already has a word for a slot with nothing in it yet,
+                // and the swatch below cites it: `quietFill` with a faint
+                // `slotInk` outline, the weight `AddWinSheet`'s empty photo well
+                // uses. Borrowed rather than invented. `quietFill` composites to
+                // (232, 232, 232) here and the glyph inside it still measures
+                // 5.05:1, so what identifies the control is the figure, which is
+                // the thing a person is actually looking for.
+                //
+                // It matters because this circle is reserved: `docs/illustrations.md`
+                // has a shoulders-up drawing landing in it, flat ink, and flat
+                // ink wants a ground to sit on rather than a grey disc already
+                // doing the drawing's job.
+                //
+                // A chosen colour keeps its own fill and takes no outline. A
+                // colour is a surface; it does not need an edge drawn round it.
+                Circle().fill(ground)
+                if store.background == nil {
+                    Circle().strokeBorder(AppColors.slotInk.opacity(0.26),
+                                          lineWidth: GridConstants.strokeThin)
+                }
                 if store.initials.isEmpty {
                     Image(systemName: "person.fill")
+                        // A fixed size on purpose, and one of the exceptions
+                        // `Typography` names: this glyph is a fraction of a
+                        // circle the caller solved for, so it scales with the
+                        // circle rather than with Dynamic Type. The circle is
+                        // twice the header button, which is where the 88 on
+                        // Profile comes from.
                         .font(.system(size: side * 0.42, weight: .medium))
                         .foregroundStyle(store.background == nil ? AppColors.inkSecondary : store.initialsInk)
                 } else {

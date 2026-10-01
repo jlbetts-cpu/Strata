@@ -34,6 +34,12 @@ struct PhotoCollectionView: View {
     /// task that asks for it.
     @State private var pending: WinPlace?
     @State private var viewing: ViewedPhoto?
+    /// Whether `load()` has run. The empty line below waits for it, for the
+    /// reason `MemoriesMapView` writes down about its own: the view is built
+    /// before the store is read, so for that first frame no sections is not an
+    /// empty collection, and without this gate every open of a place flashed
+    /// "No photographs here." over a grid about to fill with photographs.
+    @State private var hasLoaded = false
     @Namespace private var photoTransition
 
     private let calendar = Calendar.current
@@ -42,15 +48,19 @@ struct PhotoCollectionView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                // The heading would have carried the gap; without it, the
-                // grid keeps the same distance from the header on its own.
-                if PhotoGalleryGrid.headingRepeatsTitle(sections, title: title) {
-                    Color.clear.frame(height: GridConstants.gapWide)
+                if hasLoaded && sections.isEmpty {
+                    emptyLine
+                } else {
+                    // The heading would have carried the gap; without it, the
+                    // grid keeps the same distance from the header on its own.
+                    if PhotoGalleryGrid.headingRepeatsTitle(sections, title: title) {
+                        Color.clear.frame(height: GridConstants.gapWide)
+                    }
+                    PhotoGalleryGrid(sections: sections,
+                                     transitionNamespace: photoTransition,
+                                     onSelect: { viewing = ViewedPhoto(id: $0.fileName, title: $0.title) },
+                                     screenTitle: title)
                 }
-                PhotoGalleryGrid(sections: sections,
-                                 transitionNamespace: photoTransition,
-                                 onSelect: { viewing = ViewedPhoto(id: $0.fileName, title: $0.title) },
-                                 screenTitle: title)
             }
                 .padding(.bottom, GridConstants.tabBarClearance)
         }
@@ -89,6 +99,33 @@ struct PhotoCollectionView: View {
         }
     }
 
+    // MARK: - Nothing left in it
+
+    /// A collection with nothing in it.
+    ///
+    /// **It rendered a title over a blank page** (2026-10-01). Every way in
+    /// here starts from something that had photographs, so this reads as
+    /// unreachable, and it is two taps away: open a place from the map, open
+    /// its last photograph, delete it. `onDelete` calls `load()`, `load()`
+    /// finds nothing, and what comes back is a place name, a count hidden to
+    /// opacity zero, and 800pt of ground. Check 1 asks what the screen's
+    /// subject is, and at that moment there is nothing on it to be one.
+    ///
+    /// `DayAlbumDetailView`'s sentence, to the line, because that page is the
+    /// other one off the same shelf and it already answered this: `bodySmall`,
+    /// `inkTertiary` (`inkQuiet` measures 3.31:1 on this ground, see `header`),
+    /// on the page margin, `gapWide` under the count. It says what is true for
+    /// all three sources this screen serves, a place, a repeated interest or a
+    /// moment, without naming which one you came from, because the title
+    /// directly above it has already said that.
+    private var emptyLine: some View {
+        Text("No photographs here.")
+            .font(Typography.bodySmall)
+            .foregroundStyle(AppColors.inkTertiary)
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.top, GridConstants.gapWide)
+    }
+
     // MARK: - Header
 
     /// `DayAlbumDetailView.header`'s shape: the screen title, and a count
@@ -117,7 +154,32 @@ struct PhotoCollectionView: View {
                 Text(photoCount == 1 ? "photo" : "photos")
                     .font(Typography.screenSubtitle)
             }
-            .foregroundStyle(AppColors.inkQuiet)
+            // **`inkTertiary`, not `inkQuiet`, and it is a contrast failure
+            // rather than a preference** (2026-10-01).
+            //
+            // `DayAlbumDetailView` measured this off a build on its own copy of
+            // the line and fixed it there, leaving the note: "`PhotoCollectionView`
+            // draws its own count line the same way and has the same failure.
+            // It is not this file's to change." It is this file's. The numbers
+            // it left are the numbers here, because it is the same line, the
+            // same size and the same ground:
+            //
+            //     ground      rgb(249, 247, 244)
+            //     inkQuiet    black 0.45 -> rgb(137, 136, 134)   3.31:1   FAIL
+            //     inkTertiary black 0.55 -> rgb(112, 111, 110)   4.69:1   pass
+            //
+            // `inkQuiet`'s own documentation draws the line this crossed: it is
+            // "held to 3:1, not 4.5:1, and deliberately: these are UI elements
+            // and decorative glyphs rather than text somebody has to read", and
+            // it names a count and a subtitle as the thing it is never for.
+            // This line is read: on a place it is the only statement of how
+            // much is here, and on a place whose name has not arrived yet it is
+            // the ONLY line on the screen that is not a photograph.
+            //
+            // One step down the same scale, not a different voice, and the day
+            // page beside it now reads at the same weight rather than a step
+            // darker than the screen it opens next to.
+            .foregroundStyle(AppColors.inkTertiary)
             .accessibilityElement(children: .combine)
             // **Hidden when the title is already the count.** A place whose
             // name has not arrived is titled "12 here" (see `load()`), and
@@ -151,6 +213,11 @@ struct PhotoCollectionView: View {
         // hundreds of objects built to show none of them. `imageFileName !=
         // nil` is the same test `MemoriesViewModel.loadCarousel` already uses
         // for the same reason.
+        // `defer`, not a line at the bottom: the `.moment` branch below returns
+        // early on an id that no longer resolves, and that is one of the two
+        // ways this screen ends up with nothing to draw. A flag set on only one
+        // of its exits is a flag that is wrong exactly when it matters.
+        defer { hasLoaded = true }
         var descriptor = FetchDescriptor<HabitLog>(
             predicate: #Predicate { $0.imageFileName != nil && $0.completed }
         )

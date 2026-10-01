@@ -36,7 +36,15 @@ struct DayAlbumDetailView: View {
     /// the "it does not start at the bottom" the owner reported. At 0 the gap
     /// came out 83pt. 8 is the remainder, and the two towers now stand on the
     /// same line.
-    private static let tabBarClearance: CGFloat = 8
+    ///
+    /// **Renamed off `tabBarClearance`.** There is a shared
+    /// `GridConstants.tabBarClearance` and it is 110, so a reader meeting
+    /// `Self.tabBarClearance = 8` next to it had two different answers to the
+    /// same-sounding question on one screen, which is the confusion that put
+    /// the 110 here in the first place. This is not the tab bar's room. It is
+    /// the last 8pt of ground under the tower, after the room the scroll view
+    /// has already reserved.
+    private static let groundGap: CGFloat = 8
 
     private var photos: [String] {
         logs.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
@@ -83,20 +91,28 @@ struct DayAlbumDetailView: View {
                         // screen somebody will eventually see.
                         Text("Nothing logged this day.")
                             .font(Typography.bodySmall)
-                            .foregroundStyle(AppColors.inkQuiet)
+                            // `inkTertiary`, not `inkQuiet`. See `header`:
+                            // `inkQuiet` measures 3.31:1 on this ground and
+                            // its own doc says it is held to 3:1 because it is
+                            // for glyphs rather than for sentences. This is the
+                            // only sentence on the page.
+                            .foregroundStyle(AppColors.inkTertiary)
                             .padding(.horizontal, GridConstants.horizontalPadding)
-                            .padding(.top, 28)
-                        Spacer(minLength: 24)
+                            // 28 was a fifth value on a ladder of 8 · 12 · 16 ·
+                            // 24 · 32, and it is the same gap the tower takes
+                            // below, so it should be the same number.
+                            .padding(.top, GridConstants.gapWide)
+                        Spacer(minLength: GridConstants.gapWide)
                     } else {
-                        Spacer(minLength: 24)
-                        tower
+                        Spacer(minLength: GridConstants.gapWide)
+                        tower(width: geo.size.width)
                             .frame(maxWidth: .infinity)
                     }
-                    // The tab bar's room, as CONTENT rather than as padding.
-                    // Padding sits inside the min-height frame, so the spacer
-                    // stopped 110pt short and the tower floated in the middle
-                    // instead of standing at the bottom.
-                    Color.clear.frame(height: Self.tabBarClearance)
+                    // The last gap, as CONTENT rather than as padding. Padding
+                    // sits inside the min-height frame, so the spacer stopped
+                    // short of it and the tower floated in the middle instead
+                    // of standing at the bottom. See `groundGap`.
+                    Color.clear.frame(height: Self.groundGap)
                 }
                 .frame(minHeight: geo.size.height, alignment: .top)
             }
@@ -104,6 +120,21 @@ struct DayAlbumDetailView: View {
         .background { WarmBackground().ignoresSafeArea() }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // **The bar gets a ground**, the same line and for the same reason as
+        // `PhotoCollectionView`, which is the other page off the same shelf.
+        //
+        // A day with a few wins never reaches the top of the scroll, so this
+        // looks like it is for nothing. A day with twenty-six does: the tower
+        // is taller than the screen, it scrolls, and the top of it passes under
+        // the back chevron. A dark chevron on a red block is the same failure
+        // as a white glyph on a white sky, and the fix is the same kind of
+        // thing: a material under the chrome rather than a darker chevron. The
+        // navigation bar is the one place in this app allowed one, because it
+        // is the system's own and not a card of ours pretending to be a block.
+        //
+        // The two pages disagreed about this until now, which is the drift the
+        // audit is for: one of them had a ground and the other did not.
+        .toolbarBackground(.visible, for: .navigationBar)
         .task { reload() }
         .fullScreenCover(item: Binding(
             get: { viewing.map(PhotoID.init) },
@@ -158,7 +189,26 @@ struct DayAlbumDetailView: View {
                 Text(logs.count == 1 ? "win" : "wins")
                     .font(Typography.screenSubtitle)
             }
-            .foregroundStyle(AppColors.inkQuiet)
+            // **`inkTertiary`, not `inkQuiet`, and it is a contrast failure
+            // rather than a preference.**
+            //
+            // Measured off a build: the ground is rgb(249,247,244) and
+            // `inkQuiet` is black at 0.45, which composites to rgb(137,136,134)
+            // and gives **3.31:1**. Text has to clear 4.5. `inkQuiet`'s own
+            // documentation says as much, in so many words: it is "held to 3:1,
+            // not 4.5:1, and deliberately: these are UI elements and
+            // decorative glyphs rather than text somebody has to read". This
+            // line is read. It is the only thing on the page that says how big
+            // the day was.
+            //
+            // `inkTertiary` is the token written for exactly this case
+            // ("Captions: a count under a card, a subtitle, a unit"): black at
+            // 0.55, rgb(112,111,110), **4.69:1**. Same voice, one step down the
+            // same scale, and now legible.
+            //
+            // `PhotoCollectionView` draws its own count line the same way and
+            // has the same failure. It is not this file's to change.
+            .foregroundStyle(AppColors.inkTertiary)
             .accessibilityElement(children: .combine)
             // **Nothing to count, so nothing counted.** On a day with no wins
             // the readout said "0 wins" and the body under it said "Nothing
@@ -196,7 +246,16 @@ struct DayAlbumDetailView: View {
     /// Rendered outside the tower tab, so the two environment values the block
     /// views read have to be supplied by hand — there is nothing to inherit
     /// them from here. `TowerShare` learned this the same way.
-    private var tower: some View {
+    ///
+    /// **The width is handed in from the page's own `GeometryReader`**, which
+    /// this screen already has and was not using for it. It was
+    /// `UIScreen.main.bounds.width - 16 * 2`: on this phone the two agree to
+    /// the point, so nothing was visibly wrong, but one of them is the device
+    /// and the other is the column the tower is actually standing in. They
+    /// stop agreeing in landscape, on an iPad, and in a Slide Over, and the
+    /// failure when they do is a tower drawn to a width its page does not
+    /// have. The reader was two lines up the file the whole time.
+    private func tower(width containerWidth: CGFloat) -> some View {
         // Full size, the same cell the Wins tab draws at.
         //
         // It was capped at 74 so a three-block day would not become a
@@ -209,15 +268,21 @@ struct DayAlbumDetailView: View {
             groupedIDs: vm.groupedBlockIDs,
             coveredIDs: vm.coveredBlockIDs,
             modelContext: modelContext,
-            width: UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2,
+            width: containerWidth - GridConstants.horizontalPadding * 2,
             maxCell: 200,
             onTapBlock: { block in
                 // The photo is ON the block. A separate grid underneath was a
                 // second copy of the same pictures, and it pushed the tower —
                 // the thing you came here to look at — up the screen to make
                 // room for it.
+                // **No haptic here.** `FlippableBlockView` fires
+                // `HapticsEngine.lightTap()` itself, in the same tap handler,
+                // immediately before it calls this one, so one tap on a
+                // block with a photograph on it produced two taps of
+                // feedback, back to back, which reads as a stutter rather
+                // than as a press. The block owns the press; this owns what
+                // the press is for.
                 guard let name = block.log.imageFileName else { return }
-                HapticsEngine.lightTap()
                 viewing = name
             }
         )
