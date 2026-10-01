@@ -39,34 +39,13 @@ struct MemoriesView: View {
     @State private var playing: Replay?
     /// Ties each thumbnail to the viewer that opens out of it.
     @Namespace private var photoTransition
-    /// How far the page is pulled up over the map. **Hidden on arrival** —
-    /// the tab opens on the map, whole, and the photographs are the button in
-    /// the corner.
-    @State private var drawer: DrawerDetent = .hidden
-    /// Whether the drawer's page has been built. **Not while the tab is
-    /// arriving.** The drawer rests hidden, and hiding it is only an offset,
-    /// which does not affect layout: the lazy stack inside built its first
-    /// screen with the tab — the month tower with a slideshow running in every
-    /// photographed day, the replay shelf, the first rows of the gallery —
-    /// under a map nobody had pulled anything up over.
-    ///
-    /// **But before the first raise, not during it.** Built by the raise
-    /// itself, the page's construction landed in the spring's first frames:
-    /// filmed on a year of seeded history, the first raise held the screen
-    /// for 1.8s and the drawer appeared already at the top, its page fading in
-    /// over the map. So it is built once the page has its data AND the map's
-    /// camera has been still for `prebuildDelay`, off screen, with its
-    /// slideshows paused (`memoriesDrawerVisible`) and no poster redrawn; and a
-    /// raise that comes sooner builds first and waits for the built page to
-    /// appear before sliding. Once built it stays built, so lowering and
-    /// raising again keeps its place.
-    @State private var drawerIsBuilt = false
-    private static let prebuildDelay: Duration = .milliseconds(1500)
-    /// When the map's camera last moved, so the build waits for it to be
-    /// still. See `MapMotion`.
-    @State private var mapMotion = MapMotion()
-    /// A raise waiting for the page to exist. See `raiseDrawer`.
-    @State private var raiseWhenBuilt = false
+    // **The drawer's state is gone**, with the drawer (2026-09-30). It held
+    // how far the page was pulled up over the map, whether the page had been
+    // BUILT yet — it was built lazily, off screen, once the map's camera had
+    // been still for 1.5s, because building it during the raise held the first
+    // one for 1.8s — and a flag for a raise that arrived before the page
+    // existed. The page is the screen now, so it is built when the screen is,
+    // and none of that has anything to hold.
     #if DEBUG
     @State private var debugFlingCounted = false
     #endif
@@ -97,91 +76,29 @@ struct MemoriesView: View {
         let _ = PerfProbe.count("MemoriesView")
         #endif
         NavigationStack(path: $path) {
-            ZStack {
-            // **The map is the tab.**
+            // **THE PAGE IS THE SCREEN AND THE MAP IS A BUTTON.**
             //
-            // The page used to be the screen and the map a route off it. The
-            // owner's call is that the map is the feature, so it is the ground
-            // now and everything the tab used to be is a drawer over it —
-            // Apple Maps' own anatomy, and the only arrangement that gives the
-            // map the whole screen without losing anything.
-            MemoriesMapView(pins: vm.pins, hasLoaded: vm.hasLoaded, motion: mapMotion,
-                            style: mapStyle) { key in
-                path.append(.place(key))
-            }
-            .ignoresSafeArea()
-
-            // **The chrome floats on the map, and the drawer slides over it.**
+            // The owner, 2026-09-30: "for the Memories tab I would like it to be
+            // designed normally, and then the map would be a button on the top
+            // instead of the Memories sheet being a button — I think that makes
+            // more sense tbh."
             //
-            // The title is the screen's name, so it belongs on the screen —
-            // which is now the map. It sits UNDER the drawer in z so raising
-            // the page covers it rather than fighting it, exactly as Apple
-            // Maps' own search field is covered by its card. At `.full` you
-            // are looking at photographs, and a title over photographs is the
-            // same argument the tower's header already lost.
-            VStack(spacing: 0) {
-                titleRow
-                    .padding(.horizontal, GridConstants.horizontalPadding)
-                    .padding(.top, GridConstants.headerArtworkTopPadding)
-                Spacer(minLength: 0)
-            }
-            // **A legibility wash only where one is needed.**
+            // It does, and it undoes an inversion that cost this file a lot. The
+            // map was the ground, the page was a drawer over it, and the page
+            // had to be a BUTTON on the map to get back to. Everything that was
+            // awkward here followed from that: a page that had to be built
+            // lazily and raised, a "Done" that dismissed a screen rather than a
+            // sheet, a title drawn in white over imagery and ink over the pale
+            // map, and a legibility wash to hold it up.
             //
-            // Over imagery the ground is a photograph of the Earth and cannot
-            // be relied on to be anything, so the title is white on a short
-            // gradient from the app's own black — the same move the camera
-            // makes for its wordmark. Over the pale ground it is ink, with no
-            // wash at all: a dark smear laid across a pale map to hold up a
-            // title that did not need holding up is exactly the kind of chrome
-            // this screen is trying not to have.
-            .background(alignment: .top) {
-                if mapStyle != .quiet {
-                    // **Faint.** It was 0.55 over 190pt, which is not a wash,
-                    // it is a bar — the owner called it "overwhelming on the
-                    // top", and on the night map, whose tiles are already
-                    // dark, almost all of that was being spent on a problem
-                    // that no longer existed. A legibility wash only has to
-                    // guarantee the worst case: a white building or a cloud
-                    // directly under the title. 0.28, fading out by 130pt,
-                    // does that and is not visible as an object.
-                    LinearGradient(
-                        stops: [
-                            .init(color: AppColors.warmBlack.opacity(0.28), location: 0.0),
-                            .init(color: AppColors.warmBlack.opacity(0.16), location: 0.55),
-                            .init(color: .clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 130)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                }
-            }
-
-            MemoriesDrawer(detent: $drawer, raise: { raiseDrawer() }) {
-            if drawerIsBuilt {
-            // **The header is above the scroll, and the scroll fades into
-            // it.**
+            // All of it goes. The page stands on the app's own ground like every
+            // other screen, and the map is a route off it — which it already was
+            // in `MemoriesRoute`, pushed full screen, for a reason that comment
+            // still records.
             //
-            // Three owner calls, and the third settles the shape. The picker
-            // must not travel with the photographs. The page must not sit on
-            // "a seprete white background" — "it should just have a light
-            // gradient behind it on scroll like how apple does it". And: "the
-            // september drop down should not be on the scroll container".
-            //
-            // The middle one alone pointed at an overlay — header floating,
-            // content passing under it. The third rules that out, and rightly:
-            // photographs sliding beneath a menu make the menu look like it is
-            // riding on them. So the header sits ABOVE the scroll view and
-            // owns its own band, and the SOFTNESS is bought inside the scroll
-            // view instead — a short, light, semi-transparent fade at its top
-            // edge, so content dissolves as it reaches the header rather than
-            // being guillotined by the clip.
-            //
-            // The fade belongs to the scrolling content. The header does not
-            // move, is not translucent, and nothing passes over it.
+            // The honest trade: the map no longer gets the whole screen the
+            // moment you arrive, and that WAS the owner's earlier call ("the map
+            // is the feature"). This is him changing it, not me forgetting it.
             VStack(spacing: 0) {
             pageHeader
             ScrollViewReader { proxy in
@@ -311,24 +228,12 @@ struct MemoriesView: View {
                 .allowsHitTesting(false)
             }
             }
-            // Arrives as it is. Inserted inside a raise's animation, the
-            // default would fade the page in while it slides: filmed on the
-            // first raise, the page's title half-transparent over the map's.
-            .transition(.identity)
-            // Built and laid out: a raise waiting on it can start now.
-            .onAppear { raiseNowThatItIsBuilt() }
-            }
-            }
-            // Lowered, or covered by a photograph, a replay or a pushed page:
-            // nobody can see the month, so its slideshows hold still.
+            // Covered by a photograph, a replay or a pushed page: nobody can
+            // see the month, so its slideshows hold still. It used to also ask
+            // whether the drawer was down; there is no drawer.
             .environment(\.memoriesDrawerVisible,
-                         drawer != .hidden && viewing == nil && playing == nil && path.isEmpty)
-            .ignoresSafeArea(edges: .bottom)
-            .onChange(of: drawer) { _, detent in
-                // Every raise goes through `raiseDrawer`; this is the net.
-                if detent != .hidden, !drawerIsBuilt { buildDrawer() }
-            }
-            }
+                         viewing == nil && playing == nil && path.isEmpty)
+            .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
             // The header's head and the map's sleep under a photograph or a
             // replay, and under whatever already covers this page. Before the
@@ -381,67 +286,34 @@ struct MemoriesView: View {
                 }
             }
         }
-        // Its own task: drawing the cards yields between each, and the
-        // drawer's reload and the launch flags below must not wait on it.
-        // Keyed by scheme and scale: posters are drawn in the page's scheme,
-        // so a switch draws (once) the set for the other. And by whether the
-        // drawer is up: a poster that is merely STALE is redrawn only when
-        // the shelf can be seen, and the old one stays up until then.
-        .task(id: "\(colorScheme)-\(displayScale)-\(drawer != .hidden)") {
-            // **A MISSING card is drawn while the drawer is down, but only
-            // once the map is quiet** (fix round 2). Drawn straight away, it
-            // put 1.27s of `ImageRenderer` on the main actor under the map's
-            // first frames. Drawn only when the drawer rose (round 1), that
-            // same 1.3s landed under the moving panel on the first raise and
-            // the slots filled in one by one. So: find the periods now, draw
-            // the missing cards behind the same gate as the drawer's
-            // prebuild (the camera still, the image store quiet for 500ms,
-            // the page built first), and keep drawing on the raise only as a
-            // fallback for anything still missing. A STALE card still waits
-            // for the drawer and the spring, as before.
-            if drawer == .hidden {
-                await reloadReplays(redrawsStale: false, drawsMissing: false)
-                while !Task.isCancelled, !vm.hasLoaded || !drawerIsBuilt {
-                    try? await Task.sleep(for: .milliseconds(200))
-                }
-                await waitForQuietMap()
-                guard !Task.isCancelled, drawer == .hidden else { return }
-                await reloadReplays(redrawsStale: false, drawsMissing: true)
-                return
+        // **The replay cards, drawn once the page has something to draw from.**
+        //
+        // Keyed by scheme and scale: posters are drawn in the page's scheme, so
+        // a switch draws (once) the set for the other.
+        //
+        // **This used to be keyed on the drawer as well, and the drawer is
+        // gone.** The shape of it was: draw what is MISSING only once the map
+        // had stopped moving, because drawing straight away put 1.27s of
+        // `ImageRenderer` on the main actor under the map's first frames, and
+        // drawing on the raise instead put the same 1.3s under a moving panel.
+        //
+        // Neither hazard exists now. The map is not the ground and is not on
+        // screen when this runs; there is no panel to raise. So the two-pass
+        // dance collapses into what it was always trying to be — draw the
+        // missing ones, then come back for the stale ones — and the measured
+        // reason it was ever more complicated than that is kept above, because
+        // the cost of `ImageRenderer` on the main actor has not changed and
+        // whoever puts a map back on this screen will meet it again.
+        .task(id: "\(colorScheme)-\(displayScale)") {
+            await reloadReplays(redrawsStale: false, drawsMissing: false)
+            while !Task.isCancelled, !vm.hasLoaded {
+                try? await Task.sleep(for: .milliseconds(200))
             }
+            guard !Task.isCancelled else { return }
             await reloadReplays(redrawsStale: false, drawsMissing: true)
             try? await Task.sleep(for: Self.springSettle)
             guard !Task.isCancelled else { return }
             await reloadReplays(redrawsStale: true)
-        }
-        // **The off-screen build, and only while nothing is moving.** A
-        // `.task` so leaving the tab cancels it — an unstructured one built
-        // the page after the map had already gone, landing its frame on
-        // another tab — and it restarts its wait every time the map's camera
-        // moves, so the build never takes a frame out of a pan.
-        .task(id: "\(drawerIsBuilt)-\(vm.hasLoaded)") {
-            // Not before the page has anything to build from, and not while
-            // the map is moving: the store's read lands first, the map frames
-            // itself on the pins (a camera move), and the build waits for
-            // `prebuildDelay` of stillness after that.
-            #if DEBUG
-            defer { if Task.isCancelled { PerfProbe.emit("[PERF-MARK] drawer prebuild cancelled") } }
-            #endif
-            guard !drawerIsBuilt, vm.hasLoaded else { return }
-            // The data landing counts as a move: the map is about to frame
-            // itself on the new pins, and the camera having been still while
-            // the store was read is not the quiet this is waiting for.
-            mapMotion.movedAt = .now
-            await waitForQuietMap()
-            guard !Task.isCancelled, !drawerIsBuilt else { return }
-            #if DEBUG
-            let buildStart = CACurrentMediaTime()
-            PerfProbe.mark("drawer prebuild")
-            #endif
-            buildDrawer()
-            #if DEBUG
-            PerfProbe.duration("MemoriesView.buildDrawer (state set)", since: buildStart)
-            #endif
         }
         .task {
             #if DEBUG
@@ -452,15 +324,9 @@ struct MemoriesView: View {
             PerfProbe.duration("MemoriesViewModel.reload wall", since: reloadStart)
             #endif
             #if DEBUG
-            if let detent = DebugHarness.openDrawer { drawer = detent }
-            if let after = DebugHarness.raiseDrawerAfter {
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(after))
-                    PerfProbe.mark("drawer raise")
-                    PerfProbe.window("Drawer raise", seconds: 1.5)
-                    raiseDrawer()
-                }
-            }
+            // `-strataOpenDrawer` and `-strataRaiseDrawerAfter` went with the
+            // drawer. The page they used to raise is the screen now, so the
+            // flags had nothing left to do.
             if let back = DebugHarness.openDayBack,
                let date = Calendar.current.date(byAdding: .day, value: -back, to: Date()) {
                 path.append(.day(DateUtils.dateString(from: date)))
@@ -513,128 +379,28 @@ struct MemoriesView: View {
         !replays.hasLoaded && vm.carousel.isEmpty && vm.month.isEmpty
     }
 
-    /// The Photographs button, and the drawer's own accessibility action.
-    /// See `drawerIsBuilt`.
-    ///
-    /// **A raise before the page exists builds first and waits for it.** Not
-    /// for a run-loop turn — `DispatchQueue.main.async` can still land the
-    /// build and the spring in one update — but for the page's own
-    /// `onAppear`, which cannot run until it has been laid out.
-    private func raiseDrawer() {
-        guard drawerIsBuilt else {
-            raiseWhenBuilt = true
-            buildDrawer()
-            return
-        }
-        withAnimation(GridConstants.naturalSettle) { drawer = .full }
-    }
-
-    /// The page is on screen (off the bottom of it): now it can slide up.
-    private func raiseNowThatItIsBuilt() {
-        guard raiseWhenBuilt else { return }
-        raiseWhenBuilt = false
-        withAnimation(GridConstants.naturalSettle) { drawer = .full }
-    }
-
     /// How long `naturalSettle` takes to come to rest, near enough.
     private static let springSettle: Duration = .milliseconds(700)
 
-    /// Returns once the map's camera has been still for `prebuildDelay` AND
-    /// the image store has had no visible work for 500ms, restarting either
-    /// wait when it is broken. The gate for long main-actor work the person
-    /// cannot see yet: the drawer's prebuild and the replay cards.
-    ///
-    /// Not while the map's own pictures are still being read: that work is a
-    /// long main-actor frame, and landing it in the middle of a cold map's
-    /// first reads is what held the blocks' pictures back by seconds. **Quiet
-    /// for half a second, not quiet for an instant**: reading 320px
-    /// derivatives, the store empties between landings, and a single check
-    /// found it empty mid-load (measured: the build still landed a 390ms frame
-    /// among 86 landings).
-    private func waitForQuietMap() async {
-        await mapMotion.waitUntilStill(for: Self.prebuildDelay)
-        var quietSince = ContinuousClock.now
-        while !Task.isCancelled, ContinuousClock.now - quietSince < .milliseconds(500) {
-            if ThumbnailStore.shared.hasVisibleWork { quietSince = .now }
-            try? await Task.sleep(for: .milliseconds(100))
-            if mapMotion.stillFor < Self.prebuildDelay {
-                await mapMotion.waitUntilStill(for: Self.prebuildDelay)
-                quietSince = .now
-            }
-        }
-    }
-
-    /// Builds the page, never inside an animation.
-    private func buildDrawer() {
-        var quiet = Transaction()
-        quiet.disablesAnimations = true
-        withTransaction(quiet) { drawerIsBuilt = true }
-    }
-
+    // **`waitForQuietMap` and `buildDrawer` are gone with the drawer**, and the
+    // measurement in them is worth keeping even though the code is not: long
+    // main-actor work — `ImageRenderer` drawing a poster, the page's first
+    // layout — must not land while the map is reading its own pictures. A
+    // single check for quiet is not enough either; reading 320px derivatives
+    // the store empties BETWEEN landings, and one such check still put a 390ms
+    // frame among 86 of them. Whoever puts a map back on this screen needs both
+    // halves of that again.
     private func reloadReplays(redrawsStale: Bool, drawsMissing: Bool = true) async {
         await replays.reload(context: modelContext, colorScheme: colorScheme, displayScale: displayScale,
-                             now: Date(), redrawsStale: redrawsStale && drawer != .hidden,
+                             now: Date(), redrawsStale: redrawsStale,
                              drawsMissing: drawsMissing)
     }
 
-    // MARK: - Title
-
-    private var titleRow: some View {
-        // Top-aligned, not baseline-aligned.
-        //
-        // A `Text` and the gear are within a few points of each other in
-        // height, so a baseline rule put both near the row's top. A DRAWING
-        // is only as tall as its cap — 24pt against the gear's 44 — so the
-        // row's top became the gear's top and the title fell 7.6pt below the
-        // line every other header sits on. Measured. Aligning to the top
-        // makes the title's top the row's top, which is what the shared
-        // padding is measured against, and the gear is centred on the cap by
-        // hand.
-        HStack(alignment: .top, spacing: 8) {
-            // No win tally. The count belongs to the tower's header; this
-            // screen is about the photographs, not how many there are.
-            // The owner's own letterforms, like the app's name on the
-            // camera — see `MemoriesTitle`. Ink, not pink: the tally is the
-            // one number the app states and it takes the brand colour, but a
-            // page title in the same pink would put two shouts on a screen
-            // whose subject is photographs.
-            // Ink on the pale ground, white on imagery — see the wash below.
-            MemoriesTitle(color: mapStyle == .quiet
-                          ? AppColors.inkPrimary
-                          : .white)
-            Spacer(minLength: 0)
-            // Shown when there are PHOTOGRAPHS, not when there are pins.
-            //
-            // Gating it on pins was a closed loop: the map only appeared once
-            // wins had places, places only arrive once location is granted,
-            // and the only screen that asks is the map. Nobody could ever get
-            // in, so nobody would ever be asked, so the map would stay empty
-            // forever. It opens on its own empty state instead, which is where
-            // the asking belongs.
-            // **The page, as a button.** It used to be the screen and the map
-            // a route off it; both are inverted. There is nothing to open when
-            // there are no photographs, and the map's own empty state is
-            // already saying so.
-            if !vm.gallery.isEmpty {
-                overMap {
-                    GlassIconButton(systemName: "photo.on.rectangle.angled",
-                                    accessibilityLabel: "Photographs") {
-                        raiseDrawer()
-                    }
-                }
-                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
-            }
-            // You, where the gear was. Settings lives inside Profile now, so
-            // the header keeps the same number of buttons.
-            overMap {
-                ProfileButton { openProfile?() }
-            }
-            // Centred on the title's cap. It overhangs the row upwards, into
-            // the safe-area gap, which is empty — the alternative is a row as
-            // tall as the button with the title floating inside it.
-            .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
-        }
-    }
+    // **`titleRow` is gone.** It was the title and two buttons floating ON the
+    // map, in white over imagery and ink over the pale style, held up by a
+    // legibility wash. The page has an ordinary header now — see `pageHeader` —
+    // which needs none of that, because it stands on the app's own ground like
+    // every other screen's.
 
     // MARK: - The shelf
 
@@ -685,26 +451,29 @@ struct MemoriesView: View {
 
                 }
                 Spacer(minLength: 0)
-                Button {
-                    HapticsEngine.lightTap()
-                    withAnimation(GridConstants.naturalSettle) { drawer = .hidden }
-                } label: {
-                    Text("Done")
-                        .font(Typography.headerMedium)
-                        // At AccessibilityXXXL this collapsed to a single "…"
-                        // — the one control on the screen that gets you out of
-                        // it, unreadable. It keeps its own width and the title
-                        // beside it gives way instead.
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(AppColors.inkPrimary)
-                        // Layout first, glass after.
-                        .padding(.horizontal, GridConstants.gapLabel)
-                        .frame(height: GlassIconButton.defaultSide)
-                        .glassCapsule()
-                        .contentShape(Capsule())
+                // **THE MAP, AS A BUTTON.** The owner: "the map would be a
+                // button on the top instead of the Memories sheet being a
+                // button — I think that makes more sense."
+                //
+                // This slot held "Done", which dismissed the page back to the
+                // map it was a drawer over. Now the page is the screen and the
+                // map is the thing you go to, so the same corner does the
+                // opposite job with one fewer concept: there is nothing to come
+                // back FROM, so there is nothing to say Done to.
+                //
+                // Shown only when there is a map to open. It is gated on PINS
+                // rather than on photographs, because a photograph without a
+                // place puts nothing on it — and the map's own empty state is
+                // where location gets asked for, which is why this cannot be
+                // gated on anything location has to answer first.
+                if !vm.pins.isEmpty {
+                    GlassIconButton(systemName: "map", onPage: true,
+                                    accessibilityLabel: "Map") {
+                        path.append(.map)
+                    }
+                    .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
                 }
-                .buttonStyle(.plain)
+                ProfileButton { openProfile?() }
                 // Centred on the title's cap by hand. A drawn title is only as
                 // tall as its cap, so a baseline or centre rule against a 44pt
                 // control puts the title 7.6pt below the line every other
@@ -715,22 +484,6 @@ struct MemoriesView: View {
             .padding(.top, GridConstants.gapItem)
             .padding(.bottom, GridConstants.gapTight)
         }
-    }
-
-    /// The chrome that floats on the map.
-    ///
-    /// **Always light, in both appearances.** These are `GlassIconButton`s, and
-    /// glass follows the system — so in dark mode they became near-black discs
-    /// sitting on a near-black map and effectively disappeared. The owner:
-    /// "I cant see the place block thing at all in dark mode."
-    ///
-    /// The rule the camera already follows settles it: chrome over an IMAGE is
-    /// light regardless of what the phone is set to, because the thing behind
-    /// it is not the app's ground and does not flip with it. A map is that
-    /// kind of surface. So the buttons are pinned to the light scheme and stay
-    /// white on both the pale map and the night one.
-    private func overMap<V: View>(@ViewBuilder _ content: () -> V) -> some View {
-        content().environment(\.colorScheme, .light)
     }
 
     private var monthHeader: some View {
