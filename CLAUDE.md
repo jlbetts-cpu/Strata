@@ -1141,7 +1141,7 @@ Built 2026-09-11. Plan and every decision: `docs/profile-and-head-plan.md`.
 - **The maker** (`HeadMakerView`, `HeadMakerModel`, `HeadCaptureEngine`,
   `HeadFraming`) uses Strata's camera, never the system one. Capture and
   subject lifting **do not run in the simulator**; every state can be
-  photographed with `-strataOpenHeadMaker outline|blink|smile|brows|failed|preview`.
+  photographed with `-strataOpenHeadMaker outline|blink|smile|brows|surprised|wink|caught|preview|failed|savefailed|unavailable|denied`.
 - `-strataSeedHead` puts the creator's faces in as a made head;
   `-strataHeadOn picture,map` turns placements on for one launch;
   `-strataOpenSheet profile|settings`; `-strataProfileChart day|week|month`.

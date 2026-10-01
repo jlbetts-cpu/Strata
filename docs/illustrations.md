@@ -124,7 +124,13 @@ make the six feel like a set:
 ### Head maker
 
 - **The "no face found" state.** A figure holding a frame up to its own face.
-  *1 drawing.*
+  *1 drawing.* Asset name the code expects: `HeadMakerNoFace`. Black on
+  transparent, template-rendered and tinted to `onDarkStrong`.
+- **"The camera is off for Strata."** The Camera section's own drawing, white:
+  a figure with a hand over the lens. **No new drawing.** On a phone this state
+  only ever means the switch is off, which is the camera tab's refused state
+  reached through a different door, and one situation should not get a
+  twenty-fourth drawing. Asset name: `CameraNoAccess`.
 
 ### The app icon and the wordmark
 
@@ -155,7 +161,7 @@ Most useful first, so a half-finished set still ships something:
 | 17 | figure at the top, looking back | Replay, year |
 | 18 | figure seated with the tower behind | Replay, close |
 | 19 | figure on the crown | Wins, milestone |
-| 20 | hand over the lens (white) | Camera, refused |
+| 20 | hand over the lens (white) | Camera, refused · Head maker, no access |
 | 21 | camera | Add sheet, photo well |
 | 22 | figure holding a frame (white) | Head maker |
 | 23 | figure silhouette, tiny | Memories, place pin |

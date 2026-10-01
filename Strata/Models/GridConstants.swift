@@ -52,9 +52,18 @@ enum GridConstants {
     /// measured 2026-10-01. This is also the pre-ladder spelling of
     /// `radiusControl`, which is the same 8 for small controls.
     ///
-    /// **Not changed, because it changes how the home screen looks** and that is
-    /// a decision to make by looking, not from a diff. The numbers are here so
-    /// whoever makes it does not have to find them again.
+    /// **THE OWNER LOOKED AT BOTH AND KEPT THE 8. 2026-10-01.** The tower was
+    /// built with every block on `blockCornerRadius(forCell:)` (12.4 at the
+    /// live cell), rendered, and put beside the current one; he chose to leave
+    /// it. So this is now a decision rather than a leftover, and the next pass
+    /// should not reopen it on the strength of the inconsistency alone.
+    ///
+    /// Worth knowing before anything here moves: the share card's two values
+    /// already agree with each other to within 0.05pt, deliberately, because
+    /// `cell * 0.147` at its capped 82pt cell is 12.05 against a merged run's
+    /// flat 12. So the only place the three values are actually visible as a
+    /// difference is the Wins tab, between a single block and the run beside
+    /// it, which is the thing he has now looked at.
     static let cornerRadius: CGFloat = 8
     /// Habit blocks on tower + timeline.
     ///

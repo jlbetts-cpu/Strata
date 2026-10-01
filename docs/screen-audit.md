@@ -578,3 +578,59 @@ month's lifts it **1.28pt on an 11.4pt cell**. Scaling the lift by the inverse
 would make a month's blocks rise 77% of their own height and detach from the
 tower, so it was not done. A coherent wave across 108 blocks is detectable
 below a point and that could not be photographed either way.
+
+---
+
+# The second pass, 2026-10-01
+
+Everything the first pass found and left, plus what a second read turned up.
+Two of its findings were put to the owner with the tower rendered both ways,
+and **he turned both of them down**, which is recorded here because a measured
+failure that the owner has looked at and accepted is a different thing from one
+nobody has seen.
+
+### Overruled, with the measurement kept
+
+| | measured | his call |
+|---|---|---|
+| **A block's white label** | 1.71:1 on the orange, 2.23 pink, 2.28 purple, 2.70 green, against 4.5. Dark ink measured 6.00 to 9.77 on the built tower | "I much prefered the white ink look over the dark ink." White ships. `TitleShadow`'s halo is named in the code as the dial if a title ever reads badly in daylight, which is the one test none of this has had |
+| **The block corner** | a single block on the Wins tab is **8**, the merged run beside it is **12**, and the share card's single is 12.05. Three values for one object, one of them on the home screen | left at 8. The share card's two already agree to 0.05pt by design, so the only visible difference is on the Wins tab, and he has now seen it both ways |
+
+### Fixed
+
+| Finding | Before | After |
+|---|---|---|
+| **The retired wordmark was still shipping** | baked into the page 3 onboarding screenshot, on the first screen a new person sees. The camera itself lost its mark on 2026-09-30; the picture of the camera did not | painted out, and the thirds guide the fill erased rebuilt as a DELTA rather than a colour, because what is constant about that line is how much it lifts its column. The first attempt left a readable ghost at y 250 and y 330: the feather ramp started 14px above the glyphs and a 28px ramp only half covered their first and last rows |
+| **Three primary actions in two colours** | onboarding's pill was blue, the restore confirm and the store retry were `inkPrimary`, a near black, which is the same thing that made Profile's Done read as a label | one `PrimaryCapsule`, blue, 4.69:1 |
+| **The tint sat above `.toolbar` and never reached it** | Profile's Done measured **(10, 10, 10)** with `accentPrimary` applied upstream of the title and the toolbar. A toolbar item is hosted by the navigation bar, not by the content it was declared on | (0, 123, 178). The same move on Settings, before its toolbar grows a coloured action |
+| **A save failure destroyed the head** | `HeadMakerModel.save()` failing called `fail(_:)`, whose only button runs `retake()`, so a disk hiccup threw away a walk through blink, smile, brows, surprised and wink | the head stays on the page, the sentence says it is not lost, and the button offers the save again |
+| **The head maker's `.unavailable` was an unsignposted dead end** | "The camera isn't available here." and a Close button, on a state that on a phone only ever means the switch is off | "Turn the camera on for Strata in Settings." and Open Settings, matching the camera tab's own refused state |
+| **The map's scrim washed the blocks as hard as the tiles** | an `.overlay` on the `Map`, and MapKit's annotations live inside it. Five sampled block-against-tile pairs ALL got worse with it on, and every photograph lost 10% of its luminance. On `.night` it moved the tiles 0.6 of one level out of 255 while taking a photograph at 180 down to 156 | deleted. A uniform wash takes every ratio toward 1:1 by construction, so it could never do the job its comment claimed. The separation comes from the stripped POIs and the muted emphasis: tiles 0.035 to 0.039 saturation against blocks 0.52 to 0.86 |
+| **The map's size meant two opposite things** | the largest block on screen was 89.0 x 89.0pt and held ONE win; the block holding 24 was 44pt. Area also fed the merge rule that set it, so two lone Deep wins 59pt apart merged and were drawn as one 44pt block where the pair does not touch | one cell everywhere. The badge is the map's only quantity |
+| **The count badge was half its block's height** | 24.3 x 22 on a 44pt cell, and its `minWidth` was decorative: 8.27 + 16 already beat the 24 floor, so a one-digit capsule was a 1.10:1 oval | 18 x 18, and a true disc for one digit for the first time |
+| **The restore screen had never been photographed** | `-strataRestoreFrom` existed and nothing could make it a file: a backup exported from the store you are restoring into merges to zero and lands on the one state with no button | `-strataSeedBackup <n>` writes a real archive from values that never reach the context. The confirm measured above the fold at the first look, which was that screen's open check |
+
+### Subtraction
+
+829 lines deleted against 172 inserted, and about 150 of the insertions are the
+notes saying what went and why.
+
+`HighlightingTextField` (0 call sites) took `InputParser` and
+`CategorySuggestionEngine` with it, because its highlighter was their only
+reader. `MemoriesDrawer` (0) became a 35-line `DrawerMetrics`. `JaroFont` (0)
+was deleted for the second time. `TowerMark` (0) took the widget target's only
+two copies of the 14.7% corner. `ShareTowerCard`'s private tower became
+`StaticTowerView`. `cornerRadiusSmall` and `cornerRadiusMicro` were exact
+duplicates of `radiusControl` and `radiusMark`.
+
+**And one thing that looked like duplication and was not.** `ShareTowerCard`'s
+`cell * 0.147` reads like a drifted copy of `blockCornerRadius(forCell:)` and
+moving it to the token would have made the card worse: at its capped 82pt cell
+the literal gives 12.05 against a merged run's flat 12, and the token gives
+11.38, which would open a 0.62pt mismatch inside one tower where there is none.
+The ratio is also the source's: Figma's 40px on a 272px block.
+
+**Left for a pass of its own:** 57 more zero-call-site `GridConstants` tokens.
+Not bulk-deleted because about twenty of them carry the only surviving record
+of a measurement, and because 57 deletions in a file three agents were editing
+is a conflict rather than a cleanup.
