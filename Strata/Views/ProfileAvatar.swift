@@ -22,8 +22,21 @@ struct ProfileAvatar: View {
     /// is a hairline on a 2x phone and 50% too heavy on a 3x one. A line that is
     /// only a hairline on some phones is the hedge, not the number.
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.colorScheme) private var colorScheme
 
     private var store: ProfileStore { .shared }
+
+    /// **The lit edge every object in this app has**, so an avatar is the same
+    /// kind of thing as a block, a swatch and a card rather than a disc of fill.
+    /// Scaled and floored the way `ColourSwatch` scales its own: a block's rim
+    /// weight on a 44pt circle is a ring drawn around a dot.
+    @ViewBuilder
+    private var rim: some View {
+        Circle().strokeBorder(
+            BlockRim.gradient(in: colorScheme),
+            lineWidth: max(1, GridConstants.blockRimWidth
+                              * side / GridConstants.blockReferenceCell))
+    }
 
     var body: some View {
         if let head = HeadStore.shared.headForPicture {
@@ -34,6 +47,7 @@ struct ProfileAvatar: View {
             }
             .frame(width: side, height: side)
             .clipShape(Circle())
+            .overlay { rim }
             .accessibilityHidden(true)
         } else if let photo = store.photo {
             Image(uiImage: photo)
@@ -64,6 +78,7 @@ struct ProfileAvatar: View {
                 }
             }
             .frame(width: side, height: side)
+            .overlay { rim }
             .accessibilityHidden(true)
         }
     }
