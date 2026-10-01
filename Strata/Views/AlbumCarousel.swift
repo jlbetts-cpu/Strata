@@ -136,10 +136,10 @@ private struct AlbumCard: View {
                     // the caption on one edge.
                     .padding(.leading, -StrataFont.opticalInset * Self.captionSize)
             }
-            Text(parts.words)
-                .font(Typography.sectionLabel)
-                .kerning(Typography.sectionKerning)
-                .textCase(.uppercase)
+            // Lower case, like every other caption on this page now. See
+            // `ReplayShelf.countLine`.
+            Text(parts.words.lowercased())
+                .font(Typography.bodySmall)
         }
         .foregroundStyle(AppColors.inkTertiary)
         .lineLimit(1)

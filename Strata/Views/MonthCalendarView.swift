@@ -292,17 +292,34 @@ private struct MonthCalendarCell: View {
                     lineWidth: max(1, GridConstants.blockRimWidth
                                       * side / GridConstants.blockReferenceCell)
                 )
-                .opacity(isFuture ? 0.45 : 1)
+                .opacity(isFuture ? 0.4 : 0.75)
             }
             .frame(width: side, height: side)
             .overlay(alignment: .bottomLeading) {
-                number(isFuture ? AppColors.inkTertiary.opacity(0.5) : AppColors.inkQuiet,
+                // **Quieter too.** Thirty grey numerals is thirty pieces of
+                // greyscale, and an empty day's number is a coordinate rather
+                // than a reading — you look for it, you do not read it. The
+                // filled days keep theirs in white, where it has a block to sit
+                // on and something to label.
+                number(AppColors.inkTertiary.opacity(isFuture ? 0.45 : 0.75),
                        onPhoto: false)
             }
     }
 
-    /// The same 0.035 the tower's slot and the photo well use.
-    private static let wellInk: Double = 0.035
+    /// **0.018, and the reason is that there are thirty of these.**
+    ///
+    /// It was 0.035 — the tower's empty slot and the photo well, which is the
+    /// right weight for ONE empty thing on a page. Thirty of them side by side
+    /// is not thirty slots, it is a grey field with some colour in it, and the
+    /// owner: "make sure we aren't using any unnecessary greyscale elements, it
+    /// should be fairly minimal."
+    ///
+    /// Halved, with the rim carrying what is left of the cell. What a month
+    /// should look like is colour where things happened and a whisper where
+    /// they did not — the grid readable when you look for it and invisible when
+    /// you are looking at the wins, which is the same rule `TowerLattice` has
+    /// been held to twice.
+    private static let wellInk: Double = 0.018
 
     private func number(_ ink: Color, onPhoto: Bool) -> some View {
         Text(verbatim: StrataFont.digits(day))
@@ -355,7 +372,7 @@ private struct MonthCalendarPad: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         shape
-            .fill(AppColors.slotInk.opacity(0.018))
+            .fill(AppColors.slotInk.opacity(0.009))
             .overlay {
                 shape.strokeBorder(
                     BlockRim.gradient(in: colorScheme),

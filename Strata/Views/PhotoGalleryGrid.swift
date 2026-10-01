@@ -133,10 +133,19 @@ struct PhotoGalleryGrid: View {
     /// scroll it. The digits are the owner's face, the unit is the heading's
     /// own style, so the pair reads as an index entry rather than as a word
     /// floating over somebody's photographs.
+    /// **The heading, without its count.**
+    ///
+    /// It read "SEPTEMBER    21 PHOTOS", and the count was a second piece of
+    /// grey on a line that already had one. The design language asks a SCREEN
+    /// how much is in it, not every band of one — written down on this page
+    /// once already, when three of us applied that rule to our own section on
+    /// the same day and the page ended up answering it six times on one scroll,
+    /// four of them with the word PHOTOS. This is the fifth.
+    ///
+    /// The grid under it is countable by looking, and the owner's instruction
+    /// is the general case: "no unnecessary greyscale elements, fairly minimal."
     private func heading(_ section: GallerySection) -> some View {
-        SectionHeadingCount(text: section.title,
-                            count: section.photos.count,
-                            unit: "photos")
+        SectionHeading(text: section.title)
     }
 
     private func cell(_ photo: GalleryPhoto) -> some View {

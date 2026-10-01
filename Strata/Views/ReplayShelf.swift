@@ -33,6 +33,15 @@ struct ReplayShelf: View {
     /// The `now` the shelf's periods were chosen against, so a name is worded
     /// against the same moment (`ReplayShelfModel.now`).
     let now: Date
+    /// **The one the page is already offering above the shelf**, so the shelf
+    /// does not offer it again.
+    ///
+    /// `MonthReplayRow` puts the chosen month's replay directly under the
+    /// calendar, which is the whole point of the redesign — the page's subject
+    /// is the month you picked. Without this the shelf's first card is that
+    /// same month, so the screen says "September, 46 wins, play" twice in one
+    /// scroll, which is exactly the duplication the row was added to remove.
+    var excluding: Replay?
     /// Where the replay grows from, the way a photograph opens out of its
     /// thumbnail.
     var transitionNamespace: Namespace.ID?
@@ -67,7 +76,8 @@ struct ReplayShelf: View {
                     // name underneath. Newest first, whatever the span, so the
                     // row is in the order things happened rather than sorted by
                     // a property nobody is looking for.
-                    row(model.months + model.weeks, width: ReplayCard.posterWidth)
+                    row((model.months + model.weeks).filter { $0.period != excluding?.period },
+                        width: ReplayCard.posterWidth)
                 }
             }
         }
@@ -253,10 +263,17 @@ struct ReplayShelf: View {
                 // little left of the margin to stand the two lines of the
                 // caption on one edge.
                 .padding(.leading, -StrataFont.opticalInset * Self.countSize)
+                // **Lower case, like the row above the shelf says it.**
+                //
+                // "46 WINS" under a card and "46 wins" in `MonthReplayRow` is
+                // the same fact set two ways on one screen, and the shouted one
+                // is the one nobody asked for. Small caps are a LABEL's voice —
+                // they belong over a form group, which is where
+                // `FormSectionLabel` still uses them. A caption under a picture
+                // is a sentence fragment, and the owner's instruction covers
+                // it: "no unnecessary greyscale elements, fairly minimal."
             Text(count == 1 ? "win" : "wins")
-                .font(Typography.sectionLabel)
-                .kerning(Typography.sectionKerning)
-                .textCase(.uppercase)
+                .font(Typography.bodySmall)
         }
         .foregroundStyle(AppColors.inkTertiary)
         .lineLimit(1)

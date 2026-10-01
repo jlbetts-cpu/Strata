@@ -139,11 +139,26 @@ struct MemoriesView: View {
                         }
                     }
 
+                    // **The month's own replay, under the month.** See
+                    // `MonthReplayRow`: this page's subject is the month you
+                    // picked, and the one replay OF that month belongs to it
+                    // rather than to a shelf of every replay there is.
+                    if let monthReplay {
+                        MonthReplayRow(
+                            replay: monthReplay,
+                            poster: replays.cards[ReplayShelfModel.key(monthReplay, scheme: colorScheme)],
+                            title: vm.monthTitle.capitalized
+                        ) { playing = monthReplay }
+                        .padding(.top, GridConstants.gapSection)
+                    }
+
                     if !pageIsEmpty {
                         // Between the month and the albums: finished months
                         // and weeks as posters. Draws nothing, heading
                         // included, until one has a win.
-                        ReplayShelf(model: replays, now: replays.now, transitionNamespace: photoTransition) { playing = $0 }
+                        ReplayShelf(model: replays, now: replays.now,
+                                    excluding: monthReplay,
+                                    transitionNamespace: photoTransition) { playing = $0 }
 
                         // No heading over a gap. When nothing has earned a
                         // card the shelf is not drawn at all — only what there
@@ -448,6 +463,19 @@ struct MemoriesView: View {
     /// a grid of. Summed from the sections rather than kept as a second
     /// number: a count that can disagree with the thing it counts is worse
     /// than no count at all.
+    /// The replay OF the month on screen, if there is one.
+    ///
+    /// Matched on the period's first day rather than on a title, because a
+    /// title is a formatted string and two of them agreeing is a coincidence
+    /// this page should not depend on.
+    private var monthReplay: Replay? {
+        replays.months.first {
+            MemoriesViewModel.mondayCalendar.isDate($0.period.firstDay,
+                                                    equalTo: vm.selectedMonth,
+                                                    toGranularity: .month)
+        }
+    }
+
     private var photographCount: Int {
         vm.gallery.reduce(0) { $0 + $1.photos.count }
     }
