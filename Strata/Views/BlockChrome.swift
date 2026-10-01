@@ -34,6 +34,8 @@ struct BlockSurface<Fill: View>: View {
     /// composite's luminance at its own alpha, and 0.20 under white text caps
     /// contrast below 4.5:1 however dark the scrim beneath it is.
     var washOpacity: Double = GridConstants.blockScrimOpacity
+    /// Which way the light is coming from. See `BlockLight`.
+    var aim: BlockAim = .overhead
 
     @Environment(\.colorScheme) private var colorScheme
     @ViewBuilder var fill: () -> Fill
@@ -52,7 +54,7 @@ struct BlockSurface<Fill: View>: View {
             // instead, which hung half the rim out over the 4pt gutter.
             .overlay(
                 shape.strokeBorder(
-                    BlockRim.gradient(in: colorScheme),
+                    BlockRim.gradient(in: colorScheme, aim: aim),
                     lineWidth: GridConstants.blockRimWidth * scale
                 )
             )
@@ -135,8 +137,18 @@ struct BlockSurface<Fill: View>: View {
 /// barely there and is exactly how it was tuned. On the dark one it is 255
 /// against 26, and a stroke that emphatic stops being a lit edge and
 /// becomes an outline drawn around the block.
+///
+/// **And it runs toward the light rather than straight down.** The owner,
+/// 2026-09-30: "they don't all need the same light around the corners —
+/// depending on where they are the light shall hit them differently." A rim that
+/// is brightest along the top on every block in the stack is forty objects each
+/// lit as though it were alone; aimed at `BlockLight`'s lamp, two blocks either
+/// side of centre carry their highlight on opposite corners and the tower reads
+/// as one thing standing in one place. `aim: .overhead` is the old behaviour and
+/// is what anything outside a tower still gets.
 enum BlockRim {
-    static func gradient(in colorScheme: ColorScheme) -> LinearGradient {
+    static func gradient(in colorScheme: ColorScheme,
+                         aim: BlockAim = .overhead) -> LinearGradient {
         let fall = GridConstants.blockRimFalloff
         let peak = colorScheme == .dark ? 0.85 : 1.0
         let rest = colorScheme == .dark ? fall * 0.7 : fall
@@ -146,8 +158,8 @@ enum BlockRim {
                 .init(color: .white.opacity(rest), location: 0.55),
                 .init(color: .white.opacity(rest), location: 1.0)
             ],
-            startPoint: .top,
-            endPoint: .bottom
+            startPoint: aim.lit,
+            endPoint: aim.shaded
         )
     }
 }

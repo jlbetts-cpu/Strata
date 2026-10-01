@@ -30,15 +30,16 @@ enum BlockTimeFormatter {
 // MARK: - Shared Block Content Overlay
 
 /// The title's shadow on a photographed block: 0.55 black, 3pt, 1pt down.
-private struct PhotoTitleShadow: ViewModifier {
-    let active: Bool
+private struct TitleShadow: ViewModifier {
+    /// A photograph can be any colour under the text, including white, so it
+    /// needs the heavier one. A block is a known colour at a known brightness
+    /// and takes a softer one — enough to separate the glyph, not so much that
+    /// the label looks embossed.
+    let onPhoto: Bool
 
     func body(content: Content) -> some View {
-        if active {
-            content.shadow(color: .black.opacity(0.55), radius: 3, x: 0, y: 1)
-        } else {
-            content
-        }
+        content.shadow(color: .black.opacity(onPhoto ? 0.55 : 0.38),
+                       radius: onPhoto ? 3 : 4, x: 0, y: 1)
     }
 }
 
@@ -81,35 +82,29 @@ struct BlockContentOverlay: View {
     // So this is one title in one stack. The `ZStack` that used to hold the
     // icon beside it went with the icon; a container with one child is a
     // container claiming there are two things here.
-    /// **Ink under the label, because the band above it is white.**
+    /// **The label carries its own contrast, and there is no rectangle under
+    /// it.**
     ///
-    /// The owner, 2026-09-30: the glass pass left the label harder to read and I
-    /// wrote a note about it instead of fixing it. This is the fix.
+    /// There was one for exactly one build. The glass pass drained the block's
+    /// rim toward white, so white text on the bottom corner lost its ground —
+    /// measured at 198 behind the label against 176 before — and a short ink
+    /// gradient over the bottom third put it back. The number was right and the
+    /// object was wrong, which the owner saw at once: "blocks lowkey look
+    /// broken now with all the new changes."
     ///
-    /// `BlockWash` lifts the bottom 26% of a block TOWARD WHITE — it is the
-    /// frosted band, and it is right for the block's surface. The label is also
-    /// white, so the one band in the app that exists to separate text from what
-    /// is behind it was making that job harder, and the `EtherealFill` pass made
-    /// it worse again by taking the rim pale.
+    /// A block has no banner on it. On a MERGED RUN the damage is plain: the
+    /// scrim belongs to a member, so a continuous field of one colour came out
+    /// with a dark rectangle stamped under every title in it and a hard
+    /// vertical seam everywhere two members met. One object, drawn as five.
     ///
-    /// Measured behind the label: 176 flat, 198 after the glass. With this,
-    /// back under both. It is a short gradient over the bottom third only, so
-    /// the block's own colour and its frosted band are untouched everywhere the
-    /// text is not, and an unnamed block gets nothing at all.
-    private var labelScrim: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0.42),
-                .init(color: .black.opacity(Self.scrimInk), location: 1.0)
-            ],
-            startPoint: .top, endPoint: .bottom
-        )
-        .allowsHitTesting(false)
-    }
-
-    /// Enough to put white text back on a ground it can hold, and no more: at
-    /// 0.3 the foot of every block reads as dirty rather than shaded.
-    static let scrimInk: Double = 0.20
+    /// The contrast is bought where it is needed instead — on the glyphs, with
+    /// the same shadow a title over a photograph already wears. It costs
+    /// nothing anywhere the text is not, so there is nothing to seam.
+    ///
+    /// And the reason the rectangle was needed at all is gone: `EtherealFill`
+    /// no longer drains the rim (0.82, and the gradient is sized to the object
+    /// rather than to the whole grid), so the ground under a label is back
+    /// where it was before any of this.
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -129,14 +124,14 @@ struct BlockContentOverlay: View {
                     // everywhere, and the ones that run long say so.
                     .lineLimit(rowSpan > 1 ? 2 : 1)
                     .truncationMode(.tail)
-                    // On a photo the scrim is a light veil now, so the type
-                    // carries its own contrast instead of the block being
-                    // darkened until anything would be legible on it.
+                    // **On every block, not only on a photograph.**
                     //
-                    // Only on a photo. Off one it was a shadow at zero
-                    // opacity on every label on the tower, and a
-                    // zero-valued effect is still an effect.
-                    .modifier(PhotoTitleShadow(active: hasImage))
+                    // Over a picture it is what makes the veil a veil rather
+                    // than a bar. Over a colour it is what replaced the scrim:
+                    // the glyphs get their ground, and the block keeps its
+                    // face. It is the same shadow either way, because it is
+                    // the same job.
+                    .modifier(TitleShadow(onPhoto: hasImage))
 
                 // No time on the block.
                 //
@@ -153,6 +148,5 @@ struct BlockContentOverlay: View {
         .padding(.trailing, 8)
         // Behind the text and nothing else. An unnamed block has no label, so
         // it gets no scrim and keeps its colour clean to the foot.
-        .background { if !isUnnamed { labelScrim } }
     }
 }

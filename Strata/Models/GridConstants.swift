@@ -680,11 +680,11 @@ enum GridConstants {
     // covering the bottom 26% (255:106).
     /// White rim. Figma draws 5px on a 562pt block (0.89%) — 0.77pt at an 86.5pt
     /// cell; 0.8 is 2.4 device px at 3x and renders crisp.
-    static let blockRimWidth: CGFloat = 1.4
+    static let blockRimWidth: CGFloat = 1.9
     /// How much of the rim's white survives below the top edge. The rim is a
     /// highlight, not an outline: full white where the light lands, less
     /// everywhere else.
-    static let blockRimFalloff: Double = 0.45
+    static let blockRimFalloff: Double = 0.26
     /// Darkening at the top edge of a block that is carrying another one.
     /// Subtle on purpose: it should be felt as weight, not seen as a stripe.
     static let blockContactShade: Double = 0.11
@@ -693,13 +693,13 @@ enum GridConstants {
     /// it has not been given.
     static let blockUnnamedOpacity: Double = 0.52
     /// Blur inside the band. Figma blurs 10px on a 562pt block — 1.78% of width.
-    static let blockRimBlur: CGFloat = 1.5
+    static let blockRimBlur: CGFloat = 3.0
     /// Fraction of block height where the frosted band begins (Figma's 145pt of 565).
     static let blockBandStart: Double = 0.74
     /// The sharp and blurred copies crossfade across this span rather than cutting
     /// hard. Blurring softens a surface's alpha at its edges, so a hard cut makes
     /// the silhouette visibly pinch in at 86pt.
-    static let blockBandFeatherStart: Double = 0.66
+    static let blockBandFeatherStart: Double = 0.56
     static let blockBandFeatherEnd: Double = 0.74
     /// Frosted white wash inside the band.
     ///
@@ -739,10 +739,10 @@ enum GridConstants {
     /// Dark mode falls proportionally rather than to the same number: on a
     /// charcoal ground a shadow is most of what separates a block from the page,
     /// and taking it to 0.07 there would flatten the tower outright.
-    static let blockShadowRadius: CGFloat = 10
+    static let blockShadowRadius: CGFloat = 14
     static let blockShadowY: CGFloat = 2
-    static let blockShadowOpacity: Double = 0.045
-    static let blockShadowOpacityDark: Double = 0.15
+    static let blockShadowOpacity: Double = 0.032
+    static let blockShadowOpacityDark: Double = 0.13
 
     static let checkCircleSize: CGFloat = 24
 

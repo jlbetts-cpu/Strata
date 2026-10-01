@@ -60,10 +60,7 @@ struct PlanBullet: View {
             // The block, once it is real.
             BlockSurface(cornerRadius: radius,
                          scale: side / GridConstants.blockReferenceCell) {
-                GeometryReader { geo in
-                    Rectangle().fill(EtherealFill.gradient(
-                        category.style.baseColor, size: geo.size))
-                }
+                Rectangle().fill(EtherealFill.fill(category.style.baseColor))
             }
             .overlay {
                 Image(systemName: "checkmark")

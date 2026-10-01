@@ -27,90 +27,72 @@ import SwiftUI
 enum EtherealFill {
 
     /// How much more saturated the core is than the colour handed in.
-    static let coreBoost: Double = 0.06
+    static let coreBoost: Double = 0.12
 
-    /// **How far the rim is pulled toward white**, and these were measured off
-    /// the reference twice.
+    /// **How far the rim is pulled toward white.**
     ///
     /// The reference pill's core reads hsb(0.552, 0.698, 0.988) and its rim
     /// reads hsb(0.560, 0.056, 0.980): the saturation is cut to about EIGHT
-    /// PERCENT of the core's, and the brightness barely moves. It is not a
-    /// paler version of the colour — it is nearly white with a memory of the
-    /// hue in it.
+    /// PERCENT of the core's. It was taken to 0.16 — the reference's own ratio
+    /// — and that WAS TOO FAR, for a reason the reference cannot tell you: **it
+    /// is a button, and a block is not.** At 0.16 the blocks lost their edges,
+    /// and a tower of glowing blurs is not a tower.
     ///
-    /// So it was taken to 0.16 — the reference's own ratio — and that was built
-    /// and photographed and WAS TOO FAR, for a reason the reference cannot tell
-    /// you: **it is a button, and a block is not.**
+    /// Then 0.44, and the owner's verdict settles it: "I like when it's more
+    /// full of colour, right now it looks really bad."
     ///
-    /// At 0.16 the blocks lost their edges and stopped reading as a stack, which
-    /// is the app's whole idea; a tower of glowing blurs is not a tower. And the
-    /// white label sat on a near-white corner: measured behind the text, 213
-    /// against 176 before, so 37 levels of contrast gone from the one place the
-    /// block has to stay legible.
+    /// **A BLOCK IS A COLOURED OBJECT FIRST AND A PIECE OF GLASS SECOND.** The
+    /// tower's whole job is to be a wall of colour, and a rim that drains it is
+    /// taking away the thing the screen is for in order to win an argument
+    /// about material. 0.82 keeps the block full: the glow is a lift at the
+    /// core rather than a drain at the rim.
     ///
-    /// 0.44 is set from the TEXT rather than from the reference. The glass is
-    /// deep enough to read as lit from within, the corners still hold their
-    /// shape, and the label keeps its ground. The reference's own number is
-    /// right for the button, which has no text at its rim and nothing depending
-    /// on it looking solid.
-    static let rimSaturation: Double = 0.44
-    static let rimLift: Double = 0.10
+    /// **A softer, off-centre, never-completing version of this was built and
+    /// thrown away**, on the owner's "now the blocks look too flat". It was a
+    /// smoothstep ramp from a bleached highlight at (0.33, 0.26) out past the
+    /// corner, which is what `docs/reference-board.md` §1 describes. His next
+    /// message was "wait, actually your last update cooked, I like it a lot" —
+    /// about THIS one. Written down so nobody builds it a second time: the
+    /// flatness he saw was the label scrim coming off, not the gradient, and
+    /// what the blocks actually wanted was a stronger EDGE. See `BlockRim`.
+    static let rimSaturation: Double = 0.82
+    static let rimLift: Double = 0.05
 
-    /// Where the light is, as a unit point. Above centre, slightly left, which
-    /// is where every highlight in this app already comes from.
-    /// **Centred, near enough.** It was (0.42, 0.34) — well above centre, on
-    /// the reasoning that light comes from above. Measured against the
-    /// reference, that is wrong: its most saturated point is at 50% vertically
-    /// and about 40% across. The light from above is carried by the RIM, which
-    /// is a separate thing and already brightest at the top. The fill itself is
-    /// a body of colour, and a body is brightest at its middle.
+    /// Where the light is, as a unit point. **Centred, near enough.** It was
+    /// (0.42, 0.34) on the reasoning that light comes from above; measured
+    /// against the reference, that is wrong — its most saturated point is at
+    /// 50% vertically and about 40% across. The light from above is carried by
+    /// the RIM, which is a separate thing and already brightest at the top.
     static let core = UnitPoint(x: 0.46, y: 0.5)
 
-    /// The fill itself.
-    ///
-    /// `endRadiusFactor` is relative to the shape's larger side: past about 0.95
-    /// the rim colour never fully arrives and the object looks flat again, and
-    /// under about 0.6 the core becomes a visible disc rather than a glow.
-    static func gradient(_ colour: Color, size: CGSize) -> RadialGradient {
-        // **HALF THE LONGER SIDE, AND THIS IS THE WHOLE POLISH FIX.**
-        //
-        // Profiled off the reference pill, 615 x 376:
-        //
-        //   horizontally   250 at the edge -> 174 at 40% -> 245 at the edge
-        //   vertically     231 at the top  -> 197 mid    -> 194 at the foot
-        //
-        // So the falloff COMPLETES at the left and right edges and is only
-        // about 60% done at the top and bottom. That is exactly what a circular
-        // gradient of radius ≈ half the WIDTH does on a wide shape: the long
-        // edges sit at 100% of the radius, the short ones at 61%.
-        //
-        // This reached `hypot(w, h) * 1.05` — on that pill, 757 against a
-        // half-width of 307, two and a half times too far. The gradient never
-        // arrived at its pale end anywhere on the shape, so what came out was a
-        // soft wash rather than the reference's core-to-white. The whole "not
-        // quite glass" feeling was this number.
-        let reach = max(size.width, size.height) * 0.52
-        return RadialGradient(
-            colors: [core(of: colour), rim(of: colour)],
-            center: Self.core,
-            startRadius: 0,
-            endRadius: max(reach, 1)
-        )
-    }
+    /// `reachFraction` is relative to the half-size: 0.5 lands the rim colour
+    /// exactly on the edge midpoints. A hair over that keeps a trace of the hue
+    /// at the very corner, which is what stops the shape looking cut out.
+    static let reachFraction: CGFloat = 0.52
 
-    /// A version for callers that do not know their size — a capsule button, a
-    /// chip.
+    /// **An ELLIPSE, so it is the shape of whatever it fills.**
     ///
-    /// **190 is half the longer side of its one real caller**, onboarding's
-    /// full-width action: about 361pt wide on a 393pt screen inside the page
-    /// margin, so a half-width of 180. It follows the same rule as the sized
-    /// version above and is written as a number only because a `Capsule` in a
-    /// `background` does not know what it is about to fill. If this ever gets a
-    /// caller of a different size, it takes a `GeometryReader` like the blocks
-    /// do rather than a second guess.
-    static func gradient(_ colour: Color) -> RadialGradient {
-        RadialGradient(colors: [core(of: colour), rim(of: colour)],
-                       center: Self.core, startRadius: 0, endRadius: 190)
+    /// This took two sized `RadialGradient` overloads and a `GeometryReader` at
+    /// every call site, and a circle has one radius — so on anything that is not
+    /// square the falloff completed on the long axis and barely started on the
+    /// short one. Invisible on a single block, which is square; ruinous on a
+    /// merged run three rows tall, which came out saturated through its middle
+    /// and drained at both ends. An ellipse's radii are fractions of the view's
+    /// own width and height, so it completes at every edge of whatever it is in,
+    /// and it sizes itself.
+    ///
+    /// `aim` is where the light is. See `BlockLight`: in a tower the glow sits
+    /// toward one lamp hanging over the whole stack rather than in the middle of
+    /// each block, so two blocks either side of centre are lit from opposite
+    /// sides. `.overhead` is the lone-object case and is what everything outside
+    /// the tower uses.
+    static func fill(_ colour: Color, aim: BlockAim = .overhead) -> EllipticalGradient {
+        EllipticalGradient(
+            colors: [core(of: colour), rim(of: colour)],
+            center: aim.core,
+            startRadiusFraction: 0,
+            endRadiusFraction: Self.reachFraction
+        )
     }
 
     static func core(of colour: Color) -> Color {
@@ -158,7 +140,7 @@ struct EtherealPill<Label: View>: View {
                 .frame(height: height)
                 .background {
                     Capsule(style: .continuous)
-                        .fill(EtherealFill.gradient(colour))
+                        .fill(EtherealFill.fill(colour))
                 }
                 .overlay {
                     // The light rim. Brightest along the top, because that is

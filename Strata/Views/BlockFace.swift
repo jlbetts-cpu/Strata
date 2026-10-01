@@ -23,6 +23,8 @@ struct BlockFace<Photo: View>: View {
     let cornerRadius: CGFloat
     let hasPhoto: Bool
     var showOverlay: Bool = true
+    /// Where the light is. See `BlockLight`.
+    var aim: BlockAim = .overhead
     /// The title overlay's opacity. Only a replay changes it, to fade titles
     /// out as its camera pulls back; everywhere else it is 1.
     var overlayOpacity: Double = 1
@@ -35,7 +37,8 @@ struct BlockFace<Photo: View>: View {
             // so the full 0.20 wash under white text caps contrast below 4.5:1
             // however dark the scrim beneath it is. The source escapes this
             // because its text sits near the TOP of the band on a 565pt block.
-            washOpacity: hasPhoto ? 0.06 : GridConstants.blockScrimOpacity
+            washOpacity: hasPhoto ? 0.06 : GridConstants.blockScrimOpacity,
+            aim: aim
         ) {
             ZStack {
             // **The colour is under everything, always.**
@@ -66,10 +69,10 @@ struct BlockFace<Photo: View>: View {
             // centre, thinning to almost white at the rim. A block stops being a
             // coloured rectangle and starts being a body with a light in it, and
             // it costs one gradient.
-            GeometryReader { geo in
-                Rectangle().fill(EtherealFill.gradient(category.style.baseColor,
-                                                       size: geo.size))
-            }
+            //
+            // It is an ELLIPSE, so it sizes itself to whatever it fills and
+            // needs no `GeometryReader` here. See `EtherealFill`.
+            Rectangle().fill(EtherealFill.fill(category.style.baseColor, aim: aim))
 
             if hasPhoto {
                 photo()

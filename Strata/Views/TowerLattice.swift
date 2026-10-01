@@ -63,6 +63,23 @@ struct TowerLattice: View {
     var spacing: CGFloat = GridConstants.spacing
     var columns: Int = GridConstants.columnCount
 
+    /// **The touches the page is currently answering**, so the surface can
+    /// answer them too.
+    ///
+    /// The owner, 2026-09-30: "make sure it also interacts with the lattice,
+    /// like it looks like the lattice is also participating in the moving."
+    ///
+    /// The ring itself is drawn in the page's BACKGROUND, underneath the
+    /// lattice — which already does half the job for free, because a pane is
+    /// translucent and a gap is not, so the ring arrives at the eye already cut
+    /// into the grid. What that cannot do is move. This is the other half: the
+    /// panes the ring is passing brighten, on the ring's own curve, so the
+    /// sheet reads as taking the disturbance rather than as something the
+    /// disturbance happens behind.
+    ///
+    /// Empty almost always, and everything below is gated on that.
+    var touches: [TouchRipple] = []
+
     /// **How far above the tower the lattice carries on, in rows.**
     ///
     /// It was a whole viewport, and photographed that was the failure he
@@ -167,6 +184,7 @@ struct TowerLattice: View {
     var body: some View {
         resting
             .overlay { landing }
+            .overlay { touchSwell }
             .mask {
                 // **The fade is spent on the overhang, not on the whole
                 // height.** As a share of the lattice it finished above the
@@ -288,6 +306,73 @@ struct TowerLattice: View {
         // behind actually looks like.
         shape.fill(Color.white.opacity(Self.strength))        .frame(height: height)
     }
+
+    /// **The sheet answering a touch, drawn as the panes the ring is on.**
+    ///
+    /// White, because a pane IS white here and this is the pane getting
+    /// brighter — the same move the landing makes in ink, and for the same
+    /// reason the landing is not coloured: the chrome does not borrow the
+    /// content's voice.
+    ///
+    /// Three things make this honest rather than a second effect laid on top:
+    ///
+    /// 1. **It is masked to `shape`.** Only the cells light. The gaps between
+    ///    them stay exactly as they were, so the ring is quantised into the
+    ///    grid instead of sweeping across it.
+    /// 2. **It reads the ring's own position**, through `TouchRipple.front`,
+    ///    rather than running a curve of its own. Two curves would be two
+    ///    speeds, and the whole point is that it is one disturbance.
+    /// 3. **The `TimelineView` is only here while something is moving.** An
+    ///    always-mounted one is what kept the landing animation off a timeline
+    ///    in the first place: measured at a 50ms frame gap on the frame the
+    ///    block hits. `TouchRippleModifier` clears its array on a timer so this
+    ///    goes away on its own.
+    @ViewBuilder
+    private var touchSwell: some View {
+        if !reduceMotion, !touches.isEmpty {
+            GeometryReader { geo in
+                // Where this lattice is on the page, so a point taken from a
+                // finger somewhere in the header or over the tab bar lands on
+                // the right cell of a grid that is scrolled some way up.
+                let origin = geo.frame(in: .named(TouchRipple.space)).origin
+                TimelineView(.animation) { timeline in
+                    Canvas { context, _ in
+                        let now = timeline.date
+                        for touch in touches {
+                            for ring in 0..<TouchRipple.rings {
+                                guard let front = touch.front(ring, at: now) else { continue }
+                                let centre = CGPoint(x: touch.at.x - origin.x,
+                                                     y: touch.at.y - origin.y)
+                                let r = front.radius
+                                let circle = Path(ellipseIn: CGRect(
+                                    x: centre.x - r, y: centre.y - r,
+                                    width: r * 2, height: r * 2))
+                                context.drawLayer { layer in
+                                    layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
+                                    layer.stroke(
+                                        circle,
+                                        with: .color(.white.opacity(Self.swell * front.fade)),
+                                        lineWidth: TouchRipple.bandWidth)
+                                }
+                            }
+                        }
+                    }
+                }
+                .mask { shape.frame(height: height) }
+            }
+        }
+    }
+
+    /// **How much brighter a pane gets as the ring crosses it**, on top of
+    /// `strength`.
+    ///
+    /// A pane rests at 0.34 white, so this is not far off doubling it for the
+    /// moment the front is on that cell — which sounds like a lot and is not,
+    /// because it is one band of cells for about a fifth of a second and the
+    /// ring is fading the whole time. Below about 0.2 the lattice does not
+    /// visibly take part, which was the complaint; above about 0.4 the cells
+    /// flash, which makes the grid the subject.
+    static let swell: Double = 0.30
 
     /// **The landing, drawn as the cells it reaches.**
     ///

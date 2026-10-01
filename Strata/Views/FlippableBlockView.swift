@@ -4,6 +4,11 @@ import SwiftData
 // MARK: - Smart Brick View (Clay Cartridge)
 
 struct FlippableBlockView: View {
+    /// The lamp over the tower this block is standing in, if it is in one. See
+    /// `BlockLight`: one light for the whole stack, so where a block stands
+    /// decides which of its corners catches it.
+    @Environment(\.blockLight) private var blockLight
+
     let block: PlacedBlock
     let width: CGFloat
     let height: CGFloat
@@ -145,6 +150,14 @@ struct FlippableBlockView: View {
         }
     }
 
+    /// Where the light falls on THIS block. Overhead when there is no tower
+    /// light — a block in a replay frame or a preview is its own object.
+    private var aim: BlockAim {
+        blockLight?.aim(column: block.column, row: block.row,
+                        columnSpan: block.columnSpan, rowSpan: block.rowSpan)
+            ?? .overhead
+    }
+
     private var chromedBody: some View {
         BlockFace(
             title: block.habit.title,
@@ -157,7 +170,8 @@ struct FlippableBlockView: View {
             // No time. `BlockContentOverlay` has not drawn one since the tower
             // stopped showing timestamps, and the parameter that carried it is
             // gone rather than being passed `nil` through two views.
-            showOverlay: showOverlay
+            showOverlay: showOverlay,
+            aim: aim
         ) {
             CachedImageView(
                 fileName: block.log.imageFileName,

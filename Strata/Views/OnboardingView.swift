@@ -887,7 +887,7 @@ struct OnboardingView: View {
                                     .blur(radius: 16)
                                     .padding(.horizontal, 8)
                                 Capsule(style: .continuous)
-                                    .fill(EtherealFill.gradient(pillFill))
+                                    .fill(EtherealFill.fill(pillFill))
                                 // **THE BLOCK'S OWN RIM, NOT A SECOND OPINION
                                 // ABOUT WHAT A LIT EDGE LOOKS LIKE.**
                                 //

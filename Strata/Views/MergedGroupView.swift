@@ -30,6 +30,23 @@ struct MergedGroupView: View {
     /// for the same reason a single block does.
     @Environment(\.colorScheme) private var colorScheme
 
+    /// And the lamp over the tower, for the same reason again. A merged run is
+    /// ONE body, so it takes one aim — worked out from the centre of the whole
+    /// run rather than from any member — which is what keeps its single glow and
+    /// its single rim agreeing with each other. See `BlockLight`.
+    @Environment(\.blockLight) private var blockLight
+
+    private var aim: BlockAim {
+        guard let blockLight,
+              let minC = group.cells.map(\.column).min(),
+              let maxC = group.cells.map(\.column).max(),
+              let minR = group.cells.map(\.row).min(),
+              let maxR = group.cells.map(\.row).max()
+        else { return .overhead }
+        return blockLight.aim(centreColumn: CGFloat(minC + maxC + 1) / 2,
+                              centreRow: CGFloat(minR + maxR + 1) / 2)
+    }
+
     private var style: CategoryStyle { group.category.style }
 
     private var shape: MergedShape {
@@ -40,6 +57,30 @@ struct MergedGroupView: View {
             gridHeight: gridHeight,
             cornerRadius: GridConstants.blockCornerRadius * styleScale
         )
+    }
+
+    /// **The run's own rectangle, in the grid's coordinates.**
+    ///
+    /// The same arithmetic `MergedShape.rect(for:)` uses, inset by half the gap
+    /// the way that shape's polygon is, so this lands exactly on the real block
+    /// bounds: a cell occupies `(column * pitch, gridHeight - row * pitch -
+    /// cellSize)` at `cellSize` square.
+    ///
+    /// It is the bounding box, so an L-shaped run gets a rectangle slightly
+    /// bigger than itself. That is right for a gradient — the light belongs to
+    /// the whole body — and the mask takes care of the rest.
+    private var runBounds: CGRect {
+        let pitch = cellSize + GridConstants.spacing
+        guard let minC = group.cells.map(\.column).min(),
+              let maxC = group.cells.map(\.column).max(),
+              let minR = group.cells.map(\.row).min(),
+              let maxR = group.cells.map(\.row).max()
+        else { return CGRect(x: 0, y: 0, width: cellSize, height: cellSize) }
+        let x = CGFloat(minC) * pitch
+        let width = CGFloat(maxC - minC) * pitch + cellSize
+        let y = gridHeight - CGFloat(maxR) * pitch - cellSize
+        let height = CGFloat(maxR - minR) * pitch + cellSize
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     /// The band belongs to the bottom of the SHAPE, not the bottom of each
@@ -58,9 +99,30 @@ struct MergedGroupView: View {
             // Lit from inside, like every other coloured surface in the app
             // now. A merged run is one body, so the glow is sized to the whole
             // run rather than per member — which is the point of merging.
-            GeometryReader { geo in
-                shape.fill(EtherealFill.gradient(style.baseColor, size: geo.size))
-            }
+            //
+            // **AND IT HAS TO BE SIZED TO THE RUN, WHICH IT WAS NOT.**
+            //
+            // This was a `GeometryReader` handing `geo.size` to the gradient,
+            // and a `GeometryReader` here reports the WHOLE GRID: this view is
+            // laid out over the entire tower and positions itself through the
+            // path. So every merged run in the tower was showing its own slice
+            // of one gradient centred on the middle of the tower and half the
+            // tower tall — bright in the middle of the screen, drained to
+            // near-white everywhere else.
+            //
+            // That is the owner's "splotch in the middle", and it is also his
+            // "the bottom isn't even curved any more": a run at the foot of the
+            // tower was sitting at the far end of that gradient, so its colour
+            // came out close enough to the page's own near-white that its
+            // rounded corners had nothing left to read against.
+            //
+            // The fill is drawn in the RUN's own rect now and masked by the
+            // path, so the glow is the size and shape of the thing it is in.
+            Rectangle()
+                .fill(EtherealFill.fill(style.baseColor, aim: aim))
+                .frame(width: runBounds.width, height: runBounds.height)
+                .position(x: runBounds.midX, y: runBounds.midY)
+                .mask { shape }
 
             // Frosted band, clipped to the shape so it never spills into the
             // notches of an irregular run.
@@ -84,7 +146,7 @@ struct MergedGroupView: View {
             // double-width stroke clipped to the shape is the same edge.
             shape
                 .stroke(
-                    BlockRim.gradient(in: colorScheme),
+                    BlockRim.gradient(in: colorScheme, aim: aim),
                     lineWidth: GridConstants.blockRimWidth * styleScale * 2
                 )
                 .clipShape(shape)

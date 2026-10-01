@@ -745,6 +745,31 @@ struct MainAppView: View {
             // always in the same place, and the tower has nothing beneath it
             // at all.
             .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
+            // **Touch the page and it answers — the whole page.**
+            //
+            // See `TouchRipple`: rings on water, never a highlight, drawn
+            // BEHIND the content so a block hides them, and it consumes
+            // nothing — a tap on a block, the slot or the tab bar still
+            // reaches them.
+            //
+            // Here rather than on `towerTabContent`, which is where it was:
+            // the header is a `safeAreaInset`, so it is outside the content it
+            // insets and a ripple attached in there could not reach it. The
+            // owner asked for "all over the screen, in the header as well".
+            .touchRipples($touchRipples)
+            // **The ground goes on AFTER the ripple, which puts it UNDER it.**
+            //
+            // `.background` stacks backwards, so the one applied last is the
+            // one furthest back. This used to live inside `towerTabContent`,
+            // which is nearer the content than the ripple layer is — so the
+            // rings were drawn behind an opaque page and the whole effect
+            // measured three levels of grey. Nothing about the drawing was
+            // wrong; it was underneath the floor.
+            //
+            // The ground is `WarmBackground` for every screen in the app now,
+            // field and all — see that type. This tab no longer has a private
+            // one, and the debug flag that used to switch it is gone with it.
+            .background { WarmBackground().ignoresSafeArea() }
     }
 
     /// The whole header: one number, and what it counts.
@@ -1278,21 +1303,23 @@ struct MainAppView: View {
             // which is the frosted band that belongs to blocks and to nothing
             // else. The tower stands on the page's own ground with the tab
             // bar directly beneath it, and that is the whole page.
-            // The ground is `WarmBackground` for every screen in the app now,
-            // field and all — see that type. This tab no longer has a private
-            // one, and the debug flag that used to switch it is gone with it.
-            .background { WarmBackground().ignoresSafeArea() }
-            // Touch the page and it answers. See `TouchRipple`: rings on water,
-            // never a highlight, and it consumes nothing — a tap on a block, the
-            // slot or the tab bar still reaches them.
-            .touchRipples($touchRipples)
             #if DEBUG
             // One ripple in the middle, so the effect can be photographed.
             .task {
                 guard DebugHarness.ripple else { return }
+                // **HELD AT A FIXED AGE, NOT REPLAYED.**
+                //
+                // It used to respawn every 700ms, and a `simctl` screenshot
+                // takes about a second — so every frame caught a different and
+                // arbitrary phase, and the first four came back identical and
+                // empty. Pinning `born` to a constant age means the ripple is
+                // always at the same point in its life and can actually be
+                // photographed. 0.18s is a little after launch, where the rings
+                // are open and still strong.
                 while !Task.isCancelled {
-                    touchRipples = [TouchRipple(at: CGPoint(x: 200, y: 330), born: Date())]
-                    try? await Task.sleep(for: .milliseconds(700))
+                    touchRipples = [TouchRipple(at: CGPoint(x: 200, y: 330),
+                                                born: Date().addingTimeInterval(-0.18))]
+                    try? await Task.sleep(for: .milliseconds(40))
                 }
             }
             #endif
@@ -2531,6 +2558,20 @@ struct MainAppView: View {
                         // beneath it, rather than on a caption.
                     }
                 }
+                // **ONE LAMP OVER THE WHOLE TOWER.**
+                //
+                // The owner: "I like that the blocks are reacting to the same
+                // outer light. They don't all need the same light around the
+                // corners — depending on where they are the light shall hit
+                // them differently."
+                //
+                // Set here, on the grid, because this is the only place that
+                // knows how tall the tower is: the lamp hangs a fixed distance
+                // above the crown, so the spread of angles across the stack
+                // stays the same whatever it has grown to. Every block and
+                // every merged run reads it out of the environment and works
+                // out its own corner. See `BlockLight`.
+                .environment(\.blockLight, BlockLight.over(rows: layoutRows))
                 // **The grid the blocks land in, drawn behind them.**
                 //
                 // Bottom aligned and taller than the content on purpose: a
@@ -2542,6 +2583,7 @@ struct MainAppView: View {
                     // Nothing animates here on arrival. The surface only
                     // moves when something lands on it. See `TowerLattice`.
                     TowerLattice(cellSize: colW, contentHeight: max(gridH, 1),
+                                 touches: touchRipples,
                                  ripple: latticeRipple)
                         .frame(width: gridW)
                 }
