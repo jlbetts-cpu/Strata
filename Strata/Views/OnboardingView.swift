@@ -76,7 +76,8 @@ struct OnboardingView: View {
     @State private var drawingSize: BlockSize = .small
     /// The landing the tutorial's lattice is answering, if it is answering one.
     @State private var ripple: LatticeRipple?
-    @Environment(\.colorScheme) private var colorScheme
+    // `colorScheme` was read here by exactly one thing, the primary pill's
+    // `BlockRim.gradient(in:)`, which moved to `PrimaryCapsule` with the pill.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     /// Whatever the thing presenting onboarding says about heads, so the value
@@ -793,9 +794,11 @@ struct OnboardingView: View {
     /// over the sampled ground: the label clears 14.3:1, which is what the title
     /// on this page already measures, and the ring 3.3:1 against the 3.0 floor.
     ///
-    /// The height is `pillHeight`, shared with the primary below it, so the two
-    /// capsules on this page are provably the same object and not two 50s that
-    /// happen to agree.
+    /// The height is `PrimaryCapsule.height`, shared with the primary below it,
+    /// so the two capsules on this page are provably the same object and not two
+    /// 50s that happen to agree. It read a private `pillHeight` until the
+    /// primary became `PrimaryCapsule`; that constant was the duplicate it was
+    /// written to prevent.
     private var connectButton: some View {
         Button {
             if let url = URL(string: Self.linkedIn) { openURL(url) }
@@ -804,7 +807,7 @@ struct OnboardingView: View {
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: Self.pillHeight)
+                .frame(height: PrimaryCapsule.height)
                 .background(Capsule().strokeBorder(AppColors.inkQuiet,
                                                    lineWidth: GridConstants.strokeThin))
                 .contentShape(Capsule())
@@ -999,133 +1002,55 @@ struct OnboardingView: View {
     /// button, it shouldnt have the block styling, just make it simple like an
     /// apple native button." A block is a win. A button is not a win.
     ///
-    /// **THE WAITING STATE IS NOT A DISABLED `Button`, AND THAT IS A
-    /// MEASUREMENT.** (2026-10-01)
+    /// **Both states are `PrimaryCapsule` now, and this page was the last
+    /// holdout.** (2026-10-01)
     ///
-    /// It was one Button with `.buttonStyle(.plain)` and `.disabled(!canAdvance)`,
-    /// switching its own background. The comment above it said the label was
-    /// `inkTertiary` "at 4.8:1" and the ring `inkQuiet` "at 3.1:1", which is what
-    /// those two inks measure when they are drawn. They were not being drawn.
-    /// Sampled off page 2 of the 2026-10-01 screenshots, where "What else" waits
-    /// for you to draw a block:
+    /// It kept a private `litPill` and `waitingPill` after that type existed,
+    /// and they were not a drift: the fill, the flatness, the rim and the
+    /// outline were all settled HERE and `PrimaryCapsule` was extracted out of
+    /// them for the restore confirm and the store retry. Being the original is
+    /// not a reason to stay a second copy, though, and the two were already
+    /// diverging in three places by the time they were read side by side.
+    /// What the move actually found, which is the argument for doing it:
     ///
-    ///     ring, declared inkQuiet 0.45     rendered 188 on 243   1.71:1
-    ///     label, declared inkTertiary 0.55 rendered 176 on 243   1.96:1
+    ///     the haptic     `PrimaryCapsule` was extracted with `tick()`, a
+    ///                    selection feedback, where this page and
+    ///                    `GlassIconButton` both use `lightTap()`. The shared
+    ///                    type is `lightTap()` now, so the restore confirm and
+    ///                    the store retry get their press back as well.
+    ///     the capsule    this page's waiting ring was a plain `Capsule()`
+    ///                    while its own filled pill was `.continuous`, so the
+    ///                    two states had different corner profiles on the one
+    ///                    page in the app that shows both.
+    ///     the height     50 was typed here and again there. It is
+    ///                    `PrimaryCapsule.height` in both places now, and the
+    ///                    LinkedIn capsule above reads the same constant.
     ///
-    /// Both are exactly HALF the alpha they ask for, to three decimal places,
-    /// and the stems are flat runs rather than antialiased edges, so this is not
-    /// coverage. **A disabled plain button is dimmed by the environment**, which
-    /// `HeadMakerView` already found and wrote down the other way round: its
-    /// shutter "came out at 128 of 255 during capture instead of white", and it
-    /// routed around the dim by not disabling the button.
-    ///
-    /// So the state the owner has complained about twice ("the button is lowkey
-    /// invisible during the onboarding flow, same colour as the background, when
-    /// its grey") was still invisible, and the fix that was written for it was
-    /// being halved before it reached the glass. An outline was the right idea:
-    /// it is a different object rather than a paler pill, which is what section
-    /// 10 rule 6 asks for. It just has the least ink of anything on the page to
-    /// carry a ratio with, so it is the first thing a 0.5 multiplier kills.
-    ///
-    /// The waiting pill is therefore plain views with no `Button` and no
-    /// `.disabled` anywhere near them, so nothing can halve it. Computed over
-    /// the same sampled ground: ring `inkTertiary` 4.6:1 and label
-    /// `inkSecondary` 6.0:1, against floors of 3 and 4.5. **Re-shoot page 2 and
-    /// sample `row 791` and the ring at `col 201` y 766 to prove it**: the only
-    /// way this fix is wrong is if something else is also dimming, and the
-    /// numbers above say what the pixels have to be.
-    ///
-    /// **What VoiceOver loses, and what it gets instead.** `.disabled` is what
-    /// makes VoiceOver say "dimmed", and there is no way to keep that and keep
-    /// the contrast. So the waiting pill is one accessibility element whose
-    /// VALUE says why it is waiting, which is more than "dimmed" ever said, and
-    /// it offers no activate action, so nothing lies about being pressable.
+    /// Nothing was lost: the colour argument, the flat-not-lit argument, the
+    /// measured waiting ratios and the reason the waiting state must never be a
+    /// `Button` or a `.disabled` all moved into `PrimaryCapsule`'s own doc,
+    /// which is where the next sweep will be standing. **Read that before
+    /// touching the waiting state.** The trap is that a disabled plain button
+    /// is dimmed by the environment, which halved this page's outline for
+    /// weeks, and the shared type is shaped so there is no `Button` inside the
+    /// waiting state for a `.disabled` to be put on.
     @ViewBuilder
     private var action: some View {
         if canAdvance {
-            Button {
-                HapticsEngine.lightTap()
-                advance()
-            } label: {
-                Text(actionTitle)
-                    .font(Typography.headerMedium)
-                    .foregroundStyle(pillLabel)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Self.pillHeight)
-                    .background { litPill }
-                    .contentShape(Capsule())
-            }
-            // `PressResponse.swift` asks for this rather than `.plain`, and
-            // `pressWord` is its own variant for a control whose label is a word:
-            // "a word at 6% reads as a wobble, so it moves less and dims more".
-            .buttonStyle(.pressWord)
+            // No haptic here: `PrimaryCapsule` makes it, and this used to make
+            // its own `lightTap()` beside a `Button` it owned.
+            PrimaryCapsule(title: actionTitle) { advance() }
         } else {
-            waitingPill
+            PrimaryCapsule(waiting: actionTitle,
+                           because: "Not yet. Draw a block to go on.")
         }
     }
 
-    /// **LIT FROM INSIDE.** (2026-09-30)
-    ///
-    /// The owner, with the reference: "can we make the main buttons like this, I
-    /// think this looks super clean." It was a flat capsule of `inkPrimary`.
-    ///
-    /// Same recipe the blocks now use, so the button and the thing it makes are
-    /// visibly the same material: an inside-out radial, most saturated at a core
-    /// above centre, thinning toward the rim. Plus the reference's light rim,
-    /// brightest at the top.
-    ///
-    /// **NO BLOOM.** There was a blurred capsule of the button's own colour
-    /// behind it, on the reasoning that a lit object lights the page instead of
-    /// shading it. The owner: "why is there light coming off of it, please fix
-    /// that." He is right and the reasoning was borrowed from the wrong place:
-    /// that argument came off the reference image, which is a button floating in
-    /// a render with nothing around it to light. This button stands on a page
-    /// that is already clean white, so a blue halo on it is not light, it is a
-    /// stain the same colour as the button.
-    ///
-    /// **THE BLOCK'S OWN RIM**, not a second opinion about what a lit edge looks
-    /// like. The owner: "make sure it has the same rim design we made in the box,
-    /// like that outline fade on the bottom." It was a hand-written white 0.30 to
-    /// 0.08, which is the same IDEA and a different curve. `BlockRim` is the
-    /// curve, it is already on every block-shaped thing in the app, and it eases
-    /// itself off in dark mode. One definition.
-    ///
-    /// **The fill is flat now, and the rim stays.** `EtherealFill` lightens a
-    /// colour toward its rim, which is right on a block, where the thing being
-    /// lit is a surface and nothing is written across it. On a button it means
-    /// the contrast of the label depends on how long the label is: measured,
-    /// 4.69:1 under a short word and 4.24 at the far end of a long one. The rim
-    /// is the part of the treatment that reads as light and it costs the label
-    /// nothing, because no word reaches it.
-    private var litPill: some View {
-        ZStack {
-            Capsule(style: .continuous)
-                .fill(pillFill)
-            Capsule(style: .continuous)
-                .strokeBorder(BlockRim.gradient(in: colorScheme),
-                              lineWidth: GridConstants.blockRimWidth)
-        }
-    }
-
-    /// The same capsule, waiting. See `action` for why this is not a Button.
-    private var waitingPill: some View {
-        Text(actionTitle)
-            .font(Typography.headerMedium)
-            .foregroundStyle(disabledInk)
-            .frame(maxWidth: .infinity)
-            .frame(height: Self.pillHeight)
-            .background {
-                Capsule().strokeBorder(disabledRing,
-                                       lineWidth: GridConstants.strokeThin)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(actionTitle)
-            .accessibilityValue("Not yet. Draw a block to go on.")
-    }
-
-    /// The height of a primary action, shared with the LinkedIn capsule above it
-    /// so the two are provably one object rather than two 50s that agree today.
-    private static let pillHeight: CGFloat = 50
+    /// The height of a primary action, shared with the LinkedIn capsule above
+    /// it so the two are provably one object rather than two 50s that agree
+    /// today. **It is `PrimaryCapsule.height` rather than a 50 typed here**,
+    /// because that was the second 50 and the primary pill on this page is now
+    /// that type: two constants that agree is the same fault one rung down.
 
     /// The HIG's minimum target, and `GlassIconButton`'s own `defaultSide`. Named
     /// here so the one control on these pages that was under it is measured
@@ -1133,78 +1058,6 @@ struct OnboardingView: View {
     private static let tapFloor: CGFloat = GlassIconButton.defaultSide
 
     private var canAdvance: Bool { step != 1 || hasDrawn }
-
-    /// The primary pill's fill.
-    ///
-    /// **It is `inkPrimary`, and it was `slotInk`** (the owner,
-    /// 2026-09-23: "the button isn't like black... the buttons being like a
-    /// darker color"). `slotInk` is the app's warm black, 64,61,57, and against
-    /// this page it composites to a soft brown-grey rather than to a black.
-    /// `inkPrimary` is the strongest ink the app writes with and it is already
-    /// what the title above it is set in, so the page's two loudest things are
-    /// now the same ink: measured over the ground, the pill is 37,37,38 and its
-    /// label clears 13.9:1. No new colour was invented to get there.
-    /// **ONE BLUE, FLAT, AND THE WORD ON IT CLEARS 4.5.** (2026-10-01)
-    ///
-    /// This pill was the only control in the app still filled with
-    /// `AppColors.accent`, the bright blue read off the owner's reference
-    /// image. Everything else that carries the primary action moved to
-    /// `accentPrimary` when he said "changing the primary to the blue because
-    /// I notice in the settings it is still green", so the app had two blues
-    /// doing one job, which check 5 of the audit fails on its own terms: one
-    /// accent, for the primary action.
-    ///
-    /// And the word on it could not be read. Sampled off the shipped build
-    /// rather than reasoned about: glyphs a flat 255,255,255 on a fill of a
-    /// flat 67,195,252, which is **2.03:1** where a 17pt word is held to 4.5.
-    /// It is the only control on every page of the walkthrough, so it was the
-    /// app's most repeated piece of type and its least readable.
-    ///
-    /// Nothing about choosing that blue was a decision about the label's
-    /// legibility, because nobody had measured the one relationship that
-    /// matters here. `accentPrimary`'s own doc has the blue measured three
-    /// ways, as ink on the light page, on the dark page, and against a
-    /// switch's white thumb, and not once as a white word ON it. That was a
-    /// hole in the palette rather than a judgement made badly.
-    ///
-    /// **Flat, not lit**, and that is the second half of the fix. The
-    /// ethereal treatment lightens a fill toward its rim, so a lit
-    /// `accentPrimary` measures 4.69:1 at the core and **4.24 at the far end
-    /// of a long word**: the number would pass on "Go on" and fail on
-    /// "Make your head". A flat fill measures (0, 123, 178) at every point across the pill and
-    /// holds **4.69:1** on all of it,
-    /// whatever is written in it, and a button is the one object in this app
-    /// that has to be the same everywhere a word lands on it.
-    ///
-    /// The two alternatives, both measured and both rejected:
-    ///
-    ///     keep `accent`, label warmBlack       5.37:1 core, 5.87 at the rim.
-    ///                                          Highest number of the three and
-    ///                                          it leaves the app with two
-    ///                                          blues, which is the fault under
-    ///                                          the fault.
-    ///     `accent` at brightness 0.644, white  4.50:1 exactly. A pill deeper
-    ///                                          than the reference AND a third
-    ///                                          blue to maintain.
-    ///
-    /// The ink stays a FIXED white rather than an adaptive one: `accentPrimary`
-    /// does not flip with the scheme, so an ink that did would pass in light
-    /// and fail in dark.
-    private var pillFill: Color { AppColors.accentPrimary }
-
-    private var pillLabel: Color { .white }
-
-    /// What the action says while it is waiting for you, and the ring around it.
-    ///
-    /// **Each moved up one rung on 2026-10-01**, because the previous pair was
-    /// being halved before it was drawn: see `action`. Computed over the sampled
-    /// page 2 ground (243): `inkSecondary` 6.0:1 for the word, against 4.5 for
-    /// text; `inkTertiary` 4.6:1 for the ring, against 3.0 for a shape. The ring stays
-    /// quieter than the word, so the waiting pill still reads as an outline with
-    /// something written in it rather than as a second filled button.
-    private var disabledInk: Color { AppColors.inkSecondary }
-
-    private var disabledRing: Color { AppColors.inkTertiary }
 
     /// The head page, with no head made yet.
     private var offersHead: Bool { step == Self.headStep && heads.head == nil }

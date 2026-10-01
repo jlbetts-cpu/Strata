@@ -1,5 +1,19 @@
 # Where Strata's design actually stands
 
+> **SUPERSEDED AS A STATE OF THE APP (2026-10-01), kept as a diagnosis.**
+> `docs/screen-audit.md` is the current one: 22 screens against ten checks, each
+> captured from a seeded fixture and measured in points off the PNG rather than
+> read off the source. Every rating in the table below is of a screen as it
+> stood on 2026-09-09, and most of those screens have since been rebuilt. Do not
+> quote a rating from here as current. What survives is the diagnosis and the
+> reasoning, which is why this file is still here.
+>
+> The two things in the table that are now plainly false: the Camera's
+> "one wordmark" is gone (the wordmark came off every screen on 2026-09-30,
+> pending the rename, and the camera has no header at all now), and Memories is
+> not the screen described below. Its search field is gone, the month leads, and
+> the page has been through two inversions over the map.
+
 Written 2026-09-09, from a contact sheet of every screen in the app taken in
 one pass: `tasks/screenshots/design-audit-before.png`. Ratings are against the
 question actually being asked — *would this win an Apple Design Award* — not
@@ -153,7 +167,15 @@ things that stand FOR a block, and wrong for things that merely describe one.
   the app — you can only arrive at a day from an album or a month block, and
   both require at least one win — but `-strataOpenDay` can reach it, and if a
   route to it ever appears it needs an empty state.
-- `Typography` still exposes tokens (`radiusField`, `fillTrack`) from before
+- ~~`Typography` still exposes tokens (`radiusField`, `fillTrack`) from before
   the block rule. They are not wrong, but they are a second vocabulary for
   things the block components now cover, and they should be audited before
-  anything new uses them.
+  anything new uses them.~~ **Audited and closed 2026-10-01**; the audit is
+  written on `GridConstants` beside each one, which is also where they live
+  rather than in `Typography`. `radiusField` keeps its caller and stays.
+  **`fillTrack` (0.06) is deleted**, zero call sites, and deliberately not
+  re-created: the app's one remaining track is `EtherealControls.track`, which
+  is opaque rather than 6% ink for a measured reason, so a token named for
+  tracks would have handed the next person the exact bug that file had already
+  paid for. `cornerRadiusSmall` and `cornerRadiusMicro` went in the same pass,
+  as a second spelling of `radiusControl` and `radiusMark`.

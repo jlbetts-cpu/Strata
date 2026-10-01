@@ -2,9 +2,39 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- **Jaro came off this list on 2026-10-01, and out of the bundle with it.**
+
+	     It was registering a face no Swift read. `JaroFont` was deleted for the
+	     second time (`Typography.swift`, MARK: - Jaro, which records the first
+	     one on 2026-09-09), the wordmark went on 2026-09-30 and the mark is the
+	     pre-drawn `StrataSMark` asset, which carries no font at all. The sweep
+	     that found it could not finish the job because it could not prove
+	     nothing outside Swift named the family. That is now proved, by grep over
+	     the whole tree: no `.custom(` anywhere, no `UIFont(name:)` or
+	     `CTFontCreateWithName` except `StrataFont`'s own two, which name
+	     "Strata-Regular"; no .xib and no .storyboard in the repo at all; nothing
+	     in `Strata/Assets.xcassets` mentions a font; and the only other target,
+	     the widget, has its own `WidgetSupport/Info.plist` registering
+	     Strata-Regular alone. There is no Intents extension.
+
+	     The 145,616 bytes are gone too, which the plist alone would not have
+	     done: the target is a file-system-synchronized group, so every non-source
+	     file under `Strata/` ships, and the file is excluded by a
+	     `PBXFileSystemSynchronizedBuildFileExceptionSet` in `project.pbxproj`.
+
+	     **The TTF itself stays in the repo and must.** `tools/make_app_icon.py`
+	     and `tools/make_logo.py` read `Strata/Resources/Jaro.ttf` to derive the
+	     icon and the `S` offline, and `Jaro-OFL.txt` stays beside it. Moving the
+	     file out of the target directory would have been the other way to do
+	     this, and it was not taken: it means editing two tools that are not
+	     this change's to edit, for the same bytes.
+
+	     `Jaro-OFL.txt` is deliberately left in the bundle. It is 4.4 KB and
+	     the SIL licence's requirements are about distributing the FONT, which
+	     this build no longer does, so taking it out is a legal call rather
+	     than a cleanup and nobody asked for one. -->
 	<key>UIAppFonts</key>
 	<array>
-		<string>Jaro.ttf</string>
 		<string>Strata-Regular.ttf</string>
 	</array>
 	<key>UILaunchScreen</key>

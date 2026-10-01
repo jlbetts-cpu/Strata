@@ -321,7 +321,17 @@ struct MemoriesMapView: View {
         // clear of the floating tab bar, where it was colliding, to just above
         // it: still legible, still complete, and reading as a caption on the
         // map rather than as something stuck to the corner of the screen.
-        .safeAreaPadding(.bottom, DrawerMetrics.tabBarClearance - 22)
+        // `GridConstants.tabBarClearance`, not `DrawerMetrics.tabBarClearance`,
+        // which was the same number under a second name and is deleted with its
+        // file (2026-10-01). It was all that was left of the drawer: one alias
+        // whose only two readers were this file and the recentre button below,
+        // and it outlived the drawer by a day because this file was off limits
+        // to the sweep that removed the rest. Nothing is lost by the file
+        // going: the two Swift traps it carried forward are written out in
+        // full in CLAUDE.md under the Memories drawer. They are that static
+        // STORED properties are not allowed in a generic type at all, and that
+        // a type nested in a generic picks the generic up.
+        .safeAreaPadding(.bottom, GridConstants.tabBarClearance - 22)
         .safeAreaPadding(.leading, 6)
         // **There is no scrim any more, and the reason is arithmetic**
         // (2026-10-01).
@@ -1635,7 +1645,9 @@ private struct RecentreButton: View {
         // follows the system, and a dark disc on the night map is invisible.
         .environment(\.colorScheme, .light)
         .padding(.trailing, GridConstants.horizontalPadding)
-        .padding(.bottom, DrawerMetrics.tabBarClearance)
+        // See the map's own `safeAreaPadding` above for why this reads
+        // `GridConstants` rather than the deleted `DrawerMetrics`.
+        .padding(.bottom, GridConstants.tabBarClearance)
         // It has nothing to say until it can say it.
         .opacity(location.isDenied ? 0 : 1)
         .allowsHitTesting(!location.isDenied)

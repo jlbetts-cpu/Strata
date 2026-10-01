@@ -416,14 +416,39 @@ enum AppColors {
     /// works — see `inkPrimary` and `inkSecondary`.
     static let accentPrimary = Color(hex: 0x007BB2)
 
-    static let accentPurple = Color(hex: 0xA689FA)
-
-    static let healthGreen = Color(hex: 0x34C48B)
     static let warmRed = Color(hex: 0xE85D4A)
-    /// Ghost block background for incomplete timeline habits (light mode) — 12% luminance contrast to warm background (WCAG AA)
-    static let ghostBase = Color(red: 0.90, green: 0.89, blue: 0.88)
-    /// Ghost block background for incomplete timeline habits (dark mode) — native iOS card color
-    static let ghostBaseDark = Color(uiColor: .secondarySystemGroupedBackground)
+
+    // MARK: - Four colours deleted, 2026-10-01
+    //
+    // All four had zero call sites, and each one is a trap rather than a record:
+    // a reader who found it would have taken it for a sanctioned colour.
+    //
+    // **`accentPurple` (#A689FA), a "secondary accent", and there is no such
+    // thing here.** `accent` three dozen lines up is the app's one accent, and
+    // its own doc is as narrow as a doc gets: "It has ONE job: the primary
+    // action. It is not a palette, it does not appear on chrome elsewhere, and if
+    // it starts showing up on labels and icons then §4 has been lost rather than
+    // amended." A second accent token is the first step of exactly that.
+    //
+    // **`healthGreen` (#34C48B), the retired one.** The owner, 2026-09-30:
+    // "make sure you are changing the primary to the blue, because I notice in
+    // the settings it is still green." `switchOn` above carries the whole
+    // measurement that settled it, including the part worth knowing before
+    // anybody "corrects" it: Apple's own switch green does not clear 3:1 against
+    // a white thumb. So the record exists, in the token that replaced it, and
+    // what was left here was a green named for success states on a screen that
+    // has none. That is how a palette ends up disagreeing with itself again.
+    //
+    // **`ghostBase` and `ghostBaseDark`, a feature AND a measurement that both
+    // expired.** They were the ground of an incomplete habit's block on the
+    // Today/timeline tab, which is gone. Worse, `ghostBase`'s own comment claimed
+    // "12% luminance contrast to warm background", and the warm background is
+    // gone too (see `WarmBackground` and `EtherealControls`, where this app's
+    // grounds were taken off warm and onto clean white). A stale measurement
+    // reads exactly like a current one.
+    //
+    // The four hex values are recorded in `docs/design-system.md` §1 and
+    // `tasks/brand.md` if any of them is ever wanted back.
 }
 
 // MARK: - Color Hex Extension

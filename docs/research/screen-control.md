@@ -1,5 +1,16 @@
 # Screen control — a measured layout system for Strata
 
+> **EVERY MEASUREMENT RECIPE BELOW THAT PASSES `-strataOpenDrawer` IS DEAD**
+> (added 2026-10-01). The Memories drawer was removed on 2026-09-30: the page IS
+> the Memories screen now and the map is a button on it. The flag is a **silent
+> no-op**, not an error, so measurements 1, 5, 12, 13 and 15 will launch, measure
+> the wrong screen and look like they passed. Drop the flag and measure the
+> Memories tab directly. The drawer rows in the inset table (`.hidden`, the
+> handle) and the "two detents, not three" finding no longer describe anything.
+>
+> The method is sound and the numbers for every other screen stand.
+> `docs/screen-audit.md` is the current measured state of all 22.
+
 Research and build plan. Read-only pass over `/Users/jaydenbetts/StrataWork/owner-head`
 at `1e446e3`. Nothing was edited, built or run.
 

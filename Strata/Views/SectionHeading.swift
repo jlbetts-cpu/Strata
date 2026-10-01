@@ -65,6 +65,47 @@ struct SectionHeading: View {
     }
 }
 
+// MARK: - There is no heading-with-a-count, and that is the decision
+//
+// **If you came here looking for one, do not build it.** `SectionHeadingCount`
+// and `CountReadout` lived in `MemoriesView.swift` with a note saying they
+// belonged in this file. They had zero call sites and they are deleted
+// (2026-10-01) rather than moved here. The reasoning, written down so the next
+// pass does not rediscover it:
+//
+// **§7's "how much is here" is answered once per PAGE, not once per section.**
+// `PhotoGalleryGrid.heading` records what the other reading costs: three agents
+// applied the per-section rule to their own band on the same day and the page
+// ended up answering it six times on one scroll, four of them with the word
+// PHOTOS. A heading with a count on it is the component that produces that, and
+// the owner's general instruction covers it: "no unnecessary greyscale
+// elements, fairly minimal." `AlbumCarousel` makes the same call in as many
+// words: the ALBUMS heading above its shelf deliberately has no count, because
+// each card already says how much is on it.
+//
+// **The page-level count IS built, twice, and neither is `CountReadout`'s
+// shape.** Two rungs, differing for reasons each one measured off a build:
+//
+//   - a count under a screen title: 15pt `StrataFont.relative(_, to: .subheadline)`,
+//     NO optical inset ("at 15pt the face's mean left bearing works out near
+//     1pt, under the size worth correcting"), `inkTertiary`, word in
+//     `Typography.screenSubtitle`. `DayAlbumDetailView`, `PhotoCollectionView`.
+//   - a count in a card's caption: 13pt relative to `.footnote`, WITH
+//     `-StrataFont.opticalInset * 13` of leading so the digits stand on the
+//     card's edge, `inkTertiary`, word in `Typography.bodySmall`, lower case.
+//     `MemoriesShelf.countLine`, `AlbumCarousel.caption`.
+//
+// `CountReadout` is 13pt with no inset, `inkSecondary` digits, and its unit in
+// uppercase kerned `sectionLabel`: a seventh variant, and the one voice the
+// Memories pass removed on the owner's reading: "'46 WINS' under a card and '46
+// wins' in `MonthReplayRow` is the same fact set two ways on one screen, and the
+// shouted one is the one nobody asked for." Adopting it would be a visual
+// regression at every site and would move the ink off a measured number
+// (`inkQuiet` 0.45 gave **3.31:1** and failed; `inkTertiary` 0.55 gives 4.69).
+//
+// If one shared component is wanted it needs both rungs above, and that is the
+// owner's call rather than a rename of the unused one.
+
 // MARK: - The ground under a pinned heading
 
 extension View {

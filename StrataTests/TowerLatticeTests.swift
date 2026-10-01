@@ -91,6 +91,32 @@ struct TowerLatticeTests {
                 "at \(TowerLattice.strength) nothing shows through and it is a fill again")
     }
 
+    /// **And the dark one is a different measurement, not the same number.**
+    ///
+    /// The pane is white at an opacity, so one value means two completely
+    /// different amounts: over a 247 page 0.34 adds three levels, over a 40
+    /// page it adds seventy three. Measured before this split, a dark pane
+    /// read 2.91:1 against the gutter beside it where a light one reads 1.03,
+    /// and the owner's words were "the lattic doesnt blend in like light
+    /// mode".
+    ///
+    /// The band is placed so the two can never drift into each other's range,
+    /// which is the failure mode: somebody reads `strength`, applies it to the
+    /// dark branch because it is the number that is there, and the wall comes
+    /// back.
+    @Test("The dark pane is derived from the light one's ratio, not its number")
+    func theDarkLatticeIsItsOwnMeasurement() {
+        #expect(TowerLattice.strengthDark >= 0.02,
+                "at \(TowerLattice.strengthDark) a pane on a dark page is not there at all")
+        #expect(TowerLattice.strengthDark <= 0.10,
+                "at \(TowerLattice.strengthDark) the dark lattice is a wall of grey boxes again")
+        // One literal, not two joined with `+`: Swift Testing's second argument
+        // is a `Comment`, which converts from a string LITERAL and not from a
+        // `String` expression.
+        #expect(TowerLattice.strengthDark < TowerLattice.strength / 3,
+                "the dark pane has to be a small fraction of the light one, because white over a dark ground adds many times what it adds over a light one")
+    }
+
     /// Nothing is drawn for a tower that has not been measured yet, rather
     /// than a divide by zero or an endless row of cells.
     @Test("An unmeasured tower draws nothing")

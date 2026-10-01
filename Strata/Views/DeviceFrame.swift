@@ -58,9 +58,11 @@ struct DeviceFrame<Screen: View>: View {
     /// fit that screen needs to know it.
     ///
     /// **Computed, not stored.** CLAUDE.md: static STORED properties are not
-    /// allowed in a generic type at all, which is why `DrawerMetrics` exists,
-    /// and this type is generic over what is on its screen. `aspect` above is
-    /// computed for the same reason.
+    /// allowed in a generic type at all, and this type is generic over what is
+    /// on its screen. `aspect` above is computed for the same reason. The rule
+    /// is written out under the Memories drawer in CLAUDE.md; it used to cite
+    /// `DrawerMetrics`, which existed for that reason and was deleted on
+    /// 2026-10-01 once its one alias had no readers.
     static var defaultBezel: CGFloat { GridConstants.spacing }
 
     private var outerRadius: CGFloat {

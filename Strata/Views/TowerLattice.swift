@@ -102,6 +102,42 @@ struct TowerLattice: View {
     /// find, too thick to see through — are pinned in `TowerLatticeTests`.
     static let strength: Double = 0.34
 
+    /// **THE SAME 0.34 IS A WHISPER ON WHITE AND A WALL ON BLACK.**
+    ///
+    /// The owner, 2026-10-01: "the lattic doesnt blend in like light mode."
+    /// Measured on the empty Wins page in both appearances, a pane against the
+    /// gutter beside it:
+    ///
+    /// |  | light | dark, before |
+    /// |---|---|---|
+    /// | pane vs gutter | **1.03:1** | **2.91:1** |
+    /// | pane vs the page above the board | **1.00:1** | **2.25:1** |
+    ///
+    /// Three times the contrast, and it read as a grid of grey boxes rather
+    /// than as a surface. The cause is the one thing this whole file is built
+    /// on: the pane is WHITE at an opacity, and white means two completely
+    /// different amounts depending on what is under it. Over a 247 page it
+    /// adds three levels. Over a 40 page it adds seventy three.
+    ///
+    /// So the dark value is derived from the light one's RATIO rather than
+    /// inherited from its number. 0.04 puts a pane at about 53 against a
+    /// gutter at 45, which is 1.08:1: a whisper, as it is in daylight, and
+    /// not the 1.03 exactly because a dark ground carries a small absolute
+    /// difference further and 1.03 there is nothing at all.
+    ///
+    /// **Not `strength` with a multiplier**, because that hides the fact that
+    /// these are two measurements and not one value scaled. `TowerLatticeTests`
+    /// pins the light one between 0.25 and 0.8 and now pins this one too, so
+    /// neither can drift into the other's range.
+    static let strengthDark: Double = 0.04
+
+    /// The pane itself. White at `strength` on a light page, white at
+    /// `strengthDark` on a dark one, so the two appearances match in RATIO
+    /// rather than in opacity. See `strengthDark`.
+    static let pane = Color(uiColor: UIColor { traits in
+        UIColor(white: 1, alpha: traits.userInterfaceStyle == .dark ? strengthDark : strength)
+    })
+
 
     /// **What the surface is worth at the peak of a landing**, over the
     /// resting cells, in the block's own colour.
@@ -294,7 +330,7 @@ struct TowerLattice: View {
         // being that bright. `DayGround` sits lower now, and the panes are the
         // brightest thing on the page again, which is what a sheet lit from
         // behind actually looks like.
-        shape.fill(Color.white.opacity(Self.strength))        .frame(height: height)
+        shape.fill(Self.pane).frame(height: height)
     }
 
     /// **The sheet answering a touch, drawn as the panes the ring is on.**

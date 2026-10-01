@@ -10,12 +10,24 @@
 > disagrees with them, this file is wrong. The values that most often mislead:
 >
 > - **Type:** SF Pro Rounded only, two weights (regular and medium). No Space
->   Grotesk. Semibold is the wordmark's alone. The digits are the owner's
->   `StrataNumerals` font (`Typography.tally`, `Typography.numeral(_:)`).
+>   Grotesk. **Semibold is `MemoriesTitle`'s alone** (corrected 2026-10-01). It
+>   used to be the wordmark's; the wordmark came off on 2026-09-30, and the one
+>   semibold left in the app is set by `DrawnLettering` in `StrataMark.swift`,
+>   because that title stands over a live map and the weight is what replaced
+>   the drawing's stroke. The digits are the owner's own font,
+>   `Shared/Strata-Regular.ttf` through `StrataFont` (`Typography.tally`,
+>   `Typography.numeral(_:)`), which replaced `StrataNumerals.ttf` on 2026-09-16
+>   and carries its digits.
 > - **Spacing:** grid `spacing` 4, and the `gap*` scale (8, 12, 16, 24, 32).
 >   Page margin `horizontalPadding` 16.
 > - **Radius:** `blockCornerRadius` 12 at the reference cell, scaled with the
->   cell; chrome ladder 20 / 12 / 8 / 4.
+>   cell; chrome ladder 20 / 12 / 8 / 4 (`radiusSurface`, `radiusField`,
+>   `radiusControl`, `radiusMark`). The pre-ladder spellings
+>   `cornerRadiusSmall` and `cornerRadiusMicro` are **deleted** (2026-10-01);
+>   they were a second name for the 8 and the 4. One exception the owner has
+>   looked at and kept: a single block in the Wins tab is
+>   `GridConstants.cornerRadius` 8, beside a merged run at 12, and that is a
+>   decision rather than drift.
 > - **Shadow:** block shadow opacity 0.07 at radius 7, y 2 (0.20 in dark).
 >   Chrome casts none.
 > - **Blocks:** one flat colour, lit by a 1.4pt rim that is brightest along the
@@ -35,7 +47,14 @@
 
 ### Category Palettes
 
-Each category has 6 color roles. All text on category fills is white.
+Each category has 6 color roles. All text on category fills is white, and that
+is now a **settled decision rather than an unexamined default** (2026-10-01):
+the owner was sent the tower rendered in white and in a dark ink, side by side,
+with the measurements on it, and chose white. It fails the contrast guideline
+and he knows: white measures 1.71:1 on the orange against a 4.5 floor, dark
+measures 6.00 to 9.77. The argument, the per-category table and the three fixes
+that do not work are on `CategoryStyle.text` in
+`Strata/Models/CategoryColors.swift`. Do not re-open it from the number alone.
 
 | Category | Base | Light Tint | Dark Shade | Border | Glow Opacity | Icon (SF Symbol) |
 |----------|------|------------|------------|--------|-------------|-------------------|

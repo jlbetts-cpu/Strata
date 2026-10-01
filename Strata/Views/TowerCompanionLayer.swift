@@ -390,8 +390,9 @@ struct TowerCompanionLayer<Cells: Sequence>: View where Cells.Element == TowerCo
 ///
 /// At file scope rather than nested in the generic runner: a type nested in a
 /// generic picks the generic up (`Runner<Cells>.Life`), and what that costs is
-/// written up in `DrawerMetrics` (it was `DrawerDetent`, which went with the
-/// drawer on 2026-10-01).
+/// written up in CLAUDE.md under the Memories drawer, where `DrawerDetent` paid
+/// for it. It cited `DrawerMetrics` until that file was deleted too, on
+/// 2026-10-01.
 @MainActor
 private final class TowerCompanionLife {
     var sim = TowerCompanionSim(halfWidth: TowerCompanion.side * TowerCompanion.inkHalfWidth,

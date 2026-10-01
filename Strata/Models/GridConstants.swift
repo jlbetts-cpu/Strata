@@ -131,10 +131,23 @@ enum GridConstants {
     // they are a separate axis and changing them risks legibility.
     /// Input backgrounds and wells (was 0.04 and 0.05 — the same intent twice).
     static let fillWell = Color.primary.opacity(0.04)
-    /// Tracks, capsule grounds, unselected states.
-    static let fillTrack = Color.primary.opacity(0.06)
     /// Hairlines and card strokes.
     static let fillHairline = Color.primary.opacity(0.08)
+
+    // **`fillTrack` (0.06) is deleted** (2026-10-01), zero call sites. It went
+    // to zero when the drawer's handle capsule did, and the question it left is
+    // whether a palette of three with one unused is a hole or a hazard. It is a
+    // hazard, for a measured reason: the app's one remaining track is
+    // `EtherealControls.track`, and that file records WHY it is opaque rather
+    // than 6% ink: "a translucent one over a sheet that is itself translucent
+    // compounds into a grey nobody chose", which cost that file two wrong
+    // measurements to find. A token named for tracks would have handed the next
+    // person exactly the bug it had already paid for.
+    //
+    // `docs/design-audit.md` had this open under "Still open": `radiusField` and
+    // `fillTrack` are "a second vocabulary for things the block components now
+    // cover, and they should be audited before anything new uses them." This is
+    // that audit. `radiusField` keeps its caller; this one had none.
     static let horizontalPadding: CGFloat = 16
     /// The darkest a caption's veil over a photograph is allowed to get.
     ///
@@ -201,19 +214,35 @@ enum GridConstants {
     /// header sits on, which is the 9.25pt the correction subtracted.
     static let headerArtworkTopPadding: CGFloat = headerCapTop
     static let headerTopPadding: CGFloat = 12
-    static let headerBottomPadding: CGFloat = 8
-    static let headerDividerOpacity: Double = 0.06
     static let headerDividerHeight: CGFloat = 0.5
-    static let timelineGutterWidth: CGFloat = 56
 
-    // Minimum scaffold blocks for new users
-    static let minimumScaffoldBlocks = 12
+    // **`headerBottomPadding` (8), `headerDividerOpacity` (0.06),
+    // `timelineGutterWidth` (56) and `minimumScaffoldBlocks` (12) are deleted**
+    // (2026-10-01), zero call sites each.
+    //
+    // The first is `gapTight` under another name. The second had no divider to
+    // draw: no header in the app has one, and `headerDividerHeight` survives
+    // only because `ProfileView` borrows its flat 0.5 as a chart gridline width.
+    // The gutter and the scaffold both belong to screens that no longer exist:
+    // the Today/timeline tab (`docs/design-system.md` §8.2) and a starter tower
+    // the app does not build. Their values are in `tasks/brand.md`.
 
-    // MARK: - Stroke
-    static let strokeWidth: CGFloat = 2.5
+    // **`strokeWidth` (2.5) is deleted** (2026-10-01), zero call sites. It is
+    // both the pre-ladder spelling AND a fourth value on a three-rung ladder
+    // whose rungs are all live (`strokeThin` 1.0, `strokeDefault` 1.5,
+    // `strokeMedium` 2.0). Its job was the block's border glow
+    // (`tasks/brand.md`), and the border went.
 
     // MARK: - Animation Springs
-    static let dropSquashSpring = Animation.spring(response: 0.12, dampingFraction: 0.60)
+    //
+    // **`dropSquashSpring` (0.12 / 0.60) is deleted** (2026-10-01), zero call
+    // sites, and the thing that replaced it is a better statement of the same
+    // intent: the squash phase is reached by `dropFallCurve.speed(1 /
+    // fallDuration)` in `TowerAnimationCoordinator`, so the compression arrives
+    // ON the fall's own constant-acceleration curve. A spring there would have
+    // eased the block into its landing, which is the one thing a falling object
+    // does not do. `dropStretchSpring` and `dropSettleSpring` keep their callers
+    // because they run AFTER the landing, where a spring is right.
     static let dropStretchSpring = Animation.spring(response: 0.18, dampingFraction: 0.65)
     static let dropSettleSpring = Animation.spring(response: 0.28, dampingFraction: 0.78)
     static let rippleCompressSpring = Animation.spring(response: 0.12, dampingFraction: 0.55)
@@ -236,9 +265,13 @@ enum GridConstants {
     static let shadowOpacity: Double = 0.10
 
     // MARK: - Adaptive Shadow
-    static func adaptiveShadowOpacity(_ base: Double, colorScheme: ColorScheme) -> Double {
-        colorScheme == .dark ? min(base * 3.5, 0.60) : base
-    }
+    //
+    // **`adaptiveShadowOpacity(_:colorScheme:)` is deleted** (2026-10-01), zero
+    // call sites. `Elevation.opacity(in:)` is this function, settled: one factor
+    // and one cap for all three rungs, `base * 4` capped at 0.45 against this
+    // one's `* 3.5` capped at 0.60. Elevation's own doc argues why there is one
+    // factor rather than a hand-written dark value per rung, which is the part
+    // worth keeping. The numbers here are recorded in `docs/design-system.md` §4.
 
     // MARK: - Tap Bounce
     static let tapSquashSpring = Animation.spring(duration: 0.06, bounce: 0.0)
@@ -291,8 +324,6 @@ enum GridConstants {
     static let heavySettle = Animation.spring(response: 0.28, dampingFraction: 0.80)
     /// Small celebratory bounces
     static let elasticPop = Animation.spring(response: 0.25, dampingFraction: 0.50)
-    /// Bars, rings filling
-    static let progressFill = Animation.spring(response: 0.25, dampingFraction: 0.70)
     /// Major layout changes (filter transitions, block expansion)
     static let layoutReflow = Animation.spring(response: 0.55, dampingFraction: 0.90)
     /// Non-spatial transitions (cross-fades)
@@ -302,8 +333,17 @@ enum GridConstants {
     /// to read as a change rather than a cut, short enough to be finished by
     /// the time your eye has moved to it.
     static let mapFade = Animation.easeOut(duration: 0.3)
-    /// Cascade reveal — new blocks dropping into tower
-    static let cascadeReveal = Animation.spring(response: 0.50, dampingFraction: 0.65)
+
+    // **`progressFill` (0.25 / 0.70) and `cascadeReveal` (0.50 / 0.65) are
+    // deleted** (2026-10-01), zero call sites each.
+    //
+    // `progressFill` was for "bars, rings filling", and the app has one: the
+    // export ring in `ReplayView`, which follows a progress number with no
+    // explicit curve. `cascadeReveal` was the spring new blocks arrived on
+    // before the drop became real physics; `dropGravity`, `dropDurationRange`
+    // and `dropFallCurve` now say the same thing with a model a viewer already
+    // knows, and `MainAppView` records the rule that replaced it: "the fall is
+    // the whole of its entrance."
 
     // MARK: - Named curves that used to be inline
     //
@@ -348,12 +388,23 @@ enum GridConstants {
     static let motionSnappy = Animation.spring(response: 0.25, dampingFraction: 0.82)
     /// Content transitions, schedule confirm, row state changes
     static let motionSmooth = Animation.spring(response: 0.22, dampingFraction: 0.78)
-    /// Container changes, collapse/expand
-    static let motionGentle = Animation.spring(response: 0.40, dampingFraction: 0.85)
-    /// Completion settle, end-of-sequence
-    static let motionSettle = Animation.spring(response: 0.28, dampingFraction: 0.90)
-    /// Reduced motion fallback
-    static let motionReduced = Animation.easeOut(duration: 0.05)
+
+    // **`motionGentle` (0.40 / 0.85), `motionSettle` (0.28 / 0.90) and
+    // `motionReduced` (easeOut 0.05) are deleted** (2026-10-01), zero call sites
+    // each. All three are a second answer to a question the ladder had already
+    // settled, which is how a motion vocabulary stops being one.
+    //
+    // `motionGentle` was for container changes; `layoutReflow` (0.55 / 0.90) has
+    // six callers doing exactly that. `motionSettle` was a THIRD spring at
+    // response 0.28, beside `naturalSettle` (0.78) and `heavySettle` (0.80),
+    // both live, and three dampings a fifth of a point apart is not a ladder.
+    //
+    // `motionReduced` is the one worth naming, because it would have been
+    // reached for: the app's reduce-motion convention is already written out
+    // across about twenty call sites and it is `nil` / `.none` for anything that
+    // should not move, and `crossFade` where the change still has to be seen.
+    // A 50ms ease is neither: it is a very fast animation, which is what
+    // Reduce Motion is asking the app not to do.
 
     // MARK: - Heads
 
@@ -464,11 +515,12 @@ enum GridConstants {
     /// One beat of a nod or a shake: fast enough to read as a gesture,
     /// critically damped.
     static let headNod = Animation.spring(response: 0.14, dampingFraction: 0.9)
-    /// Fill sweep duration
-    static let fillSweepDuration: TimeInterval = 0.4
 
-    /// Toggle/picker transitions (NewHabitMenu, PlanItemRow)
-    static let toggleSwitch = Animation.spring(response: 0.30, dampingFraction: 0.80)
+    // **`fillSweepDuration` (0.4) and `toggleSwitch` (0.30 / 0.80) are deleted**
+    // (2026-10-01), zero call sites. `toggleSwitch`'s doc named its own two
+    // callers, `NewHabitMenu` and `PlanItemRow`, and neither exists; a token that
+    // names the screens it serves is a token you can check, and this one failed
+    // its own check. The fill sweep's three tiers go below for the same reason.
 
     // MARK: - Slot resize
     /// The snap when the next slot changes size under your finger.
@@ -505,12 +557,12 @@ enum GridConstants {
     /// tower is the thing on this screen worth looking at, and the count is a
     /// caption for it.
     static let tallyNumeral: CGFloat = Typography.screenTitleSize
-    /// The word beside it. Sized with the numeral rather than left at a body
-    /// size, or the pair stops reading as one object as the numeral grows.
-    /// The word beside the tally used to be sized here. It uses
-    /// `Typography.screenSubtitle` now, like every other line under a title,
-    /// so it scales with Dynamic Type.
-    static let tallyWord: CGFloat = 18
+
+    // **`tallyWord` (18) is deleted** (2026-10-01), zero call sites, and its own
+    // doc already said why: the word beside the tally uses
+    // `Typography.screenSubtitle` now, like every other line under a title, so it
+    // scales with Dynamic Type. A fixed point size cannot, which is the whole
+    // reason it stopped being used. Keeping the number invites it back.
 
     // MARK: - The tower's dance
 
@@ -636,35 +688,57 @@ enum GridConstants {
                            constant: CGFloat = 0.55) -> CGFloat {
         (overshoot * dimension * constant) / (dimension + constant * abs(overshoot))
     }
-    /// Skeleton pop-in during loading
-    static let skeletonPop = Animation.spring(response: 0.35, dampingFraction: 0.65)
+    // **`skeletonPop` (0.35 / 0.65) is deleted** (2026-10-01), zero call sites,
+    // and `SkeletonBlockView` is where the reason is written at length: the
+    // skeleton is on screen for about half a second, nothing in this app animates
+    // because a screen appeared, and anything that moved there muddied the
+    // handover as the real blocks faded in over the top. "What is left says the
+    // true thing without moving."
 
     // MARK: - Card Detail (Tower Claude)
 
     /// Card open/close morph — snappy, no overshoot (Apple .snappy damping)
+    ///
+    /// The one survivor of the expansion card: it is the sheet's open and close
+    /// now, in `MainAppView`, paired with `crossFade` under Reduce Motion.
     static let cardMorph = Animation.spring(response: 0.35, dampingFraction: 0.86)
-    /// Card content fade-in — slightly softer for staggered entrance
-    static let cardReveal = Animation.spring(response: 0.40, dampingFraction: 0.88)
-    /// Expansion card corner radius
-    static let cardCornerRadius: CGFloat = 20
-    /// Expansion card internal content padding (Apple HIG expanded card standard)
-    static let cardContentPadding: CGFloat = 20
-    /// Expansion card content group spacing
-    static let cardContentSpacing: CGFloat = 16
+
+    // **`cardReveal` (0.40 / 0.88), `cardCornerRadius` (20),
+    // `cardContentPadding` (20) and `cardContentSpacing` (16) are deleted**
+    // (2026-10-01), zero call sites each. They are `BlockExpansionCard`'s, and
+    // `MainAppView` records why that card went: "editing a win asks the same four
+    // questions as adding one, so it should be the same sheet with the answers
+    // filled in." Two of the four are rungs that already exist under better
+    // names: `radiusSurface` is the same 20 for "surfaces that become the
+    // environment", `gapLabel` the same 16, and the 20pt padding is on no
+    // spacing ladder this app keeps. `docs/design-system.md` §9.3 still describes
+    // the card.
 
     // MARK: - Filmstrip
-    static let filmstripThumbnailSize: CGFloat = 56
-    static let filmstripSpacing: CGFloat = 8
+    //
+    // **`filmstripThumbnailSize` (56) and `filmstripSpacing` (8) are deleted**
+    // (2026-10-01), zero call sites. The app has a filmstrip, `Filmstrip` in
+    // `PhotoViewer`, and it rejects both numbers deliberately and in writing.
+    // Its card is 46 x 60, portrait, "because a photograph is more often portrait
+    // than not and a square frame crops the subject out of it", and its gap is
+    // `gapTight` itself rather than a copy of it. A token whose only possible
+    // caller has written down why it does not want it is a trap.
 
     // MARK: - Icon Sizes
-    static let iconSmall: CGFloat = 8      // badges, chevrons, photo indicators
     static let iconMedium: CGFloat = 12    // next-up pill icons
     static let iconCategory: CGFloat = 13  // category icons on blocks
     static let iconAction: CGFloat = 14    // action buttons (close X, replace photo)
     static let iconToolbar: CGFloat = 17   // toolbar icons (gear)
-    static let iconEmptyState: CGFloat = 36 // empty state hero icons
-    static let iconHero: CGFloat = 40      // large hero elements
     static let iconChevron: CGFloat = 10   // next-up pill chevron
+
+    // **`iconSmall` (8), `iconEmptyState` (36) and `iconHero` (40) are deleted**
+    // (2026-10-01), zero call sites. 8 sat below the live floor (`iconChevron`,
+    // 10) and nothing in the app draws a glyph that small. The other two are
+    // empty-state art, and there is none left: every empty state in the app is
+    // type on its own margin. `MemoriesView` holds the reason: "the art is
+    // deleted rather than redrawn: the real calendar sits under this copy and
+    // shows a real empty month, which is a better promise of the thing than a
+    // drawing of a different thing."
 
     // MARK: - Block Patina (Perfect-Day Gold Tint)
     static let patinaMaxOpacity: Double = 0.15
@@ -672,35 +746,73 @@ enum GridConstants {
     static let patinaGold = Color(red: 0.95, green: 0.80, blue: 0.40)
 
     // MARK: - Celebration (Phase 2)
-    static let celebrationBurst = Animation.spring(response: 0.30, dampingFraction: 0.60)
     static let confettiDuration: TimeInterval = 2.0
-    static let confettiParticleCount: Int = 24
-    static let blockFlyaway = Animation.spring(response: 0.55, dampingFraction: 0.70)
+
+    // **`celebrationBurst` (0.30 / 0.60), `blockFlyaway` (0.55 / 0.70) and
+    // `confettiParticleCount` (24) are deleted** (2026-10-01), zero call sites.
+    //
+    // The celebration that ships is `AllClearCelebration`, a `Canvas` driven by
+    // `confettiDuration` above; it has no burst spring and nothing flies away.
+    // The particle count is the interesting one, because the built file arrives at
+    // the SAME 24 and refuses to write it down as 24: `perColor = 4`, times the
+    // completed categories, "so the burst is the size of the day: one kind of win
+    // throws less than six kinds did." A flat count would make a one-category day
+    // and a six-category day look identical, which is the fact the view exists to
+    // show. `docs/design-system.md` §5 still tabulates all three.
 
     // MARK: - Momentum Escalation
-    static let fillSweepFast: TimeInterval = 0.28
-    static let fillSweepMedium: TimeInterval = 0.32
-    static let fillSweepEarly: TimeInterval = 0.36
+    //
+    // **`fillSweepFast` (0.28), `fillSweepMedium` (0.32) and `fillSweepEarly`
+    // (0.36) are deleted** (2026-10-01), zero call sites. Nothing in the app
+    // sweeps a fill, and nothing escalates with momentum. `docs/design-system.md`
+    // §5 keeps the three tiers if the idea ever comes back.
 
     // MARK: - Spatial Tower (Phase 3)
-    static let depthShadowScale: CGFloat = 0.2      // Reduced: stronger base shadow needs less accumulation
-    static let depthShadowYScale: CGFloat = 0.10
-    static let breathingCycleDuration: TimeInterval = 3.0
-    static let breathingIntensity: Double = 0.015
-    static let ghostBlockOpacity: Double = 0.06
-    static let ghostBlockPulseMin: Double = 0.04
-    static let ghostBlockPulseMax: Double = 0.10
     static let ghostBlockDashLength: CGFloat = 4
 
-    // MARK: - Connected Flow (Phase 4)
-    static let staggerInterval: TimeInterval = 0.04
-    static let staggerMax: TimeInterval = 0.4
-    static let entranceOffset: CGFloat = 12
-    static let ambientGlowCycle: TimeInterval = 2.5
-    static let ambientGlowIntensity: Double = 0.08
+    // **`breathingCycleDuration` (3.0), `breathingIntensity` (0.015),
+    // `ambientGlowCycle` (2.5) and `ambientGlowIntensity` (0.08) are deleted**
+    // (2026-10-01), zero call sites, and they are not merely unused: they are
+    // forbidden. `docs/design-system-future.md` §8 refuses, in as many words, to
+    // "animate anything on appearance, or loop an animation", and all four are
+    // `repeatForever` parameters. `SkeletonBlockView` records the one time a
+    // breath was actually built and what it cost.
+    //
+    // **`ghostBlockOpacity` (0.06), `ghostBlockPulseMin` (0.04) and
+    // `ghostBlockPulseMax` (0.10) go with them**, same reason and the same
+    // measurement: `ReplayView.ReplayLoadingSlot` is the one thing that pulsed,
+    // and it stopped because the slot is on screen for less than one cycle of its
+    // own breath, "so what was actually seen was a slot at some arbitrary point of
+    // a fade." It draws at full strength now. `ghostBlockDashLength` stays, with two
+    // callers, and a dash is a shape, not a loop.
 
-    // MARK: - UI Elements
-    // MARK: - Block Shadow (post-border-removal, stronger)
+    // MARK: - Connected Flow (Phase 4)
+
+    /// The ceiling on a newly dropped block's stagger delay, and the span the
+    /// delays are spread across.
+    ///
+    /// **Read by `TowerViewModel`, which used to type it out twice.** The
+    /// pre-computed cache is `min(pow(index / count, 0.5) * staggerMax,
+    /// staggerMax)`: the square root is what makes the wave decelerate, so the
+    /// first blocks of a batch are further apart than the last.
+    static let staggerMax: TimeInterval = 0.4
+
+    // **`staggerInterval` (0.04) and `entranceOffset` (12) are deleted**
+    // (2026-10-01), zero call sites. The stagger that ships is not an interval at
+    // all: it is the normalised power curve above, spread over `staggerMax`, so
+    // a per-block interval is a model the code does not use. The row-to-row gap
+    // that IS an interval is `danceRowDelay` (0.045), and it is live.
+    //
+    // `entranceOffset` was 12pt of slide on a block appearing. There is none:
+    // `MainAppView` is explicit that "the fall is the whole of its entrance", and
+    // the distance a block comes from is `dropRunway` and `fallStartOffset`, both
+    // of which start it off screen rather than 12pt out of place.
+
+    // Two empty section headings go as well, 2026-10-01: "UI Elements" had
+    // nothing under it before this pass, and "Block Shadow (post-border-removal,
+    // stronger)" has nothing under it now that the four `blockShadow*` constants
+    // are gone. A heading with no section is a map of a room that is not there.
+
     // MARK: - Block Rim (Figma Apollo 248:14)
     //
     // The block already carried a frosted band and a flat white strip along the
@@ -718,10 +830,12 @@ enum GridConstants {
     /// Darkening at the top edge of a block that is carrying another one.
     /// Subtle on purpose: it should be felt as weight, not seen as a stripe.
     static let blockContactShade: Double = 0.11
-    /// An unnamed win's surface. White, and translucent enough that the warm
-    /// ground reads through it — the block is there without claiming a colour
-    /// it has not been given.
-    static let blockUnnamedOpacity: Double = 0.52
+    // **`blockUnnamedOpacity` (0.52) is deleted** (2026-10-01), zero call sites,
+    // and its own doc is now wrong twice over. An unnamed win does not get a white
+    // translucent surface: it draws in its category's colour like every other
+    // block, and `BlockContent.isUnnamed` decides one thing only, whether a title
+    // is drawn: "'Win' is not a name, it is the absence of one." The ground it
+    // was translucent against is not warm any more either.
     /// Blur inside the band. Figma blurs 10px on a 562pt block — 1.78% of width.
     static let blockRimBlur: CGFloat = 3.0
     /// Fraction of block height where the frosted band begins (Figma's 145pt of 565).
@@ -740,65 +854,94 @@ enum GridConstants {
     static let blockScrimOpacity: Double = 0.10
 
     // MARK: - Ghost (incomplete) tier
-    /// The rim carries the category colour instead of white, and has to define
-    /// the shape against a near-white ground on its own, so it is heavier than
-    /// the filled block's 0.8pt white rim.
-    static let blockGhostRimWidth: CGFloat = 1.5
-    static let blockGhostRimOpacity: Double = 0.45
+    //
+    // **`blockGhostRimWidth` (1.5) and `blockGhostRimOpacity` (0.45) are
+    // deleted** (2026-10-01), zero call sites. The tier they belonged to, a
+    // block outlined in its own category colour because the habit was incomplete,
+    // went with the Today/timeline tab. The app has exactly one ghost of a
+    // block left, the plan's empty bullet, and it is NOT category-coloured and
+    // NOT these numbers: `PlanBullet.outlineInk` and
+    // `PlanBullet.outlineWidth(forSide:)`, where the width is derived from
+    // `blockRimWidth` so it cannot drift from the real rim, and the ink is
+    // `slotInk` at 0.60 because this exact pair of literals measured **2.13:1**
+    // against the sheet where the real bullet measures 3.31. That is the record
+    // worth keeping, and it is in the file that draws the shape.
 
-    /// Softer, and lower (2026-09-09, owner's call).
-    ///
-    /// A block is a lit plane, not an object thrown onto a table. At 0.12 with
-    /// a 5pt radius every block carried a visible dark edge under it, and
-    /// forty of them on one screen add up to a page that reads as heavy rather
-    /// than as clean. Wider and fainter reads as air under the block instead
-    /// of a drop shadow on it — which is the difference between "structured"
-    /// and "stuck on".
-    ///
-    /// **Softened again on 2026-09-29 for the ethereal read the owner asked
-    /// for**: "the shadows are more subtle creating that ethereal feel."
-    ///
-    /// Wider and fainter, which is the same direction the note above already
-    /// argues and simply further along it. A shadow says a block is a solid
-    /// thing resting on the page; the point of this pass is that the page is now
-    /// a sheet with light behind it, and something resting on a lit sheet casts
-    /// almost nothing. The radius grows as the opacity falls so the block keeps
-    /// its footing — a shadow that only gets fainter starts to look like a
-    /// rendering mistake, where one that gets fainter AND wider reads as air.
-    ///
-    /// Dark mode falls proportionally rather than to the same number: on a
-    /// charcoal ground a shadow is most of what separates a block from the page,
-    /// and taking it to 0.07 there would flatten the tower outright.
-    static let blockShadowRadius: CGFloat = 14
-    static let blockShadowY: CGFloat = 2
-    static let blockShadowOpacity: Double = 0.032
-    static let blockShadowOpacityDark: Double = 0.13
+    // **`blockShadowRadius` (14), `blockShadowY` (2), `blockShadowOpacity`
+    // (0.032) and `blockShadowOpacityDark` (0.13) are deleted** (2026-10-01),
+    // zero call sites. `Elevation.resting` IS these numbers, 0.032 at radius 14,
+    // y 2, and its doc says so: "these are the numbers the owner settled the
+    // blocks on, kept exactly." Dark mode is `opacity * 4` capped at 0.45, which
+    // lands on 0.128 against the 0.13 that was hand-written here.
+    //
+    // **The history below is kept because it is the argument, not the value**,
+    // and it is the argument somebody will want the next time a shadow is asked
+    // to be stronger. It belongs with `Elevation.resting`, and should move there
+    // the next time that file is free to edit.
+    //
+    // Softer, and lower (2026-09-09, owner's call).
+    //
+    // A block is a lit plane, not an object thrown onto a table. At 0.12 with
+    // a 5pt radius every block carried a visible dark edge under it, and
+    // forty of them on one screen add up to a page that reads as heavy rather
+    // than as clean. Wider and fainter reads as air under the block instead
+    // of a drop shadow on it — which is the difference between "structured"
+    // and "stuck on".
+    //
+    // **Softened again on 2026-09-29 for the ethereal read the owner asked
+    // for**: "the shadows are more subtle creating that ethereal feel."
+    //
+    // Wider and fainter, which is the same direction the note above already
+    // argues and simply further along it. A shadow says a block is a solid
+    // thing resting on the page; the point of this pass is that the page is now
+    // a sheet with light behind it, and something resting on a lit sheet casts
+    // almost nothing. The radius grows as the opacity falls so the block keeps
+    // its footing — a shadow that only gets fainter starts to look like a
+    // rendering mistake, where one that gets fainter AND wider reads as air.
+    //
+    // Dark mode falls proportionally rather than to the same number: on a
+    // charcoal ground a shadow is most of what separates a block from the page,
+    // and taking it to 0.07 there would flatten the tower outright.
 
-    static let checkCircleSize: CGFloat = 24
+    // **`checkCircleSize` (24) is deleted** (2026-10-01), zero call sites, and
+    // the circle is the part that went: `PlanSheet` records the owner's own
+    // objection, "why is there a circle dotted when it should be a square", so
+    // what a plan line carries now is a block. The 24 is alive as
+    // `PlanBullet.side` and `PlanSheet.bulletSide`, which is where it has to be,
+    // because the ghost beside it is sized off the same number so that the outline
+    // is the exact silhouette of what lands in it.
 
     // MARK: - Height-Progressive Shadow (#12)
-    /// Cap shadow radius at high row counts to prevent oversized shadows
-    static let maxDepthShadowRadius: CGFloat = 12
-
-    static func depthShadow(row: Int) -> (radius: CGFloat, y: CGFloat) {
-        let r = min(shadowRadius + CGFloat(row) * depthShadowScale, maxDepthShadowRadius)
-        let y = shadowY + CGFloat(row) * depthShadowYScale
-        return (r, y)
-    }
-
-    /// Height-progressive shadow opacity: higher blocks cast slightly stronger shadows (#12)
-    static func depthShadowOpacity(row: Int) -> Double {
-        let base: Double = 0.04
-        return min(base + Double(row) * 0.001, 0.06)
-    }
+    //
+    // **`depthShadow(row:)`, `depthShadowOpacity(row:)`, `depthShadowScale`
+    // (0.2), `depthShadowYScale` (0.10) and `maxDepthShadowRadius` (12) are
+    // deleted** (2026-10-01). The two functions had zero call sites and the three
+    // constants had no reader but those functions, so the whole mechanism went in
+    // one piece.
+    //
+    // It made a block's shadow grow with its row, which `Elevation` deliberately
+    // does not: there are three rungs, and which one a thing is on is a fact
+    // about the thing, not about how high up the page it happens to sit. Height
+    // reads from the tower, not from forty shadows each slightly different.
+    // `shadowRadius`, `shadowY` and `shadowOpacity` stay: they have callers of
+    // their own. `docs/design-system.md` §4 keeps the formula.
 
     // MARK: - Semantic Opacity (Today Screen Overhaul Batch 10)
-    static let opacityGhost: Double = 0.06       // Backgrounds, decorative fills
-    static let opacitySubtle: Double = 0.12      // Borders, dividers, secondary bg
-    static let opacityMuted: Double = 0.25       // De-emphasized, disabled
-    static let opacitySecondary: Double = 0.50   // Secondary text, icons
-    static let opacityPrimary: Double = 0.70     // Primary text on colored bg
-    static let opacityFull: Double = 1.0         // Full strength
+    //
+    // **`opacityGhost` (0.06), `opacitySubtle` (0.12), `opacityMuted` (0.25),
+    // `opacitySecondary` (0.50), `opacityPrimary` (0.70) and `opacityFull` (1.0)
+    // are deleted** (2026-10-01), zero call sites, and not one of those six
+    // numbers appears inline anywhere in the app either: the job went to tokens
+    // that can do something a bare opacity cannot.
+    //
+    // A number is applied to whatever ink it is handed, and in this app that ink
+    // has to invert with the appearance. `AppColors.inkPrimary` /
+    // `inkSecondary` / `inkTertiary` / `inkQuiet` are adaptive AND measured
+    // against the ground they land on; the neutral fills above are the same idea
+    // for surfaces. `PlanBullet` records what the other way costs: a fixed dark
+    // ink at 0.22 measured 1.47:1 on the light page and 1.08:1 on the dark one,
+    // "dark ink on a dark page, which is no contrast at all rather than low
+    // contrast." The table is in `docs/design-system.md` §1.
 
     // MARK: - Stroke Widths
     static let strokeThin: CGFloat = 1.0

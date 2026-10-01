@@ -158,8 +158,12 @@ enum Typography {
 // the `S` from, offline, and `Jaro-OFL.txt` ships beside it because the SIL
 // licence requires it.
 //
-// **Its `UIAppFonts` entry is left alone, and it is now registering a face no
-// Swift reads.** `Info.plist:7` loads Jaro.ttf at every launch; the only reader
-// was this enum. Dropping that line is the remaining 145 KB and needs a launch
-// to confirm nothing in the asset catalogue resolves through it, which this pass
-// could not run.
+// **Its `UIAppFonts` entry is gone, and so is the 145 KB** (2026-10-01). The
+// registration is off `Info.plist`, where the proof is written out, and the TTF
+// is excluded from the app target by a membership exception in
+// `project.pbxproj`, which the plist alone would not have done: the target is a
+// file-system-synchronized group, so every non-source file under `Strata/`
+// ships unless it is excepted. Nothing outside Swift named the family: no
+// `.custom(`, no `UIFont(name:)` beyond `StrataFont`'s own two, no .xib or
+// .storyboard in the repo, nothing in the asset catalogue, and the widget's own
+// plist registers Strata-Regular alone.

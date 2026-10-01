@@ -1,5 +1,42 @@
 # Strata: one object, spoken in the owner's type
 
+> **ITS CENTRAL RECOMMENDATION WAS REVERSED BY THE OWNER. Read this note before
+> the plan** (added 2026-10-01).
+>
+> This file argues that the owner's drawn lettering is the spine of the app and
+> should be finished: more drawn words, one per screen, on the header line. The
+> owner went the other way, twice.
+>
+> - **2026-09-23**, on the walkthrough: "the logo is really not necessary". The
+>   wordmark came off every onboarding page.
+> - **2026-09-30**, everywhere: "keep it off everywhere for now, since we are
+>   going to change the name anyway." Every drawn letterform came off, including
+>   `MemoriesTitle`, which is the one this file was most right about and which
+>   WON its photographed comparison against the font. It is a `Text` set
+>   semibold now, and the 14.5% extra stem that semibold buys is this file's
+>   "about a fifth lighter" measured. The `StrataWordmark` view is deleted; its
+>   imageset and `brand/strata-wordmark-owner.svg` are still in the tree with
+>   nothing reading them.
+>
+> **"For now" is load-bearing**: the wordmark is parked on the rename, not
+> refuted. Do not start the rename in order to revive it.
+>
+> What else landed from this file, so nobody does it twice: `JaroFont` is
+> deleted and `Jaro.ttf` is out of `UIAppFonts` (the file itself is still in
+> `Strata/Resources/`); the Memories drawer audited in sections 4, 5 and 6 was
+> removed on 2026-09-30, so every `MemoriesDrawer.swift` line reference below is
+> dead; the map's scrim is deleted, with an arithmetic proof on
+> `MemoriesMapView` that no uniform wash can raise any contrast ratio on any
+> ground at any alpha; `MemoriesView.titleRow`, which section 3 tells new titles
+> to copy, is gone, so copy `MemoriesStill.titleRow` instead; and
+> `-strataOpenDrawer` is a no-op. `ShareTowerCard` still carries no type, which
+> this file recommended, but it no longer carries its own tower either: it draws
+> `StaticTowerView`.
+>
+> The shadow rule in section 5 is the part that survived whole, and it is in
+> `CLAUDE.md` now. `docs/screen-audit.md` is the current measured state of the
+> app.
+
 Research and build plan, 2026-09-16. Read against
 `/Users/jaydenbetts/StrataWork/owner-head` at `b252e01` (clean worktree).
 Nothing was edited, built or run. Line numbers are from that commit.

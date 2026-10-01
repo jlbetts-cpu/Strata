@@ -679,8 +679,11 @@ long dashes, nothing that sounds like surveillance). Examples:
 - People: Called someone · Had dinner with friends · Sent a kind message · Checked in on someone
 - Calm: Took a slow breath · Journalled · Sat outside · Put my phone away
 
-The existing `CategorySuggestionEngine` keywords are the seed for matching a
-person's own titles to an area.
+~~The existing `CategorySuggestionEngine` keywords are the seed for matching a
+person's own titles to an area.~~ **`CategorySuggestionEngine` is deleted**
+(2026-10-01), along with `HighlightingTextField`, `InputParser` and
+`ParsedInput`: zero call sites between them. There is no keyword seed in the app
+any more, so if this section is built the list has to come back with it.
 
 ### 6.5 Privacy
 

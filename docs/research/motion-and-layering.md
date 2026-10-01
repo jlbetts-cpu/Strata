@@ -1,5 +1,22 @@
 # Strata: a motion and layering system
 
+> **THE MEMORIES DRAWER IS GONE, AND SO IS THE FLAG THIS FILE TELLS YOU TO
+> REPRODUCE WITH** (added 2026-10-01). The drawer was removed on 2026-09-30:
+> the page IS the Memories screen now and the map is a button on it. Every
+> `MemoriesDrawer.swift:NNN` reference below is dead, including the drawer
+> handle in sections 6 and the shadow audited at `:90`.
+>
+> **`-strataOpenDrawer` is a silent no-op**, not an error. Any recipe here that
+> passes it will launch, screenshot the wrong screen, and look like it worked.
+> `DebugHarness.openDrawer` is deleted and five UI tests still pass the flag;
+> those launch arguments are stale, not broken.
+>
+> The motion lessons are not void. What they were built on is in
+> `MemoriesView.reloadReplays`, which keeps the measurement the drawer's
+> prebuild existed for: `ImageRenderer` is 1.27s on the main actor, so it must
+> never land beside a map's first frames, and one check for quiet is not enough
+> because the image store empties between landings.
+
 Research and build plan, 2026-09-15. Read against
 `/Users/jaydenbetts/StrataWork/owner-head` at `fad9c51` (clean worktree).
 

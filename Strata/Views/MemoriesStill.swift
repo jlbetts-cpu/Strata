@@ -74,10 +74,11 @@ struct MemoriesStill: View {
 
     /// The name of the screen, and the two controls that live opposite it.
     ///
-    /// Top-aligned with the buttons offset onto the title's cap, which is what
-    /// `MemoriesView.titleRow` does and for the reason CLAUDE.md records: a
-    /// drawn title is only as tall as its cap, so a centre rule would hang the
-    /// row off the 44pt buttons and drop the word below the line.
+    /// Top-aligned with the buttons offset onto the title's cap, for the reason
+    /// CLAUDE.md records: a drawn title is only as tall as its cap, so a centre
+    /// rule would hang the row off the 44pt buttons and drop the word below the
+    /// line. This used to cite `MemoriesView.titleRow`, which has gone; the
+    /// rule is in CLAUDE.md and this is the copy of it that still draws.
     private var titleRow: some View {
         HStack(alignment: .top, spacing: GridConstants.gapTight * s) {
             MemoriesTitle(size: Typography.screenTitleCap * s,

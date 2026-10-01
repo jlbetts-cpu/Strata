@@ -246,7 +246,12 @@ final class TowerViewModel {
             for (index, block) in sortedNew.enumerated() {
                 let normalizedIndex = Double(index) / Double(count)
                 let decelerated = pow(normalizedIndex, 0.5)
-                staggerDelayCache[block.id] = min(decelerated * 0.4, 0.4)
+                // `staggerMax`, twice, where the number was typed out twice. The token
+                // existed with the formula on it and this was the only caller that
+                // wanted it, which is the shape the design system's own header
+                // forbids: no inline curves or durations at call sites.
+                staggerDelayCache[block.id] = min(decelerated * GridConstants.staggerMax,
+                                                  GridConstants.staggerMax)
             }
         }
 

@@ -26,18 +26,19 @@ above it, the evidence under it, and a date on every change.
 | 8 | Memories, the map | **10** | the way back was an empty white circle, 1.10:1 |
 | 9 | Add a win | **10** | the well was a dashed hole where a block goes |
 | 10 | Plan | **10** | a separator under 471pt of nothing |
-| 11 | Plan, empty | **10** | three grey objects doing one job |
-| 12 | Block card | **10** | the one word the screen is about was pure black |
+| 10b | Plan, empty | **10** | three grey objects doing one job |
+| 11 | Block card | **10** | the one word the screen is about was pure black |
+| 12 | Profile | **10** | no accent at all on a page whose Form already tints |
+| 13 | Settings | **10** | every row measured 42.65pt |
 | 14 | Day album | **10** | the count line read at 3.31:1 |
 | 15 | Place collection | **10** | a title over a blank page after the last photograph is deleted |
 | 16 | Photo viewer | **10** | the picture resized because a geocode replied |
 | 17 | Replay | **10** | the date arrived under a moving camera |
 | 18 | Head maker | **10** | the shutter was drawn twice, in two files, and they disagreed |
-| 19 | Head picker | **10** | see Profile |
+| 19 | Head picker | **10** | the same three failures as the page it lives on |
 | 20 | Onboarding | **10** | the app's most repeated word measured 2.03:1 |
 | 21 | Restore | **10** | four type sizes and an em dash in the copy |
 | 22 | Store unavailable | **10** | the one button on the one screen where somebody is stuck, at 1.15:1 |
-| 13 | Profile · Settings | **10** | see below |
 
 **Two sanctioned exemptions, both written down rather than quietly passed**, and
 neither generalises: the segmented control's 32pt height, which is UIKit's own
@@ -220,7 +221,7 @@ sampling the built screen would have found it.
 
 ---
 
-# The second pass, 2026-10-01
+# The systematic pass, 2026-10-01
 
 Nine agents measuring in parallel, one build and one simulator, every screen
 captured from a seeded fixture and measured in points off the PNG.
@@ -366,7 +367,7 @@ camera was reaching it through `glassRoundedRect` at radius 22.
 | **Only part of the empty page answered a tap** | a fixed 160pt tail: **160 of the 471pt** below the last line did anything | the whole remainder, via the proxy's own height, falling back to 160 on a list taller than the screen |
 | Repeat caption on the wrong token | `caption2`, 11 Medium, which `Typography` documents for chart axes and whose only other call sites are chart axes | `bodySmall` |
 
-### 11. Plan, empty · **10/10** (2026-10-01)
+### 10b. Plan, empty · **10/10** (2026-10-01)
 
 | Finding | Before | After |
 |---|---|---|
@@ -396,7 +397,7 @@ callers: never a sentence, a count or a subtitle.
 | **Two left margins on one screen** | the print band at **20.0**, the chrome at 16 | 16.0. A landscape print also gains 8pt of width |
 | The place line's weight | `sectionLabel`, 13 **Medium**, the token for an uppercase section heading: the secondary caption was drawn heavier than the 15 Regular primary above it, in the same ink | `bodySmall` |
 
-### 12. Block card · **10/10** (2026-10-01)
+### 11. Block card · **10/10** (2026-10-01)
 
 Not a separate view: the block card is `AddWinSheet` in its editing mode, which
 is why its findings are the add sheet's. All six are listed under "9. Add a

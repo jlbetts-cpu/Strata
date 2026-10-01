@@ -1,5 +1,31 @@
 # Strata — product direction
 
+> **THE APP WENT A DIFFERENT WAY. This is history, not a plan** (noted
+> 2026-10-01). It was always a proposal rather than a decision, and most of it
+> was decided against. Do not build from the tab table below.
+>
+> **Three tabs ship, not four: Wins, Camera, Memories** (`StrataTab`). So:
+>
+> - **Today, Plan and Insights are gone as tabs**, and the checklist, the
+>   month-grid Calendar and the Insights redesign proposed here were never built
+>   as described. Memories is the look-back half, and it has been through two
+>   shapes of its own since: a drawer over a full-bleed map, then a page with
+>   the map as a button on it.
+> - **The camera IS a permanent tab**, which answers the **OPEN** question under
+>   "Photos" in the opposite direction to the recommendation. Capture is not a
+>   long press on the slot.
+> - **Onboarding exists**, which reverses "Not yet, by the owner's decision".
+>   `OnboardingView` is a multi-page walkthrough. The constraint stated here, a
+>   first-time user doing the main action without reading anything, is still the
+>   right test and still worth applying.
+>
+> What survived is the rule, and it is the reason the rest did not: **recording
+> a win must be the fastest thing in the app, and anything not on the path
+> between "I did something" and "I can see it" is optional.** Three tabs is that
+> rule applied harder than this file dared to apply it.
+>
+> `docs/screen-audit.md` is the current state of every screen.
+
 Written 2026-09-07, from the owner's brief. This is a proposal with a
 recommendation, not a decision already taken. Anything marked **OPEN** needs a
 yes/no; everything else follows from the brief.

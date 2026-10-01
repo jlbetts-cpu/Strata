@@ -19,12 +19,51 @@ import Foundation
 struct WidgetSnapshot: Codable, Equatable {
 
     /// One block, already sized and coloured — the widget makes no decisions.
+    ///
+    /// **`columns`, `rows` and `hex` are write-only, and they stay for now.**
+    /// Measured 2026-10-01: `TowerMark` was their only reader and it is deleted,
+    /// and everything the widget draws comes through `photos`, `today`, `total`
+    /// and `streak`.
+    ///
+    /// **Removing them from the payload is safe, and this is the reasoning so
+    /// nobody has to derive it again.** The worry is an extension running old code
+    /// against a new file, and it cannot happen: the app and the widget extension
+    /// are one bundle, iOS replaces it atomically and terminates the running
+    /// extension, so the extension reading this file is always the version of the
+    /// app that wrote it. What DOES survive an update is the file in the group
+    /// container, which makes the real case a NEW reader against an OLD file, and
+    /// `JSONDecoder` ignores keys that are not in `CodingKeys`, so a slimmed
+    /// `Block` decodes a file still carrying all three. The failing direction (an
+    /// old `Block` meeting a file without them: `keyNotFound`, so `read()` returns
+    /// `.empty` and the widget shows its empty state) is the one the bundle rules
+    /// out, and it is a soft failure even so.
+    ///
+    /// **What stops it is ownership, not safety.** These three cannot leave this
+    /// struct without the same commit editing `MainAppView.publishWidgetSnapshot`
+    /// and `WidgetSnapshot.preview` in `Shared/TowerWidgetView.swift`, and
+    /// `StrataTests/WidgetSnapshotDayTests` pins the initialiser. Removing them
+    /// here alone stops the tree compiling for everyone else working in it.
+    ///
+    /// **Why it is worth doing when those files are free.** `sameContent` compares
+    /// `blocks`, and `blocks` carries these three, so resizing a win or changing
+    /// its category rewrites the file and spends a WidgetKit reload on a widget
+    /// that redraws identical pixels. That is the exact cost `sameContent`'s own
+    /// doc exists to avoid: "do it often enough and the updates get throttled,
+    /// which shows up as a stale tower." The coordinated change is to drop the
+    /// three fields AND narrow `sameContent` to compare `photos` rather than
+    /// `blocks`. Do not narrow it on its own: that leaves three persisted fields
+    /// only as current as the last photo change, which reads as data and is not.
     struct Block: Codable, Equatable {
         /// Cells across and down, from `BlockSize`.
         let columns: Int
         let rows: Int
         /// The category's colour as `RRGGBB`, so the widget needs no access to
-        /// `HabitCategory` and the two targets share no code.
+        /// `HabitCategory`.
+        ///
+        /// This used to add "and the two targets share no code", which is now half
+        /// wrong: `Shared/` holds `TowerWidgetView`. What is still true, and is the
+        /// part that matters, is that the widget reaches neither `HabitCategory`
+        /// nor the store.
         let hex: String
         /// A thumbnail inside the group container, if this win has a
         /// photograph.

@@ -152,10 +152,25 @@ final class MapGestureTests: XCTestCase {
         app.launchArguments += ["-strataShowOnboarding", "1", "-strataOnboardingStep", "1"]
         app.launch()
 
+        // **The waiting pill is NOT a button, and that is the fix rather than a
+        // regression.** It used to be a `Button` with `.disabled(true)`, which
+        // a plain button style dims by halving its whole label: the ring
+        // measured 188 on 243 and the word 176 on 243, both exactly half their
+        // declared alpha, which is the "the button is lowkey invisible during
+        // the onboarding flow" the owner reported twice. `PrimaryCapsule`'s
+        // waiting state builds no `Button` at all, so there is nothing for a
+        // `.disabled` to be put on.
+        //
+        // So the assertion moves rather than relaxing: it used to be "the
+        // button exists and is disabled", and it is now "the button does not
+        // exist yet, and the waiting label is on screen in its place". Both
+        // halves can fail. If the pill ever becomes pressable before a block
+        // is drawn, the first assertion catches it.
         let next = app.buttons["What else"]
-        XCTAssertTrue(next.waitForExistence(timeout: 40), "the tutorial page never appeared")
+        let waiting = app.staticTexts["What else"]
+        XCTAssertTrue(waiting.waitForExistence(timeout: 40), "the tutorial page never appeared")
         Thread.sleep(forTimeInterval: 3)
-        XCTAssertFalse(next.isEnabled, "the page let you past before you drew anything")
+        XCTAssertFalse(next.exists, "the page let you past before you drew anything")
 
         // **Find the slot, do not guess where it is.** It used to be centred;
         // it now stands at the tower's first free position, which is

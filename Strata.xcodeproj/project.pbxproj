@@ -55,6 +55,16 @@
 		EB26D1632F5A4A0000B165F7 /* StrataUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrataUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA1000000000000000000F /* Exceptions for "Strata" folder in "Strata" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/Jaro.ttf,
+			);
+			target = EB26D1492F5A49FE00B165F7 /* Strata */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA10000000000000000001 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -68,6 +78,9 @@
 		};
 		EB26D14C2F5A49FE00B165F7 /* Strata */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA1000000000000000000F /* Exceptions for "Strata" folder in "Strata" target */,
+			);
 			path = Strata;
 			sourceTree = "<group>";
 		};

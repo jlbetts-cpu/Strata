@@ -349,8 +349,64 @@ struct MonthPicker: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .contentTransition(.opacity)
+                    // **Semibold at 10pt is compensation, and here is the
+                    // number.** (2026-10-01)
+                    //
+                    // Every other chevron in the app is a `GlassIconButton`,
+                    // whose glyph is 17pt `.medium`, so a sweep reading only
+                    // the weight names this one as drift. It is not. Measured
+                    // off SF's own `wght` axis at `opsz` 17, the Text optical
+                    // size a 10pt glyph resolves to. That is the instrument
+                    // `Typography.swift` used for the Memories title's weight,
+                    // and it returns the same 14.5% here:
+                    //
+                    //     Medium   (wght 510)  0.1061 em  →  1.06pt at 10
+                    //     Semibold (wght 590)  0.1215 em  →  1.21pt at 10
+                    //     GlassIconButton, 17pt Medium  →  1.80pt
+                    //
+                    // So this chevron is 33% lighter than every other chevron
+                    // in the app AT semibold, and 41% lighter at medium. The
+                    // weight buys back 8 of those 41 points. That is small in
+                    // absolute terms, 0.15pt or 0.46 of a device pixel at 3x,
+                    // and it is the right size for the job: the thing being
+                    // corrected is half a pixel's worth of under-weight, not a
+                    // tier of the type scale.
+                    //
+                    // It also cannot come onto the shared control, and that is
+                    // the other half of the answer. `GlassIconButton` and
+                    // `GlassIconLabel` ARE a 44pt glass disc around one glyph;
+                    // this is a disclosure mark inside a capsule that already
+                    // holds the word, so nesting one here would put a disc
+                    // inside a capsule and give one control two grounds. The
+                    // shared surface this does use is `glassCapsule(onPage:)`,
+                    // below, which is what audit check 3 asks for.
+                    //
+                    // The reasoning that is NOT a sampled number, said so:
+                    // a chevron is two 45° strokes, and a diagonal lands on no
+                    // pixel column, so at 3x a 3.18px diagonal is antialiased
+                    // along both of its edges and never reaches full ink where
+                    // a vertical stem of the same width covers three whole
+                    // columns. That is why a small diagonal glyph wants the
+                    // extra weight and a small vertical one does not, and it
+                    // is why Apple's own pull-down indicator is drawn smaller
+                    // and heavier than its label too. `/tmp/shots-v5/memories-sept.png`
+                    // was named as the shot to sample this on and is not on
+                    // disk, so the rendered stroke is unmeasured; the numbers
+                    // above are the font's, not the screen's.
+                    //
+                    // **`relativeTo` is `.headline`, not `.footnote`.**
+                    // `IconStyle`'s own rule is "pair the token with the text
+                    // style it sits beside", and the word beside this is
+                    // `headerMedium`, which is `.headline`. On `.footnote` the
+                    // two grew at different rates: at AX5, headline goes 17 →
+                    // 53 (3.12x) and footnote 13 → 44 (3.38x), so the chevron
+                    // reached 33.8pt against a 53pt word where it should have
+                    // reached 31.2: the glyph 8.6% larger relative to its
+                    // label at the top of the range than at the bottom. It
+                    // changes nothing at the default text size, which is why
+                    // it survived a screenshot.
                     Image(systemName: "chevron.down")
-                        .iconSize(GridConstants.iconChevron, relativeTo: .footnote, weight: .semibold)
+                        .iconSize(GridConstants.iconChevron, relativeTo: .headline, weight: .semibold)
                         .foregroundStyle(AppColors.inkSecondary)
                 }
                 // Layout first, glass after.

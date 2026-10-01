@@ -33,16 +33,27 @@ instrument that happens to be full of your photographs.**
 
 ## 2. Type
 
+> **The display face in this section is NOT Jaro** (corrected 2026-10-01). This
+> file called it that throughout, and the pointers it gives have always been
+> right: the face is the owner's own `Shared/Strata-Regular.ttf`, reached
+> through `StrataFont`, `Typography.screenTitleDrawn` and `.tally`. Jaro is a
+> different font that was registered at launch and drawn nowhere. `JaroFont` is
+> **deleted** (2026-10-01, for the second time) and `Jaro.ttf` is no longer in
+> `UIAppFonts`, though the file is still sitting in `Strata/Resources/`. Read
+> every "Jaro" below as "the owner's face": if you go looking for Jaro you will
+> find an unregistered font and set type in the wrong one.
+
 Two faces, and the split is the whole rule.
 
-- **Jaro** (`StrataFont`, `Typography.screenTitleDrawn`, `.tally`) is for the
-  app's own **nouns and numbers**: a screen's name, a count, a day number, an
-  index. It is a display face; it is what makes the app look like itself.
+- **The owner's face** (`StrataFont`, `Typography.screenTitleDrawn`, `.tally`)
+  is for the app's own **nouns and numbers**: a screen's name, a count, a day
+  number, an index. It is a display face; it is what makes the app look like
+  itself.
 - **SF Rounded** is for everything a person **reads as language**: body,
   labels, buttons, captions, empty states, settings rows.
 
-**Never** set a sentence in Jaro. Never set a button in Jaro. If you are about
-to use it for a third thing on one screen, you are decorating.
+**Never** set a sentence in the display face. Never set a button in it. If you
+are about to use it for a third thing on one screen, you are decorating.
 
 **The technical register comes from setting, not from a third face.** A label
 that wants to feel like an instrument gets: SF Rounded, footnote size, medium
@@ -50,8 +61,8 @@ weight, ALL CAPS, `Typography.sectionKerning` (0.8). That is
 `Typography.sectionLabel` and it already exists. Use it for section headings and
 index labels; do not invent another.
 
-**Numbers are readouts.** Counts and indices are Jaro, tabular, and never
-abbreviated when they fit. A count that ticks should tick, not cross-fade.
+**Numbers are readouts.** Counts and indices are the owner's face, tabular, and
+never abbreviated when they fit. A count that ticks should tick, not cross-fade.
 
 ---
 
@@ -121,8 +132,11 @@ wrong however good it looks.
 ## 6. Chrome, shadow and edges
 
 - **Shadows are for objects that stand on the ground**: a block, a card you can
-  pick up, the drawer. Chrome separates with a **hairline** and with
-  translucency, never with elevation.
+  pick up. Chrome separates with a **hairline** and with
+  translucency, never with elevation. (This used to list the Memories drawer as
+  a third example. The drawer was removed on 2026-09-30, and it was the wrong
+  example anyway: its own shadow is one of the elevation-on-chrome findings the
+  audit logged against it.)
 - One corner radius per size class, from `GridConstants`. A photograph gets the
   photo corner, a block gets the block corner, a surface gets
   `radiusSurface`.
@@ -134,8 +148,8 @@ wrong however good it looks.
 
 Every screen should answer, without a word of explanation:
 
-1. **Where am I** — a name, in Jaro, top left.
-2. **How much is here** — a count, in Jaro, beside the name.
+1. **Where am I** — a name, in the owner's face, top left.
+2. **How much is here** — a count, in the owner's face, beside the name.
 3. **What is this made of** — the structure visible, not implied.
 
 If a screen cannot answer all three, that is the thing to fix before styling it.
@@ -146,7 +160,7 @@ If a screen cannot answer all three, that is the thing to fix before styling it.
 
 Do not, on any screen:
 
-- set body text, buttons or long labels in Jaro
+- set body text, buttons or long labels in the owner's display face
 - add a glow, a neon, a scan line, a dot grid or a decorative gradient
 - add a shadow to anything that is not standing on something
 - animate anything on appearance, or loop an animation
@@ -370,8 +384,11 @@ app's interface is named in that guideline.
    not like a frame around the thing.
 2. **Direct manipulation over controls.** You move the thing, not a slider
    that moves the thing. This app already does its best work this way: the
-   block is drawn by dragging, the shutter is held, the drawer is pulled.
-   Prefer that over adding a button.
+   block is drawn by dragging and the shutter is held. (It also said "the
+   drawer is pulled"; the drawer came off on 2026-09-30, and what replaced it
+   is a button, so this is the one place the app traded a gesture for a control
+   on purpose. The owner's call, and he was choosing between two concepts
+   rather than against this principle.) Prefer a gesture over adding a button.
 3. **Depth is spatial, not decorative.** A surface sits over another surface
    because it came from somewhere, and it goes back there. Every panel should
    grow out of the thing that opened it, which is why the film looks tray is

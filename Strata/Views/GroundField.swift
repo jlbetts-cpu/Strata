@@ -226,31 +226,60 @@ struct GroundField: View {
         white(0.974, 0), white(0.980, 0), white(0.970, 0),
     ]
 
+    /// **THE NIGHT FIELD WAS SEVEN TIMES AS UNEVEN AS THE DAY ONE.**
+    ///
+    /// The owner, 2026-10-01: "the dark mode should still look clean and dark
+    /// mode rn it has a weird looking light." Measured on the empty Wins page,
+    /// over the band between the header and the board, in both appearances:
+    ///
+    /// |  | light | dark, before |
+    /// |---|---|---|
+    /// | ground spread, 5th to 95th percentile | **3** levels | **21** |
+    /// | red minus blue swing | **6** | **25** |
+    ///
+    /// So the light page is flat to within three levels and the dark one had a
+    /// visible gradient across it plus a blue cast that moved by 25. That is
+    /// the "weird light": not one lamp, a field whose nine nodes ranged over
+    /// 0.16 to 0.34 brightness, a 2.1x spread, where the day array's nine
+    /// whites range 0.970 to 1.000, a 1.03x spread.
+    ///
+    /// **The day array had been given this pass and the night array never
+    /// had.** Its own doc already argues the case for the day one, twice: a
+    /// page with an opinion about its own colour is a page the illustrations
+    /// and the photographs then have to argue with. The same sentence is true
+    /// after dark and nobody had applied it.
+    ///
+    /// Compressed to brightness 0.175 to 0.225 and saturation 0.30 to 0.36,
+    /// which is the same proportional spread the day whites have, so the
+    /// structure survives and the lamp does not. The hue stays 0.60 on all
+    /// nine: one of them was 0.11 until this morning and put a brown lamp over
+    /// the replay.
+    ///
+    /// What was NOT done: flattening it to one colour. The field's whole job
+    /// is to give the glass and the lattice something to sit on that is not a
+    /// dead fill, and a dark page with no structure at all is the "cheap"
+    /// the owner has named twice. Three levels of movement is a surface. Ten
+    /// is a light.
+    /// **One saturation, and only the brightness moves.** The first compression
+    /// took the measured ground spread from 21 levels to 8 and the red-minus-
+    /// blue swing from 25 to 17, against a light page's 3 and 6. The 17 was
+    /// the saturation still varying: red minus blue is brightness TIMES
+    /// saturation, so letting both move multiplies their spreads together and
+    /// the page ends up bluer in some places than others, which is a cast
+    /// rather than a surface.
+    ///
+    /// Saturation is 0.32 on all nine now and brightness moves 0.182 to 0.213,
+    /// which is the same proportional spread the day array's whites have.
     private static let night: [Color] = [
-        Color(hue: 0.60, saturation: 0.45, brightness: 0.30),
-        Color(hue: 0.60, saturation: 0.40, brightness: 0.34),
-        Color(hue: 0.60, saturation: 0.48, brightness: 0.28),
-        Color(hue: 0.60, saturation: 0.38, brightness: 0.26),
-        // **0.60, and it was 0.11.** The one node of the nine that was not on
-        // the night field's hue, sitting at (0.68, 0.22) of the page. Found by
-        // the screen audit on the replay, which is the screen with the most
-        // empty dark ground to show it on: sampled at (273, 192) the page came
-        // out rgb(85, 77, 60), red 25 levels ABOVE blue, and at (60, 180) on
-        // the same line rgb(46, 55, 68), red 22 BELOW. A 47 level reversal
-        // across 213 points, on a page whose brightest value is 85 of 255. It
-        // read as a brown lamp over the middle third.
-        //
-        // The DAY array was given this pass twice and carries the reasoning
-        // already: a page with an opinion about its own colour is a page the
-        // illustrations and the photographs then have to argue with. The night
-        // array looks like it never got the same read. The brightness is
-        // unchanged, so the field keeps its light and its structure; only the
-        // hue joins the other eight.
-        Color(hue: 0.60, saturation: 0.30, brightness: 0.34),
-        Color(hue: 0.60, saturation: 0.42, brightness: 0.24),
-        Color(hue: 0.60, saturation: 0.35, brightness: 0.18),
-        Color(hue: 0.60, saturation: 0.30, brightness: 0.20),
-        Color(hue: 0.60, saturation: 0.38, brightness: 0.16),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.198),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.207),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.191),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.188),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.213),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.185),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.183),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.194),
+        Color(hue: 0.60, saturation: 0.32, brightness: 0.182),
     ]
 
     /// A near-white at a given brightness, carrying only enough hue to have a

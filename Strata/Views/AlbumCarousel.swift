@@ -67,10 +67,13 @@ struct AlbumCard: View {
     /// poster on the row above already splits them, and the two captions sit
     /// twelve points apart.
     ///
-    /// **Not `CountReadout`.** That one is laid out beside a section heading,
-    /// takes `inkSecondary` for its digits and carries no optical inset. Here
-    /// both lines of the caption are the quiet tertiary and both have to stand
-    /// on the card's leading edge, which is what the inset is for.
+    /// **Not a shared count readout, and there is no longer one to reach for.**
+    /// `CountReadout` took `inkSecondary` for its digits, carried no optical
+    /// inset and set its unit in uppercase kerned `sectionLabel`, which is the
+    /// one voice the Memories pass removed. It had no callers and is deleted;
+    /// see `SectionHeading` for the whole argument. Here both lines of the
+    /// caption are the quiet tertiary and both have to stand on the card's
+    /// leading edge, which is what the inset is for.
     ///
     /// This keeps the count the card always had rather than adding one: §7's
     /// "how much is here" is answered once per card by the thing that was

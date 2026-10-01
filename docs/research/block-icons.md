@@ -970,8 +970,12 @@ never shows the field. And a UI test asserting the tile is `isHittable`, not jus
 ### 7.7 (S) The other draw sites
 
 `ReplayFrame` (pass through), `ShareTowerCard` (inherits, since it renders the
-real `FlippableBlockView`), the widget's snapshot write, and the map's flat
-branch. Confirm the month tower draws none.
+real `FlippableBlockView`; as of 2026-10-01 it reaches that through
+`StaticTowerView` rather than building a tower of its own, so there is nothing
+to change in `ShareTowerCard` itself), the widget's snapshot write, and the
+map's flat branch. Confirm the month tower draws none. Note for the map row in
+§3: **every block on the map is one cell now**, so there is no 2x2 branch there
+to size an icon for.
 
 **Tests:** `MergeTests.anIconDoesNotAffectMerging` — two adjacent same-colour
 unnamed blocks with *different* icons still merge into one group.

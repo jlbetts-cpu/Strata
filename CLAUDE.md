@@ -200,12 +200,45 @@ method, every bug and what made it invisible, and the before/after numbers.
 
 ## Settled — do not reopen
 
+Two of these were settled on 2026-10-01 by the owner looking at the tower
+rendered both ways, with the numbers on it, and choosing. They are first here
+because they are the two a measuring pass is most likely to "fix": both are a
+taste call over a guideline, and in each case the guideline is the thing that
+loses. **A failure the owner has looked at and accepted is a different thing
+from one nobody has seen.** Neither is a leftover and neither is a bug.
+
+- **A block's label stays WHITE** (2026-10-01). He was sent the tower rendered
+  each way, side by side, with the measurements on it, and his answer was
+  "I much prefered the white ink look over the dark ink". White measures
+  **1.71:1 on the orange** against the 4.5:1 a 13pt word is held to, and a near
+  black measures **6.00 to 9.77**. The full argument is on `CategoryStyle.text`
+  in `Strata/Models/CategoryColors.swift`, including the per-category table and
+  the three fixes that do not work: no scrim reaches it, the heaviest veil the
+  app has only gets the orange to 2.48:1, and `BlockWash` makes it worse by
+  lifting the bottom 26% of a block toward white, which is the band the title
+  sits in. `docs/screen-audit.md` carries the audit's own write-up. **Do not
+  re-measure this and do not reach for a scrim**; read that property first.
+- **A single block's corner stays 8** on the Wins tab, beside a merged run at
+  12 (2026-10-01). The tower was rebuilt with every block on
+  `blockCornerRadius(forCell:)` (12.4 at the live cell), rendered, put beside
+  the current one, and he chose to leave it. The argument is on
+  `GridConstants.cornerRadius`. Worth knowing before this is reopened: the
+  share card's two values already agree to within 0.05pt deliberately, so the
+  Wins tab is the **only** place the difference is visible, and that is the
+  thing he has now seen both ways. The inconsistency on its own is not a
+  reason.
 - **SF Pro Rounded, two weights.** The Figma specifies Familjen Grotesk; the
   owner chose the native face on 2026-09-06. Shape, colour and the rim carry the
-  block's identity, not the letterforms. The **wordmark** is the one exception:
-  it is Rounded *Semibold*, because a wordmark is drawn artwork rather than
-  interface type and at 61pt white over a viewfinder Medium reads thin. Do not
-  spread Semibold into the UI.
+  block's identity, not the letterforms. **There is exactly one Semibold in the
+  app and it is no longer the wordmark's.** The wordmark used to be the
+  exception, as drawn artwork rather than interface type; it came off on
+  2026-09-30 and the exception moved to `MemoriesTitle`, which `DrawnLettering`
+  sets semibold because that title stands over a live map and the weight is
+  what replaced the drawing's stroke. Measured out of SF's own `wght` axis: a
+  capital's stem is 0.1097 em at Medium against 0.1256 at Semibold, 3.68pt
+  against 4.21pt at the title's size, 14.5% more stroke. `Typography`'s own
+  comment names the exception rather than claiming semibold is gone. Do not
+  spread it any further than that one title.
 - **The owner's letters and digits are one real FONT, `Shared/Strata-Regular.ttf`**
   (2026-09-16; it replaced `StrataNumerals.ttf`, whose digits it carries,
   scaled 700/1443 so the cap meets the capitals). `StrataFont` is the API:
@@ -221,55 +254,81 @@ method, every bug and what made it invisible, and the before/after numbers.
   anything 13 or below with a letter: his D reads O and B reads 8 there. Format
   a count with `StrataFont.digits`, never `Text("\(n)")`: that groups 1000 as
   "1,000" and the face has no comma (the map badge showed "1,0" over "00").
-- **The Memories title stays the drawing.** Set in the font in the same place
-  and photographed side by side, the letterforms matched but the stroke was
-  about a fifth lighter, the M narrower, and the ink sat 3pt in from the margin;
-  over the map's labels it lost.
+- **The Memories title is no longer the drawing**, and it is the one that had
+  the better argument for staying. Photographed against the one SETTING of the
+  same word, light, dark and xxLarge, the font's stroke was about a fifth
+  lighter, its M narrower, and its bearing put the ink 3pt off the margin, and
+  over the map's own labels the drawing held and the font lost. It still went
+  with everything else on 2026-09-30. What bought the heft back is the semibold
+  above, and the 14.5% there is that "fifth lighter" measured. `MemoriesTitle`
+  is live (`MemoriesView`, `MemoriesStill`) and is a `Text` now.
 - **Build that font as TrueType, never CFF.** As an `.otf` with CFF
   outlines, `.contentTransition(.numericText())` CLIPPED every glyph — about
   0.08 em off the bottom, a hard horizontal cut with the baseline below it.
   The same outlines as `glyf` render whole. Verified both ways on the
   simulator; the font's own `head`, `hhea`, `OS/2` and `FontBBox` were
   correct in both.
-- **The mark and the wordmark are the owner's own letterforms** (2026-09-09).
-  Both are SVGs in the asset catalogue with `preserves-vector-representation`
-  and template rendering, so they are the drawings rather than bitmaps of them
-  and tint like type. `StrataSMark` is the mark and the app icon;
-  `StrataWordmark` is the word. They are the same letterform, which is the
-  point — the icon, the Settings header and the camera all show one `S`.
-  Originals live in `brand/strata-S-owner.svg` and
-  `brand/strata-wordmark-owner.svg`.
+- **The MARK is the owner's own letterform** (2026-09-09) and still ships.
+  `StrataSMark` is an SVG in the asset catalogue with
+  `preserves-vector-representation` and template rendering, so it is the drawing
+  rather than a bitmap of it and tints like type. The original is
+  `brand/strata-S-owner.svg`. It is the app icon and the Settings header, which
+  is now the whole of "all show one `S`": the camera used to be the third and
+  has no mark on it any more.
+- **The WORDMARK is off everywhere, and it is off pending the RENAME**
+  (2026-09-30). The owner: "keep it off everywhere for now, since we are going
+  to change the name anyway." The `StrataWordmark` *view* is deleted, having
+  lost its last caller when the camera, the head maker and Settings dropped it;
+  the `StrataWordmark` imageset and `brand/strata-wordmark-owner.svg` are still
+  in the tree with nothing reading them. **"For now" is load-bearing**: this is
+  parked on the rename, not a decision that the app never shows its name. The
+  mechanism it would be rebuilt on is `DrawnLettering` in `StrataMark.swift`, a
+  word plus a cap height plus a weight, so whatever the app ends up called is a
+  four-line struct rather than a rebuild. Do not start the rename to do it.
 - **A drawn header is not type, in three ways that each cost a measurement.**
+  Still live, because `headerArtworkTopPadding` still holds the app's top line
+  and `DrawnLettering` still takes a CAP: what changed is that the thing on
+  that line is now a `Text` or an icon button rather than artwork. The camera
+  examples below are the measurements, not a description of the shipping
+  screen.
   1. Use `GridConstants.headerArtworkTopPadding`, not
      `headerTopPadding(forTitleSize:)`. A `Text` sets its cap below its own
      layout box and the function corrects for that; artwork's frame top IS
      its cap top, so the correction pushes it up by the whole amount —
      measured, the camera's wordmark landed at 71.7pt against the 81.0pt line
-     every other header sits on.
+     every other header sits on. `CameraView`, `HeadMakerView`,
+     `MemoriesMapView` and `MemoriesStill` all read the constant now, for
+     icon buttons whose centre has to land on that same line.
   2. **`size` on a drawn title is CAP HEIGHT; `Font.system(size:)` is an em.**
      Handing a drawing the 34 sets it 41% taller than the type it replaced —
      "Memories" came out with a 33.3pt cap against the tally's 23.3pt.
-     `Typography.screenTitleCap` is the number to hand it.
+     `Typography.screenTitleCap` is the number to hand it, and
+     `MemoriesTitle` still takes a cap for exactly this reason.
   3. **Do not baseline-align a drawn title against a 44pt icon button.** A
      `Text` and the button are within a few points of each other, so a
      baseline rule puts both near the row's top; a drawing is only as tall as
      its cap, so the row's top becomes the BUTTON's top and the title falls
      7.6pt below the line. Align the row to `.top` and offset the button onto
-     the cap by hand, as `MemoriesView.titleRow` does.
-- **The camera's wordmark is deliberately bigger than a page title** (32
-  against 23.96) and that is not drift. Every other screen is a title over a
-  page of content; the camera is a wordmark over an empty viewfinder with
-  nothing in the top two thirds to hold the other end of it. Its size is also
-  bounded by the composition guides: at 40 the word ran to 276pt and crossed
-  the SECOND vertical at 268, which is a title covering the grid rather than
-  sitting in it. At 32 it measures 16 to 219 — through the first vertical,
-  which is broken for it, and 49pt short of the second.
-- **`Header.height` on the camera IS the wordmark's cap height.** The break in
-  the first vertical is cut to the word, so the word is centred in it by
-  construction rather than by a second number that has to be kept in step.
-- **The wordmark is 6.5:1**, against Jaro's 2.4:1. Sizes tuned for Jaro will
-  overflow: the camera's 61pt ran the word 396pt across a 370pt page and
-  clipped the final `a`. See the camera entry above for where it landed.
+     the cap by hand, as `MemoriesStill.titleRow` does.
+     (`MemoriesView.titleRow` was the original and is gone; `MemoriesStill`'s
+     own comment still points at it.)
+- **The camera has NO header at all** (2026-09-30), and the three entries that
+  used to stand here measured one. `wordmarkSize`, `Header.height` and
+  `breathing` are gone with the wordmark, and they were three numbers solved
+  against each other, so do not reinstate one of them alone. What they said,
+  kept because the composition guides they were solved against have not moved:
+  the camera's word was deliberately bigger than a page title (32 against
+  23.96), because every other screen is a title over a page of content and the
+  camera was a word over an empty viewfinder with nothing in the top two thirds
+  to hold the other end of it; at 40 it ran to 276pt and crossed the SECOND
+  vertical at 268, and at 32 it measured 16 to 219, through the first vertical,
+  which was broken for it, and 49pt short of the second. `Header.height` WAS
+  the word's cap height, so the break in the first vertical was cut to the word
+  and the word centred in it by construction. And the owner's face measured
+  6.5:1 against Jaro's 2.4:1, so any size tuned for Jaro overflowed: 61pt ran
+  the word 396pt across a 370pt page and clipped the final `a`. **`JaroFont` is
+  deleted** (2026-10-01, for the second time), so a Jaro number is now history
+  twice over.
 - **The tower header's word stays SF Pro Rounded at a subheadline size.** It
   was drawn on the numeral's own 28-unit body for one build — one face, one
   size, baselines agreeing to 0.00pt — and the owner's call is the smaller
@@ -384,34 +443,70 @@ method, every bug and what made it invisible, and the before/after numbers.
   while the view model holds forty pins, and nothing errors, nothing crashes
   and the app stays alive. Bisected — a plain `Color` in the same slot renders,
   a plain rectangle as the annotation does not help, and constraining the map
-  in a fixed overlay box does not help. It is now moot: **the map IS the
-  Memories tab** (2026-09-10, owner's call — "the map feature I want to be the
-  most important add and the biggest focus"), full-bleed and resting
-  undivided. Everything the tab used to be is `MemoriesDrawer`, which rests
-  HIDDEN and is raised by the button in the title row.
-- **The drawer is not a `.sheet`.** A sheet presented from inside a `Tab` sits
-  on the window's presenting controller, and at a small detent it occupies
-  exactly the band the floating tab bar lives in — the bar is neither resized
-  nor raised, and `presentationBackgroundInteraction` restores interaction with
-  content BEHIND the sheet, not with chrome it is sitting on. iOS 26's
+  in a fixed overlay box does not help. The trap is still live SwiftUI: do not
+  put a `Map` back in that stack. It is moot for the current layout for a
+  different reason than it used to be, which is the next entry.
+
+### The Memories drawer, REMOVED 2026-09-30
+
+**There is no drawer.** The entries that used to stand here described it as live
+code and pointed at `MemoriesDrawer` and `DrawerDetent`, both of which were
+deleted on 2026-10-01 along with `DebugHarness.openDrawer`. They are kept as a
+record rather than cut, because every SwiftUI lesson in them is still true and
+the next person to reach for a panel over a map will meet all of them again.
+
+- **What shipped instead**, and it inverted twice. The map became the Memories
+  tab on 2026-09-10 (owner's call: "the map feature I want to be the most
+  important add and the biggest focus"), full-bleed, with everything the tab
+  used to be living in a drawer raised over it. On 2026-09-30 that reversed:
+  **the PAGE is the Memories screen and the map is a button on it** (the owner:
+  "the map would be a button on the top instead of the Memories sheet being a
+  button, I think that makes more sense"). `MemoriesView` carries the whole
+  removal in its own comments, including the state the drawer held and
+  `titleRow`, which was the title and two buttons floating on the map.
+- **A drawer must not be a `.sheet`**, which is why it was ever a hand-built
+  panel. A sheet presented from inside a `Tab` sits on the window's presenting
+  controller, and at a small detent it occupies exactly the band the floating
+  tab bar lives in: the bar is neither resized nor raised, and
+  `presentationBackgroundInteraction` restores interaction with content BEHIND
+  the sheet, not with chrome it is sitting on. iOS 26's
   `tabViewBottomAccessory` is the native answer and the target is 18.0.
-- **The drawer's page is built off screen once the tab has settled
-  (1.5s after its reload), never with the tab and never inside the raise**,
-  and its month slideshows pause while it is lowered or covered by the
-  viewer, a replay or a pushed page (`\.memoriesDrawerVisible`). Hidden is
-  only an offset, which does not affect layout, so the lazy stack inside built
-  its first screen with the tab and ran a slideshow in every photographed day
-  under the map. Built BY the first raise, its construction landed in the
-  spring (filmed: a 1.8s hold, the drawer appearing at the top with its page
-  fading in over the map), so a raise before the prebuild builds first in a
-  non-animated transaction and slides on the next run-loop turn, and the page
-  carries `.transition(.identity)`. Stale replay posters wait for the drawer
-  and then 700ms more for the spring (missing ones do not).
-- **`DrawerDetent` is a top-level enum, not nested in the drawer.** Nested it
-  would be `MemoriesDrawer<Content>.Detent`, so the `@State` holding it must
-  name a `Content` — which pins the drawer to that guess and rejects the real
-  content type. Related: **static stored properties are not allowed in a
-  generic type at all** (`DrawerMetrics` exists for that reason).
+- **Long main-actor work must not land while a map is reading its pictures**,
+  and one check for quiet is not enough. `waitForQuietMap` and `buildDrawer`
+  are gone, and `MemoriesView.reloadReplays` carries the measurement they were
+  built from: an `ImageRenderer` poster or a page's first layout dropped in
+  beside the map's first frames cost 1.27s, and a single quiet check still put
+  one 390ms frame among 86 because the image store empties BETWEEN landings.
+  Whoever puts a map back on this screen needs both halves of that again.
+  The old shape, for the same reason: the page was built off screen 1.5s after
+  the tab settled, never with the tab and never inside the raise, because
+  building it during the raise held the first one for 1.8s, and hidden is only
+  an offset so the lazy stack inside otherwise ran a slideshow in every
+  photographed day under the map.
+- **`\.memoriesDrawerVisible` survives and its name is now a lie.** It is still
+  the key `MonthTowerView` reads to pause its month slideshows, and
+  `MemoriesView` still sets it, but what it now means is "not covered by the
+  viewer, a replay or a pushed page". Nothing about a drawer is left in it.
+- **Two Swift rules the deleted types were the record of, and THIS FILE IS NOW
+  THE ONLY RECORD OF THEM.** They were carried forward on
+  `Strata/Views/DrawerMetrics.swift`, and that file was deleted on 2026-10-01
+  too: it was one alias (`tabBarClearance`, the same number as
+  `GridConstants.tabBarClearance` under a second name), it was all that was
+  left of the drawer, and it outlived the drawer by a day only because
+  `MemoriesMapView` was off limits to the sweep. So write them out here:
+  1. **Static STORED properties are not allowed in a generic type at all.**
+     This is why `DeviceFrame.defaultBezel` is computed rather than stored, and
+     `aspect` with it.
+  2. **A type nested in a generic picks the generic up.** `DrawerDetent` nested
+     would have been `MemoriesDrawer<Content>.Detent`, so the `@State` holding
+     it had to name a `Content`, which pinned the panel to that guess
+     (`AnyView`) and rejected the real content type. Hence a top-level enum.
+
+  `DeviceFrame` and `TowerCompanionLayer` still carry comments pointing at
+  `DrawerMetrics` for these; the file is gone and the rules are here.
+
+### The map
+
 - **Hold the map's clusters, never compute them.** As a computed property the
   content depends on `zoom`, `onMapCameraChange` writes `zoom`, and
   `.automatic` frames the camera from the content — a loop with no settling
@@ -421,7 +516,8 @@ method, every bug and what made it invisible, and the before/after numbers.
   arguing: standard-muted-no-POIs came out at mean luminance 232 — BRIGHTER
   than the 207 page it was meant to fix — against imagery at 117, and
   `pointsOfInterest: .excludingAll` drops the pins but NOT the place names and
-  road shields. The scrim is the only lever left after POIs and emphasis.
+  road shields. POIs and emphasis are the only levers; the scrim that used to
+  be named here as the third one is deleted, see below.
   **The owner's call on 2026-09-10 is the PALE ground**, imagery behind
   `-strataMapStyle satellite`, and the earlier measurement is not contradicted
   — it was scored on an EMPTY map, where a dark textured ground was the only
@@ -429,23 +525,36 @@ method, every bug and what made it invisible, and the before/after numbers.
   are the saturated objects and the ground's job is to be quiet under them.
 - **The map earns its labels as you arrive.** Below zoom 13, no points of
   interest and a muted emphasis. At and above it the emphasis comes up and a
-  curated set appears, and the scrim lifts (0.10 -> 0.03) because a wash over
-  type is the one thing that makes a map feel cheap. **Landmarks only.** The
+  curated set appears. **Landmarks only.** The
   first list included cafés and restaurants: photographed over Trafalgar Square
   that was about twenty-five orange pins against two blocks — the map named
   every sandwich shop in central London and buried the only thing on screen
   that was the user's.
-- **Blocks are drawn on the CELL CENTRE, not on their members' centroid**
-  (`PlaceMap.Cluster.anchor`). A centroid can sit anywhere in its cell, so two
-  clusters in neighbouring cells could be drawn a few points apart while each
-  is 90pt wide — measured, that is two blocks overlapping. Anchoring to the
-  cell makes the separation exactly one pitch by construction.
-  `targetBlockPitch` is therefore the distance between neighbours and must stay
-  larger than a 2x2 (116 against ~90).
-- **Thinning a crowded map means going COARSER.** `PlaceMap.cluster`'s density
-  loop stepped zoom UP for one build, which splits clusters — so an over-full
-  map got fuller, the loop ran to zoom 20 where a cell is under ten metres, and
-  every pin became its own block piled on its neighbours.
+- **The map is NOT a grid any more** (2026-10-01), and the grid was the
+  inaccuracy. Two photographs are one block for exactly two reasons and no
+  others: they are within `samePlaceMetres` of each other, or their blocks as
+  drawn would cover each other past `maxOverlap` (a third). A block stands on
+  its LEADING place, not on a cell centre and not on a centroid
+  (`PlaceMap.Cluster.anchor`). Read the type documentation on `PlaceMap` before
+  changing any of it. What the grid cost, measured over 400 random pairs a
+  distance: at street zoom two spots 80 metres apart merged 30% of the time
+  with their blocks nowhere near touching, and at a city's zoom places 1.2 km
+  apart merged 36% of the time. **Three things that went with it, and none of
+  them should come back**: cell bucketing, the density cap that coarsened the
+  grid further, and nudging a block with a neighbour off its own coordinate.
+  `targetBlockPitch` (116) survives but no longer means the distance between
+  neighbours: its only reader is `zoomLevel`, which decides when the map is
+  close enough to show place names.
+- **Every block on the map is one cell** (44pt, `PlaceMap.Cluster.size`), and
+  the three measurements that took the size exception off are on that property.
+  Short version: the biggest block on screen was always the emptiest (89pt for
+  one win against 44pt for twenty-four), area was carrying two quantities with
+  the key drawn only on half of them, and the drawn size fed the clustering
+  that decided the drawn size. That last one is the reason this must not be
+  reopened casually: with one size the overlap rule is a fixed point, and
+  `PlaceMapTests` reads size AFTER the merge so it could not catch the loop.
+  The tower, the day album and the place collection all still draw a win at the
+  size a finger chose. The map answers where and the badge answers how many.
 - **Apple's map attribution cannot be removed** — displaying it is a condition
   of the Apple Developer Program License Agreement, and no API hides it. No API
   positions it either, but it is laid out inside the map's safe area, so
@@ -453,12 +562,17 @@ method, every bug and what made it invisible, and the before/after numbers.
 - **The recentre control is the app's own `GlassIconButton`, not
   `MapUserLocationButton`.** The native one is styled and placed by MapKit and
   draws a blue system chevron in a system capsule.
-- **One thumbnail width for every block on the map**, whatever size it draws
-  at. `CachedImageView` keys its cache on the requested width, so asking for 88
-  at one zoom and 176 at the next decodes the same photograph twice and
-  re-decodes it on every zoom step. (`ThumbnailStore` rounds other callers'
-  widths UP to buckets about 18% apart, never over 1.4x the pixels; a caller
-  passing its own `decodeWidth`, which is the map, is used exactly.)
+- **One thumbnail width for every block on the map**, and since 2026-10-01 it
+  is the width they are drawn at (`decodeWidth = cell = 44`). `CachedImageView`
+  keys its cache on the requested width, so two widths decode the same
+  photograph twice and re-decode it on every zoom step. The rule has not
+  changed; the answer has. It used to be `cell * 2 + gutter` = 90, because a
+  block could be a 2x2, and now that every block is one cell a 90 would read
+  every photograph at 270 device pixels to draw it across 132 on a 3x phone:
+  2.05x the width and 4.2x the pixels, for every picture in the cache at once.
+  (`ThumbnailStore` rounds other callers' widths UP to buckets about 18% apart,
+  never over 1.4x the pixels; a caller passing its own `decodeWidth`, which is
+  the map, is used exactly.)
 - **`ThumbnailStore`: one observed slot per photograph, not one global
   version** (2026-09-15). A view still asks while drawing, never on appear.
   Every landing used to invalidate every image view in the app; with a year of
@@ -507,11 +621,16 @@ method, every bug and what made it invisible, and the before/after numbers.
   photograph at a time, through the capped originals queue. The map
   slideshow's next-frame prefetch is `ambient`: it does not count as a
   foreground read or as visible work, or it would starve the migration.
-- **Replay cards are drawn while the drawer is down, behind the quiet gate**
-  (`MemoriesView.waitForQuietMap`: camera still, image store idle for 500ms,
-  page built). Not straight away (1.27s of `ImageRenderer` under the map's
-  first frames) and not on the raise (the same 1.3s under the moving panel,
-  slots filling one by one); the raise draws only what is still missing.
+- **Replay cards are drawn in three passes, cached ones first** (the `.task`
+  on `MemoriesView` keyed by scheme and scale): the cached posters, then the
+  missing ones once the view model has loaded, then the stale ones a spring's
+  settle later. The quiet gate and `waitForQuietMap` went with the drawer, and
+  so did the hazard: the map is not the ground here any more and there is no
+  panel to raise. **The measurement is still live even though the gate is
+  not** (see `MemoriesView.reloadReplays`): `ImageRenderer` drawing a poster is
+  1.27s on the main actor, so it must never land beside a map's first frames,
+  and one check for quiet is not enough because the image store empties BETWEEN
+  landings.
 - **iCloud (for the sync phase):** sync must skip `strata-images/derived/`; it
   is a local cache and is remade from the originals. An evicted file appears
   as `.<name>.icloud`, which `isOriginal` rejects (hidden), so the prune treats
@@ -617,6 +736,99 @@ references like the splash".
   `NSMotionUsageDescription` are gone — **the app no longer touches CoreMotion
   at all**, so do not re-add the key without re-adding a real use.
 - **Settings' "Animation Previews" and "Reset Triggers"** debug sections.
+
+## Removed on 2026-10-01: the dead-code sweep
+
+About 620 lines, after the 22-screen audit. **Every one of these is deleted
+code with a comment left in its place**, naming what went and what was worth
+keeping from it, which is the lesson the water taught above. If you are looking
+for one of these names, read the comment at the file it used to live in rather
+than reaching for git. None of them had a call site.
+
+- **The add sheet's parser**: `HighlightingTextField`, `InputParser`,
+  `ParsedInput`, `CategorySuggestionEngine`.
+- **The drawer**: `MemoriesDrawer`, `DrawerDetent`,
+  `DebugHarness.openDrawer`. See the removal record in the settled register
+  above, and `Strata/Views/DrawerMetrics.swift` for the two Swift rules.
+- **`JaroFont`** (`Typography.swift`), for the second time: `tasks/
+  overnight-report.md` records it going on 2026-09-09 and it came back.
+  Nothing ever set a word in Jaro.
+- **`TowerMark`** and **`Color(hex6:)`** (`Shared/TowerWidgetView.swift`), 123
+  lines. It drew the widget's tower as bricks; `StrataWidget` and
+  `WidgetPreviewRenderer` both draw `TowerPhotoBackground` now.
+  `GridPacker.firstFit` stays, because the app's tests pin it.
+- **`LatticeProbe`** (`Strata/Views/TowerLattice.swift`). Every `note(_:)` call
+  had already come off, so `-strataLatticeLog` was the only reference left in
+  the repo and passing it did nothing. **A probe with no call sites is not a
+  diagnostic, it is a flag that lies about being one.**
+- **`CardPress`** (`Strata/Views/AlbumCarousel.swift`). Its own note
+  apologised for being `MemoriesShelf`'s `PosterPress` "to the point", and the
+  duplicate it apologised for was also the dead half of the pair.
+- **`GridConstants.cornerRadiusSmall` (8) and `cornerRadiusMicro` (4)**. Both
+  were the pre-ladder spelling of a rung that still exists: `radiusControl` is
+  the same 8 and `radiusMark` the same 4. **Two names for one number is how a
+  ladder stops being one.**
+
+Three things became SHARED in the same pass, and a privately rebuilt copy of
+any of them is the audit's check 3 failing:
+
+- **`Strata/Views/ShutterBlock.swift`** is the shutter, drawn once, for the
+  camera AND the head maker. They each had a private copy off the same two
+  numbers (`rim` 14, `cornerFraction` 0.147), and the audit went through both
+  on the same day and left them disagreeing. Unlit is an **empty rim, not a
+  dimmed fill**: the old `.white.opacity(0.3)` was dimmed again by the disabled
+  environment and measured 1.33:1 over 3,983 square points, and raising it to a
+  token was the obvious move and the wrong one, because it makes the one
+  control you cannot use the brightest object on the page. The rim carries it
+  at rgb(128), 5.1:1. `Legibility` is applied by the CALLER, because the
+  camera needs it and the head maker does not.
+- **`Strata/Views/PrimaryCapsule.swift`** is the app's one primary action, on
+  onboarding, restore and store-unavailable. It was three private 50pt capsules
+  in **two** colours: onboarding's `accent` and the other two's `inkPrimary`,
+  so the app said "press this" in two colours depending on where you stood.
+  **The FILL IS INK, and the owner asked for that by name**: "can you make the
+  primary color black again" (2026-10-01). It was blue for about an hour, which
+  is how long it took him to see it, so do not read a blue capsule anywhere as
+  current. What the blue was fixing is still the thing to check if this moves
+  again: a white word on `AppColors.accent` measured **2.03:1** against the 4.5
+  a 17pt word is held to, and ink has that problem from neither direction
+  (`inkPrimary` against the page is about 15:1 whichever way round the scheme
+  is). **`inkPrimary` and NOT a fixed black**, because it inverts with the
+  scheme and a filled pill has to: the label is `WarmBackground.top`, the page's
+  own colour, so the pill is always the page's opposite. Flat rather than lit,
+  because the ethereal treatment lightens a fill toward its rim and that makes
+  the label's contrast depend on how long the word is, and a button is the one
+  object that has to measure the same wherever a word lands. It owns **both**
+  states as of 2026-10-01: the walkthrough's `litPill` and `waitingPill` were
+  the originals this type was extracted from and kept living beside it, so the
+  outlined waiting state came here too. Note that blue **is** still right for a
+  primary TEXT action: `accentPrimary` on Profile's Done, Restore's Cancel and
+  Settings' tints, all of which moved off ink in the same pass, because ink
+  THERE read as a label rather than a control. Filled pill: ink. Text action:
+  blue. Two different answers for a reason, not drift.
+- **`Strata/Views/ScrollEdge.swift`** is a ground under pinned chrome, so a
+  header is never printed on a block. This was the Wins tower's real failure
+  and **no fixture of twelve could have shown it**: scrolled with forty wins
+  in, the pinned date drew in `inkSecondary` straight onto a salmon block
+  across that block's own white label, the status clock went black on the same
+  salmon, and the filter button's glass sampled a blue block and turned blue.
+  It is iOS 26's own `scrollEdgeEffectStyle` at `.soft`. **Do not substitute a
+  material behind the header** (that is the bar the Wins screen deliberately
+  does not have) or a hand-drawn gradient scrim. **Measure the state the app is
+  in after a month, not the state a fixture puts it in.**
+
+Two more shapes changed rather than being deleted: **`ShareTowerCard` no longer
+carries its own tower**, it draws `StaticTowerView`, because the card got the
+rim, the frosted band, the contact shading, the merged runs and the photos by
+BEING the app's tower rather than a simplified second one that would drift (the
+count and the date went with it: the blocks say how many there are by being
+there). And **the map's scrim is deleted**, with an arithmetic proof on
+`MemoriesMapView.map` that no uniform wash can raise any contrast ratio ever,
+on any ground, at any alpha. It measured five pairs, five losses, for 10% of
+every photograph's luminance, and on `.night` it moved the tiles by 0.6 of one
+level out of 255 while taking a photograph from 180 to 156. **The best alpha
+is 0.** What does deliver the claim the scrim was there for is `worthNaming`
+and the muted emphasis, which were already doing it.
 
 ## Deliberate pairs — do not "fix" these
 
@@ -835,12 +1047,34 @@ back short. `PerfProbe.window(label, seconds:)` counts one window;
 memories -strataFlipEvery s` hops tabs.
 
 `-strataOpenMap`, `-strataMapStyle [quiet|satellite]`, `-strataSeedPlaces`,
-`-strataOpenDrawer [half|full]`, `-strataMapSweep`,
+`-strataMapSweep`,
 `-strataOpenReview [small|medium|hard]`, `-strataTestLocation` and
 `-strataReportStore` all exist for the same reason as the flags below them:
 the screen or the fact is otherwise unreachable here. `-strataSeedPlaces` puts
 60% of seeded wins into three tight clusters and spreads the rest, because an
 even scatter never merges and would make a broken clusterer look fine.
+
+**`-strataOpenDrawer` and `-strataRaiseDrawerAfter` are NO-OPS**, not flags.
+They went with the drawer on 2026-10-01 (`DebugHarness.openDrawer` is deleted;
+the comment in its place names the five UI test launches that still pass
+`-strataOpenDrawer`). Those launch arguments are stale, not broken, and the
+page they used to raise is the screen now. Do not reach for them and do not
+read a test that passes one as evidence the drawer exists.
+
+**`-strataSeedBackup <n>` writes a REAL backup archive** into Documents under
+`strata-debug-backup.zip`, which is the name `-strataRestoreFrom` takes:
+
+    -strataSeedBackup 40 -strataOpenSheet settings \
+        -strataRestoreFrom strata-debug-backup.zip
+
+`-strataRestoreFrom` already skipped the file picker, which nothing here can
+drive; what was missing was a file for it to open. A backup exported from the
+live store and restored back into it merges to `winsToAdd == 0`, which hits
+`plan.isEmptyOfWork`, so the one screen worth photographing was unreachable.
+The seeded habits and logs carry fresh identifiers and are never inserted into
+the context, so the restore has real work to plan. **No photographs in it**:
+`BackupExport.photographs()` reads the real image directory and zipping a
+seeded roll pushes past the launch, so the plan's photograph count is a label.
 
 **Image-loading measurements** (2026-09-16, `research-image-loading.md`).
 `-strataSeedRealPhotos [heic|jpeg]` seeds 1920x2560 textured photographs
@@ -894,13 +1128,29 @@ Say so rather than implying otherwise.
 
 ## Where the design is written down
 
-**`docs/design-system.md`** — 542 lines, and the file a session is most likely
+**`docs/screen-audit.md`** is the current state of the app, screen by screen: 22
+screens against ten checks, each captured from a seeded fixture and measured in
+points off the PNG rather than read off the source. **Read this before trusting
+any other doc about how a screen looks.** `docs/design-audit.md` is the
+2026-09-09 predecessor and is now a diagnosis rather than a state; its ratings
+are of screens that have since been rebuilt, and it carries a note saying so.
+
+**`docs/design-system.md`** is 576 lines, and the file a session is most likely
 to miss. Colour tokens, type scale, spacing, the radius ladder, the shadow
 system, and a complete motion spec: drop physics, tap feedback, semantic
 motion, Today-screen motion, card motion, celebration timings. Read section 5
-before writing any animation.
+before writing any animation. **Its sections 1 to 5 are superseded by the code**
+and its own header says so; sections 6 onward describe tabs that no longer
+exist.
 
-`tasks/brand.md` carries the intent behind those numbers.
+**`docs/brand.md`** carries the intent: the sentence the app is downstream of,
+and the words it may not say. **`tasks/brand.md` holds the old token tables and
+is STALE** (`docs/brand.md`'s own header says "partly stale", which is generous).
+It still describes a "habit tracker" with Space Grotesk and a planned mascot
+called Ponorca, and all three are dead: the word "habit" may not appear in
+anything a person reads, there is no Space Grotesk, and there is no mascot
+voice. Read `docs/brand.md` for intent and the code for numbers; reach for
+`tasks/brand.md` only for history.
 
 **`docs/apple-design.md`** — the owner's reference for how Apple-grade motion
 behaves, copied into the repo on 2026-09-07 (it was in `~/Downloads`). Read it

@@ -290,7 +290,7 @@ nearest token.
 | Title position (type) | `headerTopPadding(forTitleSize:)` | computed |
 | Title position (drawn) | `headerArtworkTopPadding` | computed |
 | Header buttons | `GlassIconButton`, `defaultSide` | 44 |
-| Button vertical placement | `(Typography.screenTitleCap - GlassIconButton.defaultSide) / 2`, as `MemoriesView.titleRow` | computed |
+| Button vertical placement | `(Typography.screenTitleCap - GlassIconButton.defaultSide) / 2`, as `MemoriesStill.titleRow` (`MemoriesView.titleRow` was the original and went with the drawer on 2026-09-30) | computed |
 | Between header buttons | `gapTight` | 8 |
 | Radii | `radiusSurface` / `radiusField` / `radiusControl` / `radiusMark` | 20 / 12 / 8 / 4 |
 | Dividers | `headerDividerHeight`, `headerDividerOpacity` | 0.5pt, 6% |
