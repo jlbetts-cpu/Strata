@@ -63,11 +63,34 @@ struct WarmBackground: View {
     /// ACROSS a temperature reversal makes the button a different material
     /// rather than a brighter piece of the same one.
     ///
-    /// Warm now, and the same warm the chrome is, all the way down.
+    /// **AND THEN NEITHER: CLEAN WHITE.**
+    ///
+    /// The ground went warm to close that gap, and the gap closed — and the
+    /// owner's verdict on the result settles the direction for good: "I don't
+    /// like this warm style we are going for. I liked it more when it was
+    /// premium clean. The clean white fits the brand so much more, especially
+    /// the Hey Tea look when we add illustrations."
+    ///
+    /// **Both of the previous versions were wrong in the same way**, which is
+    /// the thing worth keeping: they each had a TEMPERATURE. Cool read as grey,
+    /// warm read as beige, and a page with an opinion about its own colour is a
+    /// page the illustrations and the photographs then have to argue with. The
+    /// blocks and the pictures carry every colour in this app — that is section
+    /// 4 — and the ground's colour is no colour at all.
+    ///
+    /// So: neutral, and high. Red, green and blue within a level of each other,
+    /// where the cool version was four apart and the warm one ten.
+    ///
+    /// **The buttons were never a temperature problem, and that is why this
+    /// does not undo the fix.** What made them stick out was that `.regular`
+    /// glass over a smooth field has nothing to refract and collapses to an
+    /// opaque white capsule. `GlassRecipe.onPage` cancels that lift, and it is
+    /// a value move, not a hue one — it holds on a white page exactly as it
+    /// held on a warm one.
     static let top = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.112, green: 0.108, blue: 0.102, alpha: 1)
-            : UIColor(red: 0.972, green: 0.969, blue: 0.962, alpha: 1)
+            ? UIColor(red: 0.112, green: 0.110, blue: 0.108, alpha: 1)
+            : UIColor(red: 0.992, green: 0.992, blue: 0.991, alpha: 1)
     })
 
     /// **One colour, not a gradient.** It was a top-to-bottom gradient

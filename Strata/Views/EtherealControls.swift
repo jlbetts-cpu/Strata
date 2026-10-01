@@ -55,10 +55,12 @@ enum EtherealControls {
             [.foregroundColor: UIColor(AppColors.inkPrimary)], for: .selected)
     }
 
-    /// The warm the whole page is. One number, so the two below cannot drift
-    /// apart in temperature the way the ground and the chrome had.
-    private static let hue: CGFloat = 0.11
-    private static let saturation: CGFloat = 0.03
+    /// **Neutral, like the page.** This was the page's warm, and the page has
+    /// none now — see `WarmBackground.top` for why a ground with a hue is a
+    /// ground the content argues with. A control is chrome and chrome is ink
+    /// and light here, never a colour.
+    private static let hue: CGFloat = 0
+    private static let saturation: CGFloat = 0
 
     /// The track: a well, a little under the page. Opaque rather than
     /// `quietFill`'s 6% ink, because this is a UIKit colour and a translucent
@@ -66,14 +68,14 @@ enum EtherealControls {
     /// chose.
     private static let track = Color(uiColor: UIColor { traits in
         UIColor(hue: hue, saturation: saturation,
-                brightness: traits.userInterfaceStyle == .dark ? 0.16 : 0.952,
+                brightness: traits.userInterfaceStyle == .dark ? 0.16 : 0.962,
                 alpha: 1)
     })
 
     /// The selected segment: a pane over the page, at `PageSurface`'s distance.
     private static let thumb = Color(uiColor: UIColor { traits in
         UIColor(hue: hue, saturation: saturation,
-                brightness: traits.userInterfaceStyle == .dark ? 0.22 : 0.965,
+                brightness: traits.userInterfaceStyle == .dark ? 0.22 : 0.998,
                 alpha: 1)
     })
 }

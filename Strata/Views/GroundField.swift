@@ -138,7 +138,14 @@ struct GroundField: View {
     /// whether anything on this page reads as translucent. Too little and the
     /// panes vanish into the ground; too much and the "light" direction he likes
     /// turns into a grey app.
-    static let seat: Double = 0.055
+    /// **0.030, because the page is clean white now.** This was 0.055, chosen
+    /// when the ground was a lower, warmer thing and the lattice needed
+    /// headroom to be a brighter pane than it. On a clean white page that much
+    /// ink is what turns "white" back into "grey" — the exact word the owner
+    /// used about the version before the warm one. The lattice keeps enough:
+    /// measured, a pane still reads above the ground it sits on, and he has
+    /// already asked twice for it to be the quieter of the two.
+    static let seat: Double = 0.030
 
     /// A 128px tile of monochrome noise, built once and shared.
     ///
@@ -193,21 +200,30 @@ struct GroundField: View {
         // a touch cool along the top, a touch warm at the foot -- which is what
         // stops a field of one colour reading as a flat fill. The light and the
         // depth survive; the sky and the sun do not.
-        // **AND THE TOP IS NO LONGER COOL.** It was hue 0.58 across the top
-        // three points — a blue near-white — on the reasoning that a sheet held
-        // up to the sky is cool at the top and warm at the foot. Measured on
-        // the built page that put the coolest part of the ground exactly where
-        // the header's two buttons sit, and the owner saw it: "the background
-        // is greyish so it doesn't really mesh well."
+        // **NO TEMPERATURE AT ALL, AND THAT IS THE THIRD AND LAST ANSWER.**
         //
-        // The temperature difference survives, because a field of one colour
-        // reads as a flat fill — but it is now a difference WITHIN warm (0.14
-        // at the top against 0.08 at the foot) rather than a reversal across
-        // neutral. And the top is lifted, so the gap to a 249 pill is about
-        // eight levels instead of nineteen.
-        white(0.994, 0.14), white(0.997, 0.14), white(0.991, 0.14),
-        white(0.990, 0.14), white(0.992, 0.12), white(0.986, 0.14),
-        white(0.958, 0.08), white(0.966, 0.08), white(0.954, 0.08),
+        // This was cool at the top and warm at the foot, on the reasoning that
+        // a sheet held up to the sky is. Measured, that put the coolest part of
+        // the page exactly where the header's buttons sit and the owner saw it
+        // ("the background is greyish"). It was then taken all-warm, and his
+        // verdict on that is the one that settles it: "I don't like this warm
+        // style, I liked it more when it was premium clean. The clean white
+        // fits the brand so much more."
+        //
+        // He is right, and the reason is in the design doc rather than in
+        // taste. The blocks and the photographs carry every colour in this app
+        // (§4). A ground with a hue of its own is a ground the content has to
+        // argue with — and the illustrations coming next are the case that
+        // breaks it, because an illustration on a beige page is an illustration
+        // with a beige background.
+        //
+        // **The structure survives; only the hue goes.** These are still nine
+        // near-whites a few levels apart, so the field still has its light and
+        // its depth and does not read as a flat fill. They are simply neutral,
+        // and they sit high: clean white, a touch of shading toward the foot.
+        white(0.998, 0), white(1.000, 0), white(0.996, 0),
+        white(0.994, 0), white(0.999, 0), white(0.991, 0),
+        white(0.974, 0), white(0.980, 0), white(0.970, 0),
     ]
 
     private static let night: [Color] = [
@@ -225,8 +241,15 @@ struct GroundField: View {
     /// A near-white at a given brightness, carrying only enough hue to have a
     /// temperature. 3% saturation is under the threshold at which anybody can
     /// name a colour; it is the difference between "white" and "dead white".
+    /// A neutral near-white at a given brightness.
+    ///
+    /// **`hue` is kept and `saturation` is now zero**, deliberately rather than
+    /// by deleting the parameter: the hue was the thing that went wrong twice,
+    /// and a signature that still asks for one is a reminder that it was tried
+    /// in both directions and the answer was neither. Night keeps its own
+    /// colours; it is a night sky, not a page.
     private static func white(_ brightness: Double, _ hue: Double) -> Color {
-        Color(hue: hue, saturation: 0.03, brightness: brightness)
+        Color(hue: hue, saturation: 0, brightness: brightness)
     }
 
 }
