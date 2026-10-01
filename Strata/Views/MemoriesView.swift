@@ -272,6 +272,29 @@ struct MemoriesView: View {
                     }
                     .ignoresSafeArea()
                     .toolbar(.hidden, for: .navigationBar)
+                    // **A WAY BACK.** The owner: "make sure there is a way to
+                    // get back to the Memories from the map."
+                    //
+                    // The navigation bar is hidden here — a bar across the top
+                    // of a map is a bar across the map — and the swipe from the
+                    // edge is not a thing anybody should have to know about,
+                    // least of all on a screen whose whole gesture vocabulary is
+                    // pan and pinch, where a drag from the left edge is how you
+                    // move the map west.
+                    //
+                    // Light in both appearances and NOT `onPage`: it is floating
+                    // over imagery, which is the case `.regular` glass is for
+                    // and the case `GlassRecipe.onPage` is explicitly not. See
+                    // `GlassIconButton`.
+                    .overlay(alignment: .topLeading) {
+                        GlassIconButton(systemName: "chevron.left", tint: .white,
+                                        accessibilityLabel: "Back to Memories") {
+                            path.removeLast()
+                        }
+                        .environment(\.colorScheme, .dark)
+                        .padding(.leading, GridConstants.horizontalPadding)
+                        .padding(.top, GridConstants.headerArtworkTopPadding)
+                    }
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))
                         // Out of the day's own block on the month tower, the

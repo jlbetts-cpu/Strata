@@ -1176,6 +1176,36 @@ struct MainAppView: View {
             winDraft = WinDraft(photo: image, size: size, place: place, crop: crop)
         })
         .equatable()
+        // **THE VIEWFINDER IS COVERED THE MOMENT IT IS NOT THE TAB YOU ARE ON.**
+        //
+        // The owner, with a photograph of it: "why when I switch to the Wins
+        // page from the camera doesn't it instantly change to light mode — it
+        // has this grey look, that makes it really not clean." Measured on the
+        // built app: the page comes back at 246 and the tab bar stays at
+        // (70, 70, 70).
+        //
+        // The bar is Liquid Glass. It samples what is BEHIND it and caches
+        // that, and a tab you have left is not unmounted — a `TabView` keeps it
+        // in the hierarchy — so behind the bar there is still a near-black
+        // viewfinder, and the bar is faithfully showing it. The file already
+        // records four attempts at this from the other end: `UITabBarAppearance`,
+        // `toolbarColorScheme(_:for: .tabBar)`, `toolbarBackgroundVisibility`,
+        // and an `.id` on the `TabView` — only the last worked and it breaks
+        // `selection` outright, which is navigation traded for a shade.
+        //
+        // This is the same fix from the other side: give the bar something
+        // light to sample. The camera is still there, still running, still
+        // warm — it is simply behind the app's own ground whenever it is not
+        // the screen you are looking at. Nothing is torn down, so coming back
+        // is as fast as it was, and the dissolve on arrival (see `CameraView`)
+        // covers the handover in the other direction.
+        .overlay {
+            if selectedTab != .camera {
+                WarmBackground()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private func columnWidth(for totalWidth: CGFloat) -> CGFloat {

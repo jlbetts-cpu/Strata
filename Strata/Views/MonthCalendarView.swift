@@ -134,10 +134,26 @@ struct MonthCalendarView: View {
                                     transitionNamespace: transitionNamespace
                                 )
                             } else {
-                                // Before the 1st or after the last: nothing at
-                                // all, not an empty pane. A pane there would be
-                                // a day this month does not have.
-                                Color.clear.frame(width: cell, height: cell)
+                                // **THE TAIL OF THE LAST ROW IS LATTICE.**
+                                //
+                                // The owner: "add some lattice at the end of
+                                // the calendar in the empty spots, just so it
+                                // doesn't look like empty state completely."
+                                //
+                                // This drew nothing, on the reasoning that a
+                                // pane there would be a day the month does not
+                                // have. True, and it produced a row that stops
+                                // halfway across the page and reads as the grid
+                                // failing rather than the month ending. The
+                                // lattice is the SURFACE, not the days: it is
+                                // what the calendar is built on, and it carries
+                                // on past the 30th exactly as the tower's
+                                // carries on past the top block.
+                                //
+                                // So it is the empty cell without its number
+                                // and without its tap. There is no day there to
+                                // name and nothing to open.
+                                MonthCalendarPad(side: cell, radius: radius)
                             }
                         }
                     }
@@ -320,5 +336,36 @@ private struct DayTransitionSource: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+
+/// The surface past the end of the month: a lattice cell with no day in it.
+///
+/// Drawn at half the weight of an empty DAY, which is the distinction that
+/// keeps it honest. An empty day is a day you could have filled; this is not a
+/// day at all, and if the two looked alike the calendar would be claiming the
+/// month had 32 of them.
+private struct MonthCalendarPad: View {
+    let side: CGFloat
+    let radius: CGFloat
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        shape
+            .fill(AppColors.slotInk.opacity(0.018))
+            .overlay {
+                shape.strokeBorder(
+                    BlockRim.gradient(in: colorScheme),
+                    lineWidth: max(1, GridConstants.blockRimWidth
+                                      * side / GridConstants.blockReferenceCell)
+                )
+                .opacity(0.45)
+            }
+            .frame(width: side, height: side)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
