@@ -32,12 +32,30 @@ import SwiftUI
 /// everything else on purpose: every other haptic in this app is telling you
 /// about something you did.
 ///
-/// **Why the rings are a white one and a grey one, offset.** Straight off the
-/// reference: neumorphism is one light source, so every raised edge carries a
-/// white highlight on the side facing the light and a grey shadow on the side
-/// facing away. A single grey ring reads as a drawn circle; the pair reads as
-/// the surface itself moving. The reference's own numbers are `#FFFFFF` against
-/// `#AEAEC0` at 20%.
+/// **THE SHADOW IS GONE, AND THAT IS THE WHOLE OF THIS VERSION.**
+///
+/// It was neumorphic: a white highlight on the side facing the light and a grey
+/// shadow on the side facing away, off the reference the owner sent. Built,
+/// measured, tuned up until it read — and his verdict on the result is the one
+/// that settles it: "make the ripple effect a lot more subtle, like a lot more
+/// subtle, because right now it makes it look cheap... the shadow is too much."
+///
+/// He is right, and the fault is in the idea rather than in the number. The grey
+/// ring is a SMUDGE: it is the only thing in the app that puts dirt on the page,
+/// on a page that has just been taken to clean white precisely so nothing does.
+/// Tuning it down does not fix that — it makes a fainter smudge — which is why
+/// this is a different effect rather than a smaller one.
+///
+/// **One ring, made only of light.** The page brightens a hair where the ring
+/// is and nothing anywhere goes darker. On a 247 page white has eight levels of
+/// headroom, so the ceiling on how loud this can ever be is built into it: it
+/// cannot shout, and it cannot look cheap, because there is nothing there to
+/// look cheap WITH. It is the same material argument the rest of the app is
+/// made of — every cue here is made of light, and the one that was not is the
+/// one he kept objecting to.
+///
+/// If it is still too much, the next step is not another number. It is deleting
+/// the file.
 struct TouchRipple: Identifiable, Equatable {
     let id = UUID()
     let at: CGPoint
@@ -91,49 +109,30 @@ struct TouchRipple: Identifiable, Equatable {
     /// side of the ring reads about twenty levels under the page at its peak
     /// and the light side about twelve over it, which is a surface moving
     /// rather than a line drawn on one.
-    static let offset: CGFloat = 5
-    static let shadowBlur: CGFloat = 9
-    static let bandWidth: CGFloat = 16
-    static let shadeStrength: Double = 0.88
-    static let lightStrength: Double = 1.0
+    /// Soft, and wide, and that is all there is to it now. There is no offset
+    /// any more: an offset existed to separate a highlight from a shadow, and
+    /// there is no shadow.
+    static let shadowBlur: CGFloat = 11
+    static let bandWidth: CGFloat = 18
 
-    /// **THE RING'S TWO COLOURS ARE THE PAGE'S, NOT THE REFERENCE'S.**
+    /// **How bright the ring gets, at its strongest.**
     ///
-    /// The owner, 2026-09-30: "make sure the ripple colour matches the
-    /// background as well." He had just had the ground moved off cool and onto
-    /// warm, for the same reason — a value difference across a TEMPERATURE
-    /// difference stops reading as the same material.
-    ///
-    /// The shadow was `#AEAEC0` straight off the neumorphism reference, which
-    /// is a BLUE grey: hue 0.667 against a page that now sits around 0.12. A
-    /// blue-grey ring on a warm page is a bruise, not a dent in it.
-    ///
-    /// So both sides are derived from `WarmBackground.top` and carry its hue
-    /// whatever that becomes. What is kept from the reference is the RELATIONSHIP
-    /// — its `#AEAEC0` sits about a fifth of the way down from its own `#F0F0F3`
-    /// page, and that fifth is what makes the surface look pressed rather than
-    /// painted. One rule for both appearances, so the ring follows the ground
-    /// into dark mode instead of needing a second constant that drifts.
-    static let shade = Color(uiColor: UIColor { traits in
-        let (h, s, b) = Self.groundHSB(traits)
-        return UIColor(hue: h, saturation: min(1, s + 0.06),
-                       brightness: max(0.02, b - 0.21), alpha: 1)
-    })
+    /// This is the one number, and the arithmetic is the reason it is safe. The
+    /// page is 247, so pure white at full alpha moves it eight levels; at 0.55,
+    /// blurred over eleven points, the peak measures four. Four levels is at the
+    /// edge of what anybody can see on a flat field and well under what reads as
+    /// a mark on one, which is exactly the brief.
+    static let lightStrength: Double = 0.55
 
     /// The lit side: the page, taken up. On the light page that lands on white;
     /// on the dark one it is a warm grey, because white would be a hole in it.
     static let light = Color(uiColor: UIColor { traits in
-        let (h, s, b) = Self.groundHSB(traits)
-        return UIColor(hue: h, saturation: s * 0.5,
-                       brightness: min(1, b + 0.22), alpha: 1)
-    })
-
-    private static func groundHSB(_ traits: UITraitCollection) -> (CGFloat, CGFloat, CGFloat) {
         let ground = UIColor(WarmBackground.top).resolvedColor(with: traits)
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ground.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        return (h, s, b)
-    }
+        return UIColor(hue: h, saturation: s * 0.5,
+                       brightness: min(1, b + 0.22), alpha: 1)
+    })
 
     /// Whether this ring is still worth drawing, so the layer that draws them
     /// can take itself down — and, more importantly, so the lattice's own
@@ -213,40 +212,23 @@ struct TouchRippleLayer: View {
         }
     }
 
-    /// **EMBOSSED, TO THE REFERENCE'S OWN IDEA IF NOT ITS OWN NUMBERS.**
+    /// One soft band of light, and nothing else drawn anywhere.
     ///
-    /// The first cut drew two 1.6pt strokes and the owner was right that it was
-    /// not the effect: the tutorial was in the screenshot he sent and I did not
-    /// follow it. Neumorphism is not a pair of lines, it is a pair of SHADOWS —
-    /// one light source up and to the left, so every raised edge takes a white
-    /// glow on the near side and a grey one on the far side, both blurred. That
-    /// is what makes a surface look pressed rather than drawn on.
-    ///
-    /// So each ring is a thick soft band drawn twice, offset each way and
-    /// blurred, in its two colours. See `bandWidth` for why the weights are not
-    /// the reference's.
+    /// See the type's own note for why the grey half is gone rather than
+    /// quieter: a dark ring is dirt on a page that exists to have none, and a
+    /// fainter one is fainter dirt.
     static func draw(_ ring: Int, of ripple: TouchRipple,
                      at now: Date, in context: inout GraphicsContext) {
         guard let front = ripple.front(ring, at: now) else { return }
         let radius = front.radius
         let rect = CGRect(x: ripple.at.x - radius, y: ripple.at.y - radius,
                           width: radius * 2, height: radius * 2)
-        let circle = Path(ellipseIn: rect)
-        let band = TouchRipple.bandWidth
-
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
-            layer.translateBy(x: -TouchRipple.offset, y: -TouchRipple.offset)
-            layer.stroke(circle,
-                         with: .color(TouchRipple.light.opacity(TouchRipple.lightStrength * front.fade)),
-                         lineWidth: band)
-        }
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
-            layer.translateBy(x: TouchRipple.offset, y: TouchRipple.offset)
-            layer.stroke(circle,
-                         with: .color(TouchRipple.shade.opacity(TouchRipple.shadeStrength * front.fade)),
-                         lineWidth: band)
+            layer.stroke(Path(ellipseIn: rect),
+                         with: .color(TouchRipple.light
+                            .opacity(TouchRipple.lightStrength * front.fade)),
+                         lineWidth: TouchRipple.bandWidth)
         }
     }
 }

@@ -347,41 +347,25 @@ struct TowerLattice: View {
                                 let circle = Path(ellipseIn: CGRect(
                                     x: centre.x - r, y: centre.y - r,
                                     width: r * 2, height: r * 2))
-                                // **THE PANES TAKE THE SAME DENT, NOT A
-                                // DIFFERENT EFFECT.**
+                                // **THE PANES TAKE THE SAME LIGHT, AND ONLY
+                                // LIGHT.**
                                 //
-                                // This drew the ring in WHITE, on the reasoning
-                                // that a pane is white and a pane reacting gets
-                                // brighter. That was true on the lower, warmer
-                                // ground; on a clean white page a white band
-                                // over a 248 pane is nothing at all, and the
-                                // lattice stopped taking part at exactly the
-                                // moment the page was cleaned up.
+                                // This drew the ring's embossed pair — a white
+                                // side and a grey one, offset — so the lattice
+                                // carried the same dent the page did. The dent
+                                // is gone: the owner's word on it was "cheap",
+                                // and a grey ring is the one thing in this app
+                                // that puts dirt on the page. See `TouchRipple`.
                                 //
-                                // So it is `TouchRipple`'s own two colours,
-                                // offset its own way: the panes carry the same
-                                // embossed dip the page does, a little stronger,
-                                // and because this is masked to the cells the
-                                // grid reads as the thing being disturbed rather
-                                // than as something the disturbance happens
-                                // behind. One light source, one dent, two
-                                // surfaces.
+                                // What is left is the right half of it anyway. A
+                                // pane is a translucent sheet with light behind
+                                // it, so the only thing it can honestly do when
+                                // something passes is let more through.
                                 context.drawLayer { layer in
                                     layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
-                                    layer.translateBy(x: -TouchRipple.offset,
-                                                      y: -TouchRipple.offset)
                                     layer.stroke(
                                         circle,
                                         with: .color(TouchRipple.light.opacity(Self.swell * front.fade)),
-                                        lineWidth: TouchRipple.bandWidth)
-                                }
-                                context.drawLayer { layer in
-                                    layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
-                                    layer.translateBy(x: TouchRipple.offset,
-                                                      y: TouchRipple.offset)
-                                    layer.stroke(
-                                        circle,
-                                        with: .color(TouchRipple.shade.opacity(Self.swell * front.fade)),
                                         lineWidth: TouchRipple.bandWidth)
                                 }
                             }
@@ -397,11 +381,11 @@ struct TowerLattice: View {
     /// `strength`.
     ///
     /// A share of the ring's own strength, so the surface and the page are one
-    /// disturbance at two depths rather than two effects on one curve. Under
-    /// about 0.3 the lattice does not visibly take part, which was the
-    /// complaint; over about 0.7 the cells flash and the grid becomes the
-    /// subject, which is the other one.
-    static let swell: Double = 0.45
+    /// disturbance at two depths rather than two effects on one curve. The ring
+    /// is light only now and so is this; the lattice is the half of the effect
+    /// that can still be seen, because a pane has somewhere to go that a
+    /// near-white page does not.
+    static let swell: Double = 0.70
 
     /// **The landing, drawn as the cells it reaches.**
     ///

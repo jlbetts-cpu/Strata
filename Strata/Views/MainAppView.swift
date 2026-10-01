@@ -772,42 +772,33 @@ struct MainAppView: View {
             .background { WarmBackground().ignoresSafeArea() }
     }
 
-    /// The whole header: one number, and what it counts.
+    /// The whole header: two controls, and nothing else.
     ///
-    /// It has lost a filter control, a period label and a height, in that
-    /// order. The tower is today only now, so the period is a constant and a
-    /// constant is not information. The height was a second way of saying what
-    /// the tower already shows by being tall. What is left is the count and the
-    /// word for what it counts.
+    /// It has lost a filter control, a period label, a height and now **the
+    /// count**, in that order. The owner, 2026-09-30: "remove the wins number
+    /// from the top for now."
     ///
-    /// "Wins", not "blocks": a block is what the thing is made of, a win is
-    /// what it means.
+    /// The right call, and the tower is the argument for it: a page whose whole
+    /// subject is a stack that grows does not need a numeral saying how tall the
+    /// stack is. It was the loudest thing on the screen — the largest type in
+    /// the app, in the heaviest ink, over the emptiest part of the page — and it
+    /// was saying what the thing underneath it already shows.
+    ///
+    /// **"For now".** The count is not gone from the app: it is in the widget,
+    /// in Profile's streak, in every replay, and `VoiceOver` still reads the
+    /// tower's. If it comes back it should come back somewhere it is the
+    /// subject rather than a caption on something else.
+    ///
+    /// `ViewThatFits` went with it. It was there because the count, "wins" and
+    /// two controls did not fit one row at an accessibility text size; two
+    /// controls always do.
     private var towerHeader: some View {
-        // **One row when it fits, the pill on its own line when it does not.**
-        // At an accessibility text size on an iPhone SE the count, "wins",
-        // "Your month" and Plan are wider than the grid: squeezed into one
-        // row, "12" broke one digit per line and the pill read "Yo...", and
-        // capping the pill's type still left "Your...". So the row is
-        // measured, and when it does not fit, the pill drops under the count
-        // at full size, the way Dynamic Type layouts stack at large sizes.
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                headerCount
-                Spacer(minLength: 0)
-                headerReplayPill
-                headerPlan
-            }
-            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    headerCount
-                    Spacer(minLength: 0)
-                    headerPlan
-                }
-                headerReplayPill
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Spacer(minLength: 0)
+            headerReplayPill
+            headerPlan
         }
-        .animation(GridConstants.motionSmooth, value: towerVM.placedBlocks.count)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
         //
         // The tower is leading-aligned inside the padded page, and four

@@ -1,90 +1,105 @@
 import SwiftUI
 import CoreText
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// The owner's alphabet and digits, as one real font: `Strata-Regular.ttf`.
+/// **The drawn face is off, and this is the shim that took it off.**
 ///
-/// **In Shared/ so the widget can use it too**, registered by `UIAppFonts` in
-/// both Info.plists. Without that entry `Font.custom` falls back to the
-/// system face SILENTLY, which looks exactly like the font not loading;
-/// `isAvailable` is how to tell.
+/// The owner, 2026-09-30: "remove the old branding, the custom numbers and
+/// everything." It is the last piece of the direction he set two messages
+/// earlier — "we are replacing the space-font kind of aesthetic and optimising
+/// more for this premium glass mixed with the Hey Tea vibe" — and the drawn
+/// face IS that aesthetic: a wide, technical, space-y alphabet that was doing
+/// the job the illustrations are about to do, and doing it in a different
+/// century.
 ///
-/// It replaced `StrataNumerals` (2026-09-16). Its digits ARE those digits,
-/// scaled by 700/1443 so their cap meets the capitals', and still tabular.
-/// Two numbers changed with it, both read out of the font's own tables: the
-/// advance went 0.947 em to 0.906, and the mean left bearing 0.0892 to 0.0712
-/// (`opticalInset`). Line metrics are SF Pro Rounded's scaled to 1000 upem
-/// (ascent 967, descent -211, cap 700), so a `Text` in it gets the same line
-/// box as one in the system face and `headerTopPadding(forTitleSize:)` holds.
+/// **Why this is a shim rather than a deletion.** `StrataFont` had forty-odd
+/// call sites across the app and the widget, and most of them are not about the
+/// face at all — they are about `digits(_:)`, which exists because
+/// `Text("\(count)")` is a `LocalizedStringKey` and groups a thousand into
+/// "1,000". Deleting the type would have meant touching forty files to change
+/// one decision, and every one of those edits is a chance to reintroduce the
+/// interpolation bug this type was written to prevent. So the type stays, the
+/// rules it enforces stay, and what it hands back is the system face.
 ///
-/// **TrueType, never CFF.** A CFF build is clipped about 0.08 em off the
-/// bottom by `.contentTransition(.numericText())` (CLAUDE.md).
+/// Going back is one file: the TTF is still in `Shared/`, still registered by
+/// `UIAppFonts` in both Info.plists, and the measured constants are below in
+/// their old values, commented.
 ///
-/// **Where it sets, and nowhere else** (`docs/research/font.md` (a)): screen
-/// titles at 34, counts as digits alone, sheet titles at 17, and dynamic
-/// titles only through `covers(_:)`. Never buttons, section labels, dates or
-/// anything at 13 or below with a letter in it: below about 17pt his D reads
-/// as O and his B as 8.
+/// **`.rounded`, not `.default`.** The app's body copy is `.default` and stays
+/// there. Numerals and titles take rounded for the reason the drawn face was
+/// chosen in the first place: a tally is a shape before it is a number, and the
+/// rounded digits sit with the blocks' 20pt corners and the illustrations'
+/// hand-cut edges. One decision, in one place, rather than a design argument at
+/// every call site.
 enum StrataFont {
-    /// PostScript name, from the font's `name` table.
+    /// Kept so the Info.plist entries and the TTF do not become a mystery.
+    /// Nothing reads it any more except the test that proves it is still there.
     static let name = "Strata-Regular"
 
-    /// Cap height over em, from `OS/2.sCapHeight` (700 of 1000).
+    /// Cap height over em. SF's, not the drawn face's 0.700.
     static let capHeight: CGFloat = 0.700
 
-    /// The mean left sidebearing of the ten digits, as a fraction of point
-    /// size, from `hmtx` (0.060 for the widest to 0.100 for the narrowest).
-    /// Tabular centring puts real air to the left of every digit, so a count
-    /// aligned to a grid line still LOOKS indented beside a block.
-    static let opticalInset: CGFloat = 0.0712
+    /// **Zero now.** This was 0.0712 — the mean left sidebearing of the drawn
+    /// digits, which had real air to the left of every glyph, so a count
+    /// aligned to a grid line still LOOKED indented beside a block. SF's digits
+    /// do not have that problem, and a negative pad compensating for a bearing
+    /// that is gone would pull every count a point and a half off its margin.
+    static let opticalInset: CGFloat = 0
 
-    /// A size the caller solves for. `.custom(_:size:)`, as `StrataNumerals`
-    /// had it, so it moves with Dynamic Type relative to body exactly as
-    /// before; nothing that swapped faces changed how it scales.
+    /// A size the caller solved for — a numeral sized off a grid cell, the
+    /// camera's 96pt countdown.
+    ///
+    /// **It still scales with Dynamic Type**, which `Font.system(size:)` does
+    /// not: `.custom(_:size:)` scaled against body for free, and dropping that
+    /// would have frozen every count in the app at one size. `UIFontMetrics` is
+    /// the supported way to do it by hand, and it works here because this is a
+    /// function evaluated inside a view's body rather than a stored token.
     static func size(_ points: CGFloat) -> Font {
-        .custom(name, size: points)
+        .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: points),
+                weight: .medium, design: .rounded)
     }
 
-    /// Scales with Dynamic Type, which a fixed size does not.
+    /// Scales with Dynamic Type, live.
+    ///
+    /// **`points` is dropped, and it costs nothing**, because every call site
+    /// in the app already pairs a point size with the text style whose DEFAULT
+    /// size it is: 34 with `.largeTitle`, 28 with `.title`, 17 with
+    /// `.headline`, 15 with `.subheadline`, 13 with `.footnote`. Asking for the
+    /// style gives the same size at the default setting and, unlike a scaled
+    /// fixed value, keeps moving when the setting changes — `Typography.tally`
+    /// and friends are stored `let`s, so anything computed once would freeze.
     static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .custom(name, size: points, relativeTo: style)
+        .system(style, design: .rounded, weight: .medium)
     }
 
     /// A count, formatted for this face: digits and nothing else.
     ///
     /// **Never `Text("\(count)")`.** That is a `LocalizedStringKey`, and its
     /// interpolation formats an `Int` with the locale's grouping, so 1000
-    /// arrives as "1,000" and the face has no comma.
+    /// arrives as "1,000". This outlived the face it was written for and is the
+    /// reason the type still exists.
     static func digits(_ value: Int) -> String {
         String(max(value, 0))
     }
 
     // MARK: - Coverage
 
-    /// Characters the font has a glyph for that are still stand-ins. `/` is
-    /// his `\` mirrored until he draws one (font.md, "Placeholders").
-    static let placeholders: Set<Unicode.Scalar> = ["/"]
+    /// **Everything, now.** This asked whether the drawn face had a glyph for
+    /// every character, because iOS falls back glyph by glyph and "Café" would
+    /// have set its é in SF — lighter, narrower and shorter, a patch in the
+    /// middle of the word. The system face has no such gaps, so every caller's
+    /// "drawn or not" branch now resolves one way, which is the point.
+    static func covers(_ string: String) -> Bool { !string.isEmpty }
 
-    /// The font's own character map, or nil when it is not registered.
-    private static let characterSet: CharacterSet? = {
-        let font = CTFontCreateWithName(name as CFString, 17, nil)
-        // CoreText hands back a fallback face rather than failing, so check
-        // that the font it made is the one that was asked for.
-        guard CTFontCopyPostScriptName(font) as String == name else { return nil }
-        return CTFontCopyCharacterSet(font) as CharacterSet
-    }()
-
-    /// Whether the font is registered in this process.
-    static var isAvailable: Bool { characterSet != nil }
-
-    /// Whether EVERY character of `string` is drawn by the owner.
+    /// Whether the drawn face is still registered in this process.
     ///
-    /// iOS falls back glyph by glyph, so "Café" in this face would set its é
-    /// in SF Pro, lighter, narrower and shorter, a patch in the middle of the
-    /// word. A string that fails goes to SF Pro Rounded WHOLE; never mix.
-    static func covers(_ string: String) -> Bool {
-        guard let set = characterSet, !string.isEmpty else { return false }
-        return string.unicodeScalars.allSatisfy {
-            set.contains($0) && !placeholders.contains($0)
-        }
+    /// Nothing in the app depends on it any more. It is here so the test that
+    /// proved the font shipped keeps proving it, since the file is still in the
+    /// bundle and going back is a one-file change.
+    static var isAvailable: Bool {
+        let font = CTFontCreateWithName(name as CFString, 17, nil)
+        return CTFontCopyPostScriptName(font) as String == name
     }
 }

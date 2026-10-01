@@ -3,8 +3,19 @@ import SwiftUI
 import UIKit
 @testable import Strata
 
-/// The owner's font: that it is really registered, that `covers` tells the
-/// truth about its character map, and the one layout bug a count in it had.
+/// **The drawn face is off (2026-09-30), so these tests changed with it.**
+///
+/// The owner: "remove the old branding, the custom numbers and everything."
+/// `StrataFont` is a shim over the system face now — see its own note for why
+/// the type survived its font. Three of these tests were about the drawn face's
+/// character map and metrics and could only ever have passed while it was
+/// setting type; they are updated here with the reason rather than deleted,
+/// because the file is still in the bundle and going back is a one-file change.
+///
+/// What is still worth proving: that the TTF really ships (so the revert is
+/// one file and not a hunt), that `covers` answers the way callers now branch
+/// on it, and the interpolation bug `digits` exists to prevent — which is the
+/// only thing here that was never about the face at all.
 @MainActor
 struct StrataFontTests {
 
@@ -15,30 +26,43 @@ struct StrataFontTests {
         #expect(UIFont(name: StrataFont.name, size: 17) != nil)
     }
 
-    @Test func coversWhatHeDrew() {
+    /// **`covers` is now true for everything with a character in it.**
+    ///
+    /// It asked whether the DRAWN face had a glyph for every character, because
+    /// iOS falls back glyph by glyph and "Café" would have set its é in SF — a
+    /// lighter, narrower patch in the middle of a word. The accented, the
+    /// apostrophed and the Japanese cases below were the whole point of it, and
+    /// they are kept as the record of what it was for; they assert the opposite
+    /// now, which is the honest statement of what changed. The system face has
+    /// no gaps, so every caller's "drawn or not" branch resolves one way.
+    @Test func coversEveryStringWithSomethingInIt() {
         #expect(StrataFont.covers("Memories"))
-        #expect(StrataFont.covers("Add a win"))
-        #expect(StrataFont.covers("Saturday 5 September"))
         #expect(StrataFont.covers("0123456789"))
-    }
-
-    /// One missing glyph sends the whole string to SF, never a patch.
-    @Test func refusesAnythingHeDidNotDraw() {
-        #expect(!StrataFont.covers("Café"))
-        #expect(!StrataFont.covers("St. Ives"))
-        #expect(!StrataFont.covers("O’Hare"))
-        #expect(!StrataFont.covers("Zürich"))
-        #expect(!StrataFont.covers("東京"))
+        // Each of these was false while the drawn face was setting type.
+        #expect(StrataFont.covers("Café"))
+        #expect(StrataFont.covers("O’Hare"))
+        #expect(StrataFont.covers("東京"))
+        #expect(StrataFont.covers("9/14"))
+        // And the empty string still is not a string to set.
         #expect(!StrataFont.covers(""))
     }
 
-    /// `/` has a glyph, but it is his `\` mirrored as a stand-in.
-    @Test func refusesThePlaceholderSlash() {
-        #expect(!StrataFont.covers("9/14"))
-    }
-
-    /// The font's own numbers, so the tally inset cannot drift from them.
-    @Test func digitMetricsMatchTheFont() throws {
+    /// **The drawn face's own numbers, which nothing lays out against any
+    /// more.**
+    ///
+    /// It proved that `opticalInset` matched the mean left sidebearing of the
+    /// ten digits, so the tally's negative pad could not drift from the font it
+    /// was compensating for. `opticalInset` is 0 now — SF's digits do not have
+    /// that air — so the assertion that tied them together is replaced by the
+    /// one that matters today: the inset must stay at zero while the system
+    /// face is setting, or every count in the app pulls a point and a half off
+    /// its margin.
+    ///
+    /// The metrics themselves are still checked, because they are what a revert
+    /// would restore and a silently re-exported font is exactly the kind of
+    /// thing that breaks it.
+    @Test func drawnFaceStillShipsWithItsMetrics() throws {
+        #expect(StrataFont.opticalInset == 0, "SF's digits carry no sidebearing to cancel")
         let font = try #require(UIFont(name: StrataFont.name, size: 1000))
         #expect(abs(font.capHeight - 700) < 1)
         let ct = font as CTFont
@@ -56,7 +80,8 @@ struct StrataFontTests {
             advances.insert(Int(advance.width.rounded()))
         }
         #expect(advances == [906], "digits are no longer tabular at 0.906 em")
-        #expect(abs(lsbTotal / 10 / 1000 - StrataFont.opticalInset) < 0.002)
+        #expect(abs(lsbTotal / 10 / 1000 - 0.0712) < 0.002,
+                "the drawn face's own sidebearing, for whenever it comes back")
     }
 
     /// `"\(1000)"` in a `Text` is "1,000", and the face has no comma.
