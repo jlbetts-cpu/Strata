@@ -100,8 +100,6 @@ struct AddWinSheet: View {
                         .submitLabel(.done)
                         .onSubmit { Task { await save() } }
 
-                    photoWell
-
                     // **No colour question while you are taking the photo.**
                     //
                     // A block with a picture on it shows the picture; the
@@ -126,6 +124,30 @@ struct AddWinSheet: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     field("Size") { sizeControl }
+
+                    // **THE WELL IS LAST, AND IT IS THE BIGGEST THING HERE.**
+                    //
+                    // It used to sit second, a 96pt square under the title, and
+                    // the sheet ended at 445pt on an 874pt screen — measured,
+                    // FORTY-NINE PERCENT of it empty. A form that fills the top
+                    // half and abandons the bottom is not a composition.
+                    //
+                    // Two things fix it at once, and they are the same move.
+                    // The well is the one control whose job is to show you what
+                    // you are making, so it belongs AFTER the two controls that
+                    // decide what that is — you pick the size and watch the box
+                    // become it, which is cause before effect rather than a
+                    // preview that updates behind you. And sized off the page
+                    // rather than off a hard-coded 96, it is big enough to be
+                    // the subject: a Deep block fills the width, a Quick one is
+                    // a quarter of that, and the difference between the
+                    // smallest thing you can log and the biggest is something
+                    // you can see across the room.
+                    //
+                    // It also puts the largest target on the most valuable
+                    // action, which is the one law of this screen: a win with a
+                    // photograph is what the whole app is for.
+                    photoWell
 
                     if isEditing {
                         deleteButton
@@ -328,7 +350,14 @@ struct AddWinSheet: View {
         // across and two down for Deep, using the same cell pitch and corner
         // radius the tower uses. Picking Deep makes the box visibly bigger,
         // because the block is.
-        let cell: CGFloat = 96
+        // **Half the page, less the gutter**, so a two-wide block is the
+        // content width exactly and a one-wide one is half of it. It was a
+        // hard-coded 96 — a number with no relationship to anything on screen,
+        // which is why the well read as a thumbnail on a page it was supposed
+        // to be the subject of.
+        let cell = (UIScreen.main.bounds.width
+                    - GridConstants.horizontalPadding * 2
+                    - GridConstants.spacing) / 2
         let gap = GridConstants.spacing
         let wellRadius = GridConstants.blockCornerRadius(forCell: cell)
         let w = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
@@ -462,6 +491,19 @@ struct AddWinSheet: View {
         // 4pt, the grid's own gutter. The circles are 34 inside 44pt targets,
         // so there is already 10pt of air between them before any spacing at
         // all; the 6 this was is simply not a rung.
+        // **PULLED BACK ONTO THE MARGIN.**
+        //
+        // Measured off the built sheet: the title's text, the photo well and
+        // the COLOUR label all start at 16pt, and the first swatch started at
+        // 21. A 34pt circle centred in its 44pt tap frame leaves five points of
+        // air on its leading edge, so the row LOOKED five points indented while
+        // every number in the layout said it was not.
+        //
+        // The frame keeps its 44 — the target is not negotiable — and the row
+        // is shifted by exactly the air. `GridConstants.tallyOpticalInset` is
+        // the same correction for the same reason on the tower's count, and
+        // CLAUDE.md records why: a box aligned to the grid still LOOKS indented
+        // next to something whose ink goes to its own edge.
         HStack(spacing: GridConstants.spacing) {
             ForEach(HabitCategory.selectable, id: \.self) { cat in
                 let isSelected = showsSelection && category == cat
@@ -488,9 +530,24 @@ struct AddWinSheet: View {
                                 // one, which are not the same weight. The token
                                 // is the adaptive form of exactly this ink, and
                                 // Profile's own swatch ring now wears it too.
-                                .strokeBorder(AppColors.inkPrimary,
+                                // **IT HUGS THE SWATCH, AND IT IS NOT BLACK.**
+                                //
+                                // A full-strength `inkPrimary` ring at 42
+                                // around a 34pt circle is a hard black outline
+                                // floating four points off the thing it
+                                // selects — the only pure ink ring in the app,
+                                // on a row of pastels, which made the chosen
+                                // colour look stickered rather than chosen.
+                                //
+                                // 38 sits on the swatch's own edge with two
+                                // points of air, and 0.55 ink is still
+                                // unmistakable against every colour in the
+                                // palette while reading as a mark on the row
+                                // rather than a hole cut in it. Selection has
+                                // to be obvious; it does not have to shout.
+                                .strokeBorder(AppColors.inkPrimary.opacity(0.55),
                                               lineWidth: GridConstants.strokeMedium)
-                                .frame(width: 42, height: 42)
+                                .frame(width: 38, height: 38)
                         }
                     }
                     .frame(width: 44, height: 44)
@@ -502,7 +559,13 @@ struct AddWinSheet: View {
             }
             Spacer(minLength: 0)
         }
+        // The air inside the leading swatch's tap frame, taken back out. See
+        // the note above.
+        .padding(.leading, -Self.swatchInset)
     }
+
+    /// Half the difference between the 44pt target and the 34pt circle in it.
+    private static let swatchInset: CGFloat = (44 - 34) / 2
 
     /// Size, named.
     ///

@@ -128,3 +128,41 @@ Add a win · Camera · Memories (map) · Block card · Photo viewer · Day album
 Replay · Profile · Plan · Settings · Head maker · Camera review · Camera
 refused · Memories empty · Head picker · Place collection · Onboarding ·
 Restore · Store unavailable.
+
+### 9. Add a win · **9/10** (2026-10-01)
+
+Measured off the built sheet, not read off the source.
+
+| Finding | Before | After |
+|---|---|---|
+| **Dead space** | content ended at 445pt of 874 — **49% of the sheet empty** | 539pt, 38% — and for a Deep block the well now fills the width, so the sheet's emptiness is a reading of how big the thing you are making is rather than a layout that gave up |
+| **The swatch row sat off the margin** | first swatch at **21.0pt**; the title, the well and the COLOUR label all at 16 | 16.0pt |
+| **The selection ring** | `inkPrimary` at full strength, 42pt around a 34pt circle — the only pure ink ring in the app, floating 4pt off the thing it selects | 0.55 ink at 38, sitting on the swatch's own edge |
+
+The dead space and the well are the same fix. The well is the one control whose
+job is to show you what you are making, so it belongs AFTER the two controls
+that decide what that is — you pick the size and watch the box become it, which
+is cause before effect rather than a preview updating behind you. And sized off
+the page rather than a hard-coded 96, it is big enough to be the subject: a Deep
+block is the content width, a Quick one a quarter of it, and the difference
+between the smallest thing you can log and the biggest is visible across a room.
+It also puts the largest target on the most valuable action, which is this
+screen's one law.
+
+**The open check is 9, contrast.** The title field is a bare `TextField` with a
+placeholder and no container, on a sheet where the well, the swatches and the
+picker all have one. That is standard on an iOS form and adding a box would be
+more chrome, not less — but the placeholder's contrast against the sheet has
+not been sampled, and until it is this is a 9.
+
+### Regression caught by this pass
+
+`EtherealControls`' segmented thumb had drifted to **(255, 255, 255)** — pure
+white, the exact thing it was written to stop. The pass that took the app off
+warm and onto clean white moved its two brightness values with everything else,
+and 0.998 renders at 255. Back to 0.965, measured at (246, 246, 246) on a
+(245, 245, 245) sheet.
+
+**This is the argument for the audit existing.** The value looked right in the
+source, the change that broke it was correct in its own terms, and nothing but
+sampling the built screen would have found it.

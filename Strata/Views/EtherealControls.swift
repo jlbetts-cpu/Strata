@@ -68,14 +68,23 @@ enum EtherealControls {
     /// chose.
     private static let track = Color(uiColor: UIColor { traits in
         UIColor(hue: hue, saturation: saturation,
-                brightness: traits.userInterfaceStyle == .dark ? 0.16 : 0.962,
+                brightness: traits.userInterfaceStyle == .dark ? 0.16 : 0.952,
                 alpha: 1)
     })
 
     /// The selected segment: a pane over the page, at `PageSurface`'s distance.
+    ///
+    /// **0.965, and it had drifted to 0.998.** The pass that took the whole app
+    /// off warm and onto clean white moved these two numbers with everything
+    /// else, and 0.998 renders at 255 — which is pure white, the exact thing
+    /// this was written to stop the thumb being. Caught by the screen audit on
+    /// the add sheet, measured at (255, 255, 255) against a (245, 245, 245)
+    /// page, and it is the second time this file has been fooled: a value that
+    /// looks safe in the source is not a value until it has been sampled off
+    /// the built screen.
     private static let thumb = Color(uiColor: UIColor { traits in
         UIColor(hue: hue, saturation: saturation,
-                brightness: traits.userInterfaceStyle == .dark ? 0.22 : 0.998,
+                brightness: traits.userInterfaceStyle == .dark ? 0.22 : 0.965,
                 alpha: 1)
     })
 }
