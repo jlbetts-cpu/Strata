@@ -650,11 +650,32 @@ struct MainAppView: View {
         // through that binding on appear and overwrote anything set during
         // setup.
         .preferredColorScheme(windowScheme)
-        .onChange(of: selectedTab) { _, newTab in
+        // **Going DARK waits for the camera's dissolve; coming back does not.**
+        //
+        // The camera fades its page in over 0.36s rather than cutting (see
+        // `CameraView`), and the status bar is above every view in the app —
+        // so flipping the window to dark on the instant the tab changes puts
+        // white system text on a page that is still white for a third of a
+        // second. Unreadable, and the one piece of chrome nothing can draw
+        // over.
+        //
+        // 0.2s is a little past the middle of that fade, where the page has
+        // gone far enough that white reads. The other direction has nothing to
+        // wait for — leaving the camera arrives on a page that is already
+        // drawn — so it stays instant, which is also what keeps a quick
+        // there-and-back from queueing two flips.
+        //
+        // Cancelled by `id:`, so flicking through tabs cannot land a stale one.
+        .task(id: selectedTab) {
+            let scheme = Self.scheme(for: selectedTab)
+            if scheme == .dark {
+                try? await Task.sleep(for: .seconds(0.2))
+                guard !Task.isCancelled else { return }
+            }
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                windowScheme = Self.scheme(for: newTab)
+                windowScheme = scheme
             }
         }
         // The tab bar is NOT rebuilt when leaving the camera.

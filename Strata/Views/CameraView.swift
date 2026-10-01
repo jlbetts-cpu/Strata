@@ -163,6 +163,9 @@ struct CameraView: View {
     private let shutterBottomGap: CGFloat = 40
 
 
+    /// Whether the arrival dissolve has finished. See the overlay on the body.
+    @State private var hasArrived = false
+
     var body: some View {
         #if DEBUG
         let _ = PerfProbe.count("CameraView")
@@ -268,7 +271,46 @@ struct CameraView: View {
         // clear the notch. The preview reaches the edges by being drawn taller
         // and offset instead.
         .background { WarmBackground().ignoresSafeArea() }
+        // **THE SCREEN DISSOLVES IN INSTEAD OF CUTTING.**
+        //
+        // The owner, 2026-09-30: "the transitions of the screens are still a bit
+        // off — the Wins screen to the camera loads out really sudden, there is
+        // no clean transition."
+        //
+        // A `TabView` switches instantly and cannot be asked not to, and the two
+        // screens either side of this particular switch are the furthest apart
+        // in the app: a clean white page and a near-black viewfinder. The cut
+        // itself is only half of what reads as sudden — the other half is that
+        // the lens takes a moment to produce a frame, so the first thing that
+        // arrives is not the camera, it is BLACK, and then the camera appears
+        // inside it a beat later. Two hard edges, a tenth of a second apart.
+        //
+        // This covers both with one dissolve. The page's own ground is held over
+        // the whole screen and faded out across `--dur-reveal`, so the tab
+        // arrives as the white page you were already looking at and the
+        // viewfinder comes up THROUGH it. Nothing has to know when the session
+        // starts: by the time the cover is gone the frames are there, and if
+        // they are not, what is underneath is the dark ground rather than a cut
+        // to it.
+        //
+        // It cannot be done on the way out — the tab unmounts — and it does not
+        // need to be. Leaving goes to a page that is already drawn.
+        .overlay {
+            if !hasArrived {
+                WarmBackground()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
         .task {
+            // One frame's grace before the fade starts, so the cover is
+            // actually on screen for the first composite rather than being
+            // animated from a state nobody saw.
+            await Task.yield()
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.36)) {
+                hasArrived = true
+            }
             await camera.start()
             // **After `start`, never beside it.** A session that is not
             // configured cannot take an output, and mutating one underneath a
