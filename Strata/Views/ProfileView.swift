@@ -82,6 +82,13 @@ struct ProfileView: View {
             settingsLink
         }
         .scrollContentBackground(.hidden)
+        // **The primary, on the platform's own controls.** The owner: "make
+        // sure you are changing the primary to the blue." A `Form`'s links,
+        // its Done and its pickers all take the tint, and ink made them look
+        // like labels rather than like things to press. See
+        // `AppColors.accentPrimary` for why it is the accent's hue at a
+        // different weight rather than the accent itself.
+        .tint(AppColors.accentPrimary)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)
         .toolbar { doneToolbar }
@@ -306,20 +313,18 @@ struct ProfileView: View {
                 streakFigure(vm.bestStreak, label: "Best")
             }
             .padding(.vertical, GridConstants.gapTight)
-        // **The app's own surface, not the platform's.**
+        // **The platform's card, not ours**, and that is the owner's call
+        // (2026-09-30): "a lot of those panels and elements should just be
+        // Apple native to make them cleaner instead of our system — I think it
+        // looks a bit off in Profile and Settings having the custom stuff."
         //
-        // Photographed beside the tower, a stock `Form` row is an OPAQUE white
-        // card on a ground that has light in it — paper laid over a lit sheet,
-        // which is a different material from everything the tower is made of.
-        // `PageSurface` is the non-block half of the vocabulary: translucent,
-        // so the ground comes through it the way it comes through a lattice
-        // pane, and wearing `BlockRim`'s edge rather than no edge at all.
-        //
-        // Only on the one-row sections. A multi-row section would get one card
-        // PER ROW, because that is what `listRowBackground` means, and a
-        // stack of five rimmed cards where the platform draws one group is
-        // worse than the platform's own answer.
-        .listRowBackground(PageSurface())
+        // He is right, and the reason is that the ground moved under the
+        // argument. `PageSurface` went on here when the page was a lower, warmer
+        // thing and a stock white card sat eight levels over it, reading as
+        // paper on a lit sheet. The page is clean white now; the platform's own
+        // card is already nearly the page, so the problem it was solving is gone
+        // and all that is left is a settings screen that does not behave like
+        // one.
         } header: {
             FormSectionLabel("Streak")
         } footer: {
@@ -388,8 +393,6 @@ struct ProfileView: View {
                 }
             }
             .padding(.vertical, GridConstants.gapTight)
-            // The app's own surface. See the note on `streak`.
-            .listRowBackground(PageSurface())
         } header: {
             FormSectionLabel("Wins per \(unit.name)")
         }
@@ -755,8 +758,6 @@ struct ProfileView: View {
                     SettingsIcon(systemName: "gearshape")
                 }
             }
-            // The app's own surface. See the note on `streak`.
-            .listRowBackground(PageSurface())
         }
     }
 

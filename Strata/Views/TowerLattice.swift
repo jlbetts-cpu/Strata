@@ -347,11 +347,41 @@ struct TowerLattice: View {
                                 let circle = Path(ellipseIn: CGRect(
                                     x: centre.x - r, y: centre.y - r,
                                     width: r * 2, height: r * 2))
+                                // **THE PANES TAKE THE SAME DENT, NOT A
+                                // DIFFERENT EFFECT.**
+                                //
+                                // This drew the ring in WHITE, on the reasoning
+                                // that a pane is white and a pane reacting gets
+                                // brighter. That was true on the lower, warmer
+                                // ground; on a clean white page a white band
+                                // over a 248 pane is nothing at all, and the
+                                // lattice stopped taking part at exactly the
+                                // moment the page was cleaned up.
+                                //
+                                // So it is `TouchRipple`'s own two colours,
+                                // offset its own way: the panes carry the same
+                                // embossed dip the page does, a little stronger,
+                                // and because this is masked to the cells the
+                                // grid reads as the thing being disturbed rather
+                                // than as something the disturbance happens
+                                // behind. One light source, one dent, two
+                                // surfaces.
                                 context.drawLayer { layer in
                                     layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
+                                    layer.translateBy(x: -TouchRipple.offset,
+                                                      y: -TouchRipple.offset)
                                     layer.stroke(
                                         circle,
-                                        with: .color(.white.opacity(Self.swell * front.fade)),
+                                        with: .color(TouchRipple.light.opacity(Self.swell * front.fade)),
+                                        lineWidth: TouchRipple.bandWidth)
+                                }
+                                context.drawLayer { layer in
+                                    layer.addFilter(.blur(radius: TouchRipple.shadowBlur))
+                                    layer.translateBy(x: TouchRipple.offset,
+                                                      y: TouchRipple.offset)
+                                    layer.stroke(
+                                        circle,
+                                        with: .color(TouchRipple.shade.opacity(Self.swell * front.fade)),
                                         lineWidth: TouchRipple.bandWidth)
                                 }
                             }
@@ -366,13 +396,12 @@ struct TowerLattice: View {
     /// **How much brighter a pane gets as the ring crosses it**, on top of
     /// `strength`.
     ///
-    /// A pane rests at 0.34 white, so this is not far off doubling it for the
-    /// moment the front is on that cell — which sounds like a lot and is not,
-    /// because it is one band of cells for about a fifth of a second and the
-    /// ring is fading the whole time. Below about 0.2 the lattice does not
-    /// visibly take part, which was the complaint; above about 0.4 the cells
-    /// flash, which makes the grid the subject.
-    static let swell: Double = 0.30
+    /// A share of the ring's own strength, so the surface and the page are one
+    /// disturbance at two depths rather than two effects on one curve. Under
+    /// about 0.3 the lattice does not visibly take part, which was the
+    /// complaint; over about 0.7 the cells flash and the grid becomes the
+    /// subject, which is the other one.
+    static let swell: Double = 0.45
 
     /// **The landing, drawn as the cells it reaches.**
     ///

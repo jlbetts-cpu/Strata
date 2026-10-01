@@ -505,6 +505,8 @@ struct SettingsView: View {
             ReplayView(replay: replay, isSample: true) { previewing = nil }
         }
         .scrollContentBackground(.hidden)
+        // The primary, on the platform's own controls. See `ProfileView`.
+        .tint(AppColors.accentPrimary)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Settings", drawn: false)
         .toolbar {

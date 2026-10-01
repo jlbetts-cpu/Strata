@@ -97,20 +97,19 @@ final class ProfileStore {
 
     /// The fill behind a head or initials.
     ///
-    /// **`.quaternary` was the one thing on this page made of somebody else's
-    /// material**, and `docs/design-system-future.md` §8 names it: a colour that
-    /// is neither in `AppColors` nor taken from content. Drawn at avatar size it
-    /// is a solid mid-grey disc — on a page where the chrome has just been taken
-    /// to three levels above the ground and every surface is translucent, it was
-    /// the heaviest object on the screen. `quietFill` is the app's own token for
-    /// a shape that is only there to be a shape, and it is what the empty
-    /// swatch, the tower's slot and the photo well are already made of.
+    /// **An empty one is the platform's well, a chosen one is ours.**
     ///
-    /// And a CHOSEN colour is lit from inside, like every other coloured surface
-    /// in the app — the blocks, the swatch you picked it with. It was flat.
+    /// The empty case was `.quaternary`, then `quietFill`, and it goes back:
+    /// Profile is a screen the owner asked to be Apple-native (2026-09-30), and
+    /// on a clean white page `.quaternary` is a quiet disc rather than the heavy
+    /// grey it was on the lower, warmer ground that argument was made against.
+    ///
+    /// A CHOSEN colour stays lit from inside, because that is content rather
+    /// than chrome — it is the same colour, lit the same way, as the block it
+    /// will put on the tower and the swatch it was picked with.
     var backgroundStyle: AnyShapeStyle {
         background.map { AnyShapeStyle(EtherealFill.fill($0.style.baseColor)) }
-            ?? AnyShapeStyle(AppColors.quietFill)
+            ?? AnyShapeStyle(.quaternary)
     }
 
     /// Initials on the chosen colour: black or white, whichever reads better

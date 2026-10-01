@@ -292,24 +292,42 @@ enum AppColors {
     /// switch its like white on white just looks like a pill."
     ///
     /// So this is one colour in both schemes, chosen to contrast with the
-    /// white thumb AND with either ground. Green because that is what every
-    /// person on this platform reads as "on" without being taught, and the
-    /// app's own rather than the system's — this is the health category's
-    /// border, already in the palette.
+    /// white thumb AND with either ground.
     ///
-    /// Measured, not picked by eye. Contrast ratios:
+    /// **BLUE, NOT GREEN** (2026-09-30). The owner: "make sure you are changing
+    /// the primary to the blue, because I notice in the settings it is still
+    /// green." The brand's primary is `accent`, sampled off his reference, and
+    /// a switch is the most-repeated piece of accent in the app — six of them in
+    /// Settings alone — so a green one was the palette disagreeing with itself
+    /// on the screen where it repeats most.
     ///
-    ///     accentWarm, dark mode   1.07:1 against the thumb   <- the bug
-    ///     system green 34C759     2.22:1
-    ///     healthGreen 34C48B      2.23:1
-    ///     this, 0B9362            3.91:1
+    /// **It is the accent's HUE taken down, not the accent.** `accent` as drawn
+    /// is a bright sky blue and measures 1.96:1 against a switch's white thumb,
+    /// which is worse than the system green this already refused. Same hue
+    /// (0.552), saturation and brightness moved until it lands where the green
+    /// was. Measured against the white thumb, the light page and the dark one:
     ///
-    /// and 4.16:1 against the dark ground, 3.65:1 against the light one, so
-    /// all three relationships clear the 3:1 WCAG asks of a UI element. Apple's
-    /// own switch green does not, which is worth knowing before anyone
-    /// "corrects" this back to it.
+    ///     accentWarm, dark mode   1.07  —  —        <- the original bug
+    ///     system green 34C759     2.22  —  —
+    ///     accent, as drawn        1.96  1.83  8.66  <- the obvious swap
+    ///     the green, 0B9362       3.91  3.65  4.34  <- what this replaces
+    ///     this, 138BC2            3.82  3.56  4.45
+    ///
+    /// So all three relationships still clear the 3:1 WCAG asks of a UI element,
+    /// within a tenth of what the green managed. Apple's own switch green does
+    /// not clear it, which is worth knowing before anyone "corrects" this.
+    static let switchOn = Color(hex: 0x138BC2)
 
-    static let switchOn = Color(hex: 0x0B9362)
+    /// **The primary action's colour where it has to read as ink on white.**
+    ///
+    /// `accent` is the fill of a big lit pill and is right there. The same blue
+    /// as a 17pt word on a near-white page is 1.83:1 — unreadable. This is that
+    /// hue at a weight that works as text and as a tint for the platform's own
+    /// controls: 4.38:1 on the light page, 3.62:1 on the dark one.
+    ///
+    /// One hue, two weights, which is how the rest of this palette already
+    /// works — see `inkPrimary` and `inkSecondary`.
+    static let accentPrimary = Color(hex: 0x007BB2)
 
     static let accentPurple = Color(hex: 0xA689FA)
 
