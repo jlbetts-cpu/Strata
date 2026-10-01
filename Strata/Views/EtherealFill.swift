@@ -157,63 +157,14 @@ enum EtherealFill {
     }
 }
 
-/// The reference's button: a capsule of that fill, a light rim, a soft bloom
-/// around it, and a white glyph.
-///
-/// **The lift is a bloom, not a shadow**, and that is deliberate. The reference
-/// has no drop shadow at all — the pill sits in a soft halo of its own colour,
-/// which is what a lit object does to the page around it. A shadow would say the
-/// button is a solid thing casting darkness, and `docs/design-system-future.md`
-/// §6 reserves shadow for things standing on something.
-struct EtherealPill<Label: View>: View {
-    var colour: Color
-    var height: CGFloat = 56
-    var action: () -> Void
-    @ViewBuilder var label: () -> Label
-
-    @State private var isDown = false
-
-    var body: some View {
-        Button {
-            HapticsEngine.lightTap()
-            action()
-        } label: {
-            label()
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(EtherealFill.fill(colour))
-                }
-                .overlay {
-                    // The light rim. Brightest along the top, because that is
-                    // where the light is; it never goes dark at the foot.
-                    Capsule(style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(colors: [.white.opacity(0.85),
-                                                    .white.opacity(0.35)],
-                                           startPoint: .top, endPoint: .bottom),
-                            lineWidth: 1)
-                }
-                .background {
-                    // The bloom. Sits behind everything, blurred, in the
-                    // button's own colour, so the page around it is lit rather
-                    // than shaded.
-                    Capsule(style: .continuous)
-                        .fill(colour.opacity(0.45))
-                        .blur(radius: 18)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                }
-                .scaleEffect(isDown ? 0.975 : 1)
-                .animation(GridConstants.tapSquashSpring, value: isDown)
-        }
-        .buttonStyle(.plain)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in isDown = true }
-                .onEnded { _ in isDown = false }
-        )
-    }
-}
+// **`EtherealPill` is deleted** (2026-09-30). It was the reference's button
+// built as a reusable view — the fill, a light rim, and a soft bloom behind
+// rather than a shadow beneath — and it never gained a caller: onboarding's
+// action was already assembled inline by the time this existed.
+//
+// It goes now rather than later because its bloom is a mistake the owner has
+// since named: "why is there light coming off of it." The reference is a button
+// floating in a render with nothing around it to light; this app's buttons stand
+// on a page that is already clean white, where a halo in the button's own colour
+// is not light but a stain. Leaving an unused view carrying that recipe is
+// leaving a trap for whoever reaches for it next.

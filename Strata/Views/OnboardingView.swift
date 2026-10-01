@@ -929,15 +929,24 @@ struct OnboardingView: View {
                             // the thing it makes are visibly the same material:
                             // an inside-out radial, most saturated at a core
                             // above centre, thinning toward the rim. Plus the
-                            // reference's two other moves — a light rim that is
-                            // brightest at the top, and a bloom behind rather
-                            // than a shadow beneath, because a lit object lights
-                            // the page instead of shading it.
+                            // reference's light rim, brightest at the top.
+                            //
+                            // **NO BLOOM.** There was a blurred capsule of the
+                            // button's own colour behind it, on the reasoning
+                            // that a lit object lights the page instead of
+                            // shading it. The owner: "why is there light coming
+                            // off of it, please fix that."
+                            //
+                            // He is right and the reasoning was borrowed from
+                            // the wrong place. That argument came off the
+                            // reference image, which is a button floating in a
+                            // render — nothing around it to light. This button
+                            // stands on a page that is already clean white, so
+                            // a blue halo on it is not light, it is a stain the
+                            // same colour as the button. Every other cue in the
+                            // app is made of light BECAUSE the page is white;
+                            // this was the one that forgot the page was there.
                             ZStack {
-                                Capsule(style: .continuous)
-                                    .fill(pillFill.opacity(0.5))
-                                    .blur(radius: 16)
-                                    .padding(.horizontal, 8)
                                 Capsule(style: .continuous)
                                     .fill(EtherealFill.fill(pillFill))
                                 // **THE BLOCK'S OWN RIM, NOT A SECOND OPINION
