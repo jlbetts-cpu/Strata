@@ -54,6 +54,9 @@ struct GlassIconButton: View {
     static let defaultSide: CGFloat = 44
     var size: CGFloat = GlassIconButton.defaultSide
     var glyphSize: CGFloat = 17
+    /// True when this stands on the app's own page rather than over a
+    /// photograph or a viewfinder. See `GlassRecipe.onPage`.
+    var onPage: Bool = false
     var accessibilityLabel: String
     let action: () -> Void
 
@@ -63,7 +66,7 @@ struct GlassIconButton: View {
             action()
         } label: {
             GlassIconLabel(systemName: systemName, tint: tint,
-                           size: size, glyphSize: glyphSize)
+                           size: size, glyphSize: glyphSize, onPage: onPage)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -82,6 +85,7 @@ struct GlassIconLabel: View {
     var tint: Color = .primary
     var size: CGFloat = GlassIconButton.defaultSide
     var glyphSize: CGFloat = 17
+    var onPage: Bool = false
 
     var body: some View {
         Image(systemName: systemName)
@@ -91,7 +95,7 @@ struct GlassIconLabel: View {
             // the final frame, so applying it before the frame gives it
             // the wrong bounds.
             .frame(width: size, height: size)
-            .glassCircle()
+            .glassCircle(onPage: onPage)
             .contentShape(Circle())
     }
 }
@@ -122,9 +126,11 @@ extension View {
     /// of this app's glass capsules are on a plain page rather than over
     /// content, and they are the open question in the audit, not the precedent.
     @ViewBuilder
-    func glassCapsule() -> some View {
+    func glassCapsule(onPage: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .capsule)
+            self.glassEffect(onPage ? GlassRecipe.onPage : .regular.interactive(),
+                             in: .capsule)
+
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(GlassFallback.rim,
@@ -169,9 +175,11 @@ extension View {
     /// effect reacts to the press, which is the affordance being bought here.
     /// The deployment target is 18.0, so the fallback is not optional.
     @ViewBuilder
-    func glassCircle() -> some View {
+    func glassCircle(onPage: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .circle)
+            self.glassEffect(onPage ? GlassRecipe.onPage : .regular.interactive(),
+                             in: .circle)
+
         } else {
             self.background(.ultraThinMaterial, in: Circle())
                 .overlay(Circle().strokeBorder(GlassFallback.rim,
@@ -182,6 +190,43 @@ extension View {
 
 @available(iOS 26.0, *)
 enum GlassRecipe {
+    /// **CHROME THAT STANDS ON THE PAGE, NOT OVER A PHOTOGRAPH.**
+    ///
+    /// The owner, 2026-09-30, twice: "I don't like how much the buttons stick
+    /// out like a sore thumb, there's no continuity" and then, after the ground
+    /// was warmed to meet them, "those glass buttons are still sticking out like
+    /// a sore thumb, I need it to be clean and cohesive."
+    ///
+    /// The note at the top of this file already called this the open question:
+    /// three of this app's glass controls sit on a plain page rather than over
+    /// content, and they are not what the material is for. Measured on the
+    /// built header, that is exactly how it fails — `.regular` over a smooth
+    /// near-white field has NOTHING TO REFRACT, so it collapses to a flat
+    /// opaque capsule at (251, 250, 246) on a (240, 238, 232) page. It is the
+    /// one opaque white object on a page where every other surface is
+    /// translucent and lit, and that is what "sore thumb" means. It is the same
+    /// finding the lattice produced when `.ultraThinMaterial` was tried on it:
+    /// blur a smooth gradient and you get the same smooth gradient.
+    ///
+    /// Still native glass — he is emphatic about that and he is right, a
+    /// hand-rolled one looked cheap. So this is `.regular` with its LIFT taken
+    /// off rather than a different material.
+    ///
+    /// **`.clear` was the obvious answer and is wrong, which this file already
+    /// knew.** `photoInk` right below says it in one line: "0.16 cancels
+    /// `.clear`'s lift". `.clear` does not mean less bright, it means less
+    /// blurred — over a near-white page it keeps its specular rise and loses the
+    /// frost, so the measured result of trying it here was a pill at (255, 255,
+    /// 255), FOUR LEVELS WORSE than the `.regular` it replaced. Adding the
+    /// app's white rim to that made it brighter again.
+    ///
+    /// A small black tint on `.regular` moves the one number that matters. The
+    /// target is not "invisible" — it is `PageSurface`, which lands at 245 on a
+    /// 240 page and is the surface the rest of the app's chrome is already made
+    /// of. Five levels, which is enough to find and not enough to shout.
+    static let pageInk: Double = 0.035
+    static var onPage: Glass { .regular.tint(.black.opacity(pageInk)).interactive() }
+
     /// 0.16 cancels `.clear`'s lift. See the table above before changing it —
     /// the number is the output of a measurement, and moving it moves the
     /// interior off the scene in a direction the owner has already rejected

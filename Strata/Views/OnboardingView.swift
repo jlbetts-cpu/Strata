@@ -223,6 +223,7 @@ struct OnboardingView: View {
             // `GlassIconButton` taps the haptic itself.
             GlassIconButton(systemName: "chevron.left",
                             tint: AppColors.inkPrimary,
+                            onPage: true,
                             accessibilityLabel: "Back") {
                 // **Going back replays nothing.** The opening cascade is in a
                 // `.task`, which does not run again; the tutorial's blocks and

@@ -902,7 +902,7 @@ struct MainAppView: View {
                     .padding(.horizontal, GridConstants.gapLabel)
                     .frame(height: GlassIconButton.defaultSide)
             }
-            .glassCapsule()
+            .glassCapsule(onPage: true)
             .transition(.opacity)
         }
     }
@@ -918,6 +918,7 @@ struct MainAppView: View {
         // the one that needs an audience.
         GlassIconButton(
             systemName: "checklist",
+            onPage: true,
             accessibilityLabel: "Plan"
         ) {
             isPlanning = true
