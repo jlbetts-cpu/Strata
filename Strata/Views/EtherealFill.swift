@@ -29,14 +29,42 @@ enum EtherealFill {
     /// How much more saturated the core is than the colour handed in.
     static let coreBoost: Double = 0.06
 
-    /// How far the rim is pulled toward white: saturation cut to this share,
-    /// brightness raised toward 1.
-    static let rimSaturation: Double = 0.62
+    /// **How far the rim is pulled toward white**, and these were measured off
+    /// the reference twice.
+    ///
+    /// The reference pill's core reads hsb(0.552, 0.698, 0.988) and its rim
+    /// reads hsb(0.560, 0.056, 0.980): the saturation is cut to about EIGHT
+    /// PERCENT of the core's, and the brightness barely moves. It is not a
+    /// paler version of the colour — it is nearly white with a memory of the
+    /// hue in it.
+    ///
+    /// So it was taken to 0.16 — the reference's own ratio — and that was built
+    /// and photographed and WAS TOO FAR, for a reason the reference cannot tell
+    /// you: **it is a button, and a block is not.**
+    ///
+    /// At 0.16 the blocks lost their edges and stopped reading as a stack, which
+    /// is the app's whole idea; a tower of glowing blurs is not a tower. And the
+    /// white label sat on a near-white corner: measured behind the text, 213
+    /// against 176 before, so 37 levels of contrast gone from the one place the
+    /// block has to stay legible.
+    ///
+    /// 0.44 is set from the TEXT rather than from the reference. The glass is
+    /// deep enough to read as lit from within, the corners still hold their
+    /// shape, and the label keeps its ground. The reference's own number is
+    /// right for the button, which has no text at its rim and nothing depending
+    /// on it looking solid.
+    static let rimSaturation: Double = 0.44
     static let rimLift: Double = 0.10
 
     /// Where the light is, as a unit point. Above centre, slightly left, which
     /// is where every highlight in this app already comes from.
-    static let core = UnitPoint(x: 0.42, y: 0.34)
+    /// **Centred, near enough.** It was (0.42, 0.34) — well above centre, on
+    /// the reasoning that light comes from above. Measured against the
+    /// reference, that is wrong: its most saturated point is at 50% vertically
+    /// and about 40% across. The light from above is carried by the RIM, which
+    /// is a separate thing and already brightest at the top. The fill itself is
+    /// a body of colour, and a body is brightest at its middle.
+    static let core = UnitPoint(x: 0.46, y: 0.5)
 
     /// The fill itself.
     ///
@@ -44,11 +72,24 @@ enum EtherealFill {
     /// the rim colour never fully arrives and the object looks flat again, and
     /// under about 0.6 the core becomes a visible disc rather than a glow.
     static func gradient(_ colour: Color, size: CGSize) -> RadialGradient {
-        // **The DIAGONAL, not the longer side.** At 0.86 of the longer side the
-        // gradient finished well inside a square block and the core read as a
-        // visible disc with an edge — a spot, not a glow. Reaching past the
-        // corners is what makes it a wash across the whole face.
-        let reach = hypot(size.width, size.height) * 1.05
+        // **HALF THE LONGER SIDE, AND THIS IS THE WHOLE POLISH FIX.**
+        //
+        // Profiled off the reference pill, 615 x 376:
+        //
+        //   horizontally   250 at the edge -> 174 at 40% -> 245 at the edge
+        //   vertically     231 at the top  -> 197 mid    -> 194 at the foot
+        //
+        // So the falloff COMPLETES at the left and right edges and is only
+        // about 60% done at the top and bottom. That is exactly what a circular
+        // gradient of radius ≈ half the WIDTH does on a wide shape: the long
+        // edges sit at 100% of the radius, the short ones at 61%.
+        //
+        // This reached `hypot(w, h) * 1.05` — on that pill, 757 against a
+        // half-width of 307, two and a half times too far. The gradient never
+        // arrived at its pale end anywhere on the shape, so what came out was a
+        // soft wash rather than the reference's core-to-white. The whole "not
+        // quite glass" feeling was this number.
+        let reach = max(size.width, size.height) * 0.52
         return RadialGradient(
             colors: [core(of: colour), rim(of: colour)],
             center: Self.core,
@@ -58,7 +99,15 @@ enum EtherealFill {
     }
 
     /// A version for callers that do not know their size — a capsule button, a
-    /// chip — expressed in unit space so it scales with whatever it fills.
+    /// chip.
+    ///
+    /// **190 is half the longer side of its one real caller**, onboarding's
+    /// full-width action: about 361pt wide on a 393pt screen inside the page
+    /// margin, so a half-width of 180. It follows the same rule as the sized
+    /// version above and is written as a number only because a `Capsule` in a
+    /// `background` does not know what it is about to fill. If this ever gets a
+    /// caller of a different size, it takes a `GeometryReader` like the blocks
+    /// do rather than a second guess.
     static func gradient(_ colour: Color) -> RadialGradient {
         RadialGradient(colors: [core(of: colour), rim(of: colour)],
                        center: Self.core, startRadius: 0, endRadius: 190)
