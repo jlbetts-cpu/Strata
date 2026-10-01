@@ -217,8 +217,12 @@ struct HeadMakerView: View {
     private var chrome: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: GridConstants.gapTight) {
-                StrataWordmark(size: Self.wordmarkSize, color: .white)
-                    .legibleOnImagery()
+                // **No wordmark here either.** The camera's came off on the
+                // owner's instruction and this is the same object in the same
+                // situation: the app's name over a live lens, on a screen you
+                // reached by tapping the app's own icon. Said out loud in the
+                // reply rather than slipped in, because he named the camera and
+                // not this.
                 Spacer(minLength: 0)
                 GlassIconButton(systemName: "xmark", tint: .white, glyphSize: 16,
                                 accessibilityLabel: "Close") { dismiss() }

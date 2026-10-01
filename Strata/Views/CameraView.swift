@@ -129,55 +129,25 @@ struct CameraView: View {
         static let fadeHeight: CGFloat = 0.20
     }
 
-    /// The header the grid is built around.
+    /// **The line the top of this screen is measured from.**
     ///
-    /// The count, the flip and the flash all sit on one line, and the break in
-    /// the left vertical is measured FROM that line rather than copied from the
-    /// design's 48-127pt. The gap exists to hold the header, so the header is
-    /// what decides where it starts and stops — that is the difference between
-    /// the count sitting in the gap and the count happening to overlap it.
+    /// There is no header any more — the wordmark that was one is off, and the
+    /// grid runs unbroken through where it stood. What the name still buys is
+    /// the shared line: the countdown and the shutter row both measure from
+    /// here, so moving between this screen and the tower does not move them.
     private enum Header {
-        /// Solved from the wordmark's size, so its cap lands on the same line
-        /// as every other screen's title. It used to hard-code the tower's 4pt,
-        /// which only aligned the two layout BOXES — the type inside them is a
-        /// different size, so the ink did not line up.
+        /// It used to hard-code the tower's 4pt, which only aligned the two
+        /// layout BOXES — the type inside them is a different size, so the ink
+        /// did not line up.
         static var topPadding: CGFloat {
-            // Artwork, not type — see `headerArtworkTopPadding`. Using the
-            // type version put the wordmark 9.3pt above the line every other
-            // header sits on.
+            // Artwork, not type — see `headerArtworkTopPadding`.
             GridConstants.headerArtworkTopPadding
         }
-        /// Cap height for the wordmark.
-        ///
-        /// Cap height for the wordmark. Bigger than a page title, on
-        /// purpose.
-        ///
-        /// It was 61 — what Jaro needed to set "Strata" 147pt wide — then 40,
-        /// then 28, then `Typography.screenTitleCap` at 23.96. The face is
-        /// 6.5:1 against Jaro's 2.4:1, so 61 ran the word 396pt across a
-        /// 370pt page and clipped the final `a`, and 40 still ran it to 276pt
-        /// — across the SECOND vertical guide, which sits at 268 on a 402pt
-        /// screen. The guides are the composition, and a title lying over two
-        /// thirds of them is covering the grid rather than sitting in it.
-        ///
-        /// **Then 24 was too small**, and that is the owner's read of it: the
-        /// other screens are a title over a page of content, and this one is a
-        /// wordmark over an empty viewfinder with nothing else in the top
-        /// two thirds to hold the other end of it. A title matched to a page
-        /// it does not have leaves the frame unbalanced.
-        ///
-        /// 32 sets the word 208pt: from the margin at 16 to 224, crossing the
-        /// first vertical at 134 — the one that is broken for it — and
-        /// stopping 44pt short of the second.
-        static let wordmarkSize: CGFloat = 32
-        /// The break in the first vertical is cut to the wordmark exactly, so
-        /// the word is centred in it by construction rather than by a second
-        /// number that has to be kept in step. It used to be 72, sized for a
-        /// 61pt wordmark, which left a 40pt word hanging at the top of a gap
-        /// half again as tall as it was.
-        static var height: CGFloat { wordmarkSize }
-        /// Air between the header and the cut ends of the line.
-        static let breathing: CGFloat = 14
+        // **`wordmarkSize`, `height` and `breathing` are gone with the
+        // wordmark.** They were three numbers solved against each other — a cap
+        // height, the gap cut to it, and the air either side — and all three
+        // existed to place one word over a lens. What is left is `topPadding`,
+        // which the shutter row and the countdown still measure from.
     }
 
     /// Rounder than the design's 20.
@@ -238,11 +208,9 @@ struct CameraView: View {
                 // two lines through the middle of the sentence explaining
                 // that. Same rule the guides already follow: they are for the
                 // picture, not for the screen.
-                guides(w: w, h: h, topInset: topInset,
+                guides(w: w, h: h,
                        shown: camera.showsGuides && !camera.isDenied)
                     .allowsHitTesting(false)
-
-                header(topInset: topInset)
 
                 // The count, over the frame. Big and central because you are
                 // standing in the shot looking at the lens, not at a corner.
@@ -811,43 +779,33 @@ struct CameraView: View {
     /// appeared. `gentleReveal` is 0.22s and all but critically damped: an
     /// overshoot here would run the line past its own end, and nothing about
     /// a button press is momentum.
-    private func guides(w: CGFloat, h: CGFloat, topInset: CGFloat, shown: Bool) -> some View {
-        // The break holds the wordmark, which is always drawn — so unlike the
-        // count it replaced, the line is always broken. The gap is not a
-        // rendering artefact: it is the wordmark's space, and the line
-        // resuming below it is what makes the break read as deliberate.
-        let gapTop = topInset + Header.topPadding - Header.breathing
-        let gapBottom = topInset + Header.topPadding + Header.height + Header.breathing
-
+    private func guides(w: CGFloat, h: CGFloat, shown: Bool) -> some View {
+        // **BOTH VERTICALS RUN THE WHOLE HEIGHT NOW.**
+        //
+        // The first one used to be cut, and the break was good: it held the
+        // wordmark, and a line resuming below a gap reads as deliberate rather
+        // than as a line that failed to draw. The wordmark is gone (see
+        // `header`), so the gap holds nothing — and a gap holding nothing is
+        // exactly the "failed to draw" it was written to avoid. The owner:
+        // "just extend the lines."
+        //
+        // It also makes the grid honest: a rule of thirds with one line short
+        // is not a rule of thirds, and this screen's whole argument is that it
+        // is an instrument.
         return ZStack(alignment: .topLeading) {
-            // The first vertical is broken where the header crosses it. The
-            // gap is not a rendering artefact — it is the header's space, and
-            // the line resuming below it is what makes the break read as
-            // deliberate rather than as a line that failed to draw.
             // Centred ON the boundary, not started at it. A 1pt line drawn
             // from the third leaves its whole width on one side, which pushes
             // its centre half a point past where the third actually is — small,
             // but it is the difference between the bands measuring equal and
             // measuring a hair unequal, and unequal is what the eye reports as
             // "the middle one looks longer".
-            let x0 = round(Guide.verticalX[0] * w) - Guide.width / 2
-            Rectangle()
-                .fill(Guide.colour)
-                .frame(width: Guide.width, height: max(gapTop, 0))
-                .ruled(shown, along: .vertical)
-                .offset(x: x0, y: 0)
-
-            Rectangle()
-                .fill(Guide.colour)
-                .frame(width: Guide.width, height: max(h - gapBottom, 0))
-                .ruled(shown, along: .vertical)
-                .offset(x: x0, y: gapBottom)
-
-            Rectangle()
-                .fill(Guide.colour)
-                .frame(width: Guide.width, height: h)
-                .ruled(shown, along: .vertical)
-                .offset(x: round(Guide.verticalX[1] * w) - Guide.width / 2, y: 0)
+            ForEach(Guide.verticalX, id: \.self) { fraction in
+                Rectangle()
+                    .fill(Guide.colour)
+                    .frame(width: Guide.width, height: h)
+                    .ruled(shown, along: .vertical)
+                    .offset(x: round(fraction * w) - Guide.width / 2, y: 0)
+            }
 
             ForEach(Guide.horizontalY, id: \.self) { fraction in
                 Rectangle()
@@ -882,38 +840,6 @@ struct CameraView: View {
                 endPoint: .bottom
             )
         )
-    }
-
-    /// The count, the flip and the flash — one line, in the gap.
-    ///
-    /// They were three things at three heights: the count at the top left, the
-    /// flip 86pt down the right edge, the flash 54pt below that. Nothing lined
-    /// up with anything, which is what made the screen read as wonky. On one
-    /// bar they are a header, and the break in the grid line is cut to fit it.
-    ///
-    /// The count sits at exactly the tower's offset — the same padding below
-    /// the safe area, the same horizontal inset — so moving between the two
-    /// screens does not move the number.
-    private func header(topInset: CGFloat) -> some View {
-        HStack(alignment: .center, spacing: 0) {
-            // Sized to the grid rather than to the page — see
-            // `Header.wordmarkSize`.
-            StrataWordmark(size: Self.Header.wordmarkSize, color: .white)
-                // Legible over whatever the lens is pointing at.
-                .legibleOnImagery()
-
-            Spacer(minLength: 0)
-        }
-        // Top-aligned, and now the box is the wordmark's own height, so
-        // top-aligned and centred are the same placement — which is the
-        // point: the break holds the word and nothing else, so the word
-        // cannot drift inside it.
-        .frame(height: Header.height, alignment: .top)
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        // The preview starts at the very top of the screen now, so the header
-        // has to clear the notch itself.
-        .padding(.top, topInset + Header.topPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Controls
