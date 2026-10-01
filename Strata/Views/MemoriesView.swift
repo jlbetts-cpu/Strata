@@ -122,6 +122,28 @@ struct MemoriesView: View {
                     // is attached to the tower it controls, and it PINS, so it
                     // stays put for exactly as long as the thing it governs is
                     // on screen and then leaves with it.
+                    // **ABOVE THE CALENDAR, NOT UNDER IT.**
+                    //
+                    // Measured: at four columns the calendar is eight rows of
+                    // 91pt — 724pt — against about 605pt of usable screen. So
+                    // under the calendar meant under the FOLD, on every visit,
+                    // for the one thing this page offers you to do. A page's
+                    // single action cannot be the thing you have to scroll past
+                    // a month to find.
+                    //
+                    // Above it, the first screen is the title, the month, the
+                    // one action, and the month beginning — which is the page
+                    // saying what it is and what you can do with it before it
+                    // starts listing.
+                    if let monthReplay {
+                        MonthReplayRow(
+                            replay: monthReplay,
+                            poster: replays.cards[ReplayShelfModel.key(monthReplay, scheme: colorScheme)],
+                            title: vm.monthTitle.capitalized
+                        ) { playing = monthReplay }
+                        .padding(.bottom, GridConstants.gapSection)
+                    }
+
                     Section {
                         if pageIsEmpty {
                             emptyState
@@ -139,52 +161,29 @@ struct MemoriesView: View {
                         }
                     }
 
-                    // **The month's own replay, under the month.** See
-                    // `MonthReplayRow`: this page's subject is the month you
-                    // picked, and the one replay OF that month belongs to it
-                    // rather than to a shelf of every replay there is.
-                    if let monthReplay {
-                        MonthReplayRow(
-                            replay: monthReplay,
-                            poster: replays.cards[ReplayShelfModel.key(monthReplay, scheme: colorScheme)],
-                            title: vm.monthTitle.capitalized
-                        ) { playing = monthReplay }
-                        .padding(.top, GridConstants.gapSection)
-                    }
-
                     if !pageIsEmpty {
                         // Between the month and the albums: finished months
                         // and weeks as posters. Draws nothing, heading
                         // included, until one has a win.
-                        ReplayShelf(model: replays, now: replays.now,
-                                    excluding: monthReplay,
-                                    transitionNamespace: photoTransition) { playing = $0 }
-
-                        // No heading over a gap. When nothing has earned a
-                        // card the shelf is not drawn at all — only what there
-                        // is to show gets shown.
-                        if !vm.carousel.isEmpty {
-                            // **What this is, and how much is here.** The
-                            // design language's §7 asks every section for
-                            // both; the heading answered the first and left
-                            // the second to be found by scrolling the shelf
-                            // to its end.
-                            // **No count on this one, and that is a
-                            // subtraction rather than an omission.**
-                            //
-                            // Three of us applied the design doc's "how much
-                            // is here" to our own section on the same day,
-                            // and the page ended up saying how much is here
-                            // six times on one scroll, four of them with the
-                            // word PHOTOS. The doc asks a SCREEN to answer
-                            // it, not every band of a screen. The page header
-                            // answers it, and a shelf of seven cards is
-                            // countable by looking.
-                            SectionHeading(text: "Albums")
-                                .id("MemoriesShelf")
-                            shelf
-                        }
-
+                        // **ONE SHELF.** Replays and albums were two bands of
+                        // cards, one directly under the other, at the same
+                        // width — and the owner's read of the page was that it
+                        // was still four stacked lists. They are the same kind
+                        // of thing: something the app made out of wins you
+                        // already logged, opened by pressing a picture of it.
+                        // See `MemoriesShelf`.
+                        MemoriesShelf(model: replays, now: replays.now,
+                                      albums: vm.carousel,
+                                      onOpenAlbum: { route in
+                                          switch route {
+                                          case .day(let key):     path.append(.day(key))
+                                          case .curated(let key): path.append(.curated(key))
+                                          case .moment(let id):   path.append(.moment(id))
+                                          }
+                                      },
+                                      excluding: monthReplay,
+                                      transitionNamespace: photoTransition) { playing = $0 }
+                            .id("MemoriesShelf")
                         // Edge to edge. Every other thing on this page is
                         // inset to the page margin; the camera roll is the one
                         // that is not, because a photo grid with a margin is a
@@ -444,18 +443,10 @@ struct MemoriesView: View {
 
     // MARK: - The shelf
 
-    private var shelf: some View {
-        AlbumCarousel(
-            albums: vm.carousel,
-            onSelect: { route in
-                switch route {
-                case .day(let key):     path.append(.day(key))
-                case .curated(let key): path.append(.curated(key))
-                case .moment(let id):   path.append(.moment(id))
-                }
-            }
-        )
-    }
+    // **`shelf` and `AlbumCarousel` are gone.** The albums are in
+    // `MemoriesShelf` with the replays now — one row, one heading, one scroll.
+    // `AlbumCard` survived the carousel that owned it and is the part worth
+    // keeping; `AlbumCoverView` under it is untouched.
 
     // MARK: - The month
 

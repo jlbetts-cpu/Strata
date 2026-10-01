@@ -7,66 +7,18 @@ import SwiftUI
 /// `UnitPoint`, which always carries BOTH axes, and the y component leaks to
 /// the enclosing scroll view; that is exactly how the old bar chart pulled the
 /// page down under itself. The carousel wants its leading edge, which is the
-/// default, so the correct amount of anchoring code here is none.
-struct AlbumCarousel: View {
-    let albums: [Album]
-    var onSelect: (AlbumRoute) -> Void = { _ in }
-
-    /// Read here and handed to `CardPress`: a `ButtonStyle` is not a view, so
-    /// an `@Environment` read inside one is not kept up to date. The replay
-    /// shelf above this row learned the same thing.
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// **The replay poster's width, so the two shelves are siblings.**
-    ///
-    /// It was two tower cells across — about 178pt — which made a perfectly good
-    /// argument (a cover is the size of a 2x2 on the tower above it) and put a
-    /// 178pt square card directly under a 132pt one. The owner, on the page as a
-    /// whole: "a lot looks like it should be remade and redesigned, not just
-    /// tweaked." Three horizontal shelves at three widths, stacked, is most of
-    /// what that means.
-    ///
-    /// The tower argument loses to the page argument. Nothing on this screen is
-    /// beside the tower; two shelves of cards ARE beside each other, one
-    /// directly under the next, and a reader comparing them is comparing their
-    /// sizes whether or not either size has a derivation.
-    private var cardWidth: CGFloat { ReplayCard.posterWidth }
-    /// `gapItem`, not the lowfi's 15. A shelf of cards is a set of items and
-    /// takes the same step the photo grid does.
-    private let gap: CGFloat = GridConstants.gapItem
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            // Lazy, not an HStack. Each card fans up to three photographs, so
-            // an eager stack of 24 builds 72 thumbnails at once — well past
-            // `ImageManager`'s cache budget, which then evicts and re-decodes
-            // on every pass. Laziness is also what makes
-            // `CachedImageView.onDisappear` fire and give the memory back.
-            LazyHStack(alignment: .top, spacing: gap) {
-                ForEach(albums) { album in
-                    Button {
-                        HapticsEngine.lightTap()
-                        onSelect(album.route)
-                    } label: {
-                        AlbumCard(album: album, width: cardWidth)
-                    }
-                    // **A card answers the press.** It was `.plain`, which
-                    // left this shelf inert under a finger while the replay
-                    // shelf directly above it in the same panel gave. Two
-                    // rows of pressable pictures, one of which reacts, is a
-                    // difference you feel without being able to name.
-                    .buttonStyle(CardPress(reduceMotion: reduceMotion))
-                }
-            }
-            .scrollTargetLayout()
-            .padding(.horizontal, GridConstants.horizontalPadding)
-        }
-        .scrollTargetBehavior(.viewAligned)
-    }
-}
+// **`AlbumCarousel` is deleted** (2026-10-01). It was a horizontal shelf of
+// `AlbumCard`s with its own heading, sitting directly under the replay shelf at
+// the same card width — two bands doing the same job. `MemoriesShelf` draws both
+// now. The card below is the part of this file worth keeping.
 
 /// One album: the fan, its name, and what it is.
-private struct AlbumCard: View {
+///
+/// **Internal, not private** (2026-10-01): `MemoriesShelf` draws albums and
+/// replays in one row now, so the card has to be reachable from outside the
+/// carousel that used to own it. The carousel itself is gone; this is the part
+/// of it worth keeping.
+struct AlbumCard: View {
     let album: Album
     let width: CGFloat
 

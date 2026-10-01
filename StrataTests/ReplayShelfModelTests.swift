@@ -32,19 +32,22 @@ struct ReplayShelfModelTests {
         #expect(p.months.count == 13)
     }
 
+    /// `MemoriesShelf`, which is what `ReplayShelf` became on 2026-10-01 when
+    /// the albums joined the replays in one row. The naming and the
+    /// accessibility label are unchanged; only the type that owns them moved.
     @Test("the card's week name is short enough for a narrow card")
     func shortWeek() {
         let now = at(9, 16)
         let week = ReplayPeriod.week(containing: at(9, 9), calendar: calendar)
         let us = Locale(identifier: "en_US")
-        #expect(ReplayShelf.name(of: week, now: now, locale: us) == "9/7-9/13")
+        #expect(MemoriesShelf.name(of: week, now: now, locale: us) == "9/7-9/13")
         let across = ReplayPeriod.week(containing: at(10, 1), calendar: calendar)
-        #expect(ReplayShelf.name(of: across, now: now, locale: us) == "9/28-10/4")
+        #expect(MemoriesShelf.name(of: across, now: now, locale: us) == "9/28-10/4")
         let month = ReplayPeriod.month(containing: at(8, 9), calendar: calendar)
-        #expect(ReplayShelf.name(of: month, now: now, locale: us) == "August")
+        #expect(MemoriesShelf.name(of: month, now: now, locale: us) == "August")
         // VoiceOver keeps the words.
         let r = Replay(period: week, wins: [])
-        #expect(ReplayShelf.accessibilityLabel(r, now: now) == "Your week, 7 to 13 September, 0 wins")
+        #expect(MemoriesShelf.accessibilityLabel(r, now: now) == "Your week, 7 to 13 September, 0 wins")
     }
 
     @Test("an edit to a past period changes its signature, so its card redraws")

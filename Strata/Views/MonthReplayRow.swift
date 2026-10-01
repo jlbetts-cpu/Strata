@@ -38,11 +38,18 @@ struct MonthReplayRow: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Tall enough to read as a thumbnail of a poster rather than an icon,
-    /// short enough that it is a row. The width follows the poster's own
-    /// 360:640, so the picture is never cropped or letterboxed.
-    private static let height: CGFloat = 92
-    private var width: CGFloat { Self.height * ReplayCard.size.width / ReplayCard.size.height }
+    /// **A WIDE CROP, NOT THE WHOLE POSTER SHRUNK.**
+    ///
+    /// The thumbnail followed the poster's own 360:640, which at a row's height
+    /// made it 52pt across — a sliver, and the weakest object on the page. A
+    /// picture 52 points wide is not a picture, it is a stripe.
+    ///
+    /// Wider than it is tall, with the poster scaled to FILL it, so what shows
+    /// is a band across the middle of the tower rather than the whole tower
+    /// made tiny. The blocks run edge to edge at a size you can see them, which
+    /// is the only thing a thumbnail of a tower has to do.
+    private static let height: CGFloat = 84
+    private var width: CGFloat { 116 }
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: width) }
 
     var body: some View {

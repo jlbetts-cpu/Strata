@@ -28,7 +28,7 @@ import SwiftUI
 /// face is for: the name is drawn when it covers the string and fits, the
 /// count is his digits, and everything that reads as language stays SF
 /// Rounded (section 2).
-struct ReplayShelf: View {
+struct MemoriesShelf: View {
     let model: ReplayShelfModel
     /// The `now` the shelf's periods were chosen against, so a name is worded
     /// against the same moment (`ReplayShelfModel.now`).
@@ -41,6 +41,19 @@ struct ReplayShelf: View {
     /// is the month you picked. Without this the shelf's first card is that
     /// same month, so the screen says "September, 46 wins, play" twice in one
     /// scroll, which is exactly the duplication the row was added to remove.
+    /// **The albums, in the same row as the replays** (2026-10-01).
+    ///
+    /// They were two shelves, one directly under the other, at what became the
+    /// same card width — and the owner's read of the page was that it was still
+    /// four stacked bands of cards. They are the same KIND of thing: something
+    /// the app made out of wins you already logged, that you open by pressing a
+    /// picture of it. A replay plays and an album opens, which is a difference
+    /// of one tap rather than of category.
+    ///
+    /// One shelf, one heading, one scroll. Replays first because they expire in
+    /// a way albums do not: a week's replay is only interesting for a while.
+    var albums: [Album] = []
+    var onOpenAlbum: (AlbumRoute) -> Void = { _ in }
     var excluding: Replay?
     /// Where the replay grows from, the way a photograph opens out of its
     /// thumbnail.
@@ -57,7 +70,7 @@ struct ReplayShelf: View {
     var body: some View {
         if !model.months.isEmpty || !model.weeks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeading(text: "Replays")
+                SectionHeading(text: "More")
                     .id("MemoriesReplays")
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
                     // **ONE ROW, NOT TWO.**
@@ -104,6 +117,21 @@ struct ReplayShelf: View {
                     .accessibilityHint("Plays the replay")
                     .accessibilityAddTraits(.isButton)
                     .matchedTransitionSource(id: replay.id, in: transitionNamespace)
+                }
+                // Albums after the replays, and wearing the SAME press.
+                // Two rows of pressable pictures where only one reacted was
+                // already a recorded fault; one row where only half of it
+                // reacts would be the same fault with less excuse.
+                ForEach(albums) { album in
+                    Button {
+                        HapticsEngine.lightTap()
+                        onOpenAlbum(album.route)
+                    } label: {
+                        AlbumCard(album: album, width: width)
+                    }
+                    .buttonStyle(PosterPress(reduceMotion: reduceMotion))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(album.title), \(album.subtitle)")
                 }
             }
             .scrollTargetLayout()
