@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 import AppIntents
 
@@ -28,6 +29,10 @@ struct StrataApp: App {
     @State private var storeOpening: StoreOpening
 
     init() {
+        // The platform's controls in this app's material. An appearance proxy
+        // decides what gets BUILT, so it runs before anything is. See
+        // `EtherealControls`.
+        EtherealControls.install()
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
         // `body` is too late: `showsOnboarding` is read in the same evaluation
