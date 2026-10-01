@@ -845,17 +845,32 @@ struct OnboardingView: View {
     private var words: some View {
         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
             Text(title)
-                // **SF Pro, bold, and that is the owner's final call.**
+                // **SF Pro, and that is the owner's final call on the face.**
                 //
                 // A third face was tried for exactly one build. He looked at
                 // the same headline set in SF Pro, Jaro, Geist and Instrument
                 // Sans and landed on "maybe let's just keep it at SF Pro
                 // tbh". Which is the right answer for the reason the design
                 // doc gives: two faces, and a third one is a decision nobody
-                // has to keep defending. Bold rather than medium is his other
-                // note here, that the type was too thin.
+                // has to keep defending.
+                //
+                // **The `.fontWeight(.bold)` that was here is gone**
+                // (2026-10-01): "can you make sure there is one font and not so
+                // many font weights." It was his note too, that the type looked
+                // too thin, but it was ONE screen's answer to it. Nothing else
+                // in the app set Bold, so onboarding's title was heavier than the
+                // title of every page it hands you to, and a first run that does
+                // not look like the app is the wrong thing for a first run to do.
+                //
+                // `screenTitle` already carries the weight, so there is no
+                // override here at all now. What it cost, measured off SF's own
+                // `wght` axis at `opsz` 33.55: a capital's stem goes 4.95pt Bold
+                // to 3.68pt Medium, 1.27pt and 25.6% lighter, the largest single
+                // change in this pass, and the one to look at first on a device.
+                // If it reads thin, the lever is `Typography.titleWeight`, which
+                // moves this title and the Memories title together; putting a
+                // private weight back on this line is the thing that was wrong.
                 .font(Typography.screenTitle)
-                .fontWeight(.bold)
                 .foregroundStyle(AppColors.inkPrimary)
                 // It never shrinks to fit. If a title does not fit, the copy is
                 // too long: section 10 rule 3.

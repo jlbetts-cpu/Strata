@@ -60,6 +60,17 @@ struct TowerPhotoBackground: View {
     }
 }
 
+
+// **ONE FACE, AND THIS VIEW HAD TWO. (2026-10-01)**
+//
+// The owner: "can you make sure there is one font and not so many font
+// weights." Every `.font(` in the app target is SF Pro. Four sites in THIS
+// file set `design: .rounded`, which is SF Pro Rounded, a second face
+// shipping on the home screen. Worse in context: two sites a few lines away
+// go through `StrataFont.size()`, which is already `.default`, so the widget
+// set its NUMBERS in SF Pro and its WORDS in SF Pro Rounded side by side in
+// one view. Rounded came off the app on 2026-09-23 and the widget did not
+// follow, because nothing in the app target compiles this file's type.
 struct TowerWidgetView: View {
     let snapshot: WidgetSnapshot
     /// Which of today's photographs to show — see `TowerProvider.getTimeline`.
@@ -130,7 +141,7 @@ struct TowerWidgetView: View {
                 .font(StrataFont.size(30))
                 .foregroundStyle(.white)
             Text(snapshot.today == 1 ? "win" : "wins")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
                 .foregroundStyle(.white.opacity(0.85))
         }
         .shadow(color: .black.opacity(0.42), radius: 6, y: 1)
@@ -148,7 +159,7 @@ struct TowerWidgetView: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 30, height: 30)
             Text(snapshot.total == 0 ? "Your first win goes here" : "Nothing yet today")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -166,10 +177,10 @@ struct TowerWidgetView: View {
                 Text(StrataFont.digits(snapshot.today))
                     .font(StrataFont.size(16))
                 Text("today")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .default))
             }
             Text(secondLine)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .default))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

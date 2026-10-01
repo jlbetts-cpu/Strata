@@ -212,7 +212,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "bell")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     if enabled {
                         Task { await requestNotificationPermission() }
@@ -260,7 +260,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "square.stack.3d.up")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
                 .onChange(of: replayRemindersOn) { _, on in
                     Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
                 }
@@ -300,7 +300,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "speaker.wave.2")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
 
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
@@ -310,7 +310,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
             } header: {
                 FormSectionLabel("Sounds & Haptics")
             }
@@ -347,7 +347,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "photo.on.rectangle.angled")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
 
                 // **The switch that fills the map lives beside the one that
                 // fills the camera roll**, because they are the same decision
@@ -361,7 +361,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "mappin.and.ellipse")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.inkPrimary)
                 .disabled(location.isDenied)
             } header: {
                 FormSectionLabel("Camera")
@@ -589,7 +589,7 @@ struct SettingsView: View {
         // the toolbar never reaches it, and the one control the colour exists
         // for is the one control that does not get it. Moved here for the same
         // reason, before this screen's own toolbar grows a coloured action.
-        .tint(AppColors.accentPrimary)
+        .tint(AppColors.inkPrimary)
         .task {
             await checkNotificationStatus()
         }
@@ -710,7 +710,7 @@ struct SettingsView: View {
     /// rendered (28, 26, 24) at 16.2:1 beside a title at (37, 37, 37) and
     /// 14.3:1, so the bar held two words of the same black and nothing said
     /// which one was the button. The `Form` below sets
-    /// `.tint(AppColors.accentPrimary)` so that the platform's own controls
+    /// `.tint(AppColors.inkPrimary)` so that the platform's own controls
     /// carry the primary, and this was the one control opting out.
     private var settingsDoneButton: some View {
         Button {

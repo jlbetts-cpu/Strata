@@ -73,7 +73,7 @@ struct MonthReplayRow: View {
                 // photograph. See the note on the type.
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 30))
-                    .foregroundStyle(AppColors.accentPrimary)
+                    .foregroundStyle(AppColors.inkPrimary)
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
             .contentShape(Rectangle())

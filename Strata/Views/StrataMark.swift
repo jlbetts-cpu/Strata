@@ -117,39 +117,57 @@ private struct DrawnLettering: View {
     /// cap — so a header's top rule is cut to the cap and nothing may move it.
     /// Setting `Text` at the cap directly would have made every wordmark in the
     /// app about 40% too small.
-    private static let capOverEm: CGFloat = 0.714
+    ///
+    /// **It was 0.714, which is SF Pro ROUNDED's, and found while counting
+    /// weights** (2026-10-01). Measured off the installed system fonts with
+    /// fontTools, the `H` glyph's top at upem 2048: `SFNSRounded.ttf` puts it at
+    /// 1457 units (0.71143, the rounded terminals overshoot) and `SFNS.ttf` at
+    /// 1443 (0.70459). Rounded came off the app on 2026-09-23 and this constant
+    /// did not follow it, so `MemoriesTitle` was resolving its 23.96pt cap to
+    /// 33.56pt instead of 34.00, the title 1.3% smaller than the tower's, which
+    /// `Typography.screenTitleCap` exists specifically to make it match.
+    ///
+    /// Written as the same fraction `screenTitleCap` is written as, so the two
+    /// cannot drift again without somebody seeing the same two numbers twice.
+    private static let capOverEm: CGFloat = 1443.0 / 2048.0
 
     /// A logotype is tracked tighter than a sentence. Proportional to the size
     /// rather than a fixed point value, so it holds at 17pt and at 30.
     private static let trackingShare: CGFloat = -0.022
 
-    /// **The third weight, and the measurement that keeps it.**
+    /// **The third weight is gone, and this is where it was** (2026-10-01).
     ///
-    /// `Typography` has two cuts, Regular and Medium, and this is the one place
-    /// in the app that sets a third. It is not an oversight and it is not buried
-    /// inside onboarding's device frame: `MemoriesTitle` is the Memories
-    /// screen's own title, over MapKit's labels, at full size.
+    /// The owner: "can you make sure there is one font and not so many font
+    /// weights." This view set Semibold while `Typography` claimed two cuts, so it
+    /// was the exception that made the claim false. It reads
+    /// `Typography.titleWeight` now, like every other screen title.
     ///
-    /// Measured out of `SFNS.ttf`'s own variable axes rather than guessed. SF
-    /// Pro's named instances put Medium at `wght` 510 and Semibold at 590, and
-    /// at `opsz` 33.55, the point size this view resolves to from the 23.96pt
-    /// screen-title cap, a capital's stem is **0.1097 em at Medium against
-    /// 0.1256 at Semibold: 3.68pt against 4.21pt, 14.5% more stroke.** The `M`
-    /// advance goes 1459 to 1486 units, 1.9% wider.
+    /// **It did not go on the owner's word alone. Its reason had already
+    /// expired.** The comment here argued that `MemoriesTitle` "stands over
+    /// MapKit's labels, at full size", and that was true while Memories was a
+    /// drawer pulled up over the map. It is not true now: `MemoriesView` sets
+    /// `.background { WarmBackground() }` and the map is a button in the corner of
+    /// it, so the one call site that is not a still render puts this word on a
+    /// warm flat ground. A weight bought to beat a live map was being spent where
+    /// there is no map.
     ///
-    /// **So putting it on the ladder costs 0.53pt of stem on a title that has to
-    /// hold against a live map**, which is the exact thing the drawn letterforms
-    /// were photographed winning on. `MemoriesTitle`'s own note says the font's
-    /// stroke was "about a fifth lighter" than the drawing; 14.5% is that claim
-    /// measured, close and in the right direction. The weight is what bought the
-    /// drawing's heft back when it came off, so dropping it hands back the
-    /// deficit the comparison was about. One title, in one view, named here so
-    /// the exception is on the record instead of contradicting `Typography` in
-    /// silence.
+    /// **The measurement, kept, because it is what the owner overrules this
+    /// with.** Read out of `SFNS.ttf`'s own variable axes rather than guessed. SF
+    /// Pro's named instances put Medium at `wght` 510 and Semibold at 590, and at
+    /// `opsz` 33.55, the point size this view resolves to from the 23.96pt
+    /// screen-title cap, a capital's stem is **0.1097 em at Medium against 0.1256
+    /// at Semibold: 3.68pt against 4.21pt, so this title gave up 0.53pt of
+    /// stroke, 12.6% of what it had.** The `M` advance goes 1741 to 1725 units,
+    /// 0.9% narrower, which is far inside the slack a one-word title has.
+    ///
+    /// What does NOT come back if that 0.53pt turns out to matter: a private
+    /// `.semibold` in this view. The lever is `Typography.titleWeight`, which
+    /// moves this title and onboarding's together, because two screens disagreeing
+    /// about how heavy a title is was the actual defect.
     var body: some View {
         let points = cap / Self.capOverEm
         Text(text)
-            .font(.system(size: points, weight: .semibold, design: .default))
+            .font(.system(size: points, weight: Typography.titleWeight, design: .default))
             .tracking(points * Self.trackingShare)
             .lineLimit(1)
             // **A cap-height frame, still.** The callers that place these
@@ -181,9 +199,9 @@ private struct DrawnLettering: View {
 /// The Memories screen's title.
 ///
 /// **In no hand at all now**, like everything else: the drawn letterforms came
-/// off on 2026-09-30 and this is a `Text` in a plain semibold sans. It is a
-/// screen's name rather than the app's, so it survived the cull that took the
-/// wordmark — nothing about it is going to be renamed.
+/// off on 2026-09-30 and this is a `Text` in a plain sans at the app's one title
+/// weight. It is a screen's name rather than the app's, so it survived the cull
+/// that took the wordmark, and nothing about it is going to be renamed.
 ///
 /// **This one had the better argument for staying and still goes.** The drawing
 /// was photographed against the one SETTING of the same word, light, dark and
@@ -191,10 +209,11 @@ private struct DrawnLettering: View {
 /// lighter, its M narrower, and its bearing put the ink 3pt off the margin.
 /// Over the map's own labels the drawing held and the font lost.
 ///
-/// That comparison was between two versions of the same squared-off face. The
-/// weight it was losing on is bought back here by setting it semibold, which is
-/// what a title over a map needs and what the drawing was supplying by being
-/// drawn heavy.
+/// **And the semibold that was bought to answer that is gone too** (2026-10-01,
+/// the owner asking for fewer weights). The comparison it came from was run
+/// while this title was on a drawer over the map; the Memories page stands on
+/// `WarmBackground` now and the map is somewhere you go. `DrawnLettering`'s note
+/// above carries the 0.53pt it cost and the one token that gets it back.
 struct MemoriesTitle: View {
     /// Cap height, matched to what the screen-title font actually sets — see
     /// `Typography.screenTitleCap`. Not `screenTitleSize`: that is an em, and

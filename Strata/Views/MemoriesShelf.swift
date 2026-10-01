@@ -57,6 +57,9 @@ struct MemoriesShelf: View {
     var excluding: Replay?
     /// Where the replay grows from, the way a photograph opens out of its
     /// thumbnail.
+    /// See the note at the call site.
+    static let albumWidth: CGFloat = 108
+
     var transitionNamespace: Namespace.ID?
     let onPlay: (Replay) -> Void
 
@@ -67,10 +70,35 @@ struct MemoriesShelf: View {
     /// so an `@Environment` read inside one is not kept up to date.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// **THE REPLAYS CAME OUT OF THIS SHELF AND IT IS NOT A SHELF OF "MORE"
+    /// ANY MORE. 2026-10-01.**
+    ///
+    /// The owner: "I dont see what the point of the more is." He is right, and
+    /// the reason is two faults that compounded.
+    ///
+    /// **It duplicated the month picker.** The row led with every finished
+    /// month and week as a poster, and the page already has a picker above it
+    /// whose whole job is choosing a month, plus that month's own replay in a
+    /// full width row under it. So a person who wanted September had three
+    /// routes to it on one screen, and the shelf was the slowest and the least
+    /// labelled of the three.
+    ///
+    /// **And the duplication pushed the unique content off the screen.** The
+    /// albums came AFTER the replays in the same row, so on a phone they sat
+    /// past the right edge: the shelf showed three tower posters that look
+    /// alike at 132pt, and the one thing in it that is not reachable any other
+    /// way was the thing you could not see. That was recorded as an open
+    /// question in the audit and it turned out to be the whole answer.
+    ///
+    /// So the replays go, the albums stay and come first, and the heading says
+    /// what they are. The route to a month is the picker. The route to a
+    /// month's replay is the row under the picker. The route to a place is the
+    /// map. This row is the only route to a moment or a repeated interest,
+    /// which is what earns it the space.
     var body: some View {
-        if !model.months.isEmpty || !model.weeks.isEmpty {
+        if !albums.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeading(text: "More")
+                SectionHeading(text: "Collections")
                     .id("MemoriesReplays")
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
                     // **ONE ROW, NOT TWO.**
@@ -89,39 +117,26 @@ struct MemoriesShelf: View {
                     // name underneath. Newest first, whatever the span, so the
                     // row is in the order things happened rather than sorted by
                     // a property nobody is looking for.
-                    row((model.months + model.weeks).filter { $0.period != excluding?.period },
-                        width: ReplayCard.posterWidth)
+                    // **Not `ReplayCard.posterWidth`.** 132 was the size a
+                    // replay poster had to be to show a whole tower. An album
+                    // card shows one photograph and its name, and at 132 three
+                    // of them were the loudest thing on a page whose subject
+                    // is the month above them. 108 puts three and a bit on
+                    // screen, which also says the row scrolls without a
+                    // chevron telling you so.
+                    row(width: Self.albumWidth)
                 }
             }
         }
     }
 
-    private func row(_ replays: [Replay], width: CGFloat) -> some View {
+    private func row(width: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: .top, spacing: GridConstants.gapItem) {
-                ForEach(replays) { replay in
-                    Button {
-                        HapticsEngine.lightTap()
-                        onPlay(replay)
-                    } label: {
-                        card(replay, width: width)
-                    }
-                    // **A card answers the press, and nothing else.**
-                    // `.plain` left the shelf inert under a finger, and
-                    // section 5 asks for reaction rather than decoration:
-                    // things move because a person did something, where they
-                    // did it.
-                    .buttonStyle(PosterPress(reduceMotion: reduceMotion))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Self.accessibilityLabel(replay, now: now))
-                    .accessibilityHint("Plays the replay")
-                    .accessibilityAddTraits(.isButton)
-                    .matchedTransitionSource(id: replay.id, in: transitionNamespace)
-                }
-                // Albums after the replays, and wearing the SAME press.
-                // Two rows of pressable pictures where only one reacted was
-                // already a recorded fault; one row where only half of it
-                // reacts would be the same fault with less excuse.
+                // **A card answers the press, and nothing else.** `.plain`
+                // left the shelf inert under a finger, and section 5 asks for
+                // reaction rather than decoration: things move because a
+                // person did something, where they did it.
                 ForEach(albums) { album in
                     Button {
                         HapticsEngine.lightTap()

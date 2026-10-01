@@ -57,6 +57,15 @@ enum StrataFont {
     /// would have frozen every count in the app at one size. `UIFontMetrics` is
     /// the supported way to do it by hand, and it works here because this is a
     /// function evaluated inside a view's body rather than a stored token.
+    ///
+    /// **The `.medium` below is the app's title weight, spelled out rather than
+    /// shared** (2026-10-01). `Typography.titleWeight` is now the one place a
+    /// title's weight is decided, and this file cannot read it: `Shared/` is in
+    /// the widget's target and `Strata/Models/` is not. A tally is a title-sized
+    /// thing standing beside a title, so if that token ever moves off Medium this
+    /// literal and the one in `relative(_:to:)` have to move with it, or a count
+    /// and the word next to it stop matching. Nothing in the compiler will catch
+    /// that, so the instruction is this comment.
     static func size(_ points: CGFloat) -> Font {
         .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: points),
                 weight: .medium, design: .default)

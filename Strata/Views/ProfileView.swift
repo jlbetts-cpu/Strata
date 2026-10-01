@@ -97,7 +97,7 @@ struct ProfileView: View {
         // a tint set upstream of the title and the toolbar does not reach it,
         // and the one control the colour was for was the one control that
         // never got it. Below them it does.
-        .tint(AppColors.accentPrimary)
+        .tint(AppColors.inkPrimary)
         // Profile's head sleeps under the maker and the photo library. Before
         // those modifiers, so the maker's own preview head stays awake.
         // ANDed with what arrives, so a cover above Profile still pauses it.
@@ -917,7 +917,7 @@ struct ProfileView: View {
     /// (28, 26, 24) on the built sheet, 16.2:1, beside a title measuring
     /// (37, 37, 37) at 14.3:1. Two words in the bar, the same weight of black,
     /// and nothing on the screen said which one was the button. The Form two
-    /// lines up sets `.tint(AppColors.accentPrimary)` precisely so that the
+    /// lines up sets `.tint(AppColors.inkPrimary)` precisely so that the
     /// platform's own controls carry the primary, and this was the one control
     /// on the page opting out of it.
     ///

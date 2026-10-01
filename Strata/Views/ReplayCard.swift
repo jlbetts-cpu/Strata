@@ -40,6 +40,26 @@ enum ReplayCard {
     /// video, and the DEBUG still an export is checked against. One
     /// function, so the two cannot drift apart in scheme, type size or
     /// insets.
+    ///
+    /// **The lattice renders here, and nothing had to be added to make it.**
+    /// (2026-10-01, with the surface under the replay's tower.) `ReplayFrame`
+    /// draws it as a plain `Shape` fill under a `LinearGradient` mask, both of
+    /// which `ImageRenderer` draws like any other geometry. The two parts of
+    /// `TowerLattice` that are animation go quiet rather than missing: the
+    /// landing's `keyframeAnimator` is mounted with no `ripple`, so it rests on
+    /// its initial value and `rings(phase:)` builds nothing, and the touch
+    /// swell's `TimelineView` is gated on a non-empty `touches` array the replay
+    /// never passes. Neither is a case the renderer has to handle.
+    ///
+    /// **The pane's appearance comes from `.environment(\.colorScheme, .light)`
+    /// above, and that is not a new dependency.** `TowerLattice.pane` is a
+    /// dynamic `UIColor` resolved from the trait, exactly as `WarmBackground.top`
+    /// and `AppColors.inkPrimary` already are in this same frame. If that
+    /// resolution did not follow the environment, every colour on the card would
+    /// be wrong already and this one would be the least of it. The card is
+    /// pinned light, so the video's lattice is `strength` 0.34; the shelf's
+    /// poster passes the viewer's scheme and gets whichever of the two measured
+    /// numbers belongs to the page it is sitting on.
     @MainActor
     static func sharedFrame(_ script: ReplayScript, images: ReplayImages, t: Double, now: Date,
                             isSample: Bool) -> some View {
@@ -104,6 +124,20 @@ enum ReplayCard {
     /// The finished tower alone: no header, no running label, no close.
     /// Drawn in the viewer's scheme, since it sits on the page; Share and
     /// the video keep the light still above.
+    ///
+    /// **"Alone" means no header, not no ground.** The poster keeps the lattice
+    /// (2026-10-01), and it was worth asking, because this is the one caller
+    /// that already drops something for being too small to read: `titleOpacity`
+    /// is forced to 0 here, since "at shelf size a title is a speck, and a row
+    /// of them reads as dust."
+    ///
+    /// The lattice is not the same case. A title that is too small is
+    /// ILLEGIBLE: a word that cannot be read is a speck of dirt. The lattice
+    /// has nothing to read; a pane at 1.02:1 that gets smaller is still a
+    /// surface, just a quieter one, and the thing it does is the thing the owner
+    /// asked for: a tower on a shelf standing on something rather than floating
+    /// on a card. Dropping it would also split the poster from the still and the
+    /// video, which are the same picture of the same tower.
     @MainActor
     static func poster(_ replay: Replay, images: ReplayImages, scale: CGFloat,
                        rowTowerHeight: CGFloat, colorScheme: ColorScheme, now: Date) -> UIImage? {

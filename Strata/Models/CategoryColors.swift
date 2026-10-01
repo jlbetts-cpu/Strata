@@ -403,6 +403,25 @@ enum AppColors {
     /// So all three relationships still clear the 3:1 WCAG asks of a UI element,
     /// within a tenth of what the green managed. Apple's own switch green does
     /// not clear it, which is worth knowing before anyone "corrects" this.
+    /// **NOTHING READS THIS ANY MORE, AND THAT IS THE DECISION. 2026-10-01.**
+    ///
+    /// The owner: "I think I prefer if the primary color was the black and
+    /// white button for dark mode instead of this blue color we are going with
+    /// right now lets just do the basic." So the app is monochrome: every
+    /// action, every switch and every link is `inkPrimary`, which inverts with
+    /// the scheme, and the only saturated colour left on any screen is a win
+    /// or a photograph.
+    ///
+    /// **That is the app's own rule, finally obeyed.** Check 5 of the screen
+    /// audit says colour is content and chrome is ink and light, with one
+    /// accent allowed for the primary action. The blue was that one allowance,
+    /// and it had spread to six places: a Form tint, a Done, a Cancel, a Save,
+    /// a play glyph and six switches. An allowance that reaches six places is
+    /// not an accent, it is a second palette.
+    ///
+    /// Kept rather than deleted because the measurement on it is the one that
+    /// retired green and it is worth not rediscovering: Apple's own switch
+    /// green does not clear 3:1 against a white thumb.
     static let switchOn = Color(hex: 0x138BC2)
 
     /// **The primary action's colour where it has to read as ink on white.**

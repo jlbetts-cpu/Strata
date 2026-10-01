@@ -807,7 +807,7 @@ struct HeadMakerView: View {
                             // The name field giving up its near-black at the
                             // same time is the other half: one blue word is the
                             // strongest thing on the page.
-                            .foregroundStyle(AppColors.accentPrimary)
+                            .foregroundStyle(AppColors.onDarkStrong)
                             .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide,
                                    alignment: .trailing)
                             .contentShape(Rectangle())

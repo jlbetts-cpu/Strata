@@ -58,7 +58,18 @@ struct SectionHeading: View {
             // the biggest gap on it — `gapSection` plus the grid's own 8 —
             // because the thing it separates is one kind of content from
             // another, not one row from the next.
-            .padding(.top, GridConstants.gapSection + GridConstants.gapTight)
+            // **THE PAGE'S BIGGEST GAP, AND IT WAS 40.** The owner,
+            // 2026-10-01: "make sure there is a lot of white space I think
+            // thats what hey tea does the best." HEYTEA's one move, the one
+            // `docs/illustrations.md` records as rule 5, is enormous negative
+            // space: the figure sits small in a big empty field.
+            //
+            // A section heading is where a page changes subject, so it is the
+            // one place the page can afford to stop. `gapSection * 2` is 64,
+            // which is the biggest gap on any screen by a clear margin and
+            // therefore unmistakably a break rather than a wide gap. It stays
+            // on the ladder because it is a rung doubled, not a fifth value.
+            .padding(.top, GridConstants.gapSection * 2)
             .padding(.bottom, GridConstants.gapItem)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)

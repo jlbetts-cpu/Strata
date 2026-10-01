@@ -26,15 +26,33 @@ enum Typography {
     // heavy drawn stem already did the job a third weight did. Every token is a
     // text STYLE, so Dynamic Type moves the lot together.
     //
-    // **One exception, and it is not in this file.** This said "semibold is gone
-    // from the app", and that has been false since the drawn letterforms came
-    // off on 2026-09-30: `DrawnLettering` in `StrataMark.swift` sets
-    // `MemoriesTitle` semibold, because that title stands over a live map and
-    // the weight is what replaced the drawing's stroke. The measurement is
-    // written beside it: 14.5% more stem than Medium, 3.68pt against 4.21pt at
-    // the title's size, read out of SF's own `wght` axis. A claim about the
-    // whole app that one screen breaks is worse than the exception itself, so
-    // the exception is named.
+    // **Two weights, and now it is true everywhere** (2026-10-01). The owner:
+    // "can you make sure there is one font and not so many font weights."
+    //
+    // Four cuts were setting type when he said it, not two. The two extra were
+    // both on screen TITLES and both existed to answer the same complaint, that
+    // a title at 34 looked thin:
+    //
+    // - `DrawnLettering` in `StrataMark.swift` set `MemoriesTitle` SEMIBOLD.
+    // - `OnboardingView`'s page title put `.fontWeight(.bold)` over this file's
+    //   `screenTitle`, which is Medium, so the override was the only thing that
+    //   decided it.
+    //
+    // Both are Medium now, and both read `titleWeight` below rather than naming
+    // a cut, so the decision is one token instead of two files that have to be
+    // found. Measured out of `SFNS.ttf`'s own `wght` axis at `opsz` 33.55, the
+    // size a screen title resolves to, upem 2048: a capital's stem is 0.0879 em
+    // Regular, 0.1097 Medium, 0.1256 Semibold, 0.1475 Bold, which is 2.95 /
+    // 3.68 / 4.21 / 4.95 pt. So Memories gave up 0.53pt of stroke (12.6%) and
+    // onboarding 1.27pt (25.6%). Those are the numbers he overrules this with,
+    // and the note on `titleWeight` says what to type.
+    //
+    // **What did NOT survive the move is the semibold's reason, which is why it
+    // was not kept.** Its comment said the title "stands over a live map", and
+    // that stopped being true when Memories stopped being a drawer: the page
+    // sets `.background { WarmBackground() }` (`MemoriesView.swift`) and the map
+    // is a button in the corner of it. A weight bought to beat MapKit's labels
+    // was being spent on a warm flat ground.
     //
     // Merged on 2026-09-16, each into the rung it was nearest: headerLarge
     // (20) and blockTitle (16) into `headerMedium`, bodyMedium (16) into
@@ -46,6 +64,13 @@ enum Typography {
     // Outside the scale on purpose, because geometry solves them rather than
     // a choice: the month block's `cell * 0.16` numeral, the camera
     // countdown, the widget's counts, and symbol glyph sizes.
+    //
+    // **An SF Symbol's weight is not one of these two.** It is a separate axis
+    // on a separate kind of object: `IconStyle`'s `iconSize(_:weight:)` defaults
+    // to Regular and the app sets Medium on about a dozen glyphs and Semibold on
+    // the month chevron, and none of that is a type decision. A previous pass
+    // counted the symbols into the weight ladder, concluded the app had five
+    // cuts, and was wrong. Count them in their own column or not at all.
 
     /// 17 Medium. Headings, and a block's or a card's title.
     static let headerMedium = Font.system(.headline, design: .default, weight: .medium)
@@ -90,16 +115,53 @@ enum Typography {
     /// moves together at any other: large title 34, subheadline 15, footnote
     /// 13, caption 12.
 
+    /// **The weight every screen title is set in, in one place.**
+    ///
+    /// It exists because it was in two places and they disagreed. `screenTitle`
+    /// below was Medium, `MemoriesTitle` was Semibold and onboarding's page
+    /// title was Bold, so the app had three answers to "how heavy is a title"
+    /// and the only way to find that out was to grep. Now there is one answer
+    /// and it is here.
+    ///
+    /// **Medium, which is what the scale above claims and what the owner asked
+    /// for on 2026-10-01.** The two heavier cuts were both answering "the type
+    /// is too thin" at 34pt. If that complaint comes back, this is the line:
+    /// setting it `.semibold` lifts BOTH titles together and costs one cut, and
+    /// is a better trade than restoring two different heavy cuts on two screens,
+    /// which is what was here before. Measured at `opsz` 33.55: Medium's stem is
+    /// 3.68pt, Semibold's 4.21 (+14.5%), Bold's 4.95 (+34.4%).
+    ///
+    /// **Not reachable from the widget**, which is a separate target and does not
+    /// see this file. `StrataFont` in `Shared/` carries its own Medium and has a
+    /// note pointing back here, so a change made in this line has to be made
+    /// there too or the tally and the title stop matching.
+    static let titleWeight: Font.Weight = .medium
+
     /// The one screen title. Every page that names itself uses this.
     ///
     /// 34pt at the default size is the platform's own large title, not a
     /// number picked to look impressive. The 48 it replaced came from a lowfi
     /// and made the title the loudest thing on a page whose subject is
     /// photographs and blocks.
-    static let screenTitle = Font.system(.largeTitle, design: .default, weight: .medium)
+    static let screenTitle = Font.system(.largeTitle, design: .default, weight: titleWeight)
 
     /// The same title in the owner's face (`StrataFont`), for a title that
     /// names the screen, through `DynamicScreenTitle` where the words are data.
+    ///
+    /// **These next two resolve to exactly the same font as `screenTitle` and
+    /// `headerMedium`, and the weight count is how that surfaced** (2026-10-01).
+    /// `StrataFont.relative` returns `.system(style, design: .default, weight:
+    /// .medium)` since the drawn face came off on 2026-09-30, so `screenTitleDrawn`
+    /// IS `.largeTitle` Medium and `sheetTitleDrawn` IS `.headline` Medium. Every
+    /// "drawn or not" branch in the app (`DynamicScreenTitle`'s `ViewThatFits`,
+    /// `SheetTitle`'s ternary) now picks between two identical fonts.
+    ///
+    /// Left alone rather than collapsed, for one reason that is not inertia:
+    /// `titleWeight` above is a real lever, and if it moves to Semibold then
+    /// `screenTitle` moves and `screenTitleDrawn` does NOT, so the drawn branch of
+    /// `DynamicScreenTitle` would silently set a day's name lighter than the
+    /// fallback beside it. Whoever moves that token prunes these two in the same
+    /// commit. `StrataTitle.swift` is the file to look at, and it is not this one.
     static let screenTitleDrawn = StrataFont.relative(screenTitleSize, to: .largeTitle)
 
     /// A sheet's title in the owner's face, 17 relative to `.headline`. See
@@ -114,8 +176,13 @@ enum Typography {
     /// The CAP HEIGHT of a screen title, for artwork that has to match one.
     ///
     /// A `Font.system(size:)` is an em size and its cap is a fraction of that
-    /// — 1443/2048 for SF Pro Rounded, read out of `SFNSRounded.ttf`'s own
-    /// `OS/2` table rather than eyeballed. A drawing's `size` IS its cap, so
+    /// of it: 1443/2048, read out of a font's own table rather than eyeballed. The
+    /// fraction did not change when the face did, which is luck and worth
+    /// writing down: `SFNSRounded.ttf` and `SFNS.ttf` both declare `sCapHeight`
+    /// 1443, so the number survived Rounded coming off on 2026-09-23. What did
+    /// NOT survive is the DRAWN side of the same conversion, which was on
+    /// Rounded's outline measurement. See `capOverEm` in `StrataMark.swift`.
+    /// A drawing's `size` IS its cap, so
     /// handing a drawn title the 34 would set it 41% taller than the type it
     /// replaced. Measured before this existed: "Memories" came out with a
     /// 33.3pt cap against the tower tally's 23.3pt, on two screens that are

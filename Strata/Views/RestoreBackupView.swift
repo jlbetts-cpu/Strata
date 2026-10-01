@@ -354,7 +354,7 @@ struct RestoreBackupView: View {
         } label: {
             Text(isFinished ? "Done" : "Cancel").font(Typography.headerSmall)
         }
-        .foregroundStyle(AppColors.accentPrimary)
+        .foregroundStyle(AppColors.inkPrimary)
         .disabled(isRestoring)
     }
 

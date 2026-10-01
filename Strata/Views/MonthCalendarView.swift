@@ -57,40 +57,73 @@ struct MonthCalendarView: View {
 
     // MARK: - Geometry
 
-    /// **FOUR, AND NO WEEKDAYS.** The owner, having seen the seven-column
-    /// version: "I think I liked the 4 per row or whatever it was — don't need
-    /// the day of the week, just need all the days, because I want each day to
-    /// be tappable, and we can keep the quick block size for each day."
+    /// **SEVEN, WEEKDAY ALIGNED, AND IT WAS FOUR.** The owner, 2026-10-01,
+    /// after being shown both built and rendered: "should we make the calendar
+    /// look more like a calendar or is the 4 grid the best way to do that, can
+    /// you research how we are building things and if that is the right move."
+    /// He picked seven.
     ///
-    /// Which keeps the half of the calendar he asked for and drops the half he
-    /// did not. What he wanted was that every day is THERE and every day can be
-    /// pressed — a month you can see the shape of and reach into. What a
-    /// seven-column layout adds on top of that is weekday alignment, and that
-    /// costs the thing this page is actually for: at seven columns the cell is
-    /// 48pt, which is not a block, and a day's photograph in it is a stamp.
+    /// **This file's own argument was always for seven and it shipped four.**
+    /// The paragraph at the top says a calendar beats the packed tower because
+    /// "a day's POSITION carried no meaning", and gives as its example "the
+    /// 14th is in the third row under Thursday because that is where the 14th
+    /// is". Four columns delivers half of that: position gives you the ordinal
+    /// day and not the weekday. The rationale and the layout disagreed.
     ///
-    /// At four, the cell is the tower's own — `GridConstants.cellSize` on this
-    /// width, the size a Quick win is — so a day on this page and a win on the
-    /// Wins page are the same object at the same size. The days simply run in
-    /// order, which is all a month has to do to be read as one when every cell
-    /// carries its own number.
-    static let columns = 4
+    /// **Two measurements decided it.**
+    ///
+    /// 1. **The month fits.** At seven the grid is five or six rows of 49.4pt,
+    ///    about 310 points, so the whole month and the shelf under it are on
+    ///    one screen. At four it is eight rows of 93.5, **748 points**, which
+    ///    cannot fit under the header on any iPhone: the screen whose job is
+    ///    "see your month" never showed you your month.
+    /// 2. **The column carries the pattern.** On the September fixture the
+    ///    empty days are 7, 14, 21 and 28, and at seven columns those land in
+    ///    ONE column. That column is Sunday. A person reads "I never log on
+    ///    Sundays" off the shape without being told. At four columns the same
+    ///    four days are scattered and say nothing. This is the whole reason
+    ///    GitHub's contribution graph is seven rows rather than a ribbon.
+    ///
+    /// **What it costs, honestly.** The cell goes 89.5 to 49.4, so a day's
+    /// photograph is a third of the area it was, and the month stops being the
+    /// same 4-column geometry as the tower. The previous note here called a
+    /// 48pt cell "not a block" and said a photograph in it is a stamp. That is
+    /// true and it is the right trade: this page is a month, and the tower
+    /// page is a day. They are different objects and they do not have to be
+    /// the same grid. Every cell is still a block drawn by `BlockSurface` with
+    /// the same fill, rim and lamp, and 49.4 still clears the 44pt target by
+    /// five points.
+    ///
+    /// **No weekday header row**, which is the other half of what he asked for
+    /// twice: "don't need the day of the week, just need all the days". The
+    /// alignment still does its work without labels, because a pattern reads
+    /// as a vertical stripe whether or not the column is named.
+    static let columns = 7
+
+    /// How many cells the 1st sits past the start of its row, which is what
+    /// makes the column mean a weekday. Monday first, from the calendar the
+    /// caller passes, so a locale that starts on Sunday gets its own offset
+    /// rather than this view's opinion.
+    private var leadingBlanks: Int {
+        let comps = calendar.dateComponents([.year, .month], from: month)
+        guard let first = calendar.date(from: comps) else { return 0 }
+        let weekday = calendar.component(.weekday, from: first)
+        return (weekday - calendar.firstWeekday + 7) % 7
+    }
     private var spacing: CGFloat { GridConstants.spacing }
     private var cell: CGFloat {
         max((width - spacing * CGFloat(Self.columns - 1)) / CGFloat(Self.columns), 1)
     }
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: cell) }
 
-    // **No leading blanks.** The seven-column version offset the 1st to its
-    // real weekday, which is what makes a calendar a calendar and is exactly
-    // what four columns gives up. The days run from the first cell.
-
     private var dayCount: Int {
         calendar.range(of: .day, in: .month, for: month)?.count ?? 30
     }
 
+    /// The offset counts toward the rows, or a month that starts on a Sunday
+    /// loses its last row off the bottom.
     private var rows: Int {
-        Int(ceil(Double(dayCount) / Double(Self.columns)))
+        Int(ceil(Double(dayCount + leadingBlanks) / Double(Self.columns)))
     }
 
     /// The day's block, by day of month, so a cell can ask for its own.
@@ -116,7 +149,12 @@ struct MonthCalendarView: View {
                 ForEach(0..<rows, id: \.self) { row in
                     HStack(spacing: spacing) {
                         ForEach(0..<Self.columns, id: \.self) { column in
-                            let day = row * Self.columns + column + 1
+                            // Shifted by the offset, so every cell before
+                            // the 1st falls through to the lattice branch
+                            // below. A blank at the head of the month is the
+                            // same object as a blank after the 30th: the
+                            // surface the month is built on, carrying on.
+                            let day = row * Self.columns + column + 1 - leadingBlanks
                             if day >= 1, day <= dayCount {
                                 MonthCalendarCell(
                                     day: day,
