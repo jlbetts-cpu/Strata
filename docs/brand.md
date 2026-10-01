@@ -145,3 +145,44 @@ Supersedes the subtitle in `tasks/app-store-metadata.md`.
 > your phone.
 
 Nothing in it names another app, and nothing in it claims a medical benefit.
+
+---
+
+## The name is Sturdy (2026-09-30)
+
+**Strata Neo is retired.** It was rejected twice under App Store guideline
+4.1(a) and `tools/name-check.py` says why in one line: search the store for
+`strata` and the first result is STRAVA, 374,584 ratings, in an overlapping
+category. Nobody typed Strava; Apple's own index decided they were the same word.
+
+**Sturdy**, chosen by the owner on 2026-09-30 after four rounds of candidates.
+What it had to be, in his words across those rounds: "normal, not Japanese",
+"original and makes sense with the concept", "cleaner, like Hey Tea — it's so
+easy to say", "they actually sound good and are seriously not used", and
+finally "how about more that start with S".
+
+It satisfies all five, which nothing else in forty-odd candidates did:
+
+- **Normal.** A plain English word. Nothing to learn, nothing to spell twice.
+- **Says the concept.** Sturdy is what you want someone to say about a thing you
+  built. The app is a tower you build out of small wins; the adjective IS the
+  goal.
+- **Easy to say.** STUR-dy. Two syllables, the same shape as Hey Tea.
+- **Keeps the S**, which he asked for twice across two months.
+- **Effectively unused.** Measured, not assumed: the whole store returns seven
+  results and the biggest is Sturdy Savings Mobile Banking at 680 ratings — a
+  bank, in a category nobody would confuse with this. The others are 4, 2 and 0.
+  Against Strava's 374,584, that is not the same kind of number.
+
+### What the rename still needs, and none of it is code
+
+The display name is changed, which is the only part that is safe to do
+unilaterally. These are the owner's to do, and the order matters:
+
+1. **App Store Connect**: the app's name, subtitle and the 4.1(a) reply.
+   `tasks/app-store-metadata.md` and `tasks/resolution-center-reply.md` both
+   still say Strata Neo.
+2. **Do NOT change the bundle identifier.** It is `JaydenBetts.Strata`, and the
+   CloudKit container is derived from it. Changing it orphans every synced
+   record. A bundle id is not a name and nobody sees it.
+3. The repository folder, which is cosmetic and can wait.
