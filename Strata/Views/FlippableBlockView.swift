@@ -8,6 +8,7 @@ struct FlippableBlockView: View {
     /// `BlockLight`: one light for the whole stack, so where a block stands
     /// decides which of its corners catches it.
     @Environment(\.blockLight) private var blockLight
+    @Environment(\.colorScheme) private var colorScheme
 
     let block: PlacedBlock
     let width: CGFloat
@@ -115,10 +116,13 @@ struct FlippableBlockView: View {
             // if both changed size the whole tower would ripple while you
             // dragged, and only one of them is in your hand.
             .scaleEffect(isLifted ? 1.06 : 1)
+            // `.carried` is the one rung that is meant to be seen, because here
+            // the shadow IS the information: the gap between the block and the
+            // page is what the gesture is about. See `Elevation`.
             .shadow(
-                color: .black.opacity(isLifted ? 0.22 : 0),
-                radius: isLifted ? 16 : 0,
-                y: isLifted ? 10 : 0
+                color: isLifted ? Elevation.carried.color(in: colorScheme) : .clear,
+                radius: isLifted ? Elevation.carried.radius : 0,
+                y: isLifted ? Elevation.carried.y : 0
             )
             // No dimming of the other blocks.
             //

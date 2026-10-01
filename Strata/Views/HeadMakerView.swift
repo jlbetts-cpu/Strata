@@ -218,7 +218,7 @@ struct HeadMakerView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: GridConstants.gapTight) {
                 StrataWordmark(size: Self.wordmarkSize, color: .white)
-                    .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
+                    .legibleOnImagery()
                 Spacer(minLength: 0)
                 GlassIconButton(systemName: "xmark", tint: .white, glyphSize: 16,
                                 accessibilityLabel: "Close") { dismiss() }
@@ -237,7 +237,7 @@ struct HeadMakerView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(minHeight: Self.promptHeight)
-                    .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
+                    .legibleOnImagery()
                     .padding(.horizontal, GridConstants.gapWide)
                     .contentTransition(.opacity)
                     .animation(GridConstants.crossFade, value: prompt)
@@ -308,7 +308,7 @@ struct HeadMakerView: View {
             }
         }
         .frame(height: Self.pipSide)
-        .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 1)
+        .legibleOnImagery()
         .opacity(showsPips ? 1 : 0)
         .animation(GridConstants.crossFade, value: model.landed)
         .animation(GridConstants.crossFade, value: showsPips)
@@ -369,7 +369,7 @@ struct HeadMakerView: View {
             Image(systemName: flashIsOn ? "bolt.fill" : "bolt.slash.fill")
                 .font(.system(size: 21, weight: .regular))
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
+                .legibleOnImagery()
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .contentShape(Rectangle())
         }

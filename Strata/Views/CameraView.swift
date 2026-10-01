@@ -257,7 +257,7 @@ struct CameraView: View {
                         // numerals.
                         .font(Typography.numeral(96))
                         .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.35), radius: 14)
+                        .legibleOnImagery(display: true)
                         .transition(.opacity.combined(with: .scale(scale: 1.25)))
                         .id(countdown)
                         .allowsHitTesting(false)
@@ -900,7 +900,7 @@ struct CameraView: View {
             // `Header.wordmarkSize`.
             StrataWordmark(size: Self.Header.wordmarkSize, color: .white)
                 // Legible over whatever the lens is pointing at.
-                .shadow(color: .black.opacity(0.40), radius: 10, x: 0, y: 1)
+                .legibleOnImagery()
 
             Spacer(minLength: 0)
         }
@@ -1168,7 +1168,7 @@ struct CameraView: View {
                 Text("\(camera.timerSeconds)")
                     .font(Typography.numeral(10))
                     .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.35), radius: 4)
+                    .legibleOnImagery()
                     .offset(y: 4)
                     .allowsHitTesting(false)
             }
@@ -1214,7 +1214,7 @@ struct CameraView: View {
                 // the flash not move, while the flash's own button (identical
                 // helper, no opacity modifier) toggled every time.
                 .foregroundStyle(.white.opacity(dimmed ? 0.5 : 1))
-                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 1)
+                .legibleOnImagery()
                 .frame(width: Self.controlSide, height: Self.controlSide)
                 .contentShape(Rectangle())
         }
@@ -1595,7 +1595,7 @@ private struct FocusReticle: View {
                 .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.24))
                 .offset(y: sunOffset)
                 .animation(GridConstants.motionSnappy, value: sunOffset)
-                .shadow(color: .black.opacity(0.35), radius: 3)
+                .legibleOnImagery()
         }
         // The square is what is pointed at, so the pair has to hang off the
         // square's centre rather than the row's — otherwise tapping puts the

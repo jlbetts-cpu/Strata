@@ -102,8 +102,9 @@ struct MonthTowerView: View {
                     // Only on a photograph, and only as much as it takes.
                     // On flat colour the numeral sits in the frosted band and
                     // needs nothing; on a picture it can land on anything.
-                    .shadow(color: .black.opacity(block.photoFileNames.isEmpty ? 0 : 0.45),
-                            radius: 3, y: 1)
+                    .shadow(color: .black.opacity(block.photoFileNames.isEmpty
+                                                  ? 0 : Legibility.ink),
+                            radius: Legibility.radius, y: Legibility.y)
                     .padding(cell * 0.11)
                     .accessibilityHidden(true)
             }

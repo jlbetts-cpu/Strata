@@ -636,7 +636,7 @@ struct OnboardingView: View {
                 .frame(width: 190, height: 190)
                 .clipShape(Circle())
                 .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
-                .shadow(color: .black.opacity(GridConstants.shadowOpacity), radius: 14, y: 6)
+                .elevation(.floating)
                 .accessibilityLabel("Jayden, who made Strata")
                 // **The head sticker is off this page.**
                 //

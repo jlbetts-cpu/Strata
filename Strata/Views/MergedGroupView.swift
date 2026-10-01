@@ -153,12 +153,10 @@ struct MergedGroupView: View {
         }
         .frame(width: gridWidth, height: gridHeight, alignment: .topLeading)
         .compositingGroup()
-        .shadow(
-            color: .black.opacity(GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius * styleScale,
-            x: 0,
-            y: GridConstants.blockShadowY * styleScale
-        )
+        // The same rung a single block sits on — a merged run is one object
+        // standing on the page, so it casts one object's shadow. See
+        // `Elevation`.
+        .elevation(.resting, in: colorScheme, scale: styleScale)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

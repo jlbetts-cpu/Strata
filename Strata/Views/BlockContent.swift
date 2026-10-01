@@ -29,17 +29,22 @@ enum BlockTimeFormatter {
 
 // MARK: - Shared Block Content Overlay
 
-/// The title's shadow on a photographed block: 0.55 black, 3pt, 1pt down.
+/// The shadow that keeps a block's title readable.
 private struct TitleShadow: ViewModifier {
-    /// A photograph can be any colour under the text, including white, so it
-    /// needs the heavier one. A block is a known colour at a known brightness
-    /// and takes a softer one — enough to separate the glyph, not so much that
-    /// the label looks embossed.
+    /// Over a photograph this is `Legibility`, the app's one definition for
+    /// white type on imagery it does not control.
+    ///
+    /// Over flat colour it is a different and much lighter job — the ground is
+    /// a colour this app chose, at a brightness it knows, so the glyph only
+    /// needs separating rather than defending. Two thirds of the ink, and it is
+    /// the number that replaced the scrim under the label.
     let onPhoto: Bool
 
     func body(content: Content) -> some View {
-        content.shadow(color: .black.opacity(onPhoto ? 0.55 : 0.38),
-                       radius: onPhoto ? 3 : 4, x: 0, y: 1)
+        content.shadow(
+            color: .black.opacity(onPhoto ? Legibility.ink : Legibility.ink * 0.62),
+            radius: Legibility.radius * (onPhoto ? 1 : 0.7),
+            x: 0, y: Legibility.y)
     }
 }
 

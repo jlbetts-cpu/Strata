@@ -3273,20 +3273,29 @@ struct MainAppView: View {
                     active: animState.hasDropped,
                     wobbleDegrees: wobbleDegrees,
                     flashBrightness: flashBrightness,
-                    shadowColor: phase != nil ? .black.opacity(
-                        GridConstants.adaptiveShadowOpacity(0.12, colorScheme: colorScheme)
-                    ) : .clear,
+                    // A block still in the air is `.carried` — it is off the
+                    // page and the shadow is what says so. See `Elevation`.
+                    shadowColor: phase != nil
+                        ? Elevation.carried.color(in: colorScheme) : .clear,
                     shadowRadius: dropShadowRadius,
                     shadowY: dropShadowY
                 ))
-                // Depth-based shadow — higher blocks cast longer shadows (Mamassian 1998)
+                // **NO SECOND SHADOW, AND THIS IS MOST OF WHY THEY READ
+                // STRONG.**
                 //
-                .shadow(
-                    color: .black.opacity(0.04),
-                    radius: GridConstants.shadowRadius + CGFloat(block.row) * GridConstants.depthShadowScale,
-                    x: 0,
-                    y: GridConstants.shadowY + CGFloat(block.row) * GridConstants.depthShadowYScale
-                )
+                // There was a row-progressive ambient shadow here — 0.04 ink at
+                // a radius that grew with height, cited to Mamassian 1998 —
+                // stacked UNDER `BlockSurface`'s own 0.032. Every block in the
+                // tower was casting two shadows, so the ink under one was half
+                // again what either number says and the gutter between two
+                // neighbours took both of theirs. The owner: "they feel a bit
+                // too strong... especially for an ethereal theme."
+                //
+                // The depth cue goes with it rather than being folded in. At
+                // 0.04 to 0.06 across the whole height of a tower it was never
+                // legible as height on its own, and `Elevation` is one rung per
+                // object: a block at the crown is standing on the block below
+                // it exactly as firmly as that one stands on the page.
                 // Foundation darkening removed.
                 //
                 // Measured: a merged shape rendered (14,173,116) and a

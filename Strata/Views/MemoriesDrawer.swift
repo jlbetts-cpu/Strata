@@ -100,8 +100,10 @@ struct MemoriesDrawer<Content: View>: View {
                             style: .continuous
                         ))
                 }
-                .shadow(color: .black.opacity(GridConstants.shadowOpacity),
-                        radius: 12, y: -2)
+                // Hovering over the map. Upward, because the drawer's shadow
+                // falls on what is ABOVE it. See `Elevation`.
+                .shadow(color: Elevation.floating.color(),
+                        radius: Elevation.floating.radius, y: -Elevation.floating.y)
                 .ignoresSafeArea(edges: .bottom)
             }
             .offset(y: y)

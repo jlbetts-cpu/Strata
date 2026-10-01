@@ -133,7 +133,7 @@ struct TowerWidgetView: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.85))
         }
-        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+        .shadow(color: .black.opacity(0.42), radius: 6, y: 1)
         .accessibilityLabel("\(snapshot.today) wins today")
     }
 

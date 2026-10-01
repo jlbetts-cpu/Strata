@@ -93,12 +93,8 @@ struct BlockSurface<Fill: View>: View {
             surface.mask(sharpMask)
         }
         .compositingGroup()
-        .shadow(
-            color: .black.opacity(GridConstants.blockShadowOpacity),
-            radius: GridConstants.blockShadowRadius,
-            x: 0,
-            y: GridConstants.blockShadowY
-        )
+        // One shadow, from the one ladder. See `Elevation`.
+        .elevation(.resting, in: colorScheme, scale: scale)
     }
 }
 
