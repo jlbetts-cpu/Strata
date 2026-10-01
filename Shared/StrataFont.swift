@@ -27,12 +27,13 @@ import UIKit
 /// `UIAppFonts` in both Info.plists, and the measured constants are below in
 /// their old values, commented.
 ///
-/// **`.rounded`, not `.default`.** The app's body copy is `.default` and stays
-/// there. Numerals and titles take rounded for the reason the drawn face was
-/// chosen in the first place: a tally is a shape before it is a number, and the
-/// rounded digits sit with the blocks' 20pt corners and the illustrations'
-/// hand-cut edges. One decision, in one place, rather than a design argument at
-/// every call site.
+/// **`.default`, the same face as everything else.** It was `.rounded` for one
+/// build, on the argument that a tally is a shape before it is a number and
+/// rounded digits sit with the blocks' corners. The owner's instruction is
+/// plainer and better: "just a normal sans serif." Two designs on one page is
+/// the problem the drawn face already was, in a quieter form — and a numeral
+/// that is also a styling decision is a numeral competing with the illustration
+/// next to it. One face, one design, in one place.
 enum StrataFont {
     /// Kept so the Info.plist entries and the TTF do not become a mystery.
     /// Nothing reads it any more except the test that proves it is still there.
@@ -58,7 +59,7 @@ enum StrataFont {
     /// function evaluated inside a view's body rather than a stored token.
     static func size(_ points: CGFloat) -> Font {
         .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: points),
-                weight: .medium, design: .rounded)
+                weight: .medium, design: .default)
     }
 
     /// Scales with Dynamic Type, live.
@@ -71,7 +72,7 @@ enum StrataFont {
     /// fixed value, keeps moving when the setting changes — `Typography.tally`
     /// and friends are stored `let`s, so anything computed once would freeze.
     static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .system(style, design: .rounded, weight: .medium)
+        .system(style, design: .default, weight: .medium)
     }
 
     /// A count, formatted for this face: digits and nothing else.

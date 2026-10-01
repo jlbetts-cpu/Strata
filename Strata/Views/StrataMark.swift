@@ -100,90 +100,90 @@ struct StrataMarkShape: Shape {
 /// growing it pushes ink DOWN from a fixed line rather than moving the line,
 /// so a larger accessibility size does not drag the header off its rule.
 private struct DrawnLettering: View {
-    let asset: String
-    /// The drawing's own proportions, width over height, from its viewBox.
-    let aspect: CGFloat
+    let text: String
     let color: Color
-    let label: String
-    @ScaledMetric private var size: CGFloat
+    /// Cap height, grown by Dynamic Type from the style a system title uses.
+    @ScaledMetric private var cap: CGFloat
 
-    init(asset: String, aspect: CGFloat, size: CGFloat, color: Color,
-         label: String, relativeTo style: Font.TextStyle) {
-        self.asset = asset
-        self.aspect = aspect
+    init(text: String, size: CGFloat, color: Color, relativeTo style: Font.TextStyle) {
+        self.text = text
         self.color = color
-        self.label = label
-        self._size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self._cap = ScaledMetric(wrappedValue: size, relativeTo: style)
     }
 
+    /// **SF's cap height over its em**, which is how a cap height becomes a
+    /// point size. Every caller of these marks specifies a CAP, because the
+    /// drawings had no ascender and no descender and their artboard was the
+    /// cap — so a header's top rule is cut to the cap and nothing may move it.
+    /// Setting `Text` at the cap directly would have made every wordmark in the
+    /// app about 40% too small.
+    private static let capOverEm: CGFloat = 0.714
+
+    /// A logotype is tracked tighter than a sentence. Proportional to the size
+    /// rather than a fixed point value, so it holds at 17pt and at 30.
+    private static let trackingShare: CGFloat = -0.022
+
     var body: some View {
-        Image(asset)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            // **`maxWidth`, not `width`.** The wordmark is 6.5:1, and `size`
-            // is a `@ScaledMetric` — so at the largest accessibility text
-            // sizes a fixed width of `size * 6.5` is wider than the phone and
-            // the drawing was clipped at both edges. Photographed at
-            // AccessibilityXXXL: "Memories" lost its M and its final s.
+        let points = cap / Self.capOverEm
+        Text(text)
+            .font(.system(size: points, weight: .semibold, design: .default))
+            .tracking(points * Self.trackingShare)
+            .lineLimit(1)
+            // **A cap-height frame, still.** The callers that place these
+            // against a cut grid line — the camera's header, the head maker's —
+            // measure to the cap, and a `Text` carries ascender and descender
+            // space above and below its ink. Clipping the box to the cap and
+            // letting the glyphs overhang keeps every one of those layouts
+            // exactly where it was when these were drawings.
             //
-            // A maximum lets `scaledToFit` shrink it into whatever room the
-            // row actually has, keeping the proportions. It still grows with
-            // Dynamic Type; it just stops growing when it runs out of screen,
-            // which is what every other title on the phone does.
-            //
-            // **Leading, so a height limit cannot push it sideways.** The
-            // camera and the head maker hold their header to 32pt, because the
-            // break in the grid line is cut to that height. At a large text
-            // size `size` grows but the parent does not, so the drawing shrank
-            // back to 32pt and sat CENTRED in a frame that had stayed wide:
-            // photographed at AccessibilityLarge the word moved about 30pt in
-            // from the margin and ran across the second grid line. Every
-            // caller sets the word from the leading edge, so the drawing does
-            // too.
-            .frame(maxWidth: size * aspect, maxHeight: size, alignment: .leading)
+            // Leading, so a width limit cannot push the word sideways: at an
+            // accessibility size the parent does not grow, and a centred word
+            // in a frame that stayed wide walked 30pt in from the margin.
+            .fixedSize()
+            .frame(height: cap, alignment: .leading)
             .foregroundStyle(color)
-            .accessibilityLabel(label)
+            .accessibilityLabel(text)
     }
 }
 
-/// The app's name, as the owner's own letterforms.
+/// The app's name, set rather than drawn.
 ///
-/// **Why this and not Jaro.** Jaro is a heavy angular slab; this is a wide,
-/// light, squared-off monoline with rounded corners — the same move the block
-/// makes, a rectangle with its corners softened, which is what "clean but
-/// structured" actually looks like in a letterform. It is also more than twice
-/// the width at the same cap height, so a header made of it is a band across
-/// the top rather than a mark in the corner. That is deliberate, and it is why
-/// the camera's size had to come down: see `CameraView.Header`.
+/// **The owner's own letterforms are off** (2026-09-30): "let's replace the
+/// other custom font with more of a Hey Tea kind of aesthetic font, like just a
+/// normal sans serif."
+///
+/// The drawing was a wide, light, squared-off monoline with rounded corners —
+/// genuinely good, and genuinely the space-age thing this whole direction is
+/// moving away from. The Hey Tea reference points the other way: a plain
+/// semibold sans, tracked tight, and nothing else. A logotype that calls no
+/// attention to its own letterforms is what lets an illustration beside it be
+/// the thing you look at, which is the point of the next pass.
+///
+/// The SVGs are still in the asset catalogue. Reverting is this file.
 struct StrataWordmark: View {
     /// Cap height.
     var size: CGFloat = 28
     var color: Color = .primary
 
-    /// From the drawing's viewBox: 182 x 28.
-    static let aspect: CGFloat = 182.0 / 28.0
-
     var body: some View {
-        DrawnLettering(asset: "StrataWordmark", aspect: Self.aspect, size: size,
-                       color: color, label: "Strata", relativeTo: .largeTitle)
+        DrawnLettering(text: "Strata", size: size, color: color,
+                       relativeTo: .largeTitle)
     }
 }
 
-/// The Memories screen's title, in the same hand.
+/// The Memories screen's title, in the same hand as the app's name — which is
+/// now no hand at all. See `StrataWordmark`.
 ///
-/// A drawing rather than a `Text` for the same reason the app's name is one:
-/// this is the one word the screen is named after, and the owner drew the
-/// face. Everything else on the page stays on SF Pro Rounded — a section
-/// label or a month name set in a display face stops being a label.
+/// **This one had the better argument for staying and still goes.** The drawing
+/// was photographed against the one SETTING of the same word, light, dark and
+/// xxLarge, on the drawer and over the map: the font's stroke was about a fifth
+/// lighter, its M narrower, and its bearing put the ink 3pt off the margin.
+/// Over the map's own labels the drawing held and the font lost.
 ///
-/// **Still the drawing, not `StrataFont`** (2026-09-16). The same word was set
-/// in the owner's font in the same place and photographed beside this, light,
-/// dark and xxLarge, on the drawer and over the map. The letterforms match
-/// but the font's stroke is about a fifth lighter than this drawing's, its
-/// M is narrower, and its left bearing puts the ink 3pt in from the margin.
-/// Over the map's labels it lost; this held. Shots in
-/// `StrataWork/type-shots/compare/memories-zoom.png` and `map.png`.
+/// That comparison was between two versions of the same squared-off face. The
+/// weight it was losing on is bought back here by setting it semibold, which is
+/// what a title over a map needs and what the drawing was supplying by being
+/// drawn heavy.
 struct MemoriesTitle: View {
     /// Cap height, matched to what the screen-title font actually sets — see
     /// `Typography.screenTitleCap`. Not `screenTitleSize`: that is an em, and
@@ -191,12 +191,9 @@ struct MemoriesTitle: View {
     var size: CGFloat = Typography.screenTitleCap
     var color: Color = .primary
 
-    /// From the drawing's viewBox: 216 x 28.
-    static let aspect: CGFloat = 216.0 / 28.0
-
     var body: some View {
-        DrawnLettering(asset: "MemoriesTitle", aspect: Self.aspect, size: size,
-                       color: color, label: "Memories", relativeTo: .largeTitle)
+        DrawnLettering(text: "Memories", size: size, color: color,
+                       relativeTo: .largeTitle)
     }
 }
 
