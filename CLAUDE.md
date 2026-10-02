@@ -3,6 +3,16 @@
 Read this first. It carries decisions and traps that have already cost real
 hours, so that a new session does not repeat them.
 
+> **Then read `docs/design.md`, which is shorter and answers a different
+> question.** This file records WHY. That one records **whether you are allowed
+> to change it**: LOCKED (the owner decided it, several times against a
+> measurement), GUIDED (a number with a range), OPEN. Four separate passes have
+> reopened something he had already settled — the white block labels, the 8pt
+> corner radius, the Plan sheet's composition, the heading weight — and every
+> time the reasoning was already in the repository and the permission was not.
+> It also carries the atomic kit: which TYPE to use for a chip, a press, a
+> hairline, a destructive word, so that "make it consistent" has an address.
+
 ## What this is
 
 A SwiftUI + SwiftData iOS **win tracker**. You log something you already did;
