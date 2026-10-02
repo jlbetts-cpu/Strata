@@ -1100,13 +1100,13 @@ struct ProfileView: View {
                         // presses in the app that destroy work. The full table
                         // and the measured result are on Settings' Reset All Data
                         // row, which had the identical fault; the short version
-                        // is that `AddWinSheet.destructiveTint` is the app's own
+                        // is that `AppColors.destructiveInk` is the app's own
                         // red too, it clears 5.64:1 light and 4.74:1 dark, and
                         // unlike `warmRed` it inverts with the scheme.
                         Text(deleteHeadLabel)
-                            .foregroundStyle(AddWinSheet.destructiveTint)
+                            .foregroundStyle(AppColors.destructiveInk)
                     } icon: {
-                        SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
+                        SettingsIcon(systemName: "trash", tint: AppColors.destructiveInk)
                     }
                 }
             }

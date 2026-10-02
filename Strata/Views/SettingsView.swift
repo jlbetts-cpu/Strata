@@ -539,7 +539,7 @@ struct SettingsView: View {
                         // apart on one line, on the one row in the app where the
                         // colour IS the meaning.
                         //
-                        // **`AddWinSheet.destructiveTint`, and it was `warmRed` at 2.71:1**
+                        // **`AppColors.destructiveInk`, and it was `warmRed` at 2.71:1**
                         // (2026-10-02). The other worker sampled all three reds
                         // on the built light card and this is the only one that
                         // clears the 4.5:1 a 17pt word is held to:
@@ -560,14 +560,14 @@ struct SettingsView: View {
                         // in three reds" from `docs/consistency-audit.md` §3.3
                         // down to one colour.
                         Text("Reset All Data")
-                            .foregroundStyle(AddWinSheet.destructiveTint)
+                            .foregroundStyle(AppColors.destructiveInk)
                     } icon: {
                         // **The one that keeps its colour.** Red here is not
                         // decoration, it is the meaning: this row erases
                         // everything, and every platform marks that in red.
                         // The rule is that colour must MEAN something, not
                         // that chrome is grey.
-                        SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
+                        SettingsIcon(systemName: "trash", tint: AppColors.destructiveInk)
                     }
                 }
                 .confirmationDialog(
@@ -1066,7 +1066,7 @@ struct SettingsView: View {
 /// `star.fill` with outline `calendar` and `questionmark.circle`, once with
 /// `square.stack.3d.up` two rows above its own `.fill` twin; Profile was all
 /// outline. Profile's set is the reference. A destructive row is
-/// `AddWinSheet.destructiveTint`, never the system red and no longer
+/// `AppColors.destructiveInk`, never the system red and no longer
 /// `AppColors.warmRed`, which measured 2.71:1 on this card against the 4.5 a
 /// word is held to. See the note at the Reset All Data row.
 struct SettingsIcon: View {
