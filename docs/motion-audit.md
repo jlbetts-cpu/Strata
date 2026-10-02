@@ -863,7 +863,7 @@ would feel in the optimised build.
 | Camera arriving | 300ms dissolve over the page | **10** | the owner's request; Reduce Motion gated |
 | Press, every control | glass answers itself; `.press`, `.pressWord`, `.pressSurface` elsewhere | **10** | the profile picture was silent as a photograph or colour; fixed |
 | Block to Edit sheet | system sheet, 460ms | **10** | a 535ms cold freeze before it was Spotlight drawing a thumbnail per win; gone |
-| Size Quick / Regular / Deep | 420 to 476ms, one 100ms frame gap (debug build) | **10** | `motionSnappy`; no gap in the optimised run |
+| Size Quick / Regular / Deep | 420 to 476ms, one 100ms frame gap (debug build) | **10** | `motionSnappy`; the probe saw no main-thread gap over 50ms on that tap, so the film's one gap was rendering, not the app |
 | Colour change | 184ms crossfade | **10** | |
 | Sheet dismiss (Cancel, swipe) | 465 to 533ms | **10** | system |
 | Plan open | 521ms | **10** | system sheet |
