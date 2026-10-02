@@ -35,6 +35,15 @@ chrome made entirely of light. A flat ink drawing is a third thing that competes
 with neither — it cannot be mistaken for a block, because a block has volume,
 and it cannot be mistaken for chrome, because chrome never has a contour.
 
+**How to make more of them once the first six exist** (added 2026-10-01, from a
+video reference the owner sent; see `docs/reference-board.md` §6.6). One
+hand-drawn original is the seed and everything after it is a variant of that
+seed, rather than each drawing being generated from nothing. The reason is the
+one the video gives and it is the right one for this app: a set generated
+independently reads as a set of stock pictures, and a set grown from one hand is
+a set. **The first one is drawn by the owner either way** — rule 1 above is about
+a contour somebody cut, and no amount of iteration produces that from a prompt.
+
 **Format.** SVG, single path where possible, no strokes (convert strokes to
 outlines), viewBox square or 4:3, drawn at any size. Everything below is
 `foregroundStyle`-tinted in code, so draw in black on transparent.
