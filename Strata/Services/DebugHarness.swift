@@ -328,6 +328,22 @@ enum DebugHarness {
     /// A flat colour rather than anything photographic: the point of the
     /// fixture is to exercise the fan, the caching and the round trip, and a
     /// solid field makes it obvious which layer of the stack is which.
+    /// `-strataScrollProfile head`: opens Profile already scrolled to the head
+    /// section, so the head picker can be photographed.
+    ///
+    /// It is a row below the fold, and without this a capture of it is a
+    /// capture of Profile — which is exactly what the audit's `19-head-picker`
+    /// was until 2026-10-01: its layout signature matched `12-profile` to a
+    /// tenth of a point.
+    static var scrollProfileTo: String? { argument("-strataScrollProfile") }
+
+    /// `-strataScrollSettings camera|data`: opens Settings already scrolled.
+    ///
+    /// Settings is seven sections and about 1,500pt tall, so every capture of it
+    /// in the docs was of the top third and three of its footers had never been
+    /// looked at on a built screen.
+    static var scrollSettingsTo: String? { argument("-strataScrollSettings") }
+
     /// Scrolls Memories to the bottom on appear, from `-strataScrollMemories`.
     ///
     /// A pinned header is only interesting once something has scrolled under
@@ -461,6 +477,16 @@ enum DebugHarness {
     /// thing being tested.
     static var resetsOnboarding: Bool { argument("-strataResetOnboarding") != nil }
 
+    /// How the month calendar draws a day with no win, from
+    /// `-strataCalendarEmpty wells|numbers|ground`.
+    ///
+    /// Three renderings of the one question `MonthCalendarView` could not
+    /// answer on its own: thirty-one grey cells for an empty month, the
+    /// numerals alone, or the ground showing through. Brand-visible, so it is
+    /// the owner's call and this flag exists to photograph the options rather
+    /// than to ship one. The shipping default is in `MonthCalendarView.emptyDay`.
+    static var calendarEmptyDay: String? { argument("-strataCalendarEmpty")?.lowercased() }
+
     /// Empties the store before anything else runs, from `-strataResetStore`.
     ///
     /// **This exists because the UI suite could not be trusted.** Every test
@@ -476,7 +502,9 @@ enum DebugHarness {
     /// user photographs, and the fewer places that can delete them the better.
     static var resetsStore: Bool { argument("-strataResetStore") != nil }
 
-    /// Which onboarding page to open on, from `-strataOnboardingStep 0...3`.
+    /// Which onboarding page to open on, from `-strataOnboardingStep 0...5`.
+    /// (It said 0...3 until 2026-10-01; the walkthrough has six pages and the
+    /// flag reaches all of them, which is how pages 5 and 6 went unphotographed.)
     static var onboardingStep: Int? { argument("-strataOnboardingStep").flatMap(Int.init) }
 
     /// Forces the camera's refused state, from `-strataCameraDenied 1`.
@@ -972,6 +1000,13 @@ enum DebugHarness {
             || argument("-strataAutoWin") != nil
             || argument("-strataAutoCheck") != nil
             || argument("-strataSeedTodos") != nil
+            // **`-strataSeedPlan` was missing here and the flag did nothing**
+            // (found 2026-10-01). `seed()` returns before its plan branch
+            // unless this says the run asked for seeding, so every capture of
+            // the Plan sheet in the audit was the EMPTY state wearing the name
+            // of the seeded one. Same shape as the note above: a flag that
+            // looked broken because it was never consulted.
+            || argument("-strataSeedPlan") != nil
             || argument("-strataSeedMood") != nil
             || argument("-strataFlipTabs") != nil
 

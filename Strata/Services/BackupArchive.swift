@@ -248,7 +248,20 @@ nonisolated enum BackupArchive {
                 case .notAZip:
                     "This file isn't a zip, so it isn't a Strata backup."
                 case .truncated(let detail):
-                    "This backup is incomplete — it may not have finished downloading or copying. \(detail)"
+                    // **A colon, not a long dash.** CLAUDE.md "Words the app
+                    // says" (the owner, 2026-09-11): no long dash in anything a
+                    // person reads, because it reads as machine-written. This
+                    // was the LAST em dash in a user-facing string in the app:
+                    // `docs/copy-audit.md` swept U+2014 and U+2013 over
+                    // `Strata/`, `Shared/`, `StrataWidget/` and
+                    // `WidgetSupport/`, and the only other hit is a
+                    // `[strata-bench]` log line in `DebugHarness`. It survived
+                    // the Restore screen's own copy pass (which
+                    // `docs/screen-audit.md` records as costing that screen "an
+                    // em dash in the copy") because it lives in a service file
+                    // and not in the view, which is the lesson: grep the
+                    // strings, do not read the screens.
+                    "This backup is incomplete: it may not have finished downloading or copying. \(detail)"
                 case .unsupported(let detail):
                     "Strata cannot read this zip: \(detail)."
                 case .encrypted(let detail):

@@ -451,7 +451,7 @@ final class TowerAnimationCoordinator {
         case 1: 40_000_000; case 2: 70_000_000; default: 100_000_000
         }
         try? await Task.sleep(nanoseconds: squashDwell)
-        withAnimation(GridConstants.dropStretchSpring) {
+        withAnimation(GridConstants.impact) {
             for id in blockIDs { state(for: id).dropPhase = .stretch }
         }
 
@@ -472,7 +472,7 @@ final class TowerAnimationCoordinator {
             }
         }
 
-        withAnimation(GridConstants.wobbleSpring) {
+        withAnimation(GridConstants.impact) {
             for id in blockIDs { state(for: id).dropPhase = .wobble }
         }
 

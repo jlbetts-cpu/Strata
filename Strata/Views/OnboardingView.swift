@@ -114,9 +114,10 @@ struct OnboardingView: View {
             // onboarding still feels cramped and a bit unfinished... I would
             // appreciate more of a balanced onboarding experience").
             //
-            //   1. The progress rule, under the safe area.
-            //   2. The title, 24 under it, with one grey line 12 under that.
-            //   3. The composition, centred in whatever is left.
+            //   1. The nav row, and the illustration's slot under it.
+            //   2. The title, 24 under that, with one grey line 8 under it.
+            //   3. The composition, centred in a field it may not fill
+            //      (`compositionCeiling`).
             //   4. The action, 24 clear of the home indicator.
             //
             // **The title is at the TOP** (the owner, 2026-09-23: "the type I
@@ -124,11 +125,26 @@ struct OnboardingView: View {
             // the bottom, sitting on the button, which put the first thing you
             // read last on the page and left the composition to open it.
             //
-            // **Only four vertical numbers are allowed here: 12, 24, 40, 48.**
-            // A fifth is how a page starts reading as unfinished, because the
-            // eye sees the rhythm break without being able to name it. The only
-            // thing that changes between pages is the composition's height, and
-            // band 3 absorbs it.
+            // **Four vertical numbers between the bands, and every one of them
+            // is a rung of the app's own ladder: 8, 12, 24, 64.** (Inside a
+            // composition is the composition's business: the thank-you page
+            // sets a name over its caption on `GridConstants.spacing`, which is
+            // the grid's gutter and is argued where it is written.) The rule
+            // here is unchanged and
+            // it is the right rule — a fifth value is how a page starts reading
+            // as unfinished, because the eye sees the rhythm break without
+            // being able to name it. What changed on 2026-10-01 is which four.
+            // It said "12, 24, 40, 48", and by then the 40 had become a
+            // hand-written 56 (argued on `airArt` as "40 plus the grid's own
+            // 16") and the 48 was used by nothing. Two of the four numbers were
+            // therefore not on the spacing ladder at all, which is the fault
+            // `GridConstants` names: "a rung that exists in practice and not in
+            // the ladder is how a ladder rots". The set is now `gapTight`,
+            // `gapItem`, `gapWide` and `gapPage`, and the ratios are what do the
+            // work — 64 against 8 is 8x, so the break around the composition
+            // cannot be mistaken for the gap inside the copy
+            // (`docs/space.md` P1: proximity groups by the RATIO between
+            // competing distances, not their difference).
             VStack(spacing: 0) {
                 topBand
                 words
@@ -298,12 +314,64 @@ struct OnboardingView: View {
     /// progress rule has that band now and the title carries the identity.
     ///
     /// The air around the composition, above and below it. Band 3 is greedy, so
-    /// this is the minimum rather than the measurement: the slack becomes air.
-    /// **56, not 40.** The band below the copy is where the page breathes, and
-    /// the owner asked for more of it. It is still one of the four numbers this
-    /// file allows itself — see the note on `body` — because 56 is 40 plus the
-    /// grid's own 16, not a fifth value invented for the occasion.
-    private static let airArt: CGFloat = 56
+    /// this is the MINIMUM rather than the measurement: wherever the composition
+    /// is shorter than the slot the slack becomes air on both sides, and the
+    /// measured gap is bigger than this number.
+    ///
+    /// **`gapPage` (64), and it was a hand-written 56.** The 56 was argued as
+    /// "40 plus the grid's own 16", which is a derivation and not a rung, and
+    /// the ladder has had a top rung since the same day this changed
+    /// (`GridConstants.gapPage`, added with check 11). This is the one gap on
+    /// these pages whose job is to be a BREAK rather than a gap, so it is the
+    /// one that should be reading the top rung.
+    ///
+    /// **Measured, the number barely matters, and that is the point.** On
+    /// 402x874 the composition is shorter than the slot on every one of the six
+    /// pages once `compositionCeiling` holds, so this minimum does not bind and
+    /// the real gaps come out at 82 to 103. It binds on a short phone, where it
+    /// is the floor under the page's one break: at 64 the break still clears
+    /// `gapWide` by 2.67x, where 32 would have been one ladder step and would
+    /// not have read as a break at all.
+    private static let airArt: CGFloat = GridConstants.gapPage
+
+    /// **The tallest a composition on these pages is allowed to be.**
+    ///
+    /// The owner, 2026-10-01: "more empty space more room for premium hey tea
+    /// illustrations later", and `docs/illustrations.md` rule 5 is the form of
+    /// it — "Enormous negative space. The figure sits small in a big empty
+    /// field." A `GeometryReader` is greedy, so without a ceiling the figure IS
+    /// the field: there is no air to be small in.
+    ///
+    /// **Measured, this was the whole of why two pages were the least roomy
+    /// screens in the app.** `docs/space.md` §6 reports onboarding 4 at 37.9%
+    /// ground and onboarding 3 at 38.6% against check 11a's 35% floor, the two
+    /// lowest non-exempt screens there are. The cause is on the capture: pages 1
+    /// and 2 draw a composition 275 and 285pt tall in the same slot, and pages 3
+    /// and 4 draw one **330pt** tall, which is not a size anybody chose — it is
+    /// `min(box.width, box.height * aspect)` resolving to the leftover height.
+    /// So the two pages whose subject is a photograph of a screen were dense
+    /// because of an arithmetic accident, and the two whose subject is the app's
+    /// own grid were roomy because that grid has a size of its own.
+    ///
+    /// **So the ceiling is that size: `maxRows` rows of the page's own cell**,
+    /// which is exactly the tutorial board on page 2 and the opening tower on
+    /// page 1. Nothing is invented. It is derived from the same
+    /// `cell(forGridWidth:)` the tower uses, so it moves with the device, and it
+    /// makes all six compositions one band of the same height — which is the
+    /// cross-page agreement `docs/screen-audit.md`'s onboarding table was built
+    /// to look for. **It only bites on pages 3 and 4**: the head disc is 200 and
+    /// the portrait block about 247, both already under it.
+    ///
+    /// **The device mock is still "as large as the slot allows, and whole"**,
+    /// which is the rule written on `screenshot(_:in:)` and is unchanged. What
+    /// changed is the slot. The phone goes from 152 to 128pt wide, 16% off one
+    /// dimension, and `docs/illustrations.md` is explicit that the device frames
+    /// "are the strongest argument the app has and should stay" — a smaller
+    /// whole phone keeps that argument and a cropped one would not.
+    private static func compositionCeiling(forWidth width: CGFloat) -> CGFloat {
+        let cell = cell(forWidth: width)
+        return CGFloat(maxRows) * cell + CGFloat(maxRows - 1) * GridConstants.spacing
+    }
 
     // MARK: - The stage
 
@@ -374,13 +442,19 @@ struct OnboardingView: View {
     /// complete phone that fits. It is not run off the bottom of the page to
     /// reach the margin: a device with no bottom is a crop, and a crop is the
     /// broken-looking state he asked never to see.
+    ///
+    /// **And the SLOT is now capped too** (`compositionCeiling`, 2026-10-01).
+    /// The rule above is unchanged; what it is measured against is smaller, so
+    /// that the phone sits in a field rather than being the field. The ceiling
+    /// is the height of page 1's own tower, and the measurement that says why is
+    /// on the function.
     /// The Memories tab, composed inside the same phone the camera is in.
     ///
     /// The owner sent a photograph of the real screen: it is a map with his
     /// pictures on it AND the app's own chrome, and what was here was the map
     /// alone. `MemoriesStill` carries the argument and the composition.
     private func memories(in box: CGSize) -> some View {
-        let width = min(box.width, box.height * DeviceFrame<EmptyView>.aspect)
+        let width = Self.mockWidth(in: box)
         let height = width / DeviceFrame<EmptyView>.aspect
         let band = DeviceFrame<EmptyView>.defaultBezel * 2
         return DeviceFrame(width: width) {
@@ -389,12 +463,22 @@ struct OnboardingView: View {
     }
 
     private func screenshot(_ asset: String, in box: CGSize) -> some View {
-        let width = min(box.width, box.height * DeviceFrame<EmptyView>.aspect)
-        return DeviceFrame(width: width) {
+        DeviceFrame(width: Self.mockWidth(in: box)) {
             Image(asset)
                 .resizable()
                 .scaledToFill()
         }
+    }
+
+    /// The widest whole phone that fits the slot, with the slot capped.
+    ///
+    /// Written once because the camera page and the map page are the same
+    /// composition with different contents, and they were the same two lines
+    /// twice. The cap is the third term: `min(width, slotHeight, ceiling)`
+    /// rather than `min(width, slotHeight)`.
+    private static func mockWidth(in box: CGSize) -> CGFloat {
+        let height = min(box.height, compositionCeiling(forWidth: box.width))
+        return min(box.width, height * DeviceFrame<EmptyView>.aspect)
     }
 
     // MARK: - The tower
@@ -842,8 +926,30 @@ struct OnboardingView: View {
     /// 0.82, which is what they were when two of these pages stood on a
     /// photograph. Every page stands on `WarmBackground` now, so there is one
     /// pair: `inkPrimary` for the title and `inkSecondary` for the line under it.
+    ///
+    /// **`gapTight` between them, and it was `gapItem`** (2026-10-01, check 11b).
+    /// This is the page's tight end, and until now the page did not have one by
+    /// design — it had one by accident.
+    ///
+    /// Measured on the four captures `docs/space.md` had: a declared 12 renders
+    /// as **17.7 to 18.0** band to band, because the gap carries the title's
+    /// descender and the body's ascender air, and 11b asks for a gap of 17pt or
+    /// less. Page 2 is the one the audit recorded as failing, and the reason the
+    /// other three passed is the finding: their gap of record is **the title's
+    /// own LEADING** (10.7 on pages 1 and 4, 16.7 on page 3, between two lines of
+    /// one wrapped title), and page 2's title happens to fit on one line. So
+    /// three pages passed a spacing clause on letterform, and would fail it the
+    /// day a word got shorter. A declared 8 renders at about 14, which is a gap
+    /// somebody chose, on all six.
+    ///
+    /// It is also the right answer by P1 rather than only by the clause: 8
+    /// against the 64 around the composition is 8x, so a title and the line
+    /// under it read as one object and the air around the figure reads as the
+    /// break. At 12 against 56 it was 4.7x and the page measured as three
+    /// roughly equal breaks of 99.7, 93.7 and 83.0 — "spacious and flat", which
+    /// is `docs/space.md` §8's own words for this page.
     private var words: some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
             Text(title)
                 // **SF Pro, and that is the owner's final call on the face.**
                 //
@@ -875,14 +981,21 @@ struct OnboardingView: View {
                 // It never shrinks to fit. If a title does not fit, the copy is
                 // too long: section 10 rule 3.
                 .fixedSize(horizontal: false, vertical: true)
-            Text(subtitle)
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            // **Optional, and `nil` draws nothing at all** rather than an empty
+            // string. A `Text("")` still takes a line box and still takes the
+            // stack's spacing, so a page with no second line would have kept a
+            // 14pt gap and a 22pt band of air inside the copy — the exact shape
+            // of a label that fell off. See `subtitle` for which page has none.
+            if let subtitle {
+                Text(subtitle)
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // 24 under the rule above it, 40 down to the composition.
+        // 24 under the nav row above it, 64 down to the composition.
         .padding(.top, GridConstants.gapWide)
         .padding(.bottom, Self.airArt)
     }
@@ -898,10 +1011,30 @@ struct OnboardingView: View {
     /// you were", which puts the app in the role of something keeping track
     /// of a person. The photograph keeps its place instead, which is what the
     /// location permission and the empty map already say.
+    ///
+    /// **The title does not change when you draw a block** (`docs/copy-audit.md`
+    /// cut 21, decided 2026-10-01). Page 2's title used to swap to "That's how
+    /// every win is made" the moment `hasDrawn` went true, replacing "Quick,
+    /// regular or deep". Three reasons it is gone, in the order they matter:
+    ///
+    /// 1. **It is the app congratulating itself at the one moment it has nothing
+    ///    to add.** The person has just pulled a block out of the slot and let it
+    ///    go; they have proved they know how every win is made. The audit's class
+    ///    for this is G, the page saying a thing the page already showed.
+    /// 2. **It is the only title in the walkthrough that moves, and it moves
+    ///    under the finger.** "Quick, regular or deep" sets on one line at 34pt
+    ///    and "That's how every win is made" on two, so letting go of a block
+    ///    grew the copy band by a whole `screenTitle` line and the greedy art
+    ///    band gave the height back — the board you had just built shifted down
+    ///    while you were still looking at it. The subtitle swap stays and is a
+    ///    deliberate confirmation; it is one line either way, and the subtitle is
+    ///    where this page is allowed to talk.
+    /// 3. The title is now stable across the page's two states, which is what the
+    ///    other five pages do.
     private var title: String {
         switch step {
         case 0: return "Everything you did, stacked up"
-        case 1: return hasDrawn ? "That's how every win is made" : "Quick, regular or deep"
+        case 1: return "Quick, regular or deep"
         case 2: return "A win can be a photograph"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
@@ -909,7 +1042,36 @@ struct OnboardingView: View {
         }
     }
 
-    private var subtitle: String {
+    /// The line under the title, where there is one.
+    ///
+    /// **Page 3 has none** (`docs/copy-audit.md` cut 21, decided 2026-10-01). It
+    /// read "Take it here and the picture becomes the block." under the title "A
+    /// win can be a photograph", over a `DeviceFrame` holding a picture of
+    /// Strata's own viewfinder. The audit classed it E, Explanation, and flagged
+    /// it as the owner's call because "the page is a live demo with nothing else
+    /// to read". It is not a live demo — it is `screenshot("DemoViewfinder")`, a
+    /// still — and of its two halves the second ("the picture becomes the block")
+    /// is the title said again, and the third time the walkthrough has said that
+    /// something becomes a block (page 1's subtitle and page 2's whole lesson are
+    /// the other two). The only new word is "here", meaning in Strata rather than
+    /// out of your library, and what is on screen is a phone with Strata's camera
+    /// in it, which is that word as a picture. The owner, the same day: "the areas
+    /// are very self explanitory and I think over explaining components loses the
+    /// charm."
+    ///
+    /// **Page 4 keeps its line, and this is the page the cut would have cost
+    /// something.** The same entry flags "Your wins land on the map where you took
+    /// them." on the same grounds, and the grounds do not hold here: page 4's
+    /// button says "Turn on places" and `advance()` calls
+    /// `location.requestAccess()`, so this is the walkthrough's permission prime
+    /// and the only one in it. The file's own note on `advance()` cites Apple's
+    /// guidance — ask where the answer is obvious — and this sentence is what
+    /// makes it obvious, because it is the only place that names what you GET.
+    /// "Every photo keeps its place" says what happens; the map behind it says
+    /// where; neither says that your wins appear on it. Cutting the one sentence
+    /// that earns a system permission to save 9 words is the wrong trade, and a
+    /// refused permission cannot be asked for again.
+    private var subtitle: String? {
         switch step {
         // **One idea, and the sizes belong to the next page.** This read
         // "Finish something and it becomes a block: quick, regular or deep,
@@ -918,10 +1080,14 @@ struct OnboardingView: View {
         // was the longest line in the walkthrough. The first screen has one
         // thing to say and somebody has to believe it.
         case 0: return "Finish something and it becomes a block."
+        // The gesture is the one thing on these six pages a picture cannot
+        // teach, so this line stays and it is an instruction, not a caption. It
+        // swaps to the confirmation once the finger has done it; the TITLE does
+        // not, which is the entry above.
         case 1: return hasDrawn
             ? "Pull nothing and it's a quick one. The size is how much it took."
             : "Hold the slot and pull. Sideways for a regular win, up for a deep one. Let go to drop it in."
-        case 2: return "Take it here and the picture becomes the block."
+        case 2: return nil
         case 3: return "Your wins land on the map where you took them."
         case Self.headStep: return heads.head == nil
             ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."

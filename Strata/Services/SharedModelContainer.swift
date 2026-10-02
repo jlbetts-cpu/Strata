@@ -350,7 +350,13 @@ enum SharedModelContainer {
 /// blocking screen and Siri cannot say different things.
 enum StoreUnavailableCopy {
     static let title = "Strata could not open your wins"
-    static let body = "Nothing has been deleted. Your wins are on this phone and Strata cannot read them right now, so it is showing you this instead of an empty tower."
+    /// **Trimmed from 28 words to 9** (2026-10-01, `docs/copy-audit.md` cut 16).
+    /// It carried on: "...and Strata cannot read them right now, so it is
+    /// showing you this instead of an empty tower." The first six words are the
+    /// only thing a frightened person needs; the rest was the app explaining its
+    /// own implementation choice to the one reader who cannot act on it.
+    /// `stillFailing` below says what to actually DO, and that is untouched.
+    static let body = "Nothing has been deleted. Your wins are on this phone."
     static let stillFailing = "Still not opening. Close Strata from the app switcher, then open it again."
     /// What Siri and Shortcuts say. The screen's title and its first sentence,
     /// because a spoken answer has no room for the rest.

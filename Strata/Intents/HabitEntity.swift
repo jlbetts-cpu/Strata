@@ -25,11 +25,20 @@ struct HabitEntity: AppEntity, IndexedEntity {
         )
     }
 
-    // Rich Spotlight metadata
+    // Rich Spotlight metadata.
+    //
+    // **No `contentDescription`** (`docs/copy-audit.md` cut 18, 2026-10-01). It
+    // read "A win in Strata", which is a third line under a result whose
+    // `displayName` is the win's own title and whose `subtitle` is already its
+    // category. Three facts, one of which said only that this app is this app,
+    // and the word that carries it ("win") is in `keywords` where it is doing
+    // real work. A description that repeats its own title is the caption-under-
+    // a-picture pattern the audit exists to find, and Spotlight draws the slot
+    // only when something is in it, so cutting it shortens the row rather than
+    // leaving a hole.
     var attributeSet: CSSearchableItemAttributeSet {
         let attrs = CSSearchableItemAttributeSet(contentType: .content)
         attrs.displayName = title
-        attrs.contentDescription = "A win in Strata"
         attrs.keywords = [title, "win", "strata"]
         attrs.thumbnailData = Self.categoryThumbnail(icon: iconName, category: category)
         return attrs

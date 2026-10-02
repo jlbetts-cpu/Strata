@@ -113,6 +113,15 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        // **The reader exists so the LOWER half of this page can be
+        // photographed.** This screen is seven sections and about 1,500pt tall,
+        // nothing on this Mac can scroll a simulator, and every capture of it
+        // in `docs/space.md` and `docs/screen-audit.md` is of the top third. So
+        // the three footers under Camera, How Strata Works and Privacy — which
+        // are where the 2026-10-01 copy cuts landed — had never been looked at
+        // on a built screen by anybody. `-strataScrollSettings` fixes that.
+        // See `scrollToAnchor`, and `ProfileView`'s copy of the same thing.
+        ScrollViewReader { scroller in
         Form {
             // MARK: - Branded Header
 
@@ -353,9 +362,34 @@ struct SettingsView: View {
                 // fills the camera roll**, because they are the same decision
                 // about the same photograph and looking for one in a different
                 // section from the other is the app being inconsistent.
+                // **"Keep Places", and it was "Remember Places"** (2026-10-01,
+                // `docs/copy-audit.md`'s voice finding).
+                //
+                // "Remember" puts the APP in the role of something keeping
+                // track of a person, which is the exact construction the
+                // onboarding pass already rejected and wrote down:
+                // `OnboardingView.swift:897` — "And nothing here watches you.
+                // Page four said 'It remembers where you were', which puts the
+                // app in the role of something keeping track of a person."
+                // Two words on a switch said it again. `CLAUDE.md`'s "Words the
+                // app says" is explicit that nothing may sound like
+                // surveillance, and it names faces, cameras and location as
+                // where it matters most. This switch is all three.
+                //
+                // **"Keep" is not a new word, it is the app's own.** What this
+                // switch does is already stated twice in the app and both
+                // times with this verb: the empty map says "Photos you take in
+                // Strata keep the place they were taken"
+                // (`MemoriesMapView.swift:718`) and the denied footer six lines
+                // below says "photographs can't be placed on your map". The
+                // subject there is the PHOTOGRAPH, not the app, and that is the
+                // whole correction. "Places on Photos" was the other candidate
+                // and loses on the row above it: `Save to Photos` is verb plus
+                // object, and two rows in one section reading the same shape is
+                // the pair saying they are the same kind of decision.
                 Toggle(isOn: $remembersPlaces) {
                     Label {
-                        Text("Remember Places")
+                        Text("Keep Places")
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "mappin.and.ellipse")
@@ -364,17 +398,31 @@ struct SettingsView: View {
                 .tint(AppColors.inkPrimary)
                 .disabled(location.isDenied)
             } header: {
-                FormSectionLabel("Camera")
+                FormSectionLabel("Camera").id(Self.cameraAnchor)
             } footer: {
                 Text(storageLine)
-                    .padding(.bottom, GridConstants.gapTight)
                     .accessibilityLabel("Photographs use \(storageLine)")
 
-                // Stated here because it is the map's one real disappointment
-                // and it should not be discovered.
-                Text(location.isDenied
-                     ? "Location is off for Strata in the Settings app, so photographs can't be placed on your map."
-                     : "Photographs you take in Strata keep the place they were taken, and appear on your map.")
+                // **The working case says nothing here now** (cut 10,
+                // `docs/copy-audit.md`). This footer carried "Photographs you
+                // take in Strata keep the place they were taken, and appear on
+                // your map." under a switch that says the same thing in two
+                // words, inside a section headed Camera. The sentence is not
+                // lost: `MemoriesMapView.swift:718` says it on the empty map,
+                // which is where somebody stands when they have the question.
+                // A settings footer is read by somebody who came looking for a
+                // switch; the map is read by somebody wondering why it is bare.
+                //
+                // **The denied branch stays**, which is why this is an `if` and
+                // not a deletion. It is the map's one real disappointment, it
+                // is caused by a setting in a different app, and no other
+                // screen can tell you. Its own note already said it "should not
+                // be discovered". The `gapTight` moved off the line above and
+                // onto this one, so the air exists only when the line does.
+                if location.isDenied {
+                    Text("Location is off for Strata in the Settings app, so photographs can't be placed on your map.")
+                        .padding(.top, GridConstants.gapTight)
+                }
             }
 
             // MARK: - How Strata works
@@ -391,14 +439,18 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "questionmark.circle")
                     }
                 }
-            } footer: {
-                // The owner: "add onboarding to the settings so people that
-                // missed what to do can go there." Onboarding shows once and
-                // has a Skip button on every page, so somebody who skipped it
-                // — or who came back a month later — otherwise has no way to
-                // be told how the app works.
-                Text("The short walkthrough you saw when you first opened the app.")
             }
+            // **No footer** (cut 15, `docs/copy-audit.md`). It read "The short
+            // walkthrough you saw when you first opened the app." under a row
+            // reading `How Strata Works` beside a `questionmark.circle`. The
+            // row names itself; a sentence under it is the label again in
+            // longer words.
+            //
+            // The reason the ROW exists is unchanged and is the owner's:
+            // "add onboarding to the settings so people that missed what to do
+            // can go there." Onboarding shows once and has a Skip on every
+            // page, so somebody who skipped it has no other way back to it.
+            // That argument was always for the row, never for the footer.
 
             // MARK: - Section 3: Data
 
@@ -478,7 +530,7 @@ struct SettingsView: View {
                     Text("This permanently deletes every win and photo, your name and profile photo, and your head. It cannot be undone.")
                 }
             } header: {
-                FormSectionLabel("Data")
+                FormSectionLabel("Data").id(Self.dataAnchor)
             } footer: {
                 // Said where the two rows are, because the fear this answers is
                 // "will restoring wipe what I have now".
@@ -550,6 +602,19 @@ struct SettingsView: View {
                     }
                 }
             } footer: {
+                // **KEPT, deliberately, against the rule** (flag 19,
+                // `docs/copy-audit.md`, 2026-10-01). By the audit's own test
+                // this is Explanation and it goes: `PrivacyPolicyView.swift:54`
+                // says it at length one tap away, which is the pattern every
+                // other cut on this screen was made for.
+                //
+                // It stays because it is the one sentence in the app that
+                // SELLS what `docs/brand.md` calls the product's spine, and it
+                // is sitting on the row of somebody who already cares enough to
+                // have gone looking. Thirteen words. Every other footer on this
+                // screen explains a control; this one is the claim the app is
+                // for. If it is ever cut, it should be cut by the owner and not
+                // by the rule.
                 Text("Everything you log stays on this device. Strata has no account and no server.")
             }
 
@@ -575,6 +640,53 @@ struct SettingsView: View {
         .fullScreenCover(item: $previewing) { replay in
             ReplayView(replay: replay, isSample: true) { previewing = nil }
         }
+        // **The page's own break, taken from the platform's number**
+        // (2026-10-01, check 11b in `docs/screen-audit.md`).
+        //
+        // Measured on the built screen at 402x874: fourteen gaps, six of them
+        // on the 12 rung, and the biggest gap on the whole page **45.0pt** —
+        // under the 48 clause 11b asks for. `docs/space.md`'s P1 is the reason
+        // that matters rather than being a number miss: proximity groups by
+        // the RATIO between competing distances, so a page whose biggest gap is
+        // 45 against a body of 25s is grouping at 1.8x, and nothing on it reads
+        // as a break. Every gap on this page belonged to the system `Form`.
+        //
+        // **What the platform itself does, measured on this simulator rather
+        // than assumed.** iOS 26's own Settings root, captured at the same
+        // 402x874: its cards start at **16.0** — the same margin this app
+        // uses — its rows sit **10.3 to 11.7pt** apart, and its groups sit
+        // **63.0 and 70.3pt** apart. Six times the inside gap, and it buys that
+        // break with no section label on the page at all.
+        //
+        // So the break is the platform's own, and this is the API for it
+        // rather than padding inside `FormSectionLabel`: padding there would
+        // also land on `PlanItemDetailSheet` and `PrivacyPolicyView`, which are
+        // not this screen and did not ask. `listSectionSpacing` changes this
+        // `Form` and nothing else. `gapPage` because it is the ladder's top
+        // rung and `docs/space.md` §7 adds it for exactly this job.
+        //
+        // **Why the labels stay** (the owner named Settings as a possible
+        // exception to "no tiny thin font anywhere", so this is researched
+        // rather than assumed):
+        //   1. They are not thin and not tiny. `Typography.sectionLabel` is
+        //      `tier(.subheadline)` at `titleWeight`: **15pt Medium**, which is
+        //      exactly the floor `TypographyTests.noSourceSetsTypeBelowTheFloor`
+        //      enforces. Settings needs no exception, because nothing here is
+        //      under it.
+        //   2. Apple's root Settings can drop its labels because every row
+        //      there is a named destination — General, Accessibility, Camera —
+        //      so the row IS its own heading. These rows are switches, and
+        //      their grouping is not recoverable from their names: "Weekly and
+        //      Monthly Replays" could sit under Notifications or under
+        //      Replays, and it is under Notifications because the label says
+        //      so.
+        //   3. They are this page's only VoiceOver headings, across seven
+        //      sections, which is how somebody not looking at the screen
+        //      navigates it.
+        // What is NOT the platform's is the STYLE — SF Rounded, uppercased by
+        // the style, kerned 0.8 — and that is the app's own on purpose;
+        // `FormSectionLabel`'s own doc carries the argument.
+        .listSectionSpacing(GridConstants.gapPage)
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Settings", drawn: false)
@@ -592,6 +704,9 @@ struct SettingsView: View {
         .tint(AppColors.inkPrimary)
         .task {
             await checkNotificationStatus()
+            #if DEBUG
+            await scrollToAnchor(scroller)
+            #endif
         }
         .sheet(isPresented: $showExportShare) {
             if let url = exportURL {
@@ -669,7 +784,40 @@ struct SettingsView: View {
             copyForRestore(url)
         }
         #endif
+        }
     }
+
+    /// Where `-strataScrollSettings` can put the page. Both are below the fold
+    /// and neither has ever been in a capture.
+    static let cameraAnchor = "camera-section"
+    static let dataAnchor = "data-section"
+
+    #if DEBUG
+    /// `-strataScrollSettings camera|data`: opens Settings already scrolled, so
+    /// the sections under the fold can be looked at.
+    ///
+    /// **Not a named accessor on `DebugHarness`** like `scrollsMemories`, only
+    /// because that file was off limits to the pass that needed this. It
+    /// belongs there, beside `-strataScrollMemories` and
+    /// `-strataScrollProfile`, which are the same flag for the same reason on
+    /// the other two long pages.
+    ///
+    /// The sleep waits for the `Form` to have laid its sections out at all —
+    /// `scrollTo` against a list whose rows do not exist yet does nothing and
+    /// says nothing. What decides the screen has stopped moving is the
+    /// capture's own settle poll in `tools/settle-shot.py`, not this.
+    @MainActor
+    private func scrollToAnchor(_ scroller: ScrollViewProxy) async {
+        let anchor: String
+        switch DebugHarness.scrollSettingsTo {
+        case "camera": anchor = Self.cameraAnchor
+        case "data":   anchor = Self.dataAnchor
+        default:       return
+        }
+        try? await Task.sleep(for: .seconds(1.5))
+        scroller.scrollTo(anchor, anchor: .top)
+    }
+    #endif
 
     /// Resets, and stays on this screen with the reason if it did not happen.
     /// Leaving would put the person back on a Profile that still shows

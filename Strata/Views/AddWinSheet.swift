@@ -92,8 +92,171 @@ struct AddWinSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+            // **THE SHEET IS A FIELD, AND THE BLOCK STANDS ON ITS FLOOR.**
+            //
+            // Check 11 of `docs/screen-audit.md`, measured on the built sheet
+            // at 402x874 with `tools/page-room.py`. It failed two clauses and
+            // they were the same fault:
+            //
+            // - **11b**, both ends of the ladder. Seven controls at 10.3, 11.0,
+            //   14.0, 23.0, 26.7, 29.7 and 33.3pt apart. One rhythm, nothing
+            //   on it reading as a break, and `docs/space.md`'s P1 (Kubovy,
+            //   Holcombe and Wagemans 1998) says why that is the same as no
+            //   spacing at all: proximity groups by the RATIO between
+            //   competing distances, and 33.3 against 26.7 is 1.25x.
+            // - **11c**, the air between things rather than after them. The
+            //   biggest break on the page was 300.7pt and it was UNDER the
+            //   last band. A page that does that stopped; it did not end.
+            //
+            // **The emptiness was never the fault, and the record proves it.**
+            // An earlier pass read 49% empty as the problem and cut it to 38%
+            // by moving the well below the controls and sizing it off the
+            // page. That move was right for its own reason and the sheet still
+            // failed, because what was wrong is that one spacing cannot group
+            // anything. So this is a REDISTRIBUTION: the same ink, the same
+            // emptiness, three groups instead of one list.
+            //
+            //   the name          what you did
+            //   gapPage (64)
+            //   colour + size     what the block is, gapItem apart, one group
+            //   the break         everything left over
+            //   the block         what you made
+            //   gapPage (64)      the floor
+            //
+            // Measured on the built Edit sheet at 402x874, which is this same
+            // view with the keyboard down: gaps of 10.3, 38.0, 71.3, 15.0,
+            // 196.7 and 32.0, with a 64.0 floor under it. The break is 13.1x
+            // the gap inside the group and it falls between two content bands,
+            // which is both of the clauses that were failing. Without the
+            // Delete button, which is the Add case, the same arithmetic puts
+            // the block at y593 to 776 and the break at 279.
+            //
+            // **The block is floored rather than hung.** It is the subject,
+            // and `docs/illustrations.md`'s rule for this app is that the
+            // figure sits small in a big empty field — a field is AROUND a
+            // figure, so the sheet has to keep a floor under it. The app has
+            // the same composition once already and the audit calls it a
+            // worked example that passes: Store unavailable's pill sits at
+            // y766 with a 483.7pt break above it and 24 under it.
+            //
+            // The `GeometryReader` is what makes that arithmetic rather than a
+            // guess, and it is the pattern `PlanSheet.content` already uses:
+            // the stack is held to at least the viewport's height and the
+            // `Spacer` is the flexible thing in it, so the break is exactly
+            // what the content left over. With the keyboard up the viewport
+            // shrinks, the spacer falls back to its 64 and nothing is pushed
+            // off the bottom.
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        nameField
+                        decisions
+                        Spacer(minLength: GridConstants.gapPage)
+                        subject
+                    }
+                    // **The app's page margin, not a private one.** This was
+                    // 20 while every other screen is `horizontalPadding` (16),
+                    // so the add sheet's content sat four points further in
+                    // than the tower behind it — the kind of difference nobody
+                    // can name and everybody feels when they move between two
+                    // screens.
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .padding(.top, GridConstants.gapTight)
+                    // The floor. It was `gapLabel` (16), which is a margin and
+                    // not a floor: with the block standing on it the sheet
+                    // needs the rung that says "this is the end of the page".
+                    .padding(.bottom, GridConstants.gapPage)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: proxy.size.height, alignment: .top)
+                }
+            }
+            .sheetTitle(isEditing ? "Edit" : "Add a win", drawn: true)
+            .toolbar {
+                addWinToolbar
+            }
+            .onAppear(perform: load)
+            .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { deleteIt() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("The block leaves the tower.")
+            }
+        }
+        // Full height, and it stays that way. A medium detent was tried to
+        // close the empty space at the bottom and it clipped the size control
+        // instead — the sheet's content is taller than half a screen once the
+        // photo well is a 2x2. Empty space under a form is ordinary; a control
+        // cut off by the edge of a sheet is a bug.
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        // The page's own background, not the default translucent one. Through
+        // frosted glass the tower's colours bleed up behind the controls and
+        // the sheet reads as muddy — and a frosted surface is the block's
+        // material, not a sheet's.
+        .presentationBackground { WarmBackground().ignoresSafeArea() }
+        .fullScreenCover(isPresented: $showCamera) { cameraCover }
+        // Two sources, asked once.
+        //
+        // The camera alone was the wrong call: most wins are photographed when
+        // they happen and named later, so by the time you are filling this in
+        // the picture is usually already in your library. Taking one now is
+        // the other half, not the whole of it.
+        // Title case, as the photo menu further down, Profile and the viewer
+        // already have it, and as Photos does: these are buttons, and the
+        // same action was spelled two ways depending on which door you used.
+        .contextMenu {
+            if photo != nil {
+                Button("Replace Photo") { choosingSource = true }
+                Button("Remove Photo", role: .destructive) {
+                    photo = nil
+                    photoChanged = true
+                }
+            }
+        }
+        // **The title is EMPTY, and that is the cut, not an oversight**
+        // (2026-10-01, `docs/copy-audit.md` number 13). It read "Add a photo"
+        // and was presented with `titleVisibility: .hidden`, so the string was
+        // in the source and nothing was ever drawn from it. What IS on screen
+        // is `Take Photo`, `Choose from Library`, `Remove Photo` and `Cancel`,
+        // which say it four times over. `Text(verbatim:)` rather than a bare
+        // "" so it is not offered to the localiser as a string to translate.
+        .confirmationDialog(Text(verbatim: ""), isPresented: $choosingSource, titleVisibility: .hidden) {
+            Button("Take Photo") { showCamera = true }
+            Button("Choose from Library") { showLibrary = true }
+            if photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    photo = nil
+                    photoChanged = true
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
+        .fullScreenCover(isPresented: $peeking) { peekCover }
+        .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
+        .onChange(of: pickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    photo = image
+                    photoChanged = true
+                }
+                pickerItem = nil
+            }
+        }
+    }
+
+    // MARK: - The three groups
+    //
+    // One property each, named for the group it is, because the composition is
+    // the thing this screen gets wrong when it is edited carelessly: a control
+    // added to the wrong `VStack` inherits that group's spacing and the page
+    // quietly goes back to having one rhythm.
+
+    /// **What you did.** The sheet's first question and its own subject, so
+    /// `gapPage` stands between it and the two properties under it.
+    private var nameField: some View {
+        Group {
                     // **THE PLACEHOLDER IS A TOKEN NOW, AND IT WAS 1.73:1.**
                     //
                     // The open check on this screen in `docs/screen-audit.md`
@@ -127,7 +290,68 @@ struct AddWinSheet: View {
                         .focused($titleFocused)
                         .submitLabel(.done)
                         .onSubmit { Task { await save() } }
+        }
+    }
 
+    /// **What the block IS: its colour and its size, one group.**
+    ///
+    /// They are `gapItem` apart — "between items in a set", which is what two
+    /// properties of one block are — and that is the TIGHT END of check 11b's
+    /// ladder. The clause asks for a gap of 17pt or less AND one of 48 or more
+    /// on the same page, because a page whose gaps all sit in the middle has
+    /// one spacing and one spacing groups nothing (P1). These two controls are
+    /// one answer to one question, what does this block look like, and the
+    /// block below shows both of them at once, so they belong to each other
+    /// more than either belongs to the name above or the block below.
+    ///
+    /// **`gapItem` and not `gapTight`, and it was `gapTight` for one build.**
+    /// Photographed, 8 put the row of discs almost on the segmented control's
+    /// track: 11.0pt measured vertically against the 14pt that separates two
+    /// circles horizontally on the same row, so the group was tighter than its
+    /// own internal rhythm and read as a collision rather than as a pair. 12
+    /// measures 15.0 with a swatch ringed, which is the state this sheet opens
+    /// in, and 17.0 at the worst — a bare 34pt circle in its 44pt box — which
+    /// is still inside 11b's ceiling. `gapTight` is for a glyph and its label;
+    /// these are two controls.
+    ///
+    /// **The two small-caps labels are gone** (2026-10-01). `COLOUR` stood over
+    /// six saturated discs and `SIZE` over a three-way segmented control
+    /// reading Quick / Regular / Deep, and the owner's instruction for this
+    /// pass names exactly that: "the areas are very self explanitory and I
+    /// think over explaining components loses the charm". Two reasons beyond
+    /// the obvious one:
+    ///
+    /// - **The screen demonstrates both.** Press a disc and the block below
+    ///   turns that colour; press Deep and it becomes four times the size.
+    ///   That is what putting the well AFTER the controls bought, and a label
+    ///   describing a demonstration you can watch is the caption-under-a-
+    ///   picture pattern the copy audit is built to find.
+    /// - **`COLOUR` was slightly untrue.** Pressing a disc sets `category`, not
+    ///   a colour — that is what `categoryChosen` records and what
+    ///   `QuickWinService.labels(showing:chosen:)` reads. The label named the
+    ///   half of the fact that is not the half the control sets.
+    ///
+    /// **What it cost, checked rather than assumed.** VoiceOver read the word
+    /// `COLOUR` as a plain element before the discs, so cutting it would have
+    /// left a swipe landing on "Health, button" with nothing saying what the
+    /// row is for. The row carries that as a container label now, which is the
+    /// honest trade: the fact survives for the people who needed it and the
+    /// ink goes. Size never needed one — `Picker("Size", …)` keeps its label
+    /// through `.labelsHidden()`, which hides a label and does not delete it.
+    ///
+    /// **And one cost that is NOT free, written down rather than hidden.** In
+    /// the one state where the colour row is suppressed — a new win that
+    /// arrived with a photograph already on it — this group is the size picker
+    /// alone, so the sheet has no gap at 17pt or under left on it and fails
+    /// 11b. It used to have one: the 11.0 between `SIZE` and its own picker.
+    /// That state has three content bands (the name, the picker, the block),
+    /// which is the case 11b's own text exempts in spirit — "a page of two or
+    /// three bands has nothing to group" — but the clause is written in gaps
+    /// rather than bands, so it reads as a failure. No capture of that state
+    /// exists yet, and putting both labels back everywhere to satisfy a clause
+    /// one state cannot otherwise meet would be the audit measuring itself.
+    private var decisions: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
                     // **No colour question while you are taking the photo.**
                     //
                     // A block with a picture on it shows the picture; the
@@ -148,11 +372,23 @@ struct AddWinSheet: View {
                     // silently discarding a choice somebody made would be
                     // worse than hiding the control.
                     if photo == nil || isEditing {
-                        field("Colour") { categoryControl }
+                        categoryControl
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    field("Size") { sizeControl }
+                    sizeControl
+        }
+        .padding(.top, GridConstants.gapPage)
+    }
 
+    /// **What you made.** The block, and in Edit the one thing you can do to
+    /// it that is not a property of it.
+    ///
+    /// `gapSection` between them, which is what the pair already measured
+    /// (32.0pt) when the button carried `gapWide` plus its own 8 of top
+    /// padding — two numbers summing to a rung, which is how a rung stops
+    /// being one.
+    private var subject: some View {
+        VStack(alignment: .leading, spacing: GridConstants.gapSection) {
                     // **THE WELL IS LAST, AND IT IS THE BIGGEST THING HERE.**
                     //
                     // It used to sit second, a 96pt square under the title, and
@@ -180,41 +416,13 @@ struct AddWinSheet: View {
                     if isEditing {
                         deleteButton
                     }
-                }
-                // **The app's page margin, not a private one.** This was
-                // 20 while every other screen is `horizontalPadding` (16), so
-                // the add sheet's content sat four points further in than the
-                // tower behind it — the kind of difference nobody can name and
-                // everybody feels when they move between two screens.
-                .padding(.horizontal, GridConstants.horizontalPadding)
-                .padding(.top, GridConstants.gapTight)
-                .padding(.bottom, GridConstants.gapLabel)
-            }
-            .sheetTitle(isEditing ? "Edit" : "Add a win", drawn: true)
-            .toolbar {
-                addWinToolbar
-            }
-            .onAppear(perform: load)
-            .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { deleteIt() }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("The block leaves the tower.")
-            }
         }
-        // Full height, and it stays that way. A medium detent was tried to
-        // close the empty space at the bottom and it clipped the size control
-        // instead — the sheet's content is taller than half a screen once the
-        // photo well is a 2x2. Empty space under a form is ordinary; a control
-        // cut off by the edge of a sheet is a bug.
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        // The page's own background, not the default translucent one. Through
-        // frosted glass the tower's colours bleed up behind the controls and
-        // the sheet reads as muddy — and a frosted surface is the block's
-        // material, not a sheet's.
-        .presentationBackground { WarmBackground().ignoresSafeArea() }
-        .fullScreenCover(isPresented: $showCamera) {
+    }
+
+    // MARK: - Pieces
+
+    private var cameraCover: some View {
+        Group {
             // No count passed: the tally belongs to the tower's camera, and
             // with nothing to put in it the grid line runs unbroken.
             CameraView(
@@ -241,36 +449,11 @@ struct AddWinSheet: View {
             // The status bar renders white over the black viewfinder on its
             // own, so it bought nothing.
         }
-        // Two sources, asked once.
-        //
-        // The camera alone was the wrong call: most wins are photographed when
-        // they happen and named later, so by the time you are filling this in
-        // the picture is usually already in your library. Taking one now is
-        // the other half, not the whole of it.
-        // Title case, as the photo menu further down, Profile and the viewer
-        // already have it, and as Photos does: these are buttons, and the
-        // same action was spelled two ways depending on which door you used.
-        .contextMenu {
-            if photo != nil {
-                Button("Replace Photo") { choosingSource = true }
-                Button("Remove Photo", role: .destructive) {
-                    photo = nil
-                    photoChanged = true
-                }
-            }
-        }
-        .confirmationDialog("Add a photo", isPresented: $choosingSource, titleVisibility: .hidden) {
-            Button("Take Photo") { showCamera = true }
-            Button("Choose from Library") { showLibrary = true }
-            if photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    photo = nil
-                    photoChanged = true
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        }
-        .fullScreenCover(isPresented: $peeking) {
+    }
+
+    @ViewBuilder
+    private var peekCover: some View {
+        Group {
             if let shown = photo {
                 PhotoPeek(
                     image: shown,
@@ -290,36 +473,14 @@ struct AddWinSheet: View {
                     })
             }
         }
-        .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    photo = image
-                    photoChanged = true
-                }
-                pickerItem = nil
-            }
-        }
     }
 
-    // MARK: - Pieces
-
-    @ViewBuilder
-    private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            // **`FormSectionLabel`, the same one Settings, Profile and a plan
-            // line's sections wear.** This style was written out by hand here
-            // and was the app's ONLY correct one: the three `Form` screens were
-            // all still on the platform's `Section("Name")` heading, in SF Pro
-            // at a case iOS picked. Setting it in one place is what makes a
-            // label on this sheet and a label on Settings the same kind of
-            // thing rather than two things that happen to look alike.
-            FormSectionLabel(label)
-            content()
-        }
-    }
+    // **`field(_:_:)` is DELETED** (2026-10-01, the room pass). It wrapped a
+    // control in a `FormSectionLabel` plus `gapTight`, and it had two callers:
+    // `COLOUR` and `SIZE`, both of which are cut. The thing worth keeping out
+    // of it is on `decisions` above — a label and the control it heads are
+    // `gapTight` apart, which is the rung, and `FormSectionLabel` is still the
+    // app's one correct section label wherever a section does need naming.
 
     /// The photo, shown as the block will show it.
     ///
@@ -604,7 +765,7 @@ struct AddWinSheet: View {
                     ZStack {
                         // The same object a block is: lit from inside, with
                         // the same rim. See `ColourSwatch`.
-                        ColourSwatch(colour: cat.style.baseColor, side: 34)
+                        ColourSwatch(colour: cat.style.baseColor, side: Self.swatchSide)
                         if let icon = cat.iconName {
                             Image(systemName: icon)
                                 .iconSize(13, relativeTo: .footnote, weight: .medium)
@@ -640,7 +801,7 @@ struct AddWinSheet: View {
                                        height: Self.selectionRingSide)
                         }
                     }
-                    .frame(width: 44, height: 44)
+                    .frame(width: Self.swatchTarget, height: Self.swatchTarget)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -652,11 +813,39 @@ struct AddWinSheet: View {
         // The air inside the leading swatch's tap frame, taken back out. See
         // the note above.
         .padding(.leading, -Self.swatchInset)
+        // **The word `COLOUR` is gone from the page and kept for VoiceOver.**
+        //
+        // `.contain` rather than `.combine`: the six discs stay individually
+        // focusable and individually selectable — combining them would make
+        // the row one element and take the choice away from the people this
+        // is for. What the container adds is the sentence the deleted label
+        // used to read out, announced on entering the row.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Colour")
     }
 
     /// The selection ring's diameter: on the swatch's own edge, two points
     /// outside a 34pt circle.
-    private static let selectionRingSide: CGFloat = 38
+    static let selectionRingSide: CGFloat = 38
+
+    /// The HIG's minimum target, measured not declared, and the box every
+    /// swatch is drawn inside. It was the literal 44 in the row and again
+    /// inside `swatchInset`, which is two copies of one number.
+    ///
+    /// Not `private`: `SheetRoomTests` works out, from this and the ring, how
+    /// much empty box a measured gap above the colour row carries, and
+    /// therefore whether the tight end of the sheet's ladder still clears
+    /// check 11b's 17pt ceiling.
+    static let swatchTarget: CGFloat = 44
+
+    /// A swatch's own artwork, unringed. It was the literal 34 at the one call
+    /// site; `PlanItemDetailSheet` names the same number for the same reason
+    /// and says it was typed three times in one expression there.
+    ///
+    /// Not `private`: it is the WORST case for the air a measured gap above
+    /// this row carries, since a swatch with no selection ring on it is 5pt
+    /// narrower than its box on each side rather than 3.
+    static let swatchSide: CGFloat = 34
 
     /// Half the difference between the 44pt target and the WIDEST thing drawn
     /// inside it, which is the 38pt ring and not the 34pt circle.
@@ -671,7 +860,7 @@ struct AddWinSheet: View {
     /// the better trade: two points on a row of round shapes is invisible,
     /// because a circle's optical edge is inside its box anyway, and a mark
     /// that appears and shoves the row off the margin is a thing that moves.
-    private static let swatchInset: CGFloat = (44 - selectionRingSide) / 2
+    static let swatchInset: CGFloat = (swatchTarget - selectionRingSide) / 2
 
     /// Size, named.
     ///
@@ -743,7 +932,9 @@ struct AddWinSheet: View {
         // button sizes to its content; making it full width was the last
         // piece of the hand-built version still hanging on.
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, GridConstants.gapTight)
+        // **No top padding of its own any more.** It carried `gapTight` on top
+        // of the stack's `gapWide`, which is 32 written as two numbers; the
+        // gap is `gapSection` on `subject` now, one rung, declared once.
     }
 
     // MARK: - Load, save, delete

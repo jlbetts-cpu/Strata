@@ -71,7 +71,24 @@ struct MainAppView: View {
     /// set and the app still opened on the camera. Nothing can overwrite a
     /// value that was never anything else.
     static func initialTab() -> StrataTab {
-        UserDefaults.standard.bool(forKey: welcomeWinKey) ? .tower : launchTab
+        // **`-strataStartTab` is answered HERE, and it was not** (found
+        // 2026-10-01, by photographing a screen on a simulator the app had
+        // never run on before).
+        //
+        // The flag was only read in `setup()`, which calls `selectTab` — and
+        // the paragraph directly above says why that cannot work: the `TabView`
+        // writes its own selection back through the binding on appear and
+        // overwrites anything set during setup. So the flag did nothing, and
+        // every capture that appeared to obey it obeyed `welcomeWinKey`
+        // instead, which is set on any simulator the app has been used on.
+        // That is the worst kind of broken fixture: it works on the machine it
+        // was written on and silently photographs the wrong tab everywhere
+        // else. `-strataStartTab camera` "worked" for the same wrong reason in
+        // reverse, on a fresh container where `.camera` was the default anyway.
+        #if DEBUG
+        if let wanted = DebugHarness.startTab { return wanted }
+        #endif
+        return UserDefaults.standard.bool(forKey: welcomeWinKey) ? .tower : launchTab
     }
 
     /// Set when onboarding finishes; consumed by `dropWelcomeWinIfNeeded`.
@@ -765,7 +782,7 @@ struct MainAppView: View {
         guard let id = deepLinkHabitID, towerVM.hasBuiltOnce else { return }
         deepLinkHabitID = nil
         if let block = towerVM.placedBlocks.last(where: { $0.habit.id == id }) {
-            withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
+            withAnimation(GridConstants.crossFade) {
                 expandedBlockID = block.id
             }
         } else if let habit = habits.first(where: { $0.id == id }) {
@@ -1864,9 +1881,9 @@ struct MainAppView: View {
         debugAutoWinsLeft = DebugHarness.autoWins
         debugAutoChecksLeft = DebugHarness.autoChecks
         debugTabFlipsLeft = DebugHarness.tabFlips
-        if let tab = DebugHarness.startTab {
-            selectTab(tab)
-        }
+        // `-strataStartTab` is the INITIAL value now (`initialTab()`), not a
+        // `selectTab` here, for the reason this file already gave: a selection
+        // set during setup does not stick.
         if DebugHarness.testsPhotoSave {
             DebugHarness.runPhotoSaveProbe()
         }
@@ -2130,7 +2147,7 @@ struct MainAppView: View {
         //
         // Inside one transaction the block is born at the top of the runway,
         // so there is no prior position to animate away from.
-        withAnimation(GridConstants.heavySettle) {
+        withAnimation(GridConstants.motionSnappy) {
             droppedIDs = towerVM.buildTower(from: filteredLogs, filterMode: towerFilterMode)
             // Before anything renders, so no view body ever creates one.
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
@@ -2736,7 +2753,7 @@ struct MainAppView: View {
                 towerScrollOffset = culls ? towerProbe.scrollOffset : nil
             }
             .onChange(of: scrollToTopTrigger) {
-                withAnimation(GridConstants.heavySettle) {
+                withAnimation(GridConstants.motionSnappy) {
                     proxy.scrollTo("TowerTop", anchor: .top)
                 }
             }
@@ -2821,7 +2838,7 @@ struct MainAppView: View {
                 onTapExpandBlock: { id in
                     // The release of a long press is not a tap, and a tap
                     // while arranging is not a request to edit.
-                    withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
+                    withAnimation(GridConstants.crossFade) {
                         expandedBlockID = id
                     }
                 },
@@ -3487,7 +3504,7 @@ struct MainAppView: View {
     private func dismissCard() {
         HapticsEngine.tick()
         try? modelContext.save()
-        withAnimation(reduceMotion ? GridConstants.crossFade : GridConstants.cardMorph) {
+        withAnimation(GridConstants.crossFade) {
             expandedBlockID = nil
         }
     }

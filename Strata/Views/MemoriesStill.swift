@@ -46,10 +46,16 @@ struct MemoriesStill: View {
 
     private var s: CGFloat { width / Self.reference }
 
-    /// A real phone's top and bottom insets, so the chrome sits where it sits on
-    /// the device rather than against the glass.
+    /// A real phone's top inset, so the chrome sits where it sits on the device
+    /// rather than against the glass.
+    ///
+    /// **`safeBottom` (34) was here and is gone.** It was the home indicator's
+    /// inset and the tab bar was the only thing that read it, as the gap under
+    /// the capsule — which was a derivation, not a measurement, and it was
+    /// wrong: the real bar's bottom edge sits **21pt** above the screen, not 34.
+    /// That number is `barBottom` now, beside the rest of the bar's measured
+    /// geometry, where the capture it came from is named.
     private static let safeTop: CGFloat = 59
-    private static let safeBottom: CGFloat = 34
 
     var body: some View {
         ZStack {
@@ -130,36 +136,82 @@ struct MemoriesStill: View {
     /// `TabView`, which cannot be put in a picture. The glyphs come from
     /// `StrataTab` so the filled-means-selected rule stays in one place.
     ///
-    /// **The 20 and the 11 below are UIKit's tab-bar metrics, not this app's
-    /// type scale, and that is why the 2026-10-01 type pass left them.** The
-    /// 15pt floor applies to type the app sets; this is a PICTURE of a phone
-    /// inside the onboarding device frame, every number in it multiplied by
-    /// `s` (about 0.5), reproducing chrome iOS draws and the app does not get
-    /// to size. Raising them would make the drawing stop matching the thing it
-    /// is a drawing of, which is the whole argument for composing this view
-    /// rather than screenshotting one.
+    /// **ICON ONLY, and every number below is now MEASURED off the real bar**
+    /// (`docs/copy-audit.md` cut 8, 2026-10-01).
+    ///
+    /// It drew an 11pt medium word under each glyph, and the entry that stood
+    /// here defended them as "UIKit's tab-bar metrics, not this app's type
+    /// scale". That defence died the same day: **the real tab bar has no words
+    /// on it.** `MainAppView` builds each `Tab` from a bare
+    /// `Image(systemName:)` and the three names exist only as
+    /// `accessibilityLabel`. So this was teaching a chrome the app does not
+    /// have, and doing it in the smallest type in the app: measured off
+    /// `/tmp/room/20-onboarding-4.png`, each word's ink was **3.4pt tall** on
+    /// screen, which is the owner's "no tiny text under or anythign like that"
+    /// twice over.
+    ///
+    /// **The labels coming off exposed that none of the rest of it matched
+    /// either**, so the shape was re-derived from the shipping bar rather than
+    /// from UIKit's old constants. Measured off `/tmp/room/new-wins.png`, a
+    /// 402x874 @3x capture of the Wins tab, against what this view drew before
+    /// (its own capture, converted back to reference points at `s` = 0.356):
+    ///
+    /// | | real | this view, before |
+    /// |---|---|---|
+    /// | capsule height | **62.0** (y 791.0 to 853.0) | 68.4 |
+    /// | capsule width | **274.0** (x 64.0 to 337.7) | 322.0 |
+    /// | bottom edge above the screen | **21.0** | 34.0 |
+    /// | glyph pitch | **86.0** (centres 114.7 / 200.7 / 286.7) | 92.5 |
+    /// | glyph ink height | **26.3 / 21.7 / 25.0** | 21.6 / 17.8 / 21.6 |
+    ///
+    /// The glyph ink ratio across the three is 1.22 / 1.22 / 1.16, mean 1.20,
+    /// so the size that was 20 is **24**. The inner horizontal padding is
+    /// `(274 - 3 x 86) / 2 = 8`, which puts the drawn centres at 115 / 201 /
+    /// 287 against the measured 114.7 / 200.7 / 286.7 — inside half a point.
+    ///
+    /// **The selection pill is deliberately NOT drawn.** The real bar has one:
+    /// sampled across the capsule's middle row, the selected third reads
+    /// rgb(233) against the bar's own rgb(252), x 68 to 162. That is **1.17:1
+    /// over 94 reference points**, which at this view's 0.356 is a 33pt shape
+    /// carrying nineteen levels of grey — invisible in the drawing, and the
+    /// mock already says which tab is on twice, by the glyph filling
+    /// (`StrataTab.icon(selected:)`) and by the tint stepping from
+    /// `inkTertiary` to `inkPrimary`. Drawing it would be adding chrome in a
+    /// pass whose whole job was taking some off.
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(StrataTab.allCases, id: \.self) { tab in
                 let on = tab == .memories
-                VStack(spacing: 3 * s) {
-                    Image(systemName: tab.icon(selected: on))
-                        .font(.system(size: 20 * s, weight: .regular))
-                    Text(tab.rawValue)
-                        .font(.system(size: 11 * s, weight: .medium))
-                }
-                .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
-                .frame(maxWidth: .infinity)
+                Image(systemName: tab.icon(selected: on))
+                    // Medium, like every other glyph and every word in the app.
+                    // A drawing of the app's own chrome has to be set the way
+                    // the chrome is set, or onboarding is teaching a weight the
+                    // app does not have.
+                    .font(.system(size: Self.barGlyph * s, weight: .medium))
+                    .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
+                    .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, GridConstants.gapItem * s)
-        .padding(.horizontal, GridConstants.gapWide * s)
+        .padding(.horizontal, Self.barInnerPad * s)
+        .frame(height: Self.barHeight * s)
         .background {
             Capsule(style: .continuous)
                 .fill(.regularMaterial)
                 .environment(\.colorScheme, .light)
         }
-        .padding(.horizontal, (GridConstants.horizontalPadding + GridConstants.gapWide) * s)
-        .padding(.bottom, Self.safeBottom * s)
+        .padding(.horizontal, Self.barInset * s)
+        .padding(.bottom, Self.barBottom * s)
     }
+
+    /// The real tab bar's own geometry, in a real phone's points. **Every one of
+    /// these is a measurement off `/tmp/room/new-wins.png`, not a token**, and
+    /// that is on purpose: this is a picture of chrome iOS lays out, so the
+    /// app's spacing ladder has no claim on it and a rung that happened to be
+    /// close would be a coincidence dressed as a decision. The table on
+    /// `tabBar` carries the measurements and what each one replaced.
+    private static let barHeight: CGFloat = 62
+    private static let barInset: CGFloat = (reference - 274) / 2
+    private static let barBottom: CGFloat = 21
+    private static let barInnerPad: CGFloat = (274 - 86 * 3) / 2
+    private static let barGlyph: CGFloat = 24
 }

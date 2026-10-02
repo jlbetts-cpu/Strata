@@ -52,6 +52,45 @@ final class ReplayShelfModel {
         "\(replay.id)-\(scheme == .dark ? "dark" : "light")"
     }
 
+    /// **The replay whose window is open right now, unless the page is already
+    /// offering it.** (2026-10-01)
+    ///
+    /// The Wins tab used to carry this as `headerReplayPill`, through
+    /// `ReplayEntry.live`. The owner took the pill off — "the your month doesnt
+    /// belong on the wins because its already in memories" — and that left the
+    /// open WEEK with no route anywhere in the app, because this page offers the
+    /// SELECTED MONTH's replay and nothing else. Put to him with the cost named,
+    /// his call was that all replays live in Memories. So Memories answers the
+    /// question the pill used to answer.
+    ///
+    /// **A week beats a month, which inverts `ReplayEntry.live`'s preference,
+    /// and the reason is that this page is not the Wins tab.** `ReplayEntry`
+    /// prefers the month "because it is the rarer event, and the week is on its
+    /// shelf either way" — and the week is not on any shelf any more, while a
+    /// month is addressed by the picker directly above this row. So on the two
+    /// or three days a year when both windows are open, the month is one tap
+    /// away by name and the week is nowhere, which decides it. `ReplayEntry.live`
+    /// is left alone: it still decides the notifications, where the rarer event
+    /// is the better one to interrupt somebody with.
+    ///
+    /// **It reads the replays already loaded rather than asking the store.**
+    /// `ReplayEntry.live` takes a `hasWins` that runs a fetch, and this is read
+    /// from a view body. The shelf has already fetched every finished month and
+    /// week plus both open periods (`periods(now:)`), so the answer is in hand.
+    ///
+    /// - Parameter offering: the replay the page's first row already draws.
+    static func live(in loaded: [Replay], besides offering: Replay?,
+                     now: Date, calendar: Calendar = .current) -> Replay? {
+        let open = [ReplayPeriod.current(.week, at: now, calendar: calendar),
+                    ReplayPeriod.current(.month, at: now, calendar: calendar)]
+        for period in open.compactMap({ $0 }) {
+            guard let replay = loaded.first(where: { $0.period == period }) else { continue }
+            guard replay.id != offering?.id else { continue }
+            return replay
+        }
+        return nil
+    }
+
     /// **The tallest tower a poster can draw and still be a picture.**
     ///
     /// `posterScale` fits a row's tallest tower into the poster's height, so

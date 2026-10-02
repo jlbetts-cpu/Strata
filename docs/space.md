@@ -477,6 +477,13 @@ at least 16.** Centred artwork is exempt and is declared, not assumed.
 16.7, 17.0, 18.0, 20.7, 22.3, 22.3, 22.3 and 22.7, a spread of 16.7pt on one
 page. Settings and Profile, whose grouped Form card is full bleed so the page's
 margin is 0. Onboarding 1, which has a band at 4.3.
+**That last one is wrong and the correction is the same shape as the one in the
+audit under 11d.** `WarmBackground` is a vertical gradient, 247 at y80 to 241 at
+y860, so `screen-measure.py edges` reads the lower page as content reaching the
+screen edge. Re-measured against each row's own ground in the 2pt gutter,
+onboarding 1 is 16.0 / 17.0 / 17.0 / 17.3 / 18.0 — a 2.0pt spread, and it
+passes. The 10.3 on page 2 is `NextSlotButton`'s shadow, rgb 232 on a 240 ground
+and 2.7pt wide, not a band. **No onboarding page fails 11d.**
 
 ### Worked example that passes: Store unavailable
 

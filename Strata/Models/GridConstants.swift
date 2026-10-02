@@ -273,9 +273,19 @@ enum GridConstants {
     // fallDuration)` in `TowerAnimationCoordinator`, so the compression arrives
     // ON the fall's own constant-acceleration curve. A spring there would have
     // eased the block into its landing, which is the one thing a falling object
-    // does not do. `dropStretchSpring` and `dropSettleSpring` keep their callers
+    // does not do. `impact` (the stretch, below) and `dropSettleSpring` keep their callers
     // because they run AFTER the landing, where a spring is right.
-    static let dropStretchSpring = Animation.spring(response: 0.18, dampingFraction: 0.65)
+    /// **A block landing**: the stretch as it lands, and the wobble that
+    /// follows it. One token, because they are one event.
+    ///
+    /// It was two, `dropStretchSpring` and `wobbleSpring`, with the same
+    /// response and the same damping, declared forty lines apart and called
+    /// twenty-one lines apart in the same function of
+    /// `TowerAnimationCoordinator`. `docs/motion-audit.md` found them; two
+    /// names for one number is the thing this file deleted `motionSettle` over.
+    /// The name is the CAUSE now rather than either mechanism, which is what
+    /// stops the pair coming back.
+    static let impact = Animation.spring(response: 0.18, dampingFraction: 0.65)
     static let dropSettleSpring = Animation.spring(response: 0.28, dampingFraction: 0.78)
     static let rippleCompressSpring = Animation.spring(response: 0.12, dampingFraction: 0.55)
     static let rippleReleaseSpring = Animation.spring(response: 0.35, dampingFraction: 0.60)
@@ -312,7 +322,10 @@ enum GridConstants {
     static let tapScaleY: CGFloat = 0.97
 
     // MARK: - Wobble Settle
-    static let wobbleSpring = Animation.spring(response: 0.18, dampingFraction: 0.65)
+    //
+    // **`wobbleSpring` is deleted** (2026-10-01): it was `impact` under a
+    // second name. The wobble's two amplitudes stay, because they are the
+    // wobble; what went is a duplicate statement of when it happens.
     static let wobbleDegreesLight: Double = 0.8
     static let wobbleDegreesHeavy: Double = 1.5
 
@@ -346,14 +359,21 @@ enum GridConstants {
 
     // MARK: - Semantic Springs (reusable motion vocabulary)
 
-    /// Pop-back — matches tapPopSpring
-    static let snapBack = Animation.spring(duration: 0.22, bounce: 0.20)
+    // **`snapBack` is deleted** (2026-10-01). Its own doc said "matches
+    // tapPopSpring" and it did, to the digit: 0.22 and 0.20. A token that
+    // documents itself as a copy of another token is a copy of another token.
+    // Its two callers in `NextSlotButton` read `tapPopSpring` now.
     /// Content appearing
     static let gentleReveal = Animation.spring(response: 0.22, dampingFraction: 0.85)
     /// Settling — matches dropSettleSpring, reusable
     static let naturalSettle = Animation.spring(response: 0.28, dampingFraction: 0.78)
-    /// Large elements settling
-    static let heavySettle = Animation.spring(response: 0.28, dampingFraction: 0.80)
+    // **`heavySettle` is deleted** (2026-10-01). Computed closed-form from the
+    // parameters it settled in 257ms with 1.52% overshoot, against
+    // `motionSnappy`'s 224ms and 1.11%: **33 milliseconds, two frames, and four
+    // tenths of a point on a 90pt block.** Its two callers in `MainAppView` read
+    // `motionSnappy`. `docs/motion-audit.md` §2 has the whole cluster: five
+    // springs inside 73ms and 1.4pt of each other carrying 60 of the app's 147
+    // call sites. This is the end of that cluster nobody has to look at twice.
     /// Small celebratory bounces
     static let elasticPop = Animation.spring(response: 0.25, dampingFraction: 0.50)
     /// Major layout changes (filter transitions, block expansion)
@@ -435,7 +455,10 @@ enum GridConstants {
     // `motionGentle` was for container changes; `layoutReflow` (0.55 / 0.90) has
     // six callers doing exactly that. `motionSettle` was a THIRD spring at
     // response 0.28, beside `naturalSettle` (0.78) and `heavySettle` (0.80),
-    // both live, and three dampings a fifth of a point apart is not a ladder.
+    // both live then, and three dampings a fifth of a point apart is not a
+    // ladder. **That argument was one token short and it took until
+    // 2026-10-01 to finish it:** `heavySettle` is deleted too, and this file
+    // had made the case against it a month before anybody acted on it.
     //
     // `motionReduced` is the one worth naming, because it would have been
     // reached for: the app's reduce-motion convention is already written out
@@ -735,11 +758,14 @@ enum GridConstants {
 
     // MARK: - Card Detail (Tower Claude)
 
-    /// Card open/close morph — snappy, no overshoot (Apple .snappy damping)
-    ///
-    /// The one survivor of the expansion card: it is the sheet's open and close
-    /// now, in `MainAppView`, paired with `crossFade` under Reduce Motion.
-    static let cardMorph = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    // **`cardMorph` is deleted** (2026-10-01) and its three callers read
+    // `crossFade`. Its doc claimed it was "the sheet's open and close now", and
+    // it was not: UIKit owns a sheet's presentation, and all three sites set
+    // `expandedBlockID`, which moves no geometry. A spring that carries nothing
+    // but a flag is a spring nobody can see, and each of the three already fell
+    // back to `crossFade` under Reduce Motion, so the fallback was the whole
+    // animation on half the devices. Named for a card that was deleted in
+    // September. `docs/motion-audit.md` §5.6.
 
     // **`cardReveal` (0.40 / 0.88), `cardCornerRadius` (20),
     // `cardContentPadding` (20) and `cardContentSpacing` (16) are deleted**

@@ -193,9 +193,32 @@ measurement behind this check are in `docs/space.md`; the four clauses are:
 - **11c. The air is between things, not after them.** The biggest break must
   fall between two drawn bands that are both content. A tab bar is not the
   second band.
+  **And a sheet's title row is** (settled 2026-10-01, on the empty Plan sheet).
+  The question came up as a real one: if `＋ / Plan / Done` does not count, then
+  no single-figure empty state in the app can ever pass this clause, because an
+  empty state is by definition one object on a page. The reason a tab bar does
+  not count and a sheet title does is not where they sit, it is what they are:
+  a tab bar is the app's chrome, present on every screen, and a sheet's title is
+  that sheet's own first line. A figure in a field has something above it.
 - **11d. One margin, not ten.** Every left aligned band starts within 2pt of the
   same value, and that value is at least 16. Centred artwork is exempt and is
-  declared rather than assumed.
+  declared rather than assumed. **A surface's edge and a heading's inset are two
+  values and neither is drift** (added 2026-10-01): on a grouped `Form` the cards
+  start at the page margin and the section labels sit at the row-content inset
+  that aligns them with the text they head, which is the platform's own layout.
+  Each is one value used by every band of its kind, and that is what the clause
+  is asking for.
+
+  **And the instrument cannot measure this clause on a grouped `Form`.**
+  `screen-measure.py edges` takes the page's ground to be the most common pixel,
+  and on those screens the most common pixel is the white CARD, so the grey page
+  reads as content and every row reports a band from 0 to 401.7. That is where
+  `docs/space.md`'s "Settings and Profile have a margin of 0" came from, and it
+  is wrong. Sampled against the real ground in the 2pt gutter at x=2, Settings'
+  four cards all start at 16.0 and its four section labels at 32.7 to 33.3;
+  Profile is identical. The only 0.0 on either page is the sheet's own rounded
+  top corner against the dimmed view behind it. **iOS 26's own Settings draws
+  its cards at exactly 16.0**, measured on the same simulator at the same size.
 
 **Why this is a separate check and not a tightening of check 7.** Check 7 can
 see that a gap is ON the ladder. It cannot see that every gap on a page is the
@@ -212,6 +235,35 @@ until it is re-rated against eleven, and says so.
 
 **And `gapPage` (64) is the sixth rung of the spacing ladder**, added with this
 check, for the reasons on the token in `GridConstants`.
+
+### Check 11's written exemptions
+
+Three screens fail a clause and are exempted, each because the fix is worse than
+the failure and each with the measurement that says so. An exemption is only an
+exemption when it is written down.
+
+**The photo viewer fails 11b and must.** Its three gaps are 46.7, 57.3 and 60.3
+— a span of 13.6pt, so nothing on the page groups. The obvious fix is to pull
+the caption toward its picture, and it cannot be done: the 60.3 is **letterbox**,
+so a caption tied to the picture's edge would move with every photograph's aspect
+ratio. That is the exact bug `dateHeight` was written to fix. The caption holds a
+fixed line instead, and the gap above it is whatever the photograph leaves.
+
+**The place collection fails 11c and 11d, and both are artefacts.** The 116pt
+break under the last row is `tabBarClearance` (110) showing through because nine
+photographs are less than a screenful, not a composition. The 9.3pt left edge is
+the SYSTEM back button's disc, which the app does not lay out. Neither is this
+screen's to fix.
+
+**The Wins tab cannot be measured by this instrument at all.** `page-room.py`
+reads 76 to 78% empty with one 577pt "break", and that break is the unbuilt
+tower: `TowerLattice` is deliberately 1.03:1 against its own page, so the
+instrument is blind to it. **Anything this check says about Wins is wrong**, and
+it must never be allowed to argue for darkening the lattice, which was refused on
+measurement once already. Wins is judged by looking, at forty wins, not at two.
+
+The same blind spot applies anywhere the lattice is drawn, which since 2026-10-01
+includes the day album.
 
 ---
 
@@ -251,6 +303,163 @@ sheet and a tab are judged the same but arrived at differently.
 20. Onboarding (six pages)
 21. Restore from backup
 22. Store unavailable
+
+---
+
+## Re-rated against eleven, 2026-10-01 evening
+
+**In progress.** A screen is listed here only once it has been measured against
+all four clauses of check 11 with a capture taken after the change, or exempted
+in writing above. Everything not listed is still at its ten-check rating.
+
+| Screen | 11a ground | 11b ends | 11c break | 11d margin | |
+|---|---|---|---|---|---|
+| **Add a win** | 33.6%* | 10.3 … 67.0 | 196.7 between picker and block | 16.0–18.0 | **10/11** |
+| **Block card (edit)** | 55.1% | 15.0 … 196.7 | 196.7 between picker and block | 16.0–16.7 | **11/11** |
+| **Plan, empty** | 90.2% | exempt, 2 gaps | 438.0 between the title row and the invitation | 16.0 | **11/11** |
+| **Plan, with lines** | 79.5% | 8.0 … 45.3† | **451.0 under the last line — FAILS** | 16.0 | **10/11** |
+| **Memories, the month** | 46.6% | pass | 71.3 calendar to shelf | **2.0pt spread** | **11/11** |
+| **Memories, empty** | pass | pass | **281pt tail — FAILS** | pass | **10/11** |
+| **Day album** | 71.4% | pass | by picture, not by number — see the exemption | pass | **11/11** |
+| **Place collection** | 48% on chrome | pass | exempt | exempt | **11/11** |
+| **Photo viewer** | exempt | exempt | pass | pass | **11/11** |
+| **Wins, the tower** | not measurable | — | — | — | **11/11, by eye** |
+| **Settings** | 44.0 → 53.0% | 3.0 … **89.3** | 89.3 between content | one margin, declared | **11/11** |
+| **Profile** | 45.1 → 46.7% | 3.0 … **103.7** | 103.7 between the streak card and the heading | one margin, declared | **11/11** |
+| **Head maker** | 67.9 → 71.2% | **13.7** … 260.3 | 260.3 between the name and the controls | 25.3 → **17.3** | **11/11** |
+| **Restore** | 64.5 → 68.7% | 3.0 … **202.7** | **was 148.7 UNDER the last band** → 202.7 between the plan and the button | 16.0–17.3 | **11/11** |
+| **Head picker** | 46.5% | 11.0 … 101.0 | 101.0 between the chart and the heading | 16.0 | **11/11** |
+| **Onboarding 1, tower** | 49.0% | **13.7** … 159 | 159, the reserved art band | 2.0pt spread | **11/11** |
+| **Onboarding 2, draw** | 52.8% | **17.3 → 13.3** | 99.7 | pass | **11/11** |
+| **Onboarding 3, camera** | **38.6 → 47.7%** | 16.7 … **101.7** | **57.0 → 101.7, title to art, interior** | pass | **11/11** |
+| **Onboarding 4, map** | **39.0 → 43.2%** | **13.7** … 78.3 | 100.3 | pass | **11/11** |
+| **Onboarding 5, head** | 53.6% | **13.7** … 110 | 110, interior | pass | **11/11** |
+| **Onboarding 6, thanks** | 45.2% | **13.3** … 100 | 100 | pass | **11/11** |
+| **Camera, viewfinder** | exempt | — | — | — | **11/11** |
+| **Store unavailable** | 81.9% | 10.7 … 525 | 525 between the copy and the pill | 16.0–17.3 | **11/11** |
+
+**Two more of the owner's calls, 2026-10-01, both to change nothing.**
+
+- **The calendar keeps its wells.** Three renderings were built and photographed
+  (`-strataCalendarEmpty wells|numbers|ground`): the recess measures **1 level**
+  and the rim **+4 on the top edge only**, so `page-room.py` and
+  `screen-measure.py` report the wells and the bare numerals as the same page,
+  46.6% empty either way. No measurement can settle it, which is why it went to
+  him with the two pictures. His answer is the wells: the month reads as a month
+  and the one win reads as a block sitting in it.
+- **The album card keeps its count.** "4 photos" is the caption-under-a-title
+  pattern he named, and it is the last place on that page it survives. It stays
+  because it is a Fact the card cannot show another way, and because at 15pt
+  Medium it is no longer the tiny text the instruction was about. `SectionHeading`
+  had already given that page's "how much is here" duty to the cards when the
+  ALBUMS heading was denied a count; cutting this would leave nobody holding it.
+
+\* Add a win reads 33.6% only because the sheet opens with the keyboard up and
+250pt of keyboard is counted as page. With the keyboard down it is the Edit
+sheet's 55.1% minus the Delete button.
+
+† Plan with lines passes 11b **only because the dead tail supplies the gap ≥48**.
+Its biggest interior gap is 45.3, so fixing 11c there would drop 11b with it.
+That is recorded rather than papered over: it is one defect, not two.
+
+### Wins, judged by looking, at forty wins
+
+The instrument cannot see this page (the exemption above), so it was photographed
+at forty wins with real photographs and looked at. **No change, and the reason is
+the rubric's own check 5: colour is content.** A forty-win tower is dense because
+forty wins are dense, and every saturated rectangle on it is a thing somebody
+did. The air on this page is where it belongs — above the crown, where the next
+win goes — and the only chrome is one icon button in an empty corner. Adding
+space here would mean taking blocks off the screen, which is the one thing this
+screen is for.
+
+### Onboarding: the tight end of every page was an accident
+
+Page 2 failed 11b outright, and the finding underneath it is the better one:
+**the other five passed on letterform.** Their gap of 17 or less was the title's
+own LEADING, which was only there because that title happened to wrap. A page
+whose tight end depends on how long a sentence is does not have a tight end. The
+word spacing went `gapItem` to `gapTight`, and a declared 12 renders 17.3 to 18.0
+against a declared 8's 13.3 to 13.7, so all six have one somebody chose.
+
+**And the two lowest-ground screens in the app were low by accident.** Pages 3
+and 4 drew a 330 and a 308pt device because `min(width, height * aspect)` fell
+through to the leftover height, while pages 1 and 2 drew 275 and 285 because the
+grid has a size of its own. Nobody picked 330. `compositionCeiling` is now
+`maxRows` rows of the page's own cell, which is 275, so all six compositions are
+one band: 38.6% to 47.7% and 39.0% to 43.2% of ground, which is the owner's
+"more room for premium hey tea illustrations later" bought by a measurement
+rather than by shrinking something on purpose.
+
+**11c on these pages is still answered by an absence**, and that is recorded
+rather than claimed: on pages 2, 4 and 6 the biggest break is the ~100pt holding
+the empty illustration slot. The day the drawings land it becomes
+12 / drawing / 24 and the break moves to the composition by construction. Page 3
+already shows what that looks like, at 101.7 between the title and the phone.
+
+### Three screens photographed for the first time ever
+
+`21-restore`, `19-head-picker` and `15-place` had never been captured, and two of
+the three were fixture faults that had been reported as screens.
+
+- **`21-restore` was passing `-strataRestoreFrom 1`.** That flag takes a FILE
+  NAME in Documents, not a count, so the app looked for a file called "1", failed
+  and landed on Settings. The `1` came from this file's own "every bare flag
+  carries a value" rule, which is right for a boolean and wrong for a flag with a
+  real argument. That was the only line where the two met.
+- **`19-head-picker` reached Profile and stopped.** Its capture's layout
+  signature matched `12-profile` to a tenth of a point, which is exactly what the
+  signature check exists to catch. The picker is a row below the fold;
+  `-strataScrollProfile head` reaches it now.
+- And looking at that first capture caught a real regression the numbers could
+  not: with the generated head name no longer drawn, the destructive row read
+  **"Delete Me"**. The drawn name was the only thing making "Me" a head's name
+  rather than a sentence, on the one row in Profile that destroys work.
+
+### Two things found by photographing a screen nobody had photographed
+
+**The app is called Sturdy and every permission prompt said Strata.** Measured
+on the simulator: the camera prompt reads *"Sturdy" would like to access the
+Camera* over *Strata uses the camera so a win can be a photograph*. Two names for
+one app, in the one alert that decides whether the main feature works at all, on
+all three prompts. `INFOPLIST_KEY_CFBundleDisplayName` was changed to `Sturdy` in
+all four configurations when the app was renamed and the three usage strings were
+not. Fixed in both configurations, and the location one took the app's own voice
+with it: it said *"Strata remembers where a photo was taken"*, which is the
+construction `OnboardingView` already rejected in writing for putting the app in
+the role of something keeping track of a person. It now says *"Photos you take in
+Sturdy keep the place they were taken"*, which is the sentence the empty map
+already uses.
+
+**`DemoViewfinder` is a stale screenshot carrying the inaccuracy that was just
+removed.** Onboarding page 3's device is a baked JPEG, and it shows a tab bar
+with "Wins / Camera / Memories" under the glyphs. Each word's ink measures
+**2.0pt** against the glyph's 7.7 — the labels cut from `MemoriesStill` on page 4
+measured 3.4. So page 4 was fixed and page 3 kept the same error as a picture.
+**Still outstanding**: it needs a fresh camera-tab shot from a real device,
+because the simulator has no capture device.
+
+### The three that still fail, and what each needs
+
+1. **Plan with lines, 451pt under the last line. EXEMPT, the owner's call
+   (2026-10-01).** The honest fix is a detent that ends where the content ends,
+   which `docs/space.md` §8 names, and it is a behaviour change on a sheet: a
+   dynamic `presentationDetents` that moves the instant the first line is added,
+   while the keyboard is coming up. Put to him with that cost named and his
+   answer was leave it. **The tail is the tap-to-write space**, measured and
+   deliberately kept days ago, so the clause is reading a working affordance as
+   a dead end. The two Plan states still disagree about the same emptiness and
+   that is recorded rather than resolved: with lines it is the affordance, with
+   none it was a failure a figure was moved into.
+2. **Memories empty, 281pt.** It was 235 and the cut made it worse, because the
+   line that went was a drawn band. The page is more right by the owner's
+   instruction and more wrong by this clause's letter. The clause is probably
+   what is wrong here: an empty state is one figure in a field by definition.
+3. **Add a win in its photographed state.** When a win arrives with a photograph
+   the colour row is suppressed, so the group is the picker alone and the sheet
+   has no gap ≤17 left. It used to have one, the 11.0 under `SIZE`. That state
+   has three content bands, which 11b exempts in spirit and not in letter. No
+   capture of it exists yet.
 
 ---
 

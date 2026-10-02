@@ -74,6 +74,15 @@ struct ProfileView: View {
     private static let unpickedBarShare = 0.4
 
     var body: some View {
+        // **The reader exists only so the head section can be PHOTOGRAPHED.**
+        // `docs/screen-audit.md` carries the head picker as screen 19 and
+        // `docs/space.md` §0 records that it "was never in the folder": the
+        // picker is a row inside the head section, that section is below the
+        // fold on a page carrying the identity block, the streak, the chart and
+        // five switches, and nothing on this Mac can scroll a simulator. So the
+        // only capture anybody ever got of screen 19 was screen 12 again, with
+        // a byte-for-byte identical layout signature. See `scrollToAnchor`.
+        ScrollViewReader { scroller in
         Form {
             identity
             streak
@@ -81,6 +90,16 @@ struct ProfileView: View {
             headSection
             settingsLink
         }
+        // **The same break Settings takes, for the same measured reason, and
+        // because these two screens have to agree.** The full argument — the
+        // 45.0pt ceiling check 11b failed on, and iOS 26's own Settings
+        // measured at 63.0 and 70.3 between groups against 10.3 inside one —
+        // is written out over `SettingsView`'s copy of this line. It is here as
+        // well rather than only there because this file's own header says
+        // Profile is "built as a `Form` on `WarmBackground` exactly like
+        // `SettingsView`, so pushing from one to the other reads as one place",
+        // and a section break is the loudest thing that could stop being true.
+        .listSectionSpacing(GridConstants.gapPage)
         .scrollContentBackground(.hidden)
         // **The primary, on the platform's own controls.** The owner: "make
         // sure you are changing the primary to the blue." A `Form`'s links,
@@ -111,6 +130,7 @@ struct ProfileView: View {
             #if DEBUG
             if DebugHarness.headMakerState != nil { showsMaker = true }
             if let unit = DebugHarness.profileChartUnit { unitRaw = unit }
+            await scrollToAnchor(scroller)
             #endif
         }
         .onChange(of: unitRaw) { _, _ in selectedBar = nil }
@@ -123,13 +143,13 @@ struct ProfileView: View {
         // **By name, and it says out loud that it cannot be undone.** A head is
         // minutes in front of the camera over a photograph that may not exist
         // any more, so this is the one place in Profile that destroys work.
-        .confirmationDialog(Text("Delete \(deletableHeadName)?"),
+        .confirmationDialog(Text(deleteHeadLabel + "?"),
                             isPresented: $confirmsDeleteHead, titleVisibility: .visible) {
-            Button("Delete \(deletableHeadName)", role: .destructive) {
+            Button(deleteHeadLabel, role: .destructive) {
                 if let id = heads.activeID { heads.delete(id) }
             }
         } message: {
-            Text("\(deletableHeadName) is removed from this phone and from everywhere it appears. A head can't be brought back, only made again.")
+            Text(deleteHeadMessage)
         }
         .photosPicker(isPresented: $showsLibrary, selection: $pickerItem, matching: .images)
         .onChange(of: pickerItem) { _, item in
@@ -143,7 +163,35 @@ struct ProfileView: View {
                 if let prepared { store.setPhotoData(prepared) }
             }
         }
+        }
     }
+
+    /// Where `-strataScrollProfile` can put the page. The head section is the
+    /// only one so far, because it is the only one below the fold.
+    static let headAnchor = "head-section"
+
+    #if DEBUG
+    /// `-strataScrollProfile head`: opens Profile already scrolled to the head
+    /// section, so screen 19 can be photographed at all.
+    ///
+    /// **Not a named accessor on `DebugHarness` like its neighbours**
+    /// (`scrollsMemories`, `profileChartUnit`) only because that file was off
+    /// limits to the pass that needed this. It should move there, beside
+    /// `-strataScrollMemories`, which is the same flag for the same reason on
+    /// the other long page.
+    ///
+    /// **The sleep is not a settle and it is not pretending to be one.** It
+    /// waits for the `Form` to have laid its sections out at all; the capture's
+    /// own settle poll (`tools/settle-shot.py`) is what decides the screen has
+    /// stopped moving. Without any wait, `scrollTo` runs against a list whose
+    /// rows do not exist yet and does nothing at all, silently.
+    @MainActor
+    private func scrollToAnchor(_ scroller: ScrollViewProxy) async {
+        guard DebugHarness.scrollProfileTo == "head" else { return }
+        try? await Task.sleep(for: .seconds(1.5))
+        scroller.scrollTo(Self.headAnchor, anchor: .top)
+    }
+    #endif
 
     // MARK: - Identity
 
@@ -246,8 +294,7 @@ struct ProfileView: View {
                 } else {
                     // Named once there is more than one, because with several
                     // heads "my head" does not say which.
-                    Button(heads.entries.count > 1 ? "Use \(deletableHeadName)" : "Use My Head",
-                           systemImage: "face.smiling") {
+                    Button(useHeadLabel, systemImage: "face.smiling") {
                         heads.setProfilePicture(true)
                     }
                 }
@@ -467,9 +514,12 @@ struct ProfileView: View {
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                         .contentTransition(.numericText())
-                    // **The second line is gone in the two states where it only
-                    // repeated the first** (2026-10-01, the type pass). See
-                    // `detail(_:)`.
+                    // **There is a second line only when a bar is picked**
+                    // (cut 4, 2026-10-01). The trend's own second line was not
+                    // dropped, it was PROMOTED: `detail` is what the line above
+                    // now says, because it was always the one with the numbers
+                    // in it. See `headline(_:)`. The pair that survives is a
+                    // count over the week it belongs to, which is two facts.
                     if let line = shownDetail(summary: summary, bars: bars) {
                         Text(line)
                             .font(Typography.screenSubtitle)
@@ -492,18 +542,47 @@ struct ProfileView: View {
         }
     }
 
+    /// The one line over the chart.
+    ///
+    /// **The mood headline is gone and the numbers took its place** (cut 4,
+    /// `docs/copy-audit.md`, 2026-10-01). It used to read "You're logging more
+    /// wins lately." / "You're keeping a steady pace." / "A quieter stretch
+    /// lately." at `headerMedium`, with `detail` under it at `screenSubtitle`
+    /// saying the same thing WITH the numbers in it: "3 wins a week over the
+    /// last 8 weeks, up from 2 wins before that."
+    ///
+    /// A title over a strictly more informative subtitle is the pattern upside
+    /// down — the louder line was the one carrying less. So the subtitle was
+    /// promoted into the headline's slot and the mood was deleted, rather than
+    /// one of the two lines being dropped: one medium-weight sentence over the
+    /// chart, no small grey line under it. Apple HIG, Charts, is what the pair
+    /// was built on in the first place ("Summarize the main message of your
+    /// chart"), and the summary is the one with the figures in it.
+    ///
+    /// **The two states with nothing to promote keep a sentence**, because a
+    /// chart that cannot be drawn yet has to say so, and `detail` is already
+    /// nil at both of them.
     private func headline(_ summary: WinTrend.Summary) -> String {
         switch summary.kind {
-        case .more:      return "You're logging more wins lately."
-        case .same:      return "You're keeping a steady pace."
-        case .fewer:     return "A quieter stretch lately."
-        case .notEnough: return "Keep logging to see your trend."
+        case .notEnough: return Self.beforeTheTrend
         case .empty:     return "Your \(unit.plural) will show up here."
+        // `detail` is non-nil for exactly these three kinds, so the fallback
+        // is unreachable rather than a state. It is the sentence for "not yet"
+        // rather than an empty string, so that if the two functions ever stop
+        // agreeing the page says something true instead of nothing.
+        case .more, .same, .fewer: return detail(summary) ?? Self.beforeTheTrend
         }
     }
 
+    private static let beforeTheTrend = "Keep logging to see your trend."
+
     /// The numbers, in words somebody's mum reads without a legend: how many
     /// a day, week or month lately, and what "usual" was.
+    ///
+    /// **This is the HEADLINE now, not the line under it** (cut 4,
+    /// 2026-10-01). The name is kept because every word below is still true of
+    /// it and because `shownDetail` is still the second line's function; what
+    /// changed is which slot this text is drawn in. See `headline(_:)`.
     ///
     /// **Nil in the two states where it had nothing of its own to say**
     /// (2026-10-01, the type pass). It used to read "It appears once you have
@@ -565,8 +644,15 @@ struct ProfileView: View {
         return "\(bar.count) \(bar.count == 1 ? "win" : "wins")"
     }
 
+    /// The second line, and there is one only when a bar is picked.
+    ///
+    /// **Nil with nothing picked** (cut 4): `detail` is the headline now, so
+    /// returning it here as well would print the sentence twice. With a bar
+    /// picked the pair is a count over the period it belongs to — two facts,
+    /// not one fact and a mood — which is the arrangement this slot was built
+    /// for and the one it keeps.
     private func shownDetail(summary: WinTrend.Summary, bars: [WinTrend.Bar]) -> String? {
-        guard let bar = picked(from: bars) else { return detail(summary) }
+        guard let bar = picked(from: bars) else { return nil }
         switch unit {
         case .day:
             return bar.isCurrent
@@ -698,9 +784,57 @@ struct ProfileView: View {
 
     // MARK: - Your head
 
-    /// The head the delete row would remove: the one in use, which is the one
-    /// the row above it has marked and the one the picture is showing.
-    private var deletableHeadName: String { heads.activeEntry?.name ?? "this head" }
+    /// The active head's name, but only when somebody CHOSE it.
+    ///
+    /// (`deletableHeadName`, which returned `heads.activeEntry?.name ?? "this
+    /// head"` and was interpolated into four strings, is gone: three of those
+    /// four needed title case or a sentence opener, so each is its own property
+    /// below and none of them builds a label out of a raw name any more.)
+    ///
+    /// **Found by looking at the screen, not by counting** (2026-10-01). Cut 14
+    /// stopped `HeadPickerRow` drawing a name the app made up, and the capture
+    /// of the head picker that followed — the first one ever taken of that
+    /// screen — showed what the name had quietly been holding up: the
+    /// destructive row read **"Delete Me"**, with nothing anywhere on the page
+    /// saying that "Me" was the name of a head. It stops being a head's name
+    /// and becomes a sentence, on the one row in Profile that destroys work and
+    /// cannot be undone.
+    ///
+    /// So the two go together: wherever a head is named to you, it is named
+    /// only if the name is a Fact, and otherwise the app says "this head",
+    /// which is what it already said when there was no entry at all.
+    private var chosenHeadName: String? {
+        guard let name = heads.activeEntry?.name,
+              !HeadPickerRow.isGenerated(name, person: store.name) else { return nil }
+        return name
+    }
+
+    /// "Delete Sam", or "Delete This Head". Title case, because it is a
+    /// control's label and every other row in this section is.
+    private var deleteHeadLabel: String {
+        chosenHeadName.map { "Delete \($0)" } ?? "Delete This Head"
+    }
+
+    /// "Use Sam", "Use This Head", or "Use My Head" with only one.
+    ///
+    /// Same correction as `deleteHeadLabel`: this used to interpolate the
+    /// active head's name unconditionally once there was more than one, which
+    /// after cut 14 would name a head by a word printed nowhere on the page.
+    /// With several unnamed heads nothing CAN name one, and the honest label is
+    /// the one that points at the picture this menu is attached to — the faces
+    /// are what tell them apart, which is the argument cut 14 is made of.
+    private var useHeadLabel: String {
+        if let chosen = chosenHeadName { return "Use \(chosen)" }
+        return heads.entries.count > 1 ? "Use This Head" : "Use My Head"
+    }
+
+    /// The same fact as a sentence, so it can open one. "this head is removed
+    /// from this phone" was already the wording when no entry existed, and it
+    /// has always started a sentence in lower case; it is fixed here rather
+    /// than left, because this is now the common case and not the fallback.
+    private var deleteHeadMessage: String {
+        "\(chosenHeadName ?? "This head") is removed from this phone and from everywhere it appears. A head can't be brought back, only made again."
+    }
 
     /// 100% optional. Before a head exists, one row and a footer saying what
     /// it is. Once it exists, only switches for places it can actually
@@ -728,8 +862,12 @@ struct ProfileView: View {
                     }
                 }
             } else {
+                // `person` is only read by `HeadPickerRow.isGenerated`: a head
+                // the app named after you is a name nobody chose, and the same
+                // word is already the title of this page.
                 HeadPickerRow(entries: heads.entries, activeID: heads.activeID,
                               swatches: headSwatches, active: heads.undressed,
+                              person: store.name,
                               onPick: { heads.use($0) })
 
                 // **One black down the column.** Measured on Settings, which is
@@ -875,7 +1013,7 @@ struct ProfileView: View {
                         // apart on one line, and the app's palette losing to the
                         // platform's on the one row where the colour is the
                         // meaning.
-                        Text("Delete \(deletableHeadName)")
+                        Text(deleteHeadLabel)
                             .foregroundStyle(AppColors.warmRed)
                     } icon: {
                         SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
@@ -883,13 +1021,34 @@ struct ProfileView: View {
                 }
             }
         } header: {
+            // The id is on the HEADER, not on a row: scrolling here puts the
+            // label at the top of the viewport with the picker directly under
+            // it, which is the framing screen 19 wants, and it is the one view
+            // in this section that exists in every branch.
             FormSectionLabel(heads.entries.count > 1 ? "Your heads" : "Your head")
+                .id(Self.headAnchor)
         } footer: {
-            Text(headFooter)
+            // **Nil in the one-head case, so the section has no footer at
+            // all**, which is why this is `if let` and not a `Text` of an
+            // empty string: an empty footer still reserves a band.
+            if let line = headFooter {
+                Text(line)
+            }
         }
     }
 
-    private var headFooter: String {
+    /// **Nothing, when there is one head** (cut 6, `docs/copy-audit.md`,
+    /// 2026-10-01). It read "It only appears where you switch it on." directly
+    /// under four switches that each name their own surface — `Let My Head Onto
+    /// the Tower`, `Show My Head on the Map`, `Add My Head to Photos`, `Use as
+    /// Profile Picture`. Four labelled switches do not need a sentence saying
+    /// that switches work.
+    ///
+    /// Both other cases stay, and each for a reason the switches cannot carry:
+    /// the multi-head line resolves WHICH face the switches belong to, which
+    /// nothing else on the page says; the no-head line is a promise made before
+    /// the thing exists, under a single `Make Your Head` row.
+    private var headFooter: String? {
         if heads.entries.isEmpty {
             return "About fifteen seconds in front of the camera. It stays on this phone, and it only appears where you switch it on."
         }
@@ -899,7 +1058,7 @@ struct ProfileView: View {
             // which face they belong to.
             return "The head you pick above is the one that appears where you switch it on."
         }
-        return "It only appears where you switch it on."
+        return nil
     }
 
     // MARK: - Settings

@@ -47,6 +47,19 @@ struct FlippableBlockView: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.towerFilterMode) private var towerFilterMode
     @Environment(\.perfectDayDates) private var perfectDayDates
+    /// **The tower honours Reduce Motion** (2026-10-01).
+    ///
+    /// `docs/motion-audit.md` named this file as the worst of the twelve that
+    /// did not: it is what the tower actually renders, so with the setting on
+    /// every block in the stack still squashed and popped on every tap, and
+    /// the lift still sprang. Nineteen files in the app honoured the setting
+    /// and the one the owner looks at most did not.
+    ///
+    /// Gated to a cut rather than to nothing. A tap still has to be ANSWERED,
+    /// and it is: the haptic fires either way, and the block's own `brightness`
+    /// step still lands, just without the scale and without a spring carrying
+    /// it. Reduce Motion asks for less motion, not less feedback.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // displayCategory, not category: an unchosen block still needs a colour.
     private var style: CategoryStyle { block.habit.displayCategory.style }
@@ -131,7 +144,8 @@ struct FlippableBlockView: View {
             // whole point of reflowing live is to show you the rearranged
             // TOWER, and dimming forty blocks to 0.4 hides the very thing you
             // are being shown.
-            .animation(GridConstants.slotSnap, value: isLifted)
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.slotSnap,
+                       value: isLifted)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .simultaneousGesture(
                 TapGesture()
@@ -229,16 +243,19 @@ struct FlippableBlockView: View {
                     .blendMode(.overlay)
             }
         }
-        // Tap bounce: fast squash → bouncy pop-back
+        // Tap bounce: fast squash → bouncy pop-back. With Reduce Motion the
+        // squash is 1.0 on both axes, so the block does not move and only the
+        // brightness step plays, on `crossFade`. See `reduceMotion` above.
         .phaseAnimator([false, true], trigger: tapTrigger) { content, phase in
             content
                 .scaleEffect(
-                    x: phase ? tapSquashX : 1.0,
-                    y: phase ? tapSquashY : 1.0
+                    x: phase && !reduceMotion ? tapSquashX : 1.0,
+                    y: phase && !reduceMotion ? tapSquashY : 1.0
                 )
                 .brightness(phase ? -0.03 : 0)
         } animation: { phase in
-            phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring
+            if reduceMotion { GridConstants.crossFade }
+            else { phase ? GridConstants.tapSquashSpring : GridConstants.tapPopSpring }
         }
         // #495: Smart Invert — photos excluded from color inversion
         .accessibilityIgnoresInvertColors(hasImage)

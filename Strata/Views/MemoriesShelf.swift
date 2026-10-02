@@ -66,9 +66,6 @@ struct MemoriesShelf: View {
     /// Posters are drawn in the page's scheme and cached per scheme.
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
-    /// Read here and handed to `PosterPress`: a `ButtonStyle` is not a view,
-    /// so an `@Environment` read inside one is not kept up to date.
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// **THE REPLAYS CAME OUT OF THIS SHELF AND IT IS NOT A SHELF OF "MORE"
     /// ANY MORE. 2026-10-01.**
@@ -95,11 +92,30 @@ struct MemoriesShelf: View {
     /// month's replay is the row under the picker. The route to a place is the
     /// map. This row is the only route to a moment or a repeated interest,
     /// which is what earns it the space.
+    /// **AND THE HEADING IS GONE TOO. 2026-10-01**, `docs/copy-audit.md` cut 2.
+    ///
+    /// It read "Collections" over a row of cards that each draw `album.title` at
+    /// `Typography.headerMedium` — "Gym session", "A year ago today" — with a
+    /// count under that. The heading's own doc comment said "the heading says
+    /// what they are", and the cards say what they are. On a page that already
+    /// carries a title, a month picker, a replay row and a photo grid, it was a
+    /// fifth label introducing the one band that introduces itself.
+    ///
+    /// **The WORD goes and the AIR stays, and that is the whole move.**
+    /// `SectionHeading` was carrying `gapSection * 2` above it, which is
+    /// `gapPage` — the one unambiguous break on this page and the reason
+    /// `docs/space.md` calls Memories the best-distributed screen in the app
+    /// (17% of its emptiness in one run, both ends of the ladder present). Delete
+    /// the heading naively and that break goes with it, and the shelf lands a
+    /// `gapTight` under the calendar. So the break moves onto the row itself.
+    /// Subtraction here is one band fewer at the same rhythm, not a tighter page.
+    ///
+    /// The `.id` moves onto the row with it: `-strataScrollMemories replays`
+    /// scrolls to `"MemoriesReplays"`, and that id has to still be on something
+    /// drawn. It was on the heading.
     var body: some View {
         if !albums.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeading(text: "Collections")
-                    .id("MemoriesReplays")
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
                     // **ONE ROW, NOT TWO.**
                     //
@@ -125,8 +141,20 @@ struct MemoriesShelf: View {
                     // screen, which also says the row scrolls without a
                     // chevron telling you so.
                     row(width: Self.albumWidth)
+                        .id("MemoriesReplays")
                 }
             }
+            // The break the heading used to carry, now on the band itself. See
+            // the note on `body`.
+            .padding(.top, GridConstants.gapPage)
+            // **The word goes to VoiceOver, exactly as the tab bar's three
+            // labels did on the same day.** A sighted reader has the cards,
+            // which name themselves; somebody navigating by rotor had a heading
+            // and would otherwise have a row of unannounced buttons between a
+            // calendar and a photo grid. `.contain`, not `.combine`, so each
+            // card stays its own element.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Collections")
         }
     }
 
@@ -144,7 +172,7 @@ struct MemoriesShelf: View {
                     } label: {
                         AlbumCard(album: album, width: width)
                     }
-                    .buttonStyle(PosterPress(reduceMotion: reduceMotion))
+                    .buttonStyle(.pressSurface)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(album.title), \(album.subtitle)")
                 }
@@ -341,23 +369,9 @@ struct MemoriesShelf: View {
     }
 }
 
-/// How a poster answers a finger: it gives, and it is over in 0.06s.
-///
-/// `tapSquashSpring` is the app's press rung and `tapScaleY` the amount every
-/// other pressable surface gives by, so a poster does not get a number of its
-/// own. **Uniform, not the block's squash**: `tapScaleX`/`tapScaleY` together
-/// are a thing landing on a floor, and this is a card being pressed into the
-/// page, with its own caption inside the same label.
-///
-/// Under Reduce Motion nothing scales. The haptic on the press and the opening
-/// itself still happen, so the card still answers.
-private struct PosterPress: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed && !reduceMotion
-        return configuration.label
-            .scaleEffect(down ? GridConstants.tapScaleY : 1)
-            .animation(GridConstants.tapSquashSpring, value: down)
-    }
-}
+// **`PosterPress` is deleted** (2026-10-01). It was this file's private copy of
+// `PressResponse`, which exists so that "every button acknowledges the press, in
+// one place", and `docs/motion-audit.md` found it: the app had four different
+// answers to a press and thirty-one buttons with none. Its numbers survive as
+// `.pressSurface`, and the one thing it did better than the original — honouring
+// Reduce Motion — is now in the original.

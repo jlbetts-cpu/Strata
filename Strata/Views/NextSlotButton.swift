@@ -322,7 +322,7 @@ struct NextSlotButton: View {
                 let held = Date().timeIntervalSince(pressStarted)
                 let moved = hypot(value.translation.width, value.translation.height) > 6
                 guard moved || held >= Self.tapCeiling else {
-                    withAnimation(GridConstants.snapBack) { charge = 0 }
+                    withAnimation(GridConstants.tapPopSpring) { charge = 0 }
                     drawn = 0
                     lastSize = .small
                     onSizeChanged(.small)
@@ -335,7 +335,7 @@ struct NextSlotButton: View {
                 withAnimation(GridConstants.slotBloomIn) { glow = 1 }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(90))
-                    withAnimation(GridConstants.snapBack) { charge = 0 }
+                    withAnimation(GridConstants.tapPopSpring) { charge = 0 }
                     withAnimation(GridConstants.slotBloomOut) { glow = 0 }
                 }
             }

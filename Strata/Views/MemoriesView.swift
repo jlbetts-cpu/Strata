@@ -135,12 +135,21 @@ struct MemoriesView: View {
                     // one action, and the month beginning — which is the page
                     // saying what it is and what you can do with it before it
                     // starts listing.
-                    if let monthReplay {
-                        MonthReplayRow(
-                            replay: monthReplay,
-                            poster: replays.cards[ReplayShelfModel.key(monthReplay, scheme: colorScheme)],
-                            title: vm.monthTitle.capitalized
-                        ) { playing = monthReplay }
+                    if !replayRows.isEmpty {
+                        // **ONE ROW OR TWO, AND NEVER THREE.** See
+                        // `replayRows`: the month you have chosen, and the
+                        // period whose window is open if the first row is not
+                        // already it. `gapItem` between them, because two rows
+                        // offering the same kind of thing are items in a set.
+                        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                            ForEach(replayRows) { row in
+                                ReplayRow(
+                                    replay: row.replay,
+                                    poster: replays.cards[ReplayShelfModel.key(row.replay, scheme: colorScheme)],
+                                    title: row.title
+                                ) { playing = row.replay }
+                            }
+                        }
                         // **NO BOTTOM PADDING, BECAUSE THE CALENDAR ALREADY
                         // CARRIES ONE.**
                         //
@@ -157,7 +166,7 @@ struct MemoriesView: View {
                         // play the month, you read the month. So they take
                         // one rhythm, `gapWide` throughout, and the page's
                         // biggest gap is kept for the real section break
-                        // below the calendar where "More" begins.
+                        // below the calendar where the collections begin.
                     }
 
                     Section {
@@ -472,6 +481,44 @@ struct MemoriesView: View {
         }
     }
 
+    /// **Every replay this page offers, in the order it offers them.**
+    ///
+    /// At most two, and usually one.
+    ///
+    /// 1. **The month you have chosen**, directly under the picker that chose
+    ///    it, because the picker, this row and the calendar are one section
+    ///    about one month.
+    /// 2. **The period whose window is open right now**, when that is not
+    ///    already the row above — a week on a Sunday evening, a month at the
+    ///    turn of a month. This is the row that replaces the Wins tab's deleted
+    ///    `headerReplayPill`: without it the open week had no route anywhere in
+    ///    the app. `ReplayShelfModel.live` carries the rule and why a week beats
+    ///    a month here.
+    ///
+    /// **The dedupe is on the replay's id, not on a title.** Two formatted
+    /// strings agreeing is a coincidence, and at the turn of a month the open
+    /// period IS a month, so the page would otherwise draw September twice to
+    /// anybody who had stepped the picker back to it.
+    ///
+    /// A period's own name in both rows: `vm.monthTitle` for the month the
+    /// picker names, and the replay's own range for the other, which is
+    /// "September" for a month and "9/22-9/28" for a week. Both are the period's
+    /// name rather than the app talking about itself — the owner cut "Your week"
+    /// off the replay for that reason (2026-09-15) and it would be odd to put it
+    /// back on the row that opens it.
+    private var replayRows: [ReplayOffer] {
+        var rows: [ReplayOffer] = []
+        if let monthReplay {
+            rows.append(ReplayOffer(replay: monthReplay, title: vm.monthTitle.capitalized))
+        }
+        if let live = ReplayShelfModel.live(in: replays.months + replays.weeks,
+                                            besides: monthReplay, now: replays.now) {
+            rows.append(ReplayOffer(replay: live,
+                                    title: MemoriesShelf.name(of: live.period, now: replays.now)))
+        }
+        return rows
+    }
+
     private var photographCount: Int {
         vm.gallery.reduce(0) { $0 + $1.photos.count }
     }
@@ -571,10 +618,23 @@ struct MemoriesView: View {
                     }
                 }
             )
-            // Aligned to the page margin, less the menu label's own 10pt
-            // inset, so the WORD lines up with the title above it and with
-            // every heading below it rather than the tap target's edge doing.
-            .padding(.leading, GridConstants.horizontalPadding - 10)
+            // **ON THE PAGE MARGIN, AND IT WAS 6.** (2026-10-01, check 11d)
+            //
+            // This was `horizontalPadding - 10`, and the comment beside it said
+            // the 10 was "the menu label's own inset, so the WORD lines up with
+            // the title above it". That inset is `gapLabel`, 16, not 10 — the
+            // picker's label is a `glassCapsule` with 16pt of its own horizontal
+            // padding (`MonthPicker`) — so the 10 bought neither alignment: the
+            // word landed at 22 and the CAPSULE, which is the drawn object, at
+            // **6.0**. Measured on the built page, that 6.0 was the leftmost of
+            // ten different left edges on this screen and the one furthest from
+            // the margin (`docs/space.md` §6, clause 11d).
+            //
+            // The capsule is a surface, so the capsule's edge is the band. It
+            // stands on 16 like the title, the replay rows, the album shelf and
+            // every heading on the page; its word sits 16 inside it, which is
+            // what a filled control's label does and is not a margin.
+            .padding(.leading, GridConstants.horizontalPadding)
 
             // **How much of the month is here.** The design language's §7,
             // and the count is DAYS rather than wins on purpose: the blocks
@@ -705,24 +765,44 @@ struct MemoriesView: View {
         // under this copy and shows a real empty month, which is a better
         // promise of the thing than a drawing of a different thing. This is
         // what is left, and it is the page's one sentence on its own margin.
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            Text("Your first month starts here")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-            Text("Every win you log becomes a block, and they collect here by month.")
-                .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, GridConstants.horizontalPadding)
-        .padding(.top, GridConstants.gapWide)
+        //
+        // **AND NOW IT IS ONE LINE.** (`docs/copy-audit.md` cut 11.) The second
+        // line read "Every win you log becomes a block, and they collect here by
+        // month." — thirteen words restating onboarding page 1 ("Finish
+        // something and it becomes a block"), under a line that already makes
+        // the promise, over a real empty calendar that makes it again. The
+        // paragraph above is the argument: a drawing of the thing loses to the
+        // thing, and a sentence describing the calendar loses to the calendar
+        // under it. The owner, the same afternoon: "the areas are very self
+        // explanitory and I think over explaining components loses the charm."
+        //
+        // What is left is one medium-weight line on the page's own margin, which
+        // is what he asked the app's text to be.
+        Text("Your first month starts here")
+            .font(Typography.headerMedium)
+            .foregroundStyle(AppColors.inkPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.top, GridConstants.gapWide)
     }
 }
 
 // MARK: - How much is here
 
 
+
+/// One replay the page offers, and what to call it on its row.
+///
+/// A struct rather than a labelled tuple because `ForEach` needs an
+/// `Identifiable` element or a key path, and Swift has no key paths into tuple
+/// components. Its identity is the replay's, which is the period's id, so the
+/// two rows can never collide: that is the same identity the dedupe in
+/// `MemoriesView.replayRows` is written against.
+private struct ReplayOffer: Identifiable {
+    let replay: Replay
+    let title: String
+    var id: String { replay.id }
+}
 
 struct ViewedPhoto: Identifiable, Equatable {
     /// The image's file name, which is also its identity.

@@ -175,7 +175,11 @@ struct PhotoGalleryGrid: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // A photograph in the roll answers the finger like every other surface
+        // in the app (`docs/motion-audit.md` §5.1: this cell and the replay row
+        // above it were two of the three things on the Memories tab that did
+        // not, while the album poster between them did).
+        .buttonStyle(.pressSurface)
         .onAppear { prefetchAhead(of: photo) }
         .accessibilityLabel(photo.title ?? "Photo")
         .matchedTransitionSource(id: photo.id, in: transitionNamespace)

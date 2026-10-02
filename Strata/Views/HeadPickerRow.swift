@@ -27,12 +27,44 @@ struct HeadPickerRow: View {
     /// The active head, which is already in memory, so the one that matters
     /// most is drawn before any reading happens.
     let active: HeadRig?
+    /// The name on the Profile page above, if there is one. Only `isGenerated`
+    /// reads it: `HeadStore.defaultName` calls the FIRST head after the person
+    /// when they have typed a name, so without this the one head the app named
+    /// for you is the one head whose name looks chosen.
+    var person: String = ""
     let onPick: (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// `HeadLookPicker`'s swatch, to the point.
     private static let side: CGFloat = 60
+
+    /// Whether this is a name the APP wrote, rather than one somebody typed.
+    ///
+    /// **Matched on the SHAPE, never on the position in the row.** The obvious
+    /// implementation is `name == HeadStore.defaultName(index: i, person:)` for
+    /// the tile's index, and it is wrong: `defaultName` numbers off the roster
+    /// count at the moment a head is made, and deleting a head renumbers
+    /// nothing. Make three heads, delete the second, and "Head 3" is sitting at
+    /// index 1 with the app's own name on it.
+    ///
+    /// Not `private`, so `HeadPickerRowTests` can hold it to the three shapes
+    /// `HeadStore` actually produces (`HeadStore.swift`, `firstHeadName` and
+    /// `defaultName`) without a screen or a simulator. If `defaultName` ever
+    /// grows a fourth shape, that test is what fails.
+    static func isGenerated(_ name: String, person: String = "") -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        // "Me", the first head's name when the Profile page has none.
+        if trimmed == HeadStore.firstHeadName { return true }
+        // The person's own name, which is what `defaultName` calls the first
+        // head when Profile HAS one. It is already at the top of this page.
+        let who = person.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !who.isEmpty, trimmed == String(who.prefix(HeadStore.Roster.nameLimit)) { return true }
+        // "Head 2", "Head 3" — every head after the first.
+        let parts = trimmed.split(separator: " ")
+        return parts.count == 2 && parts[0] == "Head" && Int(parts[1]) != nil
+    }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -95,6 +127,27 @@ struct HeadPickerRow: View {
                 .scaleEffect(isChosen ? 1 : 0.94)
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
+                // **Only a name somebody CHOSE is drawn** (cut 14,
+                // `docs/copy-audit.md`, 2026-10-01). Out of the box this row
+                // read "Me" under a picture of your own face, then "Head 2" and
+                // "Head 3" under the next two — a 15pt word under a photograph,
+                // saying what the photograph is. The comment twenty lines above
+                // already admits the redundancy in the other direction: this
+                // swatch says "chosen" three times over, and the name was one
+                // of the three.
+                //
+                // A name somebody typed is a Fact and it is the only thing that
+                // tells two friends' heads apart. A name the app made up is a
+                // caption repeating the picture. So the test is not "is there a
+                // name" but "did anybody choose it", and `isGenerated` is that
+                // test.
+                //
+                // **The row still aligns.** `HStack(alignment: .top)` above, so
+                // a tile with a name and a tile without stand on the same line
+                // rather than centring against each other, and VoiceOver reads
+                // every name regardless (`accessibilityLabel`, below) because a
+                // picture of a face is not a label somebody can hear.
+                if !Self.isGenerated(entry.name, person: person) {
                 Text(entry.name)
                     .font(Typography.headerSmall)
                     // **`inkSecondary` for the ones not chosen, not
@@ -113,6 +166,7 @@ struct HeadPickerRow: View {
                     // A little wider than the square, so a name of two or
                     // three words is cut rather than pushing its neighbour.
                     .frame(width: Self.side + GridConstants.gapItem)
+                }
             }
             .contentShape(Rectangle())
         }

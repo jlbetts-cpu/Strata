@@ -255,6 +255,25 @@ struct DayAlbumDetailView: View {
     /// stop agreeing in landscape, on an iPad, and in a Slide Over, and the
     /// failure when they do is a tower drawn to a width its page does not
     /// have. The reader was two lines up the file the whole time.
+    /// The tower's own geometry, worked out the way `StaticTowerView` works it
+    /// out, because the lattice behind it has to land on the same grid.
+    ///
+    /// **A lattice a few points out of step with the blocks is worse than no
+    /// lattice**, which is the warning `TowerLatticeShape.cellRects` already
+    /// carries, so these are not approximations of that view's arithmetic —
+    /// they are the same three lines. `StaticTowerView`'s own frame is
+    /// `width x towerHeight` with the grid centred in it, so a background
+    /// aligned to `.bottom` at `gridWidth` sits exactly on the blocks.
+    private func towerCell(width containerWidth: CGFloat) -> CGFloat {
+        let columns = CGFloat(GridConstants.columnCount)
+        let content = containerWidth - GridConstants.horizontalPadding * 2
+        return min((content - (columns - 1) * GridConstants.spacing) / columns, 200)
+    }
+
+    private var towerRows: Int {
+        vm.placedBlocks.reduce(0) { max($0, $1.row + $1.rowSpan) }
+    }
+
     private func tower(width containerWidth: CGFloat) -> some View {
         // Full size, the same cell the Wins tab draws at.
         //
@@ -286,6 +305,44 @@ struct DayAlbumDetailView: View {
                 viewing = name
             }
         )
+        // **THE SURFACE THE TOWER IS BUILT ON, AND THIS WAS THE ONLY TOWER IN
+        // THE APP STANDING ON NOTHING.** (2026-10-01, check 11c)
+        //
+        // Measured: a day with two wins draws a title, a count line, and then
+        // **520pt of nothing** before two blocks at the bottom of the screen —
+        // 71.4% of the page empty with 93% of that emptiness in one run, and the
+        // tower and the tab bar so close that `tools/page-room.py` reports them
+        // as ONE band. That is clause 11c's exact failure: the biggest break on
+        // the page is the one under the last thing on it.
+        //
+        // **The number is not the evidence here; the screenshot is.** The Wins
+        // tab photographed with the same two wins has the same shape — a header,
+        // a 577pt break and a short tower on the floor — and it reads as a tower
+        // with room to grow, because `TowerLattice` fills that break with the
+        // grid the blocks land in. `page-room.py` cannot see the difference
+        // (`docs/space.md` §0 records that the lattice measures 1.03:1 against
+        // its page and the instrument calls all of it ground), so the two pages
+        // measure the same and only one of them looks finished.
+        //
+        // CLAUDE.md settles which way the fix goes: "Every other screen is meant
+        // to end up looking like it, so when the two disagree, the tower is
+        // right." Same component, same cell, same 4pt gutter, bottom aligned on
+        // the same row — not a decoration added to this page, the surface this
+        // page's tower was already supposed to be standing on. The owner has
+        // asked for it twice on other screens ("add some lattice at the end of
+        // the calendar in the empty spots").
+        //
+        // **Not drawn on an empty day**, which has no tower: a grid of empty
+        // cells under a sentence saying nothing was logged would be an empty
+        // state drawing the shape of a thing, which is what `MemoriesView`'s
+        // ghost blocks were deleted for.
+        .background(alignment: .bottom) {
+            let cell = towerCell(width: containerWidth)
+            TowerLattice(cellSize: cell,
+                         contentHeight: max(GridConstants.gridHeight(rows: towerRows,
+                                                                    cellSize: cell), 1))
+                .frame(width: GridConstants.gridWidth(cellSize: cell))
+        }
         .environment(\.towerFilterMode, .day)
         .environment(\.perfectDayDates, [])
     }

@@ -310,7 +310,37 @@ struct CameraView: View {
             // actually on screen for the first composite rather than being
             // animated from a state nobody saw.
             await Task.yield()
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.36)) {
+            // **This is a check-10 failure and it STAYS. Reviewed 2026-10-01.**
+            //
+            // `docs/screen-audit.md` check 10 is "anything that animates
+            // because it appeared fails", and `docs/motion-audit.md` §4.2 names
+            // this site. It is the only one of the six it calls defensible, and
+            // the reason is two lines up this file: **the owner asked for it by
+            // name** ("the Wins screen to the camera loads out really sudden,
+            // there is no clean transition"). Taking it off restores exactly
+            // the thing he complained about, and a check cannot overrule the
+            // person the check is for. It is Reduce Motion gated, it covers two
+            // hard edges rather than decorating one, and nothing under it can
+            // be interacted with. Written down here rather than only in the
+            // audit so the next pass does not re-derive it from the rubric.
+            //
+            // **What DID change is the number.** It was a typed
+            // `.easeOut(duration: 0.36)`, which the audit's other half is about:
+            // the app's longest fade outside the heads' float, on a value that
+            // existed nowhere else in the app. `mapFade` is the same curve one
+            // rung down, and its own doc describes this case in general terms —
+            // "long enough to read as a change rather than a cut, short enough
+            // to be finished by the time your eye has moved to it". Its name is
+            // where it was first needed, not what it means.
+            //
+            // The 60ms is not load-bearing: the cover is not timed against the
+            // lens. `camera.start()` is awaited AFTER this line, so the fade is
+            // over long before a first frame on any device, and the comment
+            // above already says what happens if it is not — what is underneath
+            // is the dark ground rather than a cut to it. **Unverified on a
+            // real lens**: the simulator has no capture device, so what this
+            // reveals here is the dark ground and never a camera frame.
+            withAnimation(reduceMotion ? nil : GridConstants.mapFade) {
                 hasArrived = true
             }
             await camera.start()
@@ -1292,7 +1322,10 @@ struct CameraView: View {
                     // After the layout, not before: the material takes its
                     // shape from the final frame.
                     .frame(width: 56, height: 34)
-                    .zoomGlass()
+                    // The app's one glass capsule, not a private fourth copy of
+                    // it. See the note where `zoomGlass()` used to be, at the
+                    // bottom of this file.
+                    .glassCapsule()
                     // **The capsule stays 34pt and the TARGET is 44.** The
                     // drawn pill is the size it is drawn; the thing a thumb
                     // has to find is not. It was 34 tall, ten points under the
@@ -1804,19 +1837,27 @@ private struct FocusReticle: View {
 }
 
 
-private extension View {
-    /// Liquid Glass where there is any, and the closest thing there was
-    /// before it.
-    ///
-    /// `.interactive()` because this one is a button — the skill's rule is
-    /// that the interactive variant is an affordance and putting it on
-    /// decoration claims something untrue.
-    @ViewBuilder
-    func zoomGlass() -> some View {
-        if #available(iOS 26, *) {
-            self.glassEffect(.regular.interactive(), in: .capsule)
-        } else {
-            self.background(.ultraThinMaterial, in: Capsule())
-        }
-    }
-}
+// **`zoomGlass()` was here and is DELETED** (2026-10-01,
+// `docs/motion-audit.md` §6). It was `glassCapsule()` spelled a fourth time,
+// 480 lines from the comment in `GlassIconButton.swift` whose whole job is to
+// stop exactly that: *"It was typed out three times, once in each shape below,
+// which is the drift this file exists to stop."*
+//
+// The zoom pill calls `.glassCapsule()` now. **Identical on iOS 26**: both
+// resolved to `.glassEffect(.regular.interactive(), in: .capsule)`, and
+// `glassCapsule`'s default arguments (`onPage: false`, `carriesType: false`)
+// select that same recipe. `carriesType` is correctly false even though the
+// label is a word: the recipe exists for several rows of names over a
+// photograph, and this is one monospaced digit and an `x`, already carrying
+// `.white` with the viewfinder's own exposure under it.
+//
+// **The pre-26 fallback is not identical and the difference is a gain**: the
+// shared one adds `GlassFallback.rim`, white 0.18 at 0.5pt, which the private
+// copy left off. That rim is documented as being for exactly this case, "a
+// light rim on a material floating over a photograph", and a viewfinder is the
+// only place in the app where a glass capsule genuinely is.
+//
+// `.interactive()` is still the right variant and the reason the private copy
+// gave still holds: this is a button, so the effect reacting to the press is an
+// affordance rather than decoration. That argument now lives once, on
+// `glassCircle`, instead of twice.

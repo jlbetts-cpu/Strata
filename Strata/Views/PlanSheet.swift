@@ -68,7 +68,45 @@ struct PlanSheet: View {
     /// The tap-to-write space under the last line, when the list is long
     /// enough that there is no spare page to give it. On a short list it takes
     /// everything that is left instead. See `content`.
-    private static let tailHeight: CGFloat = 160
+    ///
+    /// Not `private`: `SheetRoomTests` checks that the floor the empty page's
+    /// split leaves under the invitation is still at least this deep.
+    static let tailHeight: CGFloat = 160
+
+    /// **How an EMPTY page divides its spare room: eight shares above the
+    /// invitation, five below.**
+    ///
+    /// Read by `content`, which writes `pageSpace` this many times on each
+    /// side; flexible children of a `VStack` split the slack equally, so the
+    /// ratio is exact and survives a change of type size, which a fraction of
+    /// the viewport would not.
+    ///
+    /// **8 : 5 is the Fibonacci pair nearest φ, so the invitation stands on
+    /// the field's golden section** — the classical answer to where one object
+    /// sits in an empty field, and the same canon `docs/space.md` P5 reasons
+    /// from about margins. It was CHOSEN BY LOOKING, against two others
+    /// photographed at 402x874 and compared side by side, because counting is
+    /// not looking:
+    ///
+    /// - **1 : 1**, the invitation centred at y455. It looks right and it
+    ///   fails the clause it was moved for: the break above measures 346 and
+    ///   the floor 347, so which of the two is the page's biggest white is a
+    ///   coin toss.
+    /// - **2 : 1**, at y574. It passes 11c with room to spare and it reads as
+    ///   the invitation having FALLEN to the bottom of the sheet rather than
+    ///   standing in a field. This one shipped for exactly one build.
+    /// - **8 : 5**, the one that ships. Measured on the built sheet: the
+    ///   invitation's ink runs y547 to 585, with a 438.0pt break above it and
+    ///   254.7 under it, 1.72x. (It is not exactly 1.6 because the shares
+    ///   divide the slack left by the invitation's 52pt LAYOUT box while
+    ///   `page-room.py` measures its 38.3pt of ink.) The break is
+    ///   unambiguously the page's own breath, and on screen it still reads as
+    ///   centred, because the eye puts the centre of a field slightly above
+    ///   its middle anyway.
+    ///
+    /// `SheetRoomTests` pins the ratio and pins that the floor it leaves is
+    /// still deeper than `tailHeight`.
+    static let emptyFieldShares: (above: Int, below: Int) = (8, 5)
 
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
@@ -208,18 +246,58 @@ struct PlanSheet: View {
                         }
                     }
 
-                    if lines.isEmpty { hint }
-
-                    // Pressing the empty space below the list starts a new
-                    // line, which is what a page of bullets does. Without it
-                    // the only way to add is the button in the corner, and the
-                    // corner is not where anyone looks when they are writing.
-                    Color.clear
-                        .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .onTapGesture { addLine() }
-                        .accessibilityLabel("Add a line")
-                        .accessibilityAddTraits(.isButton)
+                    // **THE INVITATION SITS IN THE FIELD, NOT AT THE TOP OF
+                    // IT** (2026-10-01, check 11c of `docs/screen-audit.md`).
+                    //
+                    // Measured before: 90.2% of the page empty, one 653.3pt
+                    // break, and it was the run UNDER the last band — 93% of
+                    // the page's emptiness in one dead tail, against a biggest
+                    // interior gap of 39.7. That is the worst ratio in the app
+                    // and it is what 11c is for: a page should END, not stop.
+                    //
+                    // **Eight shares above, five below**, which puts the
+                    // invitation on the field's golden section. The ratio, the
+                    // two positions it was photographed against, and why a
+                    // centred one is not good enough are all on
+                    // `emptyFieldShares`. Measured at 402x874: 438.0pt of
+                    // break above, 254.7 of floor below, and that floor is
+                    // still deeper than `tailHeight` (160), so the
+                    // tap-to-write space under the invitation is the one the
+                    // audit measured and not a scrap left over.
+                    //
+                    // **The price, stated: the first line does not appear
+                    // where the ghost stood.** The note on `hint` is the
+                    // record of why it used to — a 20pt jump between the thing
+                    // you pressed and the thing it was pretending to be — and
+                    // that distance is about 420pt now. It is paid rather than
+                    // hidden: the tap animates on `motionSmooth`, so the page
+                    // visibly GATHERS to the top as it becomes a list, which
+                    // is a page changing state and not a control teleporting.
+                    // The trade is one animated transition, once, against the
+                    // worst composition in the app on every visit before the
+                    // first line is written.
+                    if lines.isEmpty {
+                        ForEach(0..<Self.emptyFieldShares.above, id: \.self) { _ in pageSpace }
+                        hint
+                        ForEach(0..<Self.emptyFieldShares.below, id: \.self) { _ in pageSpace }
+                    } else {
+                        // Pressing the empty space below the list starts a new
+                        // line, which is what a page of bullets does. Without
+                        // it the only way to add is the button in the corner,
+                        // and the corner is not where anyone looks when they
+                        // are writing.
+                        //
+                        // A written page keeps its lines at the TOP: lines flow
+                        // downward, and a list that floats in the middle of a
+                        // sheet moves every time one is added. So this branch
+                        // is the tail it always was.
+                        Color.clear
+                            .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture { addLine() }
+                            .accessibilityLabel("Add a line")
+                            .accessibilityAddTraits(.isButton)
+                    }
                 }
                 .padding(.top, GridConstants.gapTight)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -227,6 +305,25 @@ struct PlanSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+    }
+
+    /// One share of the empty page's spare room.
+    ///
+    /// Flexible children of a `VStack` divide the slack equally, so N of these
+    /// take N shares and the ratio is written as how many times it appears
+    /// rather than as a fraction that has to be kept in step with the
+    /// invitation's own height. It answers a tap like every other blank part of
+    /// this page.
+    ///
+    /// Hidden from VoiceOver on purpose: `hint` is already an "Add a line"
+    /// button and the tail below is another, and three identical buttons on an
+    /// empty page is a swipe through the same control three times.
+    private var pageSpace: some View {
+        Color.clear
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
+            .accessibilityHidden(true)
     }
 
     /// **A hairline in ink, not a `Divider`.**
@@ -278,12 +375,21 @@ struct PlanSheet: View {
     /// a single waiting row: the bullet's silhouette, with the invitation
     /// written where the line will be.
     ///
-    /// **And it sits where the first real line sits.** The old one carried
-    /// `gapWide` of top padding against a row's 4, so the ghost's block started
-    /// at 174.0pt where a first line's bullet starts at 154.3, so tapping it
-    /// made the page jump twenty points as the thing you pressed was replaced
-    /// by the thing it was pretending to be. It carries the row's own vertical
-    /// padding now, and the swap is invisible.
+    /// **It used to sit where the first real line sits, and as of 2026-10-01
+    /// it does not.** The original fault is kept here because the arithmetic
+    /// still is: the old one carried `gapWide` of top padding against a row's
+    /// 4, so the ghost's block started at 174.0pt where a first line's bullet
+    /// starts at 154.3, and tapping it made the page jump twenty points as the
+    /// thing you pressed was replaced by the thing it was pretending to be. It
+    /// still carries the row's own vertical padding, so the ROW it draws is
+    /// still exactly a row.
+    ///
+    /// What changed is where that row stands: `content` now puts it two thirds
+    /// down the empty field, for check 11c, and the full argument and the
+    /// price are written out there. The short version is that the 20pt
+    /// discrepancy this paragraph was written to kill is a ~420pt move now and
+    /// it is paid for on purpose, with an animation, because a page whose
+    /// biggest white is a 653pt dead tail is the worse of the two faults.
     private var hint: some View {
         // **Centred, not baseline-aligned, and that is what lands it.**
         //
@@ -332,7 +438,23 @@ struct PlanSheet: View {
             // `bodySmall` put the invitation a tier below everything it is
             // standing in for, which is how it ended up reading as a notice
             // ABOUT the page rather than as the first thing written on it.
-            Text("Write what you mean to do, then press its block when you have.")
+            // **One line, and the second clause is cut** (2026-10-01). It read
+            // "Write what you mean to do, then press its block when you have."
+            // and wrapped to two lines at 15pt Medium, which on a page whose
+            // whole composition is one small figure in a big field made the
+            // figure a paragraph.
+            //
+            // What went is a forward reference: "press its block" describes
+            // something that happens on the WINS tab, to a block this page has
+            // not drawn yet, at a moment that has not arrived. The owner, the
+            // same day: "the areas are very self explanitory and I think over
+            // explaining components loses the charm." The behaviour is learned
+            // the first time a line exists, where the block is in front of you.
+            //
+            // **The accessibility label was already the short version**, which
+            // is the tell: whoever wrote it had decided what the sentence was
+            // for and only said it to VoiceOver.
+            Text("Write what you mean to do")
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -342,7 +464,12 @@ struct PlanSheet: View {
         .padding(.trailing, GridConstants.horizontalPadding)
         .padding(.vertical, GridConstants.spacing)
         .contentShape(Rectangle())
-        .onTapGesture { addLine() }
+        // **Animated, because the page moves now.** The invitation stands two
+        // thirds down an empty field (see `content`) and the first real line
+        // lands at the top, so the tap is a page gathering itself into a list
+        // rather than a swap in place. `motionSmooth` is the ladder's own
+        // rung for a layout answering a press.
+        .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
         .accessibilityElement()
         .accessibilityLabel("Write what you mean to do")
         .accessibilityAddTraits(.isButton)

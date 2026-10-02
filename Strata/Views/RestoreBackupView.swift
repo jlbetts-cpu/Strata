@@ -49,6 +49,13 @@ struct RestoreBackupView: View {
 
     var body: some View {
         NavigationStack {
+            // **The stack is at least a viewport tall, so the page can have a
+            // floor** (2026-10-01, check 11c). Without this the `Spacer` before
+            // the confirm button in `contents(of:)` has nothing to expand into
+            // and the button stays where it was, with the page's biggest break
+            // under it. See that `Spacer` for the measurement; the pattern is
+            // `AddWinSheet`'s and `PlanSheet.content`'s.
+            GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: GridConstants.gapWide) {
                     switch stage {
@@ -77,11 +84,17 @@ struct RestoreBackupView: View {
                 // and it is not a margin.
                 .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.vertical, GridConstants.gapWide)
+                .frame(minHeight: proxy.size.height, alignment: .top)
             }
+            // Unchanged, and it is the right one WITH the `minHeight` above:
+            // the content is now exactly a viewport tall whenever it would
+            // otherwise be shorter, so a one-line stage still does not bounce
+            // like a long page.
             .scrollBounceBehavior(.basedOnSize)
             .background { WarmBackground().ignoresSafeArea() }
             .sheetTitle("Restore", drawn: false)
             .toolbar { closeButton }
+            }
         }
         .task { await read() }
     }
@@ -162,11 +175,24 @@ struct RestoreBackupView: View {
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
-            // **The promise, stated on the screen that asks for the tap.** It is
-            // also what the code does: `BackupRestore` contains no delete.
-            Text("Restoring only adds. Nothing already on this phone is deleted or changed.")
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
+            // **The promise is NOT restated here** (cut 9,
+            // `docs/copy-audit.md`, 2026-10-01). This slot carried "Restoring
+            // only adds. Nothing already on this phone is deleted or changed."
+            // and it was the THIRD statement of one fact inside a single flow:
+            //
+            //   1. `SettingsView`'s Data footer, on the row that opens this
+            //      sheet: "Restoring only adds what the file holds; nothing
+            //      already on this phone is deleted."
+            //   2. the lines a few points above, per category: "N are already
+            //      on this phone and will be left as they are."
+            //   3. this one.
+            //
+            // The Settings footer is the one read BEFORE the decision, which is
+            // where a promise about safety does its work; by the time somebody
+            // is on this screen reading a count they have already been told.
+            // Nothing about the screen's honesty moves: the per-category lines
+            // still say in numbers that what is here is left alone, and
+            // `BackupRestore` still contains no delete.
         }
 
         ForEach(plan.warnings, id: \.self) { warning in
@@ -178,6 +204,27 @@ struct RestoreBackupView: View {
                 .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkPrimary)
         } else {
+            // **The action stands on the bottom margin, not under the last
+            // sentence** (2026-10-01, check 11c). Measured before: the button
+            // sat at y641 to 691 with **148.7pt of nothing under it**, which is
+            // the page's biggest break and it was AFTER the last band — the
+            // clause's definition of a page that stopped rather than ended, and
+            // `docs/space.md`'s P7. The flexible `Spacer` turns that tail into
+            // the break, between the plan and the one irreversible control on
+            // the screen, which is also where a break belongs on a page that
+            // asks you to read before you press.
+            //
+            // The pattern is `AddWinSheet`'s and `PlanSheet.content`'s, not a
+            // new one: the stack is held to at least the viewport's height by
+            // the `GeometryReader` in `body` and the `Spacer` is the only
+            // flexible thing in it. With a backup that carries warnings the
+            // content is taller than the viewport, the `Spacer` collapses to
+            // the stack's own `gapWide` at each end, and nothing is pushed off.
+            //
+            // It lands at y766 to 816, which is where the walkthrough's pill
+            // and Store unavailable's pill already stand — the app's settled
+            // position for the one action on a page.
+            Spacer(minLength: 0)
             primaryButton(plan.winsToAdd == 1 ? "Add 1 win" : "Add \(plan.winsToAdd) wins") {
                 await restore(plan)
             }

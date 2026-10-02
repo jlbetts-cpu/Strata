@@ -717,11 +717,34 @@ struct HeadMakerView: View {
     private func preview(_ rig: HeadRig) -> some View {
         ZStack {
             WarmBackground().ignoresSafeArea()
-            VStack(spacing: GridConstants.gapWide) {
+            // **`spacing: 0`, and every gap on this page is now declared where
+            // it belongs.** It was `gapWide`, which put 24 between the head and
+            // its name as well as between the name and the controls, and those
+            // two gaps are not the same kind of thing: one is inside an object
+            // and the other is the page's break.
+            VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                // Expressive, and it says hello: brows, then a smile. The
-                // first thing a new head does is show it is alive. Tap it
-                // for an expression.
+                // **The head and its name are ONE object, so there is no gap
+                // declared between them** (2026-10-01, check 11b).
+                //
+                // Measured before: the page's five gaps were 186.7, 38.3, 26.3,
+                // 225.3 and 48.3, and clause 11b asks a page of three or more
+                // gaps for at least one at 17pt or less. The smallest here was
+                // 26.3 and the page failed. `docs/space.md`'s P1 is why that is
+                // a real failure and not a number miss: with nothing tight on
+                // the page, nothing on it groups, so the head, the name and the
+                // caption read as three separate things rather than as a
+                // portrait with a caption under it.
+                //
+                // **The 26.3 was never 8pt of spacing.** `nameField` reserves
+                // `GlassIconButton.defaultSide` (44) so a bare centred field is
+                // still a 44pt target, and its 20.3pt line box sits in the
+                // middle of that, which puts 11.9pt of slack above the word
+                // before any declared gap is added. So a declared `gapTight`
+                // measures about 22 here and a declared `gapWide` measured
+                // 38.3. Declaring nothing leaves the field's own slack, which
+                // is what a caption's gap should be anyway: the name is the
+                // portrait's label, not the next thing down the page.
                 TappableHead(rig: rig, side: Self.previewSide, greets: true)
                 VStack(spacing: GridConstants.gapTight) {
                     nameField
@@ -732,19 +755,31 @@ struct HeadMakerView: View {
                     // Save and not while you are being told the press did not
                     // take. One slot, whichever sentence is the live one.
                     //
+                    // **And the slot is empty when neither has anything to
+                    // say** (cut 7, see `previewCaption`), which is why this is
+                    // an `if let` rather than a `Text` of a possibly empty
+                    // string: an empty `Text` still takes a line box, and the
+                    // emptiness this page is built on would have a 20pt hole in
+                    // it. The animation moved onto the stack for the same
+                    // reason — a view that is being inserted and removed cannot
+                    // carry the animation for its own arrival.
+                    //
                     // `inkPrimary`, not the caption's `inkSecondary`: it is the
                     // only line on the page that has changed since you looked
                     // away, and 14.2:1 against the caption's 6.1 on this page's
                     // (246, 246, 246) is what says so, without a colour this
                     // page has no other use for.
-                    Text(model.saveFailure.isEmpty ? previewCaption(rig) : model.saveFailure)
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(model.saveFailure.isEmpty
-                                         ? AppColors.inkSecondary : AppColors.inkPrimary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, GridConstants.gapSection)
-                        .animation(GridConstants.crossFade, value: model.saveFailure)
+                    if let line = model.saveFailure.isEmpty
+                        ? previewCaption(rig) : model.saveFailure {
+                        Text(line)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(model.saveFailure.isEmpty
+                                             ? AppColors.inkSecondary : AppColors.inkPrimary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, GridConstants.gapSection)
+                    }
                 }
+                .animation(GridConstants.crossFade, value: model.saveFailure)
                 Spacer(minLength: 0)
                 HStack(spacing: 0) {
                     Button {
@@ -814,7 +849,17 @@ struct HeadMakerView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, GridConstants.gapWide)
+                // **`horizontalPadding`, and it was `gapWide`** (2026-10-01,
+                // check 11d). Measured off the built preview, Retake's ink
+                // started at 25.3 and Save's ended at 377.0 — a 24pt margin on
+                // the one screen in the app whose siblings are all on 16. The
+                // audit has made this exact correction twice already, on
+                // Restore ("A 24pt margin — the app is 16") and on Store
+                // unavailable ("A 32pt margin"), and this row is the third. The
+                // vertical `gapSection` stays: that one is a floor, not a
+                // margin, and it puts the controls at the same height as the
+                // walkthrough's and Store unavailable's.
+                .padding(.horizontal, GridConstants.horizontalPadding)
                 .padding(.bottom, GridConstants.gapSection)
             }
         }
@@ -883,17 +928,50 @@ struct HeadMakerView: View {
         .padding(.horizontal, GridConstants.gapSection)
     }
 
-    /// Says what this head can do, honestly — including what it can't.
-    private func previewCaption(_ rig: HeadRig) -> String {
+    /// Says what this head CANNOT do, and says nothing at all when it can do
+    /// everything.
+    ///
+    /// **The happy sentence is cut** (cut 7, `docs/copy-audit.md`,
+    /// 2026-10-01). It read "Your head is ready. It only shows up where you
+    /// turn it on." over a head that is on screen, blinking, and greeting you.
+    /// The first half describes a head anybody can see is ready. The second
+    /// half is the same sentence as `ProfileView`'s one-head footer, which is
+    /// where somebody stands when "where does it show up" is actually their
+    /// question, and that one was cut on the same day for saying what four
+    /// labelled switches already say.
+    ///
+    /// Measured on the built preview at 402x874: it was the biggest piece of
+    /// ink on the page after the head itself, two wrapped lines, a 31.7pt band
+    /// sitting 26.3pt under the name and competing with it. What is left is a
+    /// portrait, its name, and two words to press.
+    ///
+    /// **The honest branch stays**, which is why this returns an optional
+    /// rather than being deleted: it names the one thing no picture can show,
+    /// which is what this head will never be able to do.
+    private func previewCaption(_ rig: HeadRig) -> String? {
+        Self.previewCaption(blinks: rig.shut != nil,
+                            smiles: rig.has(.smile),
+                            raisesBrows: rig.has(.browsUp),
+                            isSurprised: rig.has(.surprised),
+                            winks: rig.has(.wink))
+    }
+
+    /// The sentence itself, over the five facts it is made of rather than over
+    /// a `HeadRig`.
+    ///
+    /// Split out so `SettingsAndProfileCopyTests` can hold both branches —
+    /// nothing when the head is whole, the honest list when it is not —
+    /// without building a rig out of images, a simulator or a camera. The rig
+    /// is read in exactly one place, immediately above.
+    static func previewCaption(blinks: Bool, smiles: Bool, raisesBrows: Bool,
+                               isSurprised: Bool, winks: Bool) -> String? {
         var missing: [String] = []
-        if rig.shut == nil { missing.append("blink") }
-        if !rig.has(.smile) { missing.append("smile") }
-        if !rig.has(.browsUp) { missing.append("raise its brows") }
-        if !rig.has(.surprised) { missing.append("look surprised") }
-        if !rig.has(.wink) { missing.append("wink") }
-        guard !missing.isEmpty else {
-            return "Your head is ready. It only shows up where you turn it on."
-        }
+        if !blinks { missing.append("blink") }
+        if !smiles { missing.append("smile") }
+        if !raisesBrows { missing.append("raise its brows") }
+        if !isSurprised { missing.append("look surprised") }
+        if !winks { missing.append("wink") }
+        guard !missing.isEmpty else { return nil }
         return "Your head is ready, but it won't \(missing.joined(separator: " or ")). Retake if you'd like to try again."
     }
 

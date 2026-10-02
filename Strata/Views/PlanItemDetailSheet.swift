@@ -25,6 +25,13 @@ struct PlanItemDetailSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    // **"What do you mean to do?" diverges from the add
+                    // sheet's "What did you do?" by one word, and that is
+                    // correct** (`docs/copy-audit.md` number 20, flagged so
+                    // nobody tidies it into a match). A plan is the future and
+                    // a win is the past; the tense is the whole difference
+                    // between the two screens. It is also rarely seen — you
+                    // arrive at this sheet from a line you already typed.
                     TextField("What do you mean to do?", text: $item.text, axis: .vertical)
                         .font(Typography.bodyLarge)
                 }
@@ -32,6 +39,16 @@ struct PlanItemDetailSheet: View {
                 Section {
                     colours
                 } header: {
+                    // **This label STAYS, and `COLOUR` on the add sheet went.**
+                    // The line between them is the one thing that differs:
+                    // the add sheet's discs sit directly above the block they
+                    // colour, so pressing one demonstrates what the row sets
+                    // and the label was a caption on a demonstration. Nothing
+                    // here demonstrates anything — the swatches are blocks,
+                    // and moving a checkmark between six coloured blocks shows
+                    // which is chosen, never what choosing one does to the
+                    // line. Cut a label when the screen performs it; keep it
+                    // when the screen only states it.
                     FormSectionLabel("Colour")
                 }
 
@@ -55,11 +72,33 @@ struct PlanItemDetailSheet: View {
                     .tint(AppColors.switchOn)
 
                     if item.repeats { days }
-                } footer: {
-                    Text(item.repeats
-                         ? "Comes back on these days. Ticking it off keeps it until the day turns."
-                         : "A one-off. It clears once the day it was finished is over.")
                 }
+                // **THE FOOTER IS DELETED** (2026-10-01, `docs/copy-audit.md`
+                // number 3 — the worst copy ratio in the app, 32 of this
+                // sheet's 36 words cuttable).
+                //
+                // It read "Comes back on these days. Ticking it off keeps it
+                // until the day turns." or "A one-off. It clears once the day
+                // it was finished is over.": 25 words explaining the two
+                // states of ONE switch, on a sheet whose entire content is a
+                // text field, a colour row and that switch. The switch's own
+                // label is the fact, and when it is on the seven day chips
+                // directly under it say which days, which "these days" does
+                // not.
+                //
+                // **The audit's own suggestion was to make the row read
+                // `Repeats` / `Repeats daily`, and that is NOT taken, because
+                // it would be untrue.** Turning the switch on sets
+                // `repeatDays` to [2, 3, 4, 5, 6] — Monday to Friday, not
+                // every day — so "daily" would describe something the control
+                // does not do. `Repeats` is true in both states, and what it
+                // repeats on is drawn rather than written.
+                //
+                // The one genuinely non-obvious fact in there, that a ticked
+                // line stays until the day turns, is not lost and was in the
+                // wrong place: it is true of EVERY line on the plan, repeating
+                // or not, so it belongs to the plan and not to this switch.
+                // `PlanSheet`'s own type documentation carries it.
             }
             .scrollContentBackground(.hidden)
             .background { WarmBackground().ignoresSafeArea() }

@@ -306,39 +306,23 @@ final class Habit {
         customDurationMinutes ?? Int(blockSize.durationMinutes)
     }
 
-    /// #99: Shame-free consistency label — "Active"/"On fire"/"Legendary" (not streak count)
-    /// Uses positive language without exposing raw numbers (Fhynix ADHD research)
-    var currentConsistencyLabel: String? {
-        let recentLogs = (logs ?? []).filter { $0.completed }.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
-        guard !recentLogs.isEmpty else { return nil }
-
-        // Count consecutive days from today
-        let calendar = Calendar.current
-        var streak = 0
-        var checkDate = Date()
-        for _ in 0..<365 {
-            let dateStr = {
-                let f = DateFormatter()
-                f.dateFormat = "yyyy-MM-dd"
-                return f.string(from: checkDate)
-            }()
-            if recentLogs.contains(where: { $0.dateString == dateStr }) {
-                streak += 1
-                checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
-            } else {
-                break
-            }
-        }
-
-        switch streak {
-        case 0: return nil
-        case 1...3: return "Active"
-        case 4...13: return "On a roll"
-        case 14...29: return "On fire"
-        case 30...65: return "Unstoppable"
-        default: return "Legendary"
-        }
-    }
+    // **`currentConsistencyLabel` was here and is DELETED** (2026-10-01,
+    // `docs/copy-audit.md`). It walked up to 365 days of logs to turn a streak
+    // into one of five words: "Active", "On a roll", "On fire", "Unstoppable",
+    // "Legendary". **It had no callers** — the only other hit in the repo was
+    // the audit entry naming it.
+    //
+    // Worth keeping from it, because the next person will have the same idea:
+    // nothing. Five escalating words for a number IS a scoreboard, which is
+    // the thing `docs/brand.md` rejects, and the comment that stood here
+    // claimed the opposite ("shame-free ... without exposing raw numbers") —
+    // a label that goes up when you keep going and down when you stop is a
+    // number with an adjective on it. The app's answer to "how am I doing" is
+    // the tower, which is the same fact as a picture.
+    //
+    // It also carried two things not to copy if a streak is ever wanted: a
+    // `DateFormatter` built inside a 365-iteration loop, and a day-by-day walk
+    // where `Calendar` can answer directly.
 
     init(
         title: String,

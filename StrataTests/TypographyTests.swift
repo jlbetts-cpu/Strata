@@ -202,7 +202,7 @@ enum TypeSweep {
         ("MemoriesStill.swift", ".font(.system(size: 11 * s, weight: .medium))"),
         ("CameraView.swift", ".font(.system(size: 21, weight: .regular))"),
         ("HeadMakerView.swift", ".font(.system(size: 21, weight: .regular))"),
-        ("MonthReplayRow.swift", ".font(.system(size: 30))"),
+        ("ReplayRow.swift", ".font(.system(size: 30))"),
         ("CachedImageView.swift", ".font(.system(size: min(width, height) * 0.25, weight: .medium))"),
         ("GlassIconButton.swift", ".font(.system(size: glyphSize, weight: .medium))"),
         ("PlanBullet.swift", ".font(.system(size: side * 0.52, weight: .medium))"),

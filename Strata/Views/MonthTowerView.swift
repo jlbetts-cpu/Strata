@@ -148,7 +148,10 @@ private struct MonthDayBlock: View {
                     .accessibilityHidden(true)
             }
         }
-        .buttonStyle(.plain)
+        // A day in the month answers the finger. It is a surface with a
+        // picture in it, like the posters and the camera roll, so it takes the
+        // surface rung rather than the glyph one: `docs/motion-audit.md` §5.1.
+        .buttonStyle(.pressSurface)
         .accessibilityLabel("Day \(block.dayOfMonth), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")")
     }
 }

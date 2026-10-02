@@ -100,6 +100,53 @@ struct MonthCalendarView: View {
     /// as a vertical stripe whether or not the column is named.
     static let columns = 7
 
+    /// **How much of an empty day is drawn — AN OPEN OWNER DECISION, 2026-10-01.**
+    ///
+    /// Check 6 of `docs/screen-audit.md` is "greyscale is earned" and it has
+    /// caught this calendar once already. Measured on a built page, an empty
+    /// day's well is `slotInk` at `MonthCalendarCell.wellInk` (0.018), which over
+    /// the light page's rgb(247) composites to rgb(244): **3.3 levels out of
+    /// 255**, and the pad past the end of the month is 1.6. Both instruments this
+    /// app owns are blind to them — `tools/screen-measure.py` calls a pixel
+    /// "drawn" at 6 levels and `tools/page-room.py` a row "drawn" at 14 — which
+    /// is the same blind spot `docs/space.md` §0 records for the Wins lattice,
+    /// and it has a consequence beyond the instrument: the leftmost thing the
+    /// page can see in a calendar row is the day NUMERAL, inset 12% of the cell,
+    /// so this screen's measured left margin changes with the data. That is one
+    /// of the ten left edges clause 11d fails on.
+    ///
+    /// So the real question is the owner's, and it is brand-visible: thirty-one
+    /// cells for an empty month, or the ground showing through where there is no
+    /// win. **Nothing here has been changed on my own judgement.** The three
+    /// renderings were photographed and put to him:
+    ///
+    ///   - `.wells` — what ships: an invisible recess, a lit rim, a grey numeral.
+    ///   - `.numbers` — the numerals he asked for by name ("it would be filled
+    ///     like the lattice with the number, the number can be a placeholder"),
+    ///     with the recess and the rim removed. Subtraction with no measurable
+    ///     visual cost, because the recess measures 3.3 levels.
+    ///   - `.ground` — nothing at all on a day with no win. This one contradicts
+    ///     that instruction, which is why it is his call and not mine.
+    ///
+    /// The flag itself lives in `DebugHarness.calendarEmptyDay`, with every
+    /// other launch argument, because a flag that is read from `ProcessInfo` in
+    /// a view is a flag nobody finds.
+    enum EmptyDay: String {
+        case wells, numbers, ground
+    }
+
+    /// A `let`, read once: this is asked by all thirty-one cells on every
+    /// render, and scanning the launch arguments per cell per frame is a cost
+    /// with no upside. In a release build it is a constant.
+    static let emptyDay: EmptyDay = {
+        #if DEBUG
+        if let choice = DebugHarness.calendarEmptyDay.flatMap(EmptyDay.init(rawValue:)) {
+            return choice
+        }
+        #endif
+        return .wells
+    }()
+
     /// How many cells the 1st sits past the start of its row, which is what
     /// makes the column mean a weekday. Monday first, from the calendar the
     /// caller passes, so a locale that starts on Sunday gets its own offset
@@ -310,6 +357,27 @@ private struct MonthCalendarCell: View {
     /// come round yet, and a month that gets quietly fainter toward its end is
     /// the whole of "fills up as you go".
     private var empty: some View {
+        // The recess and the rim are the `.wells` rendering; the numeral
+        // survives in `.numbers` too, because the owner asked for it by name.
+        // See `MonthCalendarView.emptyDay` — this is an open decision of his and
+        // the shipping default is unchanged.
+        Color.clear
+            .frame(width: side, height: side)
+            .overlay { if MonthCalendarView.emptyDay == .wells { well } }
+            .overlay(alignment: .bottomLeading) {
+                if MonthCalendarView.emptyDay != .ground {
+                    // **Quieter too.** Thirty grey numerals is thirty pieces of
+                    // greyscale, and an empty day's number is a coordinate rather
+                    // than a reading — you look for it, you do not read it. The
+                    // filled days keep theirs in white, where it has a block to sit
+                    // on and something to label.
+                    number(AppColors.inkTertiary.opacity(isFuture ? 0.45 : 0.75),
+                           onPhoto: false)
+                }
+            }
+    }
+
+    private var well: some View {
         shape
             .fill(AppColors.slotInk.opacity(Self.wellInk * (isFuture ? 0.45 : 1)))
             // **AND IT WEARS THE LIT EDGE.** The owner: "make sure the empty
@@ -331,16 +399,6 @@ private struct MonthCalendarCell: View {
                                       * side / GridConstants.blockReferenceCell)
                 )
                 .opacity(isFuture ? 0.4 : 0.75)
-            }
-            .frame(width: side, height: side)
-            .overlay(alignment: .bottomLeading) {
-                // **Quieter too.** Thirty grey numerals is thirty pieces of
-                // greyscale, and an empty day's number is a coordinate rather
-                // than a reading — you look for it, you do not read it. The
-                // filled days keep theirs in white, where it has a block to sit
-                // on and something to label.
-                number(AppColors.inkTertiary.opacity(isFuture ? 0.45 : 0.75),
-                       onPhoto: false)
             }
     }
 
@@ -409,17 +467,25 @@ private struct MonthCalendarPad: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        shape
-            .fill(AppColors.slotInk.opacity(0.009))
-            .overlay {
-                shape.strokeBorder(
-                    BlockRim.gradient(in: colorScheme),
-                    lineWidth: max(1, GridConstants.blockRimWidth
-                                      * side / GridConstants.blockReferenceCell)
-                )
-                .opacity(0.45)
-            }
+        Color.clear
             .frame(width: side, height: side)
+            .overlay {
+                // Only in the `.wells` rendering: in the other two there is no
+                // empty DAY to be half the weight of, so a pad with nothing to
+                // be quieter than is just a mark on the ground.
+                if MonthCalendarView.emptyDay == .wells {
+                    shape
+                        .fill(AppColors.slotInk.opacity(0.009))
+                        .overlay {
+                            shape.strokeBorder(
+                                BlockRim.gradient(in: colorScheme),
+                                lineWidth: max(1, GridConstants.blockRimWidth
+                                                  * side / GridConstants.blockReferenceCell)
+                            )
+                            .opacity(0.45)
+                        }
+                }
+            }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

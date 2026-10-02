@@ -31,19 +31,35 @@ import SwiftUI
 /// Together they read as depression. The glyph already carries a drop shadow
 /// for legibility over a photograph, and shrinking it moves that too, which
 /// is the part that sells it.
+/// **Reduce Motion keeps the dim and drops the scale** (2026-10-01).
+///
+/// `docs/motion-audit.md` found this style was the one place in the app that
+/// told other code to honour the setting and did not honour it itself: the
+/// private copy of it on the Memories shelf, which this file exists to make
+/// unnecessary, had a Reduce Motion path and the original did not.
+///
+/// It is not gated to nothing, because a press that answers with nothing is
+/// the defect this whole file was written to fix, and Reduce Motion asks for
+/// less MOTION rather than less feedback. A scale is motion; a dim is not. So
+/// with the setting on the glyph still goes to `dim`, on `crossFade` rather
+/// than on a spring, and does not move.
 struct PressResponse: ButtonStyle {
     /// How far in. Smaller controls need more, because the same percentage of
     /// a smaller thing is fewer pixels.
     var scale: CGFloat = 0.92
     var dim: Double = 0.72
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
             .opacity(configuration.isPressed ? dim : 1)
-            .animation(configuration.isPressed
-                       ? GridConstants.shutterPress
-                       : GridConstants.shutterRelease,
+            .animation(reduceMotion
+                       ? GridConstants.crossFade
+                       : (configuration.isPressed
+                          ? GridConstants.shutterPress
+                          : GridConstants.shutterRelease),
                        value: configuration.isPressed)
     }
 }
@@ -56,4 +72,25 @@ extension ButtonStyle where Self == PressResponse {
     /// For a control whose label is a word rather than a glyph: a word at 6%
     /// reads as a wobble, so it moves less and dims more.
     static var pressWord: PressResponse { PressResponse(scale: 0.96, dim: 0.62) }
+
+    /// For a SURFACE: a card, a poster, a row with a picture in it.
+    ///
+    /// **It gives, and it does not dim** (2026-10-01). A glyph over a
+    /// photograph needs both, because there is no background to shift and the
+    /// scale alone is nearly invisible on 21pt of ink. A card is the thing that
+    /// moves, so the scale reads on its own — and dimming a photograph by 28%
+    /// reads as the picture dulling rather than the card being pressed.
+    ///
+    /// `tapScaleY`'s 0.97 is the amount every other pressable surface in the
+    /// app gives by, so a card does not get a number of its own. **Uniform, not
+    /// the block's squash**: `tapScaleX`/`tapScaleY` together are a thing
+    /// landing on a floor, and this is a card pressed into the page.
+    ///
+    /// This replaces `PosterPress`, which was `MemoriesShelf`'s private copy of
+    /// exactly this and the reason `docs/motion-audit.md` found a press with
+    /// four different answers. The copy was the MORE accessible of the two: it
+    /// honoured Reduce Motion and the original did not. Both do now.
+    static var pressSurface: PressResponse {
+        PressResponse(scale: GridConstants.tapScaleY, dim: 1)
+    }
 }
