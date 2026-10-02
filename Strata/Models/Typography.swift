@@ -111,7 +111,7 @@ enum Typography {
     /// not see this file. `StrataFont` in `Shared/` carries its own Medium and
     /// has a note pointing back here, so a change made in this line has to be
     /// made there too or the tally and the title stop matching.
-    static let titleWeight: Font.Weight = .semibold
+    static let titleWeight: Font.Weight = .bold
 
     /// **What a header is set in, against what a line of body is set in.**
     ///
@@ -126,11 +126,24 @@ enum Typography {
     /// identical.
     ///
     /// **Two weights, and the step between them is measurable.** At `opsz`
-    /// 33.55, which is a screen title, Medium's stem is 3.68pt and Semibold's
-    /// 4.21 — **14.5% more stroke**, which is a step you can see at a glance and
-    /// cannot mistake for a second typeface. Bold is 4.95, 34.4% more, and that
-    /// is where a header stops being a header and becomes a shout; it is not
-    /// used anywhere.
+    /// 33.55, which is a screen title: Medium's stem is 3.68pt, Semibold's 4.21
+    /// (+14.5%), **Bold's 4.95 (+34.4%)**.
+    ///
+    /// **It ships Bold, and it shipped Semibold for an hour because I stopped
+    /// one step short on my own judgement.** The note here said Bold "is where a
+    /// header stops being a header and becomes a shout", which is a taste
+    /// dressed as a measurement — the stem width is a fact and where it becomes
+    /// a shout is not. The owner asked for "a nice thicker font for headers",
+    /// was shown Semibold, and said: "why no bold i mean thats what I asked."
+    /// His call, and it was always his call.
+    ///
+    /// The thing that made stopping short feel justified was reading
+    /// heytea.com the same evening and finding **weight 400 everywhere, no bold
+    /// on the page** (`docs/reference-board.md` §9). That is true of their
+    /// system and it is not an argument about this one: they separate a heading
+    /// from body with a second FACE and +0.10 em of tracking, and this app has
+    /// one face. With one face the only lever left is the stroke, and a lever
+    /// used half way is a lever nobody can see being used.
     ///
     /// **It is still one face.** `bodyWeight` and `titleWeight` are the same
     /// family at two cuts, which is the rule this project has kept for a year

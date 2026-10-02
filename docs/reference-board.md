@@ -422,3 +422,52 @@ to him when the custom typeface he mentioned arrives, and not before.
 Their lowercase. "memories", "plan", "settings" in lowercase would be a brand
 decision of his, not a layout one, and the app's drawn wordmark came off in
 September for reasons recorded in `CLAUDE.md`. Noted and left alone.
+
+
+---
+
+## 10. Dribbble and Mobbin on the free tier, 2026-10-01
+
+**Mobbin is not readable this way.** The MCP needs a paid plan, and `mobbin.com`
+returns **403 Forbidden** to an automated browser. Its thumbnails are visible to a
+person signed in on the free tier, so the owner can browse it himself; nothing
+here can.
+
+**Dribbble is readable, and the finding is a warning rather than a source.**
+
+Searched "minimal ios app", read the top results as images. Every one of them,
+from several designers, is the same system:
+
+- white cards on a near-white ground, radius about 20, hairline separators
+- a greeting and a date at the top ("Thu 14 August / Hey Diana")
+- a chart as the hero, with a legend
+- rows of title plus a grey subtitle plus a right-aligned value
+- uppercase grey section labels
+- a saturated accent on the primary action, usually pink
+- a "See all" link beside every heading
+
+**That is tidy, and it is not minimal in the sense this app means it.** It is the
+card-stack pattern, and searching Dribbble for "minimal" returns it because that
+is what the word has come to mean there. Against HEYTEA's language in §9 — pure
+white, one figure, enormous negative space, no fills at all — it is a different
+thing entirely.
+
+**It would pull this app backwards, specifically.** Every one of the following
+has already been removed from Strata, on the owner's own instruction, and all of
+them are on the first Dribbble page:
+
+| On Dribbble's "minimal" | Removed from this app, when, why |
+|---|---|
+| a greeting at the top | the Wins header's greeting, "it changed four times a day and was never the reason anyone opened the app" |
+| a title with a grey subtitle under it | 2026-10-01, "no tiny text under or anythign like that" |
+| a saturated accent pill | 2026-10-01, "lets just do the basic", `accentPrimary` deleted |
+| a chart as the hero | Profile's mood headline over its own numbers, cut 2026-10-01 |
+| cards everywhere | `docs/space.md` P2, Palmer (1992): a box and space are alternatives |
+
+**So the useful instruction is about the search term, not the site.** "Minimal"
+returns dense-but-tidy. The words that return this app's actual target are
+editorial, whitespace, Swiss, Muji, and the names of the brands rather than the
+adjective. And the deeper limit stands however it is searched: **Dribbble is
+concept work.** Nothing on it has shipped, been tested at an accessibility size,
+or had to survive a photograph somebody took in the dark. That is exactly what
+Mobbin is for, and it is the one that costs money.

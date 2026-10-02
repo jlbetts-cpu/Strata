@@ -63,12 +63,15 @@ struct TypographyTests {
     /// because a page whose title, headings and body share a stem has nothing to
     /// look at first. Similar is not identical.
     ///
-    /// Semibold over Medium is **14.5% more stroke** at a screen title's optical
-    /// size (4.21pt against 3.68). Bold would be 34.4% and is not used: that is
-    /// where a header stops being a header. Both levers are one line each and
-    /// this test is where moving either gets written down.
+    /// **Bold over Medium is 34.4% more stroke** at a screen title's optical
+    /// size, 4.95pt against 3.68. It shipped at Semibold (+14.5%) for an hour,
+    /// because the first pass stopped one step short on its own judgement and
+    /// wrote "Bold is where a header stops being a header", which is a taste
+    /// dressed as a measurement. The owner: "why no bold i mean thats what I
+    /// asked." Both levers are one line each and this test is where moving
+    /// either gets written down.
     @Test func theTwoWeights() {
-        #expect(Typography.titleWeight == .semibold)
+        #expect(Typography.titleWeight == .bold)
         #expect(Typography.bodyWeight == .medium)
         #expect(Typography.titleWeight != Typography.bodyWeight,
                 "a scale with one weight has no order to read it in")
