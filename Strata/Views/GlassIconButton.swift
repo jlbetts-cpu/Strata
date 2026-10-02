@@ -195,6 +195,18 @@ extension View {
     /// `.interactive()` is included because this is genuinely a button: the
     /// effect reacts to the press, which is the affordance being bought here.
     /// The deployment target is 18.0, so the fallback is not optional.
+    /// The bubble's glass: the page recipe, with no system press response.
+    @ViewBuilder
+    func stillGlassCircle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(GlassRecipe.onPageStill, in: .circle)
+        } else {
+            self.background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(GlassFallback.rim,
+                                               lineWidth: GlassFallback.rimWidth))
+        }
+    }
+
     @ViewBuilder
     func glassCircle(onPage: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
@@ -247,6 +259,11 @@ enum GlassRecipe {
     /// of. Five levels, which is enough to find and not enough to shout.
     static let pageInk: Double = 0.035
     static var onPage: Glass { .regular.tint(.black.opacity(pageInk)).interactive() }
+    /// The same glass without the system's press response, for a control that
+    /// answers the press itself and holds something that must stay visible
+    /// through it: the tower head's bubble, where the interactive glow washed
+    /// the parked head out for the length of the press (filmed, 2026-10-02).
+    static var onPageStill: Glass { .regular.tint(.black.opacity(pageInk)) }
 
     /// 0.16 cancels `.clear`'s lift. See the table above before changing it —
     /// the number is the output of a measurement, and moving it moves the

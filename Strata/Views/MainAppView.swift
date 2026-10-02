@@ -855,6 +855,35 @@ struct MainAppView: View {
             // always in the same place, and the tower has nothing beneath it
             // at all.
             .safeAreaInset(edge: .top, spacing: 0) { towerHeader }
+            // **The head that lives on the tower, OVER the header** (moved
+            // 2026-10-02). It was an overlay on the scroll view, under this
+            // pinned header, so carried over the bubble beside the Plan button
+            // he went beneath its glass and his face frosted (filmed). Here he
+            // is above the header's glass; still not inside the scrolling
+            // content, so he does not scroll away with the tower, and his
+            // world is measured in the window, so his bounds are unchanged.
+            // Off unless the Profile switch is on, and while it is off this
+            // builds no view, starts no clock and asks for no frames.
+            .overlay {
+                TowerCompanionLayer(
+                    active: selectedTab == .tower,
+                    probe: towerProbe,
+                    bottomInset: GridConstants.tabBarClearance,
+                    landing: {
+                        latticeRipple.map {
+                            TowerCompanionLanding(
+                                at: $0.started,
+                                cell: TowerCompanionWorld.Cell($0.column, $0.row,
+                                                               $0.columnSpan, $0.rowSpan))
+                        }
+                    }
+                ) {
+                    towerVM.placedBlocks.lazy.map {
+                        TowerCompanionWorld.Cell($0.column, $0.row,
+                                                 $0.columnSpan, $0.rowSpan)
+                    }
+                }
+            }
             // **Touch the page and it answers — the whole page.**
             //
             // See `TouchRipple`: rings on water, never a highlight, drawn
@@ -2820,32 +2849,7 @@ struct MainAppView: View {
             // See `ScrollEdge.swift` for the measurement and for the three
             // alternatives that were rejected.
             .softScrollEdge(.top)
-            // On the ScrollView rather than on its content, or he scrolls
-            // away with the tower. Off unless the Profile switch is on, and
-            // while it is off this builds no view, starts no clock and asks
-            // for no frames. The landing it answers is the same
-            // `latticeRipple` the surface answers, so the head and the
-            // lattice react to one event rather than to two.
-            .overlay {
-                TowerCompanionLayer(
-                    active: selectedTab == .tower,
-                    probe: towerProbe,
-                    bottomInset: GridConstants.tabBarClearance,
-                    landing: {
-                        latticeRipple.map {
-                            TowerCompanionLanding(
-                                at: $0.started,
-                                cell: TowerCompanionWorld.Cell($0.column, $0.row,
-                                                               $0.columnSpan, $0.rowSpan))
-                        }
-                    }
-                ) {
-                    towerVM.placedBlocks.lazy.map {
-                        TowerCompanionWorld.Cell($0.column, $0.row,
-                                                 $0.columnSpan, $0.rowSpan)
-                    }
-                }
-            }
+
         }
     }
 

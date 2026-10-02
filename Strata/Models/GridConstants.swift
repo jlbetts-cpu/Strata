@@ -646,6 +646,9 @@ enum GridConstants {
     /// The bubble popping: out and gone, quicker than anything arrives, the
     /// way a bubble does.
     static let popBurst = Animation.easeOut(duration: 0.18)
+    /// The bubble's drops flying out of the pop: a little longer than the
+    /// burst, so they are still travelling as the glass vanishes.
+    static let popSpray = Animation.easeOut(duration: 0.34)
 
     static var slotSnap: Animation { calm(Animation.spring(response: 0.30, dampingFraction: 1.0)) }
     /// Drag distance that commits the next size up.

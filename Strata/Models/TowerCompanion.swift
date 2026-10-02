@@ -647,7 +647,12 @@ nonisolated struct TowerCompanionSim {
         guard world.bounds.origin.x.isFinite, world.bounds.origin.y.isFinite,
               world.bounds.width.isFinite, world.bounds.height.isFinite,
               elapsed.isFinite else { return }
-        guard !reduceMotion else { park(in: world); return }
+        // Under Reduce Motion nothing moves him but a finger: carried, he is
+        // where the finger is (`touch` puts him there); otherwise he rests.
+        guard !reduceMotion else {
+            if state != .held { park(in: world) }
+            return
+        }
 
         notice(world)
 
@@ -717,6 +722,19 @@ nonisolated struct TowerCompanionSim {
             position = held(CGPoint(x: point.x + grab.x, y: point.y + grab.y), in: world)
         case .ended:
             guard state == .held else { return }
+            // **Reduce Motion: put down, not thrown** (2026-10-02). He stays
+            // exactly where the last move left him, which `.moved` already
+            // clamped: re-clamping here lifted a head that had not been
+            // moved onto the taller column beside it. There is no throw and
+            // no drift, but carrying him is the person's own motion, and
+            // taking it away took the bubble away with it.
+            if reduceMotion {
+                restSpot = position
+                velocity = .zero
+                state = .resting
+                isAtRest = true
+                return
+            }
             position = held(CGPoint(x: point.x + grab.x, y: point.y + grab.y), in: world)
             let speed = hypot(v.dx, v.dy)
             let scale = speed > Self.maxThrow ? Self.maxThrow / speed : 1
@@ -1529,16 +1547,38 @@ nonisolated struct TowerCompanionSim {
     /// statement about movement, not about whether he wants a head. So the
     /// head is put somewhere sensible near the top and left there, which is
     /// also `LivingHeadView`'s own behaviour under the same setting.
+    /// Where a finger put him down under Reduce Motion. He rests there rather
+    /// than at the default spot.
+    private var restSpot: CGPoint?
+
     private mutating func park(in world: TowerCompanionWorld) {
         state = .resting
         velocity = .zero
         tilt = 0
         isAtRest = true
-        let x = clamp(world.bounds.maxX - halfWidth - 12,
+        // **Standing on the tower, in the middle** (2026-10-02). He rested in
+        // the top-right corner, which put him behind the status bar where no
+        // tap reaches him, and with the status bar as his ceiling that corner
+        // is the Plan button and the bubble. The top-left corner is the
+        // owner's, kept empty. So he stands on the tower: still, on
+        // something, and with the contact shadow that says so. With no tower
+        // yet, he waits in the middle of the open band.
+        let x = clamp(world.bounds.midX,
                       world.bounds.minX + halfWidth, world.bounds.maxX - halfWidth)
-        let y = clamp(world.opening.lowerBound + halfHeight + 6,
+        let standing = world.skyline.hasTower
+            ? world.skyline.surfaceY(atX: x) - halfHeight
+            : (world.opening.lowerBound + world.opening.upperBound) / 2
+        let y = clamp(standing,
                       world.bounds.minY + halfHeight, world.bounds.maxY - halfHeight)
         position = CGPoint(x: x, y: y)
+        // Where he was put down, exactly. It was checked against the world
+        // once, when the finger let go; re-checking it every frame let a
+        // landing beside him move a head Reduce Motion had told to hold still
+        // (`reduceMotionHoldsHimStill`, 186pt).
+        if let spot = restSpot {
+            position = spot
+            return
+        }
         if let slot = world.slot {
             let box = slot.insetBy(dx: -halfWidth, dy: -halfHeight)
             if box.contains(position) { position.y = box.maxY }

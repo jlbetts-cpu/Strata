@@ -52,8 +52,45 @@ struct CompanionParkingTests {
     func parkedPausesTheHead() throws {
         let text = try MorningSource.read("Views/TowerCompanionLayer.swift")
         #expect(text.contains("|| parking.parked || parking.arriving"))
-        #expect(text.contains("if !parking.parked && !parking.arriving {"))
+        #expect(text.contains("parking.parked || parking.arriving || parking.releasing"))
+        #expect(text.contains("if !hidden {"))
         let dock = try MorningSource.read("Views/CompanionDock.swift")
-        #expect(dock.contains(".overlay { arrivingHead(rig: rig) }"), "the flight is drawn over the glass, not under it")
+        #expect(dock.contains(".overlay { head(rig: rig) }"), "he is drawn over the glass, not under it")
+        // One view for flying in, parked and bursting out, so his face loads once.
+        #expect(dock.contains("if parking.flightFrom != nil || parking.parked || bursting {"))
+    }
+
+    @Test("the pop sets the burst before it lets go of parked, and the bubble stays while releasing")
+    func popOrdering() throws {
+        let dock = try MorningSource.read("Views/CompanionDock.swift")
+        #expect(dock.contains("var showsDock: Bool { dragging || arriving || parked || releasing }"))
+        let burst = dock.components(separatedBy: "private func burst() {").last ?? ""
+        let burstAt = burst.range(of: "bursting = true")
+        let letGoAt = burst.range(of: "parking.parked = false")
+        #expect(burstAt != nil && letGoAt != nil)
+        if let b = burstAt, let l = letGoAt { #expect(b.lowerBound < l.lowerBound) }
+    }
+
+    @Test("the drops leave from his edge and land past it, so they are seen")
+    func dropsClearHim() throws {
+        let dock = try MorningSource.read("Views/CompanionDock.swift")
+        #expect(dock.contains("private var dropReach: CGFloat { parking.headSide / 2 + 22 }"))
+        #expect(dock.contains("private var dropStart: CGFloat { parking.headSide * 0.4 }"))
+    }
+
+    @Test("his ceiling is the status bar, where iOS would otherwise take the tap")
+    func statusBarCeiling() throws {
+        let layer = try MorningSource.read("Views/TowerCompanionLayer.swift")
+        #expect(layer.contains("life.statusBar = w.safeAreaInsets.top"))
+        #expect(layer.contains("let box = CGRect(x: -arena.minX, y: -arena.minY + ceiling,"))
+    }
+
+    @Test("VoiceOver can reach him, change his face, park him, and pop the bubble")
+    func voiceOver() throws {
+        let layer = try MorningSource.read("Views/TowerCompanionLayer.swift")
+        #expect(layer.contains(".accessibilityLabel(\"Your head\")"))
+        #expect(layer.contains(".accessibilityAction(named: \"Park in the bubble\") { parkWithoutCarrying() }"))
+        let dock = try MorningSource.read("Views/CompanionDock.swift")
+        #expect(dock.contains(".accessibilityAction { pop() }"))
     }
 }

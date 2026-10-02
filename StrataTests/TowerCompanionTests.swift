@@ -702,6 +702,39 @@ struct TowerCompanionTests {
         #expect(inside(s, w))
     }
 
+    /// **Under Reduce Motion he rests standing on the tower, in the middle**
+    /// (2026-10-02). The top-right corner put him behind the status bar, out
+    /// of reach of a tap, and is the Plan button and the bubble now.
+    @Test func reduceMotionRestsHimOnTheTower() {
+        var s = sim()
+        s.reduceMotion = true
+        let w = world()
+        s.update(w, elapsed: TowerCompanionSim.tick)
+        #expect(abs(s.position.x - w.bounds.midX) < cell, "he rests in the middle")
+        #expect(s.onSurface(w), "standing on the tower, so he casts his shadow")
+    }
+
+    /// **Under Reduce Motion he can still be carried, and stays put.** Carrying
+    /// is the person's own motion; taking it away took the bubble away too.
+    @Test func reduceMotionCarriesAndPutsDown() {
+        var s = sim()
+        s.reduceMotion = true
+        let w = world()
+        s.update(w, elapsed: TowerCompanionSim.tick)
+        let start = s.position
+        let target = CGPoint(x: start.x - 60, y: start.y - 140)
+        s.touch(.began, at: start, in: w)
+        s.touch(.moved, at: target, in: w)
+        s.update(w, elapsed: TowerCompanionSim.tick)
+        #expect(abs(s.position.x - target.x) < 1 && abs(s.position.y - target.y) < 1,
+                "he follows the finger while carried")
+        s.touch(.ended, at: target, velocity: CGVector(dx: 2_000, dy: -2_000), in: w)
+        run(&s, w, seconds: 5)
+        #expect(abs(s.position.x - target.x) < 1 && abs(s.position.y - target.y) < 1,
+                "put down, not thrown: he stays where the finger left him")
+        #expect(s.isAtRest)
+    }
+
     // MARK: On the tower
 
     /// He never sinks into a block. Standing inside the thing you are standing
