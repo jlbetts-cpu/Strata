@@ -282,3 +282,70 @@ product decision and not a layout one. Logged, not designed.
   gesture manual being deleted from the empty state because it explained a rule
   that no longer existed; adding gestures to get it back would be that in
   reverse.
+
+
+---
+
+## 8. Apple's own guidelines, 2026-10-01
+
+A fifth reference, and the only one of the five written by the people who make
+the platform. `docs/apple-design.md` is the craft reference this project already
+reads; what follows is what a pass specifically against the HIG's own sections
+turns up, checked against the code rather than taken on faith.
+
+**Three of its four highlighted sections do not apply.** macOS: this app is
+iPhone only. Place cards on maps: the HIG's interactive card is for a map whose
+pins are places somebody else published, and this map's pins are the person's own
+photographs, which open a collection rather than a card about a venue. Both are
+noted so nobody proposes them from the video.
+
+### 8.1 Accessibility: done, and the evidence is tests rather than intent
+
+- **Dynamic Type.** Every token in `Typography` is a text STYLE, never a point
+  size, and `TypographyTests` fails if one becomes a size. `ReplayFrame` caps its
+  own content past xxLarge because the frame's lines are fractions of the frame
+  and cannot grow with the type.
+- **Colour contrast.** Check 9 of `docs/screen-audit.md` is this, measured per
+  element against the ground it actually sits on. It found the head maker's Save
+  button at **1.04:1** the same day this was written.
+- **Haptics alongside audio.** `HapticsEngine` has ten named events and
+  `SoundEngine` has its own voices, and a win logged plays both. **Worth keeping
+  in step**: the HIG's point is that a person who has sound off must still get
+  the answer, which is why `PressResponse` was given a Reduce Motion path that
+  keeps the dim rather than gating to nothing.
+- **Reduce Motion.** Nineteen files honour it; twelve did not until
+  `docs/motion-audit.md` counted them, including `FlippableBlockView`, which is
+  what the tower renders.
+
+### 8.2 Widgets: the gap this pass actually found
+
+`StrataWidget` ships `.systemSmall` and `.accessoryRectangular`. Medium was built
+and rejected by the owner with a reason worth keeping ("a tower is a tall object,
+and a wide box either leaves half of itself empty or spreads the blocks out until
+they stop reading as a stack"). Lock Screen is therefore covered by the
+rectangular family.
+
+**What is missing, in the order it is worth anything:**
+
+1. **The widget is not interactive at all.** No `Button(intent:)`, no
+   `widgetURL`, no `Link`. Since iOS 17 a widget can run an App Intent in place,
+   and **this app already has the intent**: `LogWinIntent`, with
+   `openAppWhenRun = false`, going through `QuickWinService.logWin`, which is the
+   same path the tap in the app takes. So the app whose whole premise is that
+   logging a win should be the fastest thing you do has a Home Screen widget that
+   cannot log one. **The cost is not the button**: an intent run from the widget
+   process needs its `@Dependency ModelContainer` registered in the extension,
+   and `AppDependencyManager.add` currently happens in `StrataApp.init`, which is
+   the app target. That is the real work and it is why this is a question for the
+   owner rather than a change made on the way past.
+2. **No `widgetURL`.** A tap opens the app wherever it opens, rather than on
+   today. The deep-link plumbing exists (`deepLinkHabitID`, and the Spotlight
+   handler that uses it).
+3. **StandBy is unconsidered.** `TowerPhotoBackground` puts a photograph behind
+   the tower, and StandBy at night renders a widget monochrome red at low
+   brightness. Nobody has looked at this app in that mode. It is one capture to
+   find out.
+4. `accessoryCircular` and `accessoryInline` are **not** recommended here: a
+   tower does not fit a circle and does not fit a line. The count would, and the
+   count is deliberately not the subject of this app's own home screen, so adding
+   it to the Lock Screen would say something the app does not say about itself.
