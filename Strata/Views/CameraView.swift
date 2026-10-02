@@ -684,7 +684,13 @@ struct CameraView: View {
                             .contentShape(Rectangle())
                     }
                 }
-                .buttonStyle(.plain)
+                // **The two most-pressed words in the capture flow, which had
+                // no press answer at all** (2026-10-01,
+                // `docs/consistency-audit.md` §1.8). The refused screen two
+                // screens earlier already used `.pressWord`; this row was
+                // `.plain`, which draws the label and nothing else. The sticker
+                // button between them carries its own style and is unaffected.
+                .buttonStyle(.pressWord)
                 // On the scale, and the same margin as the head maker's
                 // matching Retake / Save row. It was 28.
                 .padding(.horizontal, GridConstants.gapWide)
@@ -760,7 +766,12 @@ struct CameraView: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // `.pressWord`, not `.press`: these are words, and a word at
+                // 6% reads as a wobble. `PressResponse`'s own doc lists "the
+                // size chips beside the shutter" with the glyph row, which is
+                // where they sit and not what they are — the glyph rung is the
+                // grid, the flash, the flip and the timer.
+                .buttonStyle(.pressWord)
                 .accessibilityAddTraits(option == drawnSize ? [.isSelected] : [])
             }
         }
@@ -1438,10 +1449,24 @@ struct CameraView: View {
         } label: {
             HStack(spacing: 0) {
                 Image(systemName: symbol)
-                    .font(.system(size: 21, weight: .regular))
+                    // **`iconSize`, not `.font(.system(size:))`** (2026-10-01,
+                    // `docs/consistency-audit.md` §1.15). A fixed size does not
+                    // respond to the user's text size at all, and brand.md asks
+                    // for Dynamic Type on every screen (WCAG 1.4.4). 21 is kept
+                    // as the value — it is the number the chrome row was
+                    // composed against and the badge beside it is solved off it
+                    // in this function's own doc — and it now grows.
+                    .iconSize(21, relativeTo: .body, weight: .regular)
                 if let badge {
                     Text(verbatim: badge)
-                        .font(.system(size: 15, weight: .medium))
+                        // Scaled with the glyph, not against it. This function's
+                        // own doc solves the pair against each other — 21pt of
+                        // glyph plus 15pt of monospaced digits comes to 43.9pt —
+                        // so growing one with Dynamic Type and pinning the other
+                        // would pull the pair apart. `iconSize` sets the same
+                        // `.system(size:weight:)` the literal did, through
+                        // `@ScaledMetric`.
+                        .iconSize(15, relativeTo: .body, weight: .medium)
                         .monospacedDigit()
                 }
             }
@@ -1456,7 +1481,14 @@ struct CameraView: View {
             .frame(width: Self.controlSide, height: Self.controlSide)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // **The four controls `PressResponse` names by name**: the grid, the
+        // flash, the flip and the timer all come through this helper, and all
+        // four were `.plain` while the style written for them had zero call
+        // sites (`docs/consistency-audit.md` §1.8). A glyph over a photograph
+        // has no background to shift, so the scale and the dim together are the
+        // whole of the feedback — and the glyph's own legibility shadow moves
+        // with the scale, which is the part that sells it.
+        .buttonStyle(.press)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier ?? symbol)
         .accessibilityValue(value ?? "")

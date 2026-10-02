@@ -6,14 +6,19 @@ import StoreKit
 // zip, and naming the type stops somebody handing this a photograph.
 import UniformTypeIdentifiers
 
+/// **Settings is PUSHED from Profile, which is the only way in, and that is why
+/// it has no Done.** The sentence used to be the doc on an `isPushed` flag that
+/// both call sites set to `true`; the flag is deleted and the sentence is true
+/// of the type (`docs/consistency-audit.md` §1.4, and the record of what went is
+/// at the bottom of this file). A pushed screen has a back button, and a Done
+/// that called `dismiss()` would only pop back to Profile — two controls that
+/// both mean "back".
 struct SettingsView: View {
     /// Returns whether the record was actually emptied.
     var onResetAllData: (() -> Bool)?
-    /// Pushed from Profile, which is the only way in now. A pushed screen has
-    /// a back button, and a Done that called `dismiss()` would only pop back
-    /// to Profile — two controls that both mean "back".
-    var isPushed = false
 
+    /// Still read: `runReset` leaves the screen once the record is actually
+    /// emptied, and stays on it with the reason if it is not.
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
@@ -221,7 +226,34 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "bell")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                // **`switchTrack`, and all six of this page's switches were
+                // `inkPrimary`, which is a dark-mode failure nobody had looked
+                // at** (2026-10-01, `docs/consistency-audit.md` §1.3 plus check
+                // 12, and the audit's own verdict was the one being corrected
+                // here).
+                //
+                // The consistency half: Profile's four switches were
+                // `AppColors.switchOn`, the blue, and these six were ink — two
+                // colours for "on" on two screens one push apart, whose own doc
+                // comments say they are built the same way so that "pushing from
+                // one to the other reads as one place".
+                //
+                // The half that was not in the audit: `inkPrimary` is
+                // `white.opacity(0.92)` in dark mode, so the ON track composites
+                // to rgb(237) and the thumb iOS slides on it is WHITE. That is
+                // **1.17:1**, and the owner's words about the last time this
+                // happened are on `switchOn`: "the switch in the setthing in dark
+                // mode it doesnt even look like a switch its like white on white
+                // just looks like a pill." The audit sampled light mode only
+                // (§3.9) and recommended spreading this to Profile.
+                //
+                // `switchTrack` is one fixed warm grey, computed against the
+                // thumb and both grounds, and it carries the whole argument
+                // including the one number that does not clear 3:1 and cannot be
+                // made to. The page's other `.tint` — the one at the bottom, for
+                // the `Form`'s links and pickers — stays `inkPrimary`, because
+                // those are INK on a page and not a surface under a white knob.
+                .tint(AppColors.switchTrack)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     if enabled {
                         Task { await requestNotificationPermission() }
@@ -269,7 +301,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "square.stack.3d.up")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                .tint(AppColors.switchTrack)
                 .onChange(of: replayRemindersOn) { _, on in
                     Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
                 }
@@ -309,7 +341,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "speaker.wave.2")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                .tint(AppColors.switchTrack)
 
                 Toggle(isOn: $hapticsEnabled) {
                     Label {
@@ -319,7 +351,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "iphone.radiowaves.left.and.right")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                .tint(AppColors.switchTrack)
             } header: {
                 FormSectionLabel("Sounds & Haptics")
             }
@@ -356,7 +388,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "photo.on.rectangle.angled")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                .tint(AppColors.switchTrack)
 
                 // **The switch that fills the map lives beside the one that
                 // fills the camera roll**, because they are the same decision
@@ -395,7 +427,7 @@ struct SettingsView: View {
                         SettingsIcon(systemName: "mappin.and.ellipse")
                     }
                 }
-                .tint(AppColors.inkPrimary)
+                .tint(AppColors.switchTrack)
                 .disabled(location.isDenied)
             } header: {
                 FormSectionLabel("Camera").id(Self.cameraAnchor)
@@ -501,20 +533,41 @@ struct SettingsView: View {
                     showResetConfirmation = true
                 } label: {
                     Label {
-                        // **One red on the row, not two.** The glyph is
-                        // `AppColors.warmRed` (#E85D4A) and the word was taking
-                        // the destructive role's own red, the system #FF3B30:
-                        // two reds four points apart on one line, on the one row
-                        // in the app where the colour IS the meaning.
+                        // **One red on the row, not two.** The word was taking
+                        // the destructive role's own red, the system #FF3B30,
+                        // beside a glyph in the app's: two reds four points
+                        // apart on one line, on the one row in the app where the
+                        // colour IS the meaning.
+                        //
+                        // **`AddWinSheet.destructiveTint`, and it was `warmRed` at 2.71:1**
+                        // (2026-10-02). The other worker sampled all three reds
+                        // on the built light card and this is the only one that
+                        // clears the 4.5:1 a 17pt word is held to:
+                        //
+                        //     AppColors.warmRed   #E85D4A   rgb(228)   2.71:1
+                        //     the system red      #FF3B30              2.79:1
+                        //     destructiveTint     #B3000F              5.65:1
+                        //
+                        // Measured on the built sheet after the move: **5.64:1
+                        // light, 4.74:1 dark.** `warmRed` was chosen as "the
+                        // app's palette rather than the platform's" and that
+                        // argument is right and is kept — this token is the
+                        // app's own red too, and it is the one that inverts
+                        // (rgb(255, 92, 84) in dark), which `warmRed` does not.
+                        //
+                        // **One red at one weight across every delete in the
+                        // app**, which closes "six shapes of destructive action
+                        // in three reds" from `docs/consistency-audit.md` §3.3
+                        // down to one colour.
                         Text("Reset All Data")
-                            .foregroundStyle(AppColors.warmRed)
+                            .foregroundStyle(AddWinSheet.destructiveTint)
                     } icon: {
                         // **The one that keeps its colour.** Red here is not
                         // decoration, it is the meaning: this row erases
                         // everything, and every platform marks that in red.
                         // The rule is that colour must MEAN something, not
                         // that chrome is grey.
-                        SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
+                        SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
                     }
                 }
                 .confirmationDialog(
@@ -669,10 +722,28 @@ struct SettingsView: View {
         // exception to "no tiny thin font anywhere", so this is researched
         // rather than assumed):
         //   1. They are not thin and not tiny. `Typography.sectionLabel` is
-        //      `tier(.subheadline)` at `titleWeight`: **15pt Medium**, which is
-        //      exactly the floor `TypographyTests.noSourceSetsTypeBelowTheFloor`
-        //      enforces. Settings needs no exception, because nothing here is
-        //      under it.
+        //      `tier(.subheadline)` at `titleWeight`: **15pt SEMIBOLD**, which
+        //      is the floor `TypographyTests.noSourceSetsTypeBelowTheFloor`
+        //      enforces at the app's heading weight. Settings needs no
+        //      exception, because nothing here is under it.
+        //
+        //      **This said "15pt Medium" and the number in the argument put to
+        //      the owner was wrong within hours of being written** (corrected
+        //      2026-10-01, `docs/consistency-audit.md` §2.2). The whole scale
+        //      went to Medium that morning, to answer "no tiny thin font
+        //      anywhere"; by the evening his reading of the result was "the text
+        //      reads as premium not dull a nice thicker font for headers", and
+        //      `Typography.titleWeight` became `.semibold` and the DEFAULT
+        //      argument of `tier(_:)`. So `sectionLabel` is Semibold, and so are
+        //      `screenTitle`, `headerMedium` and `headerSmall`.
+        //
+        //      **The decision stands and only the number moves**, which is the
+        //      point of correcting it rather than deleting it: the labels were
+        //      kept because they are not thin, and the measurement says they are
+        //      14.5% LESS thin than the sentence claimed. At a title's optical
+        //      size Medium's stem is 3.68pt and Semibold's 4.21. Two more
+        //      comments still carry the old number and are not this file's:
+        //      `Typography.swift` on `headerSmall` and on `sectionLabel`.
         //   2. Apple's root Settings can drop its labels because every row
         //      there is a named destination — General, Accessibility, Camera —
         //      so the row IS its own heading. These rows are switches, and
@@ -690,9 +761,6 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Settings", drawn: false)
-        .toolbar {
-            settingsToolbar
-        }
         // **The primary, on the platform's own controls, and BELOW the
         // toolbar.** See `ProfileView`, where this was measured: with the tint
         // applied above `.toolbar`, Profile's Done still rendered (10, 10, 10).
@@ -833,41 +901,39 @@ struct SettingsView: View {
 
     // MARK: - Notification Helpers
 
-    /// **Bare glyphs, like every other screen.** See
-    /// the Toolbars note in `MainAppView`: iOS 26 puts a glass capsule behind every
-    /// toolbar item, the app strips it deliberately, and a screen that misses
-    /// the treatment both looks unlike its neighbours and can render that
-    /// capsule black against the warm ground. This was one of three that had
-    /// been missed.
-    @ToolbarContentBuilder
-    private var settingsToolbar: some ToolbarContent {
-        if !isPushed {
-            if #available(iOS 26.0, *) {
-                ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
-                    .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .confirmationAction) { settingsDoneButton }
-            }
-        }
-    }
-
-    /// **It takes the tint, and it used to override it.**
-    ///
-    /// This carried `.foregroundStyle(AppColors.accentWarm)`, which is the warm
-    /// near-black. Measured on Profile, which had the identical button: the word
-    /// rendered (28, 26, 24) at 16.2:1 beside a title at (37, 37, 37) and
-    /// 14.3:1, so the bar held two words of the same black and nothing said
-    /// which one was the button. The `Form` below sets
-    /// `.tint(AppColors.inkPrimary)` so that the platform's own controls
-    /// carry the primary, and this was the one control opting out.
-    private var settingsDoneButton: some View {
-        Button {
-            HapticsEngine.lightTap()
-            dismiss()
-        } label: {
-            Text("Done").font(Typography.headerSmall)
-        }
-    }
+    // MARK: - Settings has no Done, and never had one anybody could press
+    //
+    // **`settingsToolbar`, `settingsDoneButton` and `isPushed` are deleted**
+    // (2026-10-01, `docs/consistency-audit.md` §1.4). The toolbar was behind
+    // `if !isPushed` and both call sites in the app passed `isPushed: true`
+    // (`ProfileView`'s `navigationDestination` and its `settingsLink`). So the
+    // flag had one value everywhere, which is the condition `SectionHeading`
+    // writes down about a different flag: **"A flag with one value in the whole
+    // app is a decision nobody made."** The button and the twelve-line argument
+    // above it described a control nobody could reach, and the audit counted it
+    // as one of six sheet confirm words while it was drawing none.
+    //
+    // Settings is a PUSHED page, always. Its leading item is the system's back
+    // chevron, which is also its dismiss, and `PrivacyPolicyView` one level
+    // deeper is the same shape. A trailing Done beside a back chevron would be
+    // two ways out of one page.
+    //
+    // **Two things worth keeping out of what went.**
+    //
+    // The glass rule, which still applies to anything this file ever puts in a
+    // toolbar: iOS 26 draws a glass capsule behind every toolbar item, the app
+    // strips it with `sharedBackgroundVisibility(.hidden)`, and a screen that
+    // misses the treatment both looks unlike its neighbours and can render that
+    // capsule black against the warm ground. `sheetTitle(_:drawn:)` carries it
+    // for the principal slot, which is this page's only toolbar item.
+    //
+    // And the measurement that moved every confirm word off `accentWarm`: on
+    // Profile, which had the identical button, the word rendered (28, 26, 24) at
+    // 16.2:1 beside a title at (37, 37, 37) and 14.3:1, so the bar held two
+    // words of the same black and nothing said which one was the button. That
+    // fault is not fixed by the move to ink, it is moved — see `SheetAction`,
+    // which now owns the ink, the font and the 44pt box for the five sheets that
+    // do have a confirm word.
 
     private func requestNotificationPermission() async {
         let center = UNUserNotificationCenter.current()
@@ -1000,7 +1066,9 @@ struct SettingsView: View {
 /// `star.fill` with outline `calendar` and `questionmark.circle`, once with
 /// `square.stack.3d.up` two rows above its own `.fill` twin; Profile was all
 /// outline. Profile's set is the reference. A destructive row is
-/// `AppColors.warmRed`, never the system red.
+/// `AddWinSheet.destructiveTint`, never the system red and no longer
+/// `AppColors.warmRed`, which measured 2.71:1 on this card against the 4.5 a
+/// word is held to. See the note at the Reset All Data row.
 struct SettingsIcon: View {
     let systemName: String
     /// Only a row whose colour MEANS something passes one — Reset All Data is

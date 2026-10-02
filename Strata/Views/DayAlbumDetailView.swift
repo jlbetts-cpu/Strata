@@ -89,14 +89,16 @@ struct DayAlbumDetailView: View {
                         // least one win — but `-strataOpenDay` gets here, and
                         // a screen that renders a title over nothing is a
                         // screen somebody will eventually see.
+                        // **`headerMedium` in `inkPrimary`, which is what every
+                        // other empty state in the app says.** It was
+                        // `screenSubtitle` (15) in `inkTertiary`; the whole
+                        // argument, including why the Plan sheet stays different
+                        // and the level counts both ways, is on
+                        // `PhotoCollectionView.emptyLine`, which is the other
+                        // page off this shelf and had the identical line.
                         Text("Nothing logged this day.")
-                            .font(Typography.screenSubtitle)
-                            // `inkTertiary`, not `inkQuiet`. See `header`:
-                            // `inkQuiet` measures 3.31:1 on this ground and
-                            // its own doc says it is held to 3:1 because it is
-                            // for glyphs rather than for sentences. This is the
-                            // only sentence on the page.
-                            .foregroundStyle(AppColors.inkTertiary)
+                            .font(Typography.headerMedium)
+                            .foregroundStyle(AppColors.inkPrimary)
                             .padding(.horizontal, GridConstants.horizontalPadding)
                             // 28 was a fifth value on a ladder of 8 · 12 · 16 ·
                             // 24 · 32, and it is the same gap the tower takes
@@ -167,49 +169,43 @@ struct DayAlbumDetailView: View {
             // date fits in it, SF otherwise (`DynamicScreenTitle`).
             DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-            // **The count is a readout.** The design language's §2: counts
-            // and indices are the owner's face, tabular, never abbreviated
-            // when they fit. The whole line was SF, which made the one number
-            // on this screen the only count in the app that was not his
-            // digits, sitting directly above a tower whose day numerals are.
+            // **The count is a readout, and it is `CountReadout` now** — one
+            // component where there were four copies of six lines
+            // (`docs/consistency-audit.md` §1.13). Everything it carries was
+            // measured on this page or on the one beside it:
             //
-            // `StrataFont.digits`, never `Text("\(n)")`: interpolation is a
-            // `LocalizedStringKey` and groups 1000 as "1,000", and the face
-            // has no comma.
+            // The design language's §2: counts and indices are the owner's face,
+            // tabular, never abbreviated when they fit. The whole line was SF,
+            // which made the one number on this screen the only count in the app
+            // that was not his digits, sitting directly above a tower whose day
+            // numerals are. `StrataFont.digits`, never `Text("\(n)")`, because
+            // interpolation is a `LocalizedStringKey` and groups 1000 as "1,000"
+            // and the face has no comma. The word stays SF at the subtitle size,
+            // which is the split the tower's header already makes: the count is
+            // the fact and the word is a caption for it.
             //
-            // The word stays SF at the subtitle size, which is the split the
-            // tower's header already makes: the count is the fact and the
-            // word is a caption for it. No optical inset here, unlike the
-            // tally, because at 15pt the face's mean left bearing works out
-            // near 1pt, under the size worth correcting.
-            HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
-                Text(verbatim: StrataFont.digits(logs.count))
-                    .font(StrataFont.relative(Self.countSize, to: .subheadline))
-                    .contentTransition(.numericText())
-                Text(logs.count == 1 ? "win" : "wins")
-                    .font(Typography.screenSubtitle)
-            }
-            // **`inkTertiary`, not `inkQuiet`, and it is a contrast failure
-            // rather than a preference.**
+            // **No optical inset, and there is no longer one to pass.** The
+            // reason this page never wanted it is its own — at 15pt the face's
+            // mean left bearing worked out near 1pt, under the size worth
+            // correcting, and pulling the digits left would put them off the 16pt
+            // margin every other band here starts at — and the reason nothing has
+            // it now is that `StrataFont.opticalInset` went to 0 with the drawn
+            // face on 2026-09-30. See `CountReadout`.
             //
-            // Measured off a build: the ground is rgb(249,247,244) and
-            // `inkQuiet` is black at 0.45, which composites to rgb(137,136,134)
-            // and gives **3.31:1**. Text has to clear 4.5. `inkQuiet`'s own
-            // documentation says as much, in so many words: it is "held to 3:1,
-            // not 4.5:1, and deliberately: these are UI elements and
-            // decorative glyphs rather than text somebody has to read". This
-            // line is read. It is the only thing on the page that says how big
-            // the day was.
+            // **`inkTertiary`, not `inkQuiet`** — measured off a build, the
+            // ground is rgb(249,247,244), `inkQuiet` composites to
+            // rgb(137,136,134) and gives 3.31:1 where text has to clear 4.5, and
+            // `inkTertiary` lands at rgb(112,111,110) and 4.69:1. The note that
+            // stood here ended "`PhotoCollectionView` draws its own count line
+            // the same way and has the same failure. It is not this file's to
+            // change." It was fixed there, separately, and then the component
+            // took both: that is what stops it drifting a third time.
             //
-            // `inkTertiary` is the token written for exactly this case
-            // ("Captions: a count under a card, a subtitle, a unit"): black at
-            // 0.55, rgb(112,111,110), **4.69:1**. Same voice, one step down the
-            // same scale, and now legible.
-            //
-            // `PhotoCollectionView` draws its own count line the same way and
-            // has the same failure. It is not this file's to change.
-            .foregroundStyle(AppColors.inkTertiary)
-            .accessibilityElement(children: .combine)
+            // **It rolls.** `.numericText()` was on this page and not on the
+            // place collection, drawn from the same template five lines apart.
+            // Deleting a photograph from the viewer calls `reload()` on both, so
+            // the count changes under a finger on both.
+            CountReadout.wins(logs.count)
             // **Nothing to count, so nothing counted.** On a day with no wins
             // the readout said "0 wins" and the body under it said "Nothing
             // logged this day": the same fact twice, one of them as a zero,
@@ -226,10 +222,10 @@ struct DayAlbumDetailView: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
 
-    /// The subheadline's own default size, so the digits and the word beside
-    /// them are one line of type rather than two sizes agreeing by accident.
-    /// Both scale together from `.subheadline`.
-    private static let countSize: CGFloat = 15
+    // **`countSize` is deleted.** It was 15 here and 15 in
+    // `PhotoCollectionView`, with a comment on each saying "the two have to stay
+    // the same" — which is a convention rather than a mechanism.
+    // `CountReadout` holds the one 15 now.
 
     private var title: String {
         let df = DateFormatter()

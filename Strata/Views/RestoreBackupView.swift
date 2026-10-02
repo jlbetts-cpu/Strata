@@ -392,23 +392,49 @@ struct RestoreBackupView: View {
         }
     }
 
-    /// **`accentPrimary`, and it was `accentWarm`.** (2026-10-01)
+    /// **`inkPrimary`, through the shared `sheetAction()`.**
     ///
-    /// `accentWarm` in light mode is 28,26,24, a near-black: this Cancel was
-    /// drawn in ink, so it read as a label rather than as the thing you press to
-    /// walk away from a restore. Settings and Profile both tint their whole
-    /// sheet `AppColors.accentPrimary` and `MonthReplayRow` sets its link in it,
-    /// so every other "press this word" in the app is already that blue and this
-    /// one was not. The token's own doc has the number: 4.38:1 on the light page,
+    /// **The comment that stood here was headed "`accentPrimary`, and it was
+    /// `accentWarm`", ran eight lines on why this word is blue, and the code had
+    /// drawn `inkPrimary` the whole time** (corrected 2026-10-01,
+    /// `docs/consistency-audit.md` §2.1 — the third instance of this exact fault
+    /// in three files, and `accentPrimary` is now deleted from the palette with
+    /// zero call sites). The owner retired the blue: "lets just do the basic."
+    ///
+    /// What was true in it and is kept: `accentWarm` in light mode is
+    /// (28, 26, 24), so this word was drawn at the same weight of black as the
+    /// title beside it and read as a label rather than as the thing you press to
+    /// walk away from a restore. The retired token's own measurement, kept because
+    /// it is the number anybody reopening this needs: 4.38:1 on the light page,
     /// 3.62:1 on the dark one.
+    ///
+    /// **`accentWarm` is NOT a fixed black and this comment said it was for
+    /// about an hour.** It carries a `userInterfaceStyle` branch and goes to a
+    /// warm near-white (0.98, 0.97, 0.96) in dark mode, so every piece of ink in
+    /// the app inverts together. The reason to prefer `inkPrimary` here is not
+    /// adaptivity, it is that `accentWarm`'s job is a ground and a brand
+    /// near-black rather than the ink on a control, and `inkPrimary` is the token
+    /// for ink. `SheetAction` carries the same correction.
+    ///
+    /// **The role changes with the word, and that is the one thing this control
+    /// has that the other five sheets do not**: it says "Cancel" while a restore
+    /// is possible and "Done" once it has happened, so it is a cancel action
+    /// before and a confirm action after, and the ink steps with it. That is the
+    /// step `AddWinSheet` has between its Cancel at 6.11:1 and its Add, and it is
+    /// the only signal in a monochrome bar that says which word is which.
+    ///
+    /// **And the 44pt box arrives with the modifier.** This was a bare `Text`,
+    /// so it measured the 68x36 the audit measured on four of six sheets, on the
+    /// one screen in the app whose leading word is the only way out.
     private var cancelLabel: some View {
         Button {
             HapticsEngine.lightTap()
             onClose()
         } label: {
-            Text(isFinished ? "Done" : "Cancel").font(Typography.headerSmall)
+            Text(isFinished ? "Done" : "Cancel")
+                .sheetAction(isFinished ? .confirm : .cancel)
         }
-        .foregroundStyle(AppColors.inkPrimary)
+        .buttonStyle(.pressWord)
         .disabled(isRestoring)
     }
 

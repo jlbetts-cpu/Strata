@@ -101,12 +101,30 @@ struct ProfileView: View {
         // and a section break is the loudest thing that could stop being true.
         .listSectionSpacing(GridConstants.gapPage)
         .scrollContentBackground(.hidden)
-        // **The primary, on the platform's own controls.** The owner: "make
-        // sure you are changing the primary to the blue." A `Form`'s links,
-        // its Done and its pickers all take the tint, and ink made them look
-        // like labels rather than like things to press. See
-        // `AppColors.accentPrimary` for why it is the accent's hue at a
-        // different weight rather than the accent itself.
+        // **The primary, on the platform's own controls, and it is INK.**
+        //
+        // **This paragraph said "the owner: 'make sure you are changing the
+        // primary to the blue'" and pointed at `AppColors.accentPrimary`, and
+        // both halves were dead** (corrected 2026-10-01,
+        // `docs/consistency-audit.md` §2.1). The later instruction retired the
+        // blue — "I think I prefer if the primary color was the black and white
+        // button for dark mode instead of this blue color we are going with
+        // right now lets just do the basic" — the tint on the line below has
+        // been `inkPrimary` ever since, and `accentPrimary` is deleted from the
+        // palette with zero call sites. A comment naming a colour the file does
+        // not use is how `switchOn` ended up with six call sites arguing with
+        // its own header, which is the other half of the same audit.
+        //
+        // What is still true and is the reason the tint is set at all: a
+        // `Form`'s links, its Done and its pickers all take it, and leaving
+        // them to the platform paints them the system blue, which is where
+        // every "this looks like default iOS" complaint came from.
+        //
+        // The measurement that is worth keeping off the retired token: white on
+        // `AppColors.accent` measured **2.03:1** where a 17pt word is held to
+        // 4.5, and `accentPrimary` was the 4.38:1 answer to that. Ink has the
+        // problem from neither direction — `inkPrimary` against the page is
+        // about 15:1 whichever way round the scheme is.
         .background { WarmBackground().ignoresSafeArea() }
         .sheetTitle("Profile", drawn: true)
         .toolbar { doneToolbar }
@@ -122,7 +140,7 @@ struct ProfileView: View {
         // ANDed with what arrives, so a cover above Profile still pauses it.
         .environment(\.headsAwake, coveringHeadsAwake && !(showsMaker || showsLibrary))
         .navigationDestination(isPresented: $showsSettings) {
-            SettingsView(onResetAllData: onResetAllData, isPushed: true)
+            SettingsView(onResetAllData: onResetAllData)
         }
         .task {
             vm.load(context: modelContext)
@@ -316,7 +334,14 @@ struct ProfileView: View {
             ProfileAvatar(side: Self.pictureSide)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        // `.press`, not `.plain`. `PressResponse`'s own doc is the instruction
+        // ("Use this rather than `.plain` on anything that is not already Liquid
+        // Glass") and `docs/motion-audit.md` §5.1 counted thirty-one buttons
+        // with no answer to a finger at all. This is the page's own subject and
+        // was one of them. `.press` rather than `.pressSurface`: a 96pt circle
+        // with a face in it is nearer a glyph than a card, and a scale alone is
+        // invisible on something that round.
+        .buttonStyle(.press)
         .accessibilityLabel("Change profile picture")
     }
 
@@ -400,7 +425,11 @@ struct ProfileView: View {
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // `.press`, not `.plain`: a 26pt circle inside a 44pt target is a glyph
+        // by `PressResponse`'s own reckoning, and the ring that lands on it is a
+        // state change rather than a press answer. See the note on
+        // `pictureControl`.
+        .buttonStyle(.press)
         .accessibilityLabel(Self.colourName(colour))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -885,6 +914,43 @@ struct ProfileView: View {
                 // nothing looked wrong in the source. They look wrong on the
                 // screen. The ink goes on the `Text` rather than the row, so a
                 // disabled row still greys and a destructive one still reds.
+                //
+                // **AND THE SWITCH TINTS ARE `switchTrack` NOW, AND THEY WERE
+                // `switchOn` HERE AND `inkPrimary` IN SETTINGS**
+                // (2026-10-01, `docs/consistency-audit.md` §1.3). This file had
+                // four `Toggle`s tinted `AppColors.switchOn` (#138BC2) while
+                // `SettingsView` — which this file's own header says Profile is
+                // "built as a `Form` on `WarmBackground` exactly like", so that
+                // "pushing from one to the other reads as one place" — had six
+                // tinted `inkPrimary`. You push from Profile to Settings through
+                // `settingsLink` below, and the switches changed colour on the
+                // way.
+                //
+                // `switchOn`'s own header already said this could not be
+                // happening: "**NOTHING READS THIS ANY MORE, AND THAT IS THE
+                // DECISION. 2026-10-01.** The owner: 'I think I prefer if the
+                // primary color was the black and white button for dark mode
+                // instead of this blue color we are going with right now lets
+                // just do the basic.' So the app is monochrome: every action,
+                // every switch and every link is `inkPrimary`." Five live
+                // readers against a token whose first line says it has none is a
+                // decision recorded and half-applied.
+                //
+                // **The audit's verdict was `inkPrimary`, and it is wrong in dark
+                // mode.** A switch track is a SURFACE and what it has to differ
+                // from is the WHITE KNOB sliding on it, never the page;
+                // `inkPrimary` is `white.opacity(0.92)` in dark, which composites
+                // to rgb(237) on the night ground and measures **1.17:1** against
+                // that knob. That is the `accentWarm` bug from "An ink is not a
+                // surface" to within a tenth, and `SettingsView` has been
+                // shipping it on six switches. Making Profile match would have
+                // been consistency by spreading a bug.
+                //
+                // So both screens take `AppColors.switchTrack`: one fixed warm
+                // grey, monochrome as he asked, computed to clear 3:1 against the
+                // thumb AND both grounds. The arithmetic, the window it sits in,
+                // and the one thing about it that needs his eye are all on the
+                // token.
                 Toggle(isOn: Binding(get: { heads.isProfilePicture },
                                      set: { heads.setProfilePicture($0) })) {
                     Label {
@@ -894,7 +960,7 @@ struct ProfileView: View {
                         SettingsIcon(systemName: "person.crop.circle")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.switchTrack)
 
                 // **Its look, wherever it appears.** The owner: "a way to add
                 // the filter to the profile picture head so the user can get
@@ -964,7 +1030,7 @@ struct ProfileView: View {
                         SettingsIcon(systemName: "square.stack")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.switchTrack)
 
                 Toggle(isOn: Binding(get: { heads.showsOnMap },
                                      set: { heads.setShowsOnMap($0) })) {
@@ -975,7 +1041,7 @@ struct ProfileView: View {
                         SettingsIcon(systemName: "map")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.switchTrack)
 
                 Toggle(isOn: Binding(get: { heads.showsCameraSticker },
                                      set: { heads.setShowsCameraSticker($0) })) {
@@ -986,7 +1052,7 @@ struct ProfileView: View {
                         SettingsIcon(systemName: "camera")
                     }
                 }
-                .tint(AppColors.switchOn)
+                .tint(AppColors.switchTrack)
 
                 // Not "Make It Again". Saving adds a head now and never writes
                 // over one, so a label that promised a replacement would be
@@ -998,7 +1064,22 @@ struct ProfileView: View {
                     Label {
                         Text("Add Another Head").foregroundStyle(AppColors.inkPrimary)
                     } icon: {
-                        SettingsIcon(systemName: "camera")
+                        // **`plus`, and it was `camera` fifteen points under
+                        // another `camera`** (2026-10-01,
+                        // `docs/consistency-audit.md` §1.11). "Add My Head to
+                        // Photos" directly above this row draws
+                        // `SettingsIcon(systemName: "camera")` too, so two
+                        // consecutive rows wore one glyph for two different
+                        // things, and the second one is the only row in the
+                        // section that opens a whole screen. Visible in
+                        // `/tmp/g3/after/19-head-picker.png`: the two rows under
+                        // the switches are the same camera outline.
+                        //
+                        // The camera belongs to the row above, which is about
+                        // photographs. This row is an ADD, and `plus` is already
+                        // the app's add glyph (`PlanSheet`'s own leading item).
+                        // One concept, one glyph, which is §3.6.
+                        SettingsIcon(systemName: "plus")
                     }
                 }
 
@@ -1006,17 +1087,26 @@ struct ProfileView: View {
                     confirmsDeleteHead = true
                 } label: {
                     Label {
-                        // **One red on the row, not two.** The glyph beside this
-                        // word is `AppColors.warmRed` (#E85D4A) and the word
-                        // itself was taking the destructive role's own red,
-                        // which is the system #FF3B30: two reds four points
+                        // **One red on the row, not two.** The word was taking
+                        // the destructive role's own red, the system #FF3B30,
+                        // beside a glyph in the app's: two reds four points
                         // apart on one line, and the app's palette losing to the
                         // platform's on the one row where the colour is the
                         // meaning.
+                        //
+                        // **And the app's red was `warmRed`, which measured
+                        // 2.71:1 on this card** (2026-10-02). A 17pt word is held
+                        // to 4.5:1 and it was not close, on one of the two
+                        // presses in the app that destroy work. The full table
+                        // and the measured result are on Settings' Reset All Data
+                        // row, which had the identical fault; the short version
+                        // is that `AddWinSheet.destructiveTint` is the app's own
+                        // red too, it clears 5.64:1 light and 4.74:1 dark, and
+                        // unlike `warmRed` it inverts with the scheme.
                         Text(deleteHeadLabel)
-                            .foregroundStyle(AppColors.warmRed)
+                            .foregroundStyle(AddWinSheet.destructiveTint)
                     } icon: {
-                        SettingsIcon(systemName: "trash", tint: AppColors.warmRed)
+                        SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
                     }
                 }
             }
@@ -1066,7 +1156,7 @@ struct ProfileView: View {
     private var settingsLink: some View {
         Section {
             NavigationLink {
-                SettingsView(onResetAllData: onResetAllData, isPushed: true)
+                SettingsView(onResetAllData: onResetAllData)
             } label: {
                 Label {
                     // One black down the column. See the note on Use as Profile
@@ -1082,8 +1172,15 @@ struct ProfileView: View {
 
     // MARK: - Toolbar
 
-    /// Bare text, like Settings' Done — see `SettingsView.settingsToolbar`
-    /// for why the iOS 26 capsule is stripped.
+    /// **Settings has no Done to be "like" any more**: the comment that stood
+    /// here pointed at `SettingsView.settingsToolbar` for why the iOS 26 capsule
+    /// is stripped, and that property is deleted — it was behind a flag both of
+    /// this file's own call sites set the same way, so Settings drew no confirm
+    /// word at all (`docs/consistency-audit.md` §1.4). The capsule rule it was
+    /// cited for is live and is below: iOS 26 draws a glass capsule behind every
+    /// toolbar item and the app strips it deliberately, so a screen that misses
+    /// the treatment looks unlike its neighbours and can render that capsule
+    /// black against the warm ground.
     @ToolbarContentBuilder
     private var doneToolbar: some ToolbarContent {
         if #available(iOS 26.0, *) {
@@ -1112,8 +1209,17 @@ struct ProfileView: View {
             HapticsEngine.lightTap()
             dismiss()
         } label: {
-            Text("Done").font(Typography.headerSmall)
+            // **`sheetAction()`, which is where the font, the ink and the 44pt
+            // box now live** (2026-10-01, `docs/consistency-audit.md` §1.4).
+            // This was a bare `Text` and measured **68x36** on the built sheet,
+            // the same miss `AddWinSheet` and `PlanSheet` each fixed privately
+            // with the owner's words on it, "really easy to miss click". Six
+            // sheets, two of them fixed, four of them not: see `SheetAction`,
+            // including the part this does NOT fix — Done and the title are now
+            // the same ink exactly — and what presses instead.
+            Text("Done").sheetAction()
         }
+        .buttonStyle(.pressWord)
     }
 }
 

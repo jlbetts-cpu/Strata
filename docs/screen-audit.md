@@ -321,6 +321,21 @@ measurement once already. Wins is judged by looking, at forty wins, not at two.
 The same blind spot applies anywhere the lattice is drawn, which since 2026-10-01
 includes the day album.
 
+**The camera's review is exempt from 11c.** Its biggest break is 56.3pt and it is
+`tabBarClearance` showing under the last band, not air between two content bands.
+The screen is a photograph you have just taken with a row of decisions under it,
+and the only way to put a 48pt gap inside that is to separate the picture from
+the question about it. Same class as the place collection's 116pt, recorded
+above, and the same answer: the clause is reading a safe area as a composition.
+
+**The replay at rest is exempt from 11b.** Its four gaps are 11.0, 24.3, 24.0 and
+24.0 — a span of 13.3pt, so by the clause nothing on the page groups. The reason
+is arithmetic rather than neglect: **the tower is 585pt of a 781pt page**, so
+there is nowhere to put a gap of 48 without taking it out of the thing the screen
+exists to show. A replay at rest is one object and its caption. 11b's own text
+exempts a page with fewer than three gaps for exactly this reason and this page
+has four by a hair; the spirit is the same.
+
 ---
 
 ## The inventory

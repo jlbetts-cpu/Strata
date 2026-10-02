@@ -112,16 +112,45 @@ struct PhotoCollectionView: View {
     /// subject is, and at that moment there is nothing on it to be one.
     ///
     /// `DayAlbumDetailView`'s sentence, to the line, because that page is the
-    /// other one off the same shelf and it already answered this: `bodySmall`,
-    /// `inkTertiary` (`inkQuiet` measures 3.31:1 on this ground, see `header`),
-    /// on the page margin, `gapWide` under the count. It says what is true for
-    /// all three sources this screen serves, a place, a repeated interest or a
-    /// moment, without naming which one you came from, because the title
-    /// directly above it has already said that.
+    /// other one off the same shelf: on the page margin, `gapWide` under the
+    /// count. It says what is true for all three sources this screen serves, a
+    /// place, a repeated interest or a moment, without naming which one you came
+    /// from, because the title directly above it has already said that.
+    ///
+    /// **THE TIER IS `headerMedium` IN `inkPrimary`, WHICH IS WHAT EVERY OTHER
+    /// EMPTY STATE IN THE APP SAYS** (2026-10-01,
+    /// `docs/consistency-audit.md` §3.5). It was `screenSubtitle` (15) in
+    /// `inkTertiary`, and the audit counted five empty states in three type tiers
+    /// across three inks:
+    ///
+    ///     Wins        "Tap the slot to log your first win."   headerMedium  inkPrimary
+    ///     Memories    "Your first month starts here"          headerMedium  inkPrimary
+    ///     Profile     "Your weeks will show up here."         headerMedium  inkPrimary
+    ///     this page   15 in inkTertiary
+    ///     Plan        a dashed ghost bullet + bodyLarge (17)  inkSecondary
+    ///
+    /// Three pages at one tier and these two at another, all five saying the same
+    /// kind of thing. The owner's instruction is the deciding one and it is about
+    /// exactly this: "no tiny text under or anythign like that ... I like the text
+    /// that is there to feel like a medium weight", and then "the empty state has
+    /// to look just as good". A page's one sentence, on an otherwise empty page,
+    /// is not a caption for anything — there is nothing above it for it to be
+    /// quieter than.
+    ///
+    /// **Plan stays different and is not a sixth answer**: its figure is a ghost
+    /// BULLET drawn where row one will be, so its words are a label beside an
+    /// object rather than the page's one line. That is a different job, written
+    /// down.
+    ///
+    /// The contrast goes up with it, which is check 12's floor rather than check
+    /// 9's: `inkTertiary` is rgb(112,111,110) on this page's rgb(249,247,244),
+    /// 4.69:1 and 137 levels; `inkPrimary` is rgb(37,36,37), about 15:1 and 212
+    /// levels. Neither was failing. What was failing is that the page's one
+    /// sentence was its quietest object.
     private var emptyLine: some View {
         Text("No photographs here.")
-            .font(Typography.screenSubtitle)
-            .foregroundStyle(AppColors.inkTertiary)
+            .font(Typography.headerMedium)
+            .foregroundStyle(AppColors.inkPrimary)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapWide)
     }
@@ -136,33 +165,22 @@ struct PhotoCollectionView: View {
             // letter and fits (`DynamicScreenTitle`), SF otherwise.
             DynamicScreenTitle(text: title)
                 .foregroundStyle(AppColors.inkPrimary)
-            // **The count is a readout**, line for line the way
-            // `DayAlbumDetailView` sets its own: the digits are the owner's
-            // face, tabular, and the word beside them is SF at the subtitle
-            // size (`design-system-future.md` §2). It was one interpolated
-            // string in SF, so the only number on this screen was the only
-            // count in the app that was not his digits, sitting above a grid
-            // opened from the same shelf as the day page, whose count is.
+            // **The count is a readout, and it is `CountReadout` now.** It was
+            // "line for line the way `DayAlbumDetailView` sets its own" — two
+            // copies of six lines, each with the other's name in its comment,
+            // which is what `docs/consistency-audit.md` §1.13 counted four of.
+            // One of the two had `.numericText()` and the other did not, and
+            // nothing in either file said which was right.
             //
-            // `StrataFont.digits`, never `Text("\(n)")`: interpolation is a
-            // `LocalizedStringKey` and groups 1000 as "1,000", and the face
-            // has no comma. No optical inset, for the day page's reason: at
-            // 15pt the face's mean left bearing works out near 1pt.
-            HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
-                Text(verbatim: StrataFont.digits(photoCount))
-                    .font(StrataFont.relative(Self.countSize, to: .subheadline))
-                Text(photoCount == 1 ? "photo" : "photos")
-                    .font(Typography.screenSubtitle)
-            }
-            // **`inkTertiary`, not `inkQuiet`, and it is a contrast failure
-            // rather than a preference** (2026-10-01).
-            //
-            // `DayAlbumDetailView` measured this off a build on its own copy of
-            // the line and fixed it there, leaving the note: "`PhotoCollectionView`
-            // draws its own count line the same way and has the same failure.
-            // It is not this file's to change." It is this file's. The numbers
-            // it left are the numbers here, because it is the same line, the
-            // same size and the same ground:
+            // What the component carries, and the numbers are this page's own
+            // because it is the same line on the same ground: the digits are the
+            // owner's face, tabular (§2 — it was one interpolated string in SF,
+            // so the only number on this screen was the only count in the app
+            // that was not his digits, sitting above a grid opened from the same
+            // shelf as the day page, whose count is); the word is SF at the
+            // subtitle size; no optical inset, which was this page's own call at
+            // 15pt and is now nobody's, because `StrataFont.opticalInset` went to
+            // 0 with the drawn face; and the ink is
             //
             //     ground      rgb(249, 247, 244)
             //     inkQuiet    black 0.45 -> rgb(137, 136, 134)   3.31:1   FAIL
@@ -171,16 +189,16 @@ struct PhotoCollectionView: View {
             // `inkQuiet`'s own documentation draws the line this crossed: it is
             // "held to 3:1, not 4.5:1, and deliberately: these are UI elements
             // and decorative glyphs rather than text somebody has to read", and
-            // it names a count and a subtitle as the thing it is never for.
-            // This line is read: on a place it is the only statement of how
-            // much is here, and on a place whose name has not arrived yet it is
-            // the ONLY line on the screen that is not a photograph.
+            // it names a count and a subtitle as the thing it is never for. This
+            // line is read: on a place it is the only statement of how much is
+            // here, and on a place whose name has not arrived yet it is the ONLY
+            // line on the screen that is not a photograph.
             //
-            // One step down the same scale, not a different voice, and the day
-            // page beside it now reads at the same weight rather than a step
-            // darker than the screen it opens next to.
-            .foregroundStyle(AppColors.inkTertiary)
-            .accessibilityElement(children: .combine)
+            // **It rolls now and it did not.** `onDelete` calls `load()`, so
+            // deleting a photograph from the viewer changes this number while you
+            // are looking at it — which is exactly the case the day page's
+            // `.numericText()` was for, five lines of near-identical source away.
+            CountReadout.photos(photoCount)
             // **Hidden when the title is already the count.** A place whose
             // name has not arrived is titled "12 here" (see `load()`), and
             // under it this line said "12 photos": one number twice, ten
@@ -196,10 +214,10 @@ struct PhotoCollectionView: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
     }
 
-    /// The subheadline's own default size, so the digits and the word beside
-    /// them are one line of type rather than two sizes agreeing by accident.
-    /// `DayAlbumDetailView`'s number, and the two have to stay the same.
-    private static let countSize: CGFloat = 15
+    // **`countSize` is deleted**, and its own comment was the argument for
+    // deleting it: "`DayAlbumDetailView`'s number, and the two have to stay the
+    // same." Two constants that have to stay the same are one constant.
+    // `CountReadout` holds it.
 
     private var photoCount: Int { sections.reduce(0) { $0 + $1.photos.count } }
 

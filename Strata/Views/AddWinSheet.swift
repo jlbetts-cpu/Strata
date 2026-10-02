@@ -528,35 +528,39 @@ struct AddWinSheet: View {
         }
     }
 
-    // **One toolbar-action style for every sheet**: `headerSmall`, as
-    // Profile, Settings, Plan and the plan line's Done already are. These were
-    // the system body size, so "Add" stood visibly bigger than Profile's
-    // "Done". Confirm wears the accent; Cancel stays the quieter ink, as the
-    // head maker's Retake does beside its Save.
+    // **One toolbar-action style for every sheet, and it is a TYPE now**
+    // (2026-10-01, `docs/consistency-audit.md` §1.4). `SheetActionLabel` holds
+    // the tier, the ink and the 44pt box that eight sheets answered six ways.
+    // The sentence that used to stand here was already the right rule — "These
+    // were the system body size, so 'Add' stood visibly bigger than Profile's
+    // Done. Confirm wears the accent; Cancel stays the quieter ink" — and it was
+    // written in this file and nowhere else, which is why three of the six
+    // sheets still had neither the tier nor the box.
+    //
+    // The ink step survives the move and is the whole point of it: `.cancel` is
+    // `inkSecondary` and `.confirm` is `inkPrimary`, so this sheet still says
+    // which of its two words is the button. The accent went, because the app is
+    // monochrome ink and `accentWarm` was the only sheet ink that was not the
+    // ink token.
     private var cancelButton: some View {
         Button {
             HapticsEngine.lightTap()
             dismiss()
         } label: {
-            // **44, measured.** Bare `Text` in a toolbar measured 68 by 36 off
-            // the accessibility tree. `PlanSheet` carries the same fix with
-            // the owner's own words on it, "really easy to miss click", and
-            // this sheet never got it.
-            Text("Cancel").font(Typography.headerSmall)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            Text("Cancel").sheetAction(.cancel)
         }
-        .foregroundStyle(AppColors.inkSecondary)
+        .buttonStyle(.pressWord)
     }
 
+    /// `.disabled` is the whole of the dim: `SheetActionLabel` reads
+    /// `\.isEnabled` out of the environment, so "cannot save yet" is one
+    /// modifier rather than a ternary on a colour at every call site.
     private var confirmButton: some View {
         Button { Task { await save() } } label: {
-            Text(isEditing ? "Save" : "Add").font(Typography.headerSmall)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            Text(isEditing ? "Save" : "Add").sheetAction()
         }
-            .disabled(!canSave)
-            .foregroundStyle(canSave ? AppColors.accentWarm : AppColors.inkQuiet)
+        .buttonStyle(.pressWord)
+        .disabled(!canSave)
     }
 
     private var photoWell: some View {
@@ -738,18 +742,14 @@ struct AddWinSheet: View {
             // of it.
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        // The app's press for a SURFACE: it gives and it does not dim, because
+        // dimming a photograph by 28% reads as the picture dulling rather than
+        // the card being pressed. See `PressResponse.pressSurface`; this well is
+        // the biggest pressable surface in the app and had no answer at all.
+        .buttonStyle(.pressSurface)
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
     }
 
-    /// Colour, as circles.
-    ///
-    /// These were briefly blocks, on the rule that every surface you can act
-    /// on is one. The owner preferred the circles (2026-09-09) and that
-    /// settles it: a swatch is not a block you are placing, it is a property
-    /// of the block you are describing, and a round chip reads as a property
-    /// in a way a small square does not. The blocks are still what the SIZE
-    /// control and the photo well are made of.
     /// Whether to ring the swatch the win is on.
     ///
     /// Always, where the colour can be seen: no photograph, so the ring marks
@@ -760,130 +760,32 @@ struct AddWinSheet: View {
         photo == nil || categoryChosen || (editing.map { $0.category != .unlabeled } ?? false)
     }
 
+    /// Colour, as circles.
+    ///
+    /// **This is `ColourSwatchRow` now** (2026-10-01,
+    /// `docs/consistency-audit.md` §1.1). It was forty lines of row — the
+    /// spacing, the leading correction off the ring, the 44pt box, the ring
+    /// itself, the glyph, the haptic, the animation and the accessibility
+    /// container — and `PlanItemDetailSheet` had its own forty, which differed
+    /// on four axes. The row is one type, called twice, and every argument that
+    /// used to stand here is on it.
+    ///
+    /// What is left here is the one thing that is genuinely this sheet's:
+    /// `showsSelection`, because only this sheet can be showing a photograph
+    /// over the colour it is choosing.
     private var categoryControl: some View {
-        // 4pt, the grid's own gutter. The circles are 34 inside 44pt targets,
-        // so there is already 10pt of air between them before any spacing at
-        // all; the 6 this was is simply not a rung.
-        // **PULLED BACK ONTO THE MARGIN.**
-        //
-        // Measured off the built sheet: the title's text, the photo well and
-        // the COLOUR label all start at 16pt, and the first swatch started at
-        // 21. A 34pt circle centred in its 44pt tap frame leaves five points of
-        // air on its leading edge, so the row LOOKED five points indented while
-        // every number in the layout said it was not.
-        //
-        // The frame keeps its 44 — the target is not negotiable — and the row
-        // is shifted by exactly the air. `GridConstants.tallyOpticalInset` is
-        // the same correction for the same reason on the tower's count, and
-        // CLAUDE.md records why: a box aligned to the grid still LOOKS indented
-        // next to something whose ink goes to its own edge.
-        HStack(spacing: GridConstants.spacing) {
-            ForEach(HabitCategory.selectable, id: \.self) { cat in
-                let isSelected = showsSelection && category == cat
-                Button {
-                    HapticsEngine.tick()
-                    categoryChosen = true
-                    withAnimation(GridConstants.motionSmooth) { category = cat }
-                } label: {
-                    ZStack {
-                        // The same object a block is: lit from inside, with
-                        // the same rim. See `ColourSwatch`.
-                        ColourSwatch(colour: cat.style.baseColor, side: Self.swatchSide)
-                        if let icon = cat.iconName {
-                            Image(systemName: icon)
-                                .iconSize(13, relativeTo: .footnote, weight: .medium)
-                                .foregroundStyle(.white)
-                        }
-                        if isSelected {
-                            Circle()
-                                // **`inkPrimary`, not `.primary.opacity(0.75)`.**
-                                // CLAUDE.md's rule is that this is not a colour,
-                                // it is a colour in light mode: 75% black on a
-                                // near-white page and 75% white on a near-black
-                                // one, which are not the same weight. The token
-                                // is the adaptive form of exactly this ink, and
-                                // Profile's own swatch ring now wears it too.
-                                // **IT HUGS THE SWATCH, AND IT IS NOT BLACK.**
-                                //
-                                // A full-strength `inkPrimary` ring at 42
-                                // around a 34pt circle is a hard black outline
-                                // floating four points off the thing it
-                                // selects — the only pure ink ring in the app,
-                                // on a row of pastels, which made the chosen
-                                // colour look stickered rather than chosen.
-                                //
-                                // 38 sits on the swatch's own edge with two
-                                // points of air, and 0.55 ink is still
-                                // unmistakable against every colour in the
-                                // palette while reading as a mark on the row
-                                // rather than a hole cut in it. Selection has
-                                // to be obvious; it does not have to shout.
-                                .strokeBorder(AppColors.inkPrimary.opacity(0.55),
-                                              lineWidth: GridConstants.strokeMedium)
-                                .frame(width: Self.selectionRingSide,
-                                       height: Self.selectionRingSide)
-                        }
-                    }
-                    .frame(width: Self.swatchTarget, height: Self.swatchTarget)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(cat.rawValue)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-            Spacer(minLength: 0)
-        }
-        // The air inside the leading swatch's tap frame, taken back out. See
-        // the note above.
-        .padding(.leading, -Self.swatchInset)
-        // **The word `COLOUR` is gone from the page and kept for VoiceOver.**
-        //
-        // `.contain` rather than `.combine`: the six discs stay individually
-        // focusable and individually selectable — combining them would make
-        // the row one element and take the choice away from the people this
-        // is for. What the container adds is the sentence the deleted label
-        // used to read out, announced on entering the row.
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Colour")
+        ColourSwatchRow(category: $category,
+                        showsSelection: showsSelection,
+                        onPick: { _ in categoryChosen = true })
     }
 
-    /// The selection ring's diameter: on the swatch's own edge, two points
-    /// outside a 34pt circle.
-    static let selectionRingSide: CGFloat = 38
-
-    /// The HIG's minimum target, measured not declared, and the box every
-    /// swatch is drawn inside. It was the literal 44 in the row and again
-    /// inside `swatchInset`, which is two copies of one number.
-    ///
-    /// Not `private`: `SheetRoomTests` works out, from this and the ring, how
-    /// much empty box a measured gap above the colour row carries, and
-    /// therefore whether the tight end of the sheet's ladder still clears
-    /// check 11b's 17pt ceiling.
-    static let swatchTarget: CGFloat = 44
-
-    /// A swatch's own artwork, unringed. It was the literal 34 at the one call
-    /// site; `PlanItemDetailSheet` names the same number for the same reason
-    /// and says it was typed three times in one expression there.
-    ///
-    /// Not `private`: it is the WORST case for the air a measured gap above
-    /// this row carries, since a swatch with no selection ring on it is 5pt
-    /// narrower than its box on each side rather than 3.
-    static let swatchSide: CGFloat = 34
-
-    /// Half the difference between the 44pt target and the WIDEST thing drawn
-    /// inside it, which is the 38pt ring and not the 34pt circle.
-    ///
-    /// Measured off the built sheet with a colour chosen: the ring's leading
-    /// edge came out at 14.0 while the name, both labels, the picker and the
-    /// well all start at 16. The pass that pulled this row onto the margin
-    /// measured the chip and left the mark two points outside it, so the row
-    /// was on the margin exactly until you used it.
-    ///
-    /// The price is that the six circles sit at 18.0 instead of 16.0. That is
-    /// the better trade: two points on a row of round shapes is invisible,
-    /// because a circle's optical edge is inside its box anyway, and a mark
-    /// that appears and shoves the row off the margin is a thing that moves.
-    static let swatchInset: CGFloat = (swatchTarget - selectionRingSide) / 2
+    /// The selection ring's diameter, the swatch's artwork and the 44pt box all
+    /// live on `ColourSwatch` now. These forward, because `SheetRoomTests` reads
+    /// them through this type to work out how much empty box a measured gap
+    /// above the colour row carries.
+    static let selectionRingSide: CGFloat = ColourSwatch.ringSide
+    static let swatchTarget: CGFloat = ColourSwatch.target
+    static let swatchSide: CGFloat = ColourSwatch.side
 
     /// Size, named.
     ///

@@ -726,43 +726,94 @@ struct MemoriesMapView: View {
             // The owner, on the shipped build: "the map looks odd when it's
             // waiting for a win, like it's expecting a button that's not
             // there to be there." It was: the button was dimmed to zero with
-            // `.opacity`, which hides the ink and keeps the 46pt of height
+            // `.opacity`, which hid the ink and kept the height (46pt then, 50
+            // now that it is `PrimaryCapsule`)
             // and its top padding, so the panel had a button shaped hole in
             // it. Opacity is for something that is still there; this one is
             // not, so it leaves the layout.
             if location.canAsk || denied {
-                Button {
-                    HapticsEngine.lightTap()
+                // **`PrimaryCapsule`, and this was the fourth private copy of
+                // it** (2026-10-01, `docs/consistency-audit.md` §1.6).
+                //
+                // The note that stood here said this button "takes the app's own
+                // primary pill: `slotInk` filled with the page's ground for a
+                // label, which is what `OnboardingView.pillFill` draws on a light
+                // ground and what makes this the same button as the one on the
+                // onboarding page that asks the same question." **There is no
+                // `pillFill` in the tree** — onboarding draws `PrimaryCapsule`,
+                // and so do restore and store-unavailable. So the precedent the
+                // comment cited is the component this was not using, and the
+                // sweep that extracted the type took three copies and missed this
+                // one because it was in a file that was off limits that day.
+                //
+                // What it actually differed by, every line of it:
+                //
+                //     fill     slotInk rgb(64,61,57)   vs  inkPrimary
+                //     height   46                      vs  50
+                //     width    content + 22 each side  vs  full
+                //     label    headerSmall (15)        vs  headerMedium (17)
+                //     rim      none                    vs  BlockRim.gradient
+                //     press    .plain, so no answer    vs  .pressWord
+                //     haptic   at the call site        vs  inside the type
+                //
+                // The fill is the one that matters: `PrimaryCapsule`'s own header
+                // is "**It is ink, flat, and the owner asked for that by name**",
+                // and `slotInk` is the tower's warm block ground. Both invert, so
+                // nothing was broken — the app simply said "this is the thing to
+                // press" in two near-blacks at two heights depending on which
+                // screen you were standing on, which is the exact sentence that
+                // type was written to end.
+                //
+                // **Full width inside the panel, which is a change worth
+                // looking at.** The panel's content box is the page less its
+                // margins less `gapSection` either side — about 306pt at 402 —
+                // so the pill is now a 306x50 bar rather than a 160x46 pill
+                // floating in the middle of a panel. That is what the primary
+                // action looks like on the other three screens that have one, and
+                // it is the thing to check by eye rather than by number.
+                //
+                // The reason the fill is here at all, kept because it is a real
+                // finding: it was white type with a `contentShape` and no fill, a
+                // button-shaped hit area with nothing to press. On a map, of all
+                // grounds, invisible chrome is the one thing that cannot work.
+                //
+                PrimaryCapsule(title: denied ? "Open Settings" : "Turn On Places") {
                     if denied {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
                     } else {
-                    location.requestAccess()
+                        location.requestAccess()
                     }
-                } label: {
-                    // It was white type with a `contentShape` and no fill, a
-                    // button-shaped hit area with nothing to press. On a map, of
-                    // all grounds, invisible chrome is the one thing that cannot
-                    // work. It keeps its fill and takes the app's own primary
-                    // pill: `slotInk` filled with the page's ground for a label,
-                    // which is what `OnboardingView.pillFill` draws on a light
-                    // ground and what makes this the same button as the one on
-                    // the onboarding page that asks the same question. Both
-                    // tokens invert, so the pill follows the panel it is on.
-                    Text(denied ? "Open Settings" : "Turn On Places")
-                    .font(Typography.headerSmall)
-                    .foregroundStyle(WarmBackground.top)
-                    .padding(.horizontal, 22)
-                    .frame(height: 46)
-                    .background(Capsule().fill(AppColors.slotInk))
-                    .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
                 .padding(.top, GridConstants.gapTight)
             }
         }
         .frame(maxWidth: .infinity)
+        // **CENTRED, AND IT IS THE ONLY CENTRED COMPOSITION IN THE APP, SO IT IS
+        // WRITTEN DOWN AS AN EXEMPTION RATHER THAN LEFT TO BE FOUND AGAIN.**
+        // (2026-10-01, `docs/consistency-audit.md` §3.5 and check 11d.)
+        //
+        // `MemoriesView` removed exactly this from the Memories empty state and
+        // left the reason on it: "Centred copy on a left aligned page is two
+        // alignment systems on one screen, and the same fault the empty tower
+        // had." The audit's §3.5 then counted five empty states in two alignments
+        // and noted that this one "has an excuse the others do not, because it is
+        // a panel over a map rather than a page, but nothing says so".
+        //
+        // So: **this is not a page.** A page has a margin, which is the thing
+        // 11d measures, and every band on it starts at 16 — the map's own page
+        // does, title, picker and calendar alike. A panel is an object floating
+        // in the middle of a full-bleed photograph, with no margin of its own to
+        // align to and nothing above or below it to align WITH. Its left edge is
+        // `horizontalPadding` from the screen and its content is `gapSection`
+        // inside that, so left-aligning the words would put them 48pt from the
+        // screen edge and 16 from their own panel's: two margins, visible,
+        // against a centred panel. That is a worse failure of the same clause
+        // than centring is.
+        //
+        // The fix would be to make the panel full-bleed and left-aligned, which
+        // is the drawer this app removed on 2026-09-30.
         .padding(GridConstants.gapSection)
         // `1 / displayScale` is the hairline the design language asks for
         // (§6): one device pixel, in ink at low alpha, never a grey line.

@@ -53,7 +53,10 @@ struct GlassIconButton: View {
     /// The HIG's minimum target, and the one every one of these is.
     static let defaultSide: CGFloat = 44
     var size: CGFloat = GlassIconButton.defaultSide
-    var glyphSize: CGFloat = 17
+    /// `GridConstants.iconToolbar`, which is the same 17 this was typed as a
+    /// literal — here and again on `GlassIconLabel`, which is two copies of one
+    /// number on one ladder (`docs/consistency-audit.md` §1.15).
+    var glyphSize: CGFloat = GridConstants.iconToolbar
     /// True when this stands on the app's own page rather than over a
     /// photograph or a viewfinder. See `GlassRecipe.onPage`.
     var onPage: Bool = false
@@ -84,12 +87,20 @@ struct GlassIconLabel: View {
     let systemName: String
     var tint: Color = .primary
     var size: CGFloat = GlassIconButton.defaultSide
-    var glyphSize: CGFloat = 17
+    var glyphSize: CGFloat = GridConstants.iconToolbar
     var onPage: Bool = false
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: glyphSize, weight: .medium))
+            // **`iconSize`, not `.font(.system(size:))`** (2026-10-01,
+            // `docs/consistency-audit.md` §1.15, which named this the worst of
+            // the five fixed sizes left in the app because it is the SHARED
+            // component: every `GlassIconButton` and `GlassIconLabel` in the app
+            // had an icon that did not grow with the user's text size, while the
+            // label beside it did. `IconStyle`'s own first line is the argument.
+            // The glass disc behind it keeps its own 44pt frame, so a larger
+            // glyph grows inside a fixed control rather than moving the layout.
+            .iconSize(glyphSize, relativeTo: .body, weight: .medium)
             .foregroundStyle(tint)
             // Layout first, glass after: the effect takes its shape from
             // the final frame, so applying it before the frame gives it

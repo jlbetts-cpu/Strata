@@ -238,20 +238,54 @@ struct OnboardingView: View {
     ///
     /// `UIImage(named:)` rather than `Image(_:)` because `Image` of a missing
     /// asset draws a warning placeholder; this has to draw nothing.
+    ///
+    /// # It drew nothing and it still took the room, and that was the bug
+    ///
+    /// The owner, looking at page 1 (2026-10-02): "fix like the text being so
+    /// far down for no reason like the titles it dont make sense the white space
+    /// is an aid but make it make sense."
+    ///
+    /// Measured on a capture at 402x874: the usable band starts at y59 and the
+    /// title's ink starts at **y217**, and `page-room.py` reports the biggest
+    /// break on the whole page as **158.0pt, at the very top, above
+    /// everything** — on a page that is 48.9% empty, the largest single run of
+    /// emptiness was the band before anything began. `docs/space.md` P7 is "a
+    /// page ends; it does not stop"; this was its mirror, a page that did not
+    /// START.
+    ///
+    /// **`ls Strata/Assets.xcassets | grep OnboardingMark` returns nothing.**
+    /// None of the six drawings exist. So the slot was holding 56pt, plus the
+    /// band's own `gapItem` above and below it, for art nobody has drawn, and
+    /// on page 1 there is no back button either, which makes that band pure
+    /// reservation. The paragraph above says holding the height whether or not
+    /// the asset exists "is the whole point: the day the drawings land, nothing
+    /// below them moves" — and the price of that promise is a hole at the top
+    /// of every page until the day it is kept.
+    ///
+    /// **So the room is held only when there is something to put in it**, which
+    /// keeps the promise where it can be kept and stops charging for it where it
+    /// cannot. Today none of the six exist, so all six pages are uniform without
+    /// it; when all six exist they are uniform with it. The one wobbly state is
+    /// the few days while he is drawing them, when some pages reserve and some
+    /// do not — and that is a better problem than six pages shipping with a hole
+    /// at the top.
+    ///
+    /// **The `back` row is deliberately NOT collapsed the same way.** Its room
+    /// is held on page 0 so the rule under it does not move between pages, and
+    /// that one is holding space for a control that genuinely exists on five of
+    /// the six. A reservation for a thing that exists is spacing; a reservation
+    /// for a thing that does not is a hole.
     @ViewBuilder
     private var mark: some View {
-        Color.clear
-            .frame(width: Self.markSide, height: Self.markSide)
-            .overlay {
-                if let art = UIImage(named: "OnboardingMark\(step)") {
-                    Image(uiImage: art)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(AppColors.inkPrimary)
-                }
-            }
-            .accessibilityHidden(true)
+        if let art = UIImage(named: "OnboardingMark\(step)") {
+            Image(uiImage: art)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(AppColors.inkPrimary)
+                .frame(width: Self.markSide, height: Self.markSide)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Big enough to read as a drawing rather than an icon, small enough that
@@ -883,25 +917,34 @@ struct OnboardingView: View {
     /// 50s that happen to agree. It read a private `pillHeight` until the
     /// primary became `PrimaryCapsule`; that constant was the duplicate it was
     /// written to prevent.
+    /// **`PrimaryCapsule(outlined:)`, and this was the second copy of the
+    /// outlined capsule on the same page as the type that owns it** (2026-10-01,
+    /// `docs/consistency-audit.md` §1.7). Four lines differed and the corner was
+    /// already written down as a bug on the fix: `PrimaryCapsule.waiting`'s own
+    /// comment reads "`Capsule(style: .continuous)`, where the walkthrough's
+    /// waiting pill was a plain `Capsule()`. Its own filled state was already
+    /// `.continuous`, so the two states had different corner profiles on the one
+    /// page that shows both, which is this file's whole subject in miniature." The
+    /// fix went into the extracted type; this button kept the plain `Capsule()`,
+    /// forty lines above the call to the type that fixed it.
+    ///
+    /// **It is a THIRD state, not `waiting` with the reason left off**, because
+    /// this is a real action: the type's waiting state deliberately builds no
+    /// `Button`, and borrowing it would have made the one offer on this page
+    /// unpressable. See `init(outlined:action:)`.
+    ///
+    /// The ring goes from `inkQuiet` to `inkTertiary` with the move, which is the
+    /// one visible change: `inkQuiet` at 35% of a different black sampled 180 on
+    /// a 243 ground, **1.89:1**, the ring nobody could see that this button's
+    /// previous pass was written to fix; the token swap took it to **3.3:1**
+    /// against a 3.0 floor; and `inkTertiary`, which is what the type's other
+    /// outlined state draws, measures **4.66:1** — sampled off this build at
+    /// `/tmp/c2/light/o6-onboarding-6.png`, where the ring renders rgb(109) on
+    /// the page's rgb(243) and the label rgb(36).
     private var connectButton: some View {
-        Button {
+        PrimaryCapsule(outlined: "Connect on LinkedIn") {
             if let url = URL(string: Self.linkedIn) { openURL(url) }
-        } label: {
-            Text("Connect on LinkedIn")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .frame(maxWidth: .infinity)
-                .frame(height: PrimaryCapsule.height)
-                .background(Capsule().strokeBorder(AppColors.inkQuiet,
-                                                   lineWidth: GridConstants.strokeThin))
-                .contentShape(Capsule())
         }
-        // `PressResponse.swift`: "Use this rather than `.plain` on anything that
-        // is not already Liquid Glass." Every button on these six pages was
-        // `.plain`, which draws the label and nothing else, so the one shared
-        // component written to answer "every button with a clean animation" had
-        // no call sites in the app at all.
-        .buttonStyle(.pressWord)
     }
 
     // MARK: - Words
@@ -1288,7 +1331,26 @@ struct OnboardingView: View {
             washOpacity: photo == nil ? GridConstants.blockScrimOpacity : 0.06
         ) {
             ZStack {
-                category.style.baseColor
+                // **`EtherealFill.fill`, not the flat `baseColor`** (2026-10-01,
+                // `docs/consistency-audit.md` §1.16). Eight of the ten
+                // `BlockSurface` call sites in the app hand it
+                // `EtherealFill.fill(...)`; two handed it a flat colour, and this
+                // one is the FIRST block anybody ever sees.
+                //
+                // The owner asked for the inside light by name: "I want the blocks
+                // to have this kinda glass transparency as well in them, for the
+                // inner colour instead of just flat." `EtherealFill` is `coreBoost`
+                // 0.035 over `rimSaturation` 0.94 with `rimLift` 0.03, so on a
+                // 34pt swatch the difference is small and on this page's cell,
+                // which is the biggest block drawn anywhere outside the tower, it
+                // is not.
+                //
+                // **Only under a colour, never under a photograph.** The branch
+                // below draws a picture over this fill at `scaledToFill`, so on a
+                // photo block the fill is not seen at all and the lift would be
+                // paid for nothing; on a colour block it is the whole of what you
+                // see. `BlockFace` makes the same split for the same reason.
+                EtherealFill.fill(category.style.baseColor)
                 if let photo {
                     Image(photo)
                         .resizable()

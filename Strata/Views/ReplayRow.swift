@@ -63,7 +63,12 @@ struct ReplayRow: View {
     let title: String
     let onPlay: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
+    /// **The hairline is a device pixel, so the row has to know the scale.** It
+    /// replaced `@Environment(\.colorScheme)`, which this view read and never
+    /// used — the poster arrives already drawn in the page's scheme
+    /// (`ReplayShelfModel` caches per scheme), so there was nothing here for it
+    /// to decide.
+    @Environment(\.displayScale) private var displayScale
 
     /// **A WIDE CROP, NOT THE WHOLE POSTER SHRUNK.**
     ///
@@ -77,6 +82,12 @@ struct ReplayRow: View {
     /// is the only thing a thumbnail of a tower has to do.
     private static let height: CGFloat = 84
     private var width: CGFloat { 116 }
+
+    /// The play control's disc. `iconToolbar` (17) of ink inside it, which is the
+    /// relationship the note at the call site measures: SF draws a
+    /// `.circle.fill`'s inner mark at about 0.56 of the point size, and
+    /// 17 / 0.56 = 30.4.
+    private static let playDisc: CGFloat = GridConstants.iconToolbar / 0.56
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: width) }
 
     var body: some View {
@@ -98,8 +109,34 @@ struct ReplayRow: View {
                     // far: a week's name is a date range and must not wrap.
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
+                // **`iconSize`, not `.font(.system(size:))`, and the 30 is a
+                // DISC rather than a glyph** (2026-10-01,
+                // `docs/consistency-audit.md` §1.15). `IconStyle`'s own doc is
+                // the rule: ".font(.system(size:)) is a fixed size, it does not
+                // respond to the user's text size at all, so icons stayed put
+                // while the labels beside them grew", and brand.md requires
+                // Dynamic Type across every screen (WCAG 1.4.4). Thirteen call
+                // sites in the app use `.iconSize`; this was one of three that
+                // did not and is not geometry-solved.
+                //
+                // **Why 30 and not a rung of the icon ladder.** The ladder (12,
+                // 13, 14, 17 toolbar) sizes a GLYPH that sits in a box somebody
+                // else drew. `play.circle.fill` brings its own box: the disc IS
+                // the control's face, and what has to be legible is the triangle
+                // inside it. At `.circle.fill` SF draws the inner mark at about
+                // 0.56 of the symbol's point size, so 30 puts roughly 17 of ink
+                // on the page, which IS `GridConstants.iconToolbar` — the same
+                // glyph size as every `GlassIconButton` in the app, wearing a
+                // filled disc instead of glass. The 30 is therefore a derived
+                // number rather than a free one, and it is written as that.
+                //
+                // `relativeTo: .headline`, because the word beside it is
+                // `headerMedium`, which is `tier(.headline)`: the glyph and its
+                // label then grow at the same rate, which is the pairing
+                // `IconStyle` asks for ("Pair the token with the text style it
+                // sits beside").
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 30))
+                    .iconSize(Self.playDisc, relativeTo: .headline)
                     .foregroundStyle(AppColors.inkPrimary)
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
@@ -132,6 +169,15 @@ struct ReplayRow: View {
         // The same ink hairline the shelf's posters wear: a drawing of a tower
         // on the page's own ground has no edge anywhere the tower does not
         // reach one. See `MemoriesShelf`.
-        .overlay { shape.strokeBorder(GridConstants.fillHairline, lineWidth: 0.5) }
+        //
+        // **`1 / displayScale`, and this comment said "the same" while drawing a
+        // flat 0.5** (2026-10-01, `docs/consistency-audit.md` §1.14).
+        // `MemoriesShelf` strokes its album cards at `1 / displayScale`, which on
+        // a 3x phone is 0.333pt, so "the same hairline" was **50% heavier** than
+        // the thing it named, on two cards one band apart on this page.
+        // `RestoreBackupView` states the rule: "One hairline, one token:
+        // `1 / displayScale`, not a flat 0.5, which is 50% too heavy on a 3x
+        // phone."
+        .overlay { shape.strokeBorder(GridConstants.fillHairline, lineWidth: 1 / displayScale) }
     }
 }

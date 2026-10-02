@@ -21,6 +21,21 @@ import SwiftUI
 /// the controls on a photograph, where there is no background to shift and
 /// the glyph is the whole of the button.
 ///
+/// **AND FOR A WHILE THAT PARAGRAPH WAS THE ONLY PLACE ANY OF IT HAPPENED**
+/// (fixed 2026-10-01, `docs/consistency-audit.md` §1.8). The style was written,
+/// the controls were named by name in this comment, and `.press` was given
+/// **zero call sites**: the app counted 25 `.buttonStyle(.plain)` against 8
+/// press styles, and all four controls above were still `.plain`. Every
+/// non-glass `.plain` in `Strata/Views` is gone now, and
+/// `ConsistencyTests.everyPlainButtonIsGlass` is the gate — a `.plain` label is
+/// only correct when it is already Liquid Glass, which answers a press itself,
+/// or when it is the shutter, which hand-rolls one.
+///
+/// **The size chips are `.pressWord`, not `.press`.** They sit in the glyph row
+/// and they are words, and the rule is about what a control is made of rather
+/// than where it stands: `.press` on the glyphs, `.pressWord` on the words,
+/// `.pressSurface` on the cards.
+///
 /// **The numbers are the shutter's**, so the screen presses as one thing: in
 /// on `shutterPress`, back on `shutterRelease`. A press that leaves on an
 /// ease and returns on a spring is the shape of something being let go of,

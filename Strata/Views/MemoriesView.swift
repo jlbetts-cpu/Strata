@@ -200,17 +200,24 @@ struct MemoriesView: View {
                         // of thing: something the app made out of wins you
                         // already logged, opened by pressing a picture of it.
                         // See `MemoriesShelf`.
-                        MemoriesShelf(model: replays, now: replays.now,
-                                      albums: vm.carousel,
+                        // **Two albums and two closures, where it used to take
+                        // seven arguments.** `model`, `now`, `excluding`,
+                        // `transitionNamespace` and the trailing `onPlay` were
+                        // all filled in here and read by nothing: they fed
+                        // `MemoriesShelf.card`, which lost its caller when the
+                        // replays became `ReplayRow`s and has been deleted
+                        // (`docs/consistency-audit.md` §1.13). A call site that
+                        // hands a view a namespace and a play handler says the
+                        // view plays things and opens transitions out of them,
+                        // and this one draws neither.
+                        MemoriesShelf(albums: vm.carousel,
                                       onOpenAlbum: { route in
                                           switch route {
                                           case .day(let key):     path.append(.day(key))
                                           case .curated(let key): path.append(.curated(key))
                                           case .moment(let id):   path.append(.moment(id))
                                           }
-                                      },
-                                      excluding: monthReplay,
-                                      transitionNamespace: photoTransition) { playing = $0 }
+                                      })
                             .id("MemoriesShelf")
                         // Edge to edge. Every other thing on this page is
                         // inset to the page margin; the camera roll is the one
@@ -779,10 +786,25 @@ struct MemoriesView: View {
         // The ghosts drew a packed tower, and this page is a calendar. The
         // empty state was still advertising the design it had replaced.
         //
-        // The dash is a vocabulary this app does not have. The tower's slot
-        // is a solid stroke and the calendar's empty days are solid wells;
-        // the only other dashed thing in the app was the add sheet's photo
-        // well, which has just stopped being one for the same reason.
+        // The dash was the wrong vocabulary HERE, and the sentence that stood
+        // here said the app does not have one at all, which is false
+        // (corrected 2026-10-01, `docs/consistency-audit.md` §2.3 — the same
+        // claim is live in `AddWinSheet`, whose version is "The dash exists
+        // nowhere else in this app").
+        //
+        // Three dashed outlines ship: the replay's loading slot, the empty
+        // plan's ghost bullet, and the head outline over the viewfinder.
+        // `ReplayView` states the rule the other two should have cited: "the
+        // real slot is a thing you press and a continuous hairline is a boundary
+        // you can aim at, while this is a thing you wait for, and a dash is how
+        // this app says not yet." That is a coherent vocabulary, and the next
+        // pass that reads one of these sentences would delete a dash carrying a
+        // meaning.
+        //
+        // **What was wrong here is that a month is not a thing you wait for.**
+        // The tower's slot is a solid stroke and the calendar's empty days are
+        // solid wells, and the real calendar sits directly under this copy, so
+        // the dash was drawing a promise of something that is already on screen.
         //
         // And it was centred on a page whose title, picker and calendar all
         // start at 16. Centred copy on a left aligned page is two alignment
@@ -805,6 +827,39 @@ struct MemoriesView: View {
         //
         // What is left is one medium-weight line on the page's own margin, which
         // is what he asked the app's text to be.
+        // **CHECK 11c FAILS HERE AND THE FIX WAS REFUSED, SO IT IS WRITTEN DOWN**
+        // (2026-10-02). Measured on `/tmp/c2/light/m0-memories-none.png` and
+        // `m1-memories-one.png` at 402x874:
+        //
+        //     empty     78.7% of rows empty, biggest break 281pt at y510-791
+        //     one win   74.9% of rows empty, biggest break 325pt at y466-791
+        //
+        // y791 is the tab bar. So on both states the page's largest run of air
+        // falls AFTER its last band of content, with nothing but the app's own
+        // chrome below it, and 11c says "the air is between things, not after
+        // them. A tab bar is not the second band."
+        //
+        // **The obvious fix is to move this line BELOW the calendar**, which
+        // would put the break between two pieces of content and turn the clause
+        // green. It is refused, for the reason the Plan sheet's invitation was
+        // put back on row one the same week: a figure moved to satisfy a
+        // measurement is "a picture of a row instead of the row", and **the one
+        // that measured best was the one that looked worst**. This sentence is
+        // the page's opening statement; it belongs where you start reading,
+        // above the thing it is about.
+        //
+        // **And it cannot be fixed by adding something**, which is the other
+        // route: everything that would sit under the calendar — the replay row,
+        // the collections shelf, the camera roll — is deliberately not drawn
+        // when there is nothing finished ("no heading over a gap"). Drawing a
+        // placeholder for them is the dashed-ghost empty state this screen
+        // already deleted.
+        //
+        // So Memories grades **9/10 at none and at one win**, failing 11c, and
+        // 10/10 from the first finished week onward (`m3`, biggest break 71.3pt,
+        // between the calendar and the collections shelf). That is the honest
+        // shape of it: this clause is about a page with content on it, and the
+        // first week is when this page has any.
         Text("Your first month starts here")
             .font(Typography.headerMedium)
             .foregroundStyle(AppColors.inkPrimary)

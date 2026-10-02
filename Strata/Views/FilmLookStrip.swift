@@ -67,6 +67,34 @@ struct FilmLookStrip: View {
                 .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
                                             style: .continuous))
                 .overlay {
+                    // **This is the app's selection idiom, in the ink a fixed
+                    // dark ground takes** (declared 2026-10-01,
+                    // `docs/consistency-audit.md` §3.2, which counted ten answers
+                    // to "this is selected" and three scale steps for one idea).
+                    //
+                    // The idiom the app has settled on is: **a ring on the chosen
+                    // shape's own edge, and nothing moves.** `ColourSwatch` draws
+                    // it at `inkPrimary` 0.55, `HeadPickerRow` and
+                    // `HeadLookPicker` at the same, and all three dropped a scale
+                    // step to get there — this file is the one that measured why.
+                    //
+                    // Two things here are NOT a fourth answer and are worth
+                    // saying out loud, because the next sweep will count them:
+                    //
+                    // - The ink is `onDark*` rather than `inkPrimary` because
+                    //   this strip lives on the camera's ground, which is dark
+                    //   whatever the phone is set to. CLAUDE.md's rule is that an
+                    //   adaptive ink on a fixed ground is the "an ink is not a
+                    //   surface" fault; the `onDark` family is the whole answer to
+                    //   it and the camera, the review and the viewfinder are the
+                    //   screens it is for.
+                    // - The UNCHOSEN tile keeps a 1pt hairline, which the colour
+                    //   swatches do not. That is a boundary, not a selection: each
+                    //   tile is a photograph and the next one along is a
+                    //   photograph of the same scene, so without an edge the four
+                    //   of them read as one picture. Selection is still the step
+                    //   from it to the 2pt strong rim, which is the same "ring on
+                    //   the edge" the swatches draw against nothing.
                     RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: Self.side),
                                      style: .continuous)
                         .strokeBorder(isChosen ? AppColors.onDarkStrong : AppColors.onDarkFaint,
@@ -96,7 +124,10 @@ struct FilmLookStrip: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // A tile with a photograph on it is a SURFACE, so it gives without
+        // dimming: dimming a picture by 28% reads as the picture dulling rather
+        // than the tile being pressed. See `PressResponse.pressSurface`.
+        .buttonStyle(.pressSurface)
         .accessibilityLabel(look.kind.describedAs)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
     }

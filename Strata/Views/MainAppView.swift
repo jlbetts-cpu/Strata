@@ -663,10 +663,20 @@ struct MainAppView: View {
             // promise this bar was not keeping — one of its three glyphs could
             // not say "here" at all, and the onboarding mock-up, which IS a
             // caller of the shared function, drew a filled one.
+            //
+            // **AND THEN ALL THREE RENDERED FILLED ANYWAY.** Wiring the function
+            // up was necessary and not sufficient: SwiftUI's `Tab` applies
+            // `.fill` over whatever glyph it is handed, so `square.stack` and
+            // `square.stack.fill` arrived at the same picture and the branch was
+            // dead a second time, in a second way. `.symbolVariant(.none)` is
+            // what stops the platform overriding the name. Measured before it:
+            // the Wins glyph was 3,778 dark pixels selected against 3,740
+            // unselected, a 1.0% difference, which is two names for one drawing.
             Tab(value: StrataTab.tower) {
                 towerTabRoot
             } label: {
                 Image(systemName: StrataTab.tower.icon(selected: selectedTab == .tower))
+                    .symbolVariant(.none)
                     .accessibilityLabel("Wins")
             }
             // No badge. It counted blocks queued to drop, which is an
@@ -691,12 +701,14 @@ struct MainAppView: View {
                 cameraTab
             } label: {
                 Image(systemName: StrataTab.camera.icon(selected: selectedTab == .camera))
+                    .symbolVariant(.none)
                     .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
                 Image(systemName: StrataTab.memories.icon(selected: selectedTab == .memories))
+                    .symbolVariant(.none)
                     .accessibilityLabel("Memories")
             }
         }

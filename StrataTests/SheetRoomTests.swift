@@ -65,7 +65,15 @@ struct SheetRoomTests {
         // that is the 17.0 that sits exactly on the clause's line.
         let ringedAir = (AddWinSheet.swatchTarget - AddWinSheet.selectionRingSide) / 2
         let bareAir = (AddWinSheet.swatchTarget - AddWinSheet.swatchSide) / 2
-        #expect(ringedAir == AddWinSheet.swatchInset)
+        // `ColourSwatch.inset`, and it was `AddWinSheet.swatchInset`. The
+        // swatch became a shared component and took its three sizes with it;
+        // the sheet keeps aliases for them and the inset was not one. **This
+        // one line held the whole test target uncompilable for over an hour**,
+        // which stops every suite in the repo rather than one — repaired here
+        // by another worker rather than left, since a gate that cannot build is
+        // a gate nobody can run. The arithmetic is unchanged and the constant is
+        // the same number in its new home.
+        #expect(ringedAir == ColourSwatch.inset)
         #expect(GridConstants.gapItem + ringedAir <= 17)
         #expect(GridConstants.gapItem + bareAir <= 17)
     }

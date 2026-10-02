@@ -1,46 +1,48 @@
 import SwiftUI
 
-/// The Replays section in Memories.
+/// **The one shelf on the Memories page: the collections, in a row.**
 ///
-/// Months side by side as posters, so the row is a set of towers you can
-/// compare by eye. Weeks under them, smaller. Nothing is drawn when there is
-/// nothing finished: no heading over a gap.
+/// **The header that stood here described the replay posters, and they left this
+/// file in October** (rewritten 2026-10-01, with the dead card they belonged to;
+/// see the MARK at the bottom for what went and where the parts of it live now).
+/// It opened "The Replays section in Memories" and ran four paragraphs on fitting
+/// every poster in a row to the TALLEST tower, on a name set in the owner's face
+/// over an uppercase caption, and on why a poster wears no rim. None of that is
+/// on screen: `ReplayRow` offers the replays as full-width rows under the
+/// calendar, and this draws `AlbumCard`.
 ///
-/// **One scale per row.** Each poster is the finished tower alone, and every
-/// poster in a row is drawn at the scale that fits the row's TALLEST tower,
-/// on a shared base. Fitted one by one, a month of 86 wins and one of 68
-/// stood exactly the same height, which is the one comparison the row exists
-/// to make.
+/// What is left is the row, and the two decisions in it are both the owner's.
 ///
-/// **Set like the albums under it**, so it reads as a shelf this page always
-/// had: the same heading, the same `gapItem` step between cards, a name at the
-/// 17 rung over a small uppercase caption, and the corner ladder the album
-/// cover beside it takes off its own side. No rim, no hairline and no shadow
-/// on the poster: the camera roll draws its pictures bare, the album cover's
-/// rim is a block's, which a poster is not, and a picture lying in a slot is
-/// not standing on anything. `docs/design-system-future.md` section 6 spends
-/// elevation on a block, a card you can pick up and the drawer; this is a
-/// picture you press, so the slot under it does the separating.
+/// **ONE SHELF, NOT TWO.** Replays and albums were two bands of cards, one
+/// directly under the other, at what became the same card width — and his read
+/// of the page was that it was still four stacked lists. They are the same KIND
+/// of thing: something the app made out of wins you already logged, that you open
+/// by pressing a picture of it. A replay plays and an album opens, which is a
+/// difference of one tap rather than of category. Then the replays became rows,
+/// because a shelf says "here are many, pick one" and there is exactly one
+/// September; so what is left in the row is the albums, which is the only route
+/// in the app to a moment or a repeated interest, and that is what earns it the
+/// space.
 ///
-/// **The name and the count are the app's own; the words are not.** A card has
-/// to answer what period this is and how much is in it (section 7), and those
-/// two answers are the app talking about itself, which is what the owner's
-/// face is for: the name is drawn when it covers the string and fits, the
-/// count is his digits, and everything that reads as language stays SF
-/// Rounded (section 2).
+/// **AND THE HEADING IS GONE.** `docs/copy-audit.md` cut 2. It read
+/// "Collections" over a row of cards that each draw `album.title` at
+/// `Typography.headerMedium` — "Gym session", "A year ago today" — with a count
+/// under that. On a page that already carries a title, a month picker, a replay
+/// row and a photo grid, it was a fifth label introducing the one band that
+/// introduces itself.
+///
+/// **The WORD went and the AIR stayed, and that is the whole move.**
+/// `SectionHeading` was carrying `gapSection * 2` above it, which is `gapPage` —
+/// the one unambiguous break on this page and the reason `docs/space.md` calls
+/// Memories the best-distributed screen in the app (17% of its emptiness in one
+/// run, both ends of the ladder present). Delete the heading naively and that
+/// break goes with it and the shelf lands a `gapTight` under the calendar. So the
+/// break moved onto the row itself. Subtraction here is one band fewer at the
+/// same rhythm, not a tighter page.
+///
+/// The `.id` moved with it: `-strataScrollMemories replays` scrolls to
+/// `"MemoriesReplays"`, and that id has to still be on something drawn.
 struct MemoriesShelf: View {
-    let model: ReplayShelfModel
-    /// The `now` the shelf's periods were chosen against, so a name is worded
-    /// against the same moment (`ReplayShelfModel.now`).
-    let now: Date
-    /// **The one the page is already offering above the shelf**, so the shelf
-    /// does not offer it again.
-    ///
-    /// `MonthReplayRow` puts the chosen month's replay directly under the
-    /// calendar, which is the whole point of the redesign — the page's subject
-    /// is the month you picked. Without this the shelf's first card is that
-    /// same month, so the screen says "September, 46 wins, play" twice in one
-    /// scroll, which is exactly the duplication the row was added to remove.
     /// **The albums, in the same row as the replays** (2026-10-01).
     ///
     /// They were two shelves, one directly under the other, at what became the
@@ -52,94 +54,47 @@ struct MemoriesShelf: View {
     ///
     /// One shelf, one heading, one scroll. Replays first because they expire in
     /// a way albums do not: a week's replay is only interesting for a while.
-    var albums: [Album] = []
-    var onOpenAlbum: (AlbumRoute) -> Void = { _ in }
-    var excluding: Replay?
-    /// Where the replay grows from, the way a photograph opens out of its
-    /// thumbnail.
-    /// See the note at the call site.
+    let albums: [Album]
+    let onOpenAlbum: (AlbumRoute) -> Void
+
+    /// The card's width. Not `ReplayCard.posterWidth` (132), which was the size a
+    /// replay poster had to be to show a whole tower: an album card shows one
+    /// photograph and its name, and at 132 three of them were the loudest thing
+    /// on a page whose subject is the month above them. 108 puts three and a bit
+    /// on screen, which also says the row scrolls without a chevron telling you
+    /// so.
     static let albumWidth: CGFloat = 108
 
-    var transitionNamespace: Namespace.ID?
-    let onPlay: (Replay) -> Void
-
-    /// Posters are drawn in the page's scheme and cached per scheme.
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.displayScale) private var displayScale
-
-    /// **THE REPLAYS CAME OUT OF THIS SHELF AND IT IS NOT A SHELF OF "MORE"
-    /// ANY MORE. 2026-10-01.**
+    /// **Why the replays are not in here, kept because it is the finding rather
+    /// than the change.**
     ///
-    /// The owner: "I dont see what the point of the more is." He is right, and
-    /// the reason is two faults that compounded.
+    /// The owner: "I dont see what the point of the more is." Two faults
+    /// compounded. It DUPLICATED the month picker: the row led with every
+    /// finished month and week as a poster, and the page already has a picker
+    /// above it whose whole job is choosing a month, plus that month's own replay
+    /// in a full width row under it, so a person who wanted September had three
+    /// routes to it on one screen and the shelf was the slowest and least
+    /// labelled of the three. And the duplication pushed the UNIQUE content off
+    /// the screen: the albums came after the replays in the same row, so on a
+    /// phone they sat past the right edge — three tower posters that look alike at
+    /// 132pt, and the one thing in the row that is not reachable any other way
+    /// was the thing you could not see.
     ///
-    /// **It duplicated the month picker.** The row led with every finished
-    /// month and week as a poster, and the page already has a picker above it
-    /// whose whole job is choosing a month, plus that month's own replay in a
-    /// full width row under it. So a person who wanted September had three
-    /// routes to it on one screen, and the shelf was the slowest and the least
-    /// labelled of the three.
-    ///
-    /// **And the duplication pushed the unique content off the screen.** The
-    /// albums came AFTER the replays in the same row, so on a phone they sat
-    /// past the right edge: the shelf showed three tower posters that look
-    /// alike at 132pt, and the one thing in it that is not reachable any other
-    /// way was the thing you could not see. That was recorded as an open
-    /// question in the audit and it turned out to be the whole answer.
-    ///
-    /// So the replays go, the albums stay and come first, and the heading says
-    /// what they are. The route to a month is the picker. The route to a
-    /// month's replay is the row under the picker. The route to a place is the
-    /// map. This row is the only route to a moment or a repeated interest,
-    /// which is what earns it the space.
-    /// **AND THE HEADING IS GONE TOO. 2026-10-01**, `docs/copy-audit.md` cut 2.
-    ///
-    /// It read "Collections" over a row of cards that each draw `album.title` at
-    /// `Typography.headerMedium` — "Gym session", "A year ago today" — with a
-    /// count under that. The heading's own doc comment said "the heading says
-    /// what they are", and the cards say what they are. On a page that already
-    /// carries a title, a month picker, a replay row and a photo grid, it was a
-    /// fifth label introducing the one band that introduces itself.
-    ///
-    /// **The WORD goes and the AIR stays, and that is the whole move.**
-    /// `SectionHeading` was carrying `gapSection * 2` above it, which is
-    /// `gapPage` — the one unambiguous break on this page and the reason
-    /// `docs/space.md` calls Memories the best-distributed screen in the app
-    /// (17% of its emptiness in one run, both ends of the ladder present). Delete
-    /// the heading naively and that break goes with it, and the shelf lands a
-    /// `gapTight` under the calendar. So the break moves onto the row itself.
-    /// Subtraction here is one band fewer at the same rhythm, not a tighter page.
-    ///
-    /// The `.id` moves onto the row with it: `-strataScrollMemories replays`
-    /// scrolls to `"MemoriesReplays"`, and that id has to still be on something
-    /// drawn. It was on the heading.
+    /// The route to a month is the picker. The route to a month's replay is the
+    /// row under it. The route to a place is the map. This row is the rest.
     var body: some View {
         if !albums.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: GridConstants.gapLabel) {
-                    // **ONE ROW, NOT TWO.**
+                    // **ONE ROW, AND IT WAS THREE.** Months ran at 132pt,
+                    // weeks at 96 on a second row under them, and the albums
+                    // carousel at a third size under that: three horizontal
+                    // strips of cards, none of them siblings. That is most of
+                    // what the owner means by the page needing to be remade
+                    // rather than tweaked — the page had no rhythm because
+                    // nothing on it was the same size as anything else.
                     //
-                    // Months ran at 132pt and weeks at 96 on a second row under
-                    // them, which put two shelves of the same kind of thing at
-                    // two sizes back to back — and then the albums carousel at a
-                    // third size directly under that. Three horizontal strips of
-                    // cards, none of them siblings. That is most of what the
-                    // owner means by the page needing to be remade rather than
-                    // tweaked: the page had no rhythm because nothing on it was
-                    // the same size as anything else.
-                    //
-                    // A month replay and a week replay are the same object with
-                    // a different span, and the card already says which by its
-                    // name underneath. Newest first, whatever the span, so the
-                    // row is in the order things happened rather than sorted by
-                    // a property nobody is looking for.
-                    // **Not `ReplayCard.posterWidth`.** 132 was the size a
-                    // replay poster had to be to show a whole tower. An album
-                    // card shows one photograph and its name, and at 132 three
-                    // of them were the loudest thing on a page whose subject
-                    // is the month above them. 108 puts three and a bit on
-                    // screen, which also says the row scrolls without a
-                    // chevron telling you so.
+                    // The width, and why it is 108, is on `albumWidth`.
                     row(width: Self.albumWidth)
                         .id("MemoriesReplays")
                 }
@@ -183,178 +138,57 @@ struct MemoriesShelf: View {
         .scrollTargetBehavior(.viewAligned)
     }
 
-    private func card(_ replay: Replay, width: CGFloat) -> some View {
-        let height = width * ReplayCard.size.height / ReplayCard.size.width
-        let name = Self.name(of: replay.period, now: now)
-        // **The block ladder at this card's size, not the flat `radiusField`.**
-        // `AlbumCoverView` takes `blockCornerRadius(forCell:)` off its own
-        // side, so a flat 12 here put two picture cards of the same size class
-        // on one page wearing different corners. Section 3 asks a screen's
-        // grid of things for the same corner radius for its size class, and
-        // derived off the width it is the same radius at 132 and at 96 in
-        // proportion rather than in points.
-        let radius = GridConstants.blockCornerRadius(forCell: width)
-        return VStack(alignment: .leading, spacing: 0) {
-            poster(replay, width: width, height: height, radius: radius)
-            periodName(name)
-                .foregroundStyle(AppColors.inkPrimary)
-                .padding(.top, GridConstants.gapTight)
-            countLine(replay.count)
-                .padding(.top, 2)
-        }
-        .frame(width: width, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-
-    /// The picture: the slot it lands in, and the poster once it is drawn.
-    private func poster(_ replay: Replay, width: CGFloat, height: CGFloat, radius: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return ZStack {
-            // The slot the poster lands in, as an album cover has one.
-            //
-            // **`quietFill`, not `warmBlack` at 4%.** This is the app's own
-            // token for an empty cell and it adapts; a 4% warm black over a
-            // near-black page is nothing, so on a dark shelf a poster that had
-            // not been drawn yet left a hole rather than a slot. Same fault
-            // `AppColors.slotInk` was made to fix.
-            shape.fill(AppColors.quietFill)
-            if let image = model.cards[ReplayShelfModel.key(replay, scheme: colorScheme)] {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            }
-        }
-        .frame(width: width, height: height)
-        .clipShape(shape)
-        // **AN EDGE, SO A CARD IS A CARD.**
-        //
-        // The owner, 2026-09-30: "the replay boxes area isn't even clear, it
-        // just looks like floating blocks."
-        //
-        // He is describing what a poster IS: a drawing of a tower on the page's
-        // own ground. Clipped to a rounded rectangle and set on a page of the
-        // same colour, the rectangle has no edge anywhere the tower does not
-        // reach it — so what you see is the blocks, loose, with no card around
-        // them. The `quietFill` slot underneath only shows while the poster is
-        // still being drawn.
-        //
-        // A hairline settles it, and it is INK rather than the white rim every
-        // block wears: a white edge needs something darker to be light against,
-        // and this card is white on white. `fillHairline` is the app's own
-        // token for exactly this, already the edge on a profile photograph.
-        .overlay {
-            shape.strokeBorder(GridConstants.fillHairline, lineWidth: 1 / displayScale)
-        }
-        // **Nothing fades in when the poster arrives.** It used to cross-fade
-        // on `gentleReveal` as each render landed, which is a shelf animating
-        // because it appeared: section 5 keeps motion for what a person did.
-        // A poster is drawn in a few milliseconds and the row is usually
-        // complete before it is on screen, so the fade was a wait in front of
-        // a picture that was already there.
-    }
-
-    /// The period's name: the owner's face when it can be set whole and it
-    /// fits, SF Rounded when it cannot.
-    ///
-    /// **The two checks `DynamicScreenTitle` makes**, at a card's size rather
-    /// than a screen title's. Coverage, because a missing glyph falls back one
-    /// character at a time and patches the word: a week's "9/7-9/13" fails it
-    /// on its own, since `/` is still a stand-in glyph
-    /// (`StrataFont.placeholders`). And width, because the face runs about 19%
-    /// wider than SF, so "September 2025" on a 96pt week card is the fallback's
-    /// job.
-    ///
-    /// 17 relative to `.headline` is the drawn rung a sheet's title already
-    /// uses; a card rung would be a sixth size. The drawn name never shrinks
-    /// to fit, it gives way to SF: below about 17 the owner's D reads as O
-    /// (`StrataFont`), so `minimumScaleFactor` belongs to the fallback only.
-    @ViewBuilder
-    private func periodName(_ name: String) -> some View {
-        if StrataFont.covers(name) {
-            ViewThatFits(in: .horizontal) {
-                nameLine {
-                    Text(verbatim: name)
-                        .font(Typography.sheetTitleDrawn)
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                nameLine { systemName(name) }
-            }
-        } else {
-            nameLine { systemName(name) }
-        }
-    }
-
-    /// **The line is as tall as the name at full size**, whatever the name
-    /// shrank to. A long name scales down to fit a week's card, and a shrunk
-    /// line is a shorter line, so its count sat higher than its neighbours'. A
-    /// hidden full-size line sets the height and the name sits on its
-    /// baseline.
-    ///
-    /// **Inside each branch, not around the `ViewThatFits`.** A baseline has
-    /// to be reported by whatever sits in the stack, and a layout container
-    /// only carries its content's baselines if it says so (`WidthReveal` in
-    /// `ReplayFrame` has to implement `explicitAlignment` for exactly this).
-    /// Both branches carry the same hidden line, so they are the same height
-    /// whichever one fits, and the card's caption does not move.
-    ///
-    /// The drawn face has SF Pro Rounded's line metrics scaled to its own em
-    /// (`StrataFont`), so the hidden SF line and a drawn name share a
-    /// baseline rather than needing one of their own.
-    private func nameLine<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        ZStack(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
-            Text(verbatim: "Ag").hidden().font(Typography.headerMedium)
-            content()
-        }
-    }
-
-    private func systemName(_ name: String) -> some View {
-        Text(verbatim: name)
-            .font(Typography.headerMedium)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-    }
-
-    /// How much is in this period: the number, then what it counts.
-    ///
-    /// **The number is a readout and the word is a label.** It was one string
-    /// in `sectionLabel`, so the one fact on the card ("31 WINS") set its
-    /// number in the heading face. Section 2: counts are the owner's digits,
-    /// tabular, and anything that reads as language is SF Rounded.
-    ///
-    /// `StrataFont.digits`, never `Text("\(count)")`: that interpolation is a
-    /// `LocalizedStringKey` and formats with the locale's grouping, so 1000
-    /// would arrive as "1,000" and the face has no comma.
-    private func countLine(_ count: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
-            Text(verbatim: StrataFont.digits(count))
-                .font(StrataFont.relative(Self.countSize, to: .subheadline))
-                // Optical, as the replay's own count is: tabular centring puts
-                // real air to the left of every digit, so the box sits a
-                // little left of the margin to stand the two lines of the
-                // caption on one edge.
-                .padding(.leading, -StrataFont.opticalInset * Self.countSize)
-                // **Lower case, like the row above the shelf says it.**
-                //
-                // "46 WINS" under a card and "46 wins" in `MonthReplayRow` is
-                // the same fact set two ways on one screen, and the shouted one
-                // is the one nobody asked for. Small caps are a LABEL's voice —
-                // they belong over a form group, which is where
-                // `FormSectionLabel` still uses them. A caption under a picture
-                // is a sentence fragment, and the owner's instruction covers
-                // it: "no unnecessary greyscale elements, fairly minimal."
-            Text(count == 1 ? "win" : "wins")
-                .font(Typography.screenSubtitle)
-        }
-        .foregroundStyle(AppColors.inkTertiary)
-        .lineLimit(1)
-    }
-
-    /// The caption rung, 15: the app's label tier (`Typography.headerSmall` /
-    /// `screenSubtitle` / `sectionLabel`, all one size since 2026-10-01), so
-    /// the digits and the word beside them are one line and not two sizes.
-    /// It was 13 and moved with everything else off that rung.
-    private static let countSize: CGFloat = 15
+    // MARK: - The replay card is deleted, and it took five properties with it
+    //
+    // **About 170 lines, with no caller** (2026-10-01,
+    // `docs/consistency-audit.md` §1.13). `card(_:width:)` drew a replay poster
+    // with a name and a count under it, and `body` has called `row(width:)` —
+    // which draws `AlbumCard` — since the replays came out of this shelf and
+    // moved to `ReplayRow`. Nothing reached `card`, so nothing reached `poster`,
+    // `periodName`, `nameLine`, `systemName`, `countLine` or `countSize` either,
+    // and five of the type's seven properties existed only to feed them:
+    // `model`, `now`, `excluding`, `transitionNamespace` and `onPlay`, all of
+    // which `MemoriesView` was still filling in at the call site, plus the
+    // `colorScheme` and `displayScale` environment reads.
+    //
+    // **`SectionHeading` cited `MemoriesShelf.countLine` as one of the app's two
+    // live count readouts and that citation was stale when it was written.** It
+    // was checked before this was deleted, which is the thing CLAUDE.md's water
+    // entry asks for: a dangling doc comment for a deleted function reads exactly
+    // like a feature you cannot find.
+    //
+    // **What was worth keeping, and where it went.**
+    //
+    // The count readout is `CountReadout` now, which is this card's own shape —
+    // the owner's tabular digits, the unit in SF at the label tier, lower case,
+    // `inkTertiary` — with the optical inset as the one parameter, because the
+    // inset was the only thing left separating the two live rungs once the
+    // caption's 13 went to 15. `AlbumCard` right above draws it.
+    //
+    // The optical argument, which `CountReadout` carries: tabular centring puts
+    // real air to the left of every digit, so a caption's number sits a little
+    // left of the margin to stand the two lines of the caption on one edge.
+    //
+    // The lower-case decision, which the owner's reading settled: "'46 WINS'
+    // under a card and '46 wins' in `MonthReplayRow` is the same fact set two
+    // ways on one screen, and the shouted one is the one nobody asked for."
+    // Small caps are a LABEL's voice and belong over a form group, which is
+    // where `FormSectionLabel` still uses them.
+    //
+    // The two Swift lessons in the drawn name, kept because the next card that
+    // sets a period in the owner's face will need both. `DynamicScreenTitle`
+    // makes two checks and a card has to make them at its own size: COVERAGE,
+    // because a missing glyph falls back one character at a time and patches the
+    // word, so a week's "9/7-9/13" fails on its own since `/` is a placeholder;
+    // and WIDTH, because the face runs about 19% wider than SF. And the hidden
+    // full-size line that set the row's height had to sit INSIDE each
+    // `ViewThatFits` branch rather than around it, because a layout container
+    // only carries its content's baselines if it says so — the same reason
+    // `WidthReveal` in `ReplayFrame` implements `explicitAlignment`.
+    //
+    // `name(of:)` and `accessibilityLabel(_:now:)` below are statics and both
+    // have live callers (`MemoriesView.replayRows`, `ReplayShelfModelTests`), so
+    // they stay.
 
     /// "Your week, 7 to 13 September, 31 wins": the range in words, since
     /// VoiceOver reads "9/7-9/13" as numbers and slashes.

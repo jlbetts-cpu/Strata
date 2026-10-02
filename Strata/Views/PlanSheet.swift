@@ -161,33 +161,34 @@ struct PlanSheet: View {
         }
     }
 
+    /// **`SheetActionLabel` carries both of these now** (2026-10-01,
+    /// `docs/consistency-audit.md` §1.4). The 44pt box this sheet earned —
+    /// "audited from the accessibility tree: Done came out 68x36 and the plus
+    /// 35x36, both under Apple's minimum, and this is the screen the owner had
+    /// already called 'really easy to miss click'" — is in the shared type, which
+    /// is what stops the next sheet going without it. The ink moved with it, from
+    /// `accentWarm` to `inkPrimary`: see `SheetAction.swift` for why, and for the
+    /// part of §1.4 that is wrong about `accentWarm`.
     private var doneButton: some View {
         Button {
             HapticsEngine.lightTap()
             tidy()
             dismiss()
         } label: {
-            // **44pt of target, whatever the glyph measures.** Audited from
-            // the accessibility tree: Done came out 68x36 and the plus 35x36,
-            // both under Apple's minimum — and this is the screen the owner
-            // had already called "really easy to miss click". A toolbar button
-            // is sized by its label unless it is told otherwise.
-            Text("Done")
-                .font(Typography.headerSmall)
-                .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
-                .contentShape(Rectangle())
+            Text("Done").sheetAction()
         }
-        .foregroundStyle(AppColors.accentWarm)
+        .buttonStyle(.pressWord)
     }
 
+    /// The ＋ is a `.confirm` too, and that is deliberate: it is what this sheet
+    /// is FOR, and it is in the slot a sheet with two words gives to Cancel. The
+    /// audit's §3.4 table is the record of how confusing that slot has been; the
+    /// ink says which of the two kinds of thing is in it.
     private var addButton: some View {
         Button { addLine() } label: {
-            Image(systemName: "plus")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                .foregroundStyle(AppColors.accentWarm)
-                .frame(width: Self.tapTarget, height: Self.tapTarget)
-                .contentShape(Rectangle())
+            Image(systemName: "plus").sheetAction(.confirm, as: .glyph)
         }
+        .buttonStyle(.press)
         .accessibilityLabel("Add a line")
     }
 
@@ -493,7 +494,10 @@ struct PlanSheet: View {
                     .frame(width: Self.tapTarget, height: Self.tapTarget)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            // The app's press. `PressResponse.press` had no call sites at all
+            // and this is a bare-glyph control on a page with no background to
+            // shift, which is the class its doc argues for.
+            .buttonStyle(.press)
             // The bullet has no text in it, so it has no baseline of its own to
             // align on. This puts one where the glyph's own middle is: measured
             // from the box's bottom, not derived, because where a 17pt line's
@@ -554,7 +558,7 @@ struct PlanSheet: View {
                         .frame(width: Self.tapTarget, height: Self.tapTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Options for \(item.text)")
                 .transition(.opacity)
             }

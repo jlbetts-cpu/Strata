@@ -314,7 +314,16 @@ struct MonthCalendarCell: View {
             } label: {
                 filled(block)
             }
-            .buttonStyle(.plain)
+            // **`.pressSurface`, not `.plain`** (2026-10-01,
+            // `docs/consistency-audit.md` §1.8). A calendar cell is a block with a
+            // photograph on it: a surface, so it gives by `tapScaleY` and does not
+            // dim, which is the rule `pressSurface` carries ("dimming a photograph
+            // by 28% reads as the picture dulling rather than the card being
+            // pressed"). The photo grid two bands down and the replay row above it
+            // both take this; this cell was the third thing on the Memories tab
+            // with no answer to a finger. The month's slideshow keeps running
+            // under it, because the press is a transform and not a redraw.
+            .buttonStyle(.pressSurface)
             .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")")
         } else {
             empty
@@ -446,8 +455,59 @@ struct MonthCalendarCell: View {
                 // stepping back together rather than a rim that holds still
                 // while the surface under it moves. `0.75 * 0.533` is the 0.4
                 // this shipped at, to three places.
-                .opacity(0.75 * (isFuture ? Self.futureStep(filled: filled, full: 0.533) : 1))
+                //
+                // **AND IT IS A TENTH OF THAT IN DARK MODE, BECAUSE A WHITE RIM
+                // IS NOT A SCHEME-NEUTRAL THING** (2026-10-02). See
+                // `emptyRimScale(in:)` for the measurement.
+                .opacity(Self.emptyRimScale(in: colorScheme)
+                         * 0.75 * (isFuture ? Self.futureStep(filled: filled, full: 0.533) : 1))
             }
+    }
+
+    /// **The empty cell's rim, which was TEN TIMES as loud on the night ground
+    /// as on the light page** (2026-10-02).
+    ///
+    /// `BlockRim.gradient` is made of WHITE, in both schemes, because that is
+    /// what a block's rim is: the thing that says a coloured plane is lit from
+    /// above. On an empty cell there is no coloured plane under it, only the
+    /// page — and a white line on a near-white page is nearly nothing while a
+    /// white line on a near-black one is a drawn edge. The fill does not have
+    /// this problem, because `slotInk` inverts.
+    ///
+    /// **Measured on one calendar row in both schemes**, sampled every 2pt
+    /// across it (`/tmp/c2/light/m3-memories-full.png` against the dark capture
+    /// of the same screen):
+    ///
+    ///                 gutter   cell fill   rim      fill step   rim step
+    ///     light        244        239      242        5           3
+    ///     dark          27         33       63        6          30
+    ///
+    /// The fill is matched to within a level. **The rim is 3 levels against 30.**
+    /// `docs/screen-audit.md`'s check 12 puts the line between texture and
+    /// structure at 4 levels and says so in scheme-neutral terms — "on the light
+    /// page (247) and the night ground (29), four levels is about where a flat
+    /// edge stops being resolvable at arm's length" — so in light this rim is
+    /// texture, as intended, and in dark it is structure. Thirty-five outlined
+    /// boxes is the "grid of boxes" the owner has refused twice on measurement,
+    /// and it is the same fault as `TowerLattice`, which measures 2.0 levels of
+    /// spread in light and 7.0 in dark on the day album.
+    ///
+    /// **The rim is not needed in dark, and the reason is in the paragraph that
+    /// put it there**: "A fill alone could not do that here, because a white
+    /// pane cannot be brighter than a white page — but a faint recess with a lit
+    /// rim can." On the night ground a recess CAN be darker than the page, and
+    /// the fill is already doing it at 6 levels. So the rim is kept at a tenth,
+    /// where it is still the cell's edge and no longer its loudest part, rather
+    /// than deleted: it is what keeps an empty day and a filled one the same
+    /// object, which is this cell's whole construction.
+    ///
+    /// 0.15 to land the drawn rim near 4.5 levels, from 30 at full strength.
+    /// **The light value does not move by a thousandth**, which is deliberate:
+    /// the owner looked at and accepted the light calendar, and a dark-mode
+    /// correction that moves the daylight is the thing this app has been caught
+    /// doing four times in the other direction.
+    static func emptyRimScale(in scheme: ColorScheme) -> Double {
+        scheme == .dark ? 0.07 : 1
     }
 
     /// **How dark an empty day is, and it depends on how many of them there

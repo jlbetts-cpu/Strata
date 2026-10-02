@@ -125,11 +125,20 @@ struct HeadPickerRow: View {
                     // a photograph of somebody's face, where a hard black
                     // outline reads as a cut-out rather than as a choice.
                     //
-                    // It can go quieter here than anywhere else, because this
-                    // swatch says "chosen" three times over: the ring, the step
-                    // up from 0.94 to full size, and the name under it going
-                    // from secondary ink to primary. The ring is the loudest of
-                    // the three and it is the one that did not need to be.
+                    // It could go quieter here than anywhere else because this
+                    // swatch said "chosen" three times over: the ring, a step up
+                    // from a 0.94 scale to full size, and the name under it going
+                    // from secondary ink to primary. **Two of the three are gone
+                    // now** — the scale, because it broke the gutter (see the note
+                    // below it), and on `HeadPickerRow` the generated name,
+                    // because a caption that repeats a photograph is not a fact.
+                    // So the ring at 0.55 is carrying it, and it is measured:
+                    // 4.0:1 on the light card, 5.0:1 on the dark one, against the
+                    // 3.0 a shape is held to. It stays at 0.55 rather than going
+                    // back up, because the thing `AddWinSheet` settled is still
+                    // true — "a full-strength `inkPrimary` ring is a hard black
+                    // outline floating off the thing it selects" — and this one
+                    // goes round a photograph of somebody's face.
                     //
                     // **AND IT IS NOT DRAWN AT ALL WHEN THERE IS ONE HEAD**
                     // (2026-10-01). Photographed with a single entry
@@ -154,7 +163,37 @@ struct HeadPickerRow: View {
                                                               entries: entries.count)),
                                       lineWidth: GridConstants.strokeMedium)
                 }
-                .scaleEffect(isChosen ? 1 : 0.94)
+                // **THE 0.94 SCALE IS GONE, AND THE REVIEW MEASURED WHY**
+                // (2026-10-01, `docs/consistency-audit.md` §1.9). The paragraph
+                // above says this swatch states "chosen" three times over — the
+                // ring, a step up from 0.94 to full size, and the name under it —
+                // and the scale is the one of the three that breaks the grid.
+                //
+                // `FilmLookStrip`, which is the same swatch on the camera review
+                // and is the one with the numbers on it, took its own scale off
+                // for this: "`scaleEffect` does not change a layout box, so all
+                // four boxes stayed 58pt and the DRAWN squares did not: an
+                // unchosen one lost 1.74pt a side. Measured on the built review,
+                // the declared 8pt gutter rendered as **9.7 / 11.4 / 11.4**: one
+                // number on the ladder arriving on screen as two that are not,
+                // and the pattern moves every time you pick a different look."
+                //
+                // The same arithmetic here, at 60pt in an `HStack(spacing:
+                // gapItem)`: 0.94 takes 3.6pt off each unchosen tile, so the
+                // declared 12pt gutter draws 12.0 + 1.8 = 13.8 beside the chosen
+                // tile and 12.0 + 3.6 = 15.6 between two unchosen ones. Check 7
+                // fails a screen for a fifth value on the spacing ladder; this
+                // was a value that MOVED.
+                //
+                // Dropping it also takes the two remaining signals to one on a
+                // default roster, because the name is drawn only when somebody
+                // typed one (below) and the ring is not drawn at one entry
+                // (above). So on two or more unnamed heads the ring at 0.55 ink
+                // is now doing the whole job, measured at **4.0:1** on the light
+                // card and **5.0:1** on the dark one, against the 3.0 a shape is
+                // held to. That clears it, and `FilmLookStrip` keeps exactly this
+                // pair — a rim plus a caption ink step — so the two pickers and
+                // the review now say "chosen" the same way.
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
                 // **Only a name somebody CHOSE is drawn** (cut 14,
@@ -200,7 +239,13 @@ struct HeadPickerRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // `.press`, not `.plain`. `PressResponse`: "Use this rather than `.plain`
+        // on anything that is not already Liquid Glass", and
+        // `docs/motion-audit.md` §5.1 counted thirty-one buttons in the app with
+        // no answer to a finger at all. A swatch is a glyph-sized object on a
+        // page, so it takes the glyph variant: a scale alone is invisible at 60pt
+        // and a dim alone reads as the control disabling itself.
+        .buttonStyle(.press)
         // **The name, and the trait says the rest.** This read
         // "\(entry.name), in use" AND carried `.isSelected`, which VoiceOver
         // already speaks as "selected": the same fact twice inside one

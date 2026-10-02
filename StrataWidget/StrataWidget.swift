@@ -14,6 +14,33 @@ import WidgetKit
 /// milliseconds, and the point of the snapshot is that every decision was
 /// already made in the app.
 struct StrataWidget: Widget {
+    // **WHAT A TAP ON THIS WIDGET COSTS, measured 2026-10-01 rather than
+    // guessed.** Nothing here is wired yet, and the sizing is the finding.
+    //
+    // **An in-place `Button(intent:)` is the thing worth having, and it is
+    // not a small change.** Since iOS 17 a widget can run
+    // an App Intent without opening anything, and this app has the intent
+    // already: `LogWinIntent`, `openAppWhenRun = false`, through
+    // `QuickWinService.logWin`. What it does not have is any way for the WIDGET
+    // process to run it. The intent needs a `ModelContainer`, the container
+    // needs the SwiftData schema, and the schema is eight `@Model` types in
+    // `Strata/Models/`, which is the app target. The widget target sees
+    // `StrataWidget/` and `Shared/` and nothing else, and that is not an
+    // oversight: it is this widget's founding decision, written at the top of
+    // this file as "No SwiftData here and no photographs: a widget gets a few
+    // tens of megabytes and a few hundred milliseconds."
+    //
+    // **And the cheap half is not cheap either.** A `widgetURL` would at least
+    // land the tap on the tower rather than wherever the app opens — it opens
+    // on the camera by design — but **this app has no URL scheme at all**:
+    // `CFBundleURLTypes` is absent from `Info.plist` and nothing calls
+    // `onOpenURL`. So even that costs a scheme registered in both build
+    // configurations and a handler, and a `widgetURL` added without them is a
+    // link that silently does nothing, which is worse than the gap.
+    //
+    // Both numbers are the owner's to spend. Written here rather than in a
+    // reply so the next person sizing this does not have to find it again.
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "StrataTower", provider: TowerProvider()) { entry in
             TowerWidgetView(snapshot: entry.snapshot, photoIndex: entry.photoIndex)

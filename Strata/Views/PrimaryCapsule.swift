@@ -46,7 +46,7 @@ import SwiftUI
 /// was extracted out of them. But two implementations of one object is the
 /// condition this file exists to end, and the sweep that read them side by
 /// side found the filled states identical line for line bar one haptic (see
-/// `filled`). So the outlined state came here, where the filled one is, and the
+/// `pressable`). So the outlined state came here, where the filled one is, and the
 /// walkthrough now reads both off this type.
 ///
 /// **THE WAITING STATE IS NOT A `Button` AND NOT A `.disabled`, AND THAT IS A
@@ -76,8 +76,8 @@ import SwiftUI
 /// the first thing a 0.5 multiplier kills. Hence `init(waiting:because:)`,
 /// which takes no action and builds no `Button`: there is nothing inside it for
 /// a `.disabled` to be put on, and that structure rather than a comment is what
-/// keeps this fixed. **Do not add a `disabled` flag to the filled
-/// initialiser.** That is the shape the bug had.
+/// keeps this fixed. **Do not add a `disabled` flag to either of the pressable
+/// initialisers.** That is the shape the bug had.
 ///
 /// **The waiting numbers were sampled on the walkthrough's ground, not on every
 /// ground.** Over the sampled page-2 white (243): ring `inkTertiary` 4.6:1
@@ -105,6 +105,10 @@ struct PrimaryCapsule: View {
     /// set only by `init(waiting:because:)`, which stores no action, so the
     /// outlined state cannot be built out of a `Button` by accident.
     private let reason: String?
+    /// Whether the pressable state draws an outline instead of a fill. Set only
+    /// by `init(outlined:action:)`; `reason` is still what makes a capsule the
+    /// WAITING one, which is the distinction that keeps a `Button` out of it.
+    private var outlines = false
     private let action: () -> Void
 
     /// Shared with the waiting state and with the walkthrough's LinkedIn
@@ -129,15 +133,57 @@ struct PrimaryCapsule: View {
         self.action = {}
     }
 
+    /// **A SECOND action on a page that already has a primary: outlined, and
+    /// pressable.** (2026-10-01, `docs/consistency-audit.md` §1.7.)
+    ///
+    /// The walkthrough's last page carries "Connect on LinkedIn" above "Get
+    /// started", and it was drawing its own outlined capsule forty lines above
+    /// the call to this type — including the plain `Capsule()` that `waiting`'s
+    /// own comment names as the bug it fixed: "its own filled state was already
+    /// `.continuous`, so the two states had different corner profiles on the one
+    /// page that shows both, which is this file's whole subject in miniature."
+    /// The fix went into the extracted type and the file it was extracted from
+    /// kept the bug.
+    ///
+    /// **It is not `waiting` with the reason left off, and it must not become
+    /// that.** `waiting` builds no `Button` on purpose, and the reason is
+    /// measured: a disabled plain button is dimmed by the environment, which
+    /// halved both declared alphas to three decimal places and is what survived
+    /// the owner's complaint, made twice, that "the button is lowkey invisible
+    /// during the onboarding flow". This one is a real action with a real `Button`
+    /// and nothing disabling it, so no multiplier reaches it. **Do not add a
+    /// `disabled` flag to this initialiser either.** That is the shape the bug
+    /// had.
+    ///
+    /// **One ring ink, three label inks.** The ring is `inkTertiary` for both
+    /// outlined states, so an outline is one object; what says whether you can
+    /// press it is the WORD. Filled takes the page's own colour on ink, this
+    /// takes `inkPrimary`, and waiting takes `inkSecondary` — a step down the
+    /// same scale rather than a second treatment. Measured on the walkthrough's
+    /// sampled page ground (243): ring 4.6:1 against the 3.0 a shape is held to,
+    /// `inkPrimary` 14.3:1 and `inkSecondary` 6.0:1 against the 4.5 text is.
+    /// The LinkedIn button's own ring was `inkQuiet` and measured **3.3:1**, so
+    /// this raises it; `inkQuiet`'s own doc says it is for chevrons and
+    /// placeholders rather than for the only line round a control.
+    /// Both inks flip with the scheme, so the dark page's ratios are not these
+    /// and have not been sampled — see the waiting-state note, which says the
+    /// same thing about itself.
+    init(outlined title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.reason = nil
+        self.outlines = true
+        self.action = action
+    }
+
     var body: some View {
         if let reason {
             waiting(reason)
         } else {
-            filled
+            pressable
         }
     }
 
-    private var filled: some View {
+    private var pressable: some View {
         Button {
             // **`lightTap`, not `tick`.** This type was extracted carrying
             // `HapticsEngine.tick()`, which is `selectionChanged`, the
@@ -149,12 +195,20 @@ struct PrimaryCapsule: View {
             HapticsEngine.lightTap()
             action()
         } label: {
-            face(ink: WarmBackground.top) {
+            // The outlined variant takes the ring the waiting state draws and
+            // the ink of a word you can press. See `init(outlined:action:)`.
+            face(ink: outlines ? AppColors.inkPrimary : WarmBackground.top) {
                 ZStack {
-                    Capsule(style: .continuous).fill(AppColors.inkPrimary)
-                    Capsule(style: .continuous)
-                        .strokeBorder(BlockRim.gradient(in: colorScheme),
-                                      lineWidth: GridConstants.blockRimWidth)
+                    if outlines {
+                        Capsule(style: .continuous)
+                            .strokeBorder(AppColors.inkTertiary,
+                                          lineWidth: GridConstants.strokeThin)
+                    } else {
+                        Capsule(style: .continuous).fill(AppColors.inkPrimary)
+                        Capsule(style: .continuous)
+                            .strokeBorder(BlockRim.gradient(in: colorScheme),
+                                          lineWidth: GridConstants.blockRimWidth)
+                    }
                 }
             }
             .contentShape(Capsule(style: .continuous))
@@ -183,7 +237,7 @@ struct PrimaryCapsule: View {
         .accessibilityValue(reason)
     }
 
-    /// The word and the ground under it, shared by both states so the filled
+    /// The word and the ground under it, shared by all three states so the filled
     /// pill and the outlined one are the same object at the same height.
     ///
     /// The target is measured on the LABEL rather than declared on the button,

@@ -59,52 +59,50 @@ struct AlbumCard: View {
 
     /// How much is on this card: the number, then what it counts.
     ///
-    /// **The number is a readout and the word is a label.** The whole string
-    /// was one `Text` in `Typography.sectionLabel`, so "18 PHOTOS" set its
-    /// number in the heading face and this was the one card in the app whose
-    /// count was not the owner's digits. §2: counts and indices are his face,
-    /// tabular; anything that reads as language is SF Rounded. The replay
-    /// poster on the row above already splits them, and the two captions sit
-    /// twelve points apart.
+    /// **`CountReadout.split`, where this was the fourth copy of six lines**
+    /// (2026-10-01, `docs/consistency-audit.md` §1.13). The note that stood here
+    /// said "Not a shared count readout, and there is no longer one to reach
+    /// for", and it was right at the time: the deleted `CountReadout` took
+    /// `inkSecondary` for its digits, carried no optical inset and set its unit in
+    /// uppercase kerned `sectionLabel`, which is the one voice the Memories pass
+    /// removed. The new one is THIS shape, with the page rung's as its other
+    /// setting, and the only thing between them is a boolean. `SectionHeading`
+    /// held the condition for building one — "it needs both rungs above" — and
+    /// §2.4 found the record of those rungs stale the same day: the caption's 13
+    /// went to 15 in the type pass, so the two are one size, one face, one ink and
+    /// one word tier.
     ///
-    /// **Not a shared count readout, and there is no longer one to reach for.**
-    /// `CountReadout` took `inkSecondary` for its digits, carried no optical
-    /// inset and set its unit in uppercase kerned `sectionLabel`, which is the
-    /// one voice the Memories pass removed. It had no callers and is deleted;
-    /// see `SectionHeading` for the whole argument. Here both lines of the
-    /// caption are the quiet tertiary and both have to stand on the card's
-    /// leading edge, which is what the inset is for.
+    /// **The number is a readout and the word is a label.** The whole string was
+    /// one `Text` in `Typography.sectionLabel`, so "18 PHOTOS" set its number in
+    /// the heading face and this was the one card in the app whose count was not
+    /// the owner's digits. §2: counts and indices are his face, tabular; anything
+    /// that reads as language is SF Rounded.
     ///
-    /// This keeps the count the card always had rather than adding one: §7's
-    /// "how much is here" is answered once per card by the thing that was
-    /// already there, and the ALBUMS heading above deliberately has no count
-    /// of its own.
+    /// **There is no optical inset any more, and it was already a no-op.** This
+    /// card pulled the digits left by `StrataFont.opticalInset * 15` so that the
+    /// name and the caption stood on one edge, and that constant went to **0** on
+    /// 2026-09-30 when the drawn face came off the app: SF's digits do not have
+    /// the sidebearing it was correcting. The argument is kept on `CountReadout`
+    /// because it is right about a drawn face and the TTF is one file away.
+    ///
+    /// **It does not roll.** A card in a `LazyHStack` is rebuilt when the shelf
+    /// reloads rather than updated in place, so there is no transition for
+    /// `.numericText()` to animate and the modifier would be a per-card cost for
+    /// nothing.
+    ///
+    /// Lower case, like every other caption on this page. This keeps the count the
+    /// card always had rather than adding one: §7's "how much is here" is answered
+    /// once per card by the thing that was already there, and the heading above
+    /// the shelf deliberately has none of its own.
     private var caption: some View {
-        let parts = Self.splitCaption(album.subtitle)
-        return HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
-            if let number = parts.number {
-                Text(verbatim: number)
-                    .font(StrataFont.relative(Self.captionSize, to: .subheadline))
-                    // Optical, as the replay card's count is: tabular centring
-                    // puts real air to the left of every digit, so the box
-                    // sits a little left of the margin to stand the name and
-                    // the caption on one edge.
-                    .padding(.leading, -StrataFont.opticalInset * Self.captionSize)
-            }
-            // Lower case, like every other caption on this page now. See
-            // `ReplayShelf.countLine`.
-            Text(parts.words.lowercased())
-                .font(Typography.screenSubtitle)
-        }
-        .foregroundStyle(AppColors.inkTertiary)
-        .lineLimit(1)
+        CountReadout.split(album.subtitle)
     }
 
-    /// The app's label tier, so the digits and the word beside them are one
-    /// line of type and not two sizes. **It was 13 and is 15** (2026-10-01, the
-    /// type pass), which also retires the warning that used to live here: at 13
-    /// the owner's D read as an O, and at 15 it does not (`StrataFont`).
-    private static let captionSize: CGFloat = 15
+    // **The private `captionSize` (15) is gone with the lines that read it.** It
+    // was 15 here, 15 on the shelf's dead card and 15 on two page headers, with a
+    // comment on each explaining the 15. One size, in `CountReadout`. The warning
+    // its comment carried is retired rather than lost: at 13 the owner's D read as
+    // an O, and at 15 it does not (`StrataFont`).
 
     /// A caption split into its leading number and the words after it:
     /// "18 PHOTOS" gives ("18", "PHOTOS"), "6 SEP" gives ("6", "SEP"), and a

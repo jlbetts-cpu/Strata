@@ -10,11 +10,23 @@ import SwiftData
 /// adds next — due dates, times, priorities, notes, subtasks, lists. A plan
 /// line is a block you have not built yet; the only fact about it that the
 /// text cannot carry is which days it comes round.
+///
+/// **And the one thing you can do to it that is not a property of it**, which is
+/// delete it. That used to be a trash glyph in the leading toolbar slot, where
+/// every other sheet in the app puts Cancel, and it deleted on one press with no
+/// confirmation; it is a `Form` row at the foot of the sheet now, in the shape
+/// Settings and Profile already give a destructive row, and it asks first. See
+/// `deleteRow`, and `docs/consistency-audit.md` §1.5.
 struct PlanItemDetailSheet: View {
     @Bindable var item: PlanItem
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    /// **A plan line's delete confirms, like four of the app's other six**
+    /// (2026-10-01, `docs/consistency-audit.md` §1.5). It used to commit and
+    /// dismiss on one press.
+    @State private var confirmingDelete = false
 
     private let calendar = Calendar.current
 
@@ -63,19 +75,37 @@ struct PlanItemDetailSheet: View {
                 }
 
                 Section {
-                    colours
-                } header: {
-                    // **This label STAYS, and `COLOUR` on the add sheet went.**
-                    // The line between them is the one thing that differs:
-                    // the add sheet's discs sit directly above the block they
-                    // colour, so pressing one demonstrates what the row sets
-                    // and the label was a caption on a demonstration. Nothing
-                    // here demonstrates anything — the swatches are blocks,
-                    // and moving a checkmark between six coloured blocks shows
-                    // which is chosen, never what choosing one does to the
-                    // line. Cut a label when the screen performs it; keep it
-                    // when the screen only states it.
-                    FormSectionLabel("Colour")
+                    // **One component, two sheets** (2026-10-01,
+                    // `docs/consistency-audit.md` §1.1, and the owner's own
+                    // instance of it: "I see the colour on the plan isnt the
+                    // same as the wins edit sheet with the icons and stuff").
+                    //
+                    // This was a private `BlockSurface` build that differed from
+                    // the add sheet's row on four axes at once — rounded square
+                    // against circle, no glyph against six, a white checkmark
+                    // and a 0.86 scale against a ring. Every one of those
+                    // arguments, and which way each went, is on `ColourSwatch`.
+                    //
+                    // **The `FormSectionLabel("Colour")` went with the change,
+                    // not independently of it.** The argument that used to stand
+                    // here was sound for what was drawn: "the add sheet's discs
+                    // sit directly above the block they colour, so pressing one
+                    // demonstrates what the row sets ... nothing here
+                    // demonstrates anything. Cut a label when the screen
+                    // performs it; keep it when the screen only states it." With
+                    // the glyphs on, each chip names its own category, so the
+                    // row is no longer six anonymous pastels — it states what it
+                    // is, and the heading became the same fact a third time
+                    // after the colour and the symbol. The word is kept for
+                    // VoiceOver on the row's own accessibility container.
+                    ColourSwatchRow(category: Binding(
+                        get: { item.category },
+                        set: { item.categoryRaw = $0.rawValue }
+                    ))
+                    // The row is 44pt boxes; this is the air between the card's
+                    // own edge and them, which the `Form` does not give a bare
+                    // control. `spacing`, the grid's gutter, as it was.
+                    .padding(.vertical, GridConstants.spacing)
                 }
 
                 Section {
@@ -91,14 +121,35 @@ struct PlanItemDetailSheet: View {
                         Label {
                             Text("Repeats")
                         } icon: {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .foregroundStyle(AppColors.accentWarm)
+                            // **`SettingsIcon`, the app's one form glyph**
+                            // (2026-10-01, `docs/consistency-audit.md` §1.10 —
+                            // "the icons and stuff" half of the owner's own
+                            // sentence, on the sheet he was looking at).
+                            //
+                            // Three `Form`s in the app. Two drew every row glyph
+                            // through this component, whose 32pt box is what
+                            // lifts a row over 44pt, and the third had one glyph
+                            // and drew it by hand: at the `Label`'s own fixed
+                            // size, so it did not grow with the user's text size,
+                            // in `accentWarm` — a near-black, three steps darker
+                            // than every other glyph in the app.
+                            SettingsIcon(systemName: "arrow.triangle.2.circlepath")
                         }
                     }
-                    .tint(AppColors.switchOn)
+                    // **`AppColors.switchTrack`, the app's one ON track**
+                    // (2026-10-01, `docs/consistency-audit.md` §1.3). This was
+                    // `switchOn`, the blue the owner removed by name, and it was
+                    // one of the eleven switches the app tinted two different
+                    // ways. The audit's own verdict was `inkPrimary`; the token's
+                    // doc is the measurement that overrules it — ink in dark mode
+                    // composites to rgb(237) and reads **1.17:1** against a
+                    // switch's white thumb, which is the "white on white just
+                    // looks like a pill" fault the owner already reported once.
+                    .tint(AppColors.switchTrack)
 
                     if item.repeats { days }
                 }
+
                 // **THE FOOTER IS DELETED** (2026-10-01, `docs/copy-audit.md`
                 // number 3 — the worst copy ratio in the app, 32 of this
                 // sheet's 36 words cuttable).
@@ -125,6 +176,8 @@ struct PlanItemDetailSheet: View {
                 // wrong place: it is true of EVERY line on the plan, repeating
                 // or not, so it belongs to the plan and not to this switch.
                 // `PlanSheet`'s own type documentation carries it.
+
+                Section { deleteRow }
             }
             .scrollContentBackground(.hidden)
             .background { WarmBackground().ignoresSafeArea() }
@@ -142,51 +195,23 @@ struct PlanItemDetailSheet: View {
         .presentationBackground { WarmBackground().ignoresSafeArea() }
     }
 
-    // MARK: - Colour
-
-    /// The block it becomes. Shown as blocks, because that is what they are —
-    /// a row of swatches would be a picture of a colour, and this is a picture
-    /// of the thing.
-    private var colours: some View {
-        // 4pt, the grid's gutter, as the win sheet's swatches now are. The 2
-        // was a sixth spacing value for the same kind of row.
-        HStack(spacing: GridConstants.spacing) {
-            ForEach(HabitCategory.selectable, id: \.self) { category in
-                Button {
-                    item.categoryRaw = category.rawValue
-                    HapticsEngine.lightTap()
-                } label: {
-                    BlockSurface(
-                        cornerRadius: GridConstants.blockCornerRadius(forCell: Self.swatchSide),
-                        scale: Self.swatchSide / GridConstants.blockReferenceCell
-                    ) {
-                        category.style.baseColor
-                    }
-                    .frame(width: Self.swatchSide, height: Self.swatchSide)
-                    .overlay {
-                        if item.category == category {
-                            Image(systemName: "checkmark")
-                                .font(Typography.headerSmall)
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    .scaleEffect(item.category == category ? 1.0 : 0.86)
-                    .animation(GridConstants.motionSnappy, value: item.category)
-                    // The block stays 34pt; what you can hit is 44. A swatch
-                    // sized to its own artwork is a swatch you have to aim at.
-                    .frame(width: Self.tapTarget, height: Self.tapTarget)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(describing: category))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, GridConstants.spacing)
-    }
-
     // MARK: - Days
 
+    /// **The day chips fill rather than ring, and that is declared rather than
+    /// drifted** (2026-10-01, `docs/consistency-audit.md` §3.2).
+    ///
+    /// The audit counted ten answers to "this is selected" and this is one of
+    /// them. It is the only MULTI-select in the app: six colour chips are one of
+    /// six, where seven days are any of seven, and a ring that can be on all
+    /// seven at once is a row of outlines rather than a state. A filled chip
+    /// reads as on/off at a glance across a row, which is why every calendar and
+    /// reminder app draws it this way. **The colour row next to it is the one
+    /// that had to collapse onto the ring**, and it has.
+    ///
+    /// What it fills WITH is the line's own category colour, so the two controls
+    /// on this sheet are linked: pressing a colour above changes the seven chips
+    /// below, which is the sheet saying out loud that a repeat is a block of that
+    /// colour coming back.
     private var days: some View {
         HStack(spacing: GridConstants.spacing) {
             ForEach(weekdayOrder, id: \.self) { day in
@@ -226,7 +251,11 @@ struct PlanItemDetailSheet: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // The app's press. `PressResponse.press` had zero call sites
+                // and this is one of the controls its own doc argues for: a chip
+                // with no background to shift under it, where the dim is the
+                // answer and the scale is what sells it.
+                .buttonStyle(.press)
                 .accessibilityLabel(calendar.weekdaySymbols[day - 1])
                 .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
             }
@@ -249,11 +278,6 @@ struct PlanItemDetailSheet: View {
     /// here.
     private static let tapTarget: CGFloat = 44
 
-    /// A colour swatch's own artwork, the same 34 the win sheet's circles are.
-    /// It was typed three times in one expression, once as a radius, once as a
-    /// scale and once as a frame.
-    private static let swatchSide: CGFloat = 34
-
     /// One shape for a day chip's fill and its edge, off the block ladder, since
     /// a chip that can hold a block's colour is drawn with a block's corner. It
     /// was written out twice with the same arguments, which is how two copies of
@@ -273,44 +297,113 @@ struct PlanItemDetailSheet: View {
     /// See the Toolbars note in `MainAppView` — iOS 26's glass capsule behind every
     /// toolbar item, stripped so these read as bare glyphs like the rest of
     /// the app. One of three screens that had been missed.
+    /// **The leading slot is EMPTY, and that is the fix** (2026-10-01,
+    /// `docs/consistency-audit.md` §1.5).
+    ///
+    /// It held a trash glyph that deleted the line, committed and dismissed in
+    /// one press — from the position every other sheet in the app uses to back
+    /// out of itself. `AddWinSheet` puts Cancel there and `PlanSheet`, which is
+    /// the sheet directly behind this one, puts ＋ there. A thumb that has
+    /// learned either of those finds a delete with no confirmation.
+    ///
+    /// **And it cannot become Cancel**, which is the obvious symmetry: this
+    /// sheet edits a `@Bindable` model object in place, so there is nothing to
+    /// cancel — the change is already made, and Done only saves the context. One
+    /// empty slot and a confirm, which is exactly what Profile does for the same
+    /// reason.
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         if #available(iOS 26.0, *) {
             ToolbarItem(placement: .topBarTrailing) { detailDoneButton }
                 .sharedBackgroundVisibility(.hidden)
-            ToolbarItem(placement: .topBarLeading) { detailDeleteButton }
-                .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .topBarTrailing) { detailDoneButton }
-            ToolbarItem(placement: .topBarLeading) { detailDeleteButton }
         }
     }
 
+    /// `SheetActionLabel`, which is the ink, the tier and the 44pt box that six
+    /// sheets each answered their own way. See `SheetAction.swift`.
     private var detailDoneButton: some View {
         Button {
             HapticsEngine.lightTap()
             try? modelContext.save()
             dismiss()
         } label: {
-            Text("Done").font(Typography.headerSmall)
-                .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
-                .contentShape(Rectangle())
+            Text("Done").sheetAction()
         }
-        .foregroundStyle(AppColors.accentWarm)
+        .buttonStyle(.pressWord)
     }
 
-    private var detailDeleteButton: some View {
+    /// **The delete, in the shape the app's other two `Form` deletes already
+    /// have** (2026-10-01, `docs/consistency-audit.md` §1.5 and §3.3).
+    ///
+    /// §3.3 counted six shapes of destructive action, three reds and two with no
+    /// confirmation. This was one of the two unconfirmed ones. What it becomes is
+    /// not a seventh shape: Settings' Reset All Data and Profile's Delete head are
+    /// both a `Form` row with `Button(role: .destructive)`, a `SettingsIcon` in
+    /// `warmRed` and the word in `warmRed` too, and both confirm. This sheet is a
+    /// `Form`, so it gets the `Form` shape. **The shape follows the container**,
+    /// which is a rule rather than a tie-break, and it is why `AddWinSheet`'s
+    /// delete is the platform's `.bordered` button instead: that sheet is a
+    /// `ScrollView`.
+    ///
+    /// **One red on the row, not two**, which is the fix both of those rows
+    /// carry in their own words: the destructive role tints the WORD the system's
+    /// #FF3B30, four points off the glyph's red, so the glyph and the word beside
+    /// it were two reds on one line.
+    ///
+    /// **And the red is `AddWinSheet.destructiveTint`, not `AppColors.warmRed`,
+    /// which is where this row leaves its two siblings — on a measurement.**
+    /// Matching them was the plan, and then the ink was sampled off the built
+    /// sheet against the `Form` card it actually stands on, rgb(228) in light:
+    ///
+    /// |  | light card | dark card |
+    /// |---|---|---|
+    /// | `warmRed` #E85D4A | **2.71:1** | 4.05:1 |
+    /// | the system's #FF3B30 | **2.79:1** | — |
+    /// | `destructiveTint` | **5.65:1** | **4.60:1** |
+    ///
+    /// A 17pt word is held to 4.5 and a shape to 3. `warmRed` misses both ends of
+    /// that on the light page, so Settings' Reset All Data and Profile's Delete
+    /// head are **both shipping a destructive word at 2.71:1 right now** — two
+    /// rows in files this pass does not own, and the one number in this table that
+    /// needs somebody's attention more than this row did.
+    ///
+    /// `destructiveTint` is the app's one MEASURED destructive ink, it carries a
+    /// `userInterfaceStyle` branch where `warmRed` is a fixed hex, and its own doc
+    /// is four paragraphs of the arithmetic that chose both values. **It wants to
+    /// be `AppColors.destructiveInk`** and live in the palette rather than on a
+    /// sheet; `CategoryColors.swift` was held by another worker for this whole
+    /// session, so it is read through its owner here and the move is a rename.
+    private var deleteRow: some View {
         Button(role: .destructive) {
-            HapticsEngine.warning()
-            modelContext.delete(item)
-            StoreReset.commitDelete("deleting a plan line", context: modelContext)
-            dismiss()
+            HapticsEngine.lightTap()
+            confirmingDelete = true
         } label: {
-            Image(systemName: "trash")
-                .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                .frame(width: Self.tapTarget, height: Self.tapTarget)
-                .contentShape(Rectangle())
+            Label {
+                Text("Delete Line").foregroundStyle(AddWinSheet.destructiveTint)
+            } icon: {
+                SettingsIcon(systemName: "trash", tint: AddWinSheet.destructiveTint)
+            }
         }
-        .accessibilityLabel("Delete this line")
+        .confirmationDialog("Delete this line?",
+                            isPresented: $confirmingDelete,
+                            titleVisibility: .visible) {
+            Button("Delete Line", role: .destructive) { delete() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            // **Short, because what it destroys is small.** Reset All Data's
+            // message runs to 23 words because it empties the store; this takes
+            // away a line you have not built yet, so the sentence is the one fact
+            // the title does not already carry: that it does not come back.
+            Text("It will not come back.")
+        }
+    }
+
+    private func delete() {
+        HapticsEngine.warning()
+        modelContext.delete(item)
+        StoreReset.commitDelete("deleting a plan line", context: modelContext)
+        dismiss()
     }
 }

@@ -596,7 +596,12 @@ struct HeadMakerView: View {
                     .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            // `.pressWord` for a word, not `.plain`, which draws the label and
+            // nothing else (`docs/consistency-audit.md` §1.8: twenty controls in
+            // the app with no answer to a finger, and the camera's own refused
+            // screen two files away already uses this). "A word at 6% reads as a
+            // wobble, so it moves less and dims more."
+            .buttonStyle(.pressWord)
             .frame(height: CameraView.shutterBounds(.small).height)
         default:
             // `CameraView`'s own row, slot for slot — grid, flash, shutter,
@@ -627,17 +632,31 @@ struct HeadMakerView: View {
             setFlashBrightness(model.camera.isFlashOn)
         } label: {
             Image(systemName: flashIsOn ? "bolt.fill" : "bolt.slash.fill")
-                // A glyph's point size, not a type tier: `CameraView.glyphButton`
-                // is this same 21 and the two rows have to match, or the flash
-                // is a different size in two places a thumb treats as one
-                // control.
-                .font(.system(size: 21, weight: .regular))
+                // A glyph's point size, not a type tier: `CameraView`'s own
+                // chrome glyph is this same 21 and the two rows have to match,
+                // or the flash is a different size in two places a thumb treats
+                // as one control.
+                //
+                // **`iconSize`, and this was the last fixed icon size in the
+                // app** (2026-10-02, `docs/consistency-audit.md` §1.15).
+                // `IconStyle`'s own doc is the rule: "`.font(.system(size:))` is
+                // a fixed size, it does not respond to the user's text size at
+                // all, so icons stayed put while the labels beside them grew",
+                // and brand.md asks for Dynamic Type on every screen (WCAG
+                // 1.4.4). The camera's twin moved first and kept its 21 the same
+                // way; keeping the number is what keeps the two rows matching,
+                // and `relativeTo: .body` is what the twin passes, so the pair
+                // grows at one rate.
+                .iconSize(21, relativeTo: .body, weight: .regular)
                 .foregroundStyle(AppColors.onDarkStrong)
                 .legibleOnImagery()
                 .frame(width: GlassIconButton.defaultSide, height: GlassIconButton.defaultSide)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // `.press` for a glyph. `PressResponse` names this exact control in its
+        // own doc — "the plain-glyph row: the grid, the flash, the flip and the
+        // timer" — and then had no call sites on any of them.
+        .buttonStyle(.press)
         .accessibilityLabel(flashIsOn ? "Flash on" : "Flash off")
     }
 
@@ -862,7 +881,14 @@ struct HeadMakerView: View {
                             .contentShape(Rectangle())
                     }
                 }
-                .buttonStyle(.plain)
+                // **`.pressWord`, and these are the two most-pressed words in the
+                // whole capture flow** (2026-10-01,
+                // `docs/consistency-audit.md` §1.8). The camera's refused screen
+                // uses `.pressWord`; its review's Retake and Use Photo, two
+                // screens later, were `.plain`, and so were this row's Retake and
+                // Save. So the one press that keeps a head somebody has just made
+                // answered with nothing on screen at all.
+                .buttonStyle(.pressWord)
                 // **`horizontalPadding`, and it was `gapWide`** (2026-10-01,
                 // check 11d). Measured off the built preview, Retake's ink
                 // started at 25.3 and Save's ended at 377.0 — a 24pt margin on
