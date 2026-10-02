@@ -50,19 +50,21 @@ BID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")"
 mkdir -p "$OUT"
 xcrun simctl install "$SIM" "$APP" >/dev/null || exit 1
 
-# **The camera prompt covers the first capture on a fresh simulator, and
-# `simctl privacy ... grant` does NOT stop it.** Tried and measured on 2026-10-01:
-# `grant camera`, `grant photos-add`, `grant location` and `grant all` all return
-# success and the alert comes up anyway, dimming the page to rgb(199,199,199)
-# with its own 304pt card in the middle of the frame. Two captures of different
-# screens behind that alert produce the SAME layout signature, because the alert
-# is what the instrument can see — which is how `02-wins-empty` and
-# `07-memories-empty` came back as a duplicate pair.
+# **DO NOT RUN `xcrun simctl privacy ... grant` HERE. It makes it worse.**
 #
-# No workaround is shipped here, because a step whose comment claims to do
-# something it does not is worse than no step. Capture the empty states on a
-# simulator the app has already been allowed on, and read the signature pass
-# below before trusting any of them.
+# Measured on 2026-10-01. A simulator the app has been launched on a few times
+# photographs cleanly: the three worker sets taken that evening all came back at
+# rgb(228) to rgb(241), with no prompt. Running `grant camera` on the same
+# simulator put the entry into a state where the app prompts on EVERY launch, and
+# `grant photos-add`, `grant location` and `grant all` did not undo it. The whole
+# twenty-nine shot set afterwards came back dimmed to rgb(195) to rgb(202) behind
+# the alert.
+#
+# That matters more than it sounds, because **the alert is what the instrument
+# sees**: its own 304pt card is the biggest band on the page, so two captures of
+# DIFFERENT screens behind it produce the same layout signature. That is how
+# `02-wins-empty` and `07-memories-empty` came back as a duplicate pair, and the
+# signature check could not say which of the two was the wrong screen.
 
 shot() {
   out="$OUT/$1.png"; floor="$2"; shift 2

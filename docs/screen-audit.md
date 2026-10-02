@@ -431,15 +431,18 @@ answer to "is this a harness run", and it counts now.
 **Two fixtures are still wrong, and they are recorded here rather than counted
 as screens.**
 
-- **The camera permission alert covers the first capture on a simulator the app
-  has not been allowed on**, and `xcrun simctl privacy ... grant` does not stop
-  it: `camera`, `photos-add`, `location` and `all` were each tried and each
-  returns success while the alert comes up anyway. It dims the page to
-  rgb(199,199,199) and puts its own 304pt card in the middle of the frame, so
-  **two captures of different screens behind it produce the same layout
-  signature** — which is how `02-wins-empty` and `07-memories-empty` came back as
-  a duplicate pair. The signature check caught it; it just could not say which of
-  the two was wrong.
+- **Never run `xcrun simctl privacy ... grant` on a capture simulator.** This was
+  my own mistake and it is worth writing down. A simulator the app has been
+  launched on a few times photographs cleanly: the three worker sets taken that
+  evening came back at rgb(228) to rgb(241) with no prompt. Running `grant
+  camera` put the entry into a state where the app prompts on EVERY launch, and
+  `grant photos-add`, `grant location` and `grant all` did not undo it; the
+  twenty-nine shot set afterwards came back dimmed to rgb(195) to rgb(202) behind
+  the alert. **And the alert is what the instrument sees**: its own 304pt card is
+  the biggest band on the page, so two captures of DIFFERENT screens behind it
+  produce the same layout signature. That is how `02-wins-empty` and
+  `07-memories-empty` came back as a duplicate pair, and the signature check
+  could not say which of the two was the wrong screen.
 - **`-strataStartTab` is ignored when `-strataResetStore` is passed with it.**
   Measured: `-strataStartTab memories -strataSeedWins 2` lands on Memories and
   `-strataStartTab memories -strataResetStore 1` lands on Wins. The reset path
