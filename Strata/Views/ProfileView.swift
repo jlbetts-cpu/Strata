@@ -577,7 +577,7 @@ struct ProfileView: View {
                     chart(bars)
                         .frame(height: Self.chartHeight)
                         .padding(.top, GridConstants.gapTight)
-                        .animation(GridConstants.motionSmooth, value: unitRaw)
+                        .animation(GridConstants.motionSnappy, value: unitRaw)
                 }
             }
             .padding(.vertical, GridConstants.gapTight)

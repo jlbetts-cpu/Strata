@@ -239,7 +239,7 @@ struct ColourSwatchRow: View {
                 let isSelected = showsSelection && category == cat
                 Button {
                     HapticsEngine.tick()
-                    withAnimation(GridConstants.motionSmooth) { category = cat }
+                    withAnimation(GridConstants.motionSnappy) { category = cat }
                     onPick(cat)
                 } label: {
                     ColourSwatch(colour: cat.style.baseColor,

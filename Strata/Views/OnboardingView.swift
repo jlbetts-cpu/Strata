@@ -173,7 +173,7 @@ struct OnboardingView: View {
         // here, where "Not now" is one press away.
         .fullScreenCover(isPresented: $showsHeadMaker, onDismiss: {
             guard heads.head != nil, step == Self.headStep else { return }
-            withAnimation(GridConstants.naturalSettle) { step += 1 }
+            withAnimation(GridConstants.motionSnappy) { step += 1 }
         }) {
             HeadMakerView()
         }
@@ -328,7 +328,7 @@ struct OnboardingView: View {
                 // its grid are state that is simply still there; the lattice's
                 // ripple rests at a phase that draws no cells. There is nothing
                 // here that re-arms.
-                withAnimation(GridConstants.naturalSettle) { step -= 1 }
+                withAnimation(GridConstants.motionSnappy) { step -= 1 }
             }
             Spacer(minLength: 0)
         }
@@ -619,7 +619,7 @@ struct OnboardingView: View {
         try? await Task.sleep(for: .milliseconds(300))
         for index in Self.packed.indices {
             let fall = GridConstants.dropFallCurve.speed(1 / fallSeconds)
-            withAnimation(reduceMotion ? GridConstants.gentleReveal : fall) {
+            withAnimation(reduceMotion ? GridConstants.motionSnappy : fall) {
                 landed = index + 1
             }
             HapticsEngine.tick()
@@ -793,7 +793,7 @@ struct OnboardingView: View {
                                              grid: &next),
               spot.row + size.rowSpan <= Self.maxRows else { return }
         let category = Self.tutorialColours[built.count % Self.tutorialColours.count]
-        withAnimation(GridConstants.dropSettleSpring) {
+        withAnimation(GridConstants.motionSnappy) {
             grid = next
             built.append((spot.column, spot.row, size.columnSpan, size.rowSpan, category))
         }
@@ -1186,7 +1186,7 @@ struct OnboardingView: View {
         // On the whole band, not on the button, because the two states of the
         // action are now two different views and the cross-fade between them is
         // the thing being animated.
-        .animation(GridConstants.gentleReveal, value: canAdvance)
+        .animation(GridConstants.motionSnappy, value: canAdvance)
     }
 
     /// **"Not now", with a target you can actually hit.**
@@ -1216,7 +1216,7 @@ struct OnboardingView: View {
     private var decline: some View {
         Button {
             HapticsEngine.lightTap()
-            withAnimation(GridConstants.naturalSettle) { step += 1 }
+            withAnimation(GridConstants.motionSnappy) { step += 1 }
         } label: {
             Text("Not now")
                 .font(Typography.headerSmall)
@@ -1321,7 +1321,7 @@ struct OnboardingView: View {
             return
         }
         guard step < Self.lastStep else { onFinish(); return }
-        withAnimation(GridConstants.naturalSettle) { step += 1 }
+        withAnimation(GridConstants.motionSnappy) { step += 1 }
     }
 
     // MARK: - Drawing

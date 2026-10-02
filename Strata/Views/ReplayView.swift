@@ -120,6 +120,13 @@ struct ReplayView: View {
                     // From the first frame, loaded or not: leaving never waits
                     // on the animation.
                     GlassIconButton(systemName: "xmark", accessibilityLabel: "Close") {
+                        // **Stop drawing before the cover zooms away**
+                        // (2026-10-02, filmed). The timeline redraws every
+                        // block each frame until the last photograph has
+                        // faded in, and it kept doing so under the close's
+                        // zoom: the two together drew 9 frames in 500ms.
+                        // Paused, the zoom carries a still picture.
+                        clock.pause()
                         video.close()
                         load.cancel()
                         onClose()
@@ -349,8 +356,8 @@ struct ReplayView: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { shareAnchor.rect = $0 }
         }
         .frame(height: GlassIconButton.defaultSide)
-        .animation(GridConstants.gentleReveal, value: video.saveTitle)
-        .animation(GridConstants.gentleReveal, value: video.shareState)
+        .animation(GridConstants.motionSnappy, value: video.saveTitle)
+        .animation(GridConstants.motionSnappy, value: video.shareState)
     }
 
     private func saveVideo() {

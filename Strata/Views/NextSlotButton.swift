@@ -402,8 +402,7 @@ struct NextSlotButton: View {
         // and animating. Normalised by the distance left to travel, which is
         // what a spring's initialVelocity expects.
         let remaining = max(drawn, 1)
-        withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0.18,
-                                           initialVelocity: Double(velocity / remaining))) {
+        withAnimation(GridConstants.slotRelease(velocity: Double(velocity / remaining))) {
             drawn = 0
         }
         lastSize = .small

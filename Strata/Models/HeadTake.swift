@@ -27,7 +27,7 @@ nonisolated struct HeadTake: Equatable, Sendable {
     nonisolated enum Speed: Equatable, Sendable {
         /// `GridConstants.eyeSaccade`, the normal look.
         case saccade
-        /// `GridConstants.naturalSettle`: a slow drift away.
+        /// `GridConstants.motionSnappy`: a slow drift away.
         case drift
         /// `GridConstants.tapPopSpring`: snapped back.
         case snap

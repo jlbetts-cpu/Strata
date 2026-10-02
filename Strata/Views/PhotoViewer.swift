@@ -460,7 +460,7 @@ struct PhotoViewer: View {
             .truncationMode(.tail)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .animation(GridConstants.crossFade, value: currentID)
-            .animation(GridConstants.gentleReveal, value: placeName)
+            .animation(GridConstants.motionSnappy, value: placeName)
             .accessibilityHidden(current == nil)
     }
 
@@ -863,7 +863,7 @@ private struct PhotoPage: View {
         .clipped()
         // A fade, and only a fade. The picture arriving by appearing is the
         // one moment a viewer can look cheap.
-        .animation(GridConstants.gentleReveal, value: image != nil)
+        .animation(GridConstants.motionSnappy, value: image != nil)
         .contentShape(Rectangle())
         .gesture(magnify)
         // **The pan is only attached while zoomed in.**

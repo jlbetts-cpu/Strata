@@ -292,7 +292,6 @@ enum GridConstants {
     /// The name is the CAUSE now rather than either mechanism, which is what
     /// stops the pair coming back.
     static let impact = Animation.spring(response: 0.18, dampingFraction: 0.65)
-    static let dropSettleSpring = Animation.spring(response: 0.28, dampingFraction: 0.78)
     static let rippleCompressSpring = Animation.spring(response: 0.12, dampingFraction: 0.55)
     static let rippleReleaseSpring = Animation.spring(response: 0.35, dampingFraction: 0.60)
 
@@ -363,16 +362,47 @@ enum GridConstants {
         CGFloat(columnCount) * cellSize + CGFloat(columnCount - 1) * spacing
     }
 
+    // MARK: - Reduce Motion, once for the whole app
+
+    /// **Every spring a person's own taps drive becomes the fade under Reduce
+    /// Motion** (2026-10-02, the motion pass).
+    ///
+    /// The setting was honoured site by site: 22 files read
+    /// `accessibilityReduceMotion` and wrote `reduceMotion ? crossFade : x`,
+    /// and eight files that animate never read it at all (`tools/motion-
+    /// inventory.py`, "Files that animate and never read Reduce Motion"). A
+    /// rule each call site has to remember is a rule some call site forgets.
+    /// So the UI tokens resolve here, at the moment they are used: with Reduce
+    /// Motion on, `motionSnappy` and the rest ARE `crossFade`, a 0.2s ease with
+    /// no overshoot, in every sheet, cover and implicit animation, because
+    /// they all read the token. The existing per-site gates still hold and now
+    /// agree with this one.
+    ///
+    /// **Not applied to the drop, the heads or the replay.** The drop
+    /// (`TowerAnimationCoordinator`), the heads (`LivingHeadView`) and the
+    /// slot (`NextSlotButton`) each have their own Reduce Motion path that
+    /// does more than shorten a curve (a block appears in place rather than
+    /// falling; a head stops drifting). The replay is a function of time and
+    /// never reads an `Animation`. `tapSquashSpring`/`tapPopSpring` belong to
+    /// `PressResponse`, which already swaps the squash for a dim.
+    nonisolated(unsafe) static var reducedMotion = false
+
+    static func calm(_ animation: Animation) -> Animation {
+        reducedMotion ? crossFade : animation
+    }
+
     // MARK: - Semantic Springs (reusable motion vocabulary)
 
     // **`snapBack` is deleted** (2026-10-01). Its own doc said "matches
     // tapPopSpring" and it did, to the digit: 0.22 and 0.20. A token that
     // documents itself as a copy of another token is a copy of another token.
     // Its two callers in `NextSlotButton` read `tapPopSpring` now.
-    /// Content appearing
-    static let gentleReveal = Animation.spring(response: 0.22, dampingFraction: 0.85)
-    /// Settling — matches dropSettleSpring, reusable
-    static let naturalSettle = Animation.spring(response: 0.28, dampingFraction: 0.78)
+    // **`gentleReveal`, `naturalSettle`, `motionSmooth` and `dropSettleSpring`
+    // are deleted** (2026-10-02, the motion pass). Closed form, all four settle
+    // within 73ms and 1.4pt of overshoot of `motionSnappy`, which is the
+    // cluster `docs/motion-audit.md` §2 measured and its Group A named; their
+    // 36 call sites read `motionSnappy` now. What changed is the vocabulary:
+    // one word for "a thing a tap changed, settling in place".
     // **`heavySettle` is deleted** (2026-10-01). Computed closed-form from the
     // parameters it settled in 257ms with 1.52% overshoot, against
     // `motionSnappy`'s 224ms and 1.11%: **33 milliseconds, two frames, and four
@@ -381,9 +411,9 @@ enum GridConstants {
     // springs inside 73ms and 1.4pt of each other carrying 60 of the app's 147
     // call sites. This is the end of that cluster nobody has to look at twice.
     /// Small celebratory bounces
-    static let elasticPop = Animation.spring(response: 0.25, dampingFraction: 0.50)
+    static var elasticPop: Animation { calm(Animation.spring(response: 0.25, dampingFraction: 0.50)) }
     /// Major layout changes (filter transitions, block expansion)
-    static let layoutReflow = Animation.spring(response: 0.55, dampingFraction: 0.90)
+    static var layoutReflow: Animation { calm(Animation.spring(response: 0.55, dampingFraction: 0.90)) }
     /// Non-spatial transitions (cross-fades)
     static let crossFade = Animation.easeInOut(duration: 0.2)
 
@@ -410,9 +440,9 @@ enum GridConstants {
     // any of them feels changed when they were named.
 
     /// The heavy micro-bounce's drop on a mass-3 landing: 2pt down, quick.
-    static let microBounceDownSpring = Animation.spring(response: 0.10, dampingFraction: 0.50)
+    static var microBounceDownSpring: Animation { calm(Animation.spring(response: 0.10, dampingFraction: 0.50)) }
     /// And back up, a touch slower and less springy.
-    static let microBounceUpSpring = Animation.spring(response: 0.15, dampingFraction: 0.70)
+    static var microBounceUpSpring: Animation { calm(Animation.spring(response: 0.15, dampingFraction: 0.70)) }
     // **`towerBlockFadeIn` (easeOut 0.2) is deleted** (2026-10-01), with the
     // stagger that fed it. It faded a block in "when it first appears", and the
     // place a block first appears is the moment you arrive on the Wins tab — so
@@ -427,7 +457,7 @@ enum GridConstants {
     static let shutterPress = Animation.easeOut(duration: 0.08)
     /// The shutter springing back out. It follows `shutterPress`, so the call
     /// site delays it by that curve's duration.
-    static let shutterRelease = Animation.spring(response: 0.28, dampingFraction: 0.6)
+    static var shutterRelease: Animation { calm(Animation.spring(response: 0.28, dampingFraction: 0.6)) }
     /// The ring arming, and settling to the level you compose by.
     static let screenFlashOut = Animation.easeOut(duration: 0.22)
 
@@ -449,9 +479,7 @@ enum GridConstants {
     // MARK: - Today Screen Motion (Timeline Claude)
 
     /// Tap feedback, check circles — fast, clean
-    static let motionSnappy = Animation.spring(response: 0.25, dampingFraction: 0.82)
-    /// Content transitions, schedule confirm, row state changes
-    static let motionSmooth = Animation.spring(response: 0.22, dampingFraction: 0.78)
+    static var motionSnappy: Animation { calm(Animation.spring(response: 0.25, dampingFraction: 0.82)) }
 
     // **`motionGentle` (0.40 / 0.85), `motionSettle` (0.28 / 0.90) and
     // `motionReduced` (easeOut 0.05) are deleted** (2026-10-01), zero call sites
@@ -600,7 +628,18 @@ enum GridConstants {
     /// reposition, not a throw, and a bounce there reads as the slot being
     /// unsure. Response sits at the fast end of Apple's 0.3-0.4 for moves,
     /// because this has to land before the finger asks for the next size.
-    static let slotSnap = Animation.spring(response: 0.30, dampingFraction: 1.0)
+    /// The slot springing back to one square as the finger lets go, carrying
+    /// the finger's speed into the spring (`docs/apple-design.md` §5: no seam
+    /// between dragging and animating). It was the app's last animation typed
+    /// inline (`NextSlotButton.fire`); a token that has to take a velocity is a
+    /// function, and that is why it is one. Calm under Reduce Motion like the
+    /// other UI springs: the crossfade has no velocity to inherit, and needs
+    /// none.
+    static func slotRelease(velocity: Double) -> Animation {
+        calm(.interpolatingSpring(duration: 0.34, bounce: 0.18, initialVelocity: velocity))
+    }
+
+    static var slotSnap: Animation { calm(Animation.spring(response: 0.30, dampingFraction: 1.0)) }
     /// Drag distance that commits the next size up.
     static let slotStep: CGFloat = 46
     /// Deadband on the way back down.
@@ -639,8 +678,8 @@ enum GridConstants {
     /// travelled through the stack, so the stack may overshoot a little. It is
     /// still small — this is the tower enjoying itself, not the tower coming
     /// apart. apple-design.md §11 still applies at the top of a tall stack.
-    static let danceRise = Animation.spring(response: 0.30, dampingFraction: 0.52)
-    static let danceSettle = Animation.spring(response: 0.40, dampingFraction: 0.78)
+    static var danceRise: Animation { calm(Animation.spring(response: 0.30, dampingFraction: 0.52)) }
+    static var danceSettle: Animation { calm(Animation.spring(response: 0.40, dampingFraction: 0.78)) }
     static let danceLift: CGFloat = -10
     static let danceTilt: Double = 2.4
     static let danceGlow: Double = 0.05

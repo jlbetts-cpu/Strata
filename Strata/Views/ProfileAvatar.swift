@@ -140,6 +140,13 @@ struct ProfileButton: View {
     private var store: ProfileStore { .shared }
     private let side = GlassIconButton.defaultSide
 
+    /// Whether the label is drawn on Liquid Glass, mirroring `label` below.
+    private var isGlass: Bool {
+        if HeadStore.shared.headForPicture != nil { return store.background == nil }
+        if store.photo != nil { return false }
+        return store.background == nil || store.initials.isEmpty
+    }
+
     var body: some View {
         Button {
             HapticsEngine.lightTap()
@@ -147,7 +154,13 @@ struct ProfileButton: View {
         } label: {
             label
         }
-        .buttonStyle(.plain)
+        // **Glass answers a press on its own; a photograph and a colour do
+        // not** (2026-10-02, the motion pass). Under `.plain` the two
+        // variants with no glass behind them, your photograph and a chosen
+        // colour, did nothing at all under a finger while every other button
+        // in the header gave. They take the app's surface press; the glass
+        // variants keep `.plain` so the press is not answered twice.
+        .buttonStyle(isGlass ? PressResponse(scale: 1, dim: 1) : .pressSurface)
         .accessibilityLabel("Profile")
     }
 

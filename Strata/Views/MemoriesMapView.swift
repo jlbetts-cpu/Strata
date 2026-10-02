@@ -243,7 +243,7 @@ struct MemoriesMapView: View {
             frameOnYourPlaces()
             return
         }
-        withAnimation(GridConstants.naturalSettle) {
+        withAnimation(GridConstants.motionSnappy) {
             camera = .region(MKCoordinateRegion(
                 center: fix.coordinate,
                 // A few streets: close enough that the labels are up and a
@@ -1360,7 +1360,7 @@ private struct PlaceBlock: View {
                         .combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: showsCount)
+        .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: showsCount)
         .accessibilityLabel(spokenName)
     }
 
@@ -1737,7 +1737,7 @@ private struct RecentreButton: View {
         // It has nothing to say until it can say it.
         .opacity(location.isDenied ? 0 : 1)
         .allowsHitTesting(!location.isDenied)
-        .animation(GridConstants.gentleReveal, value: location.isDenied)
+        .animation(GridConstants.motionSnappy, value: location.isDenied)
     }
 
     /// Filled once we know where you are, hollow while we do not — the same

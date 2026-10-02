@@ -120,7 +120,7 @@ struct HeadMakerView: View {
                 model.setTarget(target(for: hole, screen: screen))
             }
         }
-        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.gentleReveal, value: model.step)
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: model.step)
         .task {
             #if DEBUG
             if let state = DebugHarness.headMakerState {
@@ -1027,7 +1027,7 @@ struct HeadMakerView: View {
             // `naturalSettle`, §5's reveal rung, not `layoutReflow`: nothing
             // here is reflowing, and 0.55s was outside the ladder for an
             // arrival. See the outline in `viewfinder(hole:)`.
-            withAnimation(reduceMotion ? nil : GridConstants.naturalSettle) { outlineDrawn = 1 }
+            withAnimation(reduceMotion ? nil : GridConstants.motionSnappy) { outlineDrawn = 1 }
         case .blink, .smile, .brows, .surprised, .wink, .blinkAgain:
             outlineDrawn = 1
         // **It was latched on, and a screenshot could never show it.**

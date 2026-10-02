@@ -582,7 +582,7 @@ struct LivingHeadView: View {
             release()
         }
         pose(invited: true, animation: GridConstants.headTakeEaseBack)
-        withAnimation(GridConstants.naturalSettle) { squash = 1 }
+        withAnimation(GridConstants.motionSnappy) { squash = 1 }
         shut = false
         if keepsTake {
             // What it ends on is what the sticker saves (`HeadTake.endFace`).
@@ -621,7 +621,7 @@ struct LivingHeadView: View {
             let animation: Animation
             switch speed {
             case .saccade: animation = GridConstants.eyeSaccade
-            case .drift: animation = GridConstants.naturalSettle
+            case .drift: animation = GridConstants.motionSnappy
             case .snap: animation = GridConstants.tapPopSpring
             }
             withAnimation(animation) {
@@ -650,7 +650,7 @@ struct LivingHeadView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
                 guard generation == mine else { return }
-                withAnimation(GridConstants.naturalSettle) { squash = 1 }
+                withAnimation(GridConstants.motionSnappy) { squash = 1 }
             }
         case let .blink(depth, steps, double):
             guard rig.shut(on: expression) != nil, !shut else { return }
@@ -753,7 +753,7 @@ struct LivingHeadView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(GridConstants.headMorphLands))
             guard generation == mine, !shut else { return }
-            withAnimation(GridConstants.naturalSettle) { squash = 1 }
+            withAnimation(GridConstants.motionSnappy) { squash = 1 }
         }
     }
 
@@ -802,7 +802,7 @@ struct LivingHeadView: View {
     /// one leaves that one alone.
     private func endMorph(_ token: Int) {
         guard token == morphToken else { return }
-        withAnimation(GridConstants.naturalSettle) { squash = 1 }
+        withAnimation(GridConstants.motionSnappy) { squash = 1 }
     }
 
     /// **Back to neutral behind a blink**, so the change itself is never seen.

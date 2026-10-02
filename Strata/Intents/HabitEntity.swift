@@ -1,3 +1,4 @@
+import Synchronization
 import AppIntents
 import CoreSpotlight
 import UIKit
@@ -64,7 +65,24 @@ struct HabitEntity: AppEntity, IndexedEntity {
     }
 
     /// Renders a category-colored SF Symbol as thumbnail data for Spotlight
+    /// **Drawn once per category, not once per win** (2026-10-02, the motion
+    /// pass). Sampled on a cold launch, the Spotlight reindex spent about 2,500
+    /// samples drawing this picture, one SF Symbol to PNG for every win in the
+    /// store, while the person was making their first taps; the CPU it took is
+    /// what the first sheet and the first Memories visit were waiting behind.
+    /// There are seven categories, so there are seven pictures. The lock makes
+    /// the cache safe from the detached task that reindexes.
+    private static let thumbnails = Mutex<[String: Data]>([:])
+
     private static func categoryThumbnail(icon: String, category: String) -> Data? {
+        let key = category + "/" + icon
+        if let hit = thumbnails.withLock({ $0[key] }) { return hit }
+        let data = drawThumbnail(icon: icon, category: category)
+        if let data { thumbnails.withLock { $0[key] = data } }
+        return data
+    }
+
+    private static func drawThumbnail(icon: String, category: String) -> Data? {
         let color: UIColor = switch category {
         case "health": UIColor(red: 0.063, green: 0.718, blue: 0.498, alpha: 1)
         case "work": UIColor(red: 0.251, green: 0.663, blue: 1.0, alpha: 1)

@@ -29,6 +29,9 @@ struct StrataApp: App {
     @State private var storeOpening: StoreOpening
 
     init() {
+        // Before the first view is built, so a launch with Reduce Motion on
+        // never runs one spring. `ReduceMotionSync` keeps it current after.
+        GridConstants.reducedMotion = UIAccessibility.isReduceMotionEnabled
         // The platform's controls in this app's material. An appearance proxy
         // decides what gets BUILT, so it runs before anything is. See
         // `EtherealControls`.
@@ -175,6 +178,9 @@ struct StrataApp: App {
             }
             // The launch screen's S, held over the first frame and faded.
             .overlay { LaunchHandoff() }
+            // Reduce Motion for every UI token, read here once rather than
+            // remembered at every call site. See `GridConstants.calm`.
+            .modifier(ReduceMotionSync())
         }
         .modelContainer(SharedModelContainer.shared)
         .onChange(of: scenePhase) { _, newPhase in
@@ -182,5 +188,17 @@ struct StrataApp: App {
                 try? SharedModelContainer.shared.mainContext.save()
             }
         }
+    }
+}
+
+/// Keeps `GridConstants.reducedMotion` equal to the setting, from the first
+/// frame and whenever it changes while the app is open.
+private struct ReduceMotionSync: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { GridConstants.reducedMotion = reduceMotion }
+            .onChange(of: reduceMotion) { _, now in GridConstants.reducedMotion = now }
     }
 }

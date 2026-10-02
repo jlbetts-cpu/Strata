@@ -5,7 +5,13 @@ import AppIntents
 enum SpotlightIndexer {
     /// Full re-index — call on app launch and after habit create/delete
     static func reindex(container: ModelContainer) {
-        Task.detached(priority: .utility) {
+        // **`.background`, after the first two seconds** (2026-10-02, the
+        // motion pass). At `.utility` it started with the first frame and ran
+        // beside the person's first taps; sampled cold, it was the busiest
+        // thing in the process while the first sheet opened. Search results
+        // that are two seconds late cost nobody anything.
+        Task.detached(priority: .background) {
+            try? await Task.sleep(for: .seconds(2))
             let context = ModelContext(container)
             let descriptor = FetchDescriptor<Habit>()
             guard let habits = try? context.fetch(descriptor) else { return }

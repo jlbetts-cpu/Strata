@@ -481,7 +481,7 @@ final class TowerAnimationCoordinator {
         case 1: 100_000_000; case 2: 160_000_000; default: 220_000_000
         }
         try? await Task.sleep(nanoseconds: wobbleDwell)
-        withAnimation(GridConstants.dropSettleSpring) {
+        withAnimation(GridConstants.motionSnappy) {
             for id in blockIDs {
                 state(for: id).dropPhase = nil
             }

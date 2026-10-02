@@ -324,7 +324,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .animation(reduceMotion ? .none : GridConstants.gentleReveal, value: notificationsEnabled)
+            .animation(reduceMotion ? .none : GridConstants.motionSnappy, value: notificationsEnabled)
 
             // MARK: - Sounds & Haptics
 

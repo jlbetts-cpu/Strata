@@ -634,7 +634,7 @@ struct CameraView: View {
                 HStack(spacing: 0) {
                     Button {
                         HapticsEngine.tick()
-                        withAnimation(GridConstants.gentleReveal) {
+                        withAnimation(GridConstants.motionSnappy) {
                             review = nil
                             // **Retake means retake.** The size you drew was
                             // for the shot you just rejected, and keeping it
@@ -884,7 +884,7 @@ struct CameraView: View {
                 SpatialTapGesture(count: 2)
                     .onEnded { _ in
                         HapticsEngine.snap()
-                        withAnimation(GridConstants.motionSmooth) { flip() }
+                        withAnimation(GridConstants.motionSnappy) { flip() }
                         focusPoint = nil
                     }
                     .exclusively(before:
@@ -944,7 +944,7 @@ struct CameraView: View {
                 .task(id: focusShownAt) {
                     try? await Task.sleep(for: .seconds(4))
                     guard !Task.isCancelled else { return }
-                    withAnimation(GridConstants.gentleReveal) { focusPoint = nil }
+                    withAnimation(GridConstants.motionSnappy) { focusPoint = nil }
                 }
         }
     }
@@ -1069,7 +1069,7 @@ struct CameraView: View {
         // Both ways at the same speed, and interruptible: pressing the button
         // again while a line is still drawing sends it back from where it is,
         // because a spring animates from the presentation value.
-        .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: shown)
+        .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: shown)
         // The grid dissolves before it reaches the controls.
         //
         // Ruled lines running hard into chrome is the one place this screen
@@ -1198,7 +1198,7 @@ struct CameraView: View {
                 Spacer(minLength: 0)
 
                 glyphButton("arrow.triangle.2.circlepath", label: "Switch camera") {
-                    withAnimation(GridConstants.motionSmooth) { flip() }
+                    withAnimation(GridConstants.motionSnappy) { flip() }
                 }
 
                 Spacer(minLength: 0)
@@ -1396,7 +1396,7 @@ struct CameraView: View {
                     // number fits inside the 44pt control and "10s" does not.
                     badge: camera.timerSeconds > 0 ? "\(camera.timerSeconds)" : nil,
                     dimmed: camera.timerSeconds == 0) {
-            withAnimation(GridConstants.motionSmooth) {
+            withAnimation(GridConstants.motionSnappy) {
                 camera.timerSeconds = camera.timerSeconds == 0 ? 3 : (camera.timerSeconds == 3 ? 10 : 0)
             }
             UserDefaults.standard.set(camera.timerSeconds, forKey: "cameraTimerSeconds")
@@ -1768,7 +1768,7 @@ struct CameraView: View {
                 // a shot and became a bug the moment there was: every photo
                 // you retook would already be in your library. It happens on
                 // "Use Photo" now.
-                withAnimation(GridConstants.gentleReveal) { review = image }
+                withAnimation(GridConstants.motionSnappy) { review = image }
             }
         }
     }

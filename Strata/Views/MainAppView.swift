@@ -1584,7 +1584,7 @@ struct MainAppView: View {
         if reduceMotion {
             visibleSkeletonCount = 8
         } else {
-            withAnimation(GridConstants.gentleReveal) {
+            withAnimation(GridConstants.motionSnappy) {
                 visibleSkeletonCount = 8
             }
         }

@@ -306,7 +306,7 @@ struct PlanSheet: View {
                     Color.clear
                         .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
+                        .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
                         .accessibilityLabel("Add a line")
                         .accessibilityAddTraits(.isButton)
                 }
@@ -461,7 +461,7 @@ struct PlanSheet: View {
         // lands at the top, so the tap is a page gathering itself into a list
         // rather than a swap in place. `motionSmooth` is the ladder's own
         // rung for a layout answering a press.
-        .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
+        .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
         .accessibilityElement()
         .accessibilityLabel("Write what you mean to do")
         .accessibilityAddTraits(.isButton)
