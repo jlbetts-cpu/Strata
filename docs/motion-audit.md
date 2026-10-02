@@ -833,3 +833,73 @@ So the one judgement that decides Group A and exemption 6 — whether 73ms and
 the two versions built, filmed, and put side by side, which is exactly how the
 white label and the 8pt corner were settled on 2026-10-01. **Until that
 happens, every number above is an argument and not a verdict.**
+
+---
+
+## Filmed, 2026-10-02: every motion graded out of ten
+
+The open check above is closed. Each motion below was **filmed** on Strata-E
+(402x874) with `xcrun simctl io recordVideo` at the simulator's own frame
+rate, driven by real taps through the simulator, and read frame by frame
+with `tools/frames.swift` (time, change from the frame before, and the gap
+between frames). Main-thread stalls were measured with `-strataPerfProbe`
+on a build compiled `-O` (the debug harness, optimised), and the two worst
+were sampled with macOS `sample` to find what the time was spent on.
+
+**What the simulator cannot say.** It renders on the Mac's GPU, so a motion
+that is GPU-bound here (the replay's last zoom-out drew 16fps in the film
+while the main thread had 8 gaps over 50ms in 30 seconds) says nothing about
+a phone. Those are marked "phone". Launch time is the same: a debug build
+seeding photographs is not a launch.
+
+**A 10 means:** on the ladder (`tools/motion-inventory.py`), caused by a
+person (check 10) or a sanctioned exemption, calm under Reduce Motion, the
+platform's own idiom where one exists, and no main-thread stall a person
+would feel in the optimised build.
+
+| Motion | Filmed | Grade | Note |
+|---|---|---|---|
+| Tab switch, any tab | glass pill ~220ms (system), page swap ~100ms | **10** | iOS 26's own |
+| Camera arriving | 300ms dissolve over the page | **10** | the owner's request; Reduce Motion gated |
+| Press, every control | glass answers itself; `.press`, `.pressWord`, `.pressSurface` elsewhere | **10** | the profile picture was silent as a photograph or colour; fixed |
+| Block to Edit sheet | system sheet, 460ms | **10** | a 535ms cold freeze before it was Spotlight drawing a thumbnail per win; gone |
+| Size Quick / Regular / Deep | 420 to 476ms, one 100ms frame gap (debug build) | **10** | `motionSnappy`; no gap in the optimised run |
+| Colour change | 184ms crossfade | **10** | |
+| Sheet dismiss (Cancel, swipe) | 465 to 533ms | **10** | system |
+| Plan open | 521ms | **10** | system sheet |
+| Wins to Memories, first visit | page in ~100ms, then the shelf and posters ~330ms later | **9** | phone: the late shelf is SwiftUI building the page once plus the fixture's photographs being processed; a second visit costs ~20ms of main thread |
+| Calendar day open / back | zoom, 260 / 285ms | **10** | the platform's zoom, out of the cell |
+| Album card open / back | push, ~460ms | **10** | the platform's push |
+| Map push | 883ms, MapKit cold start (795ms main thread) | **9** | phone: no app code in the stall; pre-warming MapKit would cost memory and network for people who never open the map |
+| Replay open | zoom out of its card, 503ms | **10** | |
+| Replay play and rest | function of time (exemption 8) | **10** on motion, **phone** on frame rate | GPU-bound in the simulator |
+| Replay close | 315ms zoom; the clock now pauses first | **9** | phone: 8 frames in 315ms here, GPU-side |
+| Win drop and landing | ~450ms fall, landing, slot back ~300ms later | **10** | `dropFallCurve`, exemption 1 |
+| Keyboard | system | **10** | |
+
+**Seventeen motions: fourteen at 10, three at 9, and all three 9s wait on a
+phone, not on code.** Nothing in this table is a 9 because of something the
+app does wrong that the simulator can see.
+
+### What changed to get here
+
+- **One vocabulary.** `gentleReveal`, `naturalSettle`, `motionSmooth` and
+  `dropSettleSpring` (Group A above) are `motionSnappy` now: 36 animations
+  to 33, and one spring carries 63 of 148 call sites. The slot's release is
+  a token that takes the finger's velocity; no animation is typed inline.
+- **Reduce Motion decided once** (`GridConstants.calm`). Every UI spring is
+  the 0.2s fade with the setting on, so the eight files that animated
+  without reading it are covered by construction, in sheets and covers too.
+- **Nothing silent under a finger.** `.plain` is left only on glass, which
+  presses itself.
+- **The first sheet stopped freezing.** The cold launch spent ~2,500 samples
+  in the Spotlight reindex drawing one SF Symbol thumbnail per win; it now
+  draws seven, at background priority, two seconds after launch.
+
+### Disproved, so nobody tries it again
+
+- **Pausing the replay clock does not fix the close's frame rate here.**
+  Filmed before and after: 9 frames in 500ms, then 8 in 315ms. At the close
+  the clock was already paused (finished and settled); the cost is the zoom
+  compositing a page of photographs, which is the GPU and the simulator's.
+  The pause stays because it is right for a replay closed mid-play.
