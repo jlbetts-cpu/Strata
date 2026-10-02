@@ -479,10 +479,15 @@ struct MonthCalendarCell: View {
     /// of the same screen):
     ///
     ///                 gutter   cell fill   rim      fill step   rim step
-    ///     light        244        239      242        5           3
-    ///     dark          27         33       63        6          30
+    ///     light        237        238      244        1           6
+    ///     dark          32         37       54        5          17
     ///
-    /// The fill is matched to within a level. **The rim is 3 levels against 30.**
+    /// Sampled on one clean row of day cells — the first row holds the
+    /// out-of-month pads and the rows with numerals in them read the numeral,
+    /// and both of those read as the rim if you let them. **The rim is 6 levels
+    /// against 17**, and the FILL is the mirror of it: 1 level in light against
+    /// 5 in dark, because `slotInk` inverts and a "well" on the night ground is
+    /// a highlight rather than a recess.
     /// `docs/screen-audit.md`'s check 12 puts the line between texture and
     /// structure at 4 levels and says so in scheme-neutral terms — "on the light
     /// page (247) and the night ground (29), four levels is about where a flat
@@ -501,13 +506,20 @@ struct MonthCalendarCell: View {
     /// than deleted: it is what keeps an empty day and a filled one the same
     /// object, which is this cell's whole construction.
     ///
-    /// 0.15 to land the drawn rim near 4.5 levels, from 30 at full strength.
+    /// **0.35, solved on the build rather than derived.** Two iterations were
+    /// photographed and measured on the same row: 0.15 put the rim at 2 levels
+    /// and 0.07 at 1, both of them QUIETER than the light page's 6 and both of
+    /// them past the point where the cell stops being drawn at all. The
+    /// relationship is near enough linear between 1.00 (17 levels) and 0.15 (2),
+    /// so 0.35 lands it on the light page's 6. **Parity in levels is the target,
+    /// not a smaller number**: in dark the rim is the only thing drawing the
+    /// cell, because the fill cannot cut a recess into a near-black ground.
     /// **The light value does not move by a thousandth**, which is deliberate:
     /// the owner looked at and accepted the light calendar, and a dark-mode
     /// correction that moves the daylight is the thing this app has been caught
     /// doing four times in the other direction.
     static func emptyRimScale(in scheme: ColorScheme) -> Double {
-        scheme == .dark ? 0.07 : 1
+        scheme == .dark ? 0.35 : 1
     }
 
     /// **How dark an empty day is, and it depends on how many of them there
@@ -685,7 +697,12 @@ private struct MonthCalendarPad: View {
                                 lineWidth: max(1, GridConstants.blockRimWidth
                                                   * side / GridConstants.blockReferenceCell)
                             )
-                            .opacity(0.45)
+                            // The same dark-mode correction the empty DAY's rim
+                            // takes, for the same reason and in the same
+                            // proportion: this rim is the identical white
+                            // gradient and a pad sits on the identical ground.
+                            // See `MonthCalendarCell.emptyRimScale(in:)`.
+                            .opacity(MonthCalendarCell.emptyRimScale(in: colorScheme) * 0.45)
                         }
                 }
             }

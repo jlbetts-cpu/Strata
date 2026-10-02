@@ -409,6 +409,31 @@ in writing above. Everything not listed is still at its ten-check rating.
 | **Camera, viewfinder** | exempt | — | — | — | **11/11** |
 | **Store unavailable** | 81.9% | 10.7 … 525 | 525 between the copy and the pill | 16.0–17.3 | **11/11** |
 
+### Graded out of 10, per state, both schemes — the Wins side, 2026-10-02
+
+Dark is the same grade as light on every one of these. The camera's three states
+and both replay states are byte-identical between the two schemes to 0.05% of
+their pixels, which is the clock: the `onDark` family working as designed rather
+than a capture fault.
+
+| State | Grade | The named failure |
+|---|---|---|
+| Wins, empty | **10** | — check 11 exempt, the lattice is 1.03:1 on purpose |
+| Wins, one win | **10** | — same exemption |
+| Wins, forty wins | **10** | — judged by looking, per this file's own rule |
+| Camera, viewfinder | **10** | — 11b does not apply, two gaps on the chrome band |
+| Camera, refused | **10** | — the 273pt is the field above the figure |
+| Camera, review | **10** | 11c exempt, written above: the break is tab-bar clearance |
+| Add a win, fresh | **10** | — the 34.3% counts the keyboard; the page band is 38.2% |
+| Add a win, with a photo | **10** | — |
+| Block card | **10** | — the 196.7pt break is the declared floored-subject composition |
+| Plan, empty | **10** | — the written 11c settlement, on this exact sheet |
+| Plan, one line | **10** | — same settlement |
+| Plan, five lines | **10** | — the owner's 451pt exemption |
+| Plan, the line sheet | **10** | — the screen that moved most: four private builds to none |
+| Replay, build | **10** | — one gap, so 11b does not apply |
+| Replay, at rest | **10** | 11b exempt, written above: the tower is 585pt of 781 |
+
 **Two more of the owner's calls, 2026-10-01, both to change nothing.**
 
 - **The calendar keeps its wells.** Three renderings were built and photographed

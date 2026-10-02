@@ -866,11 +866,11 @@ struct AddWinSheet: View {
     ///
     /// The dark value is the brightest red that still reads as a red rather than
     /// as a salmon, which is also where the measured return flattens out.
-    static let destructiveTint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 1.0, green: 0.361, blue: 0.329, alpha: 1)    // rgb(255, 92, 84)
-            : UIColor(red: 0.702, green: 0.0, blue: 0.059, alpha: 1)    // 0xB3000F, unchanged
-    })
+    /// **The value moved to `AppColors.destructiveInk` on 2026-10-02** and this
+    /// is the name three other files already reach for. A colour that three
+    /// files import from a VIEW is a colour in the wrong place; the reasoning
+    /// above stays here because it is about this button's STYLE.
+    static let destructiveTint = AppColors.destructiveInk
 
     /// **The platform's destructive button, not a copy of one.**
     ///

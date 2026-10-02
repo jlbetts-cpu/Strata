@@ -440,6 +440,34 @@ enum AppColors {
     // not use is how `switchOn` ended up with six call sites arguing with its
     // own header, so they are being corrected rather than left.
 
+    /// **The one red a destructive word is written in.**
+    ///
+    /// Promoted here 2026-10-02 from `AddWinSheet.destructiveTint`, where it was
+    /// a colour living on a view that three other files reached across for. The
+    /// full argument — why 4.5:1 is unreachable for a `.bordered` destructive
+    /// button, and why the number to beat was the 2.20:1 it replaced rather than
+    /// the 4.5 — is still on that site, because it is about the BUTTON STYLE and
+    /// not about the colour.
+    ///
+    /// **Measured on the light Form card, which is where the app's other two
+    /// deletes live:** this is **5.65:1**, `warmRed` is **2.71:1** and the
+    /// system red is **2.79:1**. Settings' "Reset All Data" and Profile's
+    /// "Delete head" were shipping at 2.71 against the 4.5 a 17pt word is held
+    /// to, which is the one press in each of those screens that destroys work.
+    ///
+    /// Adaptive, because a fixed red is a colour in one scheme: rgb(179, 0, 15)
+    /// on the light page and rgb(255, 92, 84) on the night one, which is the
+    /// brightest red that still reads as a red rather than as a salmon.
+    static let destructiveInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 1.0, green: 0.361, blue: 0.329, alpha: 1)
+            : UIColor(red: 0.702, green: 0.0, blue: 0.059, alpha: 1)
+    })
+
+    /// **Not a destructive colour.** This is the warm red a BLOCK is filled
+    /// with. It was reached for twice as a delete's ink and measures **2.71:1**
+    /// on a Form card; `destructiveInk` above is what a word that destroys
+    /// something is written in.
     static let warmRed = Color(hex: 0xE85D4A)
 
     // MARK: - Four colours deleted, 2026-10-01
