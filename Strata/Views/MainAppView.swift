@@ -2032,6 +2032,10 @@ struct MainAppView: View {
         // same reason `-strataOpenReview` exists.
         case "addphoto": selectedTab = .tower
                          winDraft = WinDraft(photo: DebugHarness.placeholderPhoto())
+        // The Deep block drawn out of the shutter, which is the one state whose
+        // well (370pt) cannot fit above a keyboard (2026-10-02).
+        case "adddeep":  selectedTab = .tower
+                         winDraft = WinDraft(photo: DebugHarness.placeholderPhoto(), size: .hard)
         // The plan's line detail, which is behind a tap on a line. `PlanSheet`
         // reads the same value and opens its first line; both halves are
         // needed, because the sheet has to be up before anything in it can be

@@ -49,3 +49,5 @@ Captured 2026-10-02 on Strata-E, light and dark: empty `-strataStartTab tower -s
 ---
 ### Summary
 Profile's structure and its chart are among the best work in the app. Its two failures were both text set below the line the owner drew: Form footers at 13pt and 3.34:1 and a placeholder at 3.32:1. Both are fixed, the footers by one shared modifier that Settings now uses too.
+
+**Last pass, 2026-10-02:** #3 FIXED: the Day/Week/Month control is drawn only once `summary.kind != .empty`; the empty card is its one sentence.

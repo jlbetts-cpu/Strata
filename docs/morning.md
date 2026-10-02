@@ -66,25 +66,26 @@ way.
 | Screen | Grade | What keeps it from 10 |
 |---|---|---|
 | Wins, empty / one / forty | **10** | |
-| Add a win | **9** | A Deep block opened from the camera still sits partly under the keyboard; no spacing fits a 370pt well above a keyboard. Phone check. |
+| Add a win | **10** | Reads from the top; while typing, a block too big for the room above the keyboard scales to fit |
 | Block card (edit) | **10** | Delete is the red word now, 5.73:1 dark |
 | Plan, empty / lines | **10** | Empty plan was mis-captured overnight (the last run's lines persisted); seed fixed, re-shot |
 | Memories, the month | **10** | Numerals at 15, album titles wrap |
 | Memories, empty / one | **10** | |
 | Map | **10** | |
 | Day album | **10** | One row of lattice over a past day |
-| Place collection | **9** | "9 here" as the title until the place name arrives (your copy) |
+| Place collection | **10** | "9 photos" until the place's name arrives (was "9 here") |
 | Photo viewer | **10** | |
-| Profile | **9** | A Day/Week/Month control over a chart with no data yet |
+| Profile | **10** | The Day/Week/Month control waits for data |
 | Settings | **10** | |
 | Restore, all four stages | **10** | First capture of restoring/done/failed found a doubled exit and a format number in the copy; both fixed |
 | Head maker | **10** | The switch to the light page is your call, kept |
 | Head picker | **10** | First capture with several heads |
 | Replay | **10** | Titles gone by rest |
-| Onboarding | **9** | Page 4 redrawn as the real map. Page 3's camera picture still has tab labels; it needs a fresh shot from a phone |
+| Onboarding | **10** | Page 4 redrawn as the real map; page 3's picture carries today's icon-only bar |
 | Store unavailable | **10** | |
 | Camera, viewfinder / refused / review | **10** | |
 
-**After your eight answers (same morning): fifteen of nineteen at 10.** The
-four 9s: Add a win (phone check), Place ("9 here", your copy), Profile (a
-control over no data), Onboarding (page 3 needs a phone photo).
+**After your eight answers: fifteen of nineteen at 10. After the last pass,
+nineteen of nineteen.** Still worth a look on a real phone, because the
+simulator cannot show them: VoiceOver order on the empty tower, the Deep
+block shrinking while you type, and the long-press menu on a photograph.

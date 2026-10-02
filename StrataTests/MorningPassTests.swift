@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Strata
 
 /// **The morning pass, 2026-10-02, pinned.**
@@ -113,5 +114,60 @@ struct OwnerMorningCallsTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: root.appendingPathComponent("Strata").appendingPathComponent(path),
                           encoding: .utf8)
+    }
+}
+
+/// **The last four 9s, 2026-10-02.**
+@Suite("Last four to ten, 2026-10-02")
+struct LastFourToTenTests {
+
+    @Test("a place without its name yet is titled by its photo count")
+    func placeCountTitle() {
+        #expect(PhotoCollectionView.countTitle(9) == "9 photos")
+        #expect(PhotoCollectionView.countTitle(1) == "1 photo")
+    }
+
+    @Test("the trend control only shows once there is a trend")
+    func trendControlNeedsData() throws {
+        let text = try MorningSource.read("Views/ProfileView.swift")
+        let trend = text.components(separatedBy: "private var trend: some View {").last ?? ""
+        let picker = trend.components(separatedBy: "Picker(\"Wins per\"").first ?? ""
+        #expect(picker.contains("if summary.kind != .empty {"))
+    }
+
+    @Test("while typing, a block that does not fit scales to fit above the keyboard")
+    func wellFitsAboveKeyboard() throws {
+        let text = try MorningSource.read("Views/AddWinSheet.swift")
+        #expect(text.contains("guard titleFocused, wellTop > 0 else { return 1 }"))
+        #expect(text.contains("return min(1, room / h)"))
+    }
+
+    @Test("onboarding's camera picture has no tab labels in it")
+    func viewfinderPictureIsCurrent() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let url = root.appendingPathComponent("Strata/Assets.xcassets/DemoViewfinder.imageset/demoviewfinder.jpg")
+        let image = try #require(UIImage(contentsOfFile: url.path)?.cgImage)
+        // The label row sat at y2505 to 2517 (3x), under each glyph (248 there
+        // in the old capture, measured; the new glyphs end at y2502). In the
+        // icon-only bar that band is the capsule's own flat ground.
+        let data = try #require(image.dataProvider?.data as Data?)
+        let bpr = image.bytesPerRow, bpp = image.bitsPerPixel / 8
+        var brightest = 0
+        for y in 2505...2517 { for x in stride(from: 210, to: 1000, by: 2) {
+            // The darkest channel, so an alpha byte (255) in whatever order
+            // the decoder chose cannot read as ink: white type is high in
+            // all three colours, the dark capsule is low in all three.
+            let i = y * bpr + x * bpp
+            let channels = (0..<bpp).map { Int(data[i + $0]) }
+            brightest = max(brightest, channels.min() ?? 0)
+        } }
+        #expect(brightest < 120, "label ink at \(brightest) in the band the words used to sit in")
+    }
+}
+
+enum MorningSource {
+    static func read(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("Strata").appendingPathComponent(path), encoding: .utf8)
     }
 }

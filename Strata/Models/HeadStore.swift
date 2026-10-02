@@ -242,6 +242,26 @@ final class HeadStore {
         // reviewed." Each extra head is the version 2 fixture in a folder of
         // its own under `Heads/`, the same place a real second head lives, so
         // `resolve` and `persistRoster` treat it exactly as they would one.
+        // **A harnessed run starts with none of the last run's fixture heads**
+        // (2026-10-02). The roster is on disk, so three heads seeded for the
+        // picker's capture were still there for the next capture, and the
+        // EMPTY Profile was photographed with three heads in it. Only entries
+        // this block wrote, `Heads/debug-<i>`, are touched: a head somebody
+        // made never lives under that name.
+        if DebugHarness.isActive, let support = Self.support {
+            let stale = onDisk.heads.filter { $0.folder.hasPrefix("Heads/debug-") }
+            if !stale.isEmpty {
+                for entry in stale {
+                    try? FileManager.default.removeItem(at: support.appending(path: entry.folder,
+                                                                              directoryHint: .isDirectory))
+                }
+                onDisk.heads.removeAll { $0.folder.hasPrefix("Heads/debug-") }
+                if let active = onDisk.activeID, !onDisk.heads.contains(where: { $0.id == active }) {
+                    onDisk.activeID = onDisk.heads.first?.id
+                }
+                Self.writeRoster(onDisk, in: support)
+            }
+        }
         if let wanted = DebugHarness.seedHeadCount, wanted > onDisk.heads.count,
            let support = Self.support {
             for i in onDisk.heads.count..<wanted {

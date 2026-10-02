@@ -40,3 +40,5 @@ Captured 2026-10-02 on Strata-E, light and dark: `-strataShowOnboarding 1 -strat
 ---
 ### Summary
 The walkthrough is the most consistent flow in the app: one composition, one primary, one verb a page. Its open findings are both pictures that no longer tell the truth: the map page draws a Memories screen the owner replaced on 2026-09-30, and the camera page still carries tab labels the app removed. Neither was redrawn here, because both are figures he should see first.
+
+**Last pass, 2026-10-02:** #1 FIXED (owner: "Redraw it"): `MemoriesStill` draws the map screen with its back disc and no title. #2 FIXED: the icon-only tab bar from the simulator's camera capture is set into `DemoViewfinder` at the identical rectangle; `LastFourToTenTests` reads the old label band (255 before, 69 now).

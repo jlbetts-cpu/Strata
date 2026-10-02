@@ -200,7 +200,7 @@ struct PhotoCollectionView: View {
             // `.numericText()` was for, five lines of near-identical source away.
             CountReadout.photos(photoCount)
             // **Hidden when the title is already the count.** A place whose
-            // name has not arrived is titled "12 here" (see `load()`), and
+            // name has not arrived is titled "12 photos" (see `load()`), and
             // under it this line said "12 photos": one number twice, ten
             // points apart, in two different faces. §7 asks a screen to say
             // how much is here once. The name replaces the title when it
@@ -220,6 +220,11 @@ struct PhotoCollectionView: View {
     // `CountReadout` holds it.
 
     private var photoCount: Int { sections.reduce(0) { $0 + $1.photos.count } }
+
+    /// The title a place carries before its name arrives.
+    static func countTitle(_ count: Int) -> String {
+        "\(count) \(count == 1 ? "photo" : "photos")"
+    }
 
     private func load() {
         // **Only rows that could possibly appear here.**
@@ -260,16 +265,22 @@ struct PhotoCollectionView: View {
             // "Trafalgar Square" is an answer. It is a network call and it can
             // fail, so the count is what the screen opens on and the name
             // replaces it if it comes — see `PlaceNames`.
+            //
+            // **Until then it is titled "9 photos", and it was "9 here"**
+            // (2026-10-02, design review `place-collection.md` #1). "9 here"
+            // is half a sentence set at 34pt Bold, a phrase standing where a
+            // name goes. "9 photos" is the album card's own words for the same
+            // fact, so the page opened from a card says what the card said.
             if let place = matching.compactMap(\.place).first {
                 if let name = PlaceNames.shared.name(for: place) {
                     title = name
                 } else {
-                    title = "\(matching.count) here"
+                    title = Self.countTitle(matching.count)
                     titleIsCount = true
                 }
                 pending = place
             } else {
-                title = "\(matching.count) here"
+                title = Self.countTitle(matching.count)
                 titleIsCount = true
             }
         case .moment(let id):

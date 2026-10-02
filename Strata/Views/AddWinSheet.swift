@@ -50,6 +50,8 @@ struct AddWinSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var titleFocused: Bool
+    /// Where the well starts on the page, for `wellFit`.
+    @State private var wellTop: CGFloat = 0
 
     @State private var title = ""
     @State private var category: HabitCategory = .health
@@ -217,9 +219,10 @@ struct AddWinSheet: View {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
                         decisions
-                        subject(pageWidth: proxy.size.width)
+                        subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                             .padding(.top, GridConstants.gapSection)
                     }
+                    .coordinateSpace(name: Self.pageSpace)
                     // **The app's page margin, not a private one.** This was
                     // 20 while every other screen is `horizontalPadding` (16),
                     // so the add sheet's content sat four points further in
@@ -511,7 +514,7 @@ struct AddWinSheet: View {
     /// (32.0pt) when the button carried `gapWide` plus its own 8 of top
     /// padding — two numbers summing to a rung, which is how a rung stops
     /// being one.
-    private func subject(pageWidth: CGFloat) -> some View {
+    private func subject(pageWidth: CGFloat, visibleHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: GridConstants.gapSection) {
                     // **THE WELL IS LAST, AND IT IS THE BIGGEST THING HERE.**
                     //
@@ -535,7 +538,7 @@ struct AddWinSheet: View {
                     // It also puts the largest target on the most valuable
                     // action, which is the one law of this screen: a win with a
                     // photograph is what the whole app is for.
-                    photoWell(pageWidth: pageWidth)
+                    photoWell(pageWidth: pageWidth, visibleHeight: visibleHeight)
 
                     if isEditing {
                         deleteButton
@@ -671,7 +674,27 @@ struct AddWinSheet: View {
         .disabled(!canSave)
     }
 
-    private func photoWell(pageWidth: CGFloat) -> some View {
+    /// The page's own coordinate space, so the well can read where it starts.
+    private static let pageSpace = "addWinPage"
+
+    /// **While you type, the block fits above the keyboard** (2026-10-02).
+    ///
+    /// A Deep block from the shutter is a 370pt well, and the room above a
+    /// 402x874 keyboard is about 290 once the name and the size control are
+    /// placed: no spacing fits it, and the block's lower half sat behind the
+    /// keys. So while the name has focus the well scales down, both sides by
+    /// one factor, until its bottom stands `gapWide` above the keyboard, and
+    /// grows back when the keyboard goes. Its proportion is kept, so Deep is
+    /// still visibly the biggest; only a block that does not fit is touched,
+    /// so a Quick or a Regular never moves.
+    private func wellFit(height h: CGFloat, visibleHeight: CGFloat) -> CGFloat {
+        guard titleFocused, wellTop > 0 else { return 1 }
+        let room = visibleHeight - wellTop - GridConstants.gapWide
+        guard room > 0 else { return 1 }
+        return min(1, room / h)
+    }
+
+    private func photoWell(pageWidth: CGFloat, visibleHeight: CGFloat) -> some View {
         // The well is the block, at the block's real proportions.
         //
         // It was `.aspectRatio` on a full-width frame, so Quick (1x1) and Deep
@@ -698,8 +721,11 @@ struct AddWinSheet: View {
                     - GridConstants.spacing) / 2
         let gap = GridConstants.spacing
         let wellRadius = GridConstants.blockCornerRadius(forCell: cell)
-        let w = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
-        let h = CGFloat(size.rowSpan) * cell + CGFloat(size.rowSpan - 1) * gap
+        let fullW = CGFloat(size.columnSpan) * cell + CGFloat(size.columnSpan - 1) * gap
+        let fullH = CGFloat(size.rowSpan) * cell + CGFloat(size.rowSpan - 1) * gap
+        let fit = wellFit(height: fullH, visibleHeight: visibleHeight)
+        let w = fullW * fit
+        let h = fullH * fit
 
         return Button {
             HapticsEngine.lightTap()
@@ -825,6 +851,11 @@ struct AddWinSheet: View {
                 }
             }
             .frame(width: w, height: h)
+            // Where it starts, for `wellFit`. The top does not move when the
+            // well scales (it is anchored top-leading), so this cannot loop.
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.pageSpace)).minY } action: {
+                wellTop = $0
+            }
             // And the hit area is the shape, not whatever the content grew to.
             .contentShape(RoundedRectangle(cornerRadius: wellRadius, style: .continuous))
             // No overlay stroke. `BlockSurface` draws the rim, which is the

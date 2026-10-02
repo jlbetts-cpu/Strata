@@ -444,6 +444,15 @@ struct OnboardingView: View {
                 switch step {
                 case 0: tower(in: box)
                 case 1: workshop(in: box)
+                // **The tab bar in this picture is today's** (2026-10-02). The
+                // capture still carried the Wins / Camera / Memories labels the
+                // app dropped on 2026-10-01. A new device shot was the ask; the
+                // simulator has no viewfinder, but its chrome IS the shipping
+                // chrome, so the icon-only bar was lifted out of the
+                // simulator's camera capture and set into the photograph at
+                // the identical rectangle (x192 to 1013, y2373 to 2558 at 3x,
+                // the same in both), masked to the capsule. The sunset and
+                // every other control are the original capture.
                 case 2: screenshot("DemoViewfinder", in: box)
                 case 3: memories(in: box)
                 case Self.headStep: headPage

@@ -529,13 +529,22 @@ struct ProfileView: View {
         let bars = vm.bars(unit)
         return Section {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                Picker("Wins per", selection: $unitRaw) {
-                    ForEach(WinTrend.Unit.allCases) { option in
-                        Text(option.title).tag(option.rawValue)
+                // **No control until there is something to switch between**
+                // (2026-10-02, design review `profile.md` #3). Over no data
+                // Day, Week and Month all draw the same sentence, so the
+                // control was three choices with no effect: the loudest thing
+                // in an empty card, saying nothing. The first win brings it in;
+                // the card growing once, at the moment there is a chart to
+                // show, is the right moment for it to change.
+                if summary.kind != .empty {
+                    Picker("Wins per", selection: $unitRaw) {
+                        ForEach(WinTrend.Unit.allCases) { option in
+                            Text(option.title).tag(option.rawValue)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
 
                 // `GridConstants.spacing`, and it was a hand-typed 0.
                 //
