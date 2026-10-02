@@ -74,3 +74,5 @@ Text contrast below is the extreme ink pixel of a glyph against the median groun
 ---
 ### Summary
 Memories is a well-composed page whose failures were in the instruments rather than the layout: thirty-one numerals at 2.91:1 that had been graded as marks, and a replay thumbnail that cropped the middle of a poster whose tower stands at the bottom, so every short period showed an empty well. That one was handed over as a race and was geometry; both are fixed. What is left is the owner's: the calendar numerals are 7.9pt under a floor he locked, and the album card's titles truncate; both were rendered the other way and neither shipped.
+
+**Morning pass, 2026-10-02:** #5 FIXED: a day still to come is hidden from VoiceOver (`accessibilityHidden(isFuture)`); a past empty day still says "nothing". #8 FIXED: a photograph is spoken as its title or "Photo" plus its day (`GalleryPhoto.spokenName`). #3 and #4 are still the owner's calls, listed in `docs/morning.md`.

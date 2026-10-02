@@ -36,3 +36,5 @@ Stage changes swap content; no decorative motion. **Overall:** Purposeful.
 ---
 ### Summary
 Restore does what a screen in front of a data operation should: it states the facts, says what will happen in one sentence, and offers one verb. The only defect was the app's old name, fixed.
+
+**Morning pass, 2026-10-02:** #3 FIXED: `-strataRestoreStage restoring|done|failed` holds the sheet on each stage; all three are in the morning capture (`17-restore-<stage>`).

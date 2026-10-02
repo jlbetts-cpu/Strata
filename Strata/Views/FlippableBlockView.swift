@@ -147,13 +147,20 @@ struct FlippableBlockView: View {
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.slotSnap,
                        value: isLifted)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            // **No press without somewhere to go.** A block with no `onTap`
+            // (a past day's block with no photograph, the share card) used to
+            // squash and tick and then open nothing, which reads as a fault
+            // rather than a toy (2026-10-02, design review, `day-album.md` #1).
+            // `including: .subviews` keeps the gesture's place in the tree and
+            // simply stops it answering.
             .simultaneousGesture(
                 TapGesture()
                     .onEnded {
                         HapticsEngine.lightTap()
                         tapTrigger += 1
                         onTap?()
-                    }
+                    },
+                including: onTap == nil ? .subviews : .all
             )
     }
 

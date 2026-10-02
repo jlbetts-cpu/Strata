@@ -285,6 +285,7 @@ struct DayAlbumDetailView: View {
             modelContext: modelContext,
             width: containerWidth - GridConstants.horizontalPadding * 2,
             maxCell: 200,
+            canTapBlock: { $0.log.imageFileName != nil },
             onTapBlock: { block in
                 // The photo is ON the block. A separate grid underneath was a
                 // second copy of the same pictures, and it pushed the tower —

@@ -35,3 +35,5 @@ Open from the album card (system zoom); photographs open out of their thumbnails
 ---
 ### Summary
 The collection is the camera roll and it reads like one, with every number clearing its floor. The only finding is copy that cannot be photographed from this harness: a place's title is "9 here" until its name arrives.
+
+**Morning pass, 2026-10-02:** #4 FIXED through `GalleryPhoto.spokenName` ("Photo, 21 September"). #1 ("9 here" before the geocode) is still the owner's copy call.

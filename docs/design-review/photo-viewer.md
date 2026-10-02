@@ -58,3 +58,5 @@ Captured: `/tmp/r2/light/viewer.png`, `/tmp/r2/dark/viewer.png`. The viewer pins
 ---
 ### Summary
 The viewer was never broken; it had never been photographed, and the most likely reason is a capture racing a test run on the same simulator. Looked at, it is one of the strongest screens in the app: a print on black, every ratio clear, a deletion dialog that says what it will not do. The one real defect was that the filmstrip's thumbnails were invisible as buttons to VoiceOver, and that is fixed.
+
+**Morning pass, 2026-10-02:** #3 FIXED: the filmstrip names a photograph with its day (`GalleryPhoto.spokenName`).

@@ -55,3 +55,5 @@ Captured 2026-10-02 on Strata-E, light and dark: empty `-strataStartTab memories
 ---
 ### Summary
 The map does the hard thing well: it makes MapKit quiet enough that the person's photographs are the subject. The two real defects were small and cheap: the blocks were invisible as buttons to VoiceOver, and the empty state called the app by the name it gave up three days ago, a sentence away from a system prompt using the new one. Both are fixed.
+
+**Morning pass, 2026-10-02:** #3 FIXED: a block says its place's name once `PlaceNames` knows it, then the count ("Hackney, 3 wins"); the name is read, never fetched, because geocoding is rate-limited and twenty blocks would be refused.

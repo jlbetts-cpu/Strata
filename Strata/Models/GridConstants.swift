@@ -674,6 +674,9 @@ enum GridConstants {
 
     /// The slot fading out as the replay starts.
     static let replayLoadingFade: Double = 0.24
+    /// The same fade as an `Animation`, so the view names it rather than
+    /// building one inline from the duration (`docs/design-review/replay.md` #4).
+    static let replayLoadingOut: Animation = .easeOut(duration: replayLoadingFade)
 
     /// How far above the top of the screen a block starts its fall.
     ///

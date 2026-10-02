@@ -56,3 +56,5 @@ Selection is instant (`reduceMotion` read in `HeadPickerRow`); the head on the t
 ---
 ### Summary
 The single-head state is right: plain switches that say what they do, and a delete that names its object. The picker itself, the reason this row exists, has never been seen with more than one head, because the fixture cannot make two. That is the one thing to do next, and it is a five-line change in a file I may not edit.
+
+**Morning pass, 2026-10-02:** #1 FIXED: `-strataSeedHeads <n>` seeds made heads; captured with three (`18a-head-picker`). #2 resolves with several heads: three tiles read as a set, not an unfinished row.

@@ -380,11 +380,19 @@ struct RestoreBackupView: View {
         PrimaryCapsule(title: title) { Task { await action() } }
     }
 
+    /// **Gone once the restore has settled.** Done and failed each end in a
+    /// `PrimaryCapsule` that closes the sheet, so the toolbar word was a second
+    /// exit beside it: "Done" over "Done", and on a failure "Cancel" over
+    /// "Close", two words for one way out and a Cancel with nothing left to
+    /// cancel (2026-10-02, first capture of these stages). Before then it is
+    /// the only way out and stays.
     @ToolbarContentBuilder
     private var closeButton: some ToolbarContent {
         // Bare glyph, like every other toolbar in the app: iOS 26 puts a glass
         // capsule behind a toolbar item and the app strips it deliberately.
-        if #available(iOS 26.0, *) {
+        if isSettled {
+            ToolbarItem(placement: .cancellationAction) { EmptyView() }
+        } else if #available(iOS 26.0, *) {
             ToolbarItem(placement: .cancellationAction) { cancelLabel }
                 .sharedBackgroundVisibility(.hidden)
         } else {
@@ -416,12 +424,9 @@ struct RestoreBackupView: View {
     /// near-black rather than the ink on a control, and `inkPrimary` is the token
     /// for ink. `SheetAction` carries the same correction.
     ///
-    /// **The role changes with the word, and that is the one thing this control
-    /// has that the other five sheets do not**: it says "Cancel" while a restore
-    /// is possible and "Done" once it has happened, so it is a cancel action
-    /// before and a confirm action after, and the ink steps with it. That is the
-    /// step `AddWinSheet` has between its Cancel at 6.11:1 and its Add, and it is
-    /// the only signal in a monochrome bar that says which word is which.
+    /// **It is only ever Cancel now.** It used to turn into "Done" once the
+    /// restore had happened, which put it beside the stage's own Done capsule;
+    /// the toolbar word leaves at that point instead (see `closeButton`).
     ///
     /// **And the 44pt box arrives with the modifier.** This was a bare `Text`,
     /// so it measured the 68x36 the audit measured on four of six sheets, on the
@@ -431,16 +436,18 @@ struct RestoreBackupView: View {
             HapticsEngine.lightTap()
             onClose()
         } label: {
-            Text(isFinished ? "Done" : "Cancel")
-                .sheetAction(isFinished ? .confirm : .cancel)
+            Text("Cancel")
+                .sheetAction(.cancel)
         }
         .buttonStyle(.pressWord)
         .disabled(isRestoring)
     }
 
-    private var isFinished: Bool {
-        if case .done = stage { return true }
-        return false
+    private var isSettled: Bool {
+        switch stage {
+        case .done, .failed: return true
+        default: return false
+        }
     }
 
     private var isRestoring: Bool {
@@ -466,6 +473,9 @@ struct RestoreBackupView: View {
             do { return .success(try BackupArchive.read(zipAt: url)) }
             catch { return .failure(error) }
         }.value
+        #if DEBUG
+        if let held = Self.heldStage() { stage = held; return }
+        #endif
         switch outcome {
         case .failure(let error):
             stage = .failed(Self.message(for: error))
@@ -492,6 +502,29 @@ struct RestoreBackupView: View {
         if report.succeeded { HapticsEngine.success() } else { HapticsEngine.warning() }
         stage = .done(report)
     }
+
+    #if DEBUG
+    /// A stage past the decision, for `-strataRestoreStage`. The numbers are a
+    /// believable restore of the seeded backup, and the failure is the real
+    /// copy for a backup from a newer version, so what is photographed is what
+    /// a person would read.
+    private static func heldStage() -> Stage? {
+        switch DebugHarness.restoreStage {
+        case "restoring":
+            return .restoring
+        case "done":
+            var report = BackupRestore.Report()
+            report.winsAdded = 40
+            report.daysAdded = 18
+            report.photographsRestored = 12
+            return .done(report)
+        case "failed":
+            return .failed(BackupArchive.ReadFailure.fromTheFuture(fileVersion: BackupArchive.currentFormatVersion + 7).message)
+        default:
+            return nil
+        }
+    }
+    #endif
 
     private static func message(for error: Error) -> String {
         if let failure = error as? BackupArchive.ReadFailure { return failure.message }

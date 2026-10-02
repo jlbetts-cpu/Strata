@@ -54,3 +54,5 @@ Captured 2026-10-02 on Strata-E, light and dark: `-strataStartTab memories -stra
 ---
 ### Summary
 A clean, honest screen: the real tower, a count that reads, a transition that says where you came from. Nothing on it fails a floor. The two open items are behaviour and composition (a block that answers a press with nothing, and a past day carrying the Wins tab's room to grow) and both live in components that are not this file's.
+
+**Morning pass, 2026-10-02:** #1 FIXED: `StaticTowerView.canTapBlock`; a block with no photograph gets no `onTap`, and `FlippableBlockView` stops answering the tap (`including: .subviews`), so it neither squashes nor ticks. #2 is in `docs/morning.md` as the owner's call 6.

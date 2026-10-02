@@ -1361,7 +1361,20 @@ private struct PlaceBlock: View {
             }
         }
         .animation(reduceMotion ? nil : GridConstants.gentleReveal, value: showsCount)
-        .accessibilityLabel("\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins") here")
+        .accessibilityLabel(spokenName)
+    }
+
+    /// The place's name when it is already known, then the count. Every block
+    /// said "3 wins here", so two places could only be told apart by opening
+    /// them (2026-10-02, design review, `map.md` #3). The name is read, never
+    /// fetched: geocoding is rate-limited hard and a map of twenty blocks
+    /// would be refused, so a block gains its name once its place has been
+    /// opened, and says the count until then.
+    private var spokenName: String {
+        let count = "\(cluster.winCount) \(cluster.winCount == 1 ? "win" : "wins")"
+        let place = WinPlace(latitude: cluster.latitude, longitude: cluster.longitude)
+        guard let name = PlaceNames.shared.name(for: place) else { return "\(count) here" }
+        return "\(name), \(count)"
     }
 }
 

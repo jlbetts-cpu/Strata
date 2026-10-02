@@ -26,3 +26,5 @@ Captured 2026-10-02 on Strata-E, light and dark: `-strataFailStore both`.
 ---
 ### Summary
 A good failure screen: reassurance first, one action, nothing that blames. Its only defect is the app's old name in a recovery instruction, which lives in the store service rather than this view.
+
+**Morning pass, 2026-10-02:** #1 FIXED by the Sturdy rename: the title, the recovery line and Siri's answer all say Sturdy (`StoreUnavailableCopy`).

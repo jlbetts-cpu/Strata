@@ -127,7 +127,7 @@ struct ReplayView: View {
                         .padding(.trailing, GridConstants.horizontalPadding)
                         .padding(.top, insets.top + GridConstants.gapTight)
                 }
-                .animation(.easeOut(duration: GridConstants.replayLoadingFade), value: started)
+                .animation(GridConstants.replayLoadingOut, value: started)
                 .task(id: script.metrics.cell) { await prepare(script: script) }
             }
             .ignoresSafeArea()

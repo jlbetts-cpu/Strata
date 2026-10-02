@@ -239,8 +239,10 @@ nonisolated enum BackupArchive {
                 "This file isn't a Sturdy backup, or it didn't finish downloading. \(detail)"
             case .noWinsFile:
                 "This zip has no wins.json inside it, so it isn't a Sturdy backup. Pick the file Back Up Everything made."
-            case .fromTheFuture(let version):
-                "This backup was made by a newer version of Sturdy (format \(version); this one reads \(BackupArchive.currentFormatVersion)). Update Sturdy and try again. Nothing has been changed."
+            case .fromTheFuture:
+                // No format numbers: "format 9; this one reads 2" was the
+                // file's business, not the reader's (2026-10-02).
+                "This backup was made by a newer version of Sturdy. Update Sturdy and try again. Nothing has been changed."
             case .malformedJSON(let detail):
                 "Sturdy could not read this backup's index: \(detail). Nothing has been changed."
             case .archive(let failure):

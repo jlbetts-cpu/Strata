@@ -338,8 +338,15 @@ struct MonthCalendarCell: View {
             .buttonStyle(.pressSurface)
             .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")")
         } else {
+            // **A day still to come is not a stop.** It carries nothing a
+            // listener can act on, and on the 3rd of a month it was 28 swipes
+            // between the month's title and its replay (2026-10-02, design
+            // review, `memories.md` #5). A past empty day stays: "nothing"
+            // is a fact about that day. A sighted person skips the future in
+            // one glance; this is the same skip.
             empty
-                .accessibilityLabel(isFuture ? "\(day), to come" : "\(day), nothing")
+                .accessibilityLabel("\(day), nothing")
+                .accessibilityHidden(isFuture)
         }
     }
 

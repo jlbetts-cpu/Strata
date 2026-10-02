@@ -491,6 +491,13 @@ enum DebugHarness {
     /// than to ship one. The shipping default is in `MonthCalendarView.emptyDay`.
     static var calendarEmptyDay: String? { argument("-strataCalendarEmpty")?.lowercased() }
 
+    /// `-strataRestoreStage restoring|done|failed`: hold the restore sheet on a
+    /// stage past the decision, which no capture could reach because each is a
+    /// moment in a real restore (2026-10-02, design review, `restore.md` #3).
+    /// Used with `-strataSeedBackup` and `-strataRestoreFrom`; the sheet reads
+    /// the backup as usual and then shows this stage instead of the decision.
+    static var restoreStage: String? { argument("-strataRestoreStage")?.lowercased() }
+
     /// Empties the store before anything else runs, from `-strataResetStore`.
     ///
     /// **This exists because the UI suite could not be trusted.** Every test
@@ -1058,8 +1065,13 @@ enum DebugHarness {
             NSLog("[strata-seed] the wipe left rows behind: \(left.line)")
         }
 
+        // **The plan starts from empty too.** It was only wiped when a run
+        // seeded lines, so an empty-plan capture after a seeded one showed the
+        // last run's five lines: the morning gallery's dark "Plan, empty" was
+        // the full plan (2026-10-02). Same rule as the wins above.
+        StoreReset.deleteEvery(PlanItem.self, context: context)
+        try? context.save()
         if let planned = seedPlan, planned > 0 {
-            StoreReset.deleteEvery(PlanItem.self, context: context)
             let lines = ["Run the loop", "Send the invoice", "Call the landlord",
                          "Read a chapter", "Stretch for ten"]
             let colours = HabitCategory.selectable

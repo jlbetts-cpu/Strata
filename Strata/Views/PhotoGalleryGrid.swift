@@ -181,7 +181,7 @@ struct PhotoGalleryGrid: View {
         // not, while the album poster between them did).
         .buttonStyle(.pressSurface)
         .onAppear { prefetchAhead(of: photo) }
-        .accessibilityLabel(photo.title ?? "Photo")
+        .accessibilityLabel(photo.spokenName)
         .matchedTransitionSource(id: photo.id, in: transitionNamespace)
     }
 }

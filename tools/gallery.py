@@ -57,7 +57,7 @@ def main():
                      f'<figcaption>{label}{badge}</figcaption></figure>')
     html = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Strata, every screen</title>
+<title>Sturdy, every screen</title>
 <style>
 :root {{ --bg:#f5f5f5; --ink:#1c1c1e; --quiet:#6b6b70; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#111; --ink:#f2f2f2; --quiet:#9a9a9f; }} }}
@@ -76,7 +76,7 @@ figcaption {{ margin-top:12px; display:flex; justify-content:space-between; alig
   text-transform:lowercase; letter-spacing:.02em; }}
 .g {{ font-weight:700; }}
 </style></head><body>
-<header><h1>Strata</h1><p class="sub">{len(light)} screens, light and dark where both were captured</p></header>
+<header><h1>Sturdy</h1><p class="sub">{len(light)} screens, light and dark where both were captured</p></header>
 <main>{''.join(cards)}</main></body></html>"""
     open(out, "w").write(html)
     print(f"{out}: {len(light)} screens")

@@ -70,3 +70,5 @@ The replay is the most carefully engineered screen on this side of the app, and 
 **What each costs.** A keeps every win's name in the frame people pause on and screenshot, and pays for it with 22 pieces of type the app's own floor says nobody can read, which on a busy week is the dust the month's comment describes. B is the premium-is-subtraction reading: the record at rest is a picture of a week, the words were read as it was built, and in the live replay a tap on a photographed block opens the photograph (not in the video); it costs the twelve colour-only blocks their identity in the one frame that stays on screen. **A third option the numbers point at, not rendered:** the honest floor for 17pt type is a scale of 0.88 (17 x 0.88 = 15), which would fade titles on almost every week at rest, so "fade like the month" and "obey the type floor" are the same rule only if the floor moves to about there. The owner's call; the replay is shared as video.
 
 Counts for this screen unchanged by the second pass: 3 open (P0: 0, P1: 0, P2: 1, P3: 2).
+
+**Morning pass, 2026-10-02:** #4 FIXED: `GridConstants.replayLoadingOut` names the fade as an `Animation`.

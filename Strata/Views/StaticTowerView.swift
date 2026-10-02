@@ -32,10 +32,21 @@ struct StaticTowerView: View {
     /// height allows and passes `min(that, 82)`. `cell` then resolves to
     /// `min(byWidth, byHeight, 82)` without this view needing to know about it.
     var maxCell: CGFloat = 82
+    /// Whether a block has anywhere to go. A block that answers "no" draws no
+    /// press at all, rather than pressing and then opening nothing. Declared
+    /// before `onTapBlock` so the memberwise order reads predicate, then action.
+    var canTapBlock: ((PlacedBlock) -> Bool)? = nil
     /// Tapping a block. The share card has nowhere to go, so it is optional.
     var onTapBlock: ((PlacedBlock) -> Void)? = nil
 
     private var rows: Int { blocks.reduce(0) { max($0, $1.row + $1.rowSpan) } }
+
+    /// The block's tap, or nil when it has nowhere to go, so the block does
+    /// not press (see `FlippableBlockView`'s gesture).
+    private func tapAction(for block: PlacedBlock) -> (() -> Void)? {
+        guard let onTapBlock, canTapBlock?(block) ?? true else { return nil }
+        return { onTapBlock(block) }
+    }
 
     private var cell: CGFloat {
         let columns = CGFloat(GridConstants.columnCount)
@@ -106,7 +117,7 @@ struct StaticTowerView: View {
                             // gesture takes the touch before a parent's
                             // `.onTapGesture` ever sees it — so the outer one
                             // silently never fired.
-                            onTap: { onTapBlock?(block) }
+                            onTap: tapAction(for: block)
                         )
                         .frame(width: f.width, height: f.height)
                         .offset(x: f.minX, y: gridH - f.minY - f.height)

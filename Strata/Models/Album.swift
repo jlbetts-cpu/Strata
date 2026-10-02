@@ -474,6 +474,14 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     /// synthesized init entirely, which is the trap `WinRecord.place`
     /// documents.
     var place: WinPlace?
+
+    /// What VoiceOver says for this photograph in a grid or a strip of many:
+    /// its name and its day, "Photo, 21 September" when it has no name. The
+    /// bare title was "Photo" for every untitled picture, so a roll of them
+    /// was one word said thirty times (2026-10-02, design review, WCAG 4.1.2).
+    var spokenName: String {
+        "\(title ?? "Photo"), \(date.formatted(.dateTime.day().month(.wide)))"
+    }
 }
 
 /// A run of photographs under one heading — a month of the gallery.

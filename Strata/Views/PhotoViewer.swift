@@ -731,7 +731,7 @@ struct Filmstrip: View {
                         // the finger stopped believing it.
                         .contentShape(Rectangle())
                         .onTapGesture { select(photo) }
-                        .accessibilityLabel(photo.title ?? "Photo")
+                        .accessibilityLabel(photo.spokenName)
                         // A thumbnail you press is a button, and the one on
                         // the stage is the selected one (2026-10-02, design
                         // review, WCAG 4.1.2): a tap gesture alone gave each

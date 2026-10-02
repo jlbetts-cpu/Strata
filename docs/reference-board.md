@@ -471,3 +471,84 @@ adjective. And the deeper limit stands however it is searched: **Dribbble is
 concept work.** Nothing on it has shipped, been tested at an accessibility size,
 or had to survive a photograph somebody took in the dark. That is exactly what
 Mobbin is for, and it is the one that costs money.
+
+## 11. Pinterest, 2026-10-02
+
+Pinterest works without paying and shows the full image, which Dribbble and
+Mobbin did not. Four searches: "minimal app ui white space", "heytea app ui",
+"ui design do and dont mobile spacing", "line art illustration app empty
+state minimal". Read at 736px, side by side. What follows is what the good
+ones share and the weak ones lack, and where it lands in Sturdy. Pinterest is
+a mood board, not a source of measured fact: everything here is (c),
+inference from looking, unless it says otherwise.
+
+### What the strong screens share
+
+1. **One bold thing per screen, and everything else steps back.** "grug." (a
+   journaling concept) is a white page with one hand-drawn arrow and note in
+   the top two thirds and the day's thought anchored low, over the bar. Oppie
+   is one huge greeting and one card. A Japanese study app is one red disc on
+   grey. The dashboard concept is one 22% and one dotted ring. None of them
+   has a second voice at the same volume. **For Sturdy:** the tower, the
+   month and the replay already obey this; the screens that do not are the
+   ones with a segmented control over nothing (Profile empty, `profile.md`
+   #3).
+2. **The air is placed, not left over.** In grug the empty top is where the
+   drawing lives and the text is pulled down to the thumb. That is the
+   difference between this and the onboarding title that sat 158pt down for
+   an illustration that was not there (fixed 2026-10-01): **content can sit
+   low when it is next to the action it belongs to; a title cannot float low
+   with nothing above it.** Same rule as the "thumb zone" do/don't pin
+   (header, sub-header and button moved together to the bottom, not split).
+3. **A month of objects (the drink calendar).** A HEYTEA-style drink log
+   draws the month as soft wells, each empty day carrying a readable numeral
+   (about body size, not caption size), and a day with a drink shows the
+   drink as a cut-out sitting in the well, numeral gone. The objects
+   slightly overflow their wells, which makes the grid feel alive rather than
+   tabular. **For Sturdy:** this is the strongest outside argument on owner
+   decision 3 (`docs/morning.md`): a numeral in an empty well can be big
+   because nothing else is there, and it leaves when the day is filled. The
+   7.9pt numeral is the tabular version of the same idea. Rendered at 15 in
+   `docs/design-review/memories-numeral-15.png`.
+4. **Line art on white, one accent dab.** The illustrated cards (an
+   "Awareness / Chill Living" home), the "Coffee to Go" walker and the empty
+   state set all use a single black line weight on white, with at most one
+   flat accent shape per drawing. The drawing takes the top 55 to 60% of its
+   card, one Bold title under it. This is the HEYTEA register and matches
+   `docs/illustrations.md` rule 1 (open line art, not filled).
+5. **Empty states that are scenes, not placeholders.** The good ones (a
+   flower that has grown out of a ground line with "Get started!", a figure
+   by a campfire for "File is uploading", a hand with a magnifier) are one
+   figure at roughly 35 to 45% of the width, standing on an implied ground,
+   over ONE Bold line, one quiet line, one action. The weak one, a grey
+   filing cabinet over "No data yet", is small, generic and grey and reads
+   as a missing image. **For Sturdy:** the empty tower already stands on a
+   ground (the lattice); when the drawings land, a figure belongs ON that
+   ground beside the slot, not floating above the copy.
+6. **A head picker is a portrait and a grid** (a "Humation" avatar builder):
+   the chosen head large at the top on its own ground, the options in a
+   3-up grid of equal wells under tabs. That is the shape Sturdy's head
+   picker grows into with several heads (`head-picker.md` #2, the lone 46pt
+   tile in a 340pt row).
+
+### What the do/don't pins say, filtered to what is true
+
+- **Distance is relationship.** The "spacing friendship" ladder (8 best
+  friends, 16 friends, 24 casual, 32 to 48 acquaintances, 80 to 120
+  strangers) is the same idea as Sturdy's 8/12/16/24/32/64 and the law of
+  proximity pin's line, "Space is not empty. It tells users what belongs
+  together." Nothing new; it confirms the ladder.
+- **Dividers are not always needed.** A list separated by rhythm reads
+  calmer than one separated by rules. Sturdy already removed most; the Plan
+  separator under 471pt of nothing was the last loud one (deleted).
+- **Overlapping saves space** (an avatar half over a cover photo) is a
+  gimmick in this app's register: it puts chrome ON a photograph, which the
+  owner's 2026-09-09 call forbids. Recorded as rejected.
+
+### What makes the weak ones weak
+
+Tiny grey labels under every number (the dashboard concept's "Current week /
+Days remaining" at caption size is exactly what the owner calls "tiny text
+under"), three or more type sizes in one card, cards inside cards, a blue
+accent on everything so nothing is accented, and illustrations used as
+decoration in a corner rather than as the subject of the screen.
