@@ -5,6 +5,9 @@ import AppIntents
 
 @main
 struct StrataApp: App {
+    /// Accepted crew invitations and remote notifications: the two things a
+    /// SwiftUI app has no modifier for. See `StrataAppDelegate`.
+    @UIApplicationDelegateAdaptor(StrataAppDelegate.self) private var appDelegate
     @State private var focusFilterService = FocusFilterService()
     /// Whether the first run has happened.
     ///
@@ -186,6 +189,9 @@ struct StrataApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 try? SharedModelContainer.shared.mainContext.save()
+            }
+            if newPhase == .active, CrewsFlag.isOn {
+                Task { await SocialStore.shared.refresh() }
             }
         }
     }

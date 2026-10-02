@@ -28,7 +28,7 @@ final class SocialStore {
     /// seed. A fake until then, so nothing can reach the network by accident.
     static var makeCloud: () -> CrewCloud = { FakeCrewCloud(me: ProfileStore.profileID) }
 
-    static var defaultDirectory: URL {
+    nonisolated static var defaultDirectory: URL {
         (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory)
             .appending(path: "Crews", directoryHint: .isDirectory)
