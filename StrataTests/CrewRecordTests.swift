@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 import CoreGraphics
+import UIKit
 @testable import Strata
 
 /// **What crosses to a friend, exactly.** The record keys are the contract
@@ -138,5 +139,32 @@ struct CrewPayloadTests {
     @Test func aSmallPhotoIsNeverBlownUp() throws {
         let shared = try #require(ShareDerivative.jpeg(from: try Self.taggedJPEG(width: 600, height: 400)))
         #expect(try Self.properties(shared)[kCGImagePropertyPixelWidth] as? Int == 600)
+    }
+}
+
+/// **A head, small enough to send.**
+@MainActor
+@Suite("Crew head pack")
+struct CrewHeadPackTests {
+    @Test func aHeadPacksSmallAndUnpacksWhole() throws {
+        let made = FileManager.default.temporaryDirectory.appending(path: "head-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: made, withIntermediateDirectories: true)
+        HeadStore.writeVersion2Fixture(to: made)
+        let original = try #require(HeadStore.load(at: made)?.rig)
+        let pack = try #require(CrewHeadPack.make(from: made))
+        #expect(pack.count < 250_000, "a head travels in under 250 KB, was \(pack.count)")
+        let received = made.deletingLastPathComponent().appending(path: "got-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let rig = try #require(try CrewHeadPack.unpack(pack, into: received))
+        #expect(Set(rig.expressions) == Set(original.expressions))
+        let face = try #require(rig.faces[.neutral]?.image)
+        #expect(max(face.size.width * face.scale, face.size.height * face.scale) <= CrewHeadPack.side)
+    }
+
+    @Test func aPackCannotNameAPath() {
+        #expect(CrewHeadPack.isSafe("neutral.png"))
+        #expect(CrewHeadPack.isSafe("head.json"))
+        #expect(!CrewHeadPack.isSafe("../photo.jpg"))
+        #expect(!CrewHeadPack.isSafe("a/neutral.png"))
+        #expect(!CrewHeadPack.isSafe("notes.txt"))
     }
 }

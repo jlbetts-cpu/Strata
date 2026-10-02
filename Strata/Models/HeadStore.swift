@@ -570,6 +570,11 @@ final class HeadStore {
 
     private var activeDirectory: URL? { Self.directory(of: roster.active) }
 
+    /// The folder of the head on the tower, for a crew to pack and send
+    /// (`CrewHeadPack`). Nil when no head is on the tower: a head you keep off
+    /// your own tower does not go to your friends either.
+    var towerHeadDirectory: URL? { showsOnTower ? activeDirectory : nil }
+
     nonisolated static func directory(of entry: Entry?) -> URL? {
         guard let support else { return nil }
         return directory(of: entry, in: support)
