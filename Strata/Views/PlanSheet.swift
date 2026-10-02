@@ -73,40 +73,20 @@ struct PlanSheet: View {
     /// split leaves under the invitation is still at least this deep.
     static let tailHeight: CGFloat = 160
 
-    /// **How an EMPTY page divides its spare room: eight shares above the
-    /// invitation, five below.**
-    ///
-    /// Read by `content`, which writes `pageSpace` this many times on each
-    /// side; flexible children of a `VStack` split the slack equally, so the
-    /// ratio is exact and survives a change of type size, which a fraction of
-    /// the viewport would not.
-    ///
-    /// **8 : 5 is the Fibonacci pair nearest φ, so the invitation stands on
-    /// the field's golden section** — the classical answer to where one object
-    /// sits in an empty field, and the same canon `docs/space.md` P5 reasons
-    /// from about margins. It was CHOSEN BY LOOKING, against two others
-    /// photographed at 402x874 and compared side by side, because counting is
-    /// not looking:
-    ///
-    /// - **1 : 1**, the invitation centred at y455. It looks right and it
-    ///   fails the clause it was moved for: the break above measures 346 and
-    ///   the floor 347, so which of the two is the page's biggest white is a
-    ///   coin toss.
-    /// - **2 : 1**, at y574. It passes 11c with room to spare and it reads as
-    ///   the invitation having FALLEN to the bottom of the sheet rather than
-    ///   standing in a field. This one shipped for exactly one build.
-    /// - **8 : 5**, the one that ships. Measured on the built sheet: the
-    ///   invitation's ink runs y547 to 585, with a 438.0pt break above it and
-    ///   254.7 under it, 1.72x. (It is not exactly 1.6 because the shares
-    ///   divide the slack left by the invitation's 52pt LAYOUT box while
-    ///   `page-room.py` measures its 38.3pt of ink.) The break is
-    ///   unambiguously the page's own breath, and on screen it still reads as
-    ///   centred, because the eye puts the centre of a field slightly above
-    ///   its middle anyway.
-    ///
-    /// `SheetRoomTests` pins the ratio and pins that the floor it leaves is
-    /// still deeper than `tailHeight`.
-    static let emptyFieldShares: (above: Int, below: Int) = (8, 5)
+    // **`emptyFieldShares` (8 : 5) is deleted** (2026-10-01), four hours after
+    // it was added. It put the invitation on the field's golden section, which
+    // is the right answer to "where does one object sit in an empty field" and
+    // the wrong question: the invitation is not an object in a field, it is row
+    // one. See the note in `content`.
+    //
+    // The part worth keeping is the method rather than the number. Three
+    // positions were built and photographed and compared side by side rather
+    // than argued about, and the one that measured best (2 : 1, which passed
+    // check 11c with room to spare) was the one that looked worst, reading as
+    // the invitation having FALLEN to the bottom of the sheet. It shipped for
+    // exactly one build. The one that shipped for four hours measured best of
+    // the three and was still wrong for a reason no measurement in this file
+    // could have caught.
 
     /// Today's list: everything one-off, plus the repeats due today.
     private var items: [PlanItem] {
@@ -121,6 +101,20 @@ struct PlanSheet: View {
                 .sheet(item: $detail) { item in
                     PlanItemDetailSheet(item: item)
                 }
+                // **The line detail, which is otherwise behind a tap** and so
+                // had never been photographed. `-strataOpenSheet planline`
+                // raises this sheet from `MainAppView` and opens the first
+                // line's detail here. On the main actor after a beat, because
+                // `items` reads the fetch and a sheet presented from inside the
+                // same runloop turn as its parent does not appear.
+                #if DEBUG
+                .task {
+                    guard DebugHarness.openSheet == "planline",
+                          let first = items.first else { return }
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    detail = first
+                }
+                #endif
         }
         // **Full height, and stated.** It was unstated, which happens to give
         // the same thing, and unstated is how two sheets end up differing
@@ -249,55 +243,71 @@ struct PlanSheet: View {
                     // **THE INVITATION SITS IN THE FIELD, NOT AT THE TOP OF
                     // IT** (2026-10-01, check 11c of `docs/screen-audit.md`).
                     //
-                    // Measured before: 90.2% of the page empty, one 653.3pt
-                    // break, and it was the run UNDER the last band — 93% of
-                    // the page's emptiness in one dead tail, against a biggest
-                    // interior gap of 39.7. That is the worst ratio in the app
-                    // and it is what 11c is for: a page should END, not stop.
+                    // **THE INVITATION STANDS WHERE THE FIRST LINE LANDS, AND
+                    // IT WAS MOVED TO THE GOLDEN SECTION FOR FOUR HOURS.**
                     //
-                    // **Eight shares above, five below**, which puts the
-                    // invitation on the field's golden section. The ratio, the
-                    // two positions it was photographed against, and why a
-                    // centred one is not good enough are all on
-                    // `emptyFieldShares`. Measured at 402x874: 438.0pt of
-                    // break above, 254.7 of floor below, and that floor is
-                    // still deeper than `tailHeight` (160), so the
-                    // tap-to-write space under the invitation is the one the
-                    // audit measured and not a scrap left over.
+                    // The owner, 2026-10-01: "I noticed you added the space way
+                    // down for the plan even though it was supposed to show the
+                    // bullet point and with the change with the title like some
+                    // layout changes need to happen to accomidate it so it
+                    // looks good."
                     //
-                    // **The price, stated: the first line does not appear
-                    // where the ghost stood.** The note on `hint` is the
-                    // record of why it used to — a 20pt jump between the thing
-                    // you pressed and the thing it was pretending to be — and
-                    // that distance is about 420pt now. It is paid rather than
-                    // hidden: the tap animates on `motionSmooth`, so the page
-                    // visibly GATHERS to the top as it becomes a list, which
-                    // is a page changing state and not a control teleporting.
-                    // The trade is one animated transition, once, against the
-                    // worst composition in the app on every visit before the
-                    // first line is written.
-                    if lines.isEmpty {
-                        ForEach(0..<Self.emptyFieldShares.above, id: \.self) { _ in pageSpace }
-                        hint
-                        ForEach(0..<Self.emptyFieldShares.below, id: \.self) { _ in pageSpace }
-                    } else {
-                        // Pressing the empty space below the list starts a new
-                        // line, which is what a page of bullets does. Without
-                        // it the only way to add is the button in the corner,
-                        // and the corner is not where anyone looks when they
-                        // are writing.
-                        //
-                        // A written page keeps its lines at the TOP: lines flow
-                        // downward, and a list that floats in the middle of a
-                        // sheet moves every time one is added. So this branch
-                        // is the tail it always was.
-                        Color.clear
-                            .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture { addLine() }
-                            .accessibilityLabel("Add a line")
-                            .accessibilityAddTraits(.isButton)
-                    }
+                    // He is right, and the version he is objecting to had
+                    // written down its own price three paragraphs below where
+                    // it put the thing: "the first line does not appear where
+                    // the ghost stood ... that distance is about 420pt now."
+                    // A price that large written next to a change is usually
+                    // the change being wrong rather than the price being worth
+                    // it.
+                    //
+                    // **What it got wrong is what the invitation IS.** It is
+                    // not an empty state's caption, it is row one: a bullet's
+                    // silhouette with the words beside it, drawn exactly where
+                    // the first real line will be, so that pressing it is the
+                    // row filling in rather than a control somewhere else
+                    // producing one somewhere else. Standing it 420pt down the
+                    // page made it a picture of a row instead of the row, and
+                    // no animation fixes a thing being in the wrong place; it
+                    // only makes the wrongness smooth.
+                    //
+                    // **And it made the sheet's two states disagree about the
+                    // same emptiness.** With lines, the space underneath is the
+                    // tap-to-write field, measured and deliberately kept, and
+                    // the owner has since exempted its 451pt in writing. With
+                    // none, that identical space was being read as a check 11c
+                    // failure and a figure was moved into it. Both cannot be
+                    // true. The list wins, because it is the state the sheet is
+                    // in every day after the first.
+                    //
+                    // So 11c is not satisfied here and is exempt for the same
+                    // reason the with-lines state is: the run under the last
+                    // band is the affordance, not a dead tail. That is recorded
+                    // in `docs/screen-audit.md` rather than solved by moving
+                    // something.
+                    if lines.isEmpty { hint }
+                    // Pressing the empty space below starts a new line, which
+                    // is what a page of bullets does. Without it the only way
+                    // to add is the button in the corner, and the corner is
+                    // not where anyone looks when they are writing.
+                    //
+                    // A written page keeps its lines at the TOP: lines flow
+                    // downward, and a list that floats in the middle of a sheet
+                    // moves every time one is added.
+                    //
+                    // **It is outside the branch, so the empty page and the
+                    // written one are the same page.** It used to belong to the
+                    // list alone, which is how the two states came to disagree
+                    // about the same emptiness: identical space, read as an
+                    // affordance under a list and as a composition fault under
+                    // a ghost. One row and one tail is what the sheet looks
+                    // like with nothing in it, which is the only honest picture
+                    // of a page you write on.
+                    Color.clear
+                        .frame(minHeight: Self.tailHeight, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
+                        .accessibilityLabel("Add a line")
+                        .accessibilityAddTraits(.isButton)
                 }
                 .padding(.top, GridConstants.gapTight)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -305,25 +315,6 @@ struct PlanSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
-    }
-
-    /// One share of the empty page's spare room.
-    ///
-    /// Flexible children of a `VStack` divide the slack equally, so N of these
-    /// take N shares and the ratio is written as how many times it appears
-    /// rather than as a fraction that has to be kept in step with the
-    /// invitation's own height. It answers a tap like every other blank part of
-    /// this page.
-    ///
-    /// Hidden from VoiceOver on purpose: `hint` is already an "Add a line"
-    /// button and the tail below is another, and three identical buttons on an
-    /// empty page is a swipe through the same control three times.
-    private var pageSpace: some View {
-        Color.clear
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .onTapGesture { withAnimation(GridConstants.motionSmooth) { addLine() } }
-            .accessibilityHidden(true)
     }
 
     /// **A hairline in ink, not a `Divider`.**

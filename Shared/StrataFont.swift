@@ -58,17 +58,20 @@ enum StrataFont {
     /// the supported way to do it by hand, and it works here because this is a
     /// function evaluated inside a view's body rather than a stored token.
     ///
-    /// **The `.medium` below is the app's title weight, spelled out rather than
-    /// shared** (2026-10-01). `Typography.titleWeight` is now the one place a
+    /// **The `.semibold` below is the app's title weight, spelled out rather
+    /// than shared** (2026-10-01). `Typography.titleWeight` is the one place a
     /// title's weight is decided, and this file cannot read it: `Shared/` is in
     /// the widget's target and `Strata/Models/` is not. A tally is a title-sized
-    /// thing standing beside a title, so if that token ever moves off Medium this
-    /// literal and the one in `relative(_:to:)` have to move with it, or a count
-    /// and the word next to it stop matching. Nothing in the compiler will catch
-    /// that, so the instruction is this comment.
+    /// thing standing beside a title, so the two literals here have to move with
+    /// it or a count and the word next to it stop matching. Nothing in the
+    /// compiler will catch that, so the instruction is this comment — **and it
+    /// was needed within the day**: the title went Medium to Semibold the same
+    /// evening it was written ("the text reads as premium not dull a nice
+    /// thicker font for headers"), and `TypographyTests.everyTokenResolvesToATier`
+    /// is the test that holds the two files together.
     static func size(_ points: CGFloat) -> Font {
         .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: points),
-                weight: .medium, design: .default)
+                weight: .semibold, design: .default)
     }
 
     /// Scales with Dynamic Type, live.
@@ -81,7 +84,7 @@ enum StrataFont {
     /// fixed value, keeps moving when the setting changes — `Typography.tally`
     /// and friends are stored `let`s, so anything computed once would freeze.
     static func relative(_ points: CGFloat, to style: Font.TextStyle) -> Font {
-        .system(style, design: .default, weight: .medium)
+        .system(style, design: .default, weight: .semibold)
     }
 
     /// A count, formatted for this face: digits and nothing else.

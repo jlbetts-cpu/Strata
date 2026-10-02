@@ -3,6 +3,37 @@ import SwiftData
 import Combine
 import CoreSpotlight
 
+/// **What the app is called, asked of the bundle rather than typed out.**
+///
+/// Found 2026-10-01, photographing the camera's refused state: the built
+/// `Info.plist` carries `CFBundleDisplayName` **Sturdy** and `CFBundleName`
+/// **Strata**, and a sentence on that screen read "Turn the camera on for
+/// Strata in Settings". The home screen says Sturdy, the Settings row says
+/// Sturdy, and the app was naming a row that does not exist — on the one
+/// screen whose whole job is to send somebody to that row.
+///
+/// `CLAUDE.md` records the wordmark being off "pending the RENAME", and this is
+/// the other half of the same thing: the drawing came off and the WORDS did
+/// not. Asking the bundle fixes every name at once and survives the next one,
+/// which is the point — a hard-coded "Sturdy" would be the same bug again with
+/// a different spelling.
+///
+/// `CFBundleDisplayName` first, because that is the one iOS prints under the
+/// icon and in the Settings list; `CFBundleName` is the fallback, and the
+/// literal is there only so a missing key cannot produce a sentence with a
+/// hole in it.
+///
+/// **Four more live in `SettingsView`** (lines 423, 436, 618 and 719), which is
+/// not this worker's file. They say "Location is off for Strata", "How Strata
+/// Works", "Strata has no account and no server" and the reset failure, and
+/// they each want this.
+enum AppName {
+    static let display: String =
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+        ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
+        ?? "Strata"
+}
+
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
 private struct TabBarCollapseModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -498,7 +529,7 @@ struct MainAppView: View {
             .alert("Nothing was deleted", isPresented: $resetFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Strata could not reset your data, so every win and photo is still here. Try again.")
+                Text("\(AppName.display) could not reset your data, so every win and photo is still here. Try again.")
             }
             .alert("Couldn't save that win", isPresented: $winSaveFailed) {
                 Button("OK", role: .cancel) { }
@@ -622,10 +653,20 @@ struct MainAppView: View {
             // stack, a camera, a picture). **The name is not lost, it is
             // moved**: `accessibilityLabel` carries each one, so VoiceOver
             // reads exactly what it read before.
+            //
+            // **AND THE MEMORIES TAB NEVER FILLED** (found 2026-10-01 by a
+            // consistency pass, fixed here). `StrataTab.icon(selected:)` was
+            // written to be the one place a tab's two states are decided, and
+            // its own doc said so, and then nothing here was changed to call
+            // it: two of these three typed both strings inline and the third
+            // passed the always-hollow `icon`. So the paragraph above is a
+            // promise this bar was not keeping — one of its three glyphs could
+            // not say "here" at all, and the onboarding mock-up, which IS a
+            // caller of the shared function, drew a filled one.
             Tab(value: StrataTab.tower) {
                 towerTabRoot
             } label: {
-                Image(systemName: selectedTab == .tower ? "square.stack.fill" : "square.stack")
+                Image(systemName: StrataTab.tower.icon(selected: selectedTab == .tower))
                     .accessibilityLabel("Wins")
             }
             // No badge. It counted blocks queued to drop, which is an
@@ -649,13 +690,13 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                Image(systemName: selectedTab == .camera ? "camera.fill" : "camera")
+                Image(systemName: StrataTab.camera.icon(selected: selectedTab == .camera))
                     .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
-                Image(systemName: StrataTab.memories.icon)
+                Image(systemName: StrataTab.memories.icon(selected: selectedTab == .memories))
                     .accessibilityLabel("Memories")
             }
         }
@@ -1968,6 +2009,21 @@ struct MainAppView: View {
         // off its source instead of off its pixels, which is how the add
         // sheet sat 49% empty without anybody noticing.
         case "plan":     selectedTab = .tower; isPlanning = true
+        // **The add sheet HOLDING a photograph, which is a different page from
+        // the fresh one and had never been photographed** (2026-10-01). With a
+        // picture in it the colour row disappears — `AddWinSheet`'s own "no
+        // colour question while you are taking the photo" — so the fresh
+        // sheet's measurements say nothing about this one. The only route a
+        // person has is the camera's Use Photo, and the simulator has no
+        // capture device, so without this the state is unreachable here for the
+        // same reason `-strataOpenReview` exists.
+        case "addphoto": selectedTab = .tower
+                         winDraft = WinDraft(photo: DebugHarness.placeholderPhoto())
+        // The plan's line detail, which is behind a tap on a line. `PlanSheet`
+        // reads the same value and opens its first line; both halves are
+        // needed, because the sheet has to be up before anything in it can be
+        // tapped.
+        case "planline": selectedTab = .tower; isPlanning = true
         case "block":    selectedTab = .tower; wantsDebugExpand = true
         // The edit sheet's title, which is otherwise behind a long press.
         case "edit":     selectedTab = .tower; editingHabit = habits.first
@@ -3487,14 +3543,28 @@ struct MainAppView: View {
             }
         }
 
+        /// **The socket a block falls into is the socket it was pressed out
+        /// of** (2026-10-01, `docs/consistency-audit.md` 1.12).
+        ///
+        /// This was eight private lines: `.ultraThinMaterial` plus a 1pt
+        /// `Color.white.opacity(0.2)` stroke. `SlotGlass.glassSlot` is the
+        /// shared recipe and its own note is the argument this broke, word for
+        /// word: "The fallback deliberately draws no white rim ... CLAUDE.md
+        /// forbids giving a surface a white rim or a frosted edge because that
+        /// is a block's own claim to be a lit object you built, and this
+        /// surface is already block-shaped and block-sized."
+        ///
+        /// That is exactly what this was — block-shaped, block-sized, with the
+        /// rim — and it is on screen only while a block is in the air above it,
+        /// which is why a year of looking at the tower never caught it. The
+        /// slot's own recess goes under the glass, as `NextSlotButton` draws
+        /// it, so the hole reads as a hole on both paths and on both schemes
+        /// rather than as a pale block with a lit edge.
         private func ghostSlot(width: CGFloat, height: CGFloat) -> some View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
+                .fill(AppColors.slotInk.opacity(colorScheme == .dark ? 0.075 : 0.038))
                 .frame(width: width, height: height)
+                .glassSlot(cornerRadius: cornerRadius)
         }
     }
 

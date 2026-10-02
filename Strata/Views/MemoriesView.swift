@@ -687,6 +687,33 @@ struct MemoriesView: View {
         GridConstants.cellSize(forGridWidth: monthGridWidth)
     }
 
+    /// **CHECK 11c FAILS ON A BARE MONTH AND IT IS EXEMPT. WRITTEN DOWN WITH
+    /// WHAT THE FIX WOULD COST** (2026-10-01).
+    ///
+    /// Measured off `/tmp/s2/light/m1-memories-empty.png` and `m2-memories-one`:
+    /// the calendar's last row ends at y=510 with nothing logged and y=466 with
+    /// one win, so the biggest break on the page is **281pt and 325pt of ground
+    /// between the month and the tab bar**. Clause 11c says the biggest break
+    /// must fall between two drawn bands that are both content, and a tab bar is
+    /// not the second band. With anything to show it passes: at a month half
+    /// full the biggest break is 64pt, between the calendar and the shelf.
+    ///
+    /// **Centring the month in the field was built in the head and refused on
+    /// the measurement.** It would make where the month sits depend on whether
+    /// the shelf below it has anything in it, so logging your first win would
+    /// move the calendar up the page. That is the exact fault `PhotoViewer`'s
+    /// `dateHeight` was rewritten to remove — a stage that resizes because data
+    /// arrived — and check 10's own words for it are "anything that animates
+    /// because it appeared". It would also pull the month away from the picker
+    /// in the fixed band that chooses it, which is the thing the owner asked for
+    /// twice ("this should not scroll", "keep it in one place").
+    ///
+    /// **And the field is not nothing.** `docs/illustrations.md` rule 5 is that
+    /// the figure sits small in a big empty field and "on this app's page that
+    /// field is already there"; this is 281pt of it, on the page a person opens
+    /// before they have logged anything. The same clause is already exempted on
+    /// the place collection for the same shape of reason: content that is less
+    /// than a screenful is not a composition failure.
     @ViewBuilder
     private var monthTower: some View {
         do {

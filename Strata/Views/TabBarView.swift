@@ -30,7 +30,10 @@ enum StrataTab: String, CaseIterable {
         }
     }
 
-    /// The hollow glyph, for the places a tab is named outside the tab bar where
-    /// there is no selection to reflect.
-    var icon: String { icon(selected: false) }
+    // **`var icon` is deleted** (2026-10-01). It was the hollow shorthand "for
+    // the places a tab is named outside the tab bar", and the one place that
+    // was true of — the drawn tab bar inside the onboarding device frame —
+    // calls `icon(selected:)` properly. Its only other caller was the real tab
+    // bar, which passed it for Memories and so could never fill that glyph.
+    // A shorthand whose only user was a bug.
 }

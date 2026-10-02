@@ -171,6 +171,14 @@ struct NextSlotButton: View {
         // What was NOT done: the lattice was not raised to meet it, and the
         // recess was not darkened into a grey square. The slot and the
         // scaffolding around it should differ in KIND, not both get louder.
+        //
+        // **What `ReplayLoadingSlot` must NOT copy, since it tried to be this
+        // slot and these numbers do not travel** (2026-10-01). These are an
+        // alpha for a 1pt CONTINUOUS border. The replay's waiting slot is a
+        // 1.5pt DASH, and half a point of extra width is most of the way to
+        // full strength at 3x: measured, 0.26 there renders rgb(191) where the
+        // same alpha here renders rgb(212). What the two share is the ratio
+        // they are held to, not the number that gets them there.
         let base = scheme == .dark ? 0.70 : 0.80
         return AppColors.slotInk.opacity(min((isDown ? base + 0.10 : base) + lift, 1))
     }

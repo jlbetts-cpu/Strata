@@ -32,8 +32,34 @@ struct PlanItemDetailSheet: View {
                     // a win is the past; the tense is the whole difference
                     // between the two screens. It is also rarely seen — you
                     // arrive at this sheet from a line you already typed.
-                    TextField("What do you mean to do?", text: $item.text, axis: .vertical)
+                    //
+                    // **The two fixes `AddWinSheet.nameField` already carries,
+                    // which this field did not** (2026-10-01, from the owner's
+                    // "make sure screens are consistent"). They are the same
+                    // two faults, measured there and never applied here:
+                    //
+                    // - A bare `TextField`'s own placeholder renders
+                    //   (190, 190, 192) on a (247, 247, 247) page, which is
+                    //   **1.73:1** — under even the 3:1 a plain UI element is
+                    //   held to, let alone the 4.5 of the sentence it stands in
+                    //   for. A `prompt` is the only way to colour it without
+                    //   rebuilding the field, and `inkQuiet` is the token for a
+                    //   placeholder and measures 3.3:1.
+                    // - With no `foregroundStyle` the TEXT falls through to
+                    //   `UIColor.label`, which is pure (0, 0, 0) on light and
+                    //   pure (255, 255, 255) on dark: 18.91:1 where every other
+                    //   ink in this app is `inkPrimary` at 13.81. That one is
+                    //   seen every time, since you arrive here from a line you
+                    //   have already written.
+                    TextField(
+                        "What do you mean to do?",
+                        text: $item.text,
+                        prompt: Text("What do you mean to do?")
+                            .foregroundStyle(AppColors.inkQuiet),
+                        axis: .vertical
+                    )
                         .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkPrimary)
                 }
 
                 Section {
@@ -210,8 +236,17 @@ struct PlanItemDetailSheet: View {
         .padding(.vertical, GridConstants.spacing)
     }
 
-    /// The HIG's minimum target, measured not declared. Both rows of controls on
-    /// this sheet are this box, whatever their artwork measures.
+    /// The HIG's minimum target, measured not declared. Every control on this
+    /// sheet is this box, whatever its artwork measures.
+    ///
+    /// **"Both rows" was the old wording and it was the bug** (2026-10-01).
+    /// The colour row and the day row each carried this; the TOOLBAR did not,
+    /// so Done and the trash were sized by their own labels. `PlanSheet`, which
+    /// is the sheet this one opens from, has the audit on it: read off the
+    /// accessibility tree a toolbar Done came out 68x36 and a toolbar plus
+    /// 35x36, both under the minimum, on the screen the owner had already
+    /// called "really easy to miss click". The fix was applied there and never
+    /// here.
     private static let tapTarget: CGFloat = 44
 
     /// A colour swatch's own artwork, the same 34 the win sheet's circles are.
@@ -258,6 +293,8 @@ struct PlanItemDetailSheet: View {
             dismiss()
         } label: {
             Text("Done").font(Typography.headerSmall)
+                .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
+                .contentShape(Rectangle())
         }
         .foregroundStyle(AppColors.accentWarm)
     }
@@ -271,6 +308,8 @@ struct PlanItemDetailSheet: View {
         } label: {
             Image(systemName: "trash")
                 .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("Delete this line")
     }

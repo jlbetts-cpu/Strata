@@ -227,18 +227,25 @@ from one nobody has seen.** Neither is a leftover and neither is a bug.
   Wins tab is the **only** place the difference is visible, and that is the
   thing he has now seen both ways. The inconsistency on its own is not a
   reason.
-- **SF Pro Rounded, two weights.** The Figma specifies Familjen Grotesk; the
-  owner chose the native face on 2026-09-06. Shape, colour and the rim carry the
-  block's identity, not the letterforms. **There is exactly one Semibold in the
-  app and it is no longer the wordmark's.** The wordmark used to be the
-  exception, as drawn artwork rather than interface type; it came off on
-  2026-09-30 and the exception moved to `MemoriesTitle`, which `DrawnLettering`
-  sets semibold because that title stands over a live map and the weight is
-  what replaced the drawing's stroke. Measured out of SF's own `wght` axis: a
+- **SF Pro, two weights: Semibold for headings, Medium for prose.** The Figma
+  specifies Familjen Grotesk; the owner chose the native face on 2026-09-06, and
+  Rounded came off the app on 2026-09-23 and off the widget on 2026-10-01. Shape,
+  colour and the rim carry the block's identity, not the letterforms.
+  **This paragraph said "there is exactly one Semibold in the app" until the
+  evening of 2026-10-01 and was wrong within hours of being checked.** The scale
+  went to one weight, Medium, that morning, to answer "no tiny thin font
+  anywhere"; by the evening the owner's reading of the result was "the text reads
+  as premium not dull a nice thicker font for headers", and `titleWeight` is
+  Semibold now and is `tier(_:)`'s default. So the exception became the rule and
+  the rule has a name: `Typography.titleWeight` for anything that is a heading,
+  `Typography.bodyWeight` for anything that is read rather than scanned. Measured
+  out of SF's own `wght` axis, which is why those two and not a third: a
   capital's stem is 0.1097 em at Medium against 0.1256 at Semibold, 3.68pt
-  against 4.21pt at the title's size, 14.5% more stroke. `Typography`'s own
-  comment names the exception rather than claiming semibold is gone. Do not
-  spread it any further than that one title.
+  against 4.21pt at a title's size, **14.5% more stroke**; Bold is 4.95, 34.4%,
+  and is where a heading stops being a heading. `TypographyTests` holds both
+  levers, and `Shared/StrataFont.swift` spells the heading weight out a second
+  time because the widget target cannot see `Typography` — the two literals have
+  to move together or a count stops matching the word beside it.
 - **The owner's letters and digits are one real FONT, `Shared/Strata-Regular.ttf`**
   (2026-09-16; it replaced `StrataNumerals.ttf`, whose digits it carries,
   scaled 700/1443 so the cap meets the capitals). `StrataFont` is the API:

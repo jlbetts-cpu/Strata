@@ -17,6 +17,7 @@ in POINTS at the capture's own scale.
 
     tools/page-room.py shot.png [--scale 3] [--top 59] [--bottom 34]
     tools/page-room.py --signature shot.png [shot.png ...]
+    tools/page-room.py --faint shot.png [shot.png ...]
 
     rows        the share of the usable band with nothing drawn on it
     break       the biggest run of empty rows: the page's own breath
@@ -77,6 +78,61 @@ def runs(mask, bridge=0):
     return [tuple(r) for r in merged]
 
 
+def faint(path, scale=3.0, top_pt=59.0, bottom_pt=34.0):
+    """**How much of this page is drawn but too quiet to see.**
+
+    The owner, 2026-10-01: "the memories looks good but you cant really see
+    anything half the time ... the empty state has to look just as good."
+
+    `bands` and `signature` cannot answer that: they ask whether a row has
+    anything on it, and a row of 1-level recesses counts as empty. This asks the
+    other question. For every pixel in the usable band it reports the distance
+    from the page's own ground, bucketed, so a screen whose structure is all in
+    the 1-to-3 bucket is named rather than described.
+
+    The buckets are chosen off this app's own measurements rather than a source:
+    a calendar cell's recess is **1 level**, `TowerLattice`'s pane is **2.7
+    levels** on a light page, a block rim reaches **+4**, and ordinary ink is
+    tens. Anything in the first two buckets is structure the instrument cannot
+    see, and the question each time is whether a person can.
+    """
+    from PIL import ImageFilter
+    im = Image.open(path).convert("RGB")
+    h, w = im.height, im.width
+    y0, y1 = int(top_pt * scale), h - int(bottom_pt * scale)
+    m = int(4 * scale)
+    box = (m, y0, w - m, y1)
+    band = im.crop(box)
+    # **Against a blurred copy of itself, not against one ground value.**
+    #
+    # `WarmBackground` is a vertical gradient (247 at the top to 241 at the
+    # bottom) and `GroundField`'s mesh moves under it, so a flat "distance from
+    # the most common pixel" counts the page's own shading as structure and
+    # reports two thirds of an empty screen as drawn-but-faint whatever is on it.
+    # A 24pt blur keeps every gradient and loses every edge, so the difference
+    # is the structure and nothing else.
+    blurred = band.filter(ImageFilter.GaussianBlur(radius=8 * scale))
+    a = np.asarray(band).astype(int)
+    b = np.asarray(blurred).astype(int)
+    d = np.abs(a - b).max(axis=2).reshape(-1)
+    g = np.asarray(band).reshape(-1, 3)
+    vals, counts = np.unique(g, axis=0, return_counts=True)
+    g = vals[counts.argmax()]
+    total = d.size
+    edges = [(0, 0), (1, 3), (4, 8), (9, 20), (21, 60), (61, 255)]
+    names = ["ground", "1-3 invisible", "4-8 faint", "9-20 quiet",
+             "21-60 read", "61+ ink"]
+    print(f"{path}")
+    print(f"  ground rgb{tuple(int(x) for x in g)}")
+    for (lo, hi), name in zip(edges, names):
+        n = int(((d >= lo) & (d <= hi)).sum())
+        print(f"  {name:>14}  {100 * n / total:5.1f}%")
+    drawn = (d >= 1).sum()
+    if drawn:
+        below = ((d >= 1) & (d <= 3)).sum()
+        print(f"  of everything drawn, {100 * below / drawn:.1f}% is within 3 levels of the ground")
+
+
 def signature(path, **kw):
     """The page's layout as one line: the gap and band heights, in points.
     Two captures of the same screen agree; two screens do not."""
@@ -100,6 +156,10 @@ def main():
         if a == "--scale": kw["scale"] = float(argv[i + 1])
         if a == "--top": kw["top_pt"] = float(argv[i + 1])
         if a == "--bottom": kw["bottom_pt"] = float(argv[i + 1])
+    if "--faint" in argv:
+        for path in args:
+            faint(path, **{k: v for k, v in kw.items() if k != "spread"})
+        return
     if "--signature" in argv:
         seen = {}
         for path in args:

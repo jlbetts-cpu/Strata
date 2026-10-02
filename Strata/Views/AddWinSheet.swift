@@ -143,9 +143,32 @@ struct AddWinSheet: View {
             // guess, and it is the pattern `PlanSheet.content` already uses:
             // the stack is held to at least the viewport's height and the
             // `Spacer` is the flexible thing in it, so the break is exactly
-            // what the content left over. With the keyboard up the viewport
-            // shrinks, the spacer falls back to its 64 and nothing is pushed
-            // off the bottom.
+            // what the content left over.
+            //
+            // **The line that used to end this paragraph said "with the
+            // keyboard up the spacer falls back to its 64 and nothing is
+            // pushed off the bottom", and that is measurably false** (found
+            // 2026-10-01 by photographing the state nobody had photographed:
+            // Add, fresh, with the keyboard up, which is the state this sheet
+            // opens in every single time). At 402x874 the well draws y377 to
+            // y560 and the keyboard's top edge is y539.7, so **21pt of the
+            // block is behind the keyboard** — not the block, but most of the
+            // blurred bottom band, which is the one piece of a block that says
+            // it is a block. The Edit sheet does not show it because it opens
+            // with the keyboard down, and the Add sheet WITH a photograph does
+            // not either, because a photograph takes the colour row away and
+            // everything above the well moves up 65pt.
+            //
+            // **It is left alone, and the reason is arithmetic rather than
+            // taste.** The block's top is pinned by the content above it plus
+            // the spacer's floor, so the only way to lift it clear is to spend
+            // the 64: `gapPage` is the BREAK this whole composition is built
+            // on, and cutting it to 40 to buy 21pt would take the break from
+            // 13.1x the gap inside the group to about 8x and put the page back
+            // where check 11b found it. The content scrolls, the band is
+            // reachable on the first flick, and the alternative is paying for a
+            // band with the composition. **Recorded rather than hidden**, since
+            // a comment claiming the opposite is worse than no comment.
             GeometryReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -899,6 +922,54 @@ struct AddWinSheet: View {
         .labelsHidden()
     }
 
+    /// **The red the delete button is tinted, and it is TWO reds** (2026-10-01).
+    ///
+    /// It was one: `0xB3000F`, a fixed hex, and the note on it recorded a
+    /// careful light-mode measurement — a pill of (231, 199, 201) with its
+    /// label at 4.59:1, against systemRed's 2.54 and `D70015`'s 3.50. Every one
+    /// of those numbers is still true and every one of them was taken on the
+    /// light page only.
+    ///
+    /// **This is CLAUDE.md's "an ink is not a surface" for the fifth time**, and
+    /// it is the one the rule's own list does not have: a colour that is BOTH.
+    /// `.bordered` draws the label at the tint and the fill from the same tint
+    /// over the page, so a tint tuned to sit dark on a 247 ground sits dark on a
+    /// 28 one too, where dark is what the ground already is. Measured off the
+    /// built Edit sheet at 402x874, dark:
+    ///
+    /// |  | light | dark, before | dark, after |
+    /// |---|---|---|---|
+    /// | label on its own pill | 4.56:1 | **2.20:1** | **3.96:1** |
+    /// | pill against the page | 1.47:1 | **1.08:1** | **1.42:1** |
+    ///
+    /// 2.20 on the one control in this app that destroys a win, and a pill one
+    /// level off the page it stands on, so what was actually on screen in the
+    /// dark was a dim red word floating in the margin. Both numbers are
+    /// measured off the built Edit sheet, before and after, not computed.
+    ///
+    /// **4.5 is not reachable here and that is a property of the style, not of
+    /// the red.** The label and the fill come from the same colour, so on a dark
+    /// page brightening the tint brightens both: the label's luminance stays
+    /// about 6x the fill's whatever the red, and with the WCAG formula's +0.05
+    /// floors that caps the pair around 4. The render agrees with the
+    /// arithmetic — rgb(255, 92, 84) on a pill of rgb(83, 43, 40) is **3.96**,
+    /// and systemRed's own dark value computes to 3.89, so there is about a
+    /// tenth of a point left in the whole red family. Clearing 4.5 means giving
+    /// the label a second colour, or `.borderedProminent`, which is a white word
+    /// on a solid red pill: louder than anything else on this sheet, and the
+    /// settled call is that this button is the platform's. **So the number to
+    /// beat was the 2.20, not the 4.5**, and the gap is written here rather than
+    /// quietly passed. If it is ever worth closing, the lever is the style and
+    /// not the colour.
+    ///
+    /// The dark value is the brightest red that still reads as a red rather than
+    /// as a salmon, which is also where the measured return flattens out.
+    static let destructiveTint = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 1.0, green: 0.361, blue: 0.329, alpha: 1)    // rgb(255, 92, 84)
+            : UIColor(red: 0.702, green: 0.0, blue: 0.059, alpha: 1)    // 0xB3000F, unchanged
+    })
+
     /// **The platform's destructive button, not a copy of one.**
     ///
     /// It was a hand-built pill: a plain button whose label carried its own
@@ -917,14 +988,7 @@ struct AddWinSheet: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.large)
-        // **Not `.red`.** `.bordered` fills with the tint at 0.182 over the
-        // page, so systemRed gives a pill of (245, 209, 210) with its own
-        // label at (255, 56, 60) on it: 2.54:1, against 4.5 for text. The
-        // button stays the platform's, which is the settled call, and only
-        // the red is darkened until the label clears. Measured: this one gives
-        // a pill of (231, 199, 201) and a label at 4.59:1. `D70015`, the
-        // obvious next step down, only reaches 3.50.
-        .tint(Color(hex: 0xB3000F))
+        .tint(Self.destructiveTint)
         // **Its own width, pinned left.** Stretched edge to edge it was the
         // only centred thing on a form where every label, field and control
         // starts at the same left margin: "the delete button looks weird in

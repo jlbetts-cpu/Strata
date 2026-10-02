@@ -843,7 +843,43 @@ enum ReplayShareSheet {
 ///
 /// Drawn at full strength now, which is not a new value: the pulse swung
 /// between 0.45 and 1 of the ink below, and the ink below is exactly the
-/// recess `NextSlotButton` draws the real slot with. Resting, the two match.
+/// recess `NextSlotButton` draws the real slot with.
+///
+/// **"Resting, the two match" was half true and this is the half that was
+/// not** (2026-10-01). The recess matched and still does. The EDGE stopped
+/// matching the day the real slot went 0.26 to 0.80, and this one kept the
+/// 0.26 that `NextSlotButton` and `AddWinSheet`'s photo well both name in
+/// their own notes as the known-bad number.
+///
+/// Photographed with `-strataReplayHoldLoad`, which is the only way to reach
+/// this state and had never been pointed at it. **The two appearances were not
+/// one fault, they were one fault and one fine**, which is why `edgeInk` below
+/// is a pair rather than a number:
+///
+/// |  | before | after |
+/// |---|---|---|
+/// | light, the dash against the page | rgb(191), **1.73:1** | rgb(139), **3.26:1** |
+/// | dark, the dash against the page | rgb(132), **4.41:1** | unchanged |
+///
+/// In daylight this dash is the whole screen — no lattice, no tower, no title,
+/// because `started` is still false — drawn under the 3:1 WCAG asks of a shape.
+/// On the night ground the same alpha already measures 4.41, because white over
+/// 29 adds far more than black over 247 takes away. That is
+/// `TowerLattice.strengthDark`'s lesson arriving on a second control: an
+/// opacity is not a contrast, so two grounds need two numbers.
+///
+/// **It does NOT take `NextSlotButton`'s 0.80, and trying to was the mistake
+/// worth writing down.** That alpha is for a 1pt CONTINUOUS border; this is a
+/// 1.5pt DASH, and the extra half point is most of the way to full strength at
+/// 3x — measured, the same 0.26 renders rgb(191) here against rgb(212) there.
+/// 0.80 on this stroke computes to about rgb(75), a near-black box on a white
+/// page, eight to one where the thing it is imitating is three. **What the two
+/// shapes share is the ratio they are held to, not the number that gets them
+/// there.**
+///
+/// Still a dash, and still 1.5pt: the real slot is a thing you press and a
+/// continuous hairline is a boundary you can aim at, while this is a thing you
+/// wait for, and a dash is how this app says not yet.
 struct ReplayLoadingSlot: View {
     let metrics: ReplayScript.Metrics
     @Environment(\.colorScheme) private var scheme
@@ -855,7 +891,7 @@ struct ReplayLoadingSlot: View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(AppColors.slotInk.opacity(scheme == .dark ? 0.075 : 0.038))
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(AppColors.slotInk.opacity(scheme == .dark ? 0.42 : 0.26),
+                .strokeBorder(AppColors.slotInk.opacity(Self.edgeInk(in: scheme)),
                               style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength]))
         }
         .frame(width: side, height: side)
@@ -863,6 +899,29 @@ struct ReplayLoadingSlot: View {
         .allowsHitTesting(false)
         .accessibilityElement()
         .accessibilityLabel("Loading the replay")
+    }
+
+    /// **The dash's ink, one number per ground.** See the note on the type for
+    /// the two measurements and for why `NextSlotButton`'s alpha does not
+    /// transfer to a 1.5pt dashed stroke.
+    ///
+    /// The light value is solved from two renders rather than from one guess,
+    /// and the first guess was wrong in a way worth keeping. Measured at
+    /// 402x874, 0.26 put the dash at rgb(191), which implies `247 - 215a` and
+    /// says 0.48 reaches the rgb(143) that is 3.0:1. Built at **0.50 it came
+    /// out rgb(150), 2.82:1** — still short, because the real slope is 194 and
+    /// not 215: antialiasing takes a bigger share as the stroke darkens, so the
+    /// line is not linear in the direction the first two points suggested.
+    /// **0.56 against the measured slope, and photographed at rgb(139),
+    /// 3.26:1.** A ratio computed from two samples of a curve is a prediction,
+    /// not a measurement; only the capture after the change is the number.
+    ///
+    /// The dark value is not touched. At 0.42 the dash measures rgb(132) on a
+    /// 29 ground, **4.41:1**, which already clears the bar with room; raising
+    /// it to match the light number would put a near-white dashed box on a
+    /// black page, which is the `TowerLattice` mistake in miniature.
+    static func edgeInk(in scheme: ColorScheme) -> Double {
+        scheme == .dark ? 0.42 : 0.56
     }
 }
 

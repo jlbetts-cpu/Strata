@@ -482,10 +482,17 @@ struct CameraView: View {
                 // about the fault: the lens is there and working, the app has
                 // not been allowed to use it, and naming the permission is
                 // what makes the button below make sense.
-                Text("Strata cannot use the camera")
+                //
+                // **And the name is asked of the bundle** (2026-10-01). Both
+                // lines read "Strata" while the built `Info.plist` has carried
+                // a `CFBundleDisplayName` of **Sturdy** since the rename began,
+                // so the screen whose whole job is to send somebody to a row in
+                // Settings was naming a row that is not there. See `AppName`
+                // in `MainAppView`.
+                Text("\(AppName.display) cannot use the camera")
                     .font(Typography.screenTitle)
                     .foregroundStyle(.white)
-                Text("A win can be a photograph. Turn the camera on for Strata in Settings and this becomes the viewfinder.")
+                Text("A win can be a photograph. Turn the camera on for \(AppName.display) in Settings and this becomes the viewfinder.")
                     .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.onDarkSecondary)
                     .padding(.bottom, GridConstants.gapItem)

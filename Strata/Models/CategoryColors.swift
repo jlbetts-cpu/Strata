@@ -424,16 +424,21 @@ enum AppColors {
     /// green does not clear 3:1 against a white thumb.
     static let switchOn = Color(hex: 0x138BC2)
 
-    /// **The primary action's colour where it has to read as ink on white.**
-    ///
-    /// `accent` is the fill of a big lit pill and is right there. The same blue
-    /// as a 17pt word on a near-white page is 1.83:1 — unreadable. This is that
-    /// hue at a weight that works as text and as a tint for the platform's own
-    /// controls: 4.38:1 on the light page, 3.62:1 on the dark one.
-    ///
-    /// One hue, two weights, which is how the rest of this palette already
-    /// works — see `inkPrimary` and `inkSecondary`.
-    static let accentPrimary = Color(hex: 0x007BB2)
+    // **`accentPrimary` (0x007BB2) is deleted** (2026-10-01), zero call sites.
+    //
+    // It was the primary action's colour where it had to read as ink on white,
+    // measured at 4.38:1 light and 3.62:1 dark, and it reached six places before
+    // the owner looked at it: "I think I prefer if the primary color was the
+    // black and white button for dark mode instead of this blue color we are
+    // going with right now lets just do the basic." Every one of those sites
+    // went to `inkPrimary` that day and this token has been unread since.
+    //
+    // **Five doc comments across the app still say the word.** They are prose,
+    // not code, and each one describes a thing that is now ink:
+    // `StoreUnavailableView`, `ProfileView`, `RestoreBackupView` (twice),
+    // `ReplayRow` and `HeadMakerView`. A comment naming a colour the file does
+    // not use is how `switchOn` ended up with six call sites arguing with its
+    // own header, so they are being corrected rather than left.
 
     static let warmRed = Color(hex: 0xE85D4A)
 

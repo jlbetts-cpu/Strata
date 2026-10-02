@@ -111,7 +111,32 @@ enum Typography {
     /// not see this file. `StrataFont` in `Shared/` carries its own Medium and
     /// has a note pointing back here, so a change made in this line has to be
     /// made there too or the tally and the title stop matching.
-    static let titleWeight: Font.Weight = .medium
+    static let titleWeight: Font.Weight = .semibold
+
+    /// **What a header is set in, against what a line of body is set in.**
+    ///
+    /// The owner, 2026-10-01 evening: "the text reads as premium not dull a
+    /// nice thicker font for headers."
+    ///
+    /// He is right and the measurement says why. Earlier the same day the whole
+    /// scale went to Medium, to answer "no tiny thin font anywhere ... the
+    /// weight should be similar". Taken to one weight it answered the first half
+    /// and overshot the second: a page where the title, the headings and the
+    /// body are the same stem has nothing to look at first. Similar is not
+    /// identical.
+    ///
+    /// **Two weights, and the step between them is measurable.** At `opsz`
+    /// 33.55, which is a screen title, Medium's stem is 3.68pt and Semibold's
+    /// 4.21 — **14.5% more stroke**, which is a step you can see at a glance and
+    /// cannot mistake for a second typeface. Bold is 4.95, 34.4% more, and that
+    /// is where a header stops being a header and becomes a shout; it is not
+    /// used anywhere.
+    ///
+    /// **It is still one face.** `bodyWeight` and `titleWeight` are the same
+    /// family at two cuts, which is the rule this project has kept for a year
+    /// and which the owner restated as "I hate when there is like one type of
+    /// font next to another".
+    static let bodyWeight: Font.Weight = .medium
 
     /// **The three tiers, and the only place a size is named.**
     ///
@@ -128,8 +153,8 @@ enum Typography {
     /// **This function is where the custom face lands.** One `.custom(_,
     /// relativeTo:)` here and one in `StrataFont.relative` and the app has
     /// changed typeface.
-    private static func tier(_ style: Font.TextStyle) -> Font {
-        .system(style, design: .default, weight: titleWeight)
+    private static func tier(_ style: Font.TextStyle, _ weight: Font.Weight = titleWeight) -> Font {
+        .system(style, design: .default, weight: weight)
     }
 
     /// The three tiers as text styles, so a test can read their point sizes out
@@ -184,16 +209,18 @@ enum Typography {
 
     // MARK: - Tier 2 · 17
 
-    /// 17 Medium. A heading, a block's or a card's title, a sheet's one word.
+    /// **17 Semibold. A heading, a block's or a card's title, a sheet's one
+    /// word.** The thing you are meant to read first.
     static let headerMedium = tier(.body)
 
-    /// 17 Medium. Prose — a sentence somebody reads rather than scans.
+    /// **17 Medium. Prose — a sentence somebody reads rather than scans.**
     ///
-    /// **It was Regular until 2026-10-01** and it is the same font as
-    /// `headerMedium` now. The two names are kept because they are two jobs
-    /// and both read at their call sites; neither names a number, so they
-    /// cannot drift apart the way `cornerRadiusSmall` and `radiusControl` did.
-    static let bodyLarge = tier(.body)
+    /// It was Regular until 2026-10-01 and Semibold never: a paragraph set in a
+    /// heading's weight is a paragraph that shouts, and the owner's objection
+    /// was to DULL rather than to quiet. The step from this to `headerMedium` is
+    /// 14.5% of stroke at the same size, which is what makes a page have an
+    /// order to read it in.
+    static let bodyLarge = tier(.body, bodyWeight)
 
     /// A sheet's title in the owner's face. See `View.sheetTitle(_:drawn:)`.
     static let sheetTitleDrawn = StrataFont.relative(17, to: .body)
@@ -206,9 +233,11 @@ enum Typography {
     /// 15 Medium. The line under a heading or a screen title: "2 wins", a
     /// date, a count, an empty screen's one sentence.
     ///
-    /// **It was Regular until 2026-10-01.** What separates it from the heading
-    /// above it is size and INK, never weight.
-    static let screenSubtitle = tier(.subheadline)
+    /// **It was Regular until 2026-10-01**, and it is Medium rather than the
+    /// heading's Semibold: what separates it from the line above it is size,
+    /// ink AND now weight, which is three ways of saying the same thing and is
+    /// why you never have to work out which one to read first.
+    static let screenSubtitle = tier(.subheadline, bodyWeight)
 
     /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
     /// One style for all of them, so a heading is recognisable as a heading.

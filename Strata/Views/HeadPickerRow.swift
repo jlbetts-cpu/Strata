@@ -39,6 +39,16 @@ struct HeadPickerRow: View {
     /// `HeadLookPicker`'s swatch, to the point.
     private static let side: CGFloat = 60
 
+    /// How much ink the "this one is chosen" ring is drawn in. See the long
+    /// note at its call site for both halves of this; the short version is that
+    /// a ring round the only option says nothing, so it is not drawn.
+    ///
+    /// Not `private`, so `HeadPickerRowTests` can hold the rule without a
+    /// simulator — the same reason `isGenerated` is not private.
+    static func ringInk(isChosen: Bool, entries: Int) -> Double {
+        isChosen && entries > 1 ? 0.55 : 0
+    }
+
     /// Whether this is a name the APP wrote, rather than one somebody typed.
     ///
     /// **Matched on the SHAPE, never on the position in the row.** The obvious
@@ -120,8 +130,28 @@ struct HeadPickerRow: View {
                     // up from 0.94 to full size, and the name under it going
                     // from secondary ink to primary. The ring is the loudest of
                     // the three and it is the one that did not need to be.
+                    //
+                    // **AND IT IS NOT DRAWN AT ALL WHEN THERE IS ONE HEAD**
+                    // (2026-10-01). Photographed with a single entry
+                    // (`/tmp/s2/*/h2-head-picker-one.png`, both schemes): the
+                    // row is one 60pt tile at the leading edge of a 370pt card
+                    // with a ring round it measuring **rgb(128) on the card's
+                    // 255, 4.0:1** in light and **rgb(157) on 45, 5.0:1** in
+                    // dark. That is the loudest mark in the section, and at one
+                    // entry it is answering a question nobody asked: there is no
+                    // second head for this one to have been chosen INSTEAD OF.
+                    // The paragraph above says the swatch states "chosen" three
+                    // times over; at one head all three state it zero times, and
+                    // this is the only one of the three that costs ink.
+                    //
+                    // Nothing is lost. The tile is still the head, and the row
+                    // under it still says "Delete This Head". The ring comes
+                    // back the moment there is something to choose between,
+                    // which is the first moment it means anything.
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(AppColors.inkPrimary.opacity(isChosen ? 0.55 : 0),
+                        .strokeBorder(AppColors.inkPrimary
+                                        .opacity(Self.ringInk(isChosen: isChosen,
+                                                              entries: entries.count)),
                                       lineWidth: GridConstants.strokeMedium)
                 }
                 .scaleEffect(isChosen ? 1 : 0.94)

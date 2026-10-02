@@ -79,51 +79,64 @@ struct SheetRoomTests {
         #expect(span == 8)
     }
 
+    /// `PlanSheet`'s source, for the one assertion that is about structure
+    /// rather than a number. `#filePath` is this test file, so the view is
+    /// found relative to it rather than from a working directory a test runner
+    /// does not promise.
+    private var planSheetPath: String {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Strata/Views/PlanSheet.swift").path
+    }
+
     // MARK: - 11c, the air between things rather than after them
 
-    @Test("The empty plan stands on the field's golden section")
-    func theEmptyPlanSplitsOnPhi() {
-        // `PlanSheet.content` writes `pageSpace` this many times on each side
-        // of the invitation, and flexible children of a `VStack` divide the
-        // slack equally, so this ratio IS the composition.
+    /// **The empty plan is the written plan with one ghost row in it.**
+    ///
+    /// Both of the tests that were here are deleted with `emptyFieldShares`.
+    /// They pinned the invitation to the field's golden section and checked
+    /// that the floor it left was still deeper than `tailHeight` — good tests
+    /// of a composition that was wrong, which is the thing worth recording:
+    /// neither of them could have caught what was actually broken, because what
+    /// was broken was what the invitation IS. It is row one, not a figure in a
+    /// field, and it has to stand where the first real line lands. The owner:
+    /// "I noticed you added the space way down for the plan even though it was
+    /// supposed to show the bullet point."
+    ///
+    /// What replaces them is a test that the two states agree, which is the
+    /// property that was actually violated.
+    @Test("The empty page and the written page are the same page")
+    func bothStatesAreOnePage() {
+        // The tail is written once, outside the `lines.isEmpty` branch, so an
+        // empty plan is one row over the same tap-to-write field a written one
+        // has. It used to belong to the list alone, and that is how the same
+        // emptiness came to be an affordance in one state and a check 11c
+        // failure in the other.
         //
-        // 8 : 5 is the Fibonacci pair nearest φ. Two things are checked rather
-        // than the pair being named: that it approximates φ, and that it beats
-        // the ladder's own biggest step, because a split at or under 1.5 leaves
-        // the break above and the floor below reading as the same white and
-        // 11c decided by a point or two.
-        let shares = PlanSheet.emptyFieldShares
-        let ratio = CGFloat(shares.above) / CGFloat(shares.below)
-        #expect(ratio > ladderStep)
-        #expect(abs(ratio - 1.6180339887) < 0.02)
+        // Read off the source, because the thing being asserted is structural:
+        // a branch cannot have its own copy of this.
+        let source = try! String(contentsOfFile: planSheetPath, encoding: .utf8)
+        let tails = source.components(separatedBy: "minHeight: Self.tailHeight").count - 1
+        #expect(tails == 1,
+                "the tap-to-write tail is written \(tails) times; two copies is how the two states drift")
+        #expect(source.contains("if lines.isEmpty { hint }"),
+                "the invitation is no longer the only thing in the empty branch")
     }
 
-    @Test("The empty plan's floor is still deeper than the tap tail")
-    func theEmptyPlanFloorIsStillATarget() {
-        // The floor under the invitation is not only composition: it is the
-        // tap-to-write space, and `tailHeight` is the depth the audit settled
-        // on for that ("deep enough to be aimed at rather than found by
-        // accident"). A split that bought a composition by making the target
-        // shallower would be trading a real affordance for a measurement.
-        //
-        // 402x874: 781pt of usable band, less about 50 for the sheet's grabber
-        // and toolbar, less the invitation's own row, which is the bullet's
-        // 44pt box.
-        let field: CGFloat = 781 - 50
-        let invitation: CGFloat = 44
-        let shares = PlanSheet.emptyFieldShares
-        let floor = (field - invitation)
-            * CGFloat(shares.below) / CGFloat(shares.above + shares.below)
-        #expect(floor >= PlanSheet.tailHeight)
-    }
-
-    @Test("A written plan keeps its tail, because lines flow downward")
-    func aWrittenPlanIsNotCentred() {
-        // The shares apply to the EMPTY page only. A list that floated in the
-        // middle of the sheet would move every time a line was added, which is
-        // the one thing a page you are typing on must not do. Stated here
-        // because it is the obvious next "fix" somebody will try.
+    @Test("A plan keeps its tail, because lines flow downward")
+    func aPlanIsNotCentred() {
+        // A list that floated in the middle of the sheet would move every time
+        // a line was added, which is the one thing a page you are typing on
+        // must not do. **And the empty page is that page with one row in it**,
+        // so centring the invitation moves it too — which is exactly what was
+        // tried and reverted on 2026-10-01. Stated here because it is the
+        // obvious next "fix" somebody will try, and it was tried.
         #expect(PlanSheet.tailHeight > 0)
-        #expect(PlanSheet.emptyFieldShares.above > PlanSheet.emptyFieldShares.below)
+        let source = try! String(contentsOfFile: planSheetPath, encoding: .utf8)
+        // The DECLARATION, not the word: the deletion note in that file names
+        // the token so the next person finds the reasoning, and a sweep that
+        // cannot tell a mention from a declaration fails on its own gravestone.
+        #expect(!source.contains("static let emptyFieldShares"),
+                "the empty page has a composition of its own again, which is how the invitation left row one")
     }
 }

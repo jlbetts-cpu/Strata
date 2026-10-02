@@ -55,14 +55,23 @@ struct TypographyTests {
         #expect(Set(sizes).count == 3, "two tiers resolve to the same size: \(sizes)")
     }
 
-    /// One weight, and it is Medium.
+    /// **Two weights, one step apart, and no third.**
     ///
-    /// The lever is one line (`Typography.titleWeight`). This is here so that
-    /// moving it is a deliberate act with a failing test attached rather than a
-    /// quiet edit: if a future pass makes titles Semibold, this test is the
-    /// place the decision gets written down.
-    @Test func theOneWeightIsMedium() {
-        #expect(Typography.titleWeight == .medium)
+    /// It was one, Medium, until the evening of 2026-10-01: "the text reads as
+    /// premium not dull a nice thicker font for headers." One weight answered
+    /// "no tiny thin font anywhere" and overshot "the weight should be similar",
+    /// because a page whose title, headings and body share a stem has nothing to
+    /// look at first. Similar is not identical.
+    ///
+    /// Semibold over Medium is **14.5% more stroke** at a screen title's optical
+    /// size (4.21pt against 3.68). Bold would be 34.4% and is not used: that is
+    /// where a header stops being a header. Both levers are one line each and
+    /// this test is where moving either gets written down.
+    @Test func theTwoWeights() {
+        #expect(Typography.titleWeight == .semibold)
+        #expect(Typography.bodyWeight == .medium)
+        #expect(Typography.titleWeight != Typography.bodyWeight,
+                "a scale with one weight has no order to read it in")
     }
 
     // MARK: - 2. The tokens
@@ -76,38 +85,50 @@ struct TypographyTests {
     /// say so out loud if a custom face is dropped into one of the two and not
     /// the other.
     @Test func everyTokenResolvesToATier() {
-        let title = Font.system(.largeTitle, design: .default, weight: .medium)
-        let body = Font.system(.body, design: .default, weight: .medium)
-        let label = Font.system(.subheadline, design: .default, weight: .medium)
+        let heavy = Typography.titleWeight, light = Typography.bodyWeight
+        let title = Font.system(.largeTitle, design: .default, weight: heavy)
+        let header = Font.system(.body, design: .default, weight: heavy)
+        let body = Font.system(.body, design: .default, weight: light)
+        let label = Font.system(.subheadline, design: .default, weight: heavy)
+        let quiet = Font.system(.subheadline, design: .default, weight: light)
 
         let tokens: [(String, Font, Font)] = [
             ("screenTitle", Typography.screenTitle, title),
             ("screenTitleDrawn", Typography.screenTitleDrawn, title),
             ("tally", Typography.tally, title),
-            ("headerMedium", Typography.headerMedium, body),
+            ("headerMedium", Typography.headerMedium, header),
             ("bodyLarge", Typography.bodyLarge, body),
-            ("sheetTitleDrawn", Typography.sheetTitleDrawn, body),
+            ("sheetTitleDrawn", Typography.sheetTitleDrawn, header),
             ("headerSmall", Typography.headerSmall, label),
-            ("screenSubtitle", Typography.screenSubtitle, label),
+            ("screenSubtitle", Typography.screenSubtitle, quiet),
             ("sectionLabel", Typography.sectionLabel, label),
         ]
         for (name, token, tier) in tokens {
-            #expect(token == tier, "Typography.\(name) is not one of the three tiers")
+            #expect(token == tier, "Typography.\(name) is not one of the three sizes at one of the two weights")
         }
-        #expect(Set(tokens.map(\.1)).count == 3,
-                "the tokens resolve to \(Set(tokens.map(\.1)).count) distinct fonts, not 3")
+        // **Three SIZES and two WEIGHTS is five fonts, not six**: there is no
+        // large title at the body weight, because there is only one title.
+        #expect(Set(tokens.map(\.1)).count == 5,
+                "the tokens resolve to \(Set(tokens.map(\.1)).count) distinct fonts, not 5")
     }
 
-    /// The two names that read as a heading and as prose are the SAME font.
+    /// **A heading and the prose under it are the same SIZE and differ only in
+    /// weight.** Everything that is a heading is one font; everything that is
+    /// read rather than scanned is the other.
     ///
-    /// Not a tautology dressed as a test: it is the thing the owner asked for
-    /// ("the weight should be similar... I hate when there is like one type of
-    /// font next to another"), and it fails if anybody gives one of them a
-    /// weight or a size of its own again.
-    @Test func headingAndBodyAreOneFont() {
-        #expect(Typography.headerMedium == Typography.bodyLarge)
-        #expect(Typography.headerSmall == Typography.screenSubtitle)
-        #expect(Typography.headerSmall == Typography.sectionLabel)
+    /// Not a tautology dressed as a test. It is the pair of things the owner
+    /// asked for on one day and they sound contradictory until they are written
+    /// as numbers: "I hate when there is like one type of font next to another"
+    /// (so: one family, one size per tier, nothing with a size of its own) and
+    /// "a nice thicker font for headers" (so: the heading is heavier). This
+    /// fails if anybody gives one of them a SIZE of its own, and it fails the
+    /// other way if the two weights collapse back into one.
+    @Test func headingsAreOneFontAndProseIsTheOther() {
+        #expect(Typography.headerMedium != Typography.bodyLarge,
+                "a heading and a paragraph in the same weight have no order")
+        #expect(Typography.headerSmall != Typography.screenSubtitle)
+        #expect(Typography.headerSmall == Typography.sectionLabel,
+                "a label and a small heading are the same job")
     }
 
     // MARK: - 3. The call sites

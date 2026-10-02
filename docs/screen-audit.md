@@ -173,9 +173,65 @@ everywhere and get the same answers.
 | 9 | **Contrast is measured** | Text clears 4.5:1, a shape 3:1, against the ground it is actually on — sampled, not assumed. |
 | 10 | **Motion answers a person** | Everything that moves does so because somebody did something, on the ladder's durations. Anything that animates because it appeared fails. |
 | 11 | **The page has room** | Four clauses, measured off a 402x874 @3x capture with `tools/page-room.py`. All four must pass. See below. |
+| 12 | **Every state is a screen** | A screen is rated in its empty, its one-item and its full state, in both colour schemes. Nothing that carries information may sit under 4 levels of the ground it is on, in any state. |
 
-**Eleven of eleven, or the screen is not done.** A 10 is a screen with one named
-failure, and this file names it.
+### The grade is out of 10, and a 10 is twelve of twelve
+
+The owner asks for the screens graded out of ten, so that is the headline number
+and the twelve checks are the evidence under it. The mapping is not a curve:
+
+> **10/10 means every one of the twelve checks passes, or fails against a written
+> exemption in this file.** Nine means one unexempted failure, eight means two,
+> and so on. There is no 9.5 and nothing is rounded up.
+
+An exemption counts as a pass only once it is written down here with the
+measurement behind it and the thing it would cost to fix. An exemption that lives
+in a reply is a screen nobody re-checked.
+
+### Check 12, added 2026-10-01 evening
+
+The owner, having been shown twenty-two screens rated against eleven checks:
+
+> "keep going going with all the screens make sure they look good in all the
+> states and it isnt like invisable like the memories looks good but you cant
+> really see anything half the time the empty state has to look just as good."
+
+**He is right and the ratings above are the evidence.** Of the twenty-nine
+captures the audit was built on, almost every one is of a screen with content in
+it. A screen is not one picture. The Wins tab with forty wins and the Wins tab
+with none are two compositions sharing a layout, and only one of them had ever
+been judged.
+
+**The 4-level floor is this app's own number, not a source's.** On the light page
+(247) and the night ground (29), four levels is about where a flat edge stops
+being resolvable at arm's length. The measurements that set it: a calendar day's
+well was 3.3 levels and the owner could not see it; `TowerLattice`'s pane is 2.7
+and is MEANT not to be seen; a block's rim reaches +4 and reads. So 4 is the
+line between texture and structure, and the check is only about structure.
+
+**Texture is exempt and must be declared.** `TowerLattice` at 1.03:1 is the
+standing example: it is below the floor on purpose, because a full tower drawn on
+a visible grid is a grid of boxes, and that has been refused twice on
+measurement. An exemption names the element, its number, and what it would cost
+to raise it.
+
+**And it is the same instruction as "fairly minimal", not the opposite of it.**
+The owner said on 2026-09-30, looking at a month full of wins, "make sure we
+aren't using any unnecessary greyscale elements". Both are the same rule seen
+from opposite ends: **the structure carries the page exactly as much as the
+content does not.** `MonthCalendarCell.wellInk(filled:)` is the first component
+written to it, and it is the model for the rest: a constant became a function of
+how much content the page has, 8.2 levels when the month is bare and 3.3 when it
+is full. A screen that needs two different answers for two states should have a
+function, not an argument about which constant is right.
+
+**The instrument** is `tools/page-room.py --faint`, written for this check. It
+compares every pixel against a blurred copy of itself, which drops
+`WarmBackground`'s vertical gradient and `GroundField`'s mesh and leaves the
+structure, then buckets by distance from the page: 1-3 below resolution, 4-8
+faint, 9-20 quiet, 21+ reads. It ends with the share of everything drawn that
+sits within 3 levels of the ground. Measured the day it was written: the empty
+Wins page **86.9%**, Memories **68.8%**, Settings **55.6%**.
 
 ### Check 11, added 2026-10-01
 

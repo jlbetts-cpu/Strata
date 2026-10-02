@@ -817,32 +817,46 @@ struct HeadMakerView: View {
                         // controls read as the same offer.
                         Text(model.saveFailure.isEmpty ? "Save" : "Try Saving Again")
                             .font(Typography.headerSmall)
-                            // **`accentPrimary`, measured.** This was
-                            // `accentWarm`, which is a near-black ink on a light
-                            // page: off the preview capture, Save rendered
-                            // (28, 26, 24) and the name above it (36, 36, 36) on
-                            // a (246, 246, 246) ground. The two loudest things
-                            // on the screen were a label and a button at the
-                            // same weight of black, with nothing saying which
-                            // one you press. That is word for word the fault
-                            // the Profile audit found and fixed the same day,
-                            // where Done was also `accentWarm` at (28, 26, 24)
-                            // beside a title at (37, 37, 37).
+                            // **`inkPrimary`, AND IT WAS A FIXED WHITE NOBODY
+                            // COULD SEE** (2026-10-01, `docs/consistency-audit.md`).
                             //
-                            // Keeping it was once right: the add sheet, Profile,
-                            // Settings, Plan and Restore all wore `accentWarm`
-                            // for this job, and changing one screen would have
-                            // made it the one that disagreed. Profile's Done and
-                            // Restore's Cancel have since moved, so the fleet is
-                            // the other way round now.
+                            // `AppColors.onDarkStrong` is `white.opacity(0.95)`
+                            // and this page's ground is `WarmBackground`, so on
+                            // the light page the word rendered **rgb(239) on
+                            // rgb(243), 1.04:1**. Retake, on the same row, is
+                            // `inkSecondary` at rgb(91), **6.11:1**. The press
+                            // that keeps a head somebody has just spent two
+                            // minutes making was the one thing on the screen
+                            // that could not be seen.
                             //
-                            // 4.34:1 on this page's ground, which is the weight
-                            // the token itself documents (4.38:1 on the light
-                            // page) and the weight the audit accepted for Done.
-                            // The name field giving up its near-black at the
-                            // same time is the other half: one blue word is the
-                            // strongest thing on the page.
-                            .foregroundStyle(AppColors.onDarkStrong)
+                            // It is the fault `CLAUDE.md` records about
+                            // `.primary.opacity(x)` wearing its other hat: **a
+                            // fixed white is not a colour, it is a colour in
+                            // dark mode.** The `onDark*` scale is measured
+                            // against the VIEWFINDER's black, which is the page
+                            // two steps back in this flow and not this one — the
+                            // same structural note the add sheet's audit wrote
+                            // about the review screen.
+                            //
+                            // **`inkPrimary` because it inverts with the
+                            // scheme**: rgb(37) on the light page, near white on
+                            // the night one, about 14:1 either way round. It is
+                            // what Profile's Done wears, so the two sheets that
+                            // both end in a press agree.
+                            //
+                            // **The old comment argued for `accentPrimary` and
+                            // its hazard is kept, because it is real.** It said
+                            // a near-black Save sits at the same weight as the
+                            // name field above it. The ROW answers that: Retake
+                            // is `inkSecondary` at 6.11:1 beside this at 14:1, a
+                            // 2.3x step inside the one band that holds both
+                            // controls, and that is what says which of the two
+                            // is the press. The name is a field you type in,
+                            // centred, 200pt up the page, not the other half of
+                            // this pair. `accentPrimary` would also now be the
+                            // only blue word in the app, which is a worse kind
+                            // of odd one out than a strong ink.
+                            .foregroundStyle(AppColors.inkPrimary)
                             .frame(minWidth: Self.sideSlot, minHeight: GlassIconButton.defaultSide,
                                    alignment: .trailing)
                             .contentShape(Rectangle())

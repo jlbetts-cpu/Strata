@@ -104,7 +104,8 @@ struct MonthCalendarView: View {
     ///
     /// Check 6 of `docs/screen-audit.md` is "greyscale is earned" and it has
     /// caught this calendar once already. Measured on a built page, an empty
-    /// day's well is `slotInk` at `MonthCalendarCell.wellInk` (0.018), which over
+    /// day's well is `slotInk` at `MonthCalendarCell.wellInk(filled:)`, 0.018 on a
+    /// full month and 0.045 on an empty one, which over
     /// the light page's rgb(247) composites to rgb(244): **3.3 levels out of
     /// 255**, and the pad past the end of the month is 1.6. Both instruments this
     /// app owns are blind to them — `tools/screen-measure.py` calls a pixel
@@ -186,6 +187,14 @@ struct MonthCalendarView: View {
         return calendar.component(.day, from: Date())
     }
 
+    /// How much of this month's grid has colour in it. See
+    /// `MonthCalendarCell.wellInk(filled:)` for why it is the grid's share and
+    /// not the person's.
+    private var filledShare: Double {
+        guard dayCount > 0 else { return 0 }
+        return Double(byDay.count) / Double(dayCount)
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -209,6 +218,7 @@ struct MonthCalendarView: View {
                                     side: cell,
                                     radius: radius,
                                     isFuture: today.map { day > $0 } ?? false,
+                                    filled: filledShare,
                                     column: column,
                                     // `BlockLight` counts rows from the ground
                                     // up and a calendar is laid out top down,
@@ -260,12 +270,15 @@ struct MonthCalendarView: View {
 }
 
 /// One day. A pane when nothing happened, a block when something did.
-private struct MonthCalendarCell: View {
+struct MonthCalendarCell: View {
     let day: Int
     let block: MonthTower.Block?
     let side: CGFloat
     let radius: CGFloat
     let isFuture: Bool
+    /// How full the month is, as a share of the days that have happened. Only
+    /// an empty cell reads it. See `wellInk(filled:)`.
+    let filled: Double
     let column: Int
     let rowFromBottom: Int
     var onSelect: (String) -> Void
@@ -353,9 +366,20 @@ private struct MonthCalendarCell: View {
     /// appearance, at the weight those two use. The cohesion survives; it is
     /// just with the other empty thing in the app.
     ///
-    /// A future day is half of that. It has not failed to be filled, it has not
-    /// come round yet, and a month that gets quietly fainter toward its end is
-    /// the whole of "fills up as you go".
+    /// A future day steps back from that. It has not failed to be filled, it
+    /// has not come round yet, and a month that gets quietly fainter toward its
+    /// end is the whole of "fills up as you go". **How far back it steps is
+    /// `futureStep(filled:full:)`, not a constant**, and only the surface
+    /// carries it: the number says which day it is and nothing else.
+    ///
+    /// **The rim is the half of this that the light page does not get.**
+    /// Measured on the empty month: `BlockRim` is white, so against the night
+    /// ground it renders rgb(89) on rgb(30), **59 levels**, and against the
+    /// light page rgb(247) on rgb(245.6), **1.5**. The dark calendar is a grid
+    /// of outlined cells and the light one is a grid of recesses. Both read, and
+    /// the rim is the block language so it stays — but it means the LIGHT page's
+    /// cell is carried by its fill alone, which is why the fill's floor is
+    /// measured there and not here.
     private var empty: some View {
         // The recess and the rim are the `.wells` rendering; the numeral
         // survives in `.numbers` too, because the owner asked for it by name.
@@ -371,15 +395,34 @@ private struct MonthCalendarCell: View {
                     // than a reading — you look for it, you do not read it. The
                     // filled days keep theirs in white, where it has a block to sit
                     // on and something to label.
-                    number(AppColors.inkTertiary.opacity(isFuture ? 0.45 : 0.75),
-                           onPhoto: false)
+                    //
+                    // **THE NUMBER NO LONGER CARRIES `isFuture`** (2026-10-01,
+                    // check 12). It was `isFuture ? 0.45 : 0.75`, and on the
+                    // light page that renders the glyph at **rgb(182) on 244,
+                    // 1.84:1** against the 3:1 a mark this size is held to — on
+                    // thirty of the thirty-one cells, because every day after
+                    // today is a future one and a month the owner has not logged
+                    // in yet is almost all future. Measured off
+                    // `/tmp/s2/light/m1-memories-empty.png`. The past-and-empty
+                    // value is 2.97:1, which is the 3:1 this was signed off at.
+                    //
+                    // **The split is the fix, and it is one sentence: the
+                    // SURFACE says whether the day has happened, the NUMBER says
+                    // which day it is.** Both were saying the first thing, and
+                    // the number was the one that could not afford to. The well
+                    // still steps back for a day that has not come round — see
+                    // `futureStep(filled:full:)` — so today is still the darkest
+                    // cell on a bare month without the numerals paying for it.
+                    number(AppColors.inkTertiary.opacity(0.75), onPhoto: false)
                 }
             }
     }
 
     private var well: some View {
         shape
-            .fill(AppColors.slotInk.opacity(Self.wellInk * (isFuture ? 0.45 : 1)))
+            .fill(AppColors.slotInk.opacity(
+                Self.wellInk(filled: filled)
+                * (isFuture ? Self.futureStep(filled: filled, full: 0.45) : 1)))
             // **AND IT WEARS THE LIT EDGE.** The owner: "make sure the empty
             // days are nice lattice."
             //
@@ -398,24 +441,124 @@ private struct MonthCalendarCell: View {
                     lineWidth: max(1, GridConstants.blockRimWidth
                                       * side / GridConstants.blockReferenceCell)
                 )
-                .opacity(isFuture ? 0.4 : 0.75)
+                // The rim rides the same ramp as the fill, at its own full-month
+                // value, so the cell stays one object: a recess and its lit edge
+                // stepping back together rather than a rim that holds still
+                // while the surface under it moves. `0.75 * 0.533` is the 0.4
+                // this shipped at, to three places.
+                .opacity(0.75 * (isFuture ? Self.futureStep(filled: filled, full: 0.533) : 1))
             }
     }
 
-    /// **0.018, and the reason is that there are thirty of these.**
+    /// **How dark an empty day is, and it depends on how many of them there
+    /// are. Two of the owner's instructions pull opposite ways and they are
+    /// both about this number.**
     ///
-    /// It was 0.035 — the tower's empty slot and the photo well, which is the
-    /// right weight for ONE empty thing on a page. Thirty of them side by side
-    /// is not thirty slots, it is a grey field with some colour in it, and the
-    /// owner: "make sure we aren't using any unnecessary greyscale elements, it
-    /// should be fairly minimal."
+    /// 2026-09-30, when it went from 0.035 to 0.018: *"make sure we aren't
+    /// using any unnecessary greyscale elements, it should be fairly minimal."*
+    /// He was looking at a month with wins in it, where thirty grey squares
+    /// beside them are not thirty slots, they are a grey field with some colour
+    /// in it.
     ///
-    /// Halved, with the rim carrying what is left of the cell. What a month
-    /// should look like is colour where things happened and a whisper where
-    /// they did not — the grid readable when you look for it and invisible when
-    /// you are looking at the wins, which is the same rule `TowerLattice` has
-    /// been held to twice.
-    private static let wellInk: Double = 0.018
+    /// 2026-10-01: *"the memories looks good but you cant really see anything
+    /// half the time ... the empty state has to look just as good."* He was
+    /// looking at a month with one win in it, where those same squares are the
+    /// only thing on the page and 0.018 over a 247 ground is **3.3 levels**,
+    /// which is at the edge of what an eye resolves.
+    ///
+    /// **Neither instruction is wrong and neither is about greyscale.** They are
+    /// both about the same rule: the structure carries the page exactly as much
+    /// as the content does not. A month full of wins is a picture of a month and
+    /// the grid should get out of its way; a month with one win in it IS the
+    /// grid, and a grid you cannot see is a blank page with a dot on it.
+    ///
+    /// So it is a function rather than a constant. **0.045 empty, 0.018 full**,
+    /// which is 8.2 levels and 3.3 levels on the light page — the first reads
+    /// as a surface, the second as a whisper, and nothing in between is a value
+    /// anybody picked. The crossing point is a quarter full, because by then
+    /// there is colour on every row and the colour is doing the work.
+    ///
+    /// **Measured against the month's LENGTH, and the other version was built
+    /// first and rejected by looking at it.** Against the days that have
+    /// happened, one win on the 1st of the month is a month 100% full, so the
+    /// cells take the whisper — and the screen that produced is the one the
+    /// owner was complaining about: a single green square and thirty ghosts.
+    /// The elapsed-days ratio is true about the person and false about the
+    /// picture, and this number is about the picture. What the eye counts is
+    /// how much of the grid has colour in it, so that is what is counted here.
+    ///
+    /// A perfect first week still reads as nearly empty by this measure (7 of
+    /// 31), and that is correct: seven coloured cells out of thirty-five is
+    /// still a page the grid has to hold up. Whether the person is doing well
+    /// is what the colour says; whether the page has anything on it is what
+    /// this decides. `isFuture` carries the other reading, stepping a day that
+    /// has not happened back from one that has — see `futureStep(filled:full:)`,
+    /// which was a constant 0.45 and is now the same kind of function as this
+    /// one, for the same reason.
+    static func wellInk(filled: Double) -> Double {
+        let t = min(max(filled, 0), fullAt) / fullAt
+        return inkEmpty + (inkFull - inkEmpty) * t
+    }
+
+    /// **How far a day that has not happened steps back from one that has, and
+    /// it depends on how much of the month is there to step back from.**
+    ///
+    /// `full` is the share this element takes on a full month, which is the
+    /// value each of them already shipped: 0.45 for the well's fill and 0.533
+    /// for its rim (0.4 of the past day's 0.75). **At `fullAt` and above this
+    /// returns exactly that, so the state the owner signed off on 2026-09-30
+    /// renders to the pixel.** Below it the step shortens to `stepBare`.
+    ///
+    /// **The defect it fixes, measured on the light page at 402x874.** The 0.45
+    /// was tuned on a month with wins in it, where the future is the tail of the
+    /// month and the colour carries the page. On a month with nothing in it
+    /// every day after today is a future one: on 1 October that is **30 of 31
+    /// cells**, so the dim was not dimming a tail, it was dimming the page. The
+    /// wells rendered 3.5 to 4.3 levels below their own gutter, at or under
+    /// check 12's 4-level floor, on the exact screen the owner was looking at
+    /// when he said "you cant really see anything half the time".
+    ///
+    /// **It is the same rule as `wellInk(filled:)` and that is why it is the
+    /// same shape**: the structure carries the page exactly as much as the
+    /// content does not. "A month fills up as it is lived" is a statement about
+    /// a month with something in it; on a bare one there is nothing to be the
+    /// faint end of.
+    ///
+    /// **0.72 bare, and not 1.0, because today has to stay marked.** The only
+    /// thing distinguishing today on an empty month is that its cell is the one
+    /// that is not stepped back. At 0.72 the pair is 8.2 against 5.9 levels,
+    /// a ratio of 1.39 — above Kubovy's one-rung 1.33, so it still reads as two
+    /// weights — and 5.9 clears the floor by half as much again. At 1.0 the
+    /// grid would be uniform and today would vanish into it; at 0.45 it is the
+    /// screen he complained about.
+    ///
+    /// **This only ever applies to the CURRENT month.** `todayIfVisible` is nil
+    /// for any other, so `isFuture` is false throughout a past month and this
+    /// function is not consulted.
+    static func futureStep(filled: Double, full: Double) -> Double {
+        let t = min(max(filled, 0), fullAt) / fullAt
+        return stepBare + (full - stepBare) * t
+    }
+
+    /// What a day that has not happened keeps when the month is bare. See
+    /// `futureStep(filled:full:)` for why it is not 1.
+    private static let stepBare: Double = 0.72
+
+    /// 8.2 levels on the light page: a surface, which is what a month with
+    /// nothing in it has to be.
+    private static let inkEmpty: Double = 0.045
+    /// 3.3 levels: the whisper the owner asked for when there are wins to look
+    /// at instead.
+    private static let inkFull: Double = 0.018
+    /// **Where the grid hands the page over to the colour: 45% of the days.**
+    ///
+    /// Counted off the thirty-five cell grid a seven column month draws. At
+    /// 0.45 of a 31 day month, 14 cells have colour in them and every one of
+    /// the five rows has at least two, so there is no row the grid is holding
+    /// up on its own. At a quarter, 8 cells, two rows can still be bare. The
+    /// whole range below this is spent on the sparse months, which is where the
+    /// owner was looking when he said he could not see anything.
+    private static let fullAt: Double = 0.45
 
     private func number(_ ink: Color, onPhoto: Bool) -> some View {
         Text(verbatim: StrataFont.digits(day))
