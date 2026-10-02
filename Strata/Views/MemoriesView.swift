@@ -142,10 +142,19 @@ struct MemoriesView: View {
                         // already it. `gapItem` between them, because two rows
                         // offering the same kind of thing are items in a set.
                         VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                            // **The poster rides IN the offer, read where
+                            // the body is evaluated** (2026-10-02). It was
+                            // read here, inside the `ForEach` closure, and
+                            // CLAUDE.md's rule is that a read in there is not a
+                            // dependency you can rely on. This was NOT the
+                            // blank row (that was the thumbnail's crop, see
+                            // `ReplayRow.thumbnail`); it is the rule applied
+                            // where it was being broken. `replayRows` reads
+                            // `cards` now, in the body's own pass.
                             ForEach(replayRows) { row in
                                 ReplayRow(
                                     replay: row.replay,
-                                    poster: replays.cards[ReplayShelfModel.key(row.replay, scheme: colorScheme)],
+                                    poster: row.poster,
                                     title: row.title
                                 ) { playing = row.replay }
                             }
@@ -516,14 +525,22 @@ struct MemoriesView: View {
     private var replayRows: [ReplayOffer] {
         var rows: [ReplayOffer] = []
         if let monthReplay {
-            rows.append(ReplayOffer(replay: monthReplay, title: vm.monthTitle.capitalized))
+            rows.append(ReplayOffer(replay: monthReplay, title: vm.monthTitle.capitalized,
+                                    poster: poster(for: monthReplay)))
         }
         if let live = ReplayShelfModel.live(in: replays.months + replays.weeks,
                                             besides: monthReplay, now: replays.now) {
             rows.append(ReplayOffer(replay: live,
-                                    title: MemoriesShelf.name(of: live.period, now: replays.now)))
+                                    title: MemoriesShelf.name(of: live.period, now: replays.now),
+                                    poster: poster(for: live)))
         }
         return rows
+    }
+
+    /// A row's poster, read here so the body depends on it. See the note at
+    /// the `ForEach` that draws the rows.
+    private func poster(for replay: Replay) -> UIImage? {
+        replays.cards[ReplayShelfModel.key(replay, scheme: colorScheme)]
     }
 
     private var photographCount: Int {
@@ -883,6 +900,8 @@ struct MemoriesView: View {
 private struct ReplayOffer: Identifiable {
     let replay: Replay
     let title: String
+    /// The drawn poster, or nil while the shelf model is still drawing it.
+    let poster: UIImage?
     var id: String { replay.id }
 }
 

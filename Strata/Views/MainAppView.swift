@@ -23,15 +23,16 @@ import CoreSpotlight
 /// literal is there only so a missing key cannot produce a sentence with a
 /// hole in it.
 ///
-/// **Four more live in `SettingsView`** (lines 423, 436, 618 and 719), which is
-/// not this worker's file. They say "Location is off for Strata", "How Strata
-/// Works", "Strata has no account and no server" and the reset failure, and
-/// they each want this.
+/// **The fallback said "Strata" until 2026-10-02**, which is the name the app
+/// had before it was renamed: a missing key would have printed the OLD name
+/// into a sentence. Twenty-one other user-facing strings across the app said it
+/// too, two of them sending people to look for a Settings entry that does not
+/// exist under that name; all of them say Sturdy now.
 enum AppName {
     static let display: String =
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
         ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
-        ?? "Strata"
+        ?? "Sturdy"
 }
 
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
@@ -2679,7 +2680,7 @@ struct MainAppView: View {
                         // Only when there is nothing outlined either: a day
                         // with habits still to do is not an empty tower, it is
                         // a tower that has not been built yet.
-                        emptyTowerSlot(colW: colW, gridH: gridH)
+                        emptyTowerSlot(colW: colW, gridH: gridH, gridW: gridW)
                     } else {
                         // Merged runs, under the blocks. Members draw
                         // nothing when settled, so this IS their appearance.
@@ -2756,36 +2757,11 @@ struct MainAppView: View {
                     minHeight: viewportHeight,
                     alignment: .bottom
                 )
-                // **TOP, NOT CENTRE, AND ON THE MARGIN.**
-                //
-                // It centred on the viewport, which put it at 446pt on a
-                // 874pt screen: directly on top of the lattice's first two
-                // rows. The copy was printed across the ghost cells, so it
-                // read as debris on the surface rather than as a caption of
-                // it, and the page had the date at 16pt on the left, the copy
-                // centred, the slot bottom-left and the filter top-right —
-                // four things in four places with nothing relating them.
-                //
-                // Centring also opened a 311pt void between the header and
-                // the copy, a third of the screen, which is what an empty
-                // page looks like when nothing has been composed and
-                // everything has been positioned.
-                //
-                // The copy belongs with the DATE, not floating over the
-                // grid. "Nothing yet today" is a statement about the day and
-                // the day is named directly above it; "Tap the slot" is an
-                // instruction that points down the page at the slot. So the
-                // page reads top to bottom in one column on one margin: what
-                // day it is, what state it is in, what to do, and then the
-                // empty tower with its slot at the bottom. The lattice is
-                // left as what a lattice is for, an untouched field, and the
-                // white space between the two is no longer a gap in a layout
-                // but the room the tower has to grow into.
-                .overlay(alignment: .top) {
-                    if !towerVM.isLoading && towerVM.totalRows == 0 {
-                        towerEmptyStateMessage
-                    }
-                }
+                // **The empty state's one sentence is NOT here any more.** It
+                // was an overlay pinned to the top of this page, written to sit
+                // under the date; the date came off the header on 2026-10-01
+                // and the sentence was left 533pt above the slot it names. It
+                // rides on the slot now: see `emptyTowerSlot`.
             }
             // Only once a block is genuinely lifted. Disabling it any earlier
             // would be the old bug in a different costume: the tower has to
@@ -3052,7 +3028,7 @@ struct MainAppView: View {
     /// starts on this screen, so that was the first thing anyone saw the
     /// gesture do — and it was the one place it did not work.
     @ViewBuilder
-    private func emptyTowerSlot(colW: CGFloat, gridH: CGFloat) -> some View {
+    private func emptyTowerSlot(colW: CGFloat, gridH: CGFloat, gridW: CGFloat) -> some View {
         let f = GridConstants.blockFrame(
             column: 0, row: 0,
             columnSpan: drawingSize.columnSpan, rowSpan: drawingSize.rowSpan,
@@ -3067,15 +3043,56 @@ struct MainAppView: View {
             onOpenMenu: { winDraft = WinDraft() }
         )
         .frame(width: f.width, height: f.height)
+        // **The sentence stands on the slot it names** (2026-10-02).
+        //
+        // It was a page overlay at y144 and the slot is at y694: 533pt of
+        // nothing between an instruction and the one thing it is about. It
+        // was placed under the date, and when the date came off the header
+        // the anchor left and the sentence stayed. The owner: "the white space
+        // is an aid but make it make sense". Space that separates a caption
+        // from its subject is the kind that does not.
+        //
+        // So it is an overlay on the slot's own frame, `gapLabel` above its
+        // top edge, the rung "between a heading and what it heads". Three
+        // things follow from hanging it here rather than computing a page y:
+        //
+        // - **It moves with the slot.** Drag the slot out to a Deep and the
+        //   frame grows up on `slotSnap`; the sentence rides on the same
+        //   transaction, so it is never printed across the block you are
+        //   drawing.
+        // - **It leaves the moment the press commits** (`isCascading`), which
+        //   is 300ms before the first block appears off the top of the screen
+        //   and falls through the space it occupied. A first ever win never
+        //   lands through a line of type.
+        // - **It takes no layout.** An overlay does not size the grid, so the
+        //   tower, the lattice and the fall's measured start are untouched.
+        //
+        // The 533pt is still there, above the sentence now instead of between
+        // it and the slot: the room the tower has to grow into, with the
+        // sentence at its foot rather than its ceiling.
+        //
+        // The anchor is a zero-height line on the slot's top edge with the
+        // sentence hung off its BOTTOM: an `alignmentGuide` through the
+        // conditional was ignored and printed the line across the slot.
+        .overlay(alignment: .topLeading) {
+            Color.clear
+                .frame(width: gridW, height: 0)
+                .overlay(alignment: .bottomLeading) {
+                    if !animCoord.isCascading {
+                        towerEmptyStateMessage
+                            .padding(.bottom, GridConstants.gapLabel)
+                            .frame(width: gridW, alignment: .leading)
+                            .transition(.opacity)
+                    }
+                }
+                .allowsHitTesting(false)
+        }
         // Bottom-anchored, through the same helper the placed blocks use, so
         // the block grows UP off the ground the way the tower does rather
         // than down through it.
         .offset(x: f.minX, y: flippedY(for: f, gridH: gridH))
     }
 
-    /// The faint footing an empty tower sits on. Blocks only — the invitation
-    /// is `towerEmptyStateMessage`, drawn as a centred overlay, because the two
-    /// were in one ZStack and the copy landed on top of the ghosts.
 
     /// The invitation on an empty tower.
     ///
@@ -3122,15 +3139,13 @@ struct MainAppView: View {
         // exactly the shape he named. The line that does work keeps the slot's
         // own vocabulary ("slot", and "tap", which is what `NextSlotButton`'s
         // `onOpenMenu` answers) and takes the title's weight and ink.
-        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            Text("Tap the slot to log your first win.")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // The overlay sits outside the grid's horizontal padding, so the
-        // copy has to carry the margin itself or it starts at 0.
-        .padding(.horizontal, hPad)
+        //
+        // It is inside the grid's padding now (an overlay on the slot), so it
+        // starts on the margin without carrying one of its own.
+        Text("Tap the slot to log your first win.")
+            .font(Typography.headerMedium)
+            .foregroundStyle(AppColors.inkPrimary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Tower Block Views (Extracted for observation isolation)

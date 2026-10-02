@@ -150,10 +150,10 @@ nonisolated enum BackupArchive {
 
         var message: String {
             switch self {
-            case .couldNotEncodeJSON(let detail): "Strata could not write out your wins (\(detail))."
-            case .couldNotMakeFolder(let detail): "Strata could not make room for the backup (\(detail))."
-            case .couldNotWriteJSON(let detail): "Strata could not write the backup's index (\(detail))."
-            case .couldNotZip(let detail): "Strata could not pack the backup into one file (\(detail))."
+            case .couldNotEncodeJSON(let detail): "Sturdy could not write out your wins (\(detail))."
+            case .couldNotMakeFolder(let detail): "Sturdy could not make room for the backup (\(detail))."
+            case .couldNotWriteJSON(let detail): "Sturdy could not write the backup's index (\(detail))."
+            case .couldNotZip(let detail): "Sturdy could not pack the backup into one file (\(detail))."
             }
         }
     }
@@ -236,17 +236,17 @@ nonisolated enum BackupArchive {
         var message: String {
             switch self {
             case .notABackup(let detail):
-                "This file isn't a Strata backup, or it didn't finish downloading. \(detail)"
+                "This file isn't a Sturdy backup, or it didn't finish downloading. \(detail)"
             case .noWinsFile:
-                "This zip has no wins.json inside it, so it isn't a Strata backup. Pick the file Back Up Everything made."
+                "This zip has no wins.json inside it, so it isn't a Sturdy backup. Pick the file Back Up Everything made."
             case .fromTheFuture(let version):
-                "This backup was made by a newer version of Strata (format \(version); this one reads \(BackupArchive.currentFormatVersion)). Update Strata and try again. Nothing has been changed."
+                "This backup was made by a newer version of Sturdy (format \(version); this one reads \(BackupArchive.currentFormatVersion)). Update Sturdy and try again. Nothing has been changed."
             case .malformedJSON(let detail):
-                "Strata could not read this backup's index: \(detail). Nothing has been changed."
+                "Sturdy could not read this backup's index: \(detail). Nothing has been changed."
             case .archive(let failure):
                 switch failure {
                 case .notAZip:
-                    "This file isn't a zip, so it isn't a Strata backup."
+                    "This file isn't a zip, so it isn't a Sturdy backup."
                 case .truncated(let detail):
                     // **A colon, not a long dash.** CLAUDE.md "Words the app
                     // says" (the owner, 2026-09-11): no long dash in anything a
@@ -263,9 +263,9 @@ nonisolated enum BackupArchive {
                     // strings, do not read the screens.
                     "This backup is incomplete: it may not have finished downloading or copying. \(detail)"
                 case .unsupported(let detail):
-                    "Strata cannot read this zip: \(detail)."
+                    "Sturdy cannot read this zip: \(detail)."
                 case .encrypted(let detail):
-                    "This backup is password-protected and Strata cannot open it. \(detail)"
+                    "This backup is password-protected and Sturdy cannot open it. \(detail)"
                 case .corrupt(let detail):
                     "This backup is damaged. \(detail)"
                 }

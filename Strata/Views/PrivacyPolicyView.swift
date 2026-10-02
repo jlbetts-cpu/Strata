@@ -33,9 +33,11 @@ struct PrivacyPolicyView: View {
                     }
                 }
 
+                // `inkTertiary`: `inkQuiet` is held to 3:1 because it is for
+                // glyphs, and this is a sentence (2026-10-02, design review).
                 Text("Last updated 14 September 2026")
                     .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkQuiet)
+                    .foregroundStyle(AppColors.inkTertiary)
                     .padding(.top, GridConstants.gapTight)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,15 +48,15 @@ struct PrivacyPolicyView: View {
     }
 
     private static let sections: [(title: String, body: String)] = [
-        ("What Strata stores",
+        ("What Sturdy stores",
          "Your wins: their names, sizes, colours, dates, any photo you attach, and "
          + "where a photo was taken if you turn that on. And, if you add them, "
          + "your name and a profile photo. That is the whole of it."),
         ("Where it is stored",
-         "On your device. Strata has no account, no server, and no analytics. "
+         "On your device. Sturdy has no account, no server, and no analytics. "
          + "Nothing you log is sent anywhere, and nobody but you can read it."),
         ("Photos",
-         "A photo you attach is copied into Strata's own storage on your device so "
+         "A photo you attach is copied into Sturdy's own storage on your device so "
          + "the block still has it if you later remove the original. Deleting a win "
          + "deletes its photo with it."),
         ("Your profile",
@@ -62,13 +64,13 @@ struct PrivacyPolicyView: View {
          + "everything else, and are never sent anywhere. The photo is a small copy "
          + "made from the one you choose; removing it deletes that copy."),
         ("Your head",
-         "If you make a head, Strata takes a few photos with the front camera and turns "
+         "If you make a head, Sturdy takes a few photos with the front camera and turns "
          + "them into your head, right on your device. It keeps only those small "
          + "pictures, never video, and never sends them anywhere. Your head only shows "
          + "up where you turn it on, and Delete Head removes it."),
         ("Places",
-         "Strata asks first, and iOS will not give it a position until you say yes. "
-         + "After that, Strata notes where a photo was taken, at "
+         "Sturdy asks first, and iOS will not give it a position until you say yes. "
+         + "After that, Sturdy notes where a photo was taken, at "
          + "the moment you take it, so your wins can appear on your map. It "
          + "checks only while the camera is open, never in the background, and the "
          + "coordinates are stored on your device beside the photo and nowhere "
@@ -79,7 +81,7 @@ struct PrivacyPolicyView: View {
          + "there is between you and whatever app you send it to. Save to Photos, "
          + "if you leave it on, puts a copy of each photo you take in your photo "
          + "library, where it is yours like any other. When you press Save Video on "
-         + "a replay, Strata saves that video to your camera roll. It is made on your "
+         + "a replay, Sturdy saves that video to your camera roll. It is made on your "
          + "device and not sent anywhere."),
         ("Deleting everything",
          "Profile › Settings › Data › Reset All Data removes every win, every photo, "

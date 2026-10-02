@@ -280,9 +280,14 @@ struct ProfileView: View {
     private var nameField: some View {
         ZStack {
             if store.name.isEmpty {
+                // `inkTertiary` (2026-10-02, design review). It was
+                // `inkQuiet` at **3.32:1** on the sheet (rgb 135 on 246), and a
+                // placeholder that is the field's only visible label is text,
+                // held to 4.5. Still well short of the name's own ink, so an
+                // empty field still reads as empty.
                 Text("Your name")
                     .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkQuiet)
+                    .foregroundStyle(AppColors.inkTertiary)
                     .allowsHitTesting(false)
             }
             TextField("", text: Binding(get: { store.name },
@@ -476,6 +481,7 @@ struct ProfileView: View {
         } footer: {
             if vm.currentStreak == 0 {
                 Text("Log a win to start one.")
+                    .formFooter()
             }
         }
     }
@@ -1123,6 +1129,7 @@ struct ProfileView: View {
             // empty string: an empty footer still reserves a band.
             if let line = headFooter {
                 Text(line)
+                    .formFooter()
             }
         }
     }

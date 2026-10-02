@@ -29,7 +29,7 @@ Captured on Strata-F, light and dark: `-strataStartTab memories -strataOpenRepla
 ### P2 — Minor
 | # | Category | Sub-Agent | Location | Issue | Effort | Fix |
 |---|---|---|---|---|---|---|
-| 2 | Legibility 1.4.4, H8 | Visual, A11y | at rest, a 22-win week | Block titles are drawn at the camera's scale: "Called Mum" has a **5.3pt cap**, about **7.5pt type**, half the 15pt floor, white on colour (LOCKED white). Twenty-two labels nobody can read is texture, not text. | M | **Not shipped: owner's eye.** Premium-is-subtraction path: titles fade out with the reveal once the scaled cap would fall under a threshold, and come back in the photo viewer when a block is tapped. Brand-visible, so not built. |
+| 2 | Legibility 1.4.4, H8 | Visual, A11y | at rest, a 22-win week | Block titles are drawn at the camera's scale: "Called Mum" has a **5.3pt cap**, about **7.5pt type**, half the 15pt floor, white on colour (LOCKED white). Twenty-two labels nobody can read is texture, not text. | M | **Not shipped: owner's call, both rendered** in `replay-titles-paths.png` (second pass, below). |
 
 ### P3 — Cosmetic
 | # | Category | Sub-Agent | Location | Issue | Effort | Fix |
@@ -51,3 +51,22 @@ Captured on Strata-F, light and dark: `-strataStartTab memories -strataOpenRepla
 ---
 ### Summary
 The replay is the most carefully engineered screen on this side of the app, and its one blocker was invisible only because the fixture had never shown it in light: the count's word and the date were in the glyph ink, in every exported video. That is fixed. The open question for the owner is whether twenty-two 7pt labels at rest are part of the picture or should leave with the reveal.
+
+
+---
+
+### Second pass, 2026-10-02: the titles at rest, both ways
+
+`replay-titles-paths.png`: the sample week (22 wins) at rest, `-strataStartTab memories -strataOpenReplay sampleWeek -strataReplayAt 16.0`, light, which is the scheme the video exports in. A is the build that ships. B was rendered by setting `ReplayFrame.titleScaleFloor` to 0.60 (just above this week's 0.574 rest) for one build, and reverted; **nothing about this ships.** `page-room.py --signature` returns the same layout for both, which is correct: the titles are inside the blocks.
+
+| | A: titles kept (ships) | B: faded at rest, as the month |
+|---|---|---|
+| what is on the last frame | 22 labels at about 7.5pt (5.3pt cap), white on colour; 3 truncate ("Morning..."); 10 sit on photographs | the colours and the photographs only |
+| the 15pt floor | 22 sites under it, half its size | met: no text in the tower at rest |
+| what a friend learns | the names, if they pause and squint; on a phone at video size they are smaller still | the names only during the build, where each lands at 17pt (checked at t=5.0: "Called Mum", "Cooked dinner" legible) |
+| the 12 blocks with no photograph | named | a colour and a size, nothing else |
+| consistency | a week keeps titles, a month drops them, decided by `fitScale` | week and month read alike; a light week resting above the floor would still keep them |
+
+**What each costs.** A keeps every win's name in the frame people pause on and screenshot, and pays for it with 22 pieces of type the app's own floor says nobody can read, which on a busy week is the dust the month's comment describes. B is the premium-is-subtraction reading: the record at rest is a picture of a week, the words were read as it was built, and in the live replay a tap on a photographed block opens the photograph (not in the video); it costs the twelve colour-only blocks their identity in the one frame that stays on screen. **A third option the numbers point at, not rendered:** the honest floor for 17pt type is a scale of 0.88 (17 x 0.88 = 15), which would fade titles on almost every week at rest, so "fade like the month" and "obey the type floor" are the same rule only if the floor moves to about there. The owner's call; the replay is shared as video.
+
+Counts for this screen unchanged by the second pass: 3 open (P0: 0, P1: 0, P2: 1, P3: 2).

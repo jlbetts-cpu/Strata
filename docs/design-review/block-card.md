@@ -35,6 +35,8 @@ The block card is `AddWinSheet` in editing mode (`-strataSeedWins 8 -strataOpenS
 |---|---|---|---|---|---|---|
 | 4 | Layout source `[cross-dim]` | DS | `photoWell` width | `UIScreen.main.bounds`. | S | **FIXED** with add-a-win #5. |
 
+**Second pass, 2026-10-02 `[cross-dim]`:** Edit's save was `try? modelContext.save()`, so a rename that failed closed the sheet as if it had worked, and a replaced or removed photograph failed with an `NSLog`. Both now answer through add-a-win #4: "Couldn't save this win. Nothing is lost." with Save becoming Try Again, or the photo line with Cancel becoming Done. The keyboard-up fix (add-a-win #3) does not touch Edit, which opens with the keyboard down: its bands are identical before and after (196.7 break, 64 floor). Counts unchanged: the Delete pill is still the one open item, untouched, waiting on the owner.
+
 ### LOCKED items the review flagged, not changed
 | Flag | Measured | Register |
 |---|---|---|

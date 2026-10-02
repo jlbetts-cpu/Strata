@@ -54,7 +54,7 @@ extension ImageManager {
             return .alreadyHere(safe)
         }
         guard Self.decodes(data) else {
-            return .failed(name: safe, reason: "it is not a photograph Strata can open")
+            return .failed(name: safe, reason: "it is not a photograph Sturdy can open")
         }
         do {
             // `.atomic`: a write interrupted half way leaves no half file for

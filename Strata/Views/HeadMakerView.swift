@@ -457,7 +457,7 @@ struct HeadMakerView: View {
         // already knows what they came for.
         case .unavailable:
             return model.isDenied
-                ? "Turn the camera on for Strata in Settings."
+                ? "Turn the camera on for Sturdy in Settings."
                 : "The camera isn't available here."
         case .lining:
             // Once the shutter will take, say so. Holding the correction up
@@ -944,9 +944,13 @@ struct HeadMakerView: View {
     private var nameField: some View {
         ZStack {
             if name.isEmpty {
+                // `inkTertiary`, measured **3.35:1** at `inkQuiet` on the
+                // preview's ground (rgb 133 on 244), 2026-10-02 design review.
+                // The suggestion is the name the head gets if nothing is
+                // typed, so it is read, and text is held to 4.5.
                 Text(suggestion)
                     .font(Typography.headerMedium)
-                    .foregroundStyle(AppColors.inkQuiet)
+                    .foregroundStyle(AppColors.inkTertiary)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }

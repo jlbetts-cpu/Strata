@@ -304,7 +304,19 @@ struct MonthCalendarCell: View {
     /// page already has one number that is allowed to be large — the win count
     /// under a replay card — and a calendar of 30 big numerals competes with
     /// every photograph in it.
-    private var numberSize: CGFloat { side * 0.16 }
+    /// **7.9pt on a phone, and that is under the owner's locked 15pt floor**
+    /// (2026-10-02, design review, measured: a 49.3pt cell, a 17px glyph).
+    /// `docs/type-pass.md` names three sites allowed under 15 and this is not
+    /// one of them; it mentions "the month block's `cell * 0.16` numeral" only
+    /// as the family a block title belongs to. Raising it is a change to how
+    /// the calendar looks, so it is the owner's call: `-strataCalendarNumeral
+    /// floor` (DEBUG) photographs it at 15 for him to compare.
+    private var numberSize: CGFloat {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-strataCalendarNumeral") { return max(15, side * 0.16) }
+        #endif
+        return side * 0.16
+    }
 
     var body: some View {
         if let block {
@@ -422,7 +434,14 @@ struct MonthCalendarCell: View {
                     // still steps back for a day that has not come round — see
                     // `futureStep(filled:full:)` — so today is still the darkest
                     // cell on a bare month without the numerals paying for it.
-                    number(AppColors.inkTertiary.opacity(0.75), onPhoto: false)
+                    //
+                    // **And 3:1 was the wrong bar** (2026-10-02, design review).
+                    // A day's number is a NUMERAL, text by WCAG 1.4.3, and the
+                    // 0.75 measured **2.91:1** on the built page (rgb 141 on
+                    // a 240 well, `/tmp/r2/light/m3-memories-half.png`) against
+                    // the 4.5 text is held to. Full `inkTertiary` is the ink
+                    // `CountReadout` reads at on this same page.
+                    number(AppColors.inkTertiary, onPhoto: false)
                 }
             }
     }

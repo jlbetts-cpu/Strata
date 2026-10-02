@@ -159,9 +159,28 @@ struct ReplayRow: View {
             // The slot the poster lands in, as `MemoriesShelf`'s card has one.
             shape.fill(AppColors.quietFill)
             if let poster {
+                // **Cropped from the BOTTOM, where the tower stands**
+                // (2026-10-02, design review). It was cropped from the middle,
+                // and a poster stands its tower on its base line
+                // (`ReplayCard.poster`, `baseY = size.height - posterMargin`),
+                // so a SHORT period's tower sat entirely below the band this
+                // thumbnail showed. Measured on the built page: with six days of
+                // history the September row's thumbnail was a flat well (std
+                // 1.1 levels over the crop) on 8 launches of 8 plus both scheme
+                // captures, while the poster behind it had drawn
+                // (`[REPLAY-SHELF] cards drawn 1, empty renders 0`). At thirty
+                // days the tower reached the middle and showed (std 58). This
+                // was reported as a race; it was geometry, and deterministic.
+                // Bottom-anchored: std 78 at six days and 58 at thirty, 3 of 3
+                // launches each.
+                //
+                // Bottom-anchored, the base sits the poster's own margin above
+                // the thumbnail's edge, the same 7.7pt as its sides, and a tall
+                // month shows its first rows rather than a band from its middle.
                 Image(uiImage: poster)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: Self.height, alignment: .bottom)
             }
         }
         .frame(width: width, height: Self.height)

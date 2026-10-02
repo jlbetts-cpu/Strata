@@ -172,6 +172,10 @@ struct PhotoViewer: View {
         }
         .ignoresSafeArea()
         .statusBarHidden()
+        // VoiceOver's two-finger scrub closes a full-screen cover everywhere
+        // else in iOS (2026-10-02, design review). Without this the only way
+        // out for a VoiceOver user was to find the close button.
+        .accessibilityAction(.escape) { onClose() }
         .onAppear { currentID = startAt }
         .onChange(of: currentID, initial: true) { _, id in
             currentIndex = photos.firstIndex { $0.id == id } ?? 0
@@ -728,6 +732,11 @@ struct Filmstrip: View {
                         .contentShape(Rectangle())
                         .onTapGesture { select(photo) }
                         .accessibilityLabel(photo.title ?? "Photo")
+                        // A thumbnail you press is a button, and the one on
+                        // the stage is the selected one (2026-10-02, design
+                        // review, WCAG 4.1.2): a tap gesture alone gave each
+                        // card a name and no role or state.
+                        .accessibilityAddTraits(photo.id == currentID ? [.isButton, .isSelected] : .isButton)
                     }
             }
             // Centre the frame at `progress`. Half the card either side is why

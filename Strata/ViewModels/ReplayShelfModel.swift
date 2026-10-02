@@ -37,6 +37,10 @@ final class ReplayShelfModel {
     /// to sign: the pass is skipped outright.
     @ObservationIgnored private var completePass: (store: StoreSignature, periods: [String], card: String)?
 
+    /// How many more times a poster that rendered empty is asked for before
+    /// the pass gives up on it. See the loop in `reload`.
+    static let emptyRenderRetries = 2
+
     static let monthCount = 12
     static let weekCount = 4
 
@@ -239,6 +243,7 @@ final class ReplayShelfModel {
         let fetched = CACurrentMediaTime()
         slices.append(fetched - slice)
         var renders: [Double] = []
+        var emptyRenders = 0
         #endif
 
         let order = Array(months.prefix(3)) + weeks + Array(months.dropFirst(3))
@@ -264,13 +269,35 @@ final class ReplayShelfModel {
             #if DEBUG
             slice = CACurrentMediaTime()
             #endif
-            let image = ReplayCard.poster(replay, images: images, scale: scale,
+            var image = ReplayCard.poster(replay, images: images, scale: scale,
                                           rowTowerHeight: rowHeight, colorScheme: colorScheme, now: now)
             #if DEBUG
             renders.append(CACurrentMediaTime() - slice)
             #endif
-            // A render that came back empty is not recorded as drawn, so the
-            // next reload tries it again; whatever card was there stays.
+            // **An empty render is asked again HERE, not left for "the next
+            // reload"** (2026-10-02). The note that stood here said the next
+            // reload would try it again, and on this page there is no next
+            // reload: the page's `.task` makes three passes at appear and then
+            // nothing until the scheme changes, so a poster that came back nil
+            // in the last pass would stay a blank well for as long as the page
+            // lived. Two more tries a beat apart, then it is left as missing.
+            // Measured: 0 empty renders in 8 launches, so this is the latent
+            // hole closed, not the blank row the review found (that was the
+            // thumbnail's crop, `ReplayRow.thumbnail`).
+            var retries = 0
+            while image == nil, retries < Self.emptyRenderRetries {
+                retries += 1
+                #if DEBUG
+                emptyRenders += 1
+                #endif
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !superseded() else { return }
+                image = ReplayCard.poster(replay, images: images, scale: scale,
+                                          rowTowerHeight: rowHeight, colorScheme: colorScheme, now: now)
+            }
+            // Still empty after that: not recorded as drawn, so a later reload
+            // (a scheme change, a deletion, a return to the page) draws it;
+            // whatever card was there stays.
             if let image {
                 cards[key] = image
                 drawn[key] = signature
@@ -293,8 +320,8 @@ final class ReplayShelfModel {
         let end = CACurrentMediaTime()
         PerfProbe.emit(String(format: "[PERF-SPAN] ReplayShelfModel.reload main %.1fms (longest slice %.1fms, cards drawn %d, wall %.1fms)",
                               slices.reduce(0, +) * 1000, (slices.max() ?? 0) * 1000, renders.count, (end - began) * 1000))
-        print(String(format: "[REPLAY-SHELF] months %d weeks %d, fetch %.1fms, cards drawn %d (render max %.1fms, sum %.1fms), longest main-actor slice %.1fms, total %.1fms",
-                     months.count, weeks.count, (fetched - began) * 1000, renders.count,
+        print(String(format: "[REPLAY-SHELF] months %d weeks %d, fetch %.1fms, cards drawn %d, empty renders %d (render max %.1fms, sum %.1fms), longest main-actor slice %.1fms, total %.1fms",
+                     months.count, weeks.count, (fetched - began) * 1000, renders.count, emptyRenders,
                      (renders.max() ?? 0) * 1000, renders.reduce(0, +) * 1000,
                      (slices.max() ?? 0) * 1000, (end - began) * 1000))
         #endif

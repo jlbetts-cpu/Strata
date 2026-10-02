@@ -246,6 +246,10 @@ enum DebugHarness {
     /// no head placement could ever be photographed here.
     static var seedsHead: Bool { argument("-strataSeedHead") != nil }
 
+    /// `-strataSeedHeads <n>`: a roster of n made heads, for the head picker.
+    /// See the note where `HeadStore.init` reads it.
+    static var seedHeadCount: Int? { argument("-strataSeedHeads").flatMap(Int.init) }
+
     /// `-strataSeedMadeHead`: writes a version 2 made head to disk from the
     /// creator's faces, with its blink and brows as separate, shifted frames,
     /// so the migration and a made head's own path can run here. A bare flag.

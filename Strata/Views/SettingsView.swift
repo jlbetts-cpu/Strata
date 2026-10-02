@@ -167,10 +167,14 @@ struct SettingsView: View {
                     // the half that is about to change, and a plate carrying a
                     // name the App Store no longer agrees with is worse than a
                     // plate carrying none.
+                    // `inkTertiary`, not `inkQuiet` (2026-10-02, design
+                    // review): the plate is text somebody reads to a support
+                    // email, and `inkQuiet` measured **3.32:1** here (rgb 135 on
+                    // 246). `inkQuiet`'s own doc keeps it for glyphs.
                     Text(verbatim: appVersion)
                         .font(Typography.sectionLabel)
                         .kerning(Typography.sectionKerning)
-                        .foregroundStyle(AppColors.inkQuiet)
+                        .foregroundStyle(AppColors.inkTertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
@@ -311,6 +315,7 @@ struct SettingsView: View {
                 if systemNotificationsDenied && notificationsEnabled {
                     VStack(alignment: .leading, spacing: GridConstants.spacing) {
                         Text("Notifications are disabled in system settings.")
+                            .formFooter()
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(url)
@@ -433,6 +438,7 @@ struct SettingsView: View {
                 FormSectionLabel("Camera").id(Self.cameraAnchor)
             } footer: {
                 Text(storageLine)
+                    .formFooter()
                     .accessibilityLabel("Photographs use \(storageLine)")
 
                 // **The working case says nothing here now** (cut 10,
@@ -452,7 +458,8 @@ struct SettingsView: View {
                 // be discovered". The `gapTight` moved off the line above and
                 // onto this one, so the air exists only when the line does.
                 if location.isDenied {
-                    Text("Location is off for Strata in the Settings app, so photographs can't be placed on your map.")
+                    Text("Location is off for Sturdy in the Settings app, so photographs can't be placed on your map.")
+                        .formFooter()
                         .padding(.top, GridConstants.gapTight)
                 }
             }
@@ -465,7 +472,7 @@ struct SettingsView: View {
                     replayOnboarding = true
                 } label: {
                     Label {
-                        Text("How Strata Works")
+                        Text("How Sturdy Works")
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "questionmark.circle")
@@ -588,6 +595,7 @@ struct SettingsView: View {
                 // Said where the two rows are, because the fear this answers is
                 // "will restoring wipe what I have now".
                 Text("A backup is one zip file with your wins and your photographs in it. Restoring only adds what the file holds; nothing already on this phone is deleted.")
+                    .formFooter()
             }
 
             // MARK: - Section 4: Support
@@ -668,7 +676,8 @@ struct SettingsView: View {
                 // screen explains a control; this one is the claim the app is
                 // for. If it is ever cut, it should be cut by the owner and not
                 // by the rule.
-                Text("Everything you log stays on this device. Strata has no account and no server.")
+                Text("Everything you log stays on this device. Sturdy has no account and no server.")
+                    .formFooter()
             }
 
             // MARK: - Section 6: Debug
@@ -784,7 +793,7 @@ struct SettingsView: View {
         .alert("Nothing was deleted", isPresented: $resetFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Strata could not reset your data, so every win and photo is still here. Try again.")
+            Text("Sturdy could not reset your data, so every win and photo is still here. Try again.")
         }
         .alert("The backup was not made", isPresented: $exportFailed) {
             Button("OK", role: .cancel) { }
@@ -803,7 +812,7 @@ struct SettingsView: View {
             case .success(let urls):
                 if let url = urls.first { copyForRestore(url) }
             case .failure(let error):
-                restoreFailure = "Strata could not open that file (\(error.localizedDescription))."
+                restoreFailure = "Sturdy could not open that file (\(error.localizedDescription))."
             }
         }
         .alert("That file could not be opened", isPresented: Binding(
@@ -993,7 +1002,7 @@ struct SettingsView: View {
             exportFailure = failure.message
             exportFailed = true
         } catch {
-            exportFailure = "Strata could not write the backup file (\(error.localizedDescription))."
+            exportFailure = "Sturdy could not write the backup file (\(error.localizedDescription))."
             exportFailed = true
         }
     }
@@ -1020,7 +1029,7 @@ struct SettingsView: View {
         do {
             try fm.copyItem(at: picked, to: destination)
         } catch {
-            restoreFailure = "Strata could not read that file (\(error.localizedDescription))."
+            restoreFailure = "Sturdy could not read that file (\(error.localizedDescription))."
             return
         }
         restoreZip = RestoreBackupView.Picked(url: destination)
@@ -1135,6 +1144,33 @@ struct FormSectionLabel: View {
             .textCase(.uppercase)
             .foregroundStyle(AppColors.inkSecondary)
     }
+}
+
+/// **A form footer, on the type ladder** (2026-10-02, design review).
+///
+/// Every footer on Settings and Profile was a bare `Text`, which a grouped
+/// `Form` sets in `.footnote` and `.secondary`: **13pt at 3.36:1**, measured
+/// under Data on the built sheet (rgb 134 on 246). That is under the 15pt
+/// floor the owner locked ("no tiny thin font anywhere", `docs/design.md`)
+/// and under the 4.5:1 a word that size is held to, on six sentences across
+/// two screens, including the one that sells the product's spine. The
+/// audit's twelve checks never caught it because no capture had reached the
+/// footers until `-strataScrollSettings` existed.
+///
+/// One modifier rather than six fixes: the 15 rung (`screenSubtitle`, the
+/// body weight) in `inkTertiary`, the ink `CountReadout` already reads at
+/// 4.69:1 on this ground.
+struct FormFooterStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(Typography.screenSubtitle)
+            .foregroundStyle(AppColors.inkTertiary)
+    }
+}
+
+extension View {
+    /// See `FormFooterStyle`.
+    func formFooter() -> some View { modifier(FormFooterStyle()) }
 }
 
 // MARK: - Share Sheet (UIKit Bridge)

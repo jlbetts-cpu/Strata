@@ -854,7 +854,7 @@ struct OnboardingView: View {
                 .clipShape(Circle())
                 .overlay { Circle().strokeBorder(AppColors.inkQuiet.opacity(0.22), lineWidth: 1) }
                 .elevation(.floating)
-                .accessibilityLabel("Jayden, who made Strata")
+                .accessibilityLabel("Jayden, who made Sturdy")
                 // **The head sticker is off this page.**
                 //
                 // The owner, 2026-09-23: the page "looks broken", and the

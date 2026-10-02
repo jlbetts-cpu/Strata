@@ -150,7 +150,7 @@ struct RestoreBackupView: View {
             fact("From", value: summary.firstDay.map(Self.day) ?? "None")
             fact("To", value: summary.lastDay.map(Self.day) ?? "None")
             fact("Backed up", value: Self.day(summary.exportDate))
-            fact("Made by Strata", value: summary.appVersion, isLast: true)
+            fact("Made by Sturdy", value: summary.appVersion, isLast: true)
         }
 
         // What the merge will actually do, in the same place as the numbers it
@@ -473,7 +473,7 @@ struct RestoreBackupView: View {
             do {
                 stage = .ready(contents, try BackupRestore.plan(contents, context: modelContext))
             } catch {
-                stage = .failed("Strata could not read what is already on this phone, so it cannot say what this backup would add (\(error.localizedDescription)). Nothing has been changed.")
+                stage = .failed("Sturdy could not read what is already on this phone, so it cannot say what this backup would add (\(error.localizedDescription)). Nothing has been changed.")
             }
         }
     }
@@ -498,6 +498,6 @@ struct RestoreBackupView: View {
         if let failure = error as? ZipArchiveReader.Failure {
             return BackupArchive.ReadFailure.archive(failure).message
         }
-        return "Strata could not open this file (\(error.localizedDescription))."
+        return "Sturdy could not open this file (\(error.localizedDescription))."
     }
 }

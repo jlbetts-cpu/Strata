@@ -112,7 +112,7 @@ nonisolated struct ZipArchiveReader: Sendable {
         default:
             // Named, not "unsupported archive": the number is the thing a
             // person can search for, and it tells us which archiver made it.
-            throw Failure.unsupported("\(entry.path) uses compression method \(entry.method), which Strata cannot read")
+            throw Failure.unsupported("\(entry.path) uses compression method \(entry.method), which Sturdy cannot read")
         }
         let actual = Self.crc32(output)
         guard actual == entry.storedCRC else {
@@ -225,7 +225,7 @@ nonisolated struct ZipArchiveReader: Sendable {
             let path = String(decoding: nameBytes, as: UTF8.self)
 
             if flags & 0x0001 != 0 {
-                throw Failure.encrypted("\(path) is password-protected, and Strata cannot open it")
+                throw Failure.encrypted("\(path) is password-protected, and Sturdy cannot open it")
             }
 
             var uncompressed = Int(reader.read32(cursor + 24))
@@ -259,7 +259,7 @@ nonisolated struct ZipArchiveReader: Sendable {
                     extra += 4 + size
                 }
                 guard found else {
-                    throw Failure.unsupported("\(path) is indexed in a way Strata cannot read")
+                    throw Failure.unsupported("\(path) is indexed in a way Sturdy cannot read")
                 }
             }
 

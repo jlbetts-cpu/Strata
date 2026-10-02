@@ -77,6 +77,13 @@ struct AddWinSheet: View {
     @State private var loaded = false
     @State private var confirmingDelete = false
     @State private var isSaving = false
+    /// What the last press failed to do, if it failed. See `AddWinFailure`.
+    @State private var failure: AddWinFailure?
+    /// The win this sheet logged, once it has. Set only when the photograph
+    /// failed after the win itself was saved, so a retry finishes THAT win
+    /// rather than logging a second one.
+    @State private var savedHabit: Habit?
+    @State private var savedLog: HabitLog?
 
     private var isEditing: Bool { editing != nil }
     /// A name is optional.
@@ -160,22 +167,43 @@ struct AddWinSheet: View {
             // not either, because a photograph takes the colour row away and
             // everything above the well moves up 65pt.
             //
-            // **It is left alone, and the reason is arithmetic rather than
-            // taste.** The block's top is pinned by the content above it plus
-            // the spacer's floor, so the only way to lift it clear is to spend
-            // the 64: `gapPage` is the BREAK this whole composition is built
-            // on, and cutting it to 40 to buy 21pt would take the break from
-            // 13.1x the gap inside the group to about 8x and put the page back
-            // where check 11b found it. The content scrolls, the band is
-            // reachable on the first flick, and the alternative is paying for a
-            // band with the composition. **Recorded rather than hidden**, since
-            // a comment claiming the opposite is worse than no comment.
+            // **Fixed 2026-10-02: with the keyboard up, the keyboard is the
+            // floor.** The paragraph that stood here argued the 64 could not
+            // be spent, because the break is what the composition is built
+            // on. That is true with the keyboard DOWN, where the spacer is
+            // 196.7 and the 64 is only its floor. With the keyboard up the
+            // composition was being paid for twice: a `gapPage` floor drawn
+            // behind the keys, and a `gapPage` spacer at its minimum because
+            // the page had overflowed. The block's bottom 19.7pt, its blurred
+            // band, sat under the keyboard on every fresh Add.
+            //
+            // So while the name has focus both ends take `gapWide`: the block
+            // stands 24pt above the keyboard, and the spacer is whatever is
+            // left, as it is with the keyboard down. Measured at 402x874:
+            //
+            //   fresh Add      block y339 to y520, keyboard y540, whole;
+            //                  the spacer is at its 24 (it was 64, and the
+            //                  block ran to y559)
+            //   with a photo   no colour row, so the spacer grows back past
+            //                  64 and the break is where it was
+            //
+            // With the keyboard down the spacer grows past both values, so
+            // the Edit sheet and the photographed Add are untouched.
+            //
+            // **What it does not reach: a Deep block from the camera.** A
+            // 2x2 well is 370pt tall and the field above a 402x874 keyboard
+            // is about 420, less the name and the size control. No spacing
+            // makes that fit; the block scrolls, as it did.
             GeometryReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         nameField
+                            .overlay(alignment: .bottomLeading) { failureLine }
                         decisions
-                        Spacer(minLength: GridConstants.gapPage)
+                        // See the paragraph above: the floor is the whole
+                        // break only while the keyboard is up.
+                        Spacer(minLength: titleFocused ? GridConstants.gapWide
+                                                       : GridConstants.gapPage)
                         subject(pageWidth: proxy.size.width)
                     }
                     // **The app's page margin, not a private one.** This was
@@ -189,7 +217,13 @@ struct AddWinSheet: View {
                     // The floor. It was `gapLabel` (16), which is a margin and
                     // not a floor: with the block standing on it the sheet
                     // needs the rung that says "this is the end of the page".
-                    .padding(.bottom, GridConstants.gapPage)
+                    //
+                    // **With the keyboard up the keyboard is the floor**, and
+                    // the block stands `gapWide` above it rather than a whole
+                    // `gapPage` that is drawn behind the keys. See the
+                    // paragraph over the `GeometryReader`.
+                    .padding(.bottom, titleFocused ? GridConstants.gapWide
+                                                   : GridConstants.gapPage)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
@@ -199,6 +233,13 @@ struct AddWinSheet: View {
                 addWinToolbar
             }
             .onAppear(perform: load)
+            // The failure line replaces nothing and moves nothing, which is the
+            // one kind of change VoiceOver can miss; the head maker answers its
+            // save the same way.
+            .onChange(of: failure) { _, now in
+                guard let now else { return }
+                AccessibilityNotification.Announcement(now.message).post()
+            }
             .confirmationDialog("Delete this?", isPresented: $confirmingDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) { deleteIt() }
                 Button("Cancel", role: .cancel) { }
@@ -313,6 +354,44 @@ struct AddWinSheet: View {
                         .submitLabel(.done)
                         .onSubmit { Task { await save() } }
         }
+    }
+
+    /// **What a failed press says, under the name, in the break.**
+    ///
+    /// Nielsen H9: the save and the photograph's write both failed in silence.
+    /// A new win that would not log left you on the sheet with nothing said,
+    /// and a photograph that would not write was dropped with an `NSLog`.
+    ///
+    /// It is the head maker's answer, because that is how this app already
+    /// answers a press that did not take: one sentence in `screenSubtitle` and
+    /// `inkPrimary` (the only line on the page that changed since you looked
+    /// away), the error haptic, an announcement, and **the verb on the button
+    /// changes with what the press will now do.** See `AddWinFailure`.
+    ///
+    /// **Hung under the name, in the 64pt break, as an overlay.** The name is
+    /// the line nearest the bar whose press failed, it is above the keyboard
+    /// in every state, and an overlay takes no layout: the block does not jump
+    /// down the page, and back under the keyboard, to make room for a line
+    /// about it. `gapItem` under the name; one line at 15pt leaves the break
+    /// more than half its height.
+    ///
+    /// Hung off a zero-height line on the name's bottom edge, so it can hang
+    /// below without the name's frame growing.
+    private var failureLine: some View {
+        Color.clear
+            .frame(height: 0)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topLeading) {
+                if let failure {
+                    Text(failure.message)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, GridConstants.gapItem)
+                        .transition(.opacity)
+                }
+            }
+            .animation(GridConstants.crossFade, value: failure)
     }
 
     /// **What the block IS: its colour and its size, one group.**
@@ -549,9 +628,14 @@ struct AddWinSheet: View {
     private var cancelButton: some View {
         Button {
             HapticsEngine.lightTap()
+            // Once the win itself is saved, closing keeps it, so the tower
+            // has to hear about it exactly as it would from Add.
+            if failure?.winIsSaved == true, let habit = editing ?? savedHabit {
+                onSaved(habit)
+            }
             dismiss()
         } label: {
-            Text("Cancel").sheetAction(.cancel)
+            Text(failure?.dismissal ?? "Cancel").sheetAction(.cancel)
         }
         .buttonStyle(.pressWord)
     }
@@ -561,7 +645,9 @@ struct AddWinSheet: View {
     /// modifier rather than a ternary on a colour at every call site.
     private var confirmButton: some View {
         Button { Task { await save() } } label: {
-            Text(isEditing ? "Save" : "Add").sheetAction()
+            // **The verb changes with what the press will do**, as the head
+            // maker's Save becomes Try Saving Again. See `AddWinFailure.retry`.
+            Text(failure?.retry ?? (isEditing ? "Save" : "Add")).sheetAction()
         }
         .buttonStyle(.pressWord)
         .disabled(!canSave)
@@ -936,6 +1022,14 @@ struct AddWinSheet: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
+        #if DEBUG
+        // `-strataAddWinFailure win|photo|removal` opens the sheet showing that
+        // failure, so it can be photographed: nothing here can make a disk
+        // write fail on demand, and nothing can tap Add.
+        if let raw = UserDefaults.standard.string(forKey: "strataAddWinFailure") {
+            failure = AddWinFailure(rawValue: raw)
+        }
+        #endif
         if let initialPhoto {
             photo = initialPhoto
             photoChanged = true
@@ -987,7 +1081,11 @@ struct AddWinSheet: View {
         guard !isSaving else { return }
         isSaving = true
 
-        if let habit = editing {
+        // **Editing, or finishing a win this sheet already logged.** The
+        // second is a retry after the photograph failed: the win is on the
+        // tower, so the press must not log another one. It takes the edit
+        // path, which also keeps any change made to the name since.
+        if let habit = editing ?? savedHabit {
             habit.title = trimmed
             // Only a pressed swatch rewrites what the win is. Opening a win
             // with no category and saving it used to promote the colour it
@@ -997,42 +1095,30 @@ struct AddWinSheet: View {
                 habit.spontaneousCategoryRaw = nil
             }
             habit.blockSize = size
-            try? modelContext.save()
-            if photoChanged, let log = editingLog {
-                if let photo {
-                    await attach(photo, to: log)
-                } else {
-                    // Removing a photo used to do nothing at all: the dialog
-                    // set `photo` to nil, and the save path only ever ran when
-                    // there WAS a photo, so `imageFileName` was never cleared
-                    // and the block kept its face.
-                    //
-                    // **The reference is cleared first and the file goes only
-                    // if that saved.** It was the other way round, under a
-                    // `try?`: the photograph was deleted, the save failed
-                    // silently, and the block was left naming a file that no
-                    // longer existed. `PhotoRemoval.removePhoto` is the same
-                    // rule in the viewer.
-                    let name = log.imageFileName
-                    log.imageFileName = nil
-                    do {
-                        try modelContext.save()
-                        if let name { ImageManager.shared.deleteImage(fileName: name) }
-                    } catch {
-                        NSLog("[strata-photo] could not remove the photo from the win, so the file stays: \(error)")
-                        log.imageFileName = name
-                    }
+            // **Not `try?`.** A rename that did not save closed the sheet as
+            // if it had, and the next launch quietly showed the old name.
+            do { try modelContext.save() } catch {
+                NSLog("[strata] could not save the win: \(error)")
+                fail(.win)
+                return
+            }
+            if photoChanged, let log = editingLog ?? savedLog {
+                guard await writePhoto(to: log) else {
+                    fail(photo == nil ? .removal : .photo)
+                    return
                 }
             }
-            HapticsEngine.success()
-            onSaved(habit)
-            dismiss()
+            finish(habit)
             return
         }
 
+        let win: (habit: Habit, logID: UUID)
+        // What was already waiting to be saved before this press, so a failed
+        // log can take back exactly what it inserted. See the `catch`.
+        let pending = Set(modelContext.insertedModelsArray.map(\.persistentModelID))
         do {
             let labels = QuickWinService.labels(showing: category, chosen: categoryChosen)
-            let win = try QuickWinService.logWin(
+            win = try QuickWinService.logWin(
                 title: trimmed,
                 category: labels.category,
                 size: size,
@@ -1040,18 +1126,76 @@ struct AddWinSheet: View {
                 context: modelContext,
                 tower: tower
             )
-            // The photo is attached to the LOG the service just returned rather
-            // than looked up afterwards. Re-deriving it from `habit.logs` is
-            // exactly the lookup that intermittently came back empty.
-            if let photo,
-               let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
-                await attach(photo, to: log)
-            }
-            HapticsEngine.success()
-            onSaved(win.habit)
-            dismiss()
         } catch {
-            isSaving = false
+            // It was `isSaving = false` and nothing else: the press did
+            // nothing anybody could see, and Add still read Add.
+            NSLog("[strata] could not log the win: \(error)")
+            // **`logWin` inserts, then saves, so a failed save leaves its
+            // habit and log in the context.** Try Again would insert a second
+            // pair, and the next save anywhere would write both: two wins for
+            // one. Taking back only what this press inserted makes the retry
+            // what the button says it is.
+            for model in modelContext.insertedModelsArray
+                where !pending.contains(model.persistentModelID) {
+                modelContext.delete(model)
+            }
+            fail(.win)
+            return
+        }
+        // The photo is attached to the LOG the service just returned rather
+        // than looked up afterwards. Re-deriving it from `habit.logs` is
+        // exactly the lookup that intermittently came back empty.
+        if let photo,
+           let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+            guard await attach(photo, to: log) else {
+                // The win IS saved. Remember it, so the retry finishes it and
+                // Done hands it to the tower, rather than either making two.
+                savedHabit = win.habit
+                savedLog = log
+                fail(.photo)
+                return
+            }
+        }
+        finish(win.habit)
+    }
+
+    private func finish(_ habit: Habit) {
+        failure = nil
+        HapticsEngine.success()
+        onSaved(habit)
+        dismiss()
+    }
+
+    /// The head maker's register: a feeling first, then the sentence.
+    private func fail(_ what: AddWinFailure) {
+        failure = what
+        isSaving = false
+        HapticsEngine.error()
+    }
+
+    /// Puts the sheet's photograph on the log, or takes it off. False if it
+    /// did not stick, with the log left as it was.
+    private func writePhoto(to log: HabitLog) async -> Bool {
+        if let photo { return await attach(photo, to: log) }
+        // Removing a photo used to do nothing at all: the dialog set `photo`
+        // to nil, and the save path only ever ran when there WAS a photo, so
+        // `imageFileName` was never cleared and the block kept its face.
+        //
+        // **The reference is cleared first and the file goes only if that
+        // saved.** It was the other way round, under a `try?`: the photograph
+        // was deleted, the save failed silently, and the block was left naming
+        // a file that no longer existed. `PhotoRemoval.removePhoto` is the
+        // same rule in the viewer.
+        let name = log.imageFileName
+        log.imageFileName = nil
+        do {
+            try modelContext.save()
+            if let name { ImageManager.shared.deleteImage(fileName: name) }
+            return true
+        } catch {
+            NSLog("[strata-photo] could not remove the photo from the win, so the file stays: \(error)")
+            log.imageFileName = name
+            return false
         }
     }
 
@@ -1072,7 +1216,8 @@ struct AddWinSheet: View {
     /// `CachedImageView` draws with `.scaledToFill()`, so the block crops to
     /// its own shape at display time, from the whole image, every time. Which
     /// means a resize now re-frames rather than re-crops, and is reversible.
-    private func attach(_ image: UIImage, to log: HabitLog) async {
+    @discardableResult
+    private func attach(_ image: UIImage, to log: HabitLog) async -> Bool {
         let id = log.id
         // The place is written HERE, in the same block that writes the file
         // name, because a coordinate on a log with no photograph is a pin with
@@ -1101,16 +1246,35 @@ struct AddWinSheet: View {
         //
         // The comment above once claimed this was "saved before the sheet
         // closes". It is now true.
-        if let name = try? await ImageManager.shared.save(image: image, for: id) {
-            log.imageFileName = name
-            // Not `try?`: a save that fails here is a photograph written to
-            // disk that no win points at, and silence is how that stays
-            // invisible.
-            do { try modelContext.save() } catch { NSLog("[strata] photo save failed: \(error)") }
-            if let previous, previous != name {
-                ImageManager.shared.deleteImage(fileName: previous)
-            }
+        //
+        // **And it answers now** (2026-10-02). It was `try?` and an `NSLog`,
+        // so a photograph that did not write was dropped and the sheet closed
+        // as if it had. False sends the sheet to `AddWinFailure.photo`.
+        let name: String
+        do {
+            name = try await ImageManager.shared.save(image: image, for: id)
+        } catch {
+            NSLog("[strata] photo write failed: \(error)")
+            return false
         }
+        log.imageFileName = name
+        // Not `try?`: a save that fails here is a photograph written to disk
+        // that no win points at, and silence is how that stays invisible. On
+        // failure the log goes back to the file it had and the new one is
+        // removed, so a retry starts from where this one did and can never
+        // orphan the photograph it was replacing.
+        do {
+            try modelContext.save()
+        } catch {
+            NSLog("[strata] photo save failed: \(error)")
+            log.imageFileName = previous
+            ImageManager.shared.deleteImage(fileName: name)
+            return false
+        }
+        if let previous, previous != name {
+            ImageManager.shared.deleteImage(fileName: previous)
+        }
+        return true
     }
 
     private func deleteIt() {
@@ -1212,4 +1376,51 @@ private struct PhotoPeek: View {
         }
         .statusBarHidden()
     }
+}
+
+/// **What a failed press on the add sheet says, and what its two words
+/// become** (2026-10-02, Nielsen H9).
+///
+/// The pattern is the head maker's, which is how this app already answers a
+/// save that did not take: the sentence says what happened, the confirm word
+/// says what the next press will do, and nothing moves to make room. Short, no long dash, and nothing about the
+/// person, only about the win.
+///
+/// **The left word changes too, once the win is saved.** After the photograph
+/// fails, the win itself is already on the tower, so Cancel would be a promise
+/// the press cannot keep: closing keeps the win. It reads Done.
+enum AddWinFailure: String, Equatable {
+    /// The win did not save. Nothing changed on the tower.
+    case win
+    /// The win saved; the photograph did not write.
+    case photo
+    /// The win saved; the photograph would not come off it.
+    case removal
+
+    var message: String {
+        switch self {
+        case .win: return "Couldn't save this win. Nothing is lost."
+        case .photo: return "Couldn't save the photo. The win is saved."
+        case .removal: return "Couldn't remove the photo. The win is saved."
+        }
+    }
+
+    /// The confirm word.
+    ///
+    /// **"Try Again", not the head maker's "Try Saving Again"**, and the
+    /// difference is the bar it sits in. The head maker's word stands alone on
+    /// the right of a row at the foot of the page; this one shares a navigation
+    /// bar with a CENTRED title. Photographed at 402x874, "Try Saving Again"
+    /// started 21.3pt after "Add a win" ended while Cancel stood 96pt before
+    /// it, and on a 375pt phone the gap is about 8. The head maker's reason
+    /// for the longer form does not apply here either: it avoided "Try Again"
+    /// because Retake already meant that on its row, and Cancel does not.
+    /// What carries over is the rule: the word says what the press will do.
+    var retry: String { "Try Again" }
+
+    /// Whether the win itself is in the store, so closing the sheet keeps it.
+    var winIsSaved: Bool { self != .win }
+
+    /// The cancellation word.
+    var dismissal: String { winIsSaved ? "Done" : "Cancel" }
 }

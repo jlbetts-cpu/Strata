@@ -332,7 +332,7 @@ struct BackupRestoreTests {
                 return
             }
             #expect(version == BackupArchive.currentFormatVersion + 7)
-            #expect(failure.message.contains("Update Strata"))
+            #expect(failure.message.contains("Update Sturdy"))
         }
     }
 

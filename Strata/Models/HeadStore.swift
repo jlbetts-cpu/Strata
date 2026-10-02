@@ -229,7 +229,32 @@ final class HeadStore {
         // that is there, where it lies, under the name below. No file inside
         // it is read for the adoption, none is written, moved or renamed, and
         // a build from before this change would still load it unchanged.
-        let onDisk = Self.support.map { Self.loadedRoster(in: $0, legacyName: Self.firstHeadName) } ?? Roster()
+        var onDisk = Self.support.map { Self.loadedRoster(in: $0, legacyName: Self.firstHeadName) } ?? Roster()
+        #if DEBUG
+        // **`-strataSeedHeads <n>`: a roster of n heads, so the picker can be
+        // photographed the way it is meant to be used** (2026-10-02). Until
+        // this, "several heads" was unreachable: `-strataSeedHead` only fires
+        // when there is no head at all, `-strataSeedMadeHead` writes exactly
+        // one, and nothing wrote a second. So the picker's whole layout
+        // question — a row of tiles, the chosen ring, scrolling past three —
+        // had only ever been reviewed holding one tile, and a design review
+        // said so: "a picker reviewed only with one item has not been
+        // reviewed." Each extra head is the version 2 fixture in a folder of
+        // its own under `Heads/`, the same place a real second head lives, so
+        // `resolve` and `persistRoster` treat it exactly as they would one.
+        if let wanted = DebugHarness.seedHeadCount, wanted > onDisk.heads.count,
+           let support = Self.support {
+            for i in onDisk.heads.count..<wanted {
+                let folder = "Heads/debug-\(i)"
+                let base = support.appending(path: folder, directoryHint: .isDirectory)
+                try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+                Self.writeVersion2Fixture(to: base)
+                onDisk.heads.append(Entry(id: UUID(), name: "Head \(i + 1)", created: Date(), folder: folder))
+            }
+            if onDisk.activeID == nil { onDisk.activeID = onDisk.heads.first?.id }
+            Self.writeRoster(onDisk, in: support)
+        }
+        #endif
         roster = onDisk
         // A local, not `activeDirectory`: a computed property is a method call
         // on self, and self is not whole until every stored property is set.

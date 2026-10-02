@@ -714,8 +714,8 @@ struct MemoriesMapView: View {
             // one is the page's own width less its margins, so the panel's
             // padding is the measure.
             Text(denied
-                 ? "Strata can't tell where a photo was taken."
-                 : "Photos you take in Strata keep the place they were taken, and land here.")
+                 ? "Sturdy can't tell where a photo was taken."
+                 : "Photos you take in Sturdy keep the place they were taken, and land here.")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -888,6 +888,12 @@ struct MemoriesMapView: View {
                    showsCount: placed.cluster.winCount > 1,
                    drawn: drawn)
             .onTapGesture { onSelect(placed.cluster.key) }
+            // **A button to VoiceOver, because it is one** (2026-10-02,
+            // design review, WCAG 4.1.2). A tap gesture gives the block an
+            // action and no role, so VoiceOver read "3 wins here" and nothing
+            // that says it opens. The trait is the role; the label above is
+            // still the name.
+            .accessibilityAddTraits(.isButton)
     }
 
     /// How long a block waits before arriving.

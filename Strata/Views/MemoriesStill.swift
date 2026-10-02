@@ -75,6 +75,14 @@ struct MemoriesStill: View {
             .frame(width: width, height: height)
         }
         .frame(width: width, height: height)
+        // **The picture is of a LIGHT screen, in both schemes** (2026-10-02,
+        // design review). `DemoMap` is a baked capture of the pale map, so the
+        // chrome drawn over it has to be the light chrome too. Following the
+        // phone, dark mode set the title in white on that pale map: **1.25:1**
+        // (rgb 220 on 197, onboarding page 4), against 8.95 in light. The tab
+        // bar's capsule was already pinned light for the same reason; its
+        // glyphs and the title were not. Pinned: 8.95:1 in both schemes.
+        .environment(\.colorScheme, .light)
         .accessibilityHidden(true)
     }
 
