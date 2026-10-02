@@ -275,8 +275,21 @@ struct NextSlotButton: View {
         .gesture(draw)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { fire(size: .small, velocity: 0) }
+        // **The two bigger sizes and the named win, for anyone who cannot
+        // drag** (design review, 2026-10-02, WCAG 2.5.1). The slot's only
+        // routes to a Regular or a Deep were a drag and a tap that opens the
+        // add sheet, and VoiceOver's activation is neither: it is the default
+        // action above, which drops a Quick. The old hint told a VoiceOver user
+        // to "drag out to make it bigger", which is the one thing they could
+        // not do. These are the same three outcomes a finger has, each one
+        // swipe away on the actions rotor, and nothing on screen changes.
+        .accessibilityActions {
+            Button("Log a \(BlockSize.medium.effortLabel) win") { fire(size: .medium, velocity: 0) }
+            Button("Log a \(BlockSize.hard.effortLabel) win") { fire(size: .hard, velocity: 0) }
+            Button("Name it first") { onOpenMenu() }
+        }
         .accessibilityLabel("Log a win")
-        .accessibilityHint("Drops a block onto your tower. Drag out to make it bigger.")
+        .accessibilityHint("Drops a block onto your tower.")
     }
 
     /// Drawing the block out of the slot.

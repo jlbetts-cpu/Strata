@@ -167,7 +167,15 @@ struct ReplayFrame: View {
                 .padding(.leading, -GridConstants.tallyOpticalInset)
             Text(roll.count == 1 ? "win" : "wins")
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
+                // **`inkTertiary`, and it was `inkQuiet`** (design review,
+                // 2026-10-02), here and on the date and "Sample" under it.
+                // `inkQuiet` is held to 3:1 because it is for glyphs, and its
+                // doc says never a count or a subtitle; on the light page these
+                // three words measured **3.35, 3.32 and 3.35:1** against the
+                // 4.5 a 15pt word is held to. On the night ground they were
+                // already 6.0, which is why the dark captures never showed it.
+                // The caption ink is the same voice one step firmer.
+                .foregroundStyle(AppColors.inkTertiary)
         }
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
@@ -275,13 +283,13 @@ struct ReplayFrame: View {
         return HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
             Text(rangeText)
                 .font(Typography.screenSubtitle)
-                .foregroundStyle(AppColors.inkQuiet)
+                .foregroundStyle(AppColors.inkTertiary)
                 .opacity(range.opacity)
                 .offset(y: range.offset)
             if showsSampleBadge {
                 Text("Sample")
                     .font(Typography.screenSubtitle)
-                    .foregroundStyle(AppColors.inkQuiet)
+                    .foregroundStyle(AppColors.inkTertiary)
                     .opacity(badge.opacity)
                     .offset(y: badge.offset)
             }

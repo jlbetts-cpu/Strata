@@ -520,8 +520,18 @@ struct PlanSheet: View {
                 if let summary = item.repeatSummary(calendar: calendar) {
                     // **`screenSubtitle`, 15 Medium, and it was 13 Regular**
                     // (2026-10-01, the type pass). A repeat summary is the
-                    // quiet line under a line you wrote, and the quiet is `inkQuiet`
-                    // rather than two points of size.
+                    // quiet line under a line you wrote, and the quiet is the
+                    // ink rather than two points of size.
+                    //
+                    // **`inkTertiary`, and it was `inkQuiet`** (design review,
+                    // 2026-10-02). "Every weekday" is a sentence somebody
+                    // reads, and `inkQuiet`'s own doc says never a sentence, a
+                    // count or a subtitle: it composites to 3.35:1 on the light
+                    // sheet, measured on the identical ink one line up in the
+                    // add sheet's prompt, against the 4.5 a 15pt word is held
+                    // to. `inkTertiary` is the caption ink and clears it at
+                    // about 4.7, and it is still two clear steps under the
+                    // line it sits beneath (14.3:1).
                     //
                     // Still costs nothing in layout, which is the number that
                     // had to be rechecked: a row's height is set by the
@@ -530,7 +540,7 @@ struct PlanSheet: View {
                     // so the row is still 44 either way.
                     Text(summary)
                         .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkQuiet)
+                        .foregroundStyle(AppColors.inkTertiary)
                 }
             }
 

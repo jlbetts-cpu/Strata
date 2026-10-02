@@ -66,8 +66,11 @@ struct PlanItemDetailSheet: View {
                     TextField(
                         "What do you mean to do?",
                         text: $item.text,
+                        // `inkTertiary`, not `inkQuiet`: the add sheet's
+                        // prompt measured 3.35:1 in `inkQuiet` against the 4.5
+                        // a sentence is held to (design review, 2026-10-02).
                         prompt: Text("What do you mean to do?")
-                            .foregroundStyle(AppColors.inkQuiet),
+                            .foregroundStyle(AppColors.inkTertiary),
                         axis: .vertical
                     )
                         .font(Typography.bodyLarge)
@@ -119,7 +122,12 @@ struct PlanItemDetailSheet: View {
                         }
                     )) {
                         Label {
+                            // The app's ink, not `UIColor.label`: unstyled, this
+                            // one word measured pure (0, 0, 0) on light and
+                            // (255, 255, 255) on dark off the built sheet, the
+                            // only pure ink on it (design review, 2026-10-02).
                             Text("Repeats")
+                                .foregroundStyle(AppColors.inkPrimary)
                         } icon: {
                             // **`SettingsIcon`, the app's one form glyph**
                             // (2026-10-01, `docs/consistency-audit.md` §1.10 —
@@ -239,7 +247,16 @@ struct PlanItemDetailSheet: View {
                         // 44, not 38: seven of them still fit across the
                         // page, and a day you have to aim at is a day you set
                         // by accident.
-                        .frame(width: Self.tapTarget, height: Self.tapTarget)
+                        // **At most 44 wide, not exactly 44** (design review,
+                        // 2026-10-02). Seven fixed 44s and six 4pt gutters are
+                        // 332pt, and a grouped Form row on a 402pt phone offers
+                        // 334: two points of room, and on a 375pt SE about 307,
+                        // so the row ran 25pt past its card. Capped rather than
+                        // fixed, every chip is still 44 on this phone and they
+                        // share what there is on a smaller one, keeping the
+                        // 44pt height that makes them a target.
+                        .frame(maxWidth: Self.tapTarget)
+                        .frame(height: Self.tapTarget)
                         .background {
                             Self.dayShape
                                 .fill(on ? item.category.style.baseColor : GridConstants.fillWell)

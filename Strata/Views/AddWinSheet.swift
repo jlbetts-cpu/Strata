@@ -48,6 +48,7 @@ struct AddWinSheet: View {
     var onDeleted: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var titleFocused: Bool
 
     @State private var title = ""
@@ -175,7 +176,7 @@ struct AddWinSheet: View {
                         nameField
                         decisions
                         Spacer(minLength: GridConstants.gapPage)
-                        subject
+                        subject(pageWidth: proxy.size.width)
                     }
                     // **The app's page margin, not a private one.** This was
                     // 20 while every other screen is `horizontalPadding` (16),
@@ -224,18 +225,8 @@ struct AddWinSheet: View {
         // they happen and named later, so by the time you are filling this in
         // the picture is usually already in your library. Taking one now is
         // the other half, not the whole of it.
-        // Title case, as the photo menu further down, Profile and the viewer
-        // already have it, and as Photos does: these are buttons, and the
-        // same action was spelled two ways depending on which door you used.
-        .contextMenu {
-            if photo != nil {
-                Button("Replace Photo") { choosingSource = true }
-                Button("Remove Photo", role: .destructive) {
-                    photo = nil
-                    photoChanged = true
-                }
-            }
-        }
+        // (The long-press menu that used to hang here is on `photoWell` now;
+        // see the note there.)
         // **The title is EMPTY, and that is the cut, not an oversight**
         // (2026-10-01, `docs/copy-audit.md` number 13). It read "Add a photo"
         // and was presented with `titleVisibility: .hidden`, so the string was
@@ -289,15 +280,23 @@ struct AddWinSheet: View {
                     // renders (190, 190, 192) on a (247, 247, 247) page, which
                     // is 1.73:1 and under even the 3:1 a plain UI element is
                     // held to, let alone the 4.5 of the sentence it is
-                    // standing in for. `inkQuiet` is the token for a
-                    // placeholder and measures 3.3:1 there, and a `prompt` is
-                    // the only way to set its colour without rebuilding the
-                    // field.
+                    // standing in for. A `prompt` is the only way to set its
+                    // colour without rebuilding the field.
+                    //
+                    // **`inkTertiary`, and it was `inkQuiet`** (design review,
+                    // 2026-10-02). `inkQuiet` measured **3.35:1** off the built
+                    // sheet in light, rgb(135) on rgb(247), and this prompt is
+                    // the only sentence on the sheet: the one thing telling you
+                    // what the field is for. It is text, so it is held to 4.5;
+                    // the caption ink clears it at about 4.7 and still sits
+                    // three times quieter than the 13.8:1 a typed name gets,
+                    // so a placeholder never reads as an answer. (Dark was
+                    // already 6.0.)
                     TextField(
                         isEditing ? "Name" : "What did you do?",
                         text: $title,
                         prompt: Text(isEditing ? "Name" : "What did you do?")
-                            .foregroundStyle(AppColors.inkQuiet)
+                            .foregroundStyle(AppColors.inkTertiary)
                     )
                         .font(Typography.headerMedium)
                         // **PURE BLACK, AND NOTHING ELSE ON THE SHEET IS.**
@@ -396,7 +395,12 @@ struct AddWinSheet: View {
                     // worse than hiding the control.
                     if photo == nil || isEditing {
                         categoryControl
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            // Under Reduce Motion the row fades and does not
+                            // travel (design review, 2026-10-02): it was the
+                            // one moving transition on this sheet with no gate.
+                            .transition(reduceMotion
+                                        ? .opacity
+                                        : .opacity.combined(with: .move(edge: .top)))
                     }
                     sizeControl
         }
@@ -410,7 +414,7 @@ struct AddWinSheet: View {
     /// (32.0pt) when the button carried `gapWide` plus its own 8 of top
     /// padding — two numbers summing to a rung, which is how a rung stops
     /// being one.
-    private var subject: some View {
+    private func subject(pageWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: GridConstants.gapSection) {
                     // **THE WELL IS LAST, AND IT IS THE BIGGEST THING HERE.**
                     //
@@ -434,7 +438,7 @@ struct AddWinSheet: View {
                     // It also puts the largest target on the most valuable
                     // action, which is the one law of this screen: a win with a
                     // photograph is what the whole app is for.
-                    photoWell
+                    photoWell(pageWidth: pageWidth)
 
                     if isEditing {
                         deleteButton
@@ -563,7 +567,7 @@ struct AddWinSheet: View {
         .disabled(!canSave)
     }
 
-    private var photoWell: some View {
+    private func photoWell(pageWidth: CGFloat) -> some View {
         // The well is the block, at the block's real proportions.
         //
         // It was `.aspectRatio` on a full-width frame, so Quick (1x1) and Deep
@@ -579,7 +583,13 @@ struct AddWinSheet: View {
         // hard-coded 96 — a number with no relationship to anything on screen,
         // which is why the well read as a thumbnail on a page it was supposed
         // to be the subject of.
-        let cell = (UIScreen.main.bounds.width
+        //
+        // **The SHEET's width, and it was the device's** (design review,
+        // 2026-10-02): `UIScreen.main.bounds`, the same fault the day album's
+        // tower had and lost on 2026-10-01. Identical on a phone in portrait;
+        // wrong in landscape, on iPad, in Slide Over and in a form-sheet
+        // presentation, where it drew a block wider than the page it is on.
+        let cell = (pageWidth
                     - GridConstants.horizontalPadding * 2
                     - GridConstants.spacing) / 2
         let gap = GridConstants.spacing
@@ -747,6 +757,24 @@ struct AddWinSheet: View {
         // the card being pressed. See `PressResponse.pressSurface`; this well is
         // the biggest pressable surface in the app and had no answer at all.
         .buttonStyle(.pressSurface)
+        // **On the photograph, and it was on the whole sheet** (design review,
+        // 2026-10-02). The menu was attached to the `NavigationStack`, so once a
+        // win had a picture a long press ANYWHERE on the sheet, on the name,
+        // the colours or the empty ground, lifted the entire sheet as the
+        // menu's preview and offered to replace a photograph you were not
+        // touching. The two items are about this block; they belong on it.
+        // Title case, as the photo menu further down, Profile and the viewer
+        // already have it, and as Photos does: these are buttons, and the
+        // same action was spelled two ways depending on which door you used.
+        .contextMenu {
+            if photo != nil {
+                Button("Replace Photo") { choosingSource = true }
+                Button("Remove Photo", role: .destructive) {
+                    photo = nil
+                    photoChanged = true
+                }
+            }
+        }
         .accessibilityLabel(photo == nil ? "Add a photo" : "Replace the photo")
     }
 

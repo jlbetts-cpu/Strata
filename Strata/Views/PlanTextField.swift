@@ -91,7 +91,16 @@ struct PlanTextField: UIViewRepresentable {
         // is the right bar for something deliberately not being read.
         // `UIColor(_:)` keeps a dynamic `Color` dynamic, so both still follow
         // the scheme.
-        field.textColor = UIColor(isDone ? AppColors.inkQuiet : AppColors.inkPrimary)
+        //
+        // **`inkTertiary` for a done line, and it was `inkQuiet`** (design
+        // review, 2026-10-02). A done line is still read: it is the record of
+        // what you got through, and it stays an editable field. `inkQuiet` on
+        // this sheet is 3.35:1 (measured on the identical ink and ground in the
+        // add sheet's prompt) against the 4.5 text is held to. `inkTertiary`
+        // clears it at 4.69 and is still a third of the 14.3:1 an open line
+        // gets, so "done" reads at a glance exactly as before. The repeat
+        // summary under it moved to the same ink in the same pass.
+        field.textColor = UIColor(isDone ? AppColors.inkTertiary : AppColors.inkPrimary)
         field.onBackspaceWhenEmpty = { context.coordinator.parent.onBackspaceWhenEmpty() }
 
         // Focus is driven from outside so the list can move the caret when a

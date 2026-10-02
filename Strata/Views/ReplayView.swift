@@ -892,7 +892,8 @@ struct ReplayLoadingSlot: View {
                 .fill(AppColors.slotInk.opacity(scheme == .dark ? 0.075 : 0.038))
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(AppColors.slotInk.opacity(Self.edgeInk(in: scheme)),
-                              style: StrokeStyle(lineWidth: 1.5, dash: [GridConstants.ghostBlockDashLength]))
+                              style: StrokeStyle(lineWidth: GridConstants.strokeDefault, // the token's own 1.5, was a literal
+                                                 dash: [GridConstants.ghostBlockDashLength]))
         }
         .frame(width: side, height: side)
         .position(x: metrics.frame.width / 2, y: metrics.baseY - side / 2)
