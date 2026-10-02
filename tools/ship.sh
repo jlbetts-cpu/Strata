@@ -62,6 +62,15 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 echo "HEAD: $(git log --oneline -1)"
 
+# **REUSE_ARCHIVE=<path>** ships an archive this script already built, when a
+# later step failed (2026-10-02: build 35 archived, then the export could not
+# sign). The build number is read out of the archive, never bumped again.
+if [ -n "${REUSE_ARCHIVE:-}" ]; then
+    ARCHIVE="$REUSE_ARCHIVE"
+    [ -d "$ARCHIVE" ] || { echo "no archive at $ARCHIVE"; exit 1; }
+    BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist")"
+    say "Reusing archive, build $BUILD_NUMBER"
+else
 say "Build number"
 "$PYTHON" tools/next_build_number.py
 BUILD_NUMBER="$(grep -o 'CURRENT_PROJECT_VERSION = [^;]*;' Strata.xcodeproj/project.pbxproj \
@@ -73,6 +82,7 @@ say "Archive (Release)"
 xcodebuild archive -scheme Strata -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE" -quiet
+fi
 
 say "Export"
 cat > "$WORK/ExportOptions.plist" <<'PLIST'
@@ -86,7 +96,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <key>signingCertificate</key><string>Apple Distribution</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>JaydenBetts.Strata</key><string>Strata App Store (cli)</string>
+        <key>JaydenBetts.Strata</key><string>Strata App Store 34</string>
         <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
     </dict>
     <key>uploadSymbols</key><true/>
@@ -94,6 +104,16 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+# **The app signs with "Strata App Store 34"** (2026-10-02). The profile named
+# here before, "Strata App Store (cli)", predates iCloud sync (2026-09-23) and
+# cannot sign an app with the iCloud container; build 34 was signed with the
+# one made that day, which can. The widget's profile exists in the account
+# but was never downloaded to this Mac, which is the other half of why build
+# 35's first export failed. If a profile is missing again:
+#   tools/asc_profiles.py list            what the account has
+#   tools/asc_profiles.py install "<n>"   download one
+# Automatic signing was tried and cannot work here: the API key may not use
+# cloud signing and no Apple ID is signed in to Xcode on this Mac.
 xcodebuild -exportArchive -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$WORK/ExportOptions.plist" -exportPath "$EXPORT" -quiet
 
