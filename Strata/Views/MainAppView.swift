@@ -1148,15 +1148,12 @@ struct MainAppView: View {
     /// runloop turn costs nothing and removes the coin flip. It showed up as a
     /// launch argument landing on the wrong tab, but any deep link would hit
     /// the same race.
-    private func selectTab(_ tab: StrataTab) {
-        selectedTab = tab
-        windowScheme = Self.scheme(for: tab)
-        Task { @MainActor in
-            guard selectedTab != tab else { return }
-            selectedTab = tab
-            windowScheme = Self.scheme(for: tab)
-        }
-    }
+    // **`selectTab(_:)` is deleted** (2026-10-01). Its last caller was the
+    // `-strataStartTab` read in `setup()`, and that read was the bug: a
+    // selection written during setup is overwritten by the `TabView` on appear,
+    // which this file had already written down twice. The flag is answered in
+    // `initialTab()` now, so nothing in the app sets the tab programmatically
+    // and the function was a retry loop for a problem that no longer exists.
 
     /// Extracted, like the other tab roots. `mainContent` is a three-Tab
     /// TabView already at the type-checker's ceiling — adding one parameter to

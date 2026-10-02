@@ -416,6 +416,45 @@ the three were fixture faults that had been reported as screens.
   **"Delete Me"**. The drawn name was the only thing making "Me" a head's name
   rather than a sentence, on the one row in Profile that destroys work.
 
+**A fourth, found by re-running the whole set on a simulator the app had never
+been used on.** `17-replay` came back with a layout signature identical to
+onboarding page 1, because `DebugHarness.isActive` — which is what
+`StrataApp.swift:90` asks before deciding whether to show the walkthrough —
+listed `-strataStartTab`, the seed flags and `-strataOpenSheet` and **none of the
+flags that open a route**. So a run that asked for the replay, a day, a photo,
+the map, the head maker, a restore or a forced store failure was not a harness
+run, and got the first-run walkthrough on top of whatever it asked for. On any
+simulator the app had already been used on it never showed, so it was invisible
+until the set was captured somewhere clean. A flag that names a destination is an
+answer to "is this a harness run", and it counts now.
+
+**Two fixtures are still wrong, and they are recorded here rather than counted
+as screens.**
+
+- **The camera permission alert covers the first capture on a simulator the app
+  has not been allowed on**, and `xcrun simctl privacy ... grant` does not stop
+  it: `camera`, `photos-add`, `location` and `all` were each tried and each
+  returns success while the alert comes up anyway. It dims the page to
+  rgb(199,199,199) and puts its own 304pt card in the middle of the frame, so
+  **two captures of different screens behind it produce the same layout
+  signature** — which is how `02-wins-empty` and `07-memories-empty` came back as
+  a duplicate pair. The signature check caught it; it just could not say which of
+  the two was wrong.
+- **`-strataStartTab` is ignored when `-strataResetStore` is passed with it.**
+  Measured: `-strataStartTab memories -strataSeedWins 2` lands on Memories and
+  `-strataStartTab memories -strataResetStore 1` lands on Wins. The reset path
+  writes to `UserDefaults` (`StrataApp.swift:42`), and that is the thread to pull;
+  it has not been pulled yet. Until it is, the two empty states cannot be
+  photographed on a clean simulator, and their ratings in the table above come
+  from captures taken where the app had already been used.
+
+**Three of the four were the same mistake in different clothes: a fixture that
+works on the machine it was written on.** `-strataStartTab` rode
+`welcomeWinKey`, the route flags rode `hasOnboarded`, and `21-restore` rode a
+file that happened to exist. None of them could fail on the Mac they were made
+on, which is why the capture script prints a layout signature for every shot now
+and names any two that agree.
+
 ### Two things found by photographing a screen nobody had photographed
 
 **The app is called Sturdy and every permission prompt said Strata.** Measured

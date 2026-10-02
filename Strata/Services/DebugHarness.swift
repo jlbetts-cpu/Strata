@@ -987,6 +987,21 @@ enum DebugHarness {
             // the real `hasOnboarded` default and showed no onboarding at all
             // — the flag looked broken when it was simply never consulted.
             || showsOnboarding || onboardingStep != nil || cameraDenied || ripple
+            // **And every flag that opens a ROUTE** (added 2026-10-01). This
+            // list decides whether `StrataApp` shows onboarding
+            // (`StrataApp.swift:90`), so a run that asks for a screen and
+            // nothing else was not a harness run and got the first-run
+            // walkthrough on top of what it asked for. On a simulator the app
+            // had already been used on it never showed, so the fault was
+            // invisible until the set was captured on a fresh one: the replay's
+            // capture came back with a layout signature identical to onboarding
+            // page 1. A flag that names a destination IS an answer to "is this
+            // a harness run".
+            || openReplay != nil || openDayBack != nil || openPhotoIndex != nil
+            || openCuratedIndex != nil || openMomentIndex != nil || opensMap
+            || openMonthBack != nil || headMakerState != nil || openReviewSize != nil
+            || seedBackup != nil || argument("-strataRestoreFrom") != nil
+            || argument("-strataFailStore") != nil || headParity
     }
 
     /// True when the run asked for seeding, so `setup()` knows to wipe first.

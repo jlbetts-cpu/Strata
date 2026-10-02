@@ -50,6 +50,20 @@ BID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")"
 mkdir -p "$OUT"
 xcrun simctl install "$SIM" "$APP" >/dev/null || exit 1
 
+# **The camera prompt covers the first capture on a fresh simulator, and
+# `simctl privacy ... grant` does NOT stop it.** Tried and measured on 2026-10-01:
+# `grant camera`, `grant photos-add`, `grant location` and `grant all` all return
+# success and the alert comes up anyway, dimming the page to rgb(199,199,199)
+# with its own 304pt card in the middle of the frame. Two captures of different
+# screens behind that alert produce the SAME layout signature, because the alert
+# is what the instrument can see — which is how `02-wins-empty` and
+# `07-memories-empty` came back as a duplicate pair.
+#
+# No workaround is shipped here, because a step whose comment claims to do
+# something it does not is worse than no step. Capture the empty states on a
+# simulator the app has already been allowed on, and read the signature pass
+# below before trusting any of them.
+
 shot() {
   out="$OUT/$1.png"; floor="$2"; shift 2
   xcrun simctl terminate "$SIM" "$BID" >/dev/null 2>&1
