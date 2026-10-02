@@ -106,7 +106,11 @@ shot 14-day-album       22 -strataStartTab memories -strataSeedHistory 6 -strata
 # **The seed makes a screen reachable as much as the flag does.**
 shot 15-place           22 -strataStartTab memories -strataSeedHistory 30 -strataSeedPlaces 1 -strataSeedRealPhotos 1 -strataOpenCurated 0
 shot 16-photo-viewer    22 -strataStartTab memories -strataSeedHistory 6 -strataSeedRealPhotos 1 -strataOpenPhoto 0
-shot 17-replay          26 -strataOpenReplay sampleWeek -strataReplayAt 16.0
+# The replay opens from MEMORIES, so it is captured from there. Without a
+# start tab the app opens on the camera, whose window is pinned dark, and
+# the replay inherits that: every "light" replay in the audit was dark, and
+# the light one, which is the one a person sees, had never been photographed.
+shot 17-replay          26 -strataStartTab memories -strataOpenReplay sampleWeek -strataReplayAt 16.0
 shot 18-head-maker      18 -strataStartTab tower -strataOpenSheet profile -strataOpenHeadMaker preview
 # **The head picker had never been photographed, and this line is why.** It
 # reached Profile and stopped there: the picker is a row inside Profile's head

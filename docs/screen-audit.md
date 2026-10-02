@@ -423,10 +423,15 @@ in writing above. Everything not listed is still at its ten-check rating.
 
 ### Graded out of 10, per state, both schemes — the Wins side, 2026-10-02
 
-Dark is the same grade as light on every one of these. The camera's three states
-and both replay states are byte-identical between the two schemes to 0.05% of
-their pixels, which is the clock: the `onDark` family working as designed rather
-than a capture fault.
+**Correction, 2026-10-02.** This said the camera's three states and both replay
+states were "byte-identical between the two schemes to 0.05% of their pixels ...
+the `onDark` family working as designed rather than a capture fault." **For the
+replay it was a capture fault.** The fixture opened the replay with no start tab,
+so the app launched on the camera, whose window is pinned dark, and the replay
+inherited the camera's scheme in both runs. The light replay, which is the one a
+person sees because it opens from Memories, had never been photographed. The
+fixture opens it from Memories now. The camera's identity across schemes IS by
+design: it is dark in both.
 
 | State | Grade | The named failure |
 |---|---|---|

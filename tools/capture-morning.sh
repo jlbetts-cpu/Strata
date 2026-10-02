@@ -45,7 +45,11 @@ run_set() {
   shot "16-settings$sfx"          -strataStartTab tower -strataOpenSheet settings
   shot "17-restore$sfx"           -strataSeedBackup 40 -strataRestoreFrom strata-debug-backup.zip -strataOpenSheet settings
   shot "18-head-maker$sfx"        -strataStartTab tower -strataOpenSheet profile -strataOpenHeadMaker preview
-  shot "19-replay$sfx"            -strataOpenReplay sampleWeek -strataReplayAt 16.0
+  # The replay opens from MEMORIES, so it is captured from there. Without a
+# start tab the app opens on the camera, whose window is pinned dark, and
+# the replay inherits that: every "light" replay in the audit was dark, and
+# the light one, which is the one a person sees, had never been photographed.
+shot "19-replay$sfx"            -strataStartTab memories -strataOpenReplay sampleWeek -strataReplayAt 16.0
   for i in 0 1 2 3 4 5; do
     shot "2$i-onboarding-$((i + 1))$sfx" -strataShowOnboarding 1 -strataOnboardingStep "$i"
   done

@@ -1060,8 +1060,19 @@ enum DebugHarness {
                          "Read a chapter", "Stretch for ten"]
             let colours = HabitCategory.selectable
             for i in 0..<min(planned, lines.count) {
-                context.insert(PlanItem(text: lines[i], order: i,
-                                        category: colours[i % colours.count]))
+                let item = PlanItem(text: lines[i], order: i,
+                                    category: colours[i % colours.count])
+                // **Every state a plan line can be in, so each can be
+                // photographed** (2026-10-02). The seed was five one-off,
+                // unfinished lines, so the repeat summary, a done line and the
+                // seven-day row had never been seen on a built screen; a design
+                // review fixed text in all three on arithmetic alone and said so.
+                // Line 2 repeats on weekdays and line 4 is already done; the rest
+                // stay as they were, so `-strataSeedPlan 1` still shows the
+                // plainest line.
+                if i == 1 { item.repeatDays = [2, 3, 4, 5, 6] }
+                if i == 3 { item.completedAt = Date() }
+                context.insert(item)
             }
             try? context.save()
         }

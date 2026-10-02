@@ -273,7 +273,13 @@ enum AppColors {
             : UIColor(white: 0, alpha: 0.55)
     })
 
-    /// The quietest ink the app uses: a chevron, a placeholder, a hint.
+    /// The quietest ink the app uses: a chevron, a divider glyph, a disclosure.
+    ///
+    /// **It said "a placeholder, a hint" until 2026-10-02**, which contradicts the
+    /// paragraph below: a placeholder is a sentence. Seven pieces of text had read
+    /// it at its word and measured 3.32 to 3.35:1 in light, under the 4.5 text is
+    /// held to, invisible in dark where the same ink is 6.0. They are
+    /// `inkTertiary` now, and the list here no longer invites the next one.
     ///
     /// **Held to 3:1, not 4.5:1**, and deliberately: these are UI elements and
     /// decorative glyphs rather than text somebody has to read, which is the

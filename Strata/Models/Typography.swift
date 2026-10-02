@@ -95,12 +95,12 @@ enum Typography {
     // comment saying it had no call sites on purpose. A token nothing uses is
     // a value somebody reuses by accident, and 11 is now off the scale anyway.
 
-    /// **The one weight.** Every tier, every title, every label.
+    /// **The heading weight.** Every title, every heading, every label.
     ///
-    /// It used to be only the title's weight, because the titles were the two
-    /// places the app disagreed with itself. It is now the whole scale's: the
-    /// app sets nothing in Regular, Light or Thin, and nothing in Semibold or
-    /// Bold either.
+    /// It was the ONE weight for most of 2026-10-01, the whole scale's, and then
+    /// the owner asked for "a nice thicker font for headers"; `bodyWeight` below
+    /// is what prose is set in now. The app sets nothing in Regular, Light or
+    /// Thin, and nothing in Semibold.
     ///
     /// If "the type is too thin" ever comes back, **this line is the lever and
     /// it moves everything at once** — which is the point of it being one line.
@@ -222,17 +222,17 @@ enum Typography {
 
     // MARK: - Tier 2 · 17
 
-    /// **17 Semibold. A heading, a block's or a card's title, a sheet's one
+    /// **17 Bold. A heading, a block's or a card's title, a sheet's one
     /// word.** The thing you are meant to read first.
     static let headerMedium = tier(.body)
 
     /// **17 Medium. Prose — a sentence somebody reads rather than scans.**
     ///
-    /// It was Regular until 2026-10-01 and Semibold never: a paragraph set in a
-    /// heading's weight is a paragraph that shouts, and the owner's objection
-    /// was to DULL rather than to quiet. The step from this to `headerMedium` is
-    /// 14.5% of stroke at the same size, which is what makes a page have an
-    /// order to read it in.
+    /// It was Regular until 2026-10-01 and never a heading's weight: a paragraph
+    /// set in a heading's weight is a paragraph that shouts, and the owner's
+    /// objection was to DULL rather than to quiet. The step from this to
+    /// `headerMedium` is **34.4% of stroke** at the same size, which is what makes
+    /// a page have an order to read it in.
     static let bodyLarge = tier(.body, bodyWeight)
 
     /// A sheet's title in the owner's face. See `View.sheetTitle(_:drawn:)`.
