@@ -194,17 +194,31 @@ struct AddWinSheet: View {
             // 2x2 well is 370pt tall and the field above a 402x874 keyboard
             // is about 420, less the name and the size control. No spacing
             // makes that fit; the block scrolls, as it did.
+            //
+            // **SUPERSEDED, the owner, 2026-10-02, looking at the Edit sheet:
+            // "why is the spacing that spaced out looks odd".** Everything
+            // above argued the block should stand on a floor with the break
+            // over it, and on the screen that read as three things scattered
+            // down a page: a name with 64pt under it, two controls, then 197pt
+            // of nothing before the block they control. The audit's 11c clause
+            // ("the biggest break must not be under the last band") is what
+            // pushed it there, and it lost to the eye, the way the Plan sheet's
+            // golden-section move did. So the sheet now reads from the top like
+            // the Plan sheet he chose: the name, `gapSection`, what the block
+            // is, `gapSection`, the block, and the air is simply the rest of
+            // the page below it. One rung between the three groups, the
+            // tight `gapItem` inside the middle one, so the grouping is still
+            // carried by the ladder. And it settles the keyboard for free: a
+            // fresh Add's Quick block now ends at about y496 against the
+            // keyboard's y540, in both focus states, with no branch.
             GeometryReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
                         decisions
-                        // See the paragraph above: the floor is the whole
-                        // break only while the keyboard is up.
-                        Spacer(minLength: titleFocused ? GridConstants.gapWide
-                                                       : GridConstants.gapPage)
                         subject(pageWidth: proxy.size.width)
+                            .padding(.top, GridConstants.gapSection)
                     }
                     // **The app's page margin, not a private one.** This was
                     // 20 while every other screen is `horizontalPadding` (16),
@@ -483,7 +497,11 @@ struct AddWinSheet: View {
                     }
                     sizeControl
         }
-        .padding(.top, GridConstants.gapPage)
+        // `gapSection`, not `gapPage`: the name and what the block is are one
+        // win being described, and 64 set "Walk" adrift above its own
+        // controls (the owner, 2026-10-02). See the note over the
+        // `GeometryReader`.
+        .padding(.top, GridConstants.gapSection)
     }
 
     /// **What you made.** The block, and in Edit the one thing you can do to

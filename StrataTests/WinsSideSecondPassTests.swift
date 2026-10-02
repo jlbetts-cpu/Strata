@@ -64,19 +64,23 @@ struct WinsSideSecondPassTests {
     /// spacer at its minimum. Both ends take `gapWide` while the name has
     /// focus. Arithmetic off the built sheet at 402x874, keyboard top y540:
     /// the size control ends at y314.7, the Quick well is 181pt.
+    ///
+    /// **Re-derived 2026-10-02**, when the sheet stopped flooring the block
+    /// (the owner: "why is the spacing that spaced out"). The name to the
+    /// controls went 64 to `gapSection`, so the controls end 32pt higher, and
+    /// the block follows them at `gapSection` with no spacer at all.
     @Test("a fresh Add's block clears the keyboard")
     func blockClearsTheKeyboard() throws {
-        let controlsEnd: CGFloat = 314.7
+        let controlsEnd: CGFloat = 314.7 - (GridConstants.gapPage - GridConstants.gapSection)
         let keyboardTop: CGFloat = 540
         let well: CGFloat = (402 - GridConstants.horizontalPadding * 2 - GridConstants.spacing) / 2
-        let before = controlsEnd + GridConstants.gapPage + well
-        let after = controlsEnd + GridConstants.gapWide + well
-        #expect(before > keyboardTop, "the old floor no longer hid the block, so this test's reason is gone")
-        #expect(after < keyboardTop, "the block's bottom is at \(after), under the keyboard at \(keyboardTop)")
+        let bottom = controlsEnd + GridConstants.gapSection + well
+        #expect(bottom < keyboardTop - GridConstants.gapWide,
+                "the block's bottom is at \(bottom), within \(GridConstants.gapWide) of the keyboard at \(keyboardTop)")
 
         let code = SourceSweep.code(try SourceSweep.read("Strata/Views/AddWinSheet.swift"))
-        #expect(code.contains("Spacer(minLength: titleFocused ? GridConstants.gapWide"))
-        #expect(code.contains(".padding(.bottom, titleFocused ? GridConstants.gapWide"))
+        #expect(!code.contains("Spacer(minLength: titleFocused"), "the floored block came back")
+        #expect(code.contains(".padding(.top, GridConstants.gapSection)"))
     }
 
     // MARK: - A failed save says so

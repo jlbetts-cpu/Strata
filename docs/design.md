@@ -71,6 +71,7 @@ measurement beside it.
 | A past day's lattice is **its tower plus one row** | 2026-10-02 | "Tower plus one row"; nothing lands on a past day |
 | The head maker **switches to the light page** for its preview | 2026-10-02 | "Keep the switch"; the head is shown where it will live |
 | Profile's Done stays **the title's ink** | 2026-10-02 | "Leave it"; monochrome like every other sheet |
+| Add and Edit **read from the top**: name, its controls, the block, air below. The block is not floored | 2026-10-02 | "why is the spacing that spaced out looks odd"; it was 64 under the name and 197 over the block |
 
 ### The blocks and the tower
 
