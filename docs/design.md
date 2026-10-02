@@ -52,7 +52,7 @@ Each line carries the date and, where there is one, his own words.
 | The tab bar is **icons only**, no labels | 2026-10-01 | put to him against keeping them; his call |
 | Profile lives on **Memories only**, never on Wins | settled | "the tower is today's record and its corner belongs to today" |
 | **Replays live in Memories.** The week moved there with the month | 2026-10-01 | "the your month doesnt belong on the wins because its already in memories" |
-| The Wins corner is **empty**, kept for a logo he may add | 2026-10-01 | "maybe I will add a logo later in the corner but I think for now it shouldnt be there" |
+| The Wins top-left corner holds the **Crews button** (glass, `person.2`); empty while the Crews flag is off. It was kept empty for a logo until this call | 2026-10-02 | "I want there to be a simple social button on the top left" |
 | **No search** in Memories. It had one and it went | settled | — |
 | No Today tab, no checklist, no badge on a tab | settled | — |
 

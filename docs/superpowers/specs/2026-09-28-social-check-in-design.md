@@ -1,6 +1,6 @@
 # Checking in on friends
 
-**Status:** design, approved in chat 2026-09-28. Not built.
+**Status:** design, approved in chat 2026-09-28. Not built. **Superseded 2026-10-02** by [Crews](2026-10-02-crews-design.md): friends now share a tower, titles and photos, by the owner's choice. Kept for its reasoning.
 **Owner's calls, in his words:** "a simple number would actually be better, I
 don't know if we really need the tower to be shown", shapes only and no photos,
 invite link only, build it now and ship it behind a flag.
