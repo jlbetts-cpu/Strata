@@ -15,8 +15,19 @@ whole instruction.
 
 Six rules, and every one of them is something to NOT do:
 
-1. **One contour, filled flat.** Not an outline with a fill inside it. The shape
-   is the drawing.
+1. **One open contour, drawn with one stroke. NOT filled.**
+
+   **This rule said the opposite until 2026-10-01 and it was wrong.** It read
+   "one contour, filled flat; not an outline with a fill inside it; the shape is
+   the drawing." That describes HEYTEA's LOGO, which is a filled silhouette of a
+   person holding a cup — and the logo is the one thing on their site that is
+   filled. Their illustration system, measured by opening heytea.com rather than
+   working from a description of it, is **open line art**: a single near-uniform
+   marker stroke, white inside, no mass. The tree on their home page and the two
+   figures with a megaphone below it are outlines.
+
+   Followed as written, this rule would have produced six black blobs, which is
+   the logo six times rather than the drawings. See `docs/reference-board.md` §9.
 2. **No interior detail that can be left out.** A face is two marks or none. A
    hand is a mitten. If you can tell what it is at 24pt, it is finished.
 3. **Hand-cut, not geometric.** Edges slightly uneven, corners generously round.

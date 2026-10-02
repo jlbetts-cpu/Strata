@@ -349,3 +349,76 @@ rectangular family.
    tower does not fit a circle and does not fit a line. The count would, and the
    count is deliberately not the subject of this app's own home screen, so adding
    it to the Lock Screen would say something the app does not say about itself.
+
+
+---
+
+## 9. HEYTEA's own site, measured, 2026-10-01
+
+The owner has named HEYTEA as the target four times and `docs/illustrations.md`
+was written from his description of it. This is the first time anybody opened it.
+Read at heytea.com on a 560pt-wide frame, with the type pulled out of
+`getComputedStyle` rather than guessed from a screenshot.
+
+### 9.1 What it actually is
+
+| | measured |
+|---|---|
+| ground | **rgb(255, 255, 255)**, pure white |
+| faces | **two, both custom**: `HeyteaSans` (with a Light cut) and `JaaamForHeytea`, a hand-drawn face declared `cursive` |
+| weight | **400 everywhere.** The sans has a Light; there is no bold anywhere on the page |
+| ink | **three steps: rgb(0), rgb(68), rgb(118)** |
+| tracking | **+0.10 em**, on everything, headings and body alike |
+| leading | **exactly 1.5** |
+| case | **lowercase throughout.** "who are we?", "we want...", "new style tea by inspiration" |
+| chrome | a mark top left, two glyphs top right, one hairline. No fills, no shadows, no capsules. The 404's only button is a **plain rectangular outline** |
+
+### 9.2 The correction, and it matters because he is about to draw six of these
+
+**`docs/illustrations.md` rule 1 is wrong about the illustrations.** It says "One
+contour, filled flat. Not an outline with a fill inside it. The shape is the
+drawing." That describes their LOGO, which is a filled silhouette of a person
+holding a cup. **Their illustration system is the opposite**: open line art, a
+single near-uniform marker stroke, nothing filled, no mass at all. The tree on
+the home page and the two figures with a megaphone on the next screen are
+outlines with white inside them.
+
+The rule as written would have produced six black blobs, which is the logo
+repeated six times rather than the drawings this page is made of. Rule 1 is
+corrected in that file with this measurement attached. **Rules 2 to 6 all hold**,
+and rule 5 is confirmed hard: the figure takes about a third of the viewport and
+has more empty page under it than it occupies.
+
+### 9.3 The one place it argues with a decision made tonight
+
+**HEYTEA's whole page is one weight.** What separates a heading from a line of
+body there is the FACE (drawn against typeset) and the SIZE, never the stroke.
+Tonight this app went the other way, to Semibold headings over Medium prose, on
+the owner's own words: "the text reads as premium not dull a nice thicker font
+for headers."
+
+Both are defensible and his instruction governs, so nothing is changed on the
+strength of this. **What it does suggest is where the app could buy the same
+effect more cheaply later**: it already has a drawn face (`StrataFont`) and it
+already uses it for exactly two things, the tally and the Memories title. HEYTEA
+differentiates with a second FACE and tracking; this app currently differentiates
+with weight and has a second face sitting mostly unused. That is the trade to put
+to him when the custom typeface he mentioned arrives, and not before.
+
+### 9.4 Two numbers worth taking now
+
+- **Tracking +0.10 em.** This app's only tracked thing is `Typography.sectionKerning`,
+  0.8pt on a 15pt label, which is **0.053 em** — half. Their tracking is on
+  everything, not just labels, and it is a large part of why that page reads as
+  airy at a weight no heavier than this app's body. Worth trying on the screen
+  titles and measuring; worth NOT applying blind, because SF Pro at a title size
+  is already loosely fitted and the two faces are not comparable.
+- **Leading exactly 1.5.** `docs/apple-design.md`'s advice on size-specific
+  leading is the thing to check this against, and `docs/research/` has the
+  typography audit that found this app's leading "misses at both ends".
+
+### 9.5 What does not transfer
+
+Their lowercase. "memories", "plan", "settings" in lowercase would be a brand
+decision of his, not a layout one, and the app's drawn wordmark came off in
+September for reasons recorded in `CLAUDE.md`. Noted and left alone.
