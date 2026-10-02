@@ -58,27 +58,15 @@ struct AlbumCard: View {
         .accessibilityLabel("\(album.title), \(album.subtitle)")
     }
 
-    /// **The title truncates at 108pt, and that is OPEN, not settled**
-    /// (2026-10-02, design review). "Read a chapter" draws "Read a cha…": the
-    /// card cannot widen (108 is what puts three and a bit on screen, see
-    /// `MemoriesShelf.albumWidth`) and `minimumScaleFactor` would take a
-    /// 17pt title under the 15pt floor. Three ways out were rendered for the
-    /// owner — one line truncated (ships), two lines, and the 15 rung — with
-    /// `-strataAlbumTitle wrap|small` (DEBUG) photographing the other two.
-    /// Nothing here changes until he picks.
-    private static var titleLines: Int {
-        #if DEBUG
-        if DebugAlbumTitle.mode == "wrap" { return 2 }
-        #endif
-        return 1
-    }
+    /// **Two lines, the owner's call, 2026-10-02.** At 108pt one line drew
+    /// "Read a cha…"; the card cannot widen (108 is what puts three and a bit
+    /// on screen, see `MemoriesShelf.albumWidth`) and `minimumScaleFactor`
+    /// would take a 17pt title under the 15pt floor. He chose wrapping over
+    /// truncating from `docs/design-review/memories-album-options.png`: the
+    /// whole title reads, and a card with a long one stands a line taller.
+    static let titleLines = 2
 
-    private static var titleFont: Font {
-        #if DEBUG
-        if DebugAlbumTitle.mode == "small" { return Typography.headerSmall }
-        #endif
-        return Typography.headerMedium
-    }
+    private static let titleFont: Font = Typography.headerMedium
 
     /// How much is on this card: the number, then what it counts.
     ///
@@ -153,15 +141,3 @@ struct AlbumCard: View {
 // half of the pair, and the shared control the note asked for is the one that
 // survived.
 
-
-#if DEBUG
-/// `-strataAlbumTitle wrap|small`: the two unshipped ways out of the album
-/// card's truncated title, for photographing beside the one that ships.
-private enum DebugAlbumTitle {
-    static let mode: String? = {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-strataAlbumTitle"), i + 1 < args.count else { return nil }
-        return args[i + 1]
-    }()
-}
-#endif

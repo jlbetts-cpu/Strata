@@ -997,14 +997,26 @@ struct AddWinSheet: View {
     /// which is how every button ended up being a small act of invention. The
     /// departure from the platform is meant to be the camera, the blocks and
     /// the numbers; a delete button is none of those.
+    ///
+    /// **Then the word, not the pill, the owner's call, 2026-10-02.** `.bordered`
+    /// draws its label and its pill from one tint, so in dark the label sat at
+    /// 3.96:1 on its own pill and no red could clear 4.5 inside that style. He
+    /// chose the atomic kit's destructive word from the two renderings in
+    /// `docs/design-review/block-card-delete-paths.png`: `destructiveInk` on the
+    /// page, 6.42:1 light and 5.73:1 dark, a 44pt target, and one pill fewer on
+    /// the sheet. The role stays `.destructive`, so VoiceOver still says so.
     private var deleteButton: some View {
-        Button("Delete", role: .destructive) {
+        Button(role: .destructive) {
             HapticsEngine.tick()
             confirmingDelete = true
+        } label: {
+            Text("Delete")
+                .font(Typography.bodyLarge)
+                .foregroundStyle(Self.destructiveTint)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .tint(Self.destructiveTint)
+        .buttonStyle(.pressWord)
         // **Its own width, pinned left.** Stretched edge to edge it was the
         // only centred thing on a form where every label, field and control
         // starts at the same left margin: "the delete button looks weird in

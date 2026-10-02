@@ -56,6 +56,22 @@ Each line carries the date and, where there is one, his own words.
 | **No search** in Memories. It had one and it went | settled | — |
 | No Today tab, no checklist, no badge on a tab | settled | — |
 
+### Settled the morning of 2026-10-02
+
+Each chosen from two renderings in `docs/design-review/`, put to him with the
+measurement beside it.
+
+| Decision | When | His words, or the record |
+|---|---|---|
+| Edit sheet's Delete is the kit's **red word**, not the native pill | 2026-10-02 | "Red word"; the pill measured 3.96:1 in dark, the word 5.73:1 (`block-card-delete-paths.png`) |
+| A replay's block titles **fade out by the time the week comes to rest** | 2026-10-02 | "Fade them"; at rest they drew at about 7.5pt (`replay-titles-paths.png`) |
+| Calendar day numerals **never below 15pt** | 2026-10-02 | "Raise to 15"; they were 7.9pt (`memories-numeral-15.png`) |
+| Album card titles **wrap to two lines** rather than truncate | 2026-10-02 | "Wrap to two lines"; one line drew "Read a cha…" (`memories-album-options.png`) |
+| Onboarding's map page draws **the map as it is now**: back disc, no title | 2026-10-02 | "Redraw it"; it drew the map as the Memories tab, which it stopped being on 2026-09-30 |
+| A past day's lattice is **its tower plus one row** | 2026-10-02 | "Tower plus one row"; nothing lands on a past day |
+| The head maker **switches to the light page** for its preview | 2026-10-02 | "Keep the switch"; the head is shown where it will live |
+| Profile's Done stays **the title's ink** | 2026-10-02 | "Leave it"; monochrome like every other sheet |
+
 ### The blocks and the tower
 
 | Decision | When | His words, or the record |

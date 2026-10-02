@@ -70,6 +70,12 @@ struct TowerLattice: View {
     /// Empty almost always, and everything below is gated on that.
     var touches: [TouchRipple] = []
 
+    /// Rows of overhang above the tower, `rowsAbove` unless a page says
+    /// otherwise. A past day says one: nothing will land on it, so three rows
+    /// of room to grow were room for nothing (the owner's call, 2026-10-02,
+    /// "Tower plus one row").
+    var rowsOver: Int = TowerLattice.rowsAbove
+
     /// **How far above the tower the lattice carries on, in rows.**
     ///
     /// It was a whole viewport, and photographed that was the failure he
@@ -204,7 +210,7 @@ struct TowerLattice: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var pitch: CGFloat { cellSize + spacing }
-    private var overhang: CGFloat { CGFloat(Self.rowsAbove) * pitch }
+    private var overhang: CGFloat { CGFloat(rowsOver) * pitch }
     private var height: CGFloat { max(contentHeight, 1) + overhang }
 
     var body: some View {

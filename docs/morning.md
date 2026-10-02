@@ -3,7 +3,7 @@
 Every graded screen, light and dark, is in `docs/gallery.html` (open it in a
 browser; each screen sits beside its dark twin with its grade). This page is
 the short version: what changed overnight, the grades, and the eight calls
-that are yours.
+that were yours (all answered the same morning and built).
 
 ## Not done, first
 
@@ -67,23 +67,24 @@ way.
 |---|---|---|
 | Wins, empty / one / forty | **10** | |
 | Add a win | **9** | A Deep block opened from the camera still sits partly under the keyboard; no spacing fits a 370pt well above a keyboard. Phone check. |
-| Block card (edit) | **9** | Call 1, the dark Delete pill at 3.96:1 |
+| Block card (edit) | **10** | Delete is the red word now, 5.73:1 dark |
 | Plan, empty / lines | **10** | Empty plan was mis-captured overnight (the last run's lines persisted); seed fixed, re-shot |
-| Memories, the month | **9** | Calls 3 and 4, numerals and album titles |
-| Memories, empty / one | **9** | Call 3, the same numerals at their most visible |
+| Memories, the month | **10** | Numerals at 15, album titles wrap |
+| Memories, empty / one | **10** | |
 | Map | **10** | |
-| Day album | **9** | Call 6, the empty lattice above a past day |
+| Day album | **10** | One row of lattice over a past day |
 | Place collection | **9** | "9 here" as the title until the place name arrives (your copy) |
 | Photo viewer | **10** | |
 | Profile | **9** | A Day/Week/Month control over a chart with no data yet |
 | Settings | **10** | |
 | Restore, all four stages | **10** | First capture of restoring/done/failed found a doubled exit and a format number in the copy; both fixed |
-| Head maker | **9** | Call 7, dark capture into a light preview |
+| Head maker | **10** | The switch to the light page is your call, kept |
 | Head picker | **10** | First capture with several heads |
-| Replay | **9** | Call 2, titles at rest |
-| Onboarding | **8** | Call 5 (page 4 draws the old Memories), and page 3's camera picture still has tab labels; needs a real device shot |
+| Replay | **10** | Titles gone by rest |
+| Onboarding | **9** | Page 4 redrawn as the real map. Page 3's camera picture still has tab labels; it needs a fresh shot from a phone |
 | Store unavailable | **10** | |
 | Camera, viewfinder / refused / review | **10** | |
 
-Nine of nineteen at 10. Seven of the nine 9s are waiting on one answer each
-from you.
+**After your eight answers (same morning): fifteen of nineteen at 10.** The
+four 9s: Add a win (phone check), Place ("9 here", your copy), Profile (a
+control over no data), Onboarding (page 3 needs a phone photo).

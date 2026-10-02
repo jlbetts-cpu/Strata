@@ -308,15 +308,14 @@ struct MonthCalendarCell: View {
     /// (2026-10-02, design review, measured: a 49.3pt cell, a 17px glyph).
     /// `docs/type-pass.md` names three sites allowed under 15 and this is not
     /// one of them; it mentions "the month block's `cell * 0.16` numeral" only
-    /// as the family a block title belongs to. Raising it is a change to how
-    /// the calendar looks, so it is the owner's call: `-strataCalendarNumeral
-    /// floor` (DEBUG) photographs it at 15 for him to compare.
-    private var numberSize: CGFloat {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-strataCalendarNumeral") { return max(15, side * 0.16) }
-        #endif
-        return side * 0.16
-    }
+    /// as the family a block title belongs to.
+    ///
+    /// **Raised to the floor, the owner's call, 2026-10-02**, from the two
+    /// renderings in `docs/design-review/memories-numeral-15.png` ("Raise to
+    /// 15"). It still scales with the cell above 15, so a wider phone keeps
+    /// the proportion; 15 is only where it stops shrinking.
+    static let numberFloor: CGFloat = 15
+    private var numberSize: CGFloat { max(Self.numberFloor, side * 0.16) }
 
     var body: some View {
         if let block {

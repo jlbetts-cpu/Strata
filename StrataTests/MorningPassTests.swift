@@ -61,3 +61,57 @@ struct MorningPassTests {
                           encoding: .utf8)
     }
 }
+
+/// **The four calls the owner made on the morning of 2026-10-02**, each from
+/// two renderings. Recorded LOCKED in `docs/design.md`.
+@Suite("Owner's calls, morning of 2026-10-02")
+struct OwnerMorningCallsTests {
+
+    @Test("calendar numerals never go under the 15pt floor")
+    func numeralFloor() {
+        #expect(MonthCalendarCell.numberFloor == 15)
+    }
+
+    @Test("album titles wrap to two lines")
+    func albumTitlesWrap() {
+        #expect(AlbumCard.titleLines == 2)
+    }
+
+    @Test("a replay's titles are gone by rest on a week that rests small")
+    func replayTitlesFade() throws {
+        #expect(ReplayFrame.titleScaleFloor >= 0.85)
+        let text = try source("Views/ReplayFrame.swift")
+        #expect(text.contains("let gone = max(floor - Self.titleFade, script.fitScale)"))
+    }
+
+    @Test("Delete is the red word, not the bordered pill")
+    func deleteIsAWord() throws {
+        let text = try source("Views/AddWinSheet.swift")
+        let body = text.components(separatedBy: "private var deleteButton: some View {").last ?? ""
+        let button = body.components(separatedBy: "// MARK:").first ?? ""
+        #expect(!button.contains(".buttonStyle(.bordered)"))
+        #expect(button.contains(".buttonStyle(.pressWord)"))
+        #expect(button.contains(".foregroundStyle(Self.destructiveTint)"))
+    }
+
+    @Test("a past day's lattice reaches one row over its tower; the Wins tab keeps three")
+    func pastDayOverhang() throws {
+        #expect(DayAlbumDetailView.pastDayOverhang == 1)
+        #expect(TowerLattice.rowsAbove == 3)
+        #expect(try source("Views/DayAlbumDetailView.swift").contains("rowsOver: Self.pastDayOverhang"))
+    }
+
+    @Test("onboarding's map figure draws the map screen, not a Memories title")
+    func onboardingMapIsTheMap() throws {
+        let still = try source("Views/MemoriesStill.swift")
+        #expect(!still.contains("MemoriesTitle("))
+        #expect(still.contains("systemName: \"chevron.left\""))
+    }
+
+    private func source(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("Strata").appendingPathComponent(path),
+                          encoding: .utf8)
+    }
+}

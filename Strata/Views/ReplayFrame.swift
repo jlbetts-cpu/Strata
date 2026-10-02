@@ -576,20 +576,34 @@ struct ReplayFrame: View {
     /// At 0.45 `Typography.headerMedium` draws at about 8pt, which is where it
     /// stops being words.
     ///
-    /// **Faded, not cut:** across scale 0.55 to 0.45, so the saved video has
+    /// **Faded, not cut:** across a band of scale, so the saved video has
     /// no one-frame cut. **And decided by where the tower comes to REST:** a
     /// tower whose fitted scale is at or above the floor keeps full titles
     /// throughout. Fading by the live scale alone left the sample week, which
     /// rests at 0.50, with every title at 47% for good, and a finished tower
     /// with ghost-grey titles reads as a rendering fault. Any band would catch
     /// some tower at rest; this way none is.
+    ///
+    /// **Gone at rest, the owner's call, 2026-10-02** ("fade them out once the
+    /// week is built", from `docs/design-review/replay-titles-paths.png`). At
+    /// the old 0.45 floor a 22-win week rested at 0.574 with every title
+    /// drawn at about 7.5pt: twenty-two labels nobody could read. Now a title
+    /// keeps full strength while the camera is near the block's own size (the
+    /// 13pt block label at 85% or more, about 11pt) and is fully gone by the
+    /// time the camera comes to rest, so the frame people pause on is a
+    /// picture of the week and the words were read as it was built. The fade
+    /// runs from the floor down to the resting scale, never past it, so no
+    /// tower rests with ghost-grey titles; a week small enough to rest at or
+    /// above the floor keeps its titles throughout.
     private func titleOpacity(at scale: CGFloat) -> Double {
-        if script.fitScale >= Self.titleScaleFloor { return 1 }
-        return Double(min(max((scale - Self.titleScaleFloor) / Self.titleFade, 0), 1))
+        let floor = Self.titleScaleFloor
+        if script.fitScale >= floor { return 1 }
+        let gone = max(floor - Self.titleFade, script.fitScale)
+        return Double(min(max((scale - gone) / (floor - gone), 0), 1))
     }
 
-    private static let titleScaleFloor: CGFloat = 0.45
-    private static let titleFade: CGFloat = 0.10
+    static let titleScaleFloor: CGFloat = 0.85
+    private static let titleFade: CGFloat = 0.15
 
     /// The crop exactly as `CachedImageView` applies it: offset the FILLED
     /// picture by a fraction of its drawn size, then frame, then clip. Offset

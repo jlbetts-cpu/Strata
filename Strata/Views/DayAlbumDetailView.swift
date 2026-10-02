@@ -266,6 +266,9 @@ struct DayAlbumDetailView: View {
         return min((content - (columns - 1) * GridConstants.spacing) / columns, 200)
     }
 
+    /// Rows of lattice above a past day's tower. See the `.background` below.
+    static let pastDayOverhang = 1
+
     private var towerRows: Int {
         vm.placedBlocks.reduce(0) { max($0, $1.row + $1.rowSpan) }
     }
@@ -337,9 +340,15 @@ struct DayAlbumDetailView: View {
             let cell = towerCell(width: containerWidth)
             TowerLattice(cellSize: cell,
                          contentHeight: max(GridConstants.gridHeight(rows: towerRows,
-                                                                    cellSize: cell), 1))
+                                                                    cellSize: cell), 1),
+                         rowsOver: Self.pastDayOverhang)
                 .frame(width: GridConstants.gridWidth(cellSize: cell))
         }
+        // **One row over a past day, not three** (the owner's call, 2026-10-02).
+        // On the Wins tab the rows above the tower are where the next win
+        // lands. On a past day nothing lands, so four rows of empty panes over
+        // two blocks were room doing no work; one row says the tower stands on
+        // a surface and stops.
         .environment(\.towerFilterMode, .day)
         .environment(\.perfectDayDates, [])
     }

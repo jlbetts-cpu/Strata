@@ -20,8 +20,8 @@ import SwiftUI
 /// **The ground is the app's own render**, blocks and all: `DemoMap` was
 /// produced by this app, with the real clusterer, on his own photographs. What
 /// is added here is only the chrome that capture did not include, drawn from the
-/// same components the real screen draws it with: `MemoriesTitle`,
-/// `GlassIconLabel`, and the tab bar's glyphs from `StrataTab.icon(selected:)`,
+/// same components the real screen draws it with: `GlassIconLabel` for the back
+/// and recentre discs, and the tab bar's glyphs from `StrataTab.icon(selected:)`,
 /// which is the one place in the app that decides filled against hollow.
 ///
 /// **Everything is composed at `reference` points wide and scaled once.** The
@@ -67,7 +67,7 @@ struct MemoriesStill: View {
                 .clipped()
 
             VStack(spacing: 0) {
-                titleRow
+                backRow
                 Spacer(minLength: 0)
                 bottomRow
                 tabBar
@@ -86,43 +86,26 @@ struct MemoriesStill: View {
         .accessibilityHidden(true)
     }
 
-    /// The name of the screen, and the two controls that live opposite it.
+    /// **The way back, and nothing else, because that is the map now**
+    /// (the owner's call, 2026-10-02: "Redraw it").
     ///
-    /// Top-aligned with the buttons offset onto the title's cap, for the reason
-    /// CLAUDE.md records: a drawn title is only as tall as its cap, so a centre
-    /// rule would hang the row off the 44pt buttons and drop the word below the
-    /// line. This used to cite `MemoriesView.titleRow`, which has gone; the
-    /// rule is in CLAUDE.md and this is the copy of it that still draws.
-    private var titleRow: some View {
-        HStack(alignment: .top, spacing: GridConstants.gapTight * s) {
-            MemoriesTitle(size: Typography.screenTitleCap * s,
-                          color: AppColors.inkPrimary)
-            Spacer(minLength: 0)
-            GlassIconLabel(systemName: "photo.on.rectangle.angled",
+    /// This drew the "Memories" title with the album and profile buttons
+    /// opposite it, which was the map AS the Memories tab. Since 2026-09-30
+    /// Memories is a page and the map is pushed from it full screen: a back
+    /// disc top-leading, no title, no profile, the recentre button over the
+    /// tab bar (`MemoriesMapView`, captured as `11-map`). The picture promised
+    /// a screen the app no longer had; it now draws the one it has. Same
+    /// geometry as the real control: `GlassIconButton.defaultSide`, on the page
+    /// margin, `headerArtworkTopPadding` under the status bar.
+    private var backRow: some View {
+        HStack {
+            GlassIconLabel(systemName: "chevron.left",
                            size: GlassIconButton.defaultSide * s,
                            glyphSize: 17 * s)
-                .offset(y: capOffset)
-            profile.offset(y: capOffset)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, GridConstants.horizontalPadding * s)
         .padding(.top, (Self.safeTop + GridConstants.headerArtworkTopPadding) * s)
-    }
-
-    /// Centred on the title's cap by hand. See `titleRow`.
-    private var capOffset: CGFloat {
-        (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2 * s
-    }
-
-    /// You, where the gear used to be. The real screen draws the head if one has
-    /// been made and the photograph otherwise; onboarding has neither yet, so it
-    /// is his own portrait, which is the picture this app ships with.
-    private var profile: some View {
-        Image("CreatorPortrait")
-            .resizable()
-            .scaledToFill()
-            .frame(width: GlassIconButton.defaultSide * s,
-                   height: GlassIconButton.defaultSide * s)
-            .clipShape(Circle())
     }
 
     /// The recentre control, which on the real screen floats above the tab bar
