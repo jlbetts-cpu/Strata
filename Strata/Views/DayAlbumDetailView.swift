@@ -288,7 +288,7 @@ struct DayAlbumDetailView: View {
             modelContext: modelContext,
             width: containerWidth - GridConstants.horizontalPadding * 2,
             maxCell: 200,
-            canTapBlock: { $0.log.imageFileName != nil },
+            canTapBlock: { $0.look.imageFileName != nil },
             onTapBlock: { block in
                 // The photo is ON the block. A separate grid underneath was a
                 // second copy of the same pictures, and it pushed the tower —
@@ -301,7 +301,7 @@ struct DayAlbumDetailView: View {
                 // feedback, back to back, which reads as a stutter rather
                 // than as a press. The block owns the press; this owns what
                 // the press is for.
-                guard let name = block.log.imageFileName else { return }
+                guard let name = block.look.imageFileName else { return }
                 viewing = name
             }
         )

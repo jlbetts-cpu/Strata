@@ -75,7 +75,7 @@ enum BlockMerge {
         // Photos still cannot merge. A block wearing a photograph is not the
         // colour it would have to become, and half a merged shape showing an
         // image is two objects pretending to be one.
-        let mergeable = blocks.filter { $0.log.imageFileName == nil }
+        let mergeable = blocks.filter { !$0.look.hasPhoto }
         guard mergeable.count > 1 else { return [] }
 
         var cellOwner: [GridCell: PlacedBlock] = [:]
@@ -102,13 +102,13 @@ enum BlockMerge {
         for cell in cellOwner.keys { parent[cell] = cell }
 
         for (cell, block) in cellOwner {
-            let key = block.habit.displayCategory
+            let key = block.look.displayCategory
             for neighbour in [
                 GridCell(column: cell.column + 1, row: cell.row),
                 GridCell(column: cell.column, row: cell.row + 1)
             ] {
                 guard let other = cellOwner[neighbour],
-                      other.habit.displayCategory == key else { continue }
+                      other.look.displayCategory == key else { continue }
                 union(cell, neighbour)
             }
         }
@@ -124,7 +124,7 @@ enum BlockMerge {
                   let block = cellOwner[any] else { return nil }
             return MergeGroup(
                 id: members.sorted(by: { $0.uuidString < $1.uuidString }).first!,
-                category: block.habit.displayCategory,
+                category: block.look.displayCategory,
                 cells: cells,
                 memberIDs: members,
                 bottomRow: cells.map(\.row).min() ?? 0

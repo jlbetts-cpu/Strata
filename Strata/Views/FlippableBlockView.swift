@@ -62,16 +62,16 @@ struct FlippableBlockView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // displayCategory, not category: an unchosen block still needs a colour.
-    private var style: CategoryStyle { block.habit.displayCategory.style }
-    private var hasImage: Bool { block.log.imageFileName != nil }
-    private var massTier: CGFloat { CGFloat(block.habit.blockSize.massTier) }
+    private var style: CategoryStyle { block.look.displayCategory.style }
+    private var hasImage: Bool { block.look.hasPhoto }
+    private var massTier: CGFloat { CGFloat(block.look.blockSize.massTier) }
     private var tapSquashX: CGFloat { 1.02 - (massTier - 1) * 0.004 }
     private var tapSquashY: CGFloat { 0.97 + (massTier - 1) * 0.006 }
 
     private var patinaOpacity: Double {
         guard towerFilterMode != .day else { return 0 }
-        guard perfectDayDates.contains(block.log.dateString) else { return 0 }
-        guard let blockDate = BlockTimeFormatter.dateFormatter.date(from: block.log.dateString) else {
+        guard perfectDayDates.contains(block.look.dateString) else { return 0 }
+        guard let blockDate = BlockTimeFormatter.dateFormatter.date(from: block.look.dateString) else {
             return GridConstants.patinaMaxOpacity
         }
         let daysAgo = max(0, Calendar.current.dateComponents([.day], from: blockDate, to: Date()).day ?? 0)
@@ -103,7 +103,7 @@ struct FlippableBlockView: View {
                 // something to say: the words sit on the merged surface the
                 // way words sit on a wall, and the wall is still one wall.
                 BlockContentOverlay(
-                    title: block.habit.title,
+                    title: block.look.title,
                     rowSpan: block.rowSpan,
                     hasImage: false
                 )
@@ -185,8 +185,8 @@ struct FlippableBlockView: View {
 
     private var chromedBody: some View {
         BlockFace(
-            title: block.habit.title,
-            category: block.habit.displayCategory,
+            title: block.look.title,
+            category: block.look.displayCategory,
             rowSpan: block.rowSpan,
             width: width,
             height: height,
@@ -198,16 +198,23 @@ struct FlippableBlockView: View {
             showOverlay: showOverlay,
             aim: aim
         ) {
-            CachedImageView(
-                fileName: block.log.imageFileName,
-                width: width,
-                height: height,
-                cornerRadius: 0,
-                crop: CGPoint(x: block.log.cropPositionX ?? 0,
-                              y: block.log.cropPositionY ?? 0),
-                // The block's own colour is what shows while this decodes.
-                showsPlaceholder: false
-            )
+            if let shared = block.look.sharedPhoto {
+                // A friend's photograph, from the crew's cache. Never through
+                // `CachedImageView`, whose file names are YOUR photographs.
+                CrewPhotoView(url: shared, width: width, height: height,
+                              crop: CGPoint(x: block.look.cropX ?? 0, y: block.look.cropY ?? 0))
+            } else {
+                CachedImageView(
+                    fileName: block.look.imageFileName,
+                    width: width,
+                    height: height,
+                    cornerRadius: 0,
+                    crop: CGPoint(x: block.look.cropX ?? 0,
+                                  y: block.look.cropY ?? 0),
+                    // The block's own colour is what shows while this decodes.
+                    showsPlaceholder: false
+                )
+            }
         }
         // CONTACT SHADE.
         //

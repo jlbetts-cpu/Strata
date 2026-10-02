@@ -45,7 +45,8 @@ struct MorningPassTests {
         let block = try source("Views/FlippableBlockView.swift")
         #expect(block.contains("including: onTap == nil ? .subviews : .all"))
         let album = try source("Views/DayAlbumDetailView.swift")
-        #expect(album.contains("canTapBlock: { $0.log.imageFileName != nil }"))
+        // Read off `look` since crews (2026-10-02): a block may have no log.
+        #expect(album.contains("canTapBlock: { $0.look.imageFileName != nil }"))
     }
 
     @Test("a map block says its place's name once known")

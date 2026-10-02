@@ -835,7 +835,7 @@ struct MainAppView: View {
     private func openDeepLinkedWin() {
         guard let id = deepLinkHabitID, towerVM.hasBuiltOnce else { return }
         deepLinkHabitID = nil
-        if let block = towerVM.placedBlocks.last(where: { $0.habit.id == id }) {
+        if let block = towerVM.placedBlocks.last(where: { $0.habit?.id == id }) {
             withAnimation(GridConstants.crossFade) {
                 expandedBlockID = block.id
             }
@@ -1170,7 +1170,7 @@ struct MainAppView: View {
         // heavy `refreshData` on the next tick, out of the way of the system's
         // own drop-completion animation.
         TowerOrdering.commit(moving: carried, onto: target,
-                             logs: towerVM.placedBlocks.map(\.log),
+                             logs: towerVM.placedBlocks.compactMap(\.log),
                              context: modelContext) { scheduleRefresh() }
     }
 
@@ -1899,10 +1899,10 @@ struct MainAppView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(20))
                 guard let top = towerVM.placedBlocks.last else { return }
-                top.habit.title = "Edited title"
-                top.habit.category = top.habit.displayCategory == .focus ? .social : .focus
-                top.log.imageFileName = towerVM.placedBlocks.lazy
-                    .compactMap(\.log.imageFileName).first
+                top.habit?.title = "Edited title"
+                top.habit?.category = top.look.displayCategory == .focus ? .social : .focus
+                top.log?.imageFileName = towerVM.placedBlocks.lazy
+                    .compactMap(\.look.imageFileName).first
                 try? modelContext.save()
                 NSLog("[strata-edit] edited %@ (%@)", top.id.uuidString, mode)
                 if mode == "rebuild" { repackTower() }
@@ -2085,7 +2085,7 @@ struct MainAppView: View {
         animCoord.reduceMotion = reduceMotion
         startLatticeLab()
         animCoord.lookupMass = { [towerVM] id in
-            towerVM.placedBlocks.first(where: { $0.id == id })?.habit.blockSize.massTier
+            towerVM.placedBlocks.first(where: { $0.id == id })?.look.blockSize.massTier
         }
         animCoord.onImpact = { [towerVM, animCoord] landedID, mass in
             animCoord.triggerRipple(from: landedID, massTier: mass, placedBlocks: towerVM.placedBlocks)
@@ -2359,10 +2359,10 @@ struct MainAppView: View {
             WidgetSnapshot.Block(
                 columns: block.columnSpan,
                 rows: block.rowSpan,
-                hex: block.habit.displayCategory.style.baseHexString,
+                hex: block.look.displayCategory.style.baseHexString,
                 // Named for the source file, so an unchanged photograph keeps
                 // an unchanged snapshot and nothing is rewritten.
-                photo: block.log.imageFileName.map { "\($0).jpg" })
+                photo: block.look.imageFileName.map { "\($0).jpg" })
         }
         // **Lifetime, not today.** The tower is pinned to today, so
         // `placedBlocks.count` and `blocksToday` are the same number — the
@@ -2500,7 +2500,7 @@ struct MainAppView: View {
             WidgetReloader.reload()
             return
         }
-        let wanted = blocks.compactMap(\.log.imageFileName)
+        let wanted = blocks.compactMap(\.look.imageFileName)
         Task.detached(priority: .utility) {
             try? FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)
@@ -3205,7 +3205,8 @@ struct MainAppView: View {
                     block: block,
                     // Read from the models now, so `==` compares this
                     // evaluation's values with the last one's.
-                    look: PlacedBlock.Look(habit: block.habit, log: block.log),
+                    look: block.habit.flatMap { habit in block.log.map { PlacedBlock.Look(habit: habit, log: $0) } }
+                        ?? block.look,
                     frame: f, animState: animState,
                     isNewlyDropped: isNewlyDropped,
                     gridH: gridH,
@@ -3352,7 +3353,7 @@ struct MainAppView: View {
             let _ = PerfProbe.count("AnimatedBlockView")
             #endif
             let phase = animState.dropPhase
-            let mass = CGFloat(block.habit.blockSize.massTier)
+            let mass = CGFloat(block.look.blockSize.massTier)
 
             let dropOffset: CGFloat = switch phase {
             case .falling:

@@ -106,7 +106,7 @@ struct TowerBuildTests {
         withObservationTracking {
             _ = vm.placedBlocks
         } onChange: { fired = true }
-        vm.placedBlocks[3].habit.title = "Renamed"
+        vm.placedBlocks[3].habit?.title = "Renamed"
         vm.buildTower(from: logs)
         #expect(fired)
         #expect(vm.placedBlocks[3].look.title == "Renamed")

@@ -4,8 +4,12 @@ import SwiftUI
 
 struct PlacedBlock: Identifiable, Equatable {
     let id: UUID
-    let habit: Habit
-    let log: HabitLog
+    /// The models behind one of YOUR blocks. Nil for a friend's win in a crew
+    /// tower, which is never a model (see `SharedWin`): everything a block
+    /// draws comes from `look`, and only the Wins tab's editing reaches past
+    /// it to these.
+    let habit: Habit?
+    let log: HabitLog?
     let column: Int
     let row: Int
     let columnSpan: Int
@@ -32,6 +36,19 @@ struct PlacedBlock: Identifiable, Equatable {
         let imageFileName: String?
         let cropX: Double?
         let cropY: Double?
+        /// The day the win belongs to, `yyyy-MM-dd`.
+        let dateString: String
+        /// A friend's photograph, cached under `Application Support/Crews`.
+        /// Never in `imageFileName`: that names a file of YOURS, which the
+        /// prune, the backup and the thumbnail store all own.
+        var sharedPhoto: URL? = nil
+        /// Whose win it is, for the back of a crew block: "Sam". Nil on your
+        /// own tower, where every block is yours.
+        var sender: String? = nil
+        /// True for your own win in a crew tower.
+        var isMine = true
+
+        var hasPhoto: Bool { imageFileName != nil || sharedPhoto != nil }
 
         init(habit: Habit, log: HabitLog) {
             title = habit.title
@@ -41,10 +58,32 @@ struct PlacedBlock: Identifiable, Equatable {
             imageFileName = log.imageFileName
             cropX = log.cropPositionX
             cropY = log.cropPositionY
+            dateString = log.dateString
+        }
+
+        /// A crew's copy of a win. `sender` is nil when it is yours.
+        init(win: SharedWin, sender: String?) {
+            title = win.title
+            displayCategory = win.colour
+            category = win.icon
+            blockSize = win.blockSize
+            imageFileName = nil
+            cropX = win.cropX
+            cropY = win.cropY
+            dateString = win.crewDay
+            sharedPhoto = win.photo
+            self.sender = sender
+            isMine = sender == nil
         }
     }
 
     init(id: UUID, habit: Habit, log: HabitLog, column: Int, row: Int, columnSpan: Int, rowSpan: Int, isSkipped: Bool = false) {
+        self.init(id: id, look: Look(habit: habit, log: log), habit: habit, log: log,
+                  column: column, row: row, columnSpan: columnSpan, rowSpan: rowSpan, isSkipped: isSkipped)
+    }
+
+    init(id: UUID, look: Look, habit: Habit? = nil, log: HabitLog? = nil,
+         column: Int, row: Int, columnSpan: Int, rowSpan: Int, isSkipped: Bool = false) {
         self.id = id
         self.habit = habit
         self.log = log
@@ -53,7 +92,7 @@ struct PlacedBlock: Identifiable, Equatable {
         self.columnSpan = columnSpan
         self.rowSpan = rowSpan
         self.isSkipped = isSkipped
-        self.look = Look(habit: habit, log: log)
+        self.look = look
     }
 
     /// Same win, same objects, same place, same look.
@@ -134,9 +173,6 @@ final class TowerViewModel {
     func buildTower(from logs: [HabitLog],
                     filterMode: TowerFilterMode = .day,
                     preserveOrder: Bool = false) -> Set<UUID> {
-        // Boolean grid matrix: grid[row][col] = true means occupied
-        var grid = [[Bool]]()
-
         // Include completed AND skipped blocks, oldest first so newest land on top
         let filtered = logs.filter { ($0.completed || $0.skipped) && $0.habit != nil }
         let eligibleLogs = preserveOrder ? filtered : filtered
@@ -155,6 +191,33 @@ final class TowerViewModel {
                 }
             }
 
+        let entries = eligibleLogs.compactMap { log -> TowerEntry? in
+            guard let habit = log.habit else { return nil }
+            return TowerEntry(id: log.id, look: PlacedBlock.Look(habit: habit, log: log),
+                              isSkipped: log.skipped && !log.completed, habit: habit, log: log)
+        }
+        return buildTower(entries: entries, filterMode: filterMode)
+    }
+
+    /// One block to stand in a tower: your win or a crew's copy of one.
+    struct TowerEntry {
+        let id: UUID
+        let look: PlacedBlock.Look
+        var isSkipped = false
+        var habit: Habit? = nil
+        var log: HabitLog? = nil
+    }
+
+    /// Packs entries in the order given. The Wins tab reaches this through
+    /// `buildTower(from:)`, which sorts its logs first; a crew tower sorts its
+    /// own wins by when they were sent and passes `merges: false`, because two
+    /// touching blocks there are two people's wins (spec 2.4).
+    @discardableResult
+    func buildTower(entries: [TowerEntry],
+                    filterMode: TowerFilterMode = .day,
+                    merges: Bool = true) -> Set<UUID> {
+        // Boolean grid matrix: grid[row][col] = true means occupied
+        var grid = [[Bool]]()
         let useDayBoundaries = filterMode != .day
 
         var placed: [PlacedBlock] = []
@@ -166,34 +229,34 @@ final class TowerViewModel {
         // for every block, which made a build quadratic in the tower's height.
         var floorRow = 0
 
-        for log in eligibleLogs {
-            guard let habit = log.habit else { continue }
-            let colSpan = habit.blockSize.columnSpan
-            let rowSpan = habit.blockSize.rowSpan
-            let isSkipped = log.skipped && !log.completed
+        for entry in entries {
+            let colSpan = entry.look.blockSize.columnSpan
+            let rowSpan = entry.look.blockSize.rowSpan
+            let dateString = entry.look.dateString
 
             // Day boundary: force new row when date changes (Week/Month only)
-            if useDayBoundaries, let current = currentDateString, log.dateString != current {
+            if useDayBoundaries, let current = currentDateString, dateString != current {
                 // Advance grid to next empty row
                 let nextEmptyRow = grid.count
-                dayBoundaryRows.append((dateString: log.dateString, row: nextEmptyRow))
+                dayBoundaryRows.append((dateString: dateString, row: nextEmptyRow))
             }
-            currentDateString = log.dateString
+            currentDateString = dateString
 
             if let pos = findPosition(columnSpan: colSpan, rowSpan: rowSpan, grid: &grid, from: floorRow) {
                 while floorRow < grid.count && !grid[floorRow].contains(false) { floorRow += 1 }
                 let block = PlacedBlock(
-                    id: log.id,
-                    habit: habit,
-                    log: log,
+                    id: entry.id,
+                    look: entry.look,
+                    habit: entry.habit,
+                    log: entry.log,
                     column: pos.column,
                     row: pos.row,
                     columnSpan: colSpan,
                     rowSpan: rowSpan,
-                    isSkipped: isSkipped
+                    isSkipped: entry.isSkipped
                 )
                 placed.append(block)
-                blockCountByDate[log.dateString, default: 0] += 1
+                blockCountByDate[dateString, default: 0] += 1
             }
         }
 
@@ -214,7 +277,7 @@ final class TowerViewModel {
         defer { if !hasBuiltOnce { hasBuiltOnce = true } }
 
         if placedBlocks != placed { placedBlocks = placed }
-        let groups = BlockMerge.groups(for: placed)
+        let groups = merges ? BlockMerge.groups(for: placed) : []
         if !Self.sameGroups(mergeGroups, groups) {
             mergeGroups = groups
             let grouped = Set(groups.flatMap(\.memberIDs))
