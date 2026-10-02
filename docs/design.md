@@ -72,6 +72,8 @@ measurement beside it.
 | The head maker **switches to the light page** for its preview | 2026-10-02 | "Keep the switch"; the head is shown where it will live |
 | Profile's Done stays **the title's ink** | 2026-10-02 | "Leave it"; monochrome like every other sheet |
 | Add and Edit **read from the top**: name, its controls, the block, air below. The block is not floored | 2026-10-02 | "why is the spacing that spaced out looks odd"; it was 64 under the name and 197 over the block |
+| Tapping the **tower head plays a face**, the camera's twelve, never the same twice running | 2026-10-02 | "when you click on it it will change faces just like the camera" |
+| Dragging the tower head shows a **glass bubble directly left of the Plan button, its size**. Let go in it and he parks; tap it and it pops | 2026-10-02 | "make the glass button right next to the plan and be the same size on the left of the plan right next to it" |
 
 ### The blocks and the tower
 

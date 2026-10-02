@@ -926,12 +926,16 @@ struct MainAppView: View {
         // Centred, not baseline-aligned: there is no type left in this row to
         // sit a baseline on, and two capsules of the same height centre on
         // each other exactly.
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: GridConstants.gapTight) {
             // Nothing on the left. The owner's corner, kept clear for whatever
             // he puts there — see the note above `towerHeader`. One control in
             // open air is a header; two controls with a caption between them is
             // a toolbar.
             Spacer(minLength: 0)
+            // The tower head's bubble, directly left of the Plan button and
+            // its size (the owner, 2026-10-02). Invisible unless he is being
+            // carried or is parked in it. See `CompanionDock`.
+            CompanionDock()
             headerPlan
         }
         .accessibilityElement(children: .contain)

@@ -39,6 +39,9 @@ enum CompanionProbe {
     /// the 60Hz loop apart from the cost of `LivingHeadView` playing its own
     /// idle beats, which it does whether or not this feature exists.
     static let plain = args.contains("-strataCompanionPlain")
+    /// `-strataCompanionStill`: hold him where he is placed, so a test can tap
+    /// him; he moves faster than a screenshot-then-tap loop can follow.
+    static let still = args.contains("-strataCompanionStill")
 
     private static let log = Logger(subsystem: "Strata", category: "companion")
     private static var lastNote: CFTimeInterval = 0
@@ -445,6 +448,20 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
     @Environment(\.headsAwake) private var headsAwake
 
     @State private var life = TowerCompanionLife()
+    /// **Tap him and he pulls a face, the same twelve as on a photograph**
+    /// (the owner, 2026-10-02: "when you click on it it will change faces just
+    /// like the camera"). The same `HeadTakeDeck` as `HeadSticker`, so it
+    /// never repeats the face it just made; unlike the sticker he does not
+    /// keep it, because nothing is being saved: the take plays, holds, and he
+    /// eases back to calm.
+    @State private var take: HeadTake.Played?
+    @State private var deck = HeadTakeDeck()
+    /// The bubble beside the Plan button. See `CompanionDock`.
+    @State private var parking = CompanionParking.shared
+    /// He comes back out of a popped bubble at bubble size, from its centre,
+    /// and grows into his own spot.
+    @State private var emergeScale: CGFloat = 1
+    @State private var emergeOffset: CGSize = .zero
 
     var body: some View {
         GeometryReader { geo in
@@ -460,8 +477,10 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             // the owner asked to float has to be in motion while it is on
             // screen, so the only gates left are the ones that mean nobody can
             // see it.
+            // Parked, or flying into the bubble, nothing simulates him.
             let paused = reduceMotion || !active || !headsAwake
-                || scenePhase != .active
+                || scenePhase != .active || Self.heldStill
+                || parking.parked || parking.arriving
 
             // **Built once per evaluation of this body, never inside the frame
             // loop.** `LivingHeadView` is a big view. The loop below applies a
@@ -493,21 +512,40 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                     // tower behaviours gated off that is never, and an ellipse
                     // blurred at zero opacity on every frame is a cost for
                     // something that cannot appear.
-                    if life.grounded { contactShadow }
+                    if life.grounded && !parking.parked && !parking.arriving { contactShadow }
+                    // In the bubble, or on his way in, the bubble draws him.
+                    if !parking.parked && !parking.arriving {
                     head
+                        .scaleEffect(emergeScale)
                         .rotationEffect(.degrees(life.tilt))
-                        .offset(x: life.position.x - side / 2,
-                                y: life.position.y - side / 2)
+                        .offset(x: life.position.x - side / 2 + emergeOffset.width,
+                                y: life.position.y - side / 2 + emergeOffset.height)
                         .gesture(drag)
+                        // The system's own tap, beside the drag rather than
+                        // worked out from it: it has the platform's slop and
+                        // timing, and a drag that moves cancels it.
+                        .simultaneousGesture(TapGesture().onEnded { changeFace() })
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height,
                        alignment: .topLeading)
             }
         }
+        // The bubble popped: he comes out where it was, at its size, and grows.
+        .onChange(of: parking.popped) { leaveTheBubble() }
         // The head is a companion, not information. There is nothing in him
         // for VoiceOver to read, and a floating element in the tower's tree
         // would be one more thing to swipe past on the way to a win.
         .accessibilityHidden(true)
+    }
+
+    /// `-strataCompanionStill` (DEBUG): held where he is placed.
+    private static var heldStill: Bool {
+        #if DEBUG
+        CompanionProbe.still
+        #else
+        false
+        #endif
     }
 
     /// The head itself, or a plain disc under `-strataCompanionPlain`.
@@ -519,12 +557,12 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                 .frame(width: side, height: side)
                 .contentShape(Circle())
         } else {
-            LivingHeadView(rig: rig, side: side, liveliness: .calm)
+            LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
                 .frame(width: side, height: side)
                 .contentShape(Circle())
         }
         #else
-        LivingHeadView(rig: rig, side: side, liveliness: .calm)
+        LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
             .frame(width: side, height: side)
             .contentShape(Circle())
         #endif
@@ -562,6 +600,15 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 let p = arenaPoint(value.location)
+                // Carrying him brings the bubble; over it, it swells.
+                if !parking.dragging {
+                    withAnimation(GridConstants.motionSnappy) { parking.dragging = true }
+                }
+                let over = parking.isOver(value.location)
+                if over != parking.over {
+                    parking.over = over
+                    if over { HapticsEngine.tick() }
+                }
                 // **The world is handed in, so the clamp and the finger are the
                 // same write.** It used to be clamped afterwards by the
                 // simulation's own resolve on the next tick, which meant two
@@ -581,8 +628,58 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
                 let v = CGVector(
                     dx: (value.predictedEndTranslation.width - value.translation.width) / 0.25,
                     dy: (value.predictedEndTranslation.height - value.translation.height) / 0.25)
-                life.sim.touch(.ended, at: p, velocity: v, in: life.world)
+                let parks = parking.over
+                parking.over = false
+                // Let go over the bubble: he stops where he is and flies in.
+                life.sim.touch(.ended, at: p, velocity: parks ? .zero : v, in: life.world)
+                if parks {
+                    parking.beginArrival(from: value.location, side: life.side)
+                } else {
+                    withAnimation(GridConstants.motionSnappy) { parking.dragging = false }
+                }
             }
+    }
+
+    /// The bubble's centre in this overlay's coordinates.
+    private var dockCentre: CGPoint {
+        CGPoint(x: parking.dockFrame.midX - life.arenaOrigin.x,
+                y: parking.dockFrame.midY - life.arenaOrigin.y)
+    }
+
+    /// **Out of the popped bubble**, where it was, at its size, growing back to
+    /// his own as he starts to float again.
+    ///
+    /// The bubble is an obstacle he keeps off, so the simulation puts him just
+    /// clear of it rather than inside it. He is drawn from the bubble's centre
+    /// anyway, offset back to it, and the offset runs out as he grows: filmed
+    /// without it, his first frame was already beside the bubble, which read
+    /// as a jump rather than a pop.
+    private func leaveTheBubble() {
+        let fit = CompanionParking.parkedSide / max(life.side, 1)
+        let centre = dockCentre
+        life.sim.place(in: life.world, at: centre,
+                       velocity: CGVector(dx: CGFloat.random(in: -60...60), dy: 90))
+        emergeOffset = CGSize(width: centre.x - life.sim.position.x,
+                              height: centre.y - life.sim.position.y)
+        emergeScale = fit
+        withAnimation(GridConstants.elasticPop) {
+            emergeScale = 1
+            emergeOffset = .zero
+        }
+    }
+
+    /// Exactly `HeadSticker.changeFace`: the next of the faces this head has,
+    /// never the one it just made, played in a random direction.
+    private func changeFace() {
+        let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil,
+                                           reduceMotion: reduceMotion)
+        guard let next = deck.next(from: available) else { return }
+        HapticsEngine.tick()
+        #if DEBUG
+        NSLog("[strata-head] tower take \(next.id.rawValue)")
+        #endif
+        take = HeadTake.Played(id: next.id, direction: Bool.random() ? 1 : -1,
+                               nonce: (take?.nonce ?? 0) + 1)
     }
 
     /// **The window's own size**, which is the only way an overlay on the scroll
@@ -645,6 +742,12 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             life.sim.visitsTheTower = CompanionProbe.visitsTheTower
             #endif
             life.sim.place(in: world)
+            #if DEBUG
+            // Held mid-screen, clear of the status bar, where a test can tap.
+            if CompanionProbe.still {
+                life.sim.place(in: world, at: CGPoint(x: arena.width / 2, y: arena.height * 0.4))
+            }
+            #endif
             life.lastFrame = now
         }
         life.sim.reduceMotion = reduceMotion

@@ -639,6 +639,14 @@ enum GridConstants {
         calm(.interpolatingSpring(duration: 0.34, bounce: 0.18, initialVelocity: velocity))
     }
 
+    /// The tower head flying into the bubble beside the Plan button
+    /// (`CompanionDock`): a little bounce as he arrives, because he was thrown
+    /// there, which is the one kind of motion this app lets overshoot.
+    static var parkFlight: Animation { calm(.spring(duration: 0.42, bounce: 0.16)) }
+    /// The bubble popping: out and gone, quicker than anything arrives, the
+    /// way a bubble does.
+    static let popBurst = Animation.easeOut(duration: 0.18)
+
     static var slotSnap: Animation { calm(Animation.spring(response: 0.30, dampingFraction: 1.0)) }
     /// Drag distance that commits the next size up.
     static let slotStep: CGFloat = 46
