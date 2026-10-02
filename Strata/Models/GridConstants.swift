@@ -150,8 +150,13 @@ enum GridConstants {
     // rung is deliberately blockCornerRadius, so chrome and blocks agree.
     /// Sheets and expansion cards — surfaces that become the environment.
     static let radiusSurface: CGFloat = 20
-    /// Cards, form fields, wells, pickers. Same value as blockCornerRadius.
-    static let radiusField: CGFloat = 12
+    // **`radiusField` (12) is deleted** (2026-10-02), zero call sites. It was
+    // the radius for "cards, form fields, wells, pickers", and every one of
+    // those draws through `blockCornerRadius(forCell:)` or the platform's own
+    // `Form` now. Its comment said "same value as blockCornerRadius", which is
+    // the whole case against it: a second name for a number the block ladder
+    // already owns, which is exactly how a ladder rots. The note below once said
+    // it "keeps its caller"; the caller went in the 2026-10-01 consistency pass.
     /// Small controls, icon wells, drop indicators.
     static let radiusControl: CGFloat = 8
     /// Tiny marks — heatmap cells, day dots, bars.
@@ -179,7 +184,8 @@ enum GridConstants {
     // `docs/design-audit.md` had this open under "Still open": `radiusField` and
     // `fillTrack` are "a second vocabulary for things the block components now
     // cover, and they should be audited before anything new uses them." This is
-    // that audit. `radiusField` keeps its caller; this one had none.
+    // that audit. This one had no caller, and `radiusField` has since lost its
+    // own and gone too.
     static let horizontalPadding: CGFloat = 16
     /// The darkest a caption's veil over a photograph is allowed to get.
     ///

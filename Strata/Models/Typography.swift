@@ -240,14 +240,14 @@ enum Typography {
 
     // MARK: - Tier 3 · 15
 
-    /// 15 Medium. Buttons, a row's value, a look's name.
+    /// **15 Bold.** Buttons, a row's value, a look's name: a small heading.
     static let headerSmall = tier(.subheadline)
 
-    /// 15 Medium. The line under a heading or a screen title: "2 wins", a
+    /// **15 Medium.** The line under a heading or a screen title: "2 wins", a
     /// date, a count, an empty screen's one sentence.
     ///
     /// **It was Regular until 2026-10-01**, and it is Medium rather than the
-    /// heading's Semibold: what separates it from the line above it is size,
+    /// heading's Bold: what separates it from the line above it is size,
     /// ink AND now weight, which is three ways of saying the same thing and is
     /// why you never have to work out which one to read first.
     static let screenSubtitle = tier(.subheadline, bodyWeight)

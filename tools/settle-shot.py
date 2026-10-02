@@ -55,6 +55,27 @@ def shoot(path):
     return np.asarray(Image.open(path).convert("RGB")).astype(np.int16)
 
 
+def app_is_running():
+    """**Is the app actually running, as opposed to a still frame of anything?**
+
+    Added 2026-10-02. The settle test above asks two things — does the frame
+    have structure, and has it stopped moving — and **a home screen passes
+    both.** A wallpaper is detailed and perfectly still. Three of twenty-four
+    captures in one evening's set were of the springboard, and this script
+    reported each of them as a settled screenshot of the screen it was asked
+    for. Only the mean colour and `page-room.py --signature` caught them.
+
+    So it asks the simulator's launchd whether the app's job exists. This
+    catches the failure that produced every one of those three: a launch that
+    did not happen, or an app that crashed while seeding. It does NOT catch an
+    app that is running and backgrounded, because a backgrounded app keeps its
+    job; nothing here backgrounds the app, so that case has never occurred.
+    """
+    out = subprocess.run(["xcrun", "simctl", "spawn", SIM, "launchctl", "list"],
+                         capture_output=True, text=True).stdout
+    return any(f"UIKitApplication:{BID}" in line for line in out.splitlines())
+
+
 def main():
     name = os.path.basename(OUT)
     began = time.time()
@@ -70,6 +91,12 @@ def main():
         std = float(frame.std())
         still = prev is not None and float(np.abs(frame - prev).mean()) < STILLNESS
         if std > STRUCTURE and still:
+            if not app_is_running():
+                Image.fromarray(frame.astype(np.uint8)).save(OUT)
+                os.remove(tmp)
+                print(f"  {name}  APP NOT RUNNING  the settled frame is not the app; "
+                      f"launch {launched:.0f}s")
+                return 2
             Image.fromarray(frame.astype(np.uint8)).save(OUT)
             os.remove(tmp)
             dom = tuple(int(c) for c in frame.reshape(-1, 3).mean(axis=0))

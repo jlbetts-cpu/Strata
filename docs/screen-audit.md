@@ -314,7 +314,19 @@ screen's to fix.
 **The Wins tab cannot be measured by this instrument at all.** `page-room.py`
 reads 76 to 78% empty with one 577pt "break", and that break is the unbuilt
 tower: `TowerLattice` is deliberately 1.03:1 against its own page, so the
-instrument is blind to it. **Anything this check says about Wins is wrong**, and
+instrument is blind to it.
+
+**That 1.03:1 is the LIGHT page's number, and this exemption quoted only it until
+2026-10-02.** Measured on the day album in both schemes: the pane sits **2.0
+levels** from its gutter on the light page and **7.0 levels** on the night one
+(1.018:1 against 1.089:1). So in dark the lattice is over check 12's 4-level line
+and is no longer texture by the rule's own definition. It is still exempt, and the
+reason is the owner rather than the number: the dark strength (`strengthDark`,
+0.04) is what he approved on 2026-10-01 after calling the previous dark lattice
+"a weird looking light" that did not "blend in like light mode", and it went from
+2.91:1 to 1.11:1 to answer him. An exemption has to quote both pages, because a
+value tuned on one page and quoted from it is the fault this app has had five
+times. **Anything this check says about Wins is wrong**, and
 it must never be allowed to argue for darkening the lattice, which was refused on
 measurement once already. Wins is judged by looking, at forty wins, not at two.
 
