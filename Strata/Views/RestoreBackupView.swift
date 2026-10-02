@@ -101,9 +101,16 @@ struct RestoreBackupView: View {
         // title, an object's name, and body. This screen was setting four sizes
         // (34 for the tally, 15 for this line, 17 for the facts under it and 13
         // for the plan beneath those), and 15 is the one of them that belongs to
-        // no tier: `screenSubtitle` is the line under a SCREEN title, and the
-        // screen's title here is "Restore", up in the toolbar. This is a word
-        // naming a number, which is body. Three sizes now: 34, 17, 13.
+        // no tier here: `screenSubtitle` is the line under a SCREEN title, and
+        // the screen's title here is "Restore", up in the toolbar. This is a
+        // word naming a number, which is body.
+        //
+        // **Two sizes now, 34 and 17** (2026-10-01, the type pass). The four
+        // 13pt lines left on this screen — the two sub-facts under the merge
+        // plan, the "Restoring only adds" promise and the warning note — are
+        // all `bodyLarge` as well. They are consequences of a button you are
+        // about to press, and the promise in particular is the sentence that
+        // makes the press safe; none of them is a caption.
         VStack(alignment: .leading, spacing: GridConstants.spacing) {
             // `StrataFont.digits`, never `Text("\(n)")`: interpolation groups a
             // thousand as "1,000" and the owner's face has no comma.
@@ -145,20 +152,20 @@ struct RestoreBackupView: View {
                 Text(plan.winsAlreadyHere == 1
                      ? "1 is already on this phone and will be left as it is."
                      : "\(plan.winsAlreadyHere) are already on this phone and will be left as they are.")
-                    .font(Typography.bodySmall)
+                    .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
             if !plan.photographsForExistingWins.isEmpty {
                 Text(plan.photographsForExistingWins.count == 1
                      ? "1 win already here will get its photograph back."
                      : "\(plan.photographsForExistingWins.count) wins already here will get their photographs back.")
-                    .font(Typography.bodySmall)
+                    .font(Typography.bodyLarge)
                     .foregroundStyle(AppColors.inkSecondary)
             }
             // **The promise, stated on the screen that asks for the tap.** It is
             // also what the code does: `BackupRestore` contains no delete.
             Text("Restoring only adds. Nothing already on this phone is deleted or changed.")
-                .font(Typography.bodySmall)
+                .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
         }
 
@@ -293,7 +300,7 @@ struct RestoreBackupView: View {
                 .iconSize(GridConstants.iconMedium, relativeTo: .footnote, weight: .medium)
                 .foregroundStyle(AppColors.inkQuiet)
             Text(text)
-                .font(Typography.bodySmall)
+                .font(Typography.bodyLarge)
                 .foregroundStyle(AppColors.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

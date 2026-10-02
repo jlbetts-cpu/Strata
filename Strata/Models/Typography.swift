@@ -19,40 +19,70 @@ import UIKit
 // and the note there says so.
 
 enum Typography {
-    // MARK: - The scale: five sizes, two weights
+    // MARK: - The scale: THREE sizes, ONE weight
     //
-    // 34, 17, 15, 13 and 11, at Regular and Medium (docs/research/font.md
-    // (c)). Semibold came off the scale: the owner's face had one cut, and its
-    // heavy drawn stem already did the job a third weight did. Every token is a
-    // text STYLE, so Dynamic Type moves the lot together.
+    // **34, 17, 15. Medium. That is the whole scale** (2026-10-01).
     //
-    // **Two weights, and now it is true everywhere** (2026-10-01). The owner:
-    // "can you make sure there is one font and not so many font weights."
+    // The owner, looking at the built app: "I dont like the tiny text lets
+    // remove it focus on the bigger text making it more clear and thicker like
+    // a premium font instead of thin... on everypage the weight should be
+    // similar no tiny thin font anywhere", and "I hate when there is like one
+    // type of font next to another... I like the text that is there to feel
+    // like a medium weight and be consistent guiding the user no tiny text
+    // under or anythign like that I want it to be controlled."
     //
-    // Four cuts were setting type when he said it, not two. The two extra were
-    // both on screen TITLES and both existed to answer the same complaint, that
-    // a title at 34 looked thin:
+    // So two things went in this pass, and they are the two he named:
     //
-    // - `DrawnLettering` in `StrataMark.swift` set `MemoriesTitle` SEMIBOLD.
-    // - `OnboardingView`'s page title put `.fontWeight(.bold)` over this file's
-    //   `screenTitle`, which is Medium, so the override was the only thing that
-    //   decided it.
+    // 1. **The 13 and the 11 are gone, tokens and all.** `caption2` (11) had
+    //    no call sites and `bodySmall` (13) had 29: one of those was deleted
+    //    outright, four went to 17 because they are consequences rather than
+    //    captions, and the other 24 went to 15. Both tokens are deleted, so
+    //    there is no 13 or 11 left for anyone to reach for by accident.
+    //    `sectionLabel` was 13 and is 15.
+    // 2. **Regular is gone.** `bodyLarge` and `screenSubtitle` were Regular and
+    //    are Medium. Nothing a person reads is set lighter than Medium now.
     //
-    // Both are Medium now, and both read `titleWeight` below rather than naming
-    // a cut, so the decision is one token instead of two files that have to be
-    // found. Measured out of `SFNS.ttf`'s own `wght` axis at `opsz` 33.55, the
-    // size a screen title resolves to, upem 2048: a capital's stem is 0.0879 em
-    // Regular, 0.1097 Medium, 0.1256 Semibold, 0.1475 Bold, which is 2.95 /
-    // 3.68 / 4.21 / 4.95 pt. So Memories gave up 0.53pt of stroke (12.6%) and
-    // onboarding 1.27pt (25.6%). Those are the numbers he overrules this with,
-    // and the note on `titleWeight` says what to type.
+    // What that costs, and it is the honest price: **17 and 15 are now one
+    // weight as well as one face, so size is the only thing separating a
+    // heading from the line under it.** That is the look he asked for — "the
+    // thicker font with less font around it" — and the way it is kept readable
+    // is ink, not weight: a heading takes `inkPrimary` and the line under it
+    // `inkSecondary`. Measured on SF's own `wght` axis at `opsz` 17, upem 2048:
+    // a capital's stem goes 0.0879 em Regular to 0.1097 Medium, 1.50pt to
+    // 1.87pt, 24.8% more stroke on every body line in the app.
     //
-    // **What did NOT survive the move is the semibold's reason, which is why it
-    // was not kept.** Its comment said the title "stands over a live map", and
-    // that stopped being true when Memories stopped being a drawer: the page
-    // sets `.background { WarmBackground() }` (`MemoriesView.swift`) and the map
-    // is a button in the corner of it. A weight bought to beat MapKit's labels
-    // was being spent on a warm flat ground.
+    // **The three tiers are the only numbers here, and they are the drop-in
+    // point for the custom face.** Every token below is `tier(_:)` or the
+    // owner's digits; none of them names a size of its own. When the typeface
+    // arrives it replaces the one `.system` call inside `tier(_:)` with
+    // `.custom(name, relativeTo:)`, and `StrataFont` beside it, and nothing
+    // else in the app has to be found.
+    //
+    // **Three EXCEPTIONS survive below 15, each named where it lives**, because
+    // in each case the measurement argues against the instruction and
+    // `CLAUDE.md` says to report the number rather than narrow the ask:
+    //
+    // - **A block's title, 13 Medium** (`BlockContent`). It is sized to the
+    //   BLOCK, not to the page. Measured with Core Text at the live 86.5pt cell
+    //   (66.5pt of room after the 12/8 padding), over fourteen ordinary
+    //   titles: 4 truncate at 13 and 8 at 15. "Inbox zero" is 64.4pt at 13 and
+    //   72.8 at 15. Doubling the truncation rate on the one string the person
+    //   typed is a worse trade than a 13pt label.
+    // - **Geometry-solved numerals** (`numeral(_:)`): the month block's
+    //   `cell * 0.16`, the camera's 96pt countdown, and the map's cluster badge
+    //   at 13. These are a fraction of an object, not a rung on a scale, and
+    //   they always were. Only the badge is actually under the floor, and its
+    //   own comment carries the number: at 15 a two-digit capsule goes 24.3pt
+    //   to 27.1, 55% of the 44pt block to 62%, re-inflating a badge that was
+    //   deliberately measured down to 16.7% of it on the same day.
+    // - **`MemoriesStill`'s tab bar**, 11 and 20 at a scale factor `s` < 1. It
+    //   is a PICTURE of the phone inside the onboarding device frame, and the
+    //   numbers in it are iOS's own tab-bar metrics, not this app's type.
+    //
+    // An SF Symbol's weight is still a separate axis on a separate kind of
+    // object (`IconStyle.iconSize(_:weight:)`). A previous pass counted the
+    // symbols into the weight ladder, concluded the app had five cuts, and was
+    // wrong. Count them in their own column or not at all.
     //
     // Merged on 2026-09-16, each into the rung it was nearest: headerLarge
     // (20) and blockTitle (16) into `headerMedium`, bodyMedium (16) into
@@ -61,81 +91,53 @@ enum Typography {
     // brandSubheader, brandHeroDate, brandCardTitle, appTitle,
     // miniBlockTitle, miniBlockIcon and the three kernings beside them.
     //
-    // Outside the scale on purpose, because geometry solves them rather than
-    // a choice: the month block's `cell * 0.16` numeral, the camera
-    // countdown, the widget's counts, and symbol glyph sizes.
-    //
-    // **An SF Symbol's weight is not one of these two.** It is a separate axis
-    // on a separate kind of object: `IconStyle`'s `iconSize(_:weight:)` defaults
-    // to Regular and the app sets Medium on about a dozen glyphs and Semibold on
-    // the month chevron, and none of that is a type decision. A previous pass
-    // counted the symbols into the weight ladder, concluded the app had five
-    // cuts, and was wrong. Count them in their own column or not at all.
+    // **`caption2` is deleted** (2026-10-01). It was 11 Medium, kept with a
+    // comment saying it had no call sites on purpose. A token nothing uses is
+    // a value somebody reuses by accident, and 11 is now off the scale anyway.
 
-    /// 17 Medium. Headings, and a block's or a card's title.
-    static let headerMedium = Font.system(.headline, design: .default, weight: .medium)
-    /// 15 Medium. Buttons.
-    static let headerSmall = Font.system(.subheadline, design: .default, weight: .medium)
-    /// 17 Regular. What you read.
-    static let bodyLarge = Font.system(.body, design: .default)
-    /// 13 Regular. Footnotes and captions.
-    static let bodySmall = Font.system(.footnote, design: .default)
-    /// 11 Medium. Chart axes and the smallest labels.
-    /// **No call sites, and that is deliberate now.** Its doc said "chart axes
-    /// and the smallest labels", and the audit took both of its callers off it
-    /// on the same day: the plan's repeat caption and the profile chart's axis,
-    /// each because 11 Medium was a fourth size on a screen that already had
-    /// three. Kept rather than deleted so the next person reads this line
-    /// instead of reintroducing an 11pt rung on the strength of a stale
-    /// comment: if a label is too small for `bodySmall`, the screen has a
-    /// hierarchy problem and not a type problem.
-    static let caption2 = Font.system(.caption2, design: .default, weight: .medium)
-
-    // MARK: - The screen scale
-    //
-    // Three sizes for everything a screen says about itself, and no more.
-    //
-    // The app had drifted to a different title size per screen — Memories at
-    // 48, a day at 33, an assortment of `.title3`/`.headline` elsewhere — so
-    // moving between tabs meant the same kind of thing arriving at a different
-    // weight each time. Less variety is the whole point: a page with one title
-    // size and one label size has a hierarchy you can read without looking for
-    // it.
-
-    /// **Text STYLES, not point sizes.**
+    /// **The one weight.** Every tier, every title, every label.
     ///
-    /// These were `.system(size:)`, which is a fixed size and does not move
-    /// when somebody turns Dynamic Type up. That is the single most-used
-    /// accessibility setting on iOS and this app is meant to be handed to
-    /// someone's grandmother, so a title that ignores it is not a small
-    /// omission.
+    /// It used to be only the title's weight, because the titles were the two
+    /// places the app disagreed with itself. It is now the whole scale's: the
+    /// app sets nothing in Regular, Light or Thin, and nothing in Semibold or
+    /// Bold either.
     ///
-    /// Each style below is the one whose DEFAULT size is the number that was
-    /// there before, so nothing moves at the default setting and everything
-    /// moves together at any other: large title 34, subheadline 15, footnote
-    /// 13, caption 12.
-
-    /// **The weight every screen title is set in, in one place.**
+    /// If "the type is too thin" ever comes back, **this line is the lever and
+    /// it moves everything at once** — which is the point of it being one line.
+    /// Measured at `opsz` 33.55 (a screen title): Medium's stem is 3.68pt,
+    /// Semibold's 4.21 (+14.5%), Bold's 4.95 (+34.4%).
     ///
-    /// It exists because it was in two places and they disagreed. `screenTitle`
-    /// below was Medium, `MemoriesTitle` was Semibold and onboarding's page
-    /// title was Bold, so the app had three answers to "how heavy is a title"
-    /// and the only way to find that out was to grep. Now there is one answer
-    /// and it is here.
-    ///
-    /// **Medium, which is what the scale above claims and what the owner asked
-    /// for on 2026-10-01.** The two heavier cuts were both answering "the type
-    /// is too thin" at 34pt. If that complaint comes back, this is the line:
-    /// setting it `.semibold` lifts BOTH titles together and costs one cut, and
-    /// is a better trade than restoring two different heavy cuts on two screens,
-    /// which is what was here before. Measured at `opsz` 33.55: Medium's stem is
-    /// 3.68pt, Semibold's 4.21 (+14.5%), Bold's 4.95 (+34.4%).
-    ///
-    /// **Not reachable from the widget**, which is a separate target and does not
-    /// see this file. `StrataFont` in `Shared/` carries its own Medium and has a
-    /// note pointing back here, so a change made in this line has to be made
-    /// there too or the tally and the title stop matching.
+    /// **Not reachable from the widget**, which is a separate target and does
+    /// not see this file. `StrataFont` in `Shared/` carries its own Medium and
+    /// has a note pointing back here, so a change made in this line has to be
+    /// made there too or the tally and the title stop matching.
     static let titleWeight: Font.Weight = .medium
+
+    /// **The three tiers, and the only place a size is named.**
+    ///
+    /// A text STYLE, never a point size, so Dynamic Type moves the lot
+    /// together — `.system(size:)` is fixed and ignores the single most-used
+    /// accessibility setting on iOS, and this app is meant to be handed to
+    /// someone's grandmother.
+    ///
+    /// `.body` and `.headline` have the SAME ramp (17 at Large, 19/21/23 up,
+    /// 28/33/40/47/53 at the accessibility sizes) and differ only in their
+    /// default weight, which this overrides. So the 17 tier is one style, not
+    /// two that happen to agree.
+    ///
+    /// **This function is where the custom face lands.** One `.custom(_,
+    /// relativeTo:)` here and one in `StrataFont.relative` and the app has
+    /// changed typeface.
+    private static func tier(_ style: Font.TextStyle) -> Font {
+        .system(style, design: .default, weight: titleWeight)
+    }
+
+    /// The three tiers as text styles, so a test can read their point sizes out
+    /// of `UIFont` and fail when one of them drops below 15 or a fourth
+    /// appears. `TypographyTests` is that test.
+    static let tierStyles: [Font.TextStyle] = [.largeTitle, .body, .subheadline]
+
+    // MARK: - Tier 1 · 34
 
     /// The one screen title. Every page that names itself uses this.
     ///
@@ -143,30 +145,15 @@ enum Typography {
     /// number picked to look impressive. The 48 it replaced came from a lowfi
     /// and made the title the loudest thing on a page whose subject is
     /// photographs and blocks.
-    static let screenTitle = Font.system(.largeTitle, design: .default, weight: titleWeight)
+    static let screenTitle = tier(.largeTitle)
 
-    /// The same title in the owner's face (`StrataFont`), for a title that
-    /// names the screen, through `DynamicScreenTitle` where the words are data.
+    /// The same title through `DynamicScreenTitle`, where the words are data.
     ///
-    /// **These next two resolve to exactly the same font as `screenTitle` and
-    /// `headerMedium`, and the weight count is how that surfaced** (2026-10-01).
-    /// `StrataFont.relative` returns `.system(style, design: .default, weight:
-    /// .medium)` since the drawn face came off on 2026-09-30, so `screenTitleDrawn`
-    /// IS `.largeTitle` Medium and `sheetTitleDrawn` IS `.headline` Medium. Every
-    /// "drawn or not" branch in the app (`DynamicScreenTitle`'s `ViewThatFits`,
-    /// `SheetTitle`'s ternary) now picks between two identical fonts.
-    ///
-    /// Left alone rather than collapsed, for one reason that is not inertia:
-    /// `titleWeight` above is a real lever, and if it moves to Semibold then
-    /// `screenTitle` moves and `screenTitleDrawn` does NOT, so the drawn branch of
-    /// `DynamicScreenTitle` would silently set a day's name lighter than the
-    /// fallback beside it. Whoever moves that token prunes these two in the same
-    /// commit. `StrataTitle.swift` is the file to look at, and it is not this one.
+    /// **It resolves to exactly the same font as `screenTitle`** and is kept
+    /// rather than collapsed for one reason that is not inertia: `titleWeight`
+    /// is a real lever, and the two have to move together. `StrataTitle.swift`
+    /// is the file that branches on it.
     static let screenTitleDrawn = StrataFont.relative(screenTitleSize, to: .largeTitle)
-
-    /// A sheet's title in the owner's face, 17 relative to `.headline`. See
-    /// `View.sheetTitle(_:drawn:)`.
-    static let sheetTitleDrawn = StrataFont.relative(17, to: .headline)
 
     /// The metric behind it, for layout that has to do arithmetic — the
     /// header's cap-height padding, and the tally numeral. Fixed, because a
@@ -175,27 +162,16 @@ enum Typography {
 
     /// The CAP HEIGHT of a screen title, for artwork that has to match one.
     ///
-    /// A `Font.system(size:)` is an em size and its cap is a fraction of that
-    /// of it: 1443/2048, read out of a font's own table rather than eyeballed. The
+    /// A `Font.system(size:)` is an em size and its cap is a fraction of that:
+    /// 1443/2048, read out of a font's own table rather than eyeballed. The
     /// fraction did not change when the face did, which is luck and worth
-    /// writing down: `SFNSRounded.ttf` and `SFNS.ttf` both declare `sCapHeight`
-    /// 1443, so the number survived Rounded coming off on 2026-09-23. What did
-    /// NOT survive is the DRAWN side of the same conversion, which was on
-    /// Rounded's outline measurement. See `capOverEm` in `StrataMark.swift`.
-    /// A drawing's `size` IS its cap, so
-    /// handing a drawn title the 34 would set it 41% taller than the type it
-    /// replaced. Measured before this existed: "Memories" came out with a
-    /// 33.3pt cap against the tower tally's 23.3pt, on two screens that are
-    /// meant to have the same title.
+    /// writing down: `SFNSRounded.ttf` and `SFNS.ttf` both declare
+    /// `sCapHeight` 1443. What did NOT survive is the DRAWN side of the same
+    /// conversion — see `capOverEm` in `StrataMark.swift`. A drawing's `size`
+    /// IS its cap, so handing a drawn title the 34 would set it 41% taller than
+    /// the type it replaced: "Memories" came out with a 33.3pt cap against the
+    /// tower tally's 23.3pt.
     static let screenTitleCap: CGFloat = screenTitleSize * 1443 / 2048
-
-    /// The line under a screen title: "2 wins", a date, a count.
-    static let screenSubtitle = Font.system(.subheadline, design: .default)
-
-    /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
-    /// One style for all of them, so a heading is recognisable as a heading.
-    static let sectionLabel = Font.system(.footnote, design: .default, weight: .medium)
-    static let sectionKerning: CGFloat = 0.8
 
     /// Any number the app states as a fact about your day: the win tally, a
     /// day's numeral on a month block, a photo count. The owner's own digits
@@ -203,8 +179,47 @@ enum Typography {
     ///
     /// **Numbers, never words.** The face has ten glyphs and a space; a
     /// `Text` in it that contains a letter renders `.notdef`. Anything with a
-    /// word in it stays on `screenTitle` / `screenSubtitle`.
+    /// word in it stays on `screenTitle` / `headerSmall`.
     static let tally = StrataFont.relative(screenTitleSize, to: .largeTitle)
+
+    // MARK: - Tier 2 · 17
+
+    /// 17 Medium. A heading, a block's or a card's title, a sheet's one word.
+    static let headerMedium = tier(.body)
+
+    /// 17 Medium. Prose — a sentence somebody reads rather than scans.
+    ///
+    /// **It was Regular until 2026-10-01** and it is the same font as
+    /// `headerMedium` now. The two names are kept because they are two jobs
+    /// and both read at their call sites; neither names a number, so they
+    /// cannot drift apart the way `cornerRadiusSmall` and `radiusControl` did.
+    static let bodyLarge = tier(.body)
+
+    /// A sheet's title in the owner's face. See `View.sheetTitle(_:drawn:)`.
+    static let sheetTitleDrawn = StrataFont.relative(17, to: .body)
+
+    // MARK: - Tier 3 · 15
+
+    /// 15 Medium. Buttons, a row's value, a look's name.
+    static let headerSmall = tier(.subheadline)
+
+    /// 15 Medium. The line under a heading or a screen title: "2 wins", a
+    /// date, a count, an empty screen's one sentence.
+    ///
+    /// **It was Regular until 2026-10-01.** What separates it from the heading
+    /// above it is size and INK, never weight.
+    static let screenSubtitle = tier(.subheadline)
+
+    /// Uppercase section labels — ALBUMS, SEPTEMBER, a month in the gallery.
+    /// One style for all of them, so a heading is recognisable as a heading.
+    ///
+    /// **15, not the 13 it was.** It is the same font as `headerSmall` now and
+    /// the kerning plus `.textCase(.uppercase)` at the call site is what makes
+    /// it a label.
+    static let sectionLabel = tier(.subheadline)
+    static let sectionKerning: CGFloat = 0.8
+
+    // MARK: - Outside the scale, on purpose
 
     /// The same digits, at a size the caller solves for — a month block's
     /// numeral scales off its cell, not off the type scale.

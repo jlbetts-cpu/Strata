@@ -134,12 +134,16 @@ struct PlanItemDetailSheet: View {
                 } label: {
                     Text(letter(for: day))
                         // `sectionLabel` is the token, not a weight bolted on to
-                        // the body rung: the two resolve to the same font, and
-                        // section 2 of `docs/design-system-future.md` names this
-                        // style for "section headings and index labels". A
-                        // weekday initial in a chip is an index label. Not
-                        // uppercased or kerned here, because the locale already
-                        // gives the initial and one letter has nothing to kern.
+                        // the body rung: section 2 of
+                        // `docs/design-system-future.md` names this style for
+                        // "section headings and index labels", and a weekday
+                        // initial in a chip is an index label. Not uppercased or
+                        // kerned here, because the locale already gives the
+                        // initial and one letter has nothing to kern.
+                        //
+                        // It moved 13 -> 15 with the token on 2026-10-01. The
+                        // chip is 44pt and a single letter is about 10pt wide at
+                        // 15, so the seven of them still fit across the page.
                         .font(Typography.sectionLabel)
                         .foregroundStyle(on ? .white : AppColors.inkTertiary)
                         // 44, not 38: seven of them still fit across the

@@ -95,7 +95,7 @@ struct HeadLookPicker: View {
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
                 Text(look.kind.name)
-                    .font(Typography.bodySmall)
+                    .font(Typography.headerSmall)
                     // `inkSecondary`, not `inkQuiet`, for the same reason as
                     // `HeadPickerRow`'s name one row above: 6.19:1 where
                     // `inkQuiet` measured 3.3:1, and `inkQuiet` is the token for

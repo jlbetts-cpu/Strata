@@ -125,7 +125,37 @@ struct BlockContentOverlay: View {
             Spacer()
             if !isUnnamed {
                 Text(title)
-                    .font(Typography.bodySmall.weight(.medium))
+                    // **13 Medium, and it is the one piece of text in the app
+                    // left below the 15pt floor** (2026-10-01, the type pass).
+                    // The owner asked for "no tiny thin font anywhere";
+                    // everything else moved and this did not, and the reason is
+                    // a measurement rather than an opinion.
+                    //
+                    // A block's title is sized to the BLOCK, not to the page —
+                    // the same family as the month block's `cell * 0.16`
+                    // numeral, which `Typography` has always named as outside
+                    // the scale. The live cell is `GridConstants
+                    // .blockReferenceCell` 86.5, less the 12 leading and 8
+                    // trailing set below, so a 1x1 block offers **66.5pt** of
+                    // room on its one line.
+                    //
+                    // Measured with Core Text over fourteen ordinary titles,
+                    // SF Medium: **4 truncate at 13 and 8 at 15.** "Inbox zero"
+                    // is 64.4pt at 13 and 72.8 at 15; "Groceries" 60.1 and
+                    // 68.0; "Deep work" 66.2 and 75.0. Raising this rung
+                    // doubles the truncation rate on the one string the person
+                    // typed, in the one place the app is meant to be a picture
+                    // of what they did rather than a log of it. That is a worse
+                    // trade than a 13pt label, and `minimumScaleFactor` is not
+                    // the way out of it — see the note on `lineLimit` below,
+                    // which is why it came off.
+                    //
+                    // **It is MEDIUM, which is what the instruction was really
+                    // about**, and it already was. Spelled out here rather than
+                    // taken from a token, because there is no 13pt token any
+                    // more and there must not be one: this is the only site.
+                    // If this is reopened, the lever is the CELL, not the type.
+                    .font(.system(.footnote, design: .default, weight: .medium))
                     // **White, and the owner chose it over a measured
                     // alternative.** A dark ink was built, rendered on the
                     // real tower and put in front of him, because white here

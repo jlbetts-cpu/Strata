@@ -114,7 +114,7 @@ struct CachedImageView: View {
                     .frame(width: width, height: height)
                     .overlay(
                         Image(systemName: "photo")
-                            .font(.system(size: min(width, height) * 0.25, weight: .regular))
+                            .font(.system(size: min(width, height) * 0.25, weight: .medium))
                             .foregroundStyle(AppColors.inkQuiet)
                     )
                     .accessibilityLabel("Photo missing")

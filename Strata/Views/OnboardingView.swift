@@ -761,7 +761,7 @@ struct OnboardingView: View {
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
                 Text("Founder, developer and product designer")
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -1001,7 +1001,7 @@ struct OnboardingView: View {
             withAnimation(GridConstants.naturalSettle) { step += 1 }
         } label: {
             Text("Not now")
-                .font(Typography.bodySmall)
+                .font(Typography.headerSmall)
                 .foregroundStyle(AppColors.inkSecondary)
                 .frame(height: Self.tapFloor)
                 .padding(.horizontal, GridConstants.gapLabel)

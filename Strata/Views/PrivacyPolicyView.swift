@@ -28,13 +28,13 @@ struct PrivacyPolicyView: View {
                         // wants: a policy reads as a document, not as prose.
                         FormSectionLabel(section.title)
                         Text(section.body)
-                            .font(Typography.bodySmall)
+                            .font(Typography.bodyLarge)
                             .foregroundStyle(AppColors.inkSecondary)
                     }
                 }
 
                 Text("Last updated 14 September 2026")
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkQuiet)
                     .padding(.top, GridConstants.gapTight)
             }

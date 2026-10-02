@@ -710,7 +710,7 @@ struct MemoriesView: View {
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
             Text("Every win you log becomes a block, and they collect here by month.")
-                .font(Typography.bodySmall)
+                .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

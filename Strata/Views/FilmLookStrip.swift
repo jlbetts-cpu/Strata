@@ -91,7 +91,7 @@ struct FilmLookStrip: View {
                 // of 58.
 
                 Text(look.kind.name)
-                    .font(Typography.bodySmall)
+                    .font(Typography.headerSmall)
                     .foregroundStyle(isChosen ? AppColors.onDarkStrong : AppColors.onDarkQuiet)
             }
             .contentShape(Rectangle())

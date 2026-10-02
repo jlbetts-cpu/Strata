@@ -103,7 +103,8 @@ struct SectionHeading: View {
 //     `Typography.screenSubtitle`. `DayAlbumDetailView`, `PhotoCollectionView`.
 //   - a count in a card's caption: 13pt relative to `.footnote`, WITH
 //     `-StrataFont.opticalInset * 13` of leading so the digits stand on the
-//     card's edge, `inkTertiary`, word in `Typography.bodySmall`, lower case.
+//     card's edge, `inkTertiary`, word at the label tier, lower case.
+//     (It said `Typography.bodySmall`; that token is deleted — 2026-10-01.)
 //     `MemoriesShelf.countLine`, `AlbumCarousel.caption`.
 //
 // `CountReadout` is 13pt with no inset, `inkSecondary` digits, and its unit in

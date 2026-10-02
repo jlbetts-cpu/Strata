@@ -120,7 +120,7 @@ struct PhotoCollectionView: View {
     /// directly above it has already said that.
     private var emptyLine: some View {
         Text("No photographs here.")
-            .font(Typography.bodySmall)
+            .font(Typography.screenSubtitle)
             .foregroundStyle(AppColors.inkTertiary)
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.top, GridConstants.gapWide)

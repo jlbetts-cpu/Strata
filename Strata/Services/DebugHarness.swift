@@ -240,11 +240,6 @@ enum DebugHarness {
     /// timings beside it in `replay-export.txt`. The camera roll cannot be
     /// read back from here; a file can be probed, played and compared.
     static var exportsReplay: Bool { ProcessInfo.processInfo.arguments.contains("-strataExportReplay") }
-    /// `-strataReplayWindow week|month`: forces the Wins tab pill on, for a
-    /// period that may not actually have a win yet. The pill is only reachable
-    /// by waiting for Sunday evening or the 1st, which nothing on this machine
-    /// can do, so without this it could never be screenshotted at all.
-    static var replayWindow: String? { argument("-strataReplayWindow") }
 
     /// The creator's bundled faces as a made head, from `-strataSeedHead`.
     /// The simulator has no camera to make a real one with, so without this

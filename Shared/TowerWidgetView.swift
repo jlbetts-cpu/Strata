@@ -71,6 +71,19 @@ struct TowerPhotoBackground: View {
 // set its NUMBERS in SF Pro and its WORDS in SF Pro Rounded side by side in
 // one view. Rounded came off the app on 2026-09-23 and the widget did not
 // follow, because nothing in the app target compiles this file's type.
+//
+// **AND THE 13s ARE 15 NOW** (2026-10-01, the type pass). The owner: "no tiny
+// thin font anywhere... on everypage the weight should be similar". The app's
+// floor is 15 and this file is the only place outside it that still set type,
+// so the three 13pt lines — the word beside the count, the empty state's
+// sentence, and the lock screen's second line — went with the app's.
+//
+// **The sizes here are literals and must stay literals**: `Typography` is in
+// the app target and this file cannot see it. Measured before raising them, so
+// that nothing clips: on the small widget's 170pt face, "Your first win goes
+// here" is 165.2pt at 15 Medium and wraps as it already did; on
+// `accessoryRectangular` (about 160x72), the longest second line "1611
+// altogether" is 106.8pt and the stack is 19 + 1 + 17.9 = 37.9pt tall.
 struct TowerWidgetView: View {
     let snapshot: WidgetSnapshot
     /// Which of today's photographs to show — see `TowerProvider.getTimeline`.
@@ -141,7 +154,7 @@ struct TowerWidgetView: View {
                 .font(StrataFont.size(30))
                 .foregroundStyle(.white)
             Text(snapshot.today == 1 ? "win" : "wins")
-                .font(.system(size: 13, weight: .medium, design: .default))
+                .font(.system(size: 15, weight: .medium, design: .default))
                 .foregroundStyle(.white.opacity(0.85))
         }
         .shadow(color: .black.opacity(0.42), radius: 6, y: 1)
@@ -159,7 +172,7 @@ struct TowerWidgetView: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 30, height: 30)
             Text(snapshot.total == 0 ? "Your first win goes here" : "Nothing yet today")
-                .font(.system(size: 13, weight: .medium, design: .default))
+                .font(.system(size: 15, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -180,7 +193,7 @@ struct TowerWidgetView: View {
                     .font(.system(size: 15, weight: .medium, design: .default))
             }
             Text(secondLine)
-                .font(.system(size: 13, weight: .medium, design: .default))
+                .font(.system(size: 15, weight: .medium, design: .default))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

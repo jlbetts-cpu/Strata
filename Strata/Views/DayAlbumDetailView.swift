@@ -90,7 +90,7 @@ struct DayAlbumDetailView: View {
                         // a screen that renders a title over nothing is a
                         // screen somebody will eventually see.
                         Text("Nothing logged this day.")
-                            .font(Typography.bodySmall)
+                            .font(Typography.screenSubtitle)
                             // `inkTertiary`, not `inkQuiet`. See `header`:
                             // `inkQuiet` measures 3.31:1 on this ground and
                             // its own doc says it is held to 3:1 because it is

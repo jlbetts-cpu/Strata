@@ -65,7 +65,7 @@ struct MonthReplayRow: View {
                         .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
                     Text("\(replay.count) \(replay.count == 1 ? "win" : "wins")")
-                        .font(Typography.bodySmall)
+                        .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkSecondary)
                 }
                 Spacer(minLength: 0)

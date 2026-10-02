@@ -129,6 +129,15 @@ struct MemoriesStill: View {
     /// Drawn rather than borrowed because the real one is the system's
     /// `TabView`, which cannot be put in a picture. The glyphs come from
     /// `StrataTab` so the filled-means-selected rule stays in one place.
+    ///
+    /// **The 20 and the 11 below are UIKit's tab-bar metrics, not this app's
+    /// type scale, and that is why the 2026-10-01 type pass left them.** The
+    /// 15pt floor applies to type the app sets; this is a PICTURE of a phone
+    /// inside the onboarding device frame, every number in it multiplied by
+    /// `s` (about 0.5), reproducing chrome iOS draws and the app does not get
+    /// to size. Raising them would make the drawing stop matching the thing it
+    /// is a drawing of, which is the whole argument for composing this view
+    /// rather than screenshotting one.
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(StrataTab.allCases, id: \.self) { tab in

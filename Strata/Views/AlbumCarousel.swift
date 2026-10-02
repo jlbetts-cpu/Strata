@@ -84,7 +84,7 @@ struct AlbumCard: View {
         return HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
             if let number = parts.number {
                 Text(verbatim: number)
-                    .font(StrataFont.relative(Self.captionSize, to: .footnote))
+                    .font(StrataFont.relative(Self.captionSize, to: .subheadline))
                     // Optical, as the replay card's count is: tabular centring
                     // puts real air to the left of every digit, so the box
                     // sits a little left of the margin to stand the name and
@@ -94,16 +94,17 @@ struct AlbumCard: View {
             // Lower case, like every other caption on this page now. See
             // `ReplayShelf.countLine`.
             Text(parts.words.lowercased())
-                .font(Typography.bodySmall)
+                .font(Typography.screenSubtitle)
         }
         .foregroundStyle(AppColors.inkTertiary)
         .lineLimit(1)
     }
 
-    /// `Typography.sectionLabel`'s own size, so the digits and the word beside
-    /// them are one line of type and not two sizes. Digits go this small
-    /// safely; letters do not (`StrataFont`: his D reads O at 13).
-    private static let captionSize: CGFloat = 13
+    /// The app's label tier, so the digits and the word beside them are one
+    /// line of type and not two sizes. **It was 13 and is 15** (2026-10-01, the
+    /// type pass), which also retires the warning that used to live here: at 13
+    /// the owner's D read as an O, and at 15 it does not (`StrataFont`).
+    private static let captionSize: CGFloat = 15
 
     /// A caption split into its leading number and the words after it:
     /// "18 PHOTOS" gives ("18", "PHOTOS"), "6 SEP" gives ("6", "SEP"), and a

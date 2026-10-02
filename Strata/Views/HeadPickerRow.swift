@@ -96,7 +96,7 @@ struct HeadPickerRow: View {
                 .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: isChosen)
 
                 Text(entry.name)
-                    .font(Typography.bodySmall)
+                    .font(Typography.headerSmall)
                     // **`inkSecondary` for the ones not chosen, not
                     // `inkQuiet`.** A head's name is text somebody reads, and
                     // `inkQuiet` says in its own doc that it is held to 3:1

@@ -292,45 +292,62 @@ struct ReplayFrame: View {
 
     // MARK: The surface
 
-    /// **The grid of empty cells the replay's blocks land in.**
+    /// **The grid of empty cells the replay's blocks land in, for as long as
+    /// there are blocks still landing.**
     ///
     /// The owner, 2026-10-01: "shouldn't the lattice be in the replay as well."
     /// It should. On the Wins tab a tower stands ON something and that surface
     /// is the whole of why it reads as built rather than floating; the replay
     /// drew the same tower, and the same blocks, on bare ground.
     ///
+    /// The owner, the same day, looking at the first build of it: "i dont think
+    /// i like the lattice when it zooms out." He is right, and the reason is
+    /// worth writing down, because it is not about strength or sharpness.
+    ///
+    /// **At rest the only lattice you can see is the overhang, and the overhang
+    /// is a promise a replay cannot keep.** `TowerLattice.rowsAbove` is 3
+    /// because on the Wins tab the tower is still growing and those rows are
+    /// where the NEXT win goes. Everything below the crown is covered by the
+    /// tower standing in it, so once the camera has pulled back what actually
+    /// reaches the eye is one rectangle of empty cells hanging in open air above
+    /// a finished tower. On the sample week at 402x874 it draws 160pt tall,
+    /// 18.3% of the frame, and the header prints straight across it: "9/28-10/4"
+    /// and "Sample" sit inside the ghost cells. That is the exact failure the
+    /// empty Wins page was marked down for, and the one the three-layer order
+    /// above exists to avoid — type reading as debris ON the surface instead of
+    /// as a caption OF it. A replay's tower is finished. There is no next win in
+    /// this picture, so a grid holding room for one is scaffolding left standing
+    /// after the building is done.
+    ///
+    /// **So the surface belongs to the build, and it strikes with the set.**
+    /// `surfaceOpacity` takes it out across the first 60% of the reveal, which
+    /// is the camera's own pull-back: 0.6s of a week's 1.0s reveal, 0.84s of a
+    /// month's 1.4s. The ground dissolves as the camera lifts off it, and the
+    /// finished tower is left alone on the page, which is what the dance and the
+    /// close are for. Through the build — most of the replay, and every frame in
+    /// which a block is falling — nothing changes at all.
+    ///
+    /// **A tower that never zooms out never loses it** (`fitScale` 1). That is
+    /// the Wins tab's own case arriving inside the replay: the camera stays at
+    /// scale 1, the overhang is still where blocks are landing right up to the
+    /// last one, and the surface is simply the ground, as it is on the tab.
+    ///
+    /// **All-or-nothing, rather than a band in the scale, is deliberate.** The
+    /// obvious alternative is to fade by the live scale, the way `titleOpacity`
+    /// does. It has a failure this does not: any band catches some tower at its
+    /// resting scale, and a lattice frozen at 40% for good is the "ghost grey"
+    /// rendering-fault look that `titleOpacity` needed a `fitScale` guard to
+    /// escape. Keyed to the reveal instead, every tower ends at exactly 0 or
+    /// exactly 1, and no tower can come to rest part way.
+    ///
     /// **It rides the camera's own transform, not a copy of it** (`stage`). The
     /// replay's scale is not one number: the build runs at 1, a week comes to
     /// rest at `fitScale` 0.574 and a month at 0.128, and the reveal moves
-    /// geometrically between them. At 402x874 the world cell is 89pt, so the
-    /// drawn cell goes 89 → 51.1 for a week and 89 → 11.4 for a month. A lattice
+    /// geometrically between them. At 402x874 the world cell is 89pt. A lattice
     /// with its own idea of the cell would be a surface the tower slides across
     /// during the reveal, which is worse than no surface. One transform applied
-    /// twice cannot drift.
-    ///
-    /// **The three rows of overhang are kept, measured against the one place
-    /// they are already approved.**
-    ///
-    /// `TowerLattice.rowsAbove` is 3 because on the Wins tab the tower is still
-    /// growing and those rows are where the next win goes. A replay's tower is
-    /// finished, so the question is fair, and the answer is still keep them, for
-    /// two numbers:
-    ///
-    /// - **The build needs them, and the build is most of the replay.** The
-    ///   camera holds the crown at `followY`, 210pt below the top of an 874pt
-    ///   frame, at scale 1. Three rows is 279 world points, which covers that
-    ///   whole band for the last blocks of the build as it does for the first.
-    ///   One row is 93pt and would leave 117pt of bare ground directly above the
-    ///   crown, with blocks still falling in through it from a `dropClearance`
-    ///   of 24 above the frame: a block falling through nothing into a cell that
-    ///   only exists below it is the surface starting at the tower, which is the
-    ///   defect being fixed.
-    /// - **At rest the camera shrinks the overhang with everything else, so it
-    ///   is never a bigger band here than the one that already ships.** Three
-    ///   rows is 279pt at scale 1, 160pt (18.3% of the frame) at a week's 0.574,
-    ///   and 35.7pt (4.1%) at a month's 0.128. The Wins tab draws those same
-    ///   three rows at full size, 31.9% of the screen, and the owner approved
-    ///   that. The replay's worst case is smaller than the approved one.
+    /// twice cannot drift — and it is still one transform now that the fade is
+    /// an opacity on top of it rather than a second geometry.
     ///
     /// **The strength is the shared pair, and that is a measurement rather than
     /// an inheritance.**
@@ -347,23 +364,15 @@ struct ReplayFrame: View {
     /// moves between 1.106 and 1.119. There is no third ground here to measure
     /// against, so a third number would be a number with nothing behind it.
     ///
-    /// **What the camera changes is the feature size, not the contrast, and
-    /// those have different answers.** At 402x874 the gutter goes 4pt at scale 1
-    /// to 2.30pt at a week's rest to **0.51pt at a month's, which is 1.54 device
-    /// pixels at 3x.** So at a month's rest the grid stops being resolvable and
-    /// the surface becomes a faint even lightening under the tower's footprint.
-    /// That is correct rather than a loss: the same scale is why block titles are
-    /// faded out below 0.45 (`titleOpacity`), and a lattice that stayed crisp at
-    /// 0.128 would be the "grid of grey boxes" failure reappearing at a smaller
-    /// size. Raising the strength to keep it crisp would buy a visible grid at a
-    /// moment the tower itself is 11.4pt cells, which is the trade the owner has
-    /// already refused twice in daylight.
-    ///
-    /// The one thing worth watching is shimmer: a half-pixel gutter under a
-    /// continuous zoom is exactly the geometry that aliases. Its amplitude is
-    /// bounded by the same measurements above, 2.7 levels light and 9.0 dark, so
-    /// there is nothing there to beat. If it is ever visible on a real phone, the
-    /// dial is this paragraph and not `strength`.
+    /// **The fade is the answer to feature size too, and that is the cheaper
+    /// half of why it is right.** The camera changes how big the grid is drawn,
+    /// not its contrast: the 4pt gutter draws 2.30pt at a week's rest and
+    /// **0.51pt at a month's, which is 1.54 device pixels at 3x.** A half-pixel
+    /// gutter under a continuous zoom is exactly the geometry that aliases, and
+    /// the old note here could only promise the shimmer was small (bounded by
+    /// the same 2.7 and 9.0 levels above) rather than absent. It is now absent:
+    /// the lattice is at full opacity only while the camera is at scale 1, and
+    /// every scale small enough to alias is a scale it has already left.
     ///
     /// It also carries no information about the finished shape: four columns of
     /// identical cells say where a block CAN land, never where one will, so a
@@ -386,7 +395,38 @@ struct ReplayFrame: View {
         TowerLattice(cellSize: m.cell, contentHeight: worldHeight)
             .frame(width: script.gridWidth)
             .modifier(stage)
+            .opacity(surfaceOpacity)
     }
+
+    /// How strongly the ground draws right now. See `surface` for why.
+    ///
+    /// A poster is a still of a finished tower at shelf scale: the resting case
+    /// with nothing left to animate, so no ground. Reduce Motion reaches the
+    /// same picture without a reveal — `camera(at:)` returns `fitScale` from the
+    /// first frame — so there is no window to fade across and it takes the same
+    /// answer rather than a fade that would run against a camera that never
+    /// moved.
+    private var surfaceOpacity: Double {
+        if poster != nil { return 0 }
+        if script.reduceMotion { return script.fitScale < 1 ? 0 : 1 }
+        return Self.surfaceOpacity(fitScale: script.fitScale, revealStart: script.revealStart,
+                                   revealDuration: script.revealDuration, t: t)
+    }
+
+    /// The whole rule, as a function of the script and the moment. Split out
+    /// from the property so it can be measured rather than described.
+    static func surfaceOpacity(fitScale: CGFloat, revealStart: Double,
+                               revealDuration: Double, t: Double) -> Double {
+        guard fitScale < 1 else { return 1 }
+        let window = revealDuration * surfaceStrike
+        guard window > 0 else { return t < revealStart ? 1 : 0 }
+        return 1 - min(max((t - revealStart) / window, 0), 1)
+    }
+
+    /// The fraction of the reveal over which the ground goes. Short enough that
+    /// the tower is alone well before the camera settles, long enough that it is
+    /// a dissolve and not a cut in a saved video.
+    static let surfaceStrike: Double = 0.6
 
     // **NO RIPPLE, AND THE NUMBERS ARE WHY.**
     //

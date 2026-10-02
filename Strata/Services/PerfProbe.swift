@@ -208,7 +208,9 @@ enum PerfProbe {
 
     /// The blocks a culling tower is drawing this evaluation, with each
     /// one's top and bottom in the grid's own top-down space. Blocks that were
-    /// not drawn last time are fading in (`towerBlockFadeIn`) from now.
+    /// not drawn last time are inserted from now. (They used to fade in
+    /// over `towerBlockFadeIn`; that transition was deleted on 2026-10-01 and
+    /// the window is now simply when they appear.)
     static func cullRender(_ blocks: [(id: UUID, top: CGFloat, bottom: CGFloat)]) {
         guard isOn else { return }
         start()

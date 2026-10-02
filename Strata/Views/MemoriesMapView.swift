@@ -1462,6 +1462,22 @@ struct ClusterCountBadge: View {
 
     var body: some View {
         Text(verbatim: StrataFont.digits(count))
+            // **13, and it is one of the three things the 2026-10-01 type pass
+            // left under the app's 15pt floor.** The owner asked for "no tiny
+            // thin font anywhere"; this stays because of the paragraph directly
+            // above, about the badge's size against the block it sits on.
+            //
+            // It is a DIGIT on an 18pt capsule, not a line of text — the same
+            // family as the month block's `cell * 0.16` numeral. Measured at
+            // 15: SF Medium's digit advance goes 8.27pt to 9.54, so with
+            // `GridConstants.spacing` a side the capsule goes 18.0 / 24.3 /
+            // 32.6 to 18.0 / 27.1 / 36.6 for one, two and three digits. A
+            // two-digit badge would go from 55% of the 44pt cell's width to
+            // 62%, which re-inflates the badge that was deliberately measured
+            // DOWN to 16.7% of the block on the same day.
+            //
+            // `TypographyTests.TypeSweep` carries this as a named exemption,
+            // so it cannot drift silently.
             .font(Typography.numeral(13))
             // **Light disc, dark numeral** — the owner's call, and it is the
             // right way round. A dark badge on a saturated block is a second

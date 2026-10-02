@@ -44,7 +44,7 @@ struct TodaysWinsSnippet: View {
             }
             if wins.count > 5 {
                 Text("and \(wins.count - 5) more")
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(.secondary)
             }
         }

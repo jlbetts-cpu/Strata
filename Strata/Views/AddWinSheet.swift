@@ -496,21 +496,30 @@ struct AddWinSheet: View {
                     // replace affordance on a filled well, at the same 0.35,
                     // so a photographed block and an unphotographed one answer
                     // in one language.
-                    VStack(spacing: GridConstants.gapTight) {
-                        Image(systemName: "camera.fill")
-                            // An icon size from a token, which also scales with
-                            // Dynamic Type (CLAUDE.md, Conventions). A weighted
-                            // text style does neither.
-                            .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                            .foregroundStyle(.white)
-                            .padding(GridConstants.gapItem)
-                            .background(Circle().fill(.black.opacity(0.35)))
-                        if size != .small {
-                            Text("Add a photo")
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(AppColors.onDarkStrong)
-                        }
-                    }
+                    // **"Add a photo" is DELETED** (2026-10-01, the type pass).
+                    //
+                    // It was a 13pt line under the glyph, and the glyph is a
+                    // camera in a disc in the middle of an EMPTY photo well:
+                    // the caption said what the thing beside it already showed.
+                    // It was also conditional on `size != .small`, so the well
+                    // captioned itself on two of the three block sizes and not
+                    // on the third — one object with two different amounts of
+                    // writing on it depending on how big it was drawn, which is
+                    // the thing the owner named ("I hate when there is like one
+                    // type of font next to another").
+                    //
+                    // Nothing is lost to VoiceOver: the well's own
+                    // `.accessibilityLabel` below is already "Add a photo".
+                    // The `VStack` went with the caption — one child does not
+                    // need a stack.
+                    Image(systemName: "camera.fill")
+                        // An icon size from a token, which also scales with
+                        // Dynamic Type (CLAUDE.md, Conventions). A weighted
+                        // text style does neither.
+                        .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
+                        .foregroundStyle(.white)
+                        .padding(GridConstants.gapItem)
+                        .background(Circle().fill(.black.opacity(0.35)))
                 }
             }
             .frame(width: w, height: h)

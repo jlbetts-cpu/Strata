@@ -300,7 +300,7 @@ struct MemoriesShelf: View {
     private func countLine(_ count: Int) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: GridConstants.spacing) {
             Text(verbatim: StrataFont.digits(count))
-                .font(StrataFont.relative(Self.countSize, to: .footnote))
+                .font(StrataFont.relative(Self.countSize, to: .subheadline))
                 // Optical, as the replay's own count is: tabular centring puts
                 // real air to the left of every digit, so the box sits a
                 // little left of the margin to stand the two lines of the
@@ -316,16 +316,17 @@ struct MemoriesShelf: View {
                 // is a sentence fragment, and the owner's instruction covers
                 // it: "no unnecessary greyscale elements, fairly minimal."
             Text(count == 1 ? "win" : "wins")
-                .font(Typography.bodySmall)
+                .font(Typography.screenSubtitle)
         }
         .foregroundStyle(AppColors.inkTertiary)
         .lineLimit(1)
     }
 
-    /// The caption rung, 13: `Typography.sectionLabel`'s own size, so the
-    /// digits and the word beside them are one line and not two sizes. Digits
-    /// go this small safely; letters do not (`StrataFont`).
-    private static let countSize: CGFloat = 13
+    /// The caption rung, 15: the app's label tier (`Typography.headerSmall` /
+    /// `screenSubtitle` / `sectionLabel`, all one size since 2026-10-01), so
+    /// the digits and the word beside them are one line and not two sizes.
+    /// It was 13 and moved with everything else off that rung.
+    private static let countSize: CGFloat = 15
 
     /// "Your week, 7 to 13 September, 31 wins": the range in words, since
     /// VoiceOver reads "9/7-9/13" as numbers and slashes.

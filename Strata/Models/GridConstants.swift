@@ -36,6 +36,36 @@ enum GridConstants {
 
     static let gapSection: CGFloat = 32
 
+    /// **Between one SUBJECT and the next.** The page's own breath, and the
+    /// biggest gap anything on a screen is allowed to take.
+    ///
+    /// Added 2026-10-01, with check 11 of `docs/screen-audit.md`. The owner,
+    /// twice: "make sure it leaves room like a lot of white space", and
+    /// "remember space is our friend it makes the experience a lot more
+    /// premium".
+    ///
+    /// **It is a sixth rung and not a fifth value, and the difference is
+    /// measured.** `docs/space.md` reads grouping off Kubovy, Holcombe and
+    /// Wagemans (1998): proximity groups by the RATIO between competing
+    /// distances, not their difference. `gapSection` at 32 against a page of
+    /// 24s is 1.33x, which is the ladder's own step, so on a page that already
+    /// uses `gapWide` a "section break" is not read as a break at all. 64
+    /// against 24 is 2.67x and against 32 is 2.0x, and both are outside any
+    /// step the ladder takes, so it cannot be mistaken for the rhythm.
+    ///
+    /// **It already shipped, unnamed.** `SectionHeading` was writing
+    /// `gapSection * 2` since the Memories pass; measured on the built page
+    /// that renders as a 74.7pt break, 1.72x the page's median gap, and it is
+    /// the only unambiguous break in the app that is not a dead tail at the
+    /// bottom of a screen. Naming it is how the next person gets it right.
+    ///
+    /// **And deliberately nothing at 40 or 48.** The app currently puts 28 of
+    /// its 85 measured gaps strictly between 32 and 64, and those 28 are 25
+    /// different values. A rung in that span would legitimise the drift
+    /// instead of ending it: each of those gaps is either a gap or a break,
+    /// and choosing which IS the design decision.
+    static let gapPage: CGFloat = gapSection * 2
+
     /// How much room the floating tab bar needs under a scrolling page.
     ///
     /// **One number, because three places need it.** It was the literal 110
@@ -98,9 +128,11 @@ enum GridConstants {
     /// a tap, so the tap-to-edit gesture is unaffected.
     /// **No call sites** (measured 2026-10-01): the only `LongPressGesture` left
     /// in the app is the replay's, on `replayHoldToPause`. Kept rather than
-    /// deleted, the way `Typography.caption2` is, because the measurement is the
-    /// whole value of it: if a hold on a block ever comes back, 0.35 is the
-    /// number that was wrong and the paragraph above says why.
+    /// deleted — unlike `Typography.caption2`, which WAS deleted on 2026-10-01
+    /// for having none — because here the measurement is the whole value of it:
+    /// if a hold on a block ever comes back, 0.35 is the number that was wrong
+    /// and the paragraph above says why. A token that sets type is a value
+    /// somebody reuses; a duration with a paragraph attached is a note.
     static let liftHoldDuration: Double = 0.4
 
     // **`cornerRadiusSmall` (8) and `cornerRadiusMicro` (4) are deleted**
@@ -355,9 +387,15 @@ enum GridConstants {
     static let microBounceDownSpring = Animation.spring(response: 0.10, dampingFraction: 0.50)
     /// And back up, a touch slower and less springy.
     static let microBounceUpSpring = Animation.spring(response: 0.15, dampingFraction: 0.70)
-    /// A block already on the tower fading in when it first appears. The
-    /// stagger delay stays at the call site; a newly dropped block gets none.
-    static let towerBlockFadeIn = Animation.easeOut(duration: 0.2)
+    // **`towerBlockFadeIn` (easeOut 0.2) is deleted** (2026-10-01), with the
+    // stagger that fed it. It faded a block in "when it first appears", and the
+    // place a block first appears is the moment you arrive on the Wins tab — so
+    // the whole tower dissolved in every time you pressed the tab. That is the
+    // one thing this file already says twice it does not do (see the note where
+    // `skeletonPop` was deleted: "nothing in this app animates because a screen
+    // appeared"), and `MainAppView` says it a third time where the ground is
+    // drawn. A newly dropped block was already exempt, so what remained was an
+    // entrance for blocks that did not enter.
 
     /// The shutter pressing in, before it springs back.
     static let shutterPress = Animation.easeOut(duration: 0.08)
@@ -788,14 +826,12 @@ enum GridConstants {
 
     // MARK: - Connected Flow (Phase 4)
 
-    /// The ceiling on a newly dropped block's stagger delay, and the span the
-    /// delays are spread across.
-    ///
-    /// **Read by `TowerViewModel`, which used to type it out twice.** The
-    /// pre-computed cache is `min(pow(index / count, 0.5) * staggerMax,
-    /// staggerMax)`: the square root is what makes the wave decelerate, so the
-    /// first blocks of a batch are further apart than the last.
-    static let staggerMax: TimeInterval = 0.4
+    // **`staggerMax` (0.4) is deleted too, and it was never reachable.** The
+    // cache it filled was built ONLY for `newlyDroppedIDs`, and a newly dropped
+    // block took `.identity` at the one site that read the delay — so every
+    // lookup that mattered fell through to the `?? 0` default. A decelerating
+    // wave was computed per block, cached, and cleared, to delay an animation
+    // that never ran. It went with `towerBlockFadeIn` above.
 
     // **`staggerInterval` (0.04) and `entranceOffset` (12) are deleted**
     // (2026-10-01), zero call sites. The stagger that ships is not an interval at

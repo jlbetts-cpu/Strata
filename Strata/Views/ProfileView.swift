@@ -409,8 +409,8 @@ struct ProfileView: View {
             HStack(alignment: .firstTextBaseline, spacing: GridConstants.gapTight) {
                 // **`Typography.tally`, which is the token for this.** It was
                 // `StrataFont.relative(28, to: .title)`, and 28 is not one of
-                // the five sizes `Typography` has: the scale is 34, 17, 15, 13
-                // and 11, and this was a sixth rung invented for one screen.
+                // the sizes `Typography` has: the scale is 34, 17 and 15 since
+                // 2026-10-01, and this was a rung invented for one screen.
                 // The token's own doc names this exact case, "any number the app
                 // states as a fact about your day: the win tally, a day's
                 // numeral on a month block, a photo count".
@@ -428,7 +428,7 @@ struct ProfileView: View {
                     .foregroundStyle(AppColors.inkSecondary)
             }
             Text(label)
-                .font(Typography.bodySmall)
+                .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -455,14 +455,26 @@ struct ProfileView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
-                VStack(alignment: .leading, spacing: 0) {
+                // `GridConstants.spacing`, and it was a hand-typed 0.
+                //
+                // The pair was 17 Regular-ish over 13 Regular and the size gap
+                // did the separating; both lines are Medium now and 17 over 15
+                // with nothing between them read as one paragraph. 4 is the rung
+                // `OnboardingView` and `RestoreBackupView` already put between a
+                // name and the line that says what it is, which is this pair.
+                VStack(alignment: .leading, spacing: GridConstants.spacing) {
                     Text(shownHeadline(summary: summary, bars: bars))
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                         .contentTransition(.numericText())
-                    Text(shownDetail(summary: summary, bars: bars))
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(AppColors.inkSecondary)
+                    // **The second line is gone in the two states where it only
+                    // repeated the first** (2026-10-01, the type pass). See
+                    // `detail(_:)`.
+                    if let line = shownDetail(summary: summary, bars: bars) {
+                        Text(line)
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                    }
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .animation(GridConstants.motionSnappy, value: selectedBar)
@@ -492,7 +504,20 @@ struct ProfileView: View {
 
     /// The numbers, in words somebody's mum reads without a legend: how many
     /// a day, week or month lately, and what "usual" was.
-    private func detail(_ summary: WinTrend.Summary) -> String {
+    ///
+    /// **Nil in the two states where it had nothing of its own to say**
+    /// (2026-10-01, the type pass). It used to read "It appears once you have
+    /// about 6 weeks of wins." under "Keep logging to see your trend.", and
+    /// "Log a win and it's counted here." under "Your weeks will show up
+    /// here." — the same sentence twice, which is what the owner means by
+    /// "over explaining components loses the charm".
+    ///
+    /// It surfaced as a measurement rather than as taste: at 13 Regular that
+    /// line fitted on one row, and at 15 Medium it wrapped to **three**, with
+    /// "of wins." alone on the last. Three lines of repetition is the opposite
+    /// of "everything thats not like photos to have air to breathe". The three
+    /// states that remain all carry NUMBERS the chart has no other legend for.
+    private func detail(_ summary: WinTrend.Summary) -> String? {
         let recent = Self.wins(summary.recentAverage)
         let usual = Self.wins(summary.usualAverage)
         let stretch = "the last \(unit.recent) \(unit.plural)"
@@ -506,10 +531,8 @@ struct ProfileView: View {
             return "About \(recent) a \(unit.name) over \(stretch), close to your usual \(Self.number(summary.usualAverage))."
         case .fewer:
             return "\(recent) a \(unit.name) over \(stretch), down from \(usual) before that."
-        case .notEnough:
-            return "It appears once you have about \(unit.recent + unit.minimumBaseline) \(unit.plural) of wins."
-        case .empty:
-            return "Log a win and it's counted here."
+        case .notEnough, .empty:
+            return nil
         }
     }
 
@@ -542,7 +565,7 @@ struct ProfileView: View {
         return "\(bar.count) \(bar.count == 1 ? "win" : "wins")"
     }
 
-    private func shownDetail(summary: WinTrend.Summary, bars: [WinTrend.Bar]) -> String {
+    private func shownDetail(summary: WinTrend.Summary, bars: [WinTrend.Bar]) -> String? {
         guard let bar = picked(from: bars) else { return detail(summary) }
         switch unit {
         case .day:
@@ -607,25 +630,26 @@ struct ProfileView: View {
                 // **The axis reads at the page's body size, not at a size only
                 // the chart uses.**
                 //
-                // These two labels were `Typography.caption2` (11 Medium) and
-                // they were the only call sites it had in the whole running app.
-                // So Profile carried four text sizes at the default Dynamic Type
-                // setting (34 for the tally, 17, 13, 11) where check 4 allows
-                // three, and the fourth existed to serve one chart. A chart with
-                // a size of its own is a chart with a type scale of its own.
+                // These two labels were `Typography.caption2` (11 Medium),
+                // then `bodySmall` (13), and are `screenSubtitle` (15 Medium)
+                // since 2026-10-01. Profile carried four text sizes at the
+                // default Dynamic Type setting (34 for the tally, 17, 13, 11)
+                // where check 4 allows three, and the fourth existed to serve
+                // one chart. A chart with a size of its own is a chart with a
+                // type scale of its own. It is now 34 / 17 / 15, which is the
+                // whole app's scale.
                 //
-                // `bodySmall` is 13 and is already on this card twice: the
-                // sentence directly above the plot and the Current and Best
-                // labels in the card over it. The axis still recedes, because it
-                // recedes on INK (inkSecondary, 0.62, measured 6.19:1) rather
-                // than on being two points smaller than everything else.
+                // The axis still recedes, because it recedes on INK
+                // (inkSecondary, 0.62, measured 6.19:1) rather than on being
+                // smaller than everything else.
                 //
-                // Checked for collision before the change: at the week unit a
-                // label lands every 4 bars, so three of them, about 40pt wide at
-                // 13 against the 110pt they are spaced; at the month unit, four
-                // labels of about 26pt against 83pt. Nothing touches.
+                // Collision rechecked at 15: at the week unit a label lands
+                // every 4 bars, so three of them, about 46pt wide against the
+                // 110pt they are spaced; at the month unit, four labels of
+                // about 30pt against 83pt. Nothing touches — the margin was
+                // 2.75x and is 2.39x.
                 AxisValueLabel()
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
             }
         }
@@ -633,7 +657,7 @@ struct ProfileView: View {
             AxisMarks(values: .stride(by: unit.component, count: labelEvery)) { _ in
                 // The same size as the y axis above, for the same reason.
                 AxisValueLabel(format: labelFormat)
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
             }
         }
@@ -774,7 +798,7 @@ struct ProfileView: View {
                             }
                             Spacer(minLength: GridConstants.gapTight)
                             Text(heads.look.name)
-                                .font(Typography.bodySmall)
+                                .font(Typography.headerSmall)
                                 .foregroundStyle(AppColors.inkTertiary)
                         }
                     }

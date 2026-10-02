@@ -245,21 +245,21 @@ struct MainAppView: View {
     /// gate on real data) or the user's own wins. Read once, at the moment
     /// `debugReplay` is set, by `DebugReplayCover`.
     @State private var debugReplayIsSample = true
-    /// The period whose window is open right now, if it has a win. Drives the
-    /// Wins tab pill. Recomputed on scene-active, after `refreshData()`
-    /// finds a new win or a win count changes, the way `DailyReminder`
-    /// re-decides itself, and at the next window edge (`replayEdge`).
-    @State private var liveReplay: ReplayPeriod?
-    /// The next moment a replay window opens or closes. The pill is
-    /// re-decided there once, so a window edge that passes with the app open
-    /// (Sunday 5pm, Tuesday as it starts, the last day 5pm, the 3rd) moves
-    /// the pill without a timer.
+    /// The next moment a replay window opens or closes. The reminder is
+    /// re-scheduled there once, so an edge that passes with the app open
+    /// (Sunday 5pm, Tuesday as it starts, the last day 5pm, the 3rd) is not
+    /// missed and does not need a polling timer.
+    ///
+    /// **`liveReplay` and `playingReplay` went with the pill** (2026-10-01).
+    /// Replays live in Memories now; this screen no longer offers one, so the
+    /// period it would have offered is not state this view has to hold, and
+    /// `ReplayLoader.hasWins`'s two fetch counts are off `refreshData`, which
+    /// is called from a 60s timer.
     @State private var replayEdge: Date?
-    /// The replay the pill opened, played over the tower.
-    @State private var playingReplay: Replay?
-    /// `logs.count` and the tower's block count when the pill was last
-    /// re-decided from `refreshData()`. A win deleted or un-done drops no
-    /// block, so without these the pill outlived the period's last win.
+    /// `logs.count` and the tower's block count when the reminder was last
+    /// re-scheduled from `refreshData()`. A win deleted or un-done drops no
+    /// block, so without these a period that lost its last win kept its
+    /// notification.
     @State private var replayDecidedCounts: [Int]?
     @State private var debugAutoWinsLeft = 0
     @State private var debugAutoChecksLeft = 0
@@ -451,7 +451,7 @@ struct MainAppView: View {
                         Task { await DailyReminder.schedule(hour: reminderHour, minute: reminderMinute,
                                                             loggedToday: blocksToday > 0) }
                     }
-                    updateLiveReplay()
+                    refreshReplayWindow()
                 } else {
                     // **Leaving the app is the moment before the home screen
                     // is looked at.** The snapshot was only ever published
@@ -467,15 +467,16 @@ struct MainAppView: View {
                     publishWidgetSnapshot()
                 }
             }
-            // One sleep to the next window edge, then the pill is re-decided,
-            // which sets the edge after it and restarts this. Cancelled with
-            // the view; a wake that comes a moment early sleeps the rest.
+            // One sleep to the next window edge, where the reminder is
+            // re-scheduled, which sets the edge after it and restarts this.
+            // Cancelled with the view; a wake that comes a moment early sleeps
+            // the rest.
             .task(id: replayEdge) {
                 guard let edge = replayEdge else { return }
                 while Date() < edge {
                     do { try await Task.sleep(for: .seconds(max(edge.timeIntervalSinceNow, 0.01))) } catch { return }
                 }
-                updateLiveReplay()
+                refreshReplayWindow()
             }
             .alert("Nothing was deleted", isPresented: $resetFailed) {
                 Button("OK", role: .cancel) { }
@@ -565,11 +566,6 @@ struct MainAppView: View {
                 onDeleted: { scheduleRefresh() }
             )
         }
-        // The Wins tab pill. A real replay over the user's own wins, never a
-        // sample — the sample previews live only in Settings.
-        .fullScreenCover(item: $playingReplay) { shown in
-            ReplayView(replay: shown) { playingReplay = nil }
-        }
     }
 
     /// Marks the plan line a win was written from as done.
@@ -590,10 +586,30 @@ struct MainAppView: View {
             // is. One glyph in two states says "here" without needing the
             // label, the colour or the pill to say it as well — and it is what
             // every tab bar on the platform does, so it needs no learning.
+            //
+            // **AND NO WORDS UNDER IT** (the owner, 2026-10-01: "no tiny text
+            // under or anythign like that", asked with the whole app in view,
+            // and then specifically for this bar when it was put to him against
+            // keeping the labels).
+            //
+            // The labels were the smallest type the app shipped: 10pt, the one
+            // size below `caption2`, and the only place three words sat in a
+            // row at a size nothing else on any screen uses. They were also the
+            // weakest of the four things already saying which tab you are on —
+            // the glyph fills, the capsule moves, the page behind it changes,
+            // and the window's whole appearance changes with it.
+            //
+            // The bet this takes is that three glyphs are legible without
+            // words, and it is a short bet: there are three of them, they are
+            // never rearranged, and no two are near each other in shape (a
+            // stack, a camera, a picture). **The name is not lost, it is
+            // moved**: `accessibilityLabel` carries each one, so VoiceOver
+            // reads exactly what it read before.
             Tab(value: StrataTab.tower) {
                 towerTabRoot
-                        } label: {
-                Label("Wins", systemImage: selectedTab == .tower ? "square.stack.fill" : "square.stack")
+            } label: {
+                Image(systemName: selectedTab == .tower ? "square.stack.fill" : "square.stack")
+                    .accessibilityLabel("Wins")
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -616,12 +632,14 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                Label("Camera", systemImage: selectedTab == .camera ? "camera.fill" : "camera")
+                Image(systemName: selectedTab == .camera ? "camera.fill" : "camera")
+                    .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
-                Label("Memories", systemImage: StrataTab.memories.icon)
+                Image(systemName: StrataTab.memories.icon)
+                    .accessibilityLabel("Memories")
             }
         }
         // The window's appearance, changed without an animation.
@@ -813,40 +831,36 @@ struct MainAppView: View {
     /// `ViewThatFits` went with it. It was there because the count, "wins" and
     /// two controls did not fit one row at an accessibility text size; two
     /// controls always do.
-    /// "Wednesday 1 October". Built once: a `DateFormatter` made inside a body
-    /// is made on every evaluation, which is the fault `Album.Formats` exists
-    /// to record.
-    private static let headerDate: DateFormatter = {
-        let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
-        return f
-    }()
+    // **THE DATE IS OFF THE HEADER** (the owner, 2026-10-01: "the Oct 17 on
+    // the left idk if that looks very clean i think it honestly looks better
+    // without there being something in the corner like that maybe I will add a
+    // logo later in the corner but I think for now it shouldnt be there").
+    //
+    // It went on to answer a real question — the tower is TODAY's tower and
+    // nothing on the page said which day — and the answer was a word in a
+    // corner, which is the cheapest kind of answer and the one that costs the
+    // page most. Measured on the shipped screen: "Thursday, October 1" ran
+    // 135pt across the top-left, 17pt tall, on a page whose whole top half is
+    // deliberately empty. One phrase, set in the second-quietest ink, at the
+    // one place the eye lands first.
+    //
+    // The question it answered is still real, and it is not this screen's to
+    // answer in type. A person who has been away sees it in the tower itself,
+    // which is empty when the day turns. If that ever proves not to be enough,
+    // the fix is the empty state saying it once, not a permanent caption.
+    //
+    // `DateFormatter` and its `EEEEdMMMM` template went with it.
 
     private var towerHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            // **TODAY, WHICH IS THE ONE THING THIS SCREEN NEVER SAID.**
-            //
-            // The count came off at the owner's word and left the row with a
-            // `Spacer` and two controls, so the header was one button alone in
-            // a corner with nothing on the other side of it — a control that
-            // had been left behind rather than a header.
-            //
-            // The date is not decoration put there to balance it. The tower is
-            // TODAY's tower: `towerFilterMode` is today only, the slot adds to
-            // today, the whole page is one day — and nothing on it said which
-            // day. A person opening the app at midnight, or after a few days
-            // away, had no way to tell from this screen whether what they were
-            // looking at was still yesterday.
-            //
-            // `inkSecondary` and body-sized, because it is a caption on the
-            // thing rather than a title for it. The tower is still the subject.
-            Text(Self.headerDate.string(from: Date()))
-                .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+        // Centred, not baseline-aligned: there is no type left in this row to
+        // sit a baseline on, and two capsules of the same height centre on
+        // each other exactly.
+        HStack(alignment: .center, spacing: 6) {
+            // Nothing on the left. The owner's corner, kept clear for whatever
+            // he puts there — see the note above `towerHeader`. One control in
+            // open air is a header; two controls with a caption between them is
+            // a toolbar.
             Spacer(minLength: 0)
-            headerReplayPill
             headerPlan
         }
         .accessibilityElement(children: .contain)
@@ -877,82 +891,33 @@ struct MainAppView: View {
         .padding(.bottom, GridConstants.gapWide)
     }
 
-    /// The count and the word for what it counts. Never wrapped: at
-    /// accessibility sizes beside the replay pill, "12" broke onto two lines.
-    @ViewBuilder
-    private var headerCount: some View {
-        Text(verbatim: StrataFont.digits(towerVM.placedBlocks.count))
-            .companionObstacle("wins")
-            // The owner's own digits, at the screen-title size — see
-            // `Typography.tally`. Metrically compatible with the system
-            // face, so it still scales with Dynamic Type and its cap
-            // still lands on the shared header line.
-            .font(Typography.tally)
-            // Ink, not pink. It was pink for one build, on the argument
-            // that the one number on the page should carry the brand
-            // colour; the owner's call is black, and it is the right one
-            // — pink is a BLOCK colour here, so a pink numeral reads as
-            // a label belonging to whichever blocks happen to be pink
-            // that day rather than as the count of all of them.
-            .foregroundStyle(AppColors.inkPrimary)
-            .contentTransition(.numericText())
-            // Optical, not geometric. A digit's ink starts inside its
-            // layout box — measured at 4pt for SF Pro Rounded at 64pt — so
-            // a box aligned to the grid still LOOKS indented next to a
-            // block, whose colour goes right to its edge.
-            .padding(.leading, -GridConstants.tallyOpticalInset)
-            // Never wrapped. At accessibility sizes with the replay pill
-            // beside it, "12" broke onto two lines, one digit on each.
-            .fixedSize(horizontal: true, vertical: false)
-        // SF Pro Rounded, at a subheadline size.
-        //
-        // It was drawn for one build, on the numeral's own 28-unit body,
-        // so the pair was one face at one size. The owner's call is this
-        // one, and the reasoning holds up: the count is the fact and the
-        // word is a caption for it, so the word being quieter AND smaller
-        // is the header saying which of the two you are meant to read.
-        // Matched in size it stopped being a caption and became half of a
-        // two-word title.
-        Text(towerVM.placedBlocks.count == 1 ? "win" : "wins")
-            .font(Typography.screenSubtitle)
-            .foregroundStyle(AppColors.inkQuiet)
-            .fixedSize(horizontal: true, vertical: false)
-    }
+    // **`headerCount` is deleted.** It had no call site: the count came off
+    // this screen at the owner's word and the property was left behind, so the
+    // file still carried the numeral's optical inset, its `numericText`
+    // transition and the argument for "wins" being the quieter of the two —
+    // forty lines reasoning about a view nothing drew. The reasoning that is
+    // worth keeping is in `Typography.tally` and in the note above
+    // `towerHeader`; the rest went with the view.
 
-    @ViewBuilder
-    private var headerReplayPill: some View {
-        // A replay, only while its window is open. The one new piece of
-        // chrome the feature adds, and it leaves on its own once the
-        // window closes — there is no dismiss for it.
-        if let period = liveReplay {
-            Button {
-                HapticsEngine.lightTap()
-                let loaded = ReplayLoader.replay(for: period, context: modelContext)
-                // The pill can be a moment behind the store (a win
-                // deleted elsewhere). An empty replay is never played;
-                // the pill is re-decided instead, and leaves.
-                if loaded.count > 0 {
-                    playingReplay = loaded
-                } else {
-                    updateLiveReplay()
-                }
-            } label: {
-                // Set as the replay's own Share control: the app's two
-                // weights, the label step, one line.
-                Text(period.title)
-                    .font(Typography.headerMedium)
-                    .lineLimit(1)
-                    // The one thing in the row that gives way, and only
-                    // so far: the count is the page's fact.
-                    .minimumScaleFactor(0.8)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .padding(.horizontal, GridConstants.gapLabel)
-                    .frame(height: GlassIconButton.defaultSide)
-            }
-            .glassCapsule(onPage: true)
-            .transition(.opacity)
-        }
-    }
+    // **`headerReplayPill` IS DELETED. REPLAYS LIVE IN MEMORIES.**
+    //
+    // The owner, 2026-10-01: "the your month doesnt belong on the wins because
+    // its already in memories", and, put to him directly, the call to move the
+    // week with it so every replay is in one place.
+    //
+    // It was a real duplication, not a stylistic one. The pill offered the open
+    // month; `ReplayRow` under the Memories month picker offers the same month,
+    // with a picture of it. Two routes to one thing, on two tabs, and the one
+    // on Wins was the one with no picture.
+    //
+    // **What this screen gains is the corner.** The header is now one control
+    // in open air, which is the owner's own framing of it ("maybe I will add a
+    // logo later in the corner but I think for now it shouldnt be there"). The
+    // date went with the same message; see the note above `towerHeader`.
+    //
+    // The state it drove went with it: `liveReplay`, `playingReplay` and the
+    // cover that presented them. What stayed is `refreshReplayWindow`, because
+    // the replay NOTIFICATIONS are still this view's to keep warm.
 
     private var headerPlan: some View {
         // The plan, where sharing was, which was where the range picker
@@ -1646,21 +1611,16 @@ struct MainAppView: View {
         return logs.filter { $0.dateString == today && $0.completed }.count
     }
 
-    /// Decides `liveReplay` and tops up the notifications, the way
-    /// `DailyReminder` re-decides itself: called on scene-active and, from
-    /// `refreshData()`, only when a win actually landed. `ReplayLoader.hasWins`
-    /// is a `fetchCount` capped at 1, called for at most two periods, so this
-    /// is cheap enough for a hot path — the full `ReplayLoader.replay` fetch
-    /// only ever runs when the pill itself is tapped.
-    private func updateLiveReplay() {
-        let now = Date()
-        liveReplay = ReplayEntry.live(now: now) { ReplayLoader.hasWins($0, context: modelContext) }
-        replayEdge = ReplayEntry.nextEdge(after: now)
-        #if DEBUG
-        if let forced = DebugHarness.replayWindow {
-            liveReplay = forced == "month" ? .month(containing: Date()) : .week(containing: Date())
-        }
-        #endif
+    /// Keeps the replay notifications warm, and sets the next moment to do it
+    /// again. Called on scene-active, from `refreshData()` only when a win
+    /// actually landed or a count changed, and at `replayEdge`.
+    ///
+    /// It used to also decide the Wins pill, which is why it ran
+    /// `ReplayEntry.live` and `ReplayLoader.hasWins`. The pill is gone and so
+    /// is that fetch: `ReplayReminder.schedule` asks the store the same
+    /// question for itself, so asking it here first was asking twice.
+    private func refreshReplayWindow() {
+        replayEdge = ReplayEntry.nextEdge(after: Date())
         Task { await ReplayReminder.schedule(context: modelContext) }
     }
 
@@ -2176,18 +2136,17 @@ struct MainAppView: View {
             animCoord.ensureStates(for: towerVM.placedBlocks.map(\.id))
             enqueueArrivals(diff: droppedIDs, hadBuiltBefore: hadBuiltBefore)
         }
-        // A win landed: the period it fell in may just have opened its pill,
-        // or may now be the one the month/week pill points at. Guarded on
-        // droppedIDs rather than run every call — refreshData is a hot path,
-        // called from a 60s timer among other places, and hasWins's two
-        // fetchCounts are cheap but not free enough to pay when nothing changed.
+        // A win landed: the period it fell in may have just earned a replay
+        // notification, or lost one. Guarded on droppedIDs rather than run
+        // every call, because refreshData is a hot path called from a 60s
+        // timer and scheduling touches the store.
         //
         // A count changing too: a deleted or un-done win drops nothing, and
-        // the period's last one going must take the pill with it.
+        // the period's last one going must take the notification with it.
         let replayCounts = [logs.count, towerVM.placedBlocks.count]
         if !droppedIDs.isEmpty || replayCounts != replayDecidedCounts {
             replayDecidedCounts = replayCounts
-            updateLiveReplay()
+            refreshReplayWindow()
         }
         // Update the timer guard from the index (avoid a redundant O(n) scan).
         lastLogCount = logs.count
@@ -2954,14 +2913,17 @@ struct MainAppView: View {
         // height-neutral, the boundary moves a full screen off either edge,
         // where nothing crossing it is visible.
         //
-        // **And one and a half viewports, not one.** A block entering the
-        // cull fades in over `towerBlockFadeIn` (0.2s), and the offset is
-        // only republished every half viewport, so a one-viewport buffer
-        // could insert a block about half a screen beyond the edge: an
-        // ordinary fling covers that inside the fade, and the block arrived
-        // on screen translucent. Measured over a scripted fling of a
-        // 150-block tower with `-strataPerfProbe`: 49 blocks on screen
-        // mid-fade with one viewport, 0 with this.
+        // **And one and a half viewports, not one.** This was measured when a
+        // block entering the cull faded in over 0.2s and the offset was only
+        // republished every half viewport, so a one-viewport buffer could
+        // insert a block about half a screen beyond the edge and an ordinary
+        // fling covered that inside the fade: 49 blocks on screen mid-fade with
+        // one viewport over a scripted fling of a 150-block tower, 0 with this.
+        // **The fade is gone now** (see the transition in `towerGrid`), so the
+        // translucent arrival it was sized against cannot happen. The buffer
+        // stays at 1.5 because the second reason it exists is still live: the
+        // offset's half-viewport republish rate means a one-viewport buffer can
+        // insert a block inside the visible area at all, fade or no fade.
         let buffer = max(viewportHeight * 1.5, 600)
         let offset = towerScrollOffset ?? towerProbe.scrollOffset
         let visibleTop = offset - topInset - buffer
@@ -3058,19 +3020,30 @@ struct MainAppView: View {
         // `horizontalPadding`. Centred copy on a left-aligned page is two
         // alignment systems on one screen, and the eye has to find a new
         // start for one line out of three.
+        // **ONE LINE, AT THE WEIGHT EVERY OTHER LINE ON THE PAGE IS SET AT.**
+        //
+        // It was two: "Nothing yet today" over "Tap the slot to log your first
+        // win." in the smaller, quieter pair. Both halves of that failed on
+        // 2026-10-01.
+        //
+        // The first line's reason is written down four hundred lines above and
+        // has been deleted: "'Nothing yet today' is a statement about the day
+        // and the day is named directly above it." The date came off this
+        // header today, so a sentence justified by its neighbour was left
+        // standing alone over an empty tower, saying that the empty tower is
+        // empty. The owner, the same day: "the areas are very self explanitory
+        // and I think over explaining components loses the charm."
+        //
+        // The second line's SIZE failed the other half of the same message:
+        // "no tiny text under or anythign like that ... I like the text that is
+        // there to feel like a medium weight." A title over a caption is
+        // exactly the shape he named. The line that does work keeps the slot's
+        // own vocabulary ("slot", and "tap", which is what `NextSlotButton`'s
+        // `onOpenMenu` answers) and takes the title's weight and ink.
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
-            // The same ink pair as Memories' empty state, so the two empty
-            // screens speak at one volume. It was tertiary over quiet.
-            Text("Nothing yet today")
+            Text("Tap the slot to log your first win.")
                 .font(Typography.headerMedium)
                 .foregroundStyle(AppColors.inkPrimary)
-
-            // "Slot", the tower's word for it everywhere else, and "tap",
-            // which is true: a tap on the slot opens the add sheet
-            // (`NextSlotButton`'s `onOpenMenu`). It said "Hold the block".
-            Text("Tap the slot to log your first win.")
-                .font(Typography.bodySmall)
-                .foregroundStyle(AppColors.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // The overlay sits outside the grid's horizontal padding, so the
@@ -3118,7 +3091,6 @@ struct MainAppView: View {
                 )
                 let animState = animCoord.state(for: block.id)
                 let isNewlyDropped = towerVM.newlyDroppedIDs.contains(block.id)
-                let stagger = towerVM.staggerDelay(for: block)
 
                 AnimatedBlockView(
                     block: block,
@@ -3184,15 +3156,23 @@ struct MainAppView: View {
                 .offset(x: f.minX, y: gridH - f.minY - f.height)
                 .zIndex(animState.dropPhase != nil ? 100 : Double(block.row + 1))
                 .accessibilitySortPriority(-Double(block.row))
-                // A newly dropped block gets NO insertion transition. It was
-                // fading in over 0.2s while simultaneously falling, so the
-                // first half of the fall happened at low opacity and what you
-                // saw was the block appearing near its slot — "it just spawns
-                // in and then there's a ripple". It is opaque from the first
-                // frame and the fall is the whole of its entrance.
-                .transition(isNewlyDropped
-                            ? .identity
-                            : .opacity.animation(GridConstants.towerBlockFadeIn.delay(stagger)))
+                // **NO insertion transition, for any block.**
+                //
+                // A newly dropped one never had one: it was fading in over 0.2s
+                // while simultaneously falling, so the first half of the fall
+                // happened at low opacity and what you saw was the block
+                // appearing near its slot, "it just spawns in and then there's a
+                // ripple". It is opaque from the first frame and the fall is the
+                // whole of its entrance.
+                //
+                // Every other block has now lost it as well (2026-10-01). The
+                // branch fired in two places and neither was a person doing
+                // something: arriving on the Wins tab, where it dissolved the
+                // entire tower in, and crossing the cull boundary mid-fling,
+                // where it is invisible by construction. Check 10 of the audit
+                // fails anything that animates because it appeared, and this
+                // file already states the rule where it draws the ground.
+                .transition(.identity)
             }
         }
     }
@@ -3604,7 +3584,7 @@ struct MainAppView: View {
         // 8. No wins, so no replay: its notifications go, and the pill is
         // re-decided now rather than when the query next catches up.
         Task { await ReplayReminder.removePending() }
-        updateLiveReplay()
+        refreshReplayWindow()
         return true
     }
 

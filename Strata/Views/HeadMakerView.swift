@@ -738,7 +738,7 @@ struct HeadMakerView: View {
                     // (246, 246, 246) is what says so, without a colour this
                     // page has no other use for.
                     Text(model.saveFailure.isEmpty ? previewCaption(rig) : model.saveFailure)
-                        .font(Typography.bodySmall)
+                        .font(Typography.screenSubtitle)
                         .foregroundStyle(model.saveFailure.isEmpty
                                          ? AppColors.inkSecondary : AppColors.inkPrimary)
                         .multilineTextAlignment(.center)

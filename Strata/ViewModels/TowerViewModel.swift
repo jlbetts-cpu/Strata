@@ -96,7 +96,12 @@ final class TowerViewModel {
     private(set) var groupedBlockIDs: Set<UUID> = []
     /// Blocks carrying another block directly above them.
     private(set) var coveredBlockIDs: Set<UUID> = []
-    private(set) var staggerDelayCache: [UUID: Double] = [:]
+    // **`staggerDelayCache` and `staggerDelay(for:)` are deleted**
+    // (2026-10-01), with `GridConstants.staggerMax` and the fade they delayed.
+    // The cache was filled only for `newlyDroppedIDs`, and a newly dropped
+    // block took `.identity` at the single site that read it, so every lookup
+    // that could have mattered fell through to the default. See the note on
+    // `towerBlockFadeIn` in `GridConstants`.
     private var previousBlockIDs: Set<UUID> = []
     /// False until the first build has happened.
     ///
@@ -236,24 +241,6 @@ final class TowerViewModel {
         if topRowBlockIDs != topRow { topRowBlockIDs = topRow }
         if foundationBlockIDs != foundation { foundationBlockIDs = foundation }
 
-        // Pre-compute stagger delays (O(1) lookup per block instead of O(n) per call)
-        if !newlyDroppedIDs.isEmpty {
-            let sortedNew = placed
-                .filter { newlyDroppedIDs.contains($0.id) }
-                .sorted { $0.row < $1.row }
-            let count = max(sortedNew.count, 1)
-            staggerDelayCache = [:]
-            for (index, block) in sortedNew.enumerated() {
-                let normalizedIndex = Double(index) / Double(count)
-                let decelerated = pow(normalizedIndex, 0.5)
-                // `staggerMax`, twice, where the number was typed out twice. The token
-                // existed with the formula on it and this was the only caller that
-                // wanted it, which is the shape the design system's own header
-                // forbids: no inline curves or durations at call sites.
-                staggerDelayCache[block.id] = min(decelerated * GridConstants.staggerMax,
-                                                  GridConstants.staggerMax)
-            }
-        }
 
         let rows = placed.isEmpty ? 0 : placed.map { $0.row + $0.rowSpan }.max()!
         if totalRows != rows { totalRows = rows }
@@ -283,11 +270,6 @@ final class TowerViewModel {
                 if !self.newlyDroppedIDs.isDisjoint(with: droppedCopy) {
                     self.newlyDroppedIDs.subtract(droppedCopy)
                 }
-                // Only keys that are there: block bodies read this cache, and
-                // a removal of nothing still notifies them.
-                for id in droppedCopy where self.staggerDelayCache[id] != nil {
-                    self.staggerDelayCache.removeValue(forKey: id)
-                }
             }
         }
 
@@ -297,10 +279,6 @@ final class TowerViewModel {
     // MARK: - Day Separators
 
  
-    func staggerDelay(for block: PlacedBlock) -> Double {
-        staggerDelayCache[block.id] ?? 0
-    }
-
     // MARK: - Ghost Block Preview (Kliegel 2008 — external prospective memory aid)
 
     /// Where a block of this size would land next.

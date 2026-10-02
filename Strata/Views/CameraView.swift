@@ -1286,7 +1286,7 @@ struct CameraView: View {
                 withAnimation(GridConstants.motionSnappy) { camera.setZoom(next) }
             } label: {
                 Text(label)
-                    .font(Typography.bodySmall.weight(.medium))
+                    .font(Typography.headerSmall)
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     // After the layout, not before: the material takes its
@@ -1327,23 +1327,28 @@ struct CameraView: View {
                     label: camera.timerSeconds == 0 ? "Timer off" : "Timer \(camera.timerSeconds) seconds",
                     identifier: "timerToggle",
                     value: "\(camera.timerSeconds)",
+                    // **The delay is BESIDE the glyph now, at 15, and it was a
+                    // 10pt numeral stacked under it** (2026-10-01, the type
+                    // pass). The owner: "no tiny text under or anythign like
+                    // that I want it to be controlled" — a 10pt digit hung
+                    // below a control, over a live viewfinder, is the clearest
+                    // case of it in the app.
+                    //
+                    // It is not deleted, because the glyph does not carry what
+                    // it says: dimmed-against-lit tells you the timer is on and
+                    // nothing tells you whether it is 3 or 10, and iOS Camera
+                    // draws the number for the same reason.
+                    //
+                    // The "s" is not drawn. Measured at 15 Medium monospaced:
+                    // the 21pt glyph is 25.0pt, "10" is 18.9 and "10s" is 26.7,
+                    // so the pair comes to 43.9pt against 51.7 — the bare
+                    // number fits inside the 44pt control and "10s" does not.
+                    badge: camera.timerSeconds > 0 ? "\(camera.timerSeconds)" : nil,
                     dimmed: camera.timerSeconds == 0) {
             withAnimation(GridConstants.motionSmooth) {
                 camera.timerSeconds = camera.timerSeconds == 0 ? 3 : (camera.timerSeconds == 3 ? 10 : 0)
             }
             UserDefaults.standard.set(camera.timerSeconds, forKey: "cameraTimerSeconds")
-        }
-        .overlay(alignment: .bottom) {
-            // The chosen delay, under the glyph — iOS shows the number too,
-            // because "timer on" is not the same as "timer set to what".
-            if camera.timerSeconds > 0 {
-                Text("\(camera.timerSeconds)")
-                    .font(Typography.numeral(10))
-                    .foregroundStyle(.white)
-                    .legibleOnImagery()
-                    .offset(y: 4)
-                    .allowsHitTesting(false)
-            }
         }
     }
 
@@ -1367,28 +1372,49 @@ struct CameraView: View {
     /// once rather than written into both.
     static let controlSide: CGFloat = 44
 
+    /// `badge` is a short run of DIGITS drawn beside the glyph, on its line.
+    /// It exists for the timer, whose delay used to be a 10pt numeral stacked
+    /// underneath (see `timerButton`), and it is a parameter here rather than a
+    /// second kind of button so the row keeps one control type.
+    ///
+    /// **Fixed 15, not a type tier, and SF's own digits rather than the
+    /// owner's.** Both for the reason the 21 below is fixed: this row is solved
+    /// against a 44pt control over a viewfinder, so anything in it that grew
+    /// with Dynamic Type would run into its neighbour. Measured at 44pt of box:
+    /// the `timer` glyph is 25.0pt wide at 21pt, "10" is 18.9pt in SF Medium
+    /// monospaced digits and 27.2pt in `StrataFont` (tabular at 0.906 em), so
+    /// the pair comes to **43.9pt** in SF and 52.2 in the owner's face. There
+    /// is no spacing: the glyph's own side bearing is the gap.
     private func glyphButton(_ symbol: String,
                              label: String,
                              identifier: String? = nil,
                              value: String? = nil,
+                             badge: String? = nil,
                              dimmed: Bool = false,
                              action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
             action()
         } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 21, weight: .regular))
-                // Dimming lives on the GLYPH, not as an `.opacity` over the
-                // button. A toggle wrapped in `.opacity(...)` stopped
-                // receiving taps entirely — measured: its action never ran,
-                // proven by having it toggle the flash as a probe and watching
-                // the flash not move, while the flash's own button (identical
-                // helper, no opacity modifier) toggled every time.
-                .foregroundStyle(.white.opacity(dimmed ? 0.5 : 1))
-                .legibleOnImagery()
-                .frame(width: Self.controlSide, height: Self.controlSide)
-                .contentShape(Rectangle())
+            HStack(spacing: 0) {
+                Image(systemName: symbol)
+                    .font(.system(size: 21, weight: .regular))
+                if let badge {
+                    Text(verbatim: badge)
+                        .font(.system(size: 15, weight: .medium))
+                        .monospacedDigit()
+                }
+            }
+            // Dimming lives on the GLYPH, not as an `.opacity` over the
+            // button. A toggle wrapped in `.opacity(...)` stopped
+            // receiving taps entirely — measured: its action never ran,
+            // proven by having it toggle the flash as a probe and watching
+            // the flash not move, while the flash's own button (identical
+            // helper, no opacity modifier) toggled every time.
+            .foregroundStyle(.white.opacity(dimmed ? 0.5 : 1))
+            .legibleOnImagery()
+            .frame(width: Self.controlSide, height: Self.controlSide)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)

@@ -435,16 +435,19 @@ struct PhotoViewer: View {
                 // smaller size and the pin already say which is secondary.
                 .foregroundStyle(AppColors.onDarkQuiet)
             if let place = placeLine {
-                // **`bodySmall`, not `sectionLabel`.** Both are 13pt, so this
-                // is not a size change; `sectionLabel` is 13 MEDIUM and it is
-                // the token for an uppercase heading (ALBUMS, SEPTEMBER). The
-                // place was wearing it, which meant the SECONDARY line of this
-                // caption was drawn in a heavier weight than the primary line
-                // above it, in the same ink. The hierarchy ran backwards and
-                // the screen carried a heading style on something that is not
-                // a heading.
+                // **Both lines of this caption are now `screenSubtitle`, 15
+                // Medium** (2026-10-01, the type pass). It was 13 Regular here
+                // under a 15 Regular date, and before that it wore
+                // `sectionLabel`, which made the SECONDARY line of a caption
+                // heavier than the primary line above it in the same ink.
+                //
+                // With one size and one weight, what says which line is
+                // secondary is the PIN and the ink: `onDarkQuiet` on both, and
+                // the place is the one carrying a glyph. That is the trade the
+                // owner asked for, and the note above about "the smaller size"
+                // no longer describes this screen.
                 Label(place, systemImage: "mappin.and.ellipse")
-                    .font(Typography.bodySmall)
+                    .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.onDarkQuiet)
                     .labelStyle(.titleAndIcon)
             }

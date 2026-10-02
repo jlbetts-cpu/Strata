@@ -396,19 +396,18 @@ struct PlanSheet: View {
                     onBackspaceWhenEmpty: { backspace(item) }
                 )
                 if let summary = item.repeatSummary(calendar: calendar) {
-                    // `bodySmall`, the token `Typography` names for "footnotes
-                    // and captions". `caption2` is 11 Medium, documented there
-                    // for chart axes and the smallest labels, and the only
-                    // other two call sites in the app are a chart's axes. A
-                    // repeat summary is a caption under a line.
+                    // **`screenSubtitle`, 15 Medium, and it was 13 Regular**
+                    // (2026-10-01, the type pass). A repeat summary is the
+                    // quiet line under a line you wrote, and the quiet is `inkQuiet`
+                    // rather than two points of size.
                     //
-                    // Costs nothing in layout: a row's height is set by the
-                    // bullet's 44pt box, and 17pt of line plus 2 plus a 13pt
-                    // footnote comes to 42, so the row is 44 either way. This
-                    // is the screen's type tiers agreeing with the system, not
-                    // a size change.
+                    // Still costs nothing in layout, which is the number that
+                    // had to be rechecked: a row's height is set by the
+                    // bullet's 44pt box, and a 17pt line (20.3pt of line box)
+                    // plus the 2 plus a 15pt subheadline (20.0) comes to 42.3,
+                    // so the row is still 44 either way.
                     Text(summary)
-                        .font(Typography.bodySmall)
+                        .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkQuiet)
                 }
             }

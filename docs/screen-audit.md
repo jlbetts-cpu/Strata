@@ -12,6 +12,80 @@ above it, the evidence under it, and a date on every change.
 
 ---
 
+## The second pass, 2026-10-01 evening
+
+The owner, after every screen had been rated 10/10 against the ten checks:
+
+> "the spacing should almost feel editorial like there should be a sense of
+> space ... I just want everything thats not like photos to have air to
+> breathe ... I dont like a lot of text I like the text that is there to feel
+> like a medium weight and be consistent guiding the user no tiny text under or
+> anythign like that I want it to be controlled and focus on lost of white space
+> to relax the users eyes and give breathing room to the main elements."
+
+> "Make sure to understand when to add text and when its truely not necessary
+> ... I truely want a minimal and etheral experience like you are transported to
+> a calming app not anything too in your face but just a place of piece and
+> space."
+
+> "remember space is our friend it makes the experience a lot more premium ...
+> really understand and excicute top of the line design rather than guessing
+> understand the why and what we are doing to the fullest."
+
+**Twenty-two screens were at 10/10 and he was still right.** That is the finding
+worth keeping, and it is a finding about the rubric rather than about him: the
+ten checks could not see any of what he named. Check 7 reads a gap against the
+ladder and passes a page whose every gap is the same rung. Check 4 counts type
+TIERS and passes a page of 11pt captions as long as there are only three sizes
+of them. Nothing in the ten asks whether a sentence needed to exist.
+
+So the second pass added three instruments, each written up in full, and the
+work came out of them rather than out of an opinion:
+
+- **`docs/space.md`** — the research, the sources, what was discarded, this
+  app's 85 measured gaps, and check 11 above. The headline measurement: 28 of
+  those 85 gaps sit strictly between 32 and 64, and those 28 are 25 different
+  values.
+- **`docs/copy-audit.md`** — every one of the app's 399 visible strings, classed
+  Fact / Action / Guidance / Explanation, with a ranked cut list.
+- **`docs/motion-audit.md`** — 147 animation call sites, 40 distinct animations,
+  and the proposed collapse to nine.
+- **`tools/page-room.py`** and **`tools/capture-screens.sh`** — the instrument
+  and the capture set, with the layout-signature check that catches a capture
+  landing on the wrong screen.
+
+### What came off the app before any of the screens were re-rated
+
+These are structural and they change what the screens below are, so they are
+recorded here rather than inside one screen's entry.
+
+- **The Wins header is empty.** The date ("Thursday, October 1") and the replay
+  pill ("Your month") are both deleted. The owner: "the Oct 17 on the left idk
+  if that looks very clean ... maybe I will add a logo later in the corner but I
+  think for now it shouldnt be there", and "the your month doesnt belong on the
+  wins because its already in memories". Measured: empty rows 76.0% to 77.6%,
+  header band 42.0pt to 30.3pt, the gap above it 16.0 to 27.7. What is left is
+  one icon button in open air.
+- **Replays live in Memories.** Put to the owner directly, with the cost named
+  (the week had no other route), and his call was to move the week rather than
+  keep a second entry point on Wins.
+- **The tab bar is icon-only.** The three 10pt labels under the glyphs were the
+  smallest type the app shipped and the weakest of four things already saying
+  which tab you are on. The names moved to `accessibilityLabel`, so VoiceOver
+  reads exactly what it read before. Put to the owner with the cost named; his
+  call.
+- **The replay's ground strikes with the set.** The owner: "i dont think i like
+  the latice when it zooms out." At rest the only lattice in sight was
+  `rowsAbove` hanging over a finished tower, 160pt tall, with the header printed
+  across it. It now dissolves across the first 60% of the reveal. See
+  `ReplayFrame.surface`.
+- **The tower no longer fades in when you arrive on the Wins tab**, and the
+  stagger mechanism behind it is deleted. It computed, cached and cleared a
+  per-block delay for an animation that could never run, because the only blocks
+  it was computed for took `.identity`. Check 10, named by `docs/motion-audit.md`.
+
+---
+
 ## Where every screen stands, 2026-10-01
 
 | # | Screen | | What it cost |
@@ -98,9 +172,46 @@ everywhere and get the same answers.
 | 8 | **Every target is 44pt, measured** | Not declared. Measured off the built screen. |
 | 9 | **Contrast is measured** | Text clears 4.5:1, a shape 3:1, against the ground it is actually on — sampled, not assumed. |
 | 10 | **Motion answers a person** | Everything that moves does so because somebody did something, on the ladder's durations. Anything that animates because it appeared fails. |
+| 11 | **The page has room** | Four clauses, measured off a 402x874 @3x capture with `tools/page-room.py`. All four must pass. See below. |
 
-**Ten of ten, or the screen is not done.** A 9 is a screen with one named
+**Eleven of eleven, or the screen is not done.** A 10 is a screen with one named
 failure, and this file names it.
+
+### Check 11, added 2026-10-01
+
+The owner, twice in one afternoon: *"make sure it leaves room like a lot of
+white space focus on hey tea design system"*, and *"remember space is our friend
+it makes the experience a lot more premium ... really understand and excicute
+top of the line design rather than guessing"*. The research and every
+measurement behind this check are in `docs/space.md`; the four clauses are:
+
+- **11a. There is ground.** At least 35% of the usable rows have nothing drawn
+  on them. A screen whose subject is a full bleed photograph or a viewfinder is
+  measured on its chrome band only.
+- **11b. Both ends of the ladder are on the page.** On a page with three or more
+  gaps: at least one gap of 17pt or less, and at least one of 48pt or more.
+- **11c. The air is between things, not after them.** The biggest break must
+  fall between two drawn bands that are both content. A tab bar is not the
+  second band.
+- **11d. One margin, not ten.** Every left aligned band starts within 2pt of the
+  same value, and that value is at least 16. Centred artwork is exempt and is
+  declared rather than assumed.
+
+**Why this is a separate check and not a tightening of check 7.** Check 7 can
+see that a gap is ON the ladder. It cannot see that every gap on a page is the
+SAME rung, and that is exactly what a page with no air looks like. The arithmetic
+is Kubovy, Holcombe and Wagemans (1998): proximity groups by the RATIO between
+competing distances, not their difference, so a page whose gaps all sit in the
+middle has one spacing, and one spacing is the same as none. `gapSection` 32
+against a page of 24s is 1.33x, which is the ladder's own step.
+
+**It is a real re-rating, not a formality.** Six screens that this file already
+scored 10/10 fail 11b, four fail 11c and four fail 11d, including Add a win,
+which was re-rated to 10 twice. Every rating below is against the ten checks
+until it is re-rated against eleven, and says so.
+
+**And `gapPage` (64) is the sixth rung of the spacing ladder**, added with this
+check, for the reasons on the token in `GridConstants`.
 
 ---
 
