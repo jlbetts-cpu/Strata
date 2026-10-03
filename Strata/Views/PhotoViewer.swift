@@ -414,12 +414,14 @@ struct PhotoViewer: View {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
             }
-            Button { save() } label: {
-                Label(isSaved ? "Saved to Photos" : "Save to Photos",
-                      systemImage: isSaved ? "checkmark" : "square.and.arrow.down")
+            if current?.block == nil {
+                Button { save() } label: {
+                    Label(isSaved ? "Saved to Photos" : "Save to Photos",
+                          systemImage: isSaved ? "checkmark" : "square.and.arrow.down")
+                }
+                .disabled(saving || isSaved)
+                Divider()
             }
-            .disabled(saving || isSaved)
-            Divider()
             if crew != nil, let current {
                 if current.byline != nil {
                     Button(role: .destructive) { onReport(current) } label: {
@@ -556,7 +558,8 @@ struct PhotoViewer: View {
         // almost nothing.
         let order = [index, index + 1, index - 1]
             .filter { photos.indices.contains($0) }
-        let window = order.map { photos[$0].fileName }
+        // A crew win with no photograph is drawn, not decoded.
+        let window = order.filter { photos[$0].block == nil }.map { photos[$0].fileName }
         images = images.filter { window.contains($0.key) }
         previewOnly = previewOnly.filter { window.contains($0) }
         // **A preview first, then the full picture** (2026-09-16). The one in
@@ -740,7 +743,11 @@ struct Filmstrip: View {
                 ForEach(drawn, id: \.element.id) { offset, photo in
                     let distance = min(abs(Double(lo + offset) - progress), 1)
                     Group {
-                        if let file = photo.file {
+                        if let colour = photo.block {
+                            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                                .fill(colour.style.baseColor)
+                                .frame(width: Self.side, height: Self.side)
+                        } else if let file = photo.file {
                             CrewPhotoView(url: file, width: Self.side, height: Self.side)
                                 .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
                         } else {
@@ -880,7 +887,20 @@ private struct PhotoPage: View {
     var body: some View {
         ZStack {
             Color.black
-            if let image {
+            if let colour = photo.block {
+                // A crew win with no photograph: its block, as the tower
+                // draws it, at the size of a print.
+                GeometryReader { geo in
+                    let across = CGFloat(photo.size.columnSpan), down = CGFloat(photo.size.rowSpan)
+                    let room = CGSize(width: geo.size.width - inset * 2, height: geo.size.height - inset * 2)
+                    let w = min(room.width, room.height * across / down)
+                    let h = w * down / across
+                    BlockFace(title: photo.title ?? "", category: colour, rowSpan: photo.size.rowSpan,
+                              width: w, height: h, cornerRadius: GridConstants.radiusSurface,
+                              hasPhoto: false) { EmptyView() }
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+            } else if let image {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(image.size.width / max(image.size.height, 1),

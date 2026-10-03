@@ -128,18 +128,10 @@ struct CrewsListView: View {
                     .foregroundStyle(AppColors.inkSecondary)
                     .lineLimit(2)
             }
-            // How many wins today: one number, in the app's own numerals
-            // (the owner, 2026-10-02, over a miniature tower: "a number of
-            // wins would be cleaner"). Nothing before the first.
-            let count = store.today(in: crew.id).count
-            if count > 0 {
-                Text("\(count)")
-                    .font(StrataFont.relative(24, to: .title2))
-                    .monospacedDigit()
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .contentTransition(.numericText())
-                    .accessibilityLabel(count == 1 ? "1 win today" : "\(count) wins today")
-            }
+            // **No count at the end of the row** (the owner, 2026-10-02: "I
+            // dont like the big number of wins outside the chat... just
+            // remove it"). It replaced a miniature tower and was removed in
+            // its turn: a row is who, the latest win and when, as Messages'.
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

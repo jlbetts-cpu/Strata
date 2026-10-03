@@ -126,4 +126,14 @@ final class FakeCrewCloud: CrewCloud {
         world.zones[crew]?.participants.remove(profileID)
         world.zones[crew]?.records["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"] = nil
     }
+
+    /// As CloudKit's change token does: true when the zone's records are not
+    /// what this phone last saw of them.
+    func syncOnly(_ crew: CrewID) async throws -> Bool {
+        let now = world.zones[crew]?.records ?? [:]
+        defer { seen[crew] = now }
+        return seen[crew] != now
+    }
+
+    private var seen: [CrewID: [String: RecordFields]] = [:]
 }

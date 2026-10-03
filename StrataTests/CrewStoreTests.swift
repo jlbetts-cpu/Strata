@@ -287,3 +287,23 @@ extension CrewStoreTests {
         #expect(cloud.calls > before)
     }
 }
+
+extension CrewStoreTests {
+    /// The owner, 2026-10-02: "make sure the reactions update immediately
+    /// and on everyones end". The crew on screen syncs its zone every few
+    /// seconds; a friend's reaction is on this phone after one.
+    @Test func aFriendsReactionReachesTheOpenCrewOnTheNextLiveSync() async throws {
+        let (a, b, crew) = try await pair()
+        await a.post(win("Gym"), to: [crew.id])
+        await b.refresh()
+        let gym = try #require(b.wins(in: crew.id).first)
+        await a.refreshLive(crew.id)
+        await b.react("🔥", to: gym.winID, in: crew.id)
+        #expect(a.reactions(to: gym.winID, in: crew.id).isEmpty)
+        await a.refreshLive(crew.id)
+        #expect(a.reactions(to: gym.winID, in: crew.id).map(\.emoji) == ["🔥"])
+        // Nothing new: nothing fetched beyond the one check.
+        await a.refreshLive(crew.id)
+        #expect(a.reactions(to: gym.winID, in: crew.id).count == 1)
+    }
+}

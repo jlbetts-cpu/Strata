@@ -480,6 +480,11 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     var file: URL? = nil
     /// Whose win, in a crew: "Sam". Nil for yours.
     var byline: String? = nil
+    /// **A crew win with no photograph**, by its colour: the carousel draws
+    /// it as its block, so every win of the day is one swipe from the next
+    /// and its reactions and its Report live in one place (the owner,
+    /// 2026-10-02). Nil for a photograph.
+    var block: HabitCategory? = nil
 
     /// What VoiceOver says for this photograph in a grid or a strip of many:
     /// its name and its day, "Photo, 21 September" when it has no name. The

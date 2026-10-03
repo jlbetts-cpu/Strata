@@ -278,12 +278,23 @@ final class CloudKitCrewCloud: CrewCloud {
         cache[crew, default: [:]][Self.namesKey] = names
     }
 
-    /// Brings one crew's cache up to date from its change token.
-    private func sync(_ crew: CrewID) async throws {
+    func syncOnly(_ crew: CrewID) async throws -> Bool {
+        guard zones[crew] != nil else { return false }
+        let changed = try await sync(crew)
+        if changed { saveCache() }
+        return changed
+    }
+
+    /// Brings one crew's cache up to date from its change token. True when
+    /// a record came or went.
+    @discardableResult
+    private func sync(_ crew: CrewID) async throws -> Bool {
         let (zoneID, db) = try zone(crew)
         var more = true
+        var changed = false
         while more {
             let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: tokens[crew])
+            if !changes.modificationResultsByID.isEmpty || !changes.deletions.isEmpty { changed = true }
             for (id, result) in changes.modificationResultsByID {
                 guard case .success(let modification) = result else { continue }
                 let record = modification.record
@@ -315,6 +326,7 @@ final class CloudKitCrewCloud: CrewCloud {
             tokens[crew] = changes.changeToken
             more = changes.moreComing
         }
+        return changed
     }
 
     /// A record's fields, with any asset copied out of CloudKit's cache to a

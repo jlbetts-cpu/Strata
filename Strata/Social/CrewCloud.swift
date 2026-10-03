@@ -49,4 +49,13 @@ protocol CrewCloud: AnyObject {
     /// Ends a crew you started, for everyone: its zone is deleted.
     func endCrew(_ crew: CrewID) async throws
     func removeParticipant(_ profileID: UUID, from crew: CrewID) async throws
+    /// Brings ONE crew up to date, cheaply: true when anything in it
+    /// changed. The crew on screen asks this every few seconds.
+    func syncOnly(_ crew: CrewID) async throws -> Bool
+}
+
+extension CrewCloud {
+    /// A pretend cloud has nothing to fetch: it says something may have
+    /// changed and lets the full refresh find out.
+    func syncOnly(_ crew: CrewID) async throws -> Bool { true }
 }

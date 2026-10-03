@@ -659,6 +659,22 @@ final class SocialStore {
         }
     }
 
+    /// **The crew on screen, kept live.** One zone's changes, asked for every
+    /// few seconds while it is open: when a friend reacts, the badge moves
+    /// on your phone within seconds, not at the next full refresh (the
+    /// owner, 2026-10-02: "update immediately... on everyones end"). A
+    /// silent push is only a nudge and iOS delays it at will; this does not
+    /// wait for one. Nothing changed costs one small request.
+    func refreshLive(_ crewID: CrewID) async {
+        guard isEnabled(), !isRefreshing else { return }
+        await flush()
+        do {
+            if try await cloud.syncOnly(crewID) { await refresh() }
+        } catch {
+            Self.log.error("live sync of \(crewID.rawValue, privacy: .public) failed: \(error)")
+        }
+    }
+
     /// Whether this store says what is new as notifications. The phone's own
     /// store does; a test's or a debug friend's never does.
     @ObservationIgnored var announces = false

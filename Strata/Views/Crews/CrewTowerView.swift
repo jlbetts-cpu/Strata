@@ -115,8 +115,8 @@ struct CrewTowerView: View {
             // `-strataCrewSheet info|win`: the crew's sheets, for captures.
             switch DebugHarness.argument("-strataCrewSheet") {
             case "info": showsInfo = true
-            case "win": reacting = store.today(in: crewID).last { $0.senderProfileID != store.me }?.winID
-            case "mine": reacting = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID
+            case "win": viewing = store.today(in: crewID).last { $0.senderProfileID != store.me && $0.photo == nil }?.winID.uuidString
+            case "mine": viewing = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID.uuidString
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
             case "fan": parking.fanned = !parking.parked.isEmpty
             default: break
@@ -175,13 +175,14 @@ struct CrewTowerView: View {
         }
         .onChange(of: crew?.members) { _, _ in rebuild() }
         .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
-        // While the crew is on screen it stays current: a modest poll, since
-        // a push is only a nudge to look and may never come.
+        // While the crew is on screen it stays live: this crew's changes
+        // every 3 seconds (`refreshLive`, one small request when nothing
+        // moved), since a push is only a nudge to look and may never come.
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                await store.refresh()
+                try? await Task.sleep(for: .seconds(3))
+                await store.refreshLive(crewID)
             }
         }
         .sheet(isPresented: $showsInfo) {
@@ -245,10 +246,13 @@ struct CrewTowerView: View {
         }
     }
 
-    /// A held block, or a tapped one with no photograph: its menu over it,
-    /// as Messages opens one over a held message (`CrewWinMenu`).
+    /// A held friend's block: the reaction bar over it, and only that (the
+    /// owner, 2026-10-02: "the hold... should just be to react"). Who reacted
+    /// and Report are in the carousel a tap opens. Your own takes no
+    /// reaction from you, so holding it does nothing.
     private func hold(_ id: UUID) {
-        guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
+        guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
+              win.senderProfileID != store.me else { return }
         HapticsEngine.success()
         heldAt = Date()
         reacting = id
@@ -261,36 +265,24 @@ struct CrewTowerView: View {
 
     @ViewBuilder
     private func reactionsOver(_ id: UUID, mine: Bool) -> some View {
-        if let win = store.today(in: crewID).first(where: { $0.winID == id }) {
-            CrewWinMenu(win: win, crewID: crewID,
-                        onReact: { emoji in
-                            if store.myReaction(to: id, in: crewID) != emoji {
-                                let burst = Burst(block: id, emoji: emoji)
-                                bursts.append(burst)
-                                Task { @MainActor in
-                                    try? await Task.sleep(for: .milliseconds(1100))
-                                    bursts.removeAll { $0.id == burst.id }
-                                }
-                            }
-                            Task { await store.react(emoji, to: id, in: crewID) }
-                            closeReactions()
-                        },
-                        onReport: {
-                            closeReactions()
-                            reporting = win
-                        },
-                        onRemove: {
-                            closeReactions()
-                            HapticsEngine.lightTap()
-                            Task { await store.withdraw(winID: id, from: crewID) }
-                        })
+        ReactionBar(mine: store.myReaction(to: id, in: crewID)) { emoji in
+            if store.myReaction(to: id, in: crewID) != emoji {
+                let burst = Burst(block: id, emoji: emoji)
+                bursts.append(burst)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1100))
+                    bursts.removeAll { $0.id == burst.id }
+                }
+            }
+            Task { await store.react(emoji, to: id, in: crewID) }
+            closeReactions()
         }
     }
 
-    /// Today's photographs in the order the tower stacks them, for the viewer.
+    /// Today's wins in the order the tower stacks them, for the carousel:
+    /// photographs, and the rest as their blocks.
     private var galleryPhotos: [GalleryPhoto] {
         store.today(in: crewID)
-            .filter { $0.photo != nil }
             .sorted { $0.createdAt < $1.createdAt }
             .map { win in
                 let name = crew?.member(win.senderProfileID)?.shortName ?? ""
@@ -298,7 +290,8 @@ struct CrewTowerView: View {
                                     title: win.title.isEmpty ? nil : win.title,
                                     date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
                                     file: win.photo,
-                                    byline: win.senderProfileID == store.me ? nil : (name.isEmpty ? "A friend" : name))
+                                    byline: win.senderProfileID == store.me ? nil : (name.isEmpty ? "A friend" : name),
+                                    block: win.photo == nil ? win.colour : nil)
             }
     }
 
@@ -424,9 +417,10 @@ struct CrewTowerView: View {
                             if reacting != nil { closeReactions(); return }
                             guard Date().timeIntervalSince(heldAt) > 0.6 else { return }
                             guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
-                            // A photograph opens as a past day's does; any
-                            // other block opens its menu where it stands.
-                            if win.photo != nil { viewing = win.winID.uuidString } else { hold(id) }
+                            // Every block opens the day's carousel at itself,
+                            // photograph or not: who reacted and Report live
+                            // there, and the hold is only for reacting.
+                            viewing = win.winID.uuidString
                         },
                         liftedBlockID: nil,
                         onDoubleTapBlock: { doubleTap($0) },
