@@ -543,11 +543,12 @@ struct MainAppView: View {
     /// the type-checker's ceiling, and removing the toolbar was enough to tip
     /// it over.
     private var towerTabRoot: some View {
-        NavigationStack {
+        NavigationStack(path: $crewPath) {
             // No navigation bar at all. The header below carries the count, and
             // there is no longer a filter to put anywhere.
             towerTab
                 .toolbar(.hidden, for: .navigationBar)
+                .modifier(CrewDestinations(path: $crewPath))
         }
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
@@ -956,10 +957,12 @@ struct MainAppView: View {
         // sit a baseline on, and two capsules of the same height centre on
         // each other exactly.
         HStack(alignment: .center, spacing: GridConstants.gapTight) {
-            // Nothing on the left. The owner's corner, kept clear for whatever
-            // he puts there — see the note above `towerHeader`. One control in
-            // open air is a header; two controls with a caption between them is
-            // a toolbar.
+            // The corner holds Crews (the owner, 2026-10-02: "a simple social
+            // button on the top left"). It was kept clear for a logo until
+            // then, and stays clear while crews are off.
+            if CrewsFlag.isOn {
+                CrewsButton { crewPath = [.list] }
+            }
             Spacer(minLength: 0)
             // The tower head's bubble, directly left of the Plan button and
             // its size (the owner, 2026-10-02). Invisible unless he is being
@@ -1435,6 +1438,8 @@ struct MainAppView: View {
     /// Seeded from the current count on first build, so opening the app on a
     /// tower that is already at thirty does not set it off.
     @State private var lastDanceMilestone: Int? = nil
+    /// Where the Wins tab's stack has gone: Crews, then a crew.
+    @State private var crewPath: [CrewRoute] = []
 
  
 

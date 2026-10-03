@@ -69,6 +69,7 @@ final class SocialStore {
         self.defaults = defaults
         self.directory = directory
         self.outbox = CrewOutbox.load(from: directory.appending(path: "outbox.json"))
+        self.blocked = Set((defaults.stringArray(forKey: Self.blockedKey) ?? []).compactMap(UUID.init(uuidString:)))
     }
 
     // MARK: Reading
@@ -80,11 +81,37 @@ final class SocialStore {
         (winsByCrew[crew] ?? []).sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// The crew's wins for its current day: what its tower shows.
+    /// The crew's wins for its current day: what its tower shows. Nothing
+    /// from someone you blocked.
     func today(in crewID: CrewID) -> [SharedWin] {
         guard let crew = crew(crewID) else { return [] }
         let day = CrewDay.string(for: now(), in: crew.timeZone)
-        return wins(in: crewID).filter { $0.crewDay == day }
+        return wins(in: crewID).filter { $0.crewDay == day && !blocked.contains($0.senderProfileID) }
+    }
+
+    /// A crew as you see it: without anyone you blocked.
+    func visible(_ crewID: CrewID) -> Crew? {
+        guard var crew = crew(crewID) else { return nil }
+        crew.members.removeAll { blocked.contains($0.profileID) }
+        return crew
+    }
+
+    // MARK: Blocking
+
+    /// People you blocked. Their wins, heads and names disappear from every
+    /// crew on this phone, and they are not told (spec 9.2).
+    private(set) var blocked: Set<UUID> = []
+    private static let blockedKey = "crews.blocked"
+
+    func block(_ profileID: UUID) {
+        blocked.insert(profileID)
+        defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
+        recomputeUnread()
+    }
+
+    func unblock(_ profileID: UUID) {
+        blocked.remove(profileID)
+        defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
     }
 
     /// The newest win in a crew, for its row in the list.
@@ -124,6 +151,8 @@ final class SocialStore {
                              name: CrewRecords.name(of: crew.members[0]), in: crew.id)
         crews.append(crew)
         winsByCrew[crew.id] = []
+        // A refresh already in flight fetched before this zone existed.
+        if isRefreshing { refreshAgain = true }
         return (crew, url)
     }
 
@@ -315,9 +344,22 @@ final class SocialStore {
     /// Everything, from the cloud: on foreground, on opening the list, while a
     /// crew is on screen, and when a notification arrives.
     func refresh() async {
-        guard isEnabled(), !isRefreshing else { return }
+        guard isEnabled() else { return }
+        // A refresh asked for while one is running is not dropped: the running
+        // one goes round again once it finishes. Dropping it lost a crew made
+        // between the first one's fetch and its write (2026-10-02, the seed).
+        if isRefreshing { refreshAgain = true; return }
         isRefreshing = true
         defer { isRefreshing = false }
+        repeat {
+            refreshAgain = false
+            await refreshOnce()
+        } while refreshAgain
+    }
+
+    @ObservationIgnored private var refreshAgain = false
+
+    private func refreshOnce() async {
         await flush()
         do {
             let fetched = try await cloud.fetchCrews()
@@ -405,7 +447,9 @@ final class SocialStore {
         let seen = lastSeen
         let fresh = Set(crews.compactMap { crew -> CrewID? in
             let since = Date(timeIntervalSince1970: seen[crew.id.rawValue] ?? 0)
-            return (winsByCrew[crew.id] ?? []).contains { $0.senderProfileID != me && $0.updatedAt > since } ? crew.id : nil
+            return (winsByCrew[crew.id] ?? []).contains {
+                $0.senderProfileID != me && !blocked.contains($0.senderProfileID) && $0.updatedAt > since
+            } ? crew.id : nil
         })
         if unread != fresh { unread = fresh }
     }

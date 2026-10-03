@@ -142,6 +142,9 @@ struct StrataApp: App {
     private var mainApp: some View {
         MainAppView()
             .environment(focusFilterService)
+            #if DEBUG
+            .task { await DebugHarness.seedCrewIfAsked() }
+            #endif
             .onAppear {
                 // **Not wrapped in a Task.** `reindex` spawns its own
                 // detached task and does all its work inside it, so the

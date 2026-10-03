@@ -1,0 +1,106 @@
+import Observation
+import SwiftUI
+
+/// One crew tower's state: its own `TowerViewModel` and its own
+/// `TowerAnimationCoordinator`.
+///
+/// **Never the Wins tab's.** `buildTower` writes caches onto the instance it
+/// runs on and schedules their cleanup, so running it on the live tower for
+/// anything else leaves the Wins tab showing the wrong thing
+/// (`DayAlbumDetailView` learned this first). A crew screen builds its own.
+@MainActor
+@Observable
+final class CrewTowerModel {
+    let tower = TowerViewModel()
+    let animation = TowerAnimationCoordinator()
+    private(set) var latticeRipple: LatticeRipple?
+
+    /// Where the grid is on screen, for starting a fall above the top edge.
+    @ObservationIgnored var gridTopOnScreen: CGFloat = 0
+    @ObservationIgnored var gridHeight: CGFloat = 0
+    @ObservationIgnored var cellSize: CGFloat = 0
+    @ObservationIgnored private var hasMeasured: Bool { cellSize > 0 }
+    @ObservationIgnored private var lastDanceMilestone: Int?
+    @ObservationIgnored private var wired = false
+
+    func wire(reduceMotion: Bool) {
+        animation.reduceMotion = reduceMotion
+        guard !wired else { return }
+        wired = true
+        animation.lookupMass = { [tower] id in
+            tower.placedBlocks.first { $0.id == id }?.look.blockSize.massTier
+        }
+        animation.onImpact = { [weak self] landedID, mass in
+            guard let self else { return }
+            animation.triggerRipple(from: landedID, massTier: mass, placedBlocks: tower.placedBlocks)
+            rippleTheLattice(from: landedID)
+            let column = tower.placedBlocks.first { $0.id == landedID }?.column ?? 2
+            SoundEngine.blockImpact(mass: mass, column: column)
+        }
+    }
+
+    /// Rebuilds from the crew's wins. A win that was not there last time falls
+    /// in from above the screen, as yours do; every tenth one sets the tower
+    /// dancing, which is the crew's only celebration.
+    func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String]) {
+        let ordered = wins.sorted { $0.createdAt < $1.createdAt }
+        var entries: [TowerViewModel.TowerEntry] = []
+        for win in ordered {
+            var sender: String? = nil
+            if win.senderProfileID != me {
+                let name = names[win.senderProfileID] ?? ""
+                sender = name.isEmpty ? "A friend" : name
+            }
+            entries.append(TowerViewModel.TowerEntry(id: win.winID, look: PlacedBlock.Look(win: win, sender: sender)))
+        }
+        let hadBuilt = tower.hasBuiltOnce
+        withAnimation(GridConstants.motionSnappy) {
+            let dropped = tower.buildTower(entries: entries, merges: false)
+            animation.ensureStates(for: tower.placedBlocks.map(\.id))
+            guard hadBuilt else { return }
+            for id in dropped.subtracting(animation.activelyAnimatingIDs) {
+                if let block = tower.placedBlocks.first(where: { $0.id == id }) {
+                    animation.setFallStart(for: id, offset: fallStartOffset(for: block))
+                }
+                animation.enqueueDrop(blockIDs: [id])
+            }
+        }
+        let count = tower.placedBlocks.count
+        let milestone = count / GridConstants.danceEvery
+        guard let last = lastDanceMilestone else { lastDanceMilestone = milestone; return }
+        if count > 0, count % GridConstants.danceEvery == 0, milestone != last {
+            lastDanceMilestone = milestone
+            Task { @MainActor in
+                // After the tenth has landed, as on the Wins tab.
+                while !animation.activelyAnimatingIDs.isEmpty { try? await Task.sleep(for: .milliseconds(60)) }
+                try? await Task.sleep(for: .milliseconds(180))
+                HapticsEngine.reward()
+                animation.triggerJubilation(placedBlocks: tower.placedBlocks)
+            }
+        } else {
+            lastDanceMilestone = milestone
+        }
+    }
+
+    /// The same measurement the Wins tab makes: far enough above its slot
+    /// that the block enters from off the top of the screen.
+    private func fallStartOffset(for block: PlacedBlock) -> CGFloat {
+        guard hasMeasured else { return -GridConstants.dropRunway }
+        let frame = block.frame(cellSize: cellSize)
+        let slotTopOnScreen = gridTopOnScreen + (gridHeight - frame.maxY)
+        return -max(slotTopOnScreen + frame.height + GridConstants.dropClearance, GridConstants.dropRunway)
+    }
+
+    private func rippleTheLattice(from landedID: UUID) {
+        guard !animation.reduceMotion,
+              let block = tower.placedBlocks.first(where: { $0.id == landedID }) else { return }
+        let ripple = LatticeRipple(column: block.column, row: block.row,
+                                   columnSpan: block.columnSpan, rowSpan: block.rowSpan)
+        latticeRipple = ripple
+        let life = TowerLattice.duration(for: ripple.span)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(life + 0.05))
+            if latticeRipple == ripple { latticeRipple = nil }
+        }
+    }
+}

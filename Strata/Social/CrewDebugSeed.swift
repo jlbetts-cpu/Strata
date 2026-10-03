@@ -39,13 +39,19 @@ extension DebugHarness {
     static func seedCrewIfAsked() async {
         guard let size = seedsCrew, CrewsFlag.isOn else { return }
         let store = SocialStore.shared
+        NSLog("[strata-crew] seeding %d, cloud %@, crews %d", size, String(describing: type(of: store.cloud)), store.crews.count)
         guard let mine = store.cloud as? FakeCrewCloud, store.crews.isEmpty else { return }
         store.myFirstName = { ProfileStore.shared.name.isEmpty ? "Jayden" : ProfileStore.shared.name }
         let support = FileManager.default.temporaryDirectory.appending(path: "crew-seed", directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: support)
 
         for c in 0..<max(1, min(seedCrewCount, CrewCaps.crews)) {
-            guard let (crew, link) = try? await store.createCrew(name: crewNames[c % crewNames.count]) else { continue }
+            let made: (crew: Crew, invite: URL)
+            do { made = try await store.createCrew(name: crewNames[c % crewNames.count]) } catch {
+                NSLog("[strata-crew] createCrew failed: %@", String(describing: error))
+                continue
+            }
+            let (crew, link) = made
             let people = max(1, min(size, CrewCaps.members)) - 1
             for f in 0..<people {
                 let me = UUID()
@@ -70,6 +76,7 @@ extension DebugHarness {
             }
         }
         await store.refresh()
+        NSLog("[strata-crew] seeded %d crews", store.crews.count)
         if let index = openCrew, store.crews.indices.contains(index) {
             CrewRouter.shared.open = store.crews[index].id
         }
