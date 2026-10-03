@@ -75,6 +75,20 @@ measurement beside it.
 | Tapping the **tower head plays a face**, the camera's twelve, never the same twice running | 2026-10-02 | "when you click on it it will change faces just like the camera" |
 | Dragging the tower head shows a **glass bubble directly left of the Plan button, its size**. Let go in it and he parks; tap it and it pops | 2026-10-02 | "make the glass button right next to the plan and be the same size on the left of the plan right next to it" |
 
+### Crews
+
+| Decision | When | His words, or the record |
+|---|---|---|
+| A crew is up to **8 people, you included**; up to 5 crews each | 2026-10-02 | "up to 8 people I think fits the best"; 8 includes you, his answer |
+| Crews are reached from a **glass button top left of Wins**, then a list like Messages, then the crew's tower | 2026-10-02 | "a simple social button on the top left... when you click into a group it shows the shared tower" |
+| A crew's **members sit top middle**, name in a capsule under them, like a Messages group | 2026-10-02 | "it will have the members on the top middle just like imessage" |
+| **Anyone in a crew** renames it, changes its picture and invites; only who started it removes people or ends it | 2026-10-02 | his answer: "Everyone, like Messages" |
+| **A notification for every friend's win**, grouped by crew, with Hide Alerts per crew | 2026-10-02 | "notifications work just the same as on imessages" |
+| Everyone's **heads float in the crew tower**, and dropped into the top bubble they are **crammed** | 2026-10-02 | "it should actually look like they are cramped in there" |
+| Friends' heads are **fully alive** (blinks, faces) | 2026-10-02 | his answer |
+| **13+ with limits**: under 13 no crews, 13 to 15 no photos | 2026-10-02 | his answer |
+| Inviting is the **system share sheet** as a collaboration, not a contact picker of ours | 2026-10-02 | his "invite people from your contacts", met by the platform's own sheet: contacts first, and Messages carries the invitation |
+
 ### The blocks and the tower
 
 | Decision | When | His words, or the record |

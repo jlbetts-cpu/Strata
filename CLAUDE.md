@@ -1237,8 +1237,13 @@ in the app to write and the most expensive to be caught with.
   off the device... Data that is processed only on device is not 'collected'
   and does not need to be disclosed."* Strata transmits nothing — no
   `URLSession`, no third-party packages, no analytics — so
-  `NSPrivacyCollectedDataTypes` is EMPTY and must stay empty until a server
-  exists.
+  `NSPrivacyCollectedDataTypes` was EMPTY until Crews (2026-10-02). A crew's
+  Report is a record in the app's PUBLIC CloudKit database that the developer
+  can read, so User ID and Other User Content are now declared, with the
+  reasoning in the manifest's own comments. What crews share with each other
+  stays in users' own iCloud and is not "collected" by Apple's definition
+  (`docs/crews-app-store-privacy.md`). Anything new that reaches the developer
+  must be declared the day it ships.
 - **`PrivacyPolicyView` had a section on "Apple Health and Calendar"** — how
   Strata reads them, that it never writes to them. It imports neither
   EventKit nor HealthKit. A privacy policy is a legal document and that
@@ -1603,6 +1608,27 @@ plan does not include: run it with `-testPlan StrataFull`.
 sounds on a device, how long a month takes to export on a real phone and its
 frame pacing there, the Photos add-only permission prompt, and the Sunday and
 1st notifications actually firing.
+
+## Crews
+
+Crews (`Strata/Social`, `Strata/Views/Crews`, spec
+`docs/superpowers/specs/2026-10-02-crews-design.md`) ship DARK behind
+`CrewsFlag` (`-strataCrews 1`). Three rules that cost time to learn:
+
+- **A friend's win is never a `Habit` or a `HabitLog`.** `SocialStore` sits
+  beside SwiftData and takes no `ModelContext`; `CrewSyncTests` holds it.
+- **New wins are sent only from where a person logs one** (Add Win and
+  `MainAppView.logWin`). `CrewSync`'s save observer only ever UPDATES or
+  DELETES copies of wins already sent; it must never post, or restoring a
+  backup would send hundreds of old wins to friends.
+- **A crew screen owns its own `TowerViewModel`.** Same rule as
+  `DayAlbumDetailView`.
+
+Simulator: `-strataSeedCrew <n> -strataSeedCrews <k>`, `-strataOpenCrew 0`,
+`-strataOpenCrews 1`, `-strataCrewDropEvery <s>`, `-strataCrewParkEvery <s>`,
+`-strataCrewParked <n>`, `-strataCrewSheet info|win|mine|new`,
+`-strataCrewAge under13|teen|adult`. A system permission prompt survives an
+uninstall in the simulator; reboot it.
 
 ## Words the app says
 

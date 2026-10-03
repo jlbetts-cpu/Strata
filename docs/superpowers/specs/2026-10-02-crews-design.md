@@ -1,7 +1,24 @@
 # Crews
 
-**Status:** design, approved in chat 2026-10-02. Not built. Ships dark behind a
-flag until the safety and privacy pass (section 9) is done.
+**Status:** built 2026-10-02, behind `CrewsFlag` (off). Two departures from
+the design below, both deliberate:
+
+- **Inviting** (2.3) is the system share sheet registered as a CloudKit
+  collaboration (`CrewSharing`), not a contact picker plus a message composer.
+  It puts the people you message most first, and Messages carries the
+  invitation as a bubble that joins in one tap. Members are administrators on
+  iOS 26 (`allowsParticipantsToInviteOthers`), so anyone can invite.
+- **Notifications** (5) are a silent CloudKit push that wakes the app, which
+  writes the notification itself (`CrewNotifications`). A service extension
+  would need a second app ID with the iCloud container assigned in the
+  developer portal. The cost: a phone where Sturdy was swiped away gets its
+  crew notifications when it next opens. Hide Alerts drops them entirely,
+  which the extension design could not.
+
+Before the flag can be on: the Push Notifications, Sensitive Content Analysis
+and Declared Age Range capabilities on the app ID, their entitlements, and a
+new App Store profile; the `Report` record type's permissions in the CloudKit
+dashboard; the App Store Connect answers in `docs/crews-app-store-privacy.md`.
 
 **Supersedes** the sharing model of `2026-09-28-social-check-in-design.md`
 (count only, no tower). Shown that spec, the owner said "i like our idea
