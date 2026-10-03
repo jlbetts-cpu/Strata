@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import SensitiveContentAnalysis
 import os
 
 /// What App Store guideline 1.2 asks of an app where people share words and
@@ -41,6 +42,30 @@ enum CrewSafety {
             _ = try await cloud.container.publicCloudDatabase.save(record)
         } catch {
             log.error("report not sent: \(error)")
+        }
+    }
+
+    /// **The photo check** (guideline 1.2's filter). Apple's on-device
+    /// analysis, the one behind Sensitive Content Warning, runs on a photo
+    /// before it goes to a crew. Flagged: the photo is not sent, the win still
+    /// is, and the sender is told plainly.
+    ///
+    /// When the person has the analysis switched off in Settings it cannot
+    /// run, and the photo goes as it would have before the check existed:
+    /// the phone's owner has made that choice for every app.
+    static func photoIsFine(_ jpeg: Data) async -> Bool {
+        let analyzer = SCSensitivityAnalyzer()
+        guard analyzer.analysisPolicy != .disabled else { return true }
+        let url = FileManager.default.temporaryDirectory.appending(path: "crew-check-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        do {
+            try jpeg.write(to: url)
+            let result = try await analyzer.analyzeImage(at: url)
+            return !result.isSensitive
+        } catch {
+            // Unable to check is not the same as fine: hold the photo back.
+            log.error("photo check failed, photo held back: \(error)")
+            return false
         }
     }
 

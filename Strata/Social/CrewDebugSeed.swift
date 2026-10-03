@@ -41,6 +41,9 @@ extension DebugHarness {
         let store = SocialStore.shared
         NSLog("[strata-crew] seeding %d, cloud %@, crews %d", size, String(describing: type(of: store.cloud)), store.crews.count)
         guard let mine = store.cloud as? FakeCrewCloud, store.crews.isEmpty else { return }
+        // `-strataCrewAge under13|teen|adult`; adult otherwise, so the seed's
+        // photos travel.
+        CrewAge.save(argument("-strataCrewAge").flatMap(CrewAge.init(rawValue:)) ?? .adult)
         store.myFirstName = { ProfileStore.shared.name.isEmpty ? "Jayden" : ProfileStore.shared.name }
         let support = FileManager.default.temporaryDirectory.appending(path: "crew-seed", directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: support)

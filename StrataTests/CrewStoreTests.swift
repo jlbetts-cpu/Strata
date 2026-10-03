@@ -198,3 +198,17 @@ struct CrewStoreTests {
         #expect(!CrewsFlag.isOn(in: defaults, arguments: ["-strataCrews", "0"]))
     }
 }
+
+extension CrewStoreTests {
+    @Test func aFlaggedPhotoStaysAndTheWinStillGoes() async throws {
+        let (a, _, _) = store(jayden)
+        a.photoCheck = { _ in false }
+        let (crew, _) = try await a.createCrew(name: "One")
+        let mine = win(photo: Data([0xFF, 0xD8, 0xFF]))
+        await a.post(mine, to: [crew.id])
+        let record = try #require(world.records(of: .sharedWin, in: crew.id).values.first)
+        #expect(record["photo"] == nil)
+        #expect(record["title"] == .string("Gym"))
+        #expect(a.heldBackPhoto == mine.winID)
+    }
+}

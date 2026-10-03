@@ -1,3 +1,4 @@
+import DeclaredAgeRange
 import SwiftUI
 
 /// Where a crew is opened from: the push the tower's header leads to.
@@ -19,9 +20,13 @@ struct CrewsListView: View {
     @State private var problem: String?
     private var store: SocialStore { SocialStore.shared }
 
+    @State private var age = CrewAge.current
+
     var body: some View {
         Group {
-            if store.crews.isEmpty {
+            if !age.opensCrews {
+                tooYoung
+            } else if store.crews.isEmpty {
                 empty
             } else {
                 List {
@@ -61,6 +66,7 @@ struct CrewsListView: View {
             }
         }
         .task { await store.refresh() }
+        .modifier(AskAgeOnce(age: $age))
         .sheet(isPresented: $startsCrew) {
             NewCrewSheet { crew in open(crew) }
         }
@@ -138,6 +144,23 @@ struct CrewsListView: View {
         if calendar.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .shortened) }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
         return date.formatted(.dateTime.weekday(.wide))
+    }
+
+    private var tooYoung: some View {
+        VStack(spacing: GridConstants.gapTight) {
+            Spacer()
+            Text("Crews are for 13 and up")
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+            Text("Your own tower is all yours, and nothing about it changes.")
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(AppColors.inkSecondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, GridConstants.gapSection)
+        .frame(maxWidth: .infinity)
     }
 
     private var empty: some View {
@@ -287,11 +310,57 @@ struct CrewDestinations: ViewModifier {
                 if DebugHarness.opensCrewList, path.isEmpty { path = [.list] }
                 #endif
             }
+            .alert("This photo stays with you", isPresented: Binding(
+                get: { SocialStore.shared.heldBackPhoto != nil },
+                set: { if !$0 { SocialStore.shared.clearHeldBackPhoto() } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("It looked like something Sturdy doesn't send to crews. Your win was still sent, without it.")
+            }
             .alert("Crews", isPresented: Binding(get: { router.joinProblem != nil },
                                                  set: { if !$0 { router.joinProblem = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(router.joinProblem ?? "")
             }
+    }
+}
+
+/// Asks Apple's Declared Age Range once, the first time Crews opens, and
+/// keeps the answer (spec 9.1). Declining, or a phone that cannot answer, is
+/// kept as 13 to 15: crews work and photographs stay on the phone.
+private struct AskAgeOnce: ViewModifier {
+    @Binding var age: CrewAge
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.modifier(Ask(age: $age))
+        } else {
+            content.onAppear { if age == .unknown { age = .teen; CrewAge.save(.teen) } }
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private struct Ask: ViewModifier {
+        @Binding var age: CrewAge
+        @Environment(\.requestAgeRange) private var requestAgeRange
+
+        func body(content: Content) -> some View {
+            content.task {
+                guard age == .unknown else { return }
+                let answer: CrewAge
+                do {
+                    switch try await requestAgeRange(ageGates: 13, 16) {
+                    case .sharing(let range): answer = CrewAge.from(lowerBound: range.lowerBound)
+                    case .declinedSharing: answer = .teen
+                    @unknown default: answer = .teen
+                    }
+                } catch {
+                    answer = .teen
+                }
+                CrewAge.save(answer)
+                age = answer
+            }
+        }
     }
 }

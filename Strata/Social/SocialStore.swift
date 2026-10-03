@@ -22,6 +22,7 @@ final class SocialStore {
     static let shared: SocialStore = {
         let store = SocialStore(cloud: makeCloud(), defaults: .standard, directory: defaultDirectory)
         store.photosAllowed = { CrewAge.current.sendsPhotos }
+        store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.myFirstName = { ProfileStore.shared.name }
         store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
         return store
@@ -64,6 +65,10 @@ final class SocialStore {
     @ObservationIgnored var myHeadPack: () -> Data? = { nil }
     /// Makes the copy of a photograph that is sent.
     @ObservationIgnored var derive: (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
+    /// The photo check before anything is sent (`CrewSafety.photoIsFine`).
+    @ObservationIgnored var photoCheck: (Data) async -> Bool = { _ in true }
+    /// A photo the check held back, for a quiet word to the sender.
+    private(set) var heldBackPhoto: UUID?
     /// Today, injectable for pruning and the crew day.
     @ObservationIgnored var now: () -> Date = Date.init
 
@@ -275,7 +280,7 @@ final class SocialStore {
     /// was made on the checkboxes, or is the one you made last time.
     func post(_ win: OwnWin, to chosen: Set<CrewID>) async {
         guard isEnabled() else { return }
-        let photo = sendablePhoto(for: win)
+        let photo = await checkedPhoto(for: win)
         for crewID in chosen {
             guard let crew = crew(crewID) else { continue }
             let shared = sharedWin(win, in: crew, photo: photo.flatMap { copy($0, to: crewID, win: win.winID) })
@@ -290,7 +295,7 @@ final class SocialStore {
         guard isEnabled() else { return }
         let holding = crews(holding: win.winID)
         guard !holding.isEmpty else { return }
-        let photo = sendablePhoto(for: win)
+        let photo = await checkedPhoto(for: win)
         for crewID in holding {
             guard let crew = crew(crewID) else { continue }
             let existing = winsByCrew[crewID]?.first { $0.winID == win.winID }
@@ -539,11 +544,18 @@ final class SocialStore {
         outboxRevision += 1
     }
 
-    /// The derivative, once per post, or nothing when photos may not leave.
-    private func sendablePhoto(for win: OwnWin) -> Data? {
-        guard photosAllowed(), let jpeg = win.photoJPEG else { return nil }
-        return derive(jpeg)
+    /// The derivative, once per post, or nothing when photos may not leave
+    /// or the check held it back.
+    private func checkedPhoto(for win: OwnWin) async -> Data? {
+        guard photosAllowed(), let jpeg = win.photoJPEG, let small = derive(jpeg) else { return nil }
+        guard await photoCheck(small) else {
+            heldBackPhoto = win.winID
+            return nil
+        }
+        return small
     }
+
+    func clearHeldBackPhoto() { heldBackPhoto = nil }
 
     /// The derivative, kept where this crew's photos live.
     private func copy(_ data: Data, to crewID: CrewID, win: UUID) -> URL? {
