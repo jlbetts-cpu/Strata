@@ -41,14 +41,19 @@ struct FlippableBlockView: View {
     /// everywhere else, which keeps the single tap there immediate: a block
     /// that listens for two taps has to wait out the first (about 250ms).
     var onDoubleTap: (() -> Void)? = nil
-    /// A crew block's press and hold: the reaction bar. Nil everywhere else.
-    var onLongPress: (() -> Void)? = nil
+    /// A crew block's press and hold: the reaction bar opens when the hold is
+    /// long enough, and the same finger can slide onto an emoji and let go
+    /// on it, as a Tapback works. Nil everywhere else.
+    var onHold: ((HoldPhase) -> Void)? = nil
     var showOverlay: Bool = true
     /// True while this block is the one being carried.
     var isLifted: Bool = false
     /// True when releasing would land the carried block here.
 
     @State private var tapTrigger: Int = 0
+    /// True from the moment a hold is long enough until the finger lifts.
+    /// A `GestureState`, so a cancelled hold resets it too.
+    @GestureState private var holding = false
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.towerFilterMode) private var towerFilterMode
@@ -185,12 +190,32 @@ struct FlippableBlockView: View {
                 including: onDoubleTap == nil ? .subviews : .all
             )
             // Held: the reactions, at the moment the hold is long enough,
-            // not on release, as Messages does it. Simultaneous, so the
-            // tower still scrolls under a finger that moves.
+            // not on release, as Messages does it; then the same finger
+            // slides onto one and lets go (the owner, 2026-10-03: "i cant
+            // drag my finger up to select one"). Positions are in the
+            // tower's own space (`HoldPhase.space`), where the bar is drawn.
+            // Simultaneous, so the tower still scrolls under a finger that
+            // moves before the hold is long enough.
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.35, maximumDistance: 10)
-                    .onEnded { _ in onLongPress?() },
-                including: onLongPress == nil ? .subviews : .all
+                    .sequenced(before: DragGesture(minimumDistance: 0,
+                                                   coordinateSpace: .named(HoldPhase.space)))
+                    .updating($holding) { value, state, _ in
+                        guard case .second(true, let drag) = value else { return }
+                        if !state {
+                            state = true
+                            Task { @MainActor in onHold?(.began) }
+                        }
+                        if let drag {
+                            let at = drag.location
+                            Task { @MainActor in onHold?(.moved(at)) }
+                        }
+                    }
+                    .onEnded { value in
+                        guard case .second(true, let drag) = value else { return }
+                        onHold?(.ended(drag?.location))
+                    },
+                including: onHold == nil ? .subviews : .all
             )
             .overlay(alignment: .topTrailing) {
                 if !block.look.reactionEmoji.isEmpty, !isGroupMember {
@@ -204,7 +229,7 @@ struct FlippableBlockView: View {
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop,
                        value: block.look.reactionEmoji)
             .modifier(CrewBlockSpeech(look: block.look, isCrew: onDoubleTap != nil,
-                                      open: onTap, react: onLongPress))
+                                      open: onTap, react: onHold.map { hold in { hold(.began) } }))
     }
 
     @ViewBuilder
@@ -392,4 +417,16 @@ private struct CrewBlockSpeech: ViewModifier {
         let yours = look.myReaction.map { ", you reacted \($0)" } ?? ""
         return "\(who), \(what)\(reactions)\(yours)"
     }
+}
+
+/// A hold on a crew block, from the moment it is long enough to the lift.
+enum HoldPhase: Equatable {
+    /// The coordinate space positions are reported in: the crew tower's,
+    /// where the reaction bar is drawn.
+    static let space = "crewTower"
+
+    case began
+    case moved(CGPoint)
+    /// Where the finger lifted, when the drag had started.
+    case ended(CGPoint?)
 }

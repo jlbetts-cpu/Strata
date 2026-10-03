@@ -42,6 +42,14 @@ struct CrewTowerView: View {
     /// a tap and open the block.
     @State private var heldAt = Date.distantPast
     @State private var barSize = CGSize(width: 200, height: 44)
+    /// The mark under a finger sliding from a hold (`HoldPhase`).
+    @State private var hovered: Int?
+    /// Where the open bar stands, for reading a finger against it.
+    @State private var barFrame: (() -> CGPoint)?
+    /// The emoji keyboard, opened from "+".
+    @State private var pickingMore = false
+    /// The bar closing itself after a hold let go of nothing.
+    @State private var dismissing: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -63,7 +71,9 @@ struct CrewTowerView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let colW = floor((geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+            let gaps: CGFloat = spacing * CGFloat(columns - 1)
+            let usable: CGFloat = geo.size.width - hPad * 2 - gaps
+            let colW: CGFloat = floor(usable / CGFloat(columns))
             tower(colW: colW, viewport: geo.size.height)
         }
         .safeAreaInset(edge: .top, spacing: 0) { header }
@@ -77,35 +87,10 @@ struct CrewTowerView: View {
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         // Everyone's heads, over the header too, so one can be carried up
         // into the bubble. See `CrewHeadArena`.
-        .overlay {
-            if let crew, store.showsHeads(crewID) {
-                CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
-                    .ignoresSafeArea()
-            }
-        }
+        .overlay { headsOverlay }
         // The fan, over everything, under the bubble; a tap anywhere else
         // folds it back.
-        .overlay {
-            if parking.fanned, let crew {
-                GeometryReader { geo in
-                    // Under the name, not over it: the crew stays legible
-                    // while you choose.
-                    let anchor = parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY
-                    let top = anchor - geo.frame(in: .global).minY + 10
-                    ZStack(alignment: .top) {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { withAnimation(GridConstants.motionSnappy) { parking.fanned = false } }
-                            .accessibilityHidden(true)
-                        CrewFan(crew: crew, me: store.me, parking: parking)
-                            .padding(.top, max(top, 0))
-                            .transition(.scale(scale: 0.7, anchor: .top).combined(with: .opacity))
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
-                }
-                .ignoresSafeArea()
-            }
-        }
+        .overlay { fanOverlay }
         .toolbar(.hidden, for: .navigationBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
         // **The crew's midnight, while you are looking.** Today's tower is the
@@ -146,7 +131,7 @@ struct CrewTowerView: View {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(2))
                     if let win = store.today(in: crewID).first(where: { $0.senderProfileID != store.me }) {
-                        hold(win.winID)
+                        hold(win.winID, .began)
                     }
                 }
             }
@@ -209,69 +194,53 @@ struct CrewTowerView: View {
         .sheet(isPresented: $showsInfo) {
             if let crew { CrewInfoSheet(crewID: crew.id, onLeft: onBack) }
         }
-        .fullScreenCover(item: Binding(get: { viewing.map(ViewedPhoto.init) }, set: { viewing = $0?.id })) { photo in
-            PhotoViewer(photos: galleryPhotos, startAt: photo.id, onClose: { viewing = nil },
-                        crew: crewID,
-                        onReport: { shown in
-                            viewing = nil
-                            // After the cover has gone: UIKit drops a sheet
-                            // asked for while another is still dismissing.
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(450))
-                                reporting = store.today(in: crewID).first { $0.winID.uuidString == shown.id }
-                            }
-                        },
-                        onWithdraw: { shown in
-                            guard let id = UUID(uuidString: shown.id) else { return }
-                            Task { await store.withdraw(winID: id, from: crewID) }
-                        },
-                        reactions: { shown in
-                            guard let id = UUID(uuidString: shown.id) else { return AnyView(EmptyView()) }
-                            return AnyView(CrewPhotoReactions(winID: id, crewID: crewID, mine: shown.byline == nil))
-                        })
-        }
+        .fullScreenCover(item: viewingBinding) { photo in viewer(photo) }
         // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
         // told. Hung on a point at the foot of the screen, never on the whole
         // tower: iOS 26 draws a dialog from the view it hangs on, and from a
         // full-screen one it never appeared (End Crew did the same).
-        .overlay(alignment: .bottom) {
-            Color.clear.frame(width: 1, height: 1)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                .confirmationDialog("Report this win?",
-                            isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
-                            titleVisibility: .visible, presenting: reporting) { win in
-            ForEach(CrewSafety.Reason.allCases) { reason in
-                Button(reason.words) {
-                    Task {
-                        await CrewSafety.report(.win(win), in: crewID, reason: reason)
-                        reported = win
-                    }
-                }
-            }
-        } message: { _ in
-            Text("Your report goes to Some Wins. Nobody in the crew is told.")
-        }
-        }
-        // **The report was heard**, and the next step is offered right there
-        // (the 2026-10-03 audit: a report vanished without a word, and
-        // blocking was a separate hunt).
-        .alert("Thanks for telling us",
-               isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
-               presenting: reported) { win in
-            if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
-                Button("Block \(crew?.member(win.senderProfileID)?.shortName.nonEmpty ?? "Them")", role: .destructive) {
-                    Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
-                }
-            }
-            Button("Done", role: .cancel) {}
-        } message: { _ in
-            Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
-        }
+        .overlay(alignment: .bottom) { reportAnchor }
         .accessibilityAction(.escape) { onBack() }
     }
 
     private struct ViewedPhoto: Identifiable { let id: String }
+
+    /// Report, from the viewer's ⋯, and the thanks after it: hung on one
+    /// point at the foot of the screen (see the call site).
+    private var reportAnchor: some View {
+        Color.clear.frame(width: 1, height: 1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .confirmationDialog("Report this win?",
+                                isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
+                                titleVisibility: .visible, presenting: reporting) { win in
+                ForEach(CrewSafety.Reason.allCases) { reason in
+                    Button(reason.words) {
+                        Task {
+                            await CrewSafety.report(.win(win), in: crewID, reason: reason)
+                            reported = win
+                        }
+                    }
+                }
+            } message: { _ in
+                Text("Your report goes to Some Wins. Nobody in the crew is told.")
+            }
+            // **The report was heard**, and the next step is offered right
+            // there (the 2026-10-03 audit: a report vanished without a word,
+            // and blocking was a separate hunt).
+            .alert("Thanks for telling us",
+                   isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
+                   presenting: reported) { win in
+                if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
+                    Button("Block \(crew?.member(win.senderProfileID)?.shortName.nonEmpty ?? "Them")", role: .destructive) {
+                        Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
+                    }
+                }
+                Button("Done", role: .cancel) {}
+            } message: { _ in
+                Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
+            }
+    }
 
     /// Two taps on a friend's block: a heart, every time, as on Instagram. A
     /// heart you already gave stays given (it is never taken back by the same
@@ -308,32 +277,154 @@ struct CrewTowerView: View {
     /// owner, 2026-10-02: "the hold... should just be to react"). Who reacted
     /// and Report are in the carousel a tap opens. Your own takes no
     /// reaction from you, so holding it does nothing.
-    private func hold(_ id: UUID) {
-        guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
-              win.senderProfileID != store.me else { return }
-        HapticsEngine.success()
-        heldAt = Date()
-        reacting = id
+    /// Everyone's heads, over the header too, so one can be carried up
+    /// into the bubble. See `CrewHeadArena`.
+    @ViewBuilder
+    private var headsOverlay: some View {
+        if let crew, store.showsHeads(crewID) {
+            CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
+                .ignoresSafeArea()
+        }
+    }
+
+    /// The fan, over everything, under the bubble; a tap anywhere else folds
+    /// it back.
+    @ViewBuilder
+    private var fanOverlay: some View {
+        if parking.fanned, let crew {
+            GeometryReader { geo in
+                // Under the name, not over it: the crew stays legible
+                // while you choose.
+                let anchor = parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY
+                let top = anchor - geo.frame(in: .global).minY + 10
+                ZStack(alignment: .top) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(GridConstants.motionSnappy) { parking.fanned = false } }
+                        .accessibilityHidden(true)
+                    CrewFan(crew: crew, me: store.me, parking: parking)
+                        .padding(.top, max(top, 0))
+                        .transition(.scale(scale: 0.7, anchor: .top).combined(with: .opacity))
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    private var viewingBinding: Binding<ViewedPhoto?> {
+        Binding(get: { viewing.map(ViewedPhoto.init) }, set: { viewing = $0?.id })
+    }
+
+    private func viewer(_ photo: ViewedPhoto) -> some View {
+        PhotoViewer(photos: galleryPhotos, startAt: photo.id, onClose: { viewing = nil },
+                    crew: crewID,
+                    onReport: { shown in
+                        viewing = nil
+                        // After the cover has gone: UIKit drops a sheet
+                        // asked for while another is still dismissing.
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(450))
+                            reporting = store.today(in: crewID).first { $0.winID.uuidString == shown.id }
+                        }
+                    },
+                    onWithdraw: { shown in
+                        guard let id = UUID(uuidString: shown.id) else { return }
+                        Task { await store.withdraw(winID: id, from: crewID) }
+                    },
+                    reactions: { shown in
+                        guard let id = UUID(uuidString: shown.id) else { return AnyView(EmptyView()) }
+                        return AnyView(CrewPhotoReactions(winID: id, crewID: crewID, mine: shown.byline == nil))
+                    })
+    }
+
+    private func hold(_ id: UUID, _ phase: HoldPhase) {
+        switch phase {
+        case .began:
+            guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
+                  win.senderProfileID != store.me else { return }
+            HapticsEngine.success()
+            heldAt = Date()
+            dismissing?.cancel()
+            hovered = nil
+            reacting = id
+        case .moved(let at):
+            guard reacting == id else { return }
+            let next = mark(at: at)
+            if next != hovered {
+                if next != nil { HapticsEngine.lightTap() }
+                hovered = next
+            }
+        case .ended(let at):
+            guard reacting == id else { return }
+            let chosen = at.flatMap { mark(at: $0) }
+            hovered = nil
+            if let chosen {
+                let glyph = ReactionBar.glyphs(mine: store.myReaction(to: id, in: crewID))[chosen]
+                if glyph == "+" { pickingMore = true } else { give(glyph, to: id) }
+            } else {
+                // Let go anywhere else: the bar stays a moment for a tap,
+                // then goes on its own (the owner, 2026-10-03: "it doesnt
+                // disappear automatically").
+                closeSoon()
+            }
+        }
+    }
+
+    /// The mark under a finger, read from where the bar stands: the finger
+    /// can be a little above or below the row, as on a Tapback.
+    private func mark(at point: CGPoint) -> Int? {
+        guard let reacting, let center = barFrame?() else { return nil }
+        let top = center.y - barSize.height / 2, bottom = center.y + barSize.height / 2
+        guard point.y > top - 28, point.y < bottom + 36 else { return nil }
+        let count = ReactionBar.glyphs(mine: store.myReaction(to: reacting, in: crewID)).count
+        return ReactionBar.index(atX: point.x - (center.x - barSize.width / 2), count: count)
+    }
+
+    private func barCenter(over f: CGRect, gridW: CGFloat, gridH: CGFloat) -> CGPoint {
+        CGPoint(x: min(max(f.midX, barSize.width / 2), gridW - barSize.width / 2),
+                y: gridH - f.minY - f.height - 8 - barSize.height / 2)
+    }
+
+    private func closeSoon() {
+        dismissing?.cancel()
+        dismissing = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled, !pickingMore else { return }
+            closeReactions()
+        }
     }
 
     private func closeReactions() {
+        dismissing?.cancel()
+        hovered = nil
+        pickingMore = false
         reacting = nil
         heldAt = Date()
     }
 
+    private func give(_ emoji: String, to id: UUID) {
+        if store.myReaction(to: id, in: crewID) != emoji {
+            let burst = Burst(block: id, emoji: emoji)
+            bursts.append(burst)
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1100))
+                bursts.removeAll { $0.id == burst.id }
+            }
+        }
+        HapticsEngine.success()
+        Task { await store.react(emoji, to: id, in: crewID) }
+        closeReactions()
+    }
+
     @ViewBuilder
     private func reactionsOver(_ id: UUID, mine: Bool) -> some View {
-        ReactionBar(mine: store.myReaction(to: id, in: crewID)) { emoji in
-            if store.myReaction(to: id, in: crewID) != emoji {
-                let burst = Burst(block: id, emoji: emoji)
-                bursts.append(burst)
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(1100))
-                    bursts.removeAll { $0.id == burst.id }
-                }
-            }
-            Task { await store.react(emoji, to: id, in: crewID) }
-            closeReactions()
+        ReactionBar(mine: store.myReaction(to: id, in: crewID), hovered: hovered,
+                    picking: Binding(get: { pickingMore }, set: { open in
+                        pickingMore = open
+                        if open { dismissing?.cancel() } else if reacting != nil { closeSoon() }
+                    })) { emoji in
+            give(emoji, to: id)
         }
     }
 
@@ -492,7 +583,7 @@ struct CrewTowerView: View {
                         },
                         liftedBlockID: nil,
                         onDoubleTapBlock: { doubleTap($0) },
-                        onLongPressBlock: { hold($0) })
+                        onHoldBlock: { id, phase in hold(id, phase) })
                 }
                 // The next slot, as on Wins: tap for a win in this crew, draw
                 // it out for a bigger one, hold for the full Add Win.
@@ -550,14 +641,17 @@ struct CrewTowerView: View {
                         reactionsOver(id, mine: mine)
                             .fixedSize()
                             .onGeometryChange(for: CGSize.self) { $0.size } action: { barSize = $0 }
-                            .position(x: min(max(f.midX, barSize.width / 2), gridW - barSize.width / 2),
-                                      y: gridH - f.minY - f.height - 8 - barSize.height / 2)
+                            .position(barCenter(over: f, gridW: gridW, gridH: gridH))
+                            .onAppear { barFrame = { barCenter(over: f, gridW: gridW, gridH: gridH) } }
                             .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
                     }
                     .frame(width: gridW, height: gridH, alignment: .topLeading)
                 }
             }
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: reacting)
+            // Where a sliding finger is read (`HoldPhase.space`): the same
+            // top-leading origin the bar is positioned from.
+            .coordinateSpace(.named(HoldPhase.space))
             .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
             .background(alignment: .bottom) {
                 TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: model.latticeRipple)
@@ -568,6 +662,8 @@ struct CrewTowerView: View {
             .frame(minHeight: viewport, alignment: .bottom)
         }
         .defaultScrollAnchor(.bottom)
+        // A finger choosing a reaction must not scroll the tower under it.
+        .scrollDisabled(reacting != nil)
         .softScrollEdge(.top)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(rows == 0 ? "No wins yet today" : "Today's crew tower, \(tower.placedBlocks.count) wins")

@@ -20,30 +20,69 @@ struct ReactionBar: View {
     var onDark = false
     /// Inside a container that is already glass: no capsule of its own.
     var bare = false
+    /// The mark under a sliding finger, by its place in `glyphs(mine:)`.
+    var hovered: Int? = nil
+    /// The emoji keyboard, when the caller opens it (a finger let go on "+").
+    var picking: Binding<Bool>? = nil
     let react: (String) -> Void
 
-    @State private var picking = false
+    @State private var ownPicking = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Each mark's width and the gap between, so a finger's position can be
+    /// read as a mark without measuring anything (`index(atX:)`).
+    static let markSide: CGFloat = 44
+    static let gap: CGFloat = 3
+    static let inset: CGFloat = 2
+
+    /// The marks in order: "+", the quick ones, and a keyboard one you gave.
+    static func glyphs(mine: String?) -> [String] {
+        var out = ["+"] + Reaction.quick
+        if let mine, !Reaction.quick.contains(mine) { out.append(mine) }
+        return out
+    }
+
+    /// The mark at a distance from the bar's leading edge, or nil.
+    static func index(atX x: CGFloat, count: Int) -> Int? {
+        let i = Int(((x - inset + gap / 2) / (markSide + gap)).rounded(.down))
+        return (0..<count).contains(i) ? i : nil
+    }
+
+    private var isPicking: Binding<Bool> { picking ?? $ownPicking }
 
     var body: some View {
-        HStack(spacing: 3) {
-            mark("+", label: "More reactions") { picking = true }
-                .overlay { EmojiField(isActive: $picking) { react($0) }.frame(width: 1, height: 1).opacity(0.01) }
-            ForEach(Reaction.quick, id: \.self) { emoji in
-                mark(emoji, label: emoji, chosen: mine == emoji) { react(emoji) }
-            }
-            // Something from the keyboard you already gave, shown so it can
-            // be seen and taken back.
-            if let mine, !Reaction.quick.contains(mine) {
-                mark(mine, label: mine, chosen: true) { react(mine) }
+        let glyphs = Self.glyphs(mine: mine)
+        HStack(spacing: Self.gap) {
+            ForEach(Array(glyphs.enumerated()), id: \.element) { index, glyph in
+                if index == 0 {
+                    mark("+", index: 0, label: "More reactions") { isPicking.wrappedValue = true }
+                        .overlay {
+                            EmojiField(isActive: isPicking) { react($0) }.frame(width: 1, height: 1).opacity(0.01)
+                        }
+                } else {
+                    mark(glyph, index: index, label: glyph, chosen: mine == glyph) { react(glyph) }
+                }
             }
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, Self.inset)
+        // **The lens.** A drop of glass under the finger as it slides along
+        // the bar, gliding from mark to mark: the iOS 26 tab bar's own way
+        // of saying which one a finger is on.
+        .background(alignment: .leading) {
+            if let hovered {
+                Lens()
+                    .frame(width: Self.markSide + 8, height: Self.markSide + 8)
+                    .offset(x: Self.inset - 4 + CGFloat(hovered) * (Self.markSide + Self.gap), y: -6)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: hovered)
         .modifier(BarGlass(apply: !bare, onPage: !onDark))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("React")
     }
 
-    private func mark(_ glyph: String, label: String, chosen: Bool = false,
+    private func mark(_ glyph: String, index: Int, label: String, chosen: Bool = false,
                       action: @escaping () -> Void) -> some View {
         Button {
             HapticsEngine.tick()
@@ -54,9 +93,11 @@ struct ReactionBar: View {
             Text(glyph)
                 .font(.title3)
                 .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
-                .frame(width: 44, height: 44)
+                .scaleEffect(hovered == index ? 1.4 : 1)
+                .offset(y: hovered == index ? -8 : 0)
+                .frame(width: Self.markSide, height: Self.markSide)
                 .background {
-                    if chosen {
+                    if chosen, hovered == nil {
                         Circle()
                             .fill(onDark ? Color.white.opacity(0.18) : AppColors.inkPrimary.opacity(0.08))
                             .padding(4)
@@ -222,6 +263,17 @@ struct ReactionBurst: View {
     }
 }
 
+/// The drop of glass under a sliding finger.
+private struct Lens: View {
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            Color.clear.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            Circle().fill(.ultraThinMaterial)
+        }
+    }
+}
+
 private struct BarGlass: ViewModifier {
     let apply: Bool
     let onPage: Bool
@@ -277,7 +329,7 @@ struct CrewReactionsPanel: View {
                                 .contentTransition(.symbolEffect(.replace))
                                 .frame(width: 44, height: 44)
                         } else {
-                            CrewReactionsPanel.line(reactions, crewID: crewID, onDark: onDark, open: open)
+                            CrewReactionsPanel.line(reactions, crewID: crewID, onDark: onDark)
                                 .padding(.horizontal, 14)
                                 .frame(minHeight: 44)
                         }
@@ -307,7 +359,7 @@ struct CrewReactionsPanel: View {
 
     /// "❤️🔥 You and Sam": the emoji given, then who gave them.
     @MainActor
-    static func line(_ reactions: [Reaction], crewID: CrewID, onDark: Bool, open: Bool? = nil) -> some View {
+    static func line(_ reactions: [Reaction], crewID: CrewID, onDark: Bool) -> some View {
         var emoji: [String] = []
         for r in reactions where !emoji.contains(r.emoji) { emoji.append(r.emoji) }
         let names = reactions.map { name($0.profileID, crewID: crewID) }
@@ -323,13 +375,9 @@ struct CrewReactionsPanel: View {
             Text(words)
                 .font(Typography.headerSmall)
                 .lineLimit(1)
-            if let open {
-                Image(systemName: "chevron.up")
-                    .font(Typography.headerSmall)
-                    .imageScale(.small)
-                    .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkTertiary)
-                    .rotationEffect(.degrees(open ? 180 : 0))
-            }
+            // No chevron: it promised a drawer, and on your own win there is
+            // nothing in it to do (the owner, 2026-10-03: "it shows the up
+            // chevron even though you cant really do anything with it").
         }
     }
 

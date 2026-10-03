@@ -32,7 +32,7 @@ struct TowerBlocksForEach: View {
     var onDoubleTapBlock: ((UUID) -> Void)? = nil
     /// A crew tower's press and hold: the reactions, as Messages answers a
     /// held message. Nil on your own tower.
-    var onLongPressBlock: ((UUID) -> Void)? = nil
+    var onHoldBlock: ((UUID, HoldPhase) -> Void)? = nil
 
     var body: some View {
         // Read the dance's phase counter here, at the top of the grid's
@@ -69,7 +69,7 @@ struct TowerBlocksForEach: View {
                 onTapExpandBlock: onTapExpandBlock,
                 liftedBlockID: liftedBlockID,
                 onDoubleTapBlock: onDoubleTapBlock,
-                onLongPressBlock: onLongPressBlock
+                onHoldBlock: onHoldBlock
             )
             .frame(width: f.width, height: f.height)
             // **A PLACED BLOCK CANNOT BE PICKED UP, AND THAT IS THE FIX.**
@@ -162,7 +162,7 @@ struct AnimatedBlockView: View, Equatable {
     /// Not in `==`: a closure cannot be compared, and it never changes for a
     /// given tower.
     var onDoubleTapBlock: ((UUID) -> Void)? = nil
-    var onLongPressBlock: ((UUID) -> Void)? = nil
+    var onHoldBlock: ((UUID, HoldPhase) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -321,7 +321,7 @@ struct AnimatedBlockView: View, Equatable {
                     }
                 },
                 onDoubleTap: onDoubleTapBlock.map { action in { action(block.id) } },
-                onLongPress: onLongPressBlock.map { action in { action(block.id) } },
+                onHold: onHoldBlock.map { action in { action(block.id, $0) } },
                 isLifted: liftedBlockID == block.id
             )
             // No `matchedGeometryEffect`. It served the expansion card
