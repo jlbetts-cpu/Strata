@@ -158,9 +158,10 @@ chosen.
   Store and anywhere a person reads it. **somewins** where a space cannot go:
   somewins.app, @somewins.
 - **App Store:** name `Some Wins` (the exact name, so it is ours), subtitle
-  `Daily photo journal for wins`, keywords
-  `habit,streak,tracker,small,done,list,goal,gratitude,diary,camera,friend,share,group,recap,memory`
-  (96 of 100 bytes). **"habit" and "streak" are allowed in the KEYWORDS
+  `Daily photo wins with friends` (the owner, 2026-10-03: the old one said
+  nothing of the social side), keywords
+  `habit,streak,tracker,small,done,list,goal,gratitude,diary,camera,journal,share,group,recap,memory`
+  (97 of 100 bytes; "journal" left the subtitle and joined them). **"habit" and "streak" are allowed in the KEYWORDS
   now** (the owner, 2026-10-03: "if the key words habit and streak get more
   searches i wouldnt mind putting them in... I want the app to be easily
   searched"); §2 still keeps them out of the name, subtitle and copy people
