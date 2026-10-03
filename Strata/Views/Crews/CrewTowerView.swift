@@ -23,6 +23,9 @@ struct CrewTowerView: View {
     /// previous day").
     @State private var viewing: String?
     @State private var reporting: SharedWin?
+    /// Double-tap hearts in the air, over the blocks they landed on.
+    @State private var bursts: [Burst] = []
+    private struct Burst: Identifiable { let id = UUID(); let block: UUID; let emoji: String }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -94,6 +97,18 @@ struct CrewTowerView: View {
             case "fan": parking.fanned = !parking.parked.isEmpty
             default: break
             }
+            // `-strataCrewHeartEvery <s>`: a double-tap on a friend's block
+            // every s seconds, so the heart can be filmed.
+            if let every = DebugHarness.argument("-strataCrewHeartEvery").flatMap(Double.init) {
+                Task { @MainActor in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(every))
+                        if let win = store.today(in: crewID).filter({ $0.senderProfileID != store.me }).randomElement() {
+                            doubleTap(win.winID)
+                        }
+                    }
+                }
+            }
             // `-strataCrewParkEvery <s>`: a head goes into the bubble, or one
             // pops out, every s seconds, so both can be filmed.
             if let every = DebugHarness.argument("-strataCrewParkEvery").flatMap(Double.init) {
@@ -122,6 +137,7 @@ struct CrewTowerView: View {
             store.markSeen(crewID)
         }
         .onChange(of: crew?.members) { _, _ in rebuild() }
+        .onChange(of: store.reactionsByCrew[crewID]) { _, _ in rebuild() }
         // While the crew is on screen it stays current: a modest poll, since
         // a push is only a nudge to look and may never come.
         .task(id: scenePhase) {
@@ -152,6 +168,10 @@ struct CrewTowerView: View {
                         onWithdraw: { shown in
                             guard let id = UUID(uuidString: shown.id) else { return }
                             Task { await store.withdraw(winID: id, from: crewID) }
+                        },
+                        reactions: { shown in
+                            guard let id = UUID(uuidString: shown.id) else { return AnyView(EmptyView()) }
+                            return AnyView(CrewPhotoReactions(winID: id, crewID: crewID, mine: shown.byline == nil))
                         })
         }
         // Report from the viewer lands on the win's own sheet, which holds
@@ -163,6 +183,25 @@ struct CrewTowerView: View {
     }
 
     private struct ViewedPhoto: Identifiable { let id: String }
+
+    /// Two taps on a friend's block: a heart, every time, as on Instagram. A
+    /// heart you already gave stays given (it is never taken back by the same
+    /// gesture that gave it); a different reaction you gave becomes the heart.
+    /// Your own block takes no reaction from you, so it only answers the press.
+    private func doubleTap(_ id: UUID) {
+        guard let win = store.today(in: crewID).first(where: { $0.winID == id }),
+              win.senderProfileID != store.me else { return }
+        HapticsEngine.success()
+        let burst = Burst(block: id, emoji: Reaction.doubleTap)
+        bursts.append(burst)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1100))
+            bursts.removeAll { $0.id == burst.id }
+        }
+        if store.myReaction(to: id, in: crewID) != Reaction.doubleTap {
+            Task { await store.react(Reaction.doubleTap, to: id, in: crewID) }
+        }
+    }
 
     /// Today's photographs in the order the tower stacks them, for the viewer.
     private var galleryPhotos: [GalleryPhoto] {
@@ -181,7 +220,8 @@ struct CrewTowerView: View {
 
     private func rebuild() {
         let names = Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) })
-        model.rebuild(wins: store.today(in: crewID), me: store.me, names: names)
+        model.rebuild(wins: store.today(in: crewID), me: store.me, names: names,
+                      reactions: { store.reactions(to: $0, in: crewID) })
     }
 
     // MARK: Header
@@ -288,7 +328,22 @@ struct CrewTowerView: View {
                             guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
                             if win.photo != nil { viewing = win.winID.uuidString } else { openWin = win }
                         },
-                        liftedBlockID: nil)
+                        liftedBlockID: nil,
+                        onDoubleTapBlock: { doubleTap($0) })
+                }
+            }
+            // The hearts, over the block each one landed on. An OVERLAY, never
+            // a child of the stack: as a child, `.position` took the whole
+            // proposed size and the tower jumped 85pt for the length of the
+            // burst (filmed 2026-10-02).
+            .overlay(alignment: .topLeading) {
+                ForEach(bursts) { burst in
+                    if let block = tower.placedBlocks.first(where: { $0.id == burst.block }) {
+                        let f = block.frame(cellSize: colW)
+                        ReactionBurst(emoji: burst.emoji, size: min(f.width, f.height) * 0.62)
+                            .frame(width: f.width, height: f.height)
+                            .offset(x: f.minX, y: gridH - f.minY - f.height)
+                    }
                 }
             }
             .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
@@ -304,5 +359,34 @@ struct CrewTowerView: View {
         .softScrollEdge(.top)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(rows == 0 ? "No wins yet today" : "Today's crew tower, \(tower.placedBlocks.count) wins")
+    }
+}
+
+/// Over a crew photograph in the viewer: the bar for a friend's, and who
+/// reacted, for anyone's.
+private struct CrewPhotoReactions: View {
+    let winID: UUID
+    let crewID: CrewID
+    let mine: Bool
+    private var store: SocialStore { SocialStore.shared }
+
+    var body: some View {
+        let reactions = store.reactions(to: winID, in: crewID)
+        VStack(spacing: 10) {
+            if mine {
+                if !reactions.isEmpty {
+                    HStack(spacing: -4) {
+                        ForEach(reactions) { Text($0.emoji).font(Typography.headerMedium) }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .glassCapsule()
+                    .accessibilityLabel("\(reactions.count) reactions")
+                }
+            } else {
+                ReactionBar(mine: store.myReaction(to: winID, in: crewID), onDark: true) { emoji in
+                    Task { await store.react(emoji, to: winID, in: crewID) }
+                }
+            }
+        }
     }
 }

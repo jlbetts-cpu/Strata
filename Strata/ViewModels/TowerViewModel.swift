@@ -47,6 +47,11 @@ struct PlacedBlock: Identifiable, Equatable {
         var sender: String? = nil
         /// True for your own win in a crew tower.
         var isMine = true
+        /// A crew win's reactions, drawn in its corner: up to three distinct
+        /// emoji, most used first, and how many people reacted. Part of the
+        /// look so `AnimatedBlockView.==` sees a new one arrive.
+        var reactionEmoji: [String] = []
+        var reactionCount = 0
 
         var hasPhoto: Bool { imageFileName != nil || sharedPhoto != nil }
 
@@ -62,6 +67,14 @@ struct PlacedBlock: Identifiable, Equatable {
         }
 
         /// A crew's copy of a win. `sender` is nil when it is yours.
+        init(win: SharedWin, sender: String?, reactions: [Reaction]) {
+            self.init(win: win, sender: sender)
+            let counted = Dictionary(grouping: reactions, by: \.emoji).mapValues(\.count)
+            reactionEmoji = counted.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+                .prefix(3).map(\.key)
+            reactionCount = reactions.count
+        }
+
         init(win: SharedWin, sender: String?) {
             title = win.title
             displayCategory = win.colour

@@ -34,6 +34,9 @@ struct PhotoViewer: View {
     var crew: CrewID? = nil
     var onReport: (GalleryPhoto) -> Void = { _ in }
     var onWithdraw: (GalleryPhoto) -> Void = { _ in }
+    /// A crew photo's reaction bar, drawn over the bottom of the picture.
+    /// Nil everywhere else.
+    var reactions: ((GalleryPhoto) -> AnyView)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @State private var confirmingDelete = false

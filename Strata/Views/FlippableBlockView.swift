@@ -37,6 +37,10 @@ struct FlippableBlockView: View {
     /// Something is resting directly on this block.
     var isCovered: Bool = false
     var onTap: (() -> Void)? = nil
+    /// A crew block's double-tap: a heart, as on a photo in Instagram. Nil
+    /// everywhere else, which keeps the single tap there immediate: a block
+    /// that listens for two taps has to wait out the first (about 250ms).
+    var onDoubleTap: (() -> Void)? = nil
     var showOverlay: Bool = true
     /// True while this block is the one being carried.
     var isLifted: Bool = false
@@ -160,8 +164,34 @@ struct FlippableBlockView: View {
                         tapTrigger += 1
                         onTap?()
                     },
-                including: onTap == nil ? .subviews : .all
+                including: onTap == nil || onDoubleTap != nil ? .subviews : .all
             )
+            // Two taps or one, exclusively, only where a double-tap means
+            // something. Both stay attached so the block keeps its identity;
+            // the mask decides which one answers.
+            .gesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        tapTrigger += 1
+                        onDoubleTap?()
+                    }
+                    .exclusively(before: TapGesture().onEnded {
+                        HapticsEngine.lightTap()
+                        tapTrigger += 1
+                        onTap?()
+                    }),
+                including: onDoubleTap == nil ? .subviews : .all
+            )
+            .overlay(alignment: .topTrailing) {
+                if !block.look.reactionEmoji.isEmpty, !isGroupMember {
+                    ReactionBadge(emoji: block.look.reactionEmoji, count: block.look.reactionCount)
+                        .padding(5)
+                        .allowsHitTesting(false)
+                        .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
+                }
+            }
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop,
+                       value: block.look.reactionEmoji)
     }
 
     @ViewBuilder
@@ -273,5 +303,38 @@ struct FlippableBlockView: View {
         }
         // #495: Smart Invert — photos excluded from color inversion
         .accessibilityIgnoresInvertColors(hasImage)
+    }
+}
+
+/// A crew block's reactions, in its corner: up to three emoji overlapping, and
+/// the count when more people reacted than there are emoji shown. Small glass,
+/// so it reads on a colour and on a photograph alike.
+struct ReactionBadge: View {
+    let emoji: [String]
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            HStack(spacing: -4) {
+                ForEach(Array(emoji.enumerated()), id: \.offset) { index, e in
+                    Text(e)
+                        .font(Typography.screenSubtitle)
+                        .zIndex(Double(emoji.count - index))
+                }
+            }
+            if count > emoji.count {
+                Text("\(count)")
+                    .font(Typography.headerSmall)
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .contentTransition(.numericText())
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .glassCapsule(onPage: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
+                                       : "\(count) reactions, \(emoji.joined(separator: " "))")
     }
 }

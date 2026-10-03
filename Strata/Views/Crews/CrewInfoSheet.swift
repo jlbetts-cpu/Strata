@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UserNotifications
 
 /// A crew's details, laid out the way Messages lays out a group's: its
 /// picture and name at the top, then its people, then the switches, then
@@ -18,6 +19,7 @@ struct CrewInfoSheet: View {
     @State private var confirmsLeave = false
     @State private var problem: String?
     @FocusState private var editingName: Bool
+    @State private var systemOff = false
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -45,13 +47,7 @@ struct CrewInfoSheet: View {
                     } footer: {
                         Text("Up to 8 people. Everyone here sees the wins sent to this crew today.")
                     }
-                    Section {
-                        Toggle("Hide Alerts", isOn: Binding(
-                            get: { store.hidesAlerts(crewID) },
-                            set: { store.setHidesAlerts($0, for: crewID) }))
-                            .font(Typography.bodyLarge)
-                            .tint(AppColors.switchTrack)
-                    }
+                    notifications
                     Section {
                         Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { confirmsLeave = true }
                             .font(Typography.bodyLarge)
@@ -93,6 +89,70 @@ struct CrewInfoSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// What this crew may tell you. Mute for a while or until you say, as
+    /// Messages, WhatsApp and Discord offer it, and reactions apart from
+    /// wins: the one switch Messages users keep asking Apple for.
+    @ViewBuilder
+    private var notifications: some View {
+        Section {
+            if systemOff {
+                Button {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications are off for Sturdy")
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                        Text("Turn On in Settings")
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkSecondary)
+                    }
+                }
+            }
+            Menu {
+                Button("Off") { store.mute(crewID, nil) }
+                ForEach(SocialStore.Mute.allCases) { length in
+                    Button(length.words) { store.mute(crewID, length) }
+                }
+            } label: {
+                HStack {
+                    Label("Mute", systemImage: store.isMuted(crewID) ? "bell.slash" : "bell")
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkPrimary)
+                    Spacer()
+                    Text(muteState)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkSecondary)
+                }
+            }
+            Toggle(isOn: Binding(get: { store.reactionAlerts(crewID) },
+                                 set: { store.setReactionAlerts($0, for: crewID) })) {
+                Label("Reactions to My Wins", systemImage: "heart")
+                    .font(Typography.bodyLarge)
+            }
+            .tint(AppColors.switchTrack)
+            .disabled(store.isMuted(crewID))
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text(store.isMuted(crewID) ? "Nothing from this crew until the mute ends. Its wins still arrive."
+                                       : "A notification for every win, and for reactions to yours.")
+        }
+        .task {
+            systemOff = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .denied
+        }
+    }
+
+    private var muteState: String {
+        guard let until = store.mutedUntil(crewID) else { return "Off" }
+        if until > Date().addingTimeInterval(365 * 86_400) { return "On" }
+        return Calendar.current.isDateInToday(until)
+            ? "Until \(until.formatted(date: .omitted, time: .shortened))"
+            : "Until \(until.formatted(.dateTime.weekday(.wide).hour().minute()))"
     }
 
     private func identity(_ crew: Crew) -> some View {

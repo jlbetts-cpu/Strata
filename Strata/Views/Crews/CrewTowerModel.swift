@@ -41,7 +41,7 @@ final class CrewTowerModel {
     /// Rebuilds from the crew's wins. A win that was not there last time falls
     /// in from above the screen, as yours do; every tenth one sets the tower
     /// dancing, which is the crew's only celebration.
-    func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String]) {
+    func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String], reactions: (UUID) -> [Reaction] = { _ in [] }) {
         let ordered = wins.sorted { $0.createdAt < $1.createdAt }
         var entries: [TowerViewModel.TowerEntry] = []
         for win in ordered {
@@ -50,7 +50,8 @@ final class CrewTowerModel {
                 let name = names[win.senderProfileID] ?? ""
                 sender = name.isEmpty ? "A friend" : name
             }
-            entries.append(TowerViewModel.TowerEntry(id: win.winID, look: PlacedBlock.Look(win: win, sender: sender)))
+            entries.append(TowerViewModel.TowerEntry(
+                id: win.winID, look: PlacedBlock.Look(win: win, sender: sender, reactions: reactions(win.winID))))
         }
         let hadBuilt = tower.hasBuiltOnce
         withAnimation(GridConstants.motionSnappy) {

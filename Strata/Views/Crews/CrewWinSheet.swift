@@ -2,9 +2,10 @@ import SwiftUI
 
 /// One win in a crew, opened: the block large, whose it is and when.
 ///
-/// A friend's win offers Report and nothing else; your own offers taking it
-/// back out of this crew. No likes, no replies: a crew sees wins, it does not
-/// grade them.
+/// A friend's win takes a reaction (the bar, from the Apollo Figma file) and
+/// offers Report; your own shows who reacted and offers taking it back out of
+/// this crew. Reactions, never replies: a crew cheers a win, it does not
+/// start a thread under it.
 struct CrewWinSheet: View {
     let win: SharedWin
     let crewID: CrewID
@@ -52,6 +53,16 @@ struct CrewWinSheet: View {
                 }
             }
 
+            if !isMine {
+                ReactionBar(mine: store.myReaction(to: win.winID, in: crewID)) { emoji in
+                    Task { await store.react(emoji, to: win.winID, in: crewID) }
+                }
+            }
+            if let crew = store.visible(crewID) {
+                ReactorRow(reactions: store.reactions(to: win.winID, in: crewID), crew: crew, me: store.me)
+                    .padding(.horizontal, -GridConstants.horizontalPadding)
+            }
+
             Spacer(minLength: 0)
 
             if isMine {
@@ -87,7 +98,7 @@ struct CrewWinSheet: View {
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.bottom, GridConstants.gapWide)
         .onAppear { if startsReporting { confirmsReport = true } }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }

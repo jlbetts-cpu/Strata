@@ -133,7 +133,8 @@ struct MemoriesConsistencyTests {
         // another worker moved onto this token in the same pass. The audit
         // counted the plan line among the five `switchOn` sites, so the app's
         // whole switch population is one colour now.
-        // Twelve since Crews (2026-10-02): Crew Info's Hide Alerts.
+        // Twelve since Crews (2026-10-02): Crew Info's reaction switch. Its
+        // Hide Alerts switch became the Mute menu the same day.
         #expect(rowTints.count == 12,
                 "there are \(rowTints.count) switches in the app and there were 12; a new one needs the token too")
     }

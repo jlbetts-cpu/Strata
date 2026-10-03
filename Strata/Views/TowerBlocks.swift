@@ -28,6 +28,8 @@ struct TowerBlocksForEach: View {
     /// and threading a constant `false` through the same path would be the
     /// same statement in a worse place.
     let liftedBlockID: UUID?
+    /// A crew tower's double-tap. Nil on your own tower.
+    var onDoubleTapBlock: ((UUID) -> Void)? = nil
 
     var body: some View {
         // Read the dance's phase counter here, at the top of the grid's
@@ -62,7 +64,8 @@ struct TowerBlocksForEach: View {
                 willMerge: mergeDestinedIDs.contains(block.id),
                 isCovered: towerVM.coveredBlockIDs.contains(block.id),
                 onTapExpandBlock: onTapExpandBlock,
-                liftedBlockID: liftedBlockID
+                liftedBlockID: liftedBlockID,
+                onDoubleTapBlock: onDoubleTapBlock
             )
             .frame(width: f.width, height: f.height)
             // **A PLACED BLOCK CANNOT BE PICKED UP, AND THAT IS THE FIX.**
@@ -152,6 +155,9 @@ struct AnimatedBlockView: View, Equatable {
     let isCovered: Bool
     let onTapExpandBlock: (UUID) -> Void
     let liftedBlockID: UUID?
+    /// Not in `==`: a closure cannot be compared, and it never changes for a
+    /// given tower.
+    var onDoubleTapBlock: ((UUID) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -309,6 +315,7 @@ struct AnimatedBlockView: View, Equatable {
                         onTapExpandBlock(block.id)
                     }
                 },
+                onDoubleTap: onDoubleTapBlock.map { action in { action(block.id) } },
                 isLifted: liftedBlockID == block.id
             )
             // No `matchedGeometryEffect`. It served the expansion card

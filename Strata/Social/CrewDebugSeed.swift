@@ -93,6 +93,16 @@ extension DebugHarness {
                 await poster.post(win(i, minutesAgo: (seedCrewWins - i) * 23), to: [crew.id])
             }
         }
+        // Friends react to a few wins, yours among them.
+        for friend in friends {
+            await friend.refresh()
+            for crew in friend.crews {
+                let wins = friend.today(in: crew.id).filter { $0.senderProfileID != friend.me }
+                for (i, win) in wins.enumerated() where i % 2 == 0 {
+                    await friend.react((Reaction.quick + ["👏", "💪"])[(i / 2 + win.title.count) % 5], to: win.winID, in: crew.id)
+                }
+            }
+        }
         await store.refresh()
         NSLog("[strata-crew] seeded %d crews", store.crews.count)
         // `-strataCrewParked <n>`: the first crew's bubble starts with n heads in it.

@@ -39,10 +39,10 @@ struct CrewsListView: View {
                             .swipeActions(edge: .trailing) {
                                 Button(crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
                                 Button {
-                                    store.setHidesAlerts(!store.hidesAlerts(crew.id), for: crew.id)
+                                    store.mute(crew.id, store.isMuted(crew.id) ? nil : .always)
                                 } label: {
-                                    Label(store.hidesAlerts(crew.id) ? "Show Alerts" : "Hide Alerts",
-                                          systemImage: store.hidesAlerts(crew.id) ? "bell" : "bell.slash")
+                                    Label(store.isMuted(crew.id) ? "Unmute" : "Mute",
+                                          systemImage: store.isMuted(crew.id) ? "bell" : "bell.slash")
                                 }
                             }
                     }
@@ -106,6 +106,14 @@ struct CrewsListView: View {
                         .font(Typography.headerMedium)
                         .foregroundStyle(AppColors.inkPrimary)
                         .lineLimit(1)
+                    // Muted, marked as Messages marks it.
+                    if store.isMuted(crew.id) {
+                        Image(systemName: "bell.slash.fill")
+                            .font(Typography.screenSubtitle)
+                            .imageScale(.small)
+                            .foregroundStyle(AppColors.inkTertiary)
+                            .accessibilityLabel("Muted")
+                    }
                     Spacer(minLength: 8)
                     if let latest {
                         Text(Self.when(latest.createdAt))
