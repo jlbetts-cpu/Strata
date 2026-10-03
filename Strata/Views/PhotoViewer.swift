@@ -40,6 +40,10 @@ struct PhotoViewer: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var confirmingDelete = false
+    /// The win behind the photograph, being edited in place (the owner,
+    /// 2026-10-03: "why should you need to go all the way back to the main
+    /// wins screen... it should just let you edit it").
+    @State private var editingLog: HabitLog?
     @State private var saving = false
     @State private var saved: Set<String> = []
     /// The decoded pictures, keyed by file name.
@@ -231,6 +235,15 @@ struct PhotoViewer: View {
             // and nobody should have to guess whether this takes one away.
             Text("The win stays on your tower. Only the photograph is deleted.")
         }
+        .sheet(item: $editingLog) { log in
+            AddWinSheet(modelContext: modelContext,
+                        tower: log.habit?.tower,
+                        editing: log.habit,
+                        editingLog: log,
+                        onSaved: { _ in },
+                        // The win is gone, and its photograph with it.
+                        onDeleted: { onClose() })
+        }
     }
 
     #if DEBUG
@@ -412,6 +425,13 @@ struct PhotoViewer: View {
                 ShareLink(item: image,
                           preview: SharePreview(current.title ?? "Photo", image: image)) {
                     Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+            // Your own win: the same sheet a block opens, answers filled in,
+            // over the photograph. Not a friend's, and not a crew's copy.
+            if crew == nil, current?.block == nil {
+                Button { edit() } label: {
+                    Label("Edit", systemImage: "pencil")
                 }
             }
             if current?.block == nil {
@@ -621,6 +641,16 @@ struct PhotoViewer: View {
                 saved.insert(current.id)
                 HapticsEngine.success()
             }
+        }
+    }
+
+    private func edit() {
+        guard let name = current?.fileName else { return }
+        let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.imageFileName == name })
+        do {
+            editingLog = try modelContext.fetch(descriptor).first
+        } catch {
+            NSLog("[strata-photo] could not find the win behind a photograph to edit: \(error)")
         }
     }
 
