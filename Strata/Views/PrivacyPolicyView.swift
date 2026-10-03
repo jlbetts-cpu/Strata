@@ -119,7 +119,8 @@ struct PrivacyPolicyView: View {
          + "before it, and older wins are deleted the next time anyone opens it."),
         ("Block and Report",
          "Block hides that person's wins, head and name in every crew on your "
-         + "phone. They are not told. If you started the crew, they are removed "
+         + "phones. Your blocks and mutes reach your other devices through your "
+         + "own iCloud, which no crew can see. They are not told. If you started the crew, they are removed "
          + "from it too. You can unblock them in a crew's details. You can report "
          + "a win, a person (their name, photo or head) or a crew (its name or "
          + "picture). A report sends Some Wins what you reported (the title and, "

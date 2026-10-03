@@ -122,7 +122,8 @@ second test iCloud account if Review asks for one.
   never to the crew; every report is looked at within 24 hours, and a Ban
   record removes the account from every crew on every phone.
 - [ ] **Block:** tap a person in the crew's details. Their wins, head and name
-  disappear from every crew on the blocker's phone; they are not told; if the
+  disappear from every crew on the blocker's devices (blocks and mutes sync
+  through the blocker's own iCloud key-value store); they are not told; if the
   blocker started the crew they are also removed. Blocked people are listed
   there, with Unblock.
 - [ ] **Terms:** the crew rules (zero tolerance) are agreed to before Crews

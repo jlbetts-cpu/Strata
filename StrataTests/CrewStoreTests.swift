@@ -343,4 +343,67 @@ extension CrewStoreTests {
         a.unblock(sam)
         #expect(!a.blocked.contains(sam))
     }
+
+    /// Two phones on one iCloud account: Jayden's phone and Jayden's iPad.
+    func twoPhones() -> (SocialStore, SocialStore) {
+        let icloud = MemoryKeyValueCloud()
+        let (phone, _, _) = store(jayden)
+        let (pad, _, _) = store(jayden)
+        phone.choicesCloud = icloud
+        pad.choicesCloud = icloud
+        return (phone, pad)
+    }
+
+    @Test func aBlockOnOnePhoneReachesTheOther() {
+        let (phone, pad) = twoPhones()
+        phone.block(sam, name: "Sam")
+        pad.pullChoices()
+        #expect(pad.blocked.contains(sam))
+        #expect(pad.blockedName(sam) == "Sam")
+    }
+
+    @Test func anUnblockLaterWinsOverTheEarlierBlock() {
+        let (phone, pad) = twoPhones()
+        var clock = Date(timeIntervalSince1970: 1_000)
+        phone.now = { clock }
+        pad.now = { clock }
+        phone.block(sam, name: "Sam")
+        pad.pullChoices()
+        clock += 60
+        pad.unblock(sam)
+        phone.pullChoices()
+        #expect(!phone.blocked.contains(sam))
+        // And pulling again on the pad does not bring the old block back.
+        pad.pullChoices()
+        #expect(!pad.blocked.contains(sam))
+    }
+
+    @Test func aMuteAndReactionChoiceTravelToo() async throws {
+        let (phone, pad) = twoPhones()
+        let crew = CrewID(rawValue: "crew-\(UUID().uuidString)")
+        phone.mute(crew, .always)
+        phone.setReactionAlerts(false, for: crew)
+        pad.pullChoices()
+        #expect(pad.isMuted(crew))
+        #expect(!pad.reactionAlerts(crew))
+        pad.mute(crew, nil)
+        pad.setReactionAlerts(true, for: crew)
+        phone.pullChoices()
+        #expect(!phone.isMuted(crew))
+        #expect(phone.reactionAlerts(crew))
+    }
+
+    @Test func aBlockFromBeforeTheSyncIsKeptAndShared() {
+        let icloud = MemoryKeyValueCloud()
+        let (phone, _, _) = store(jayden)
+        phone.block(sam, name: "Sam")
+        // The update arrives: the phone meets iCloud for the first time.
+        phone.choicesCloud = icloud
+        phone.pullChoices()
+        #expect(phone.blocked.contains(sam))
+        let (pad, _, _) = store(jayden)
+        pad.choicesCloud = icloud
+        pad.pullChoices()
+        #expect(pad.blocked.contains(sam))
+    }
 }

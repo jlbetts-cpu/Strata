@@ -47,6 +47,16 @@ final class SocialStore {
         // stands between you and inviting people (the owner, 2026-10-02:
         // "why do I have to name or do a pfp to add people").
         store.requiresCrewPhoto = false
+        // Blocks and mutes, the same on every phone on this iCloud account.
+        let choices = NSUbiquitousKeyValueStore.default
+        store.choicesCloud = choices
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification, object: choices, queue: .main
+        ) { _ in
+            Task { @MainActor in SocialStore.shared.pullChoices() }
+        }
+        choices.synchronize()
+        store.pullChoices()
         return store
     }()
 
@@ -256,6 +266,7 @@ final class SocialStore {
         var names = blockedNames
         names[profileID.uuidString] = name
         defaults.set(names, forKey: Self.blockedNamesKey)
+        note(.blocked, profileID.uuidString, 1, name: name)
         recomputeUnread()
     }
 
@@ -265,6 +276,7 @@ final class SocialStore {
         var names = blockedNames
         names[profileID.uuidString] = nil
         defaults.set(names, forKey: Self.blockedNamesKey)
+        note(.blocked, profileID.uuidString, 0)
         recomputeUnread()
     }
 
@@ -1074,6 +1086,7 @@ final class SocialStore {
             stamps[crewID.rawValue] = nil
         }
         Self.groupDefaults?.set(stamps, forKey: Self.mutedKey)
+        note(.muted, crewID.rawValue, stamps[crewID.rawValue] ?? 0)
         outboxRevision += 1
     }
 
@@ -1091,7 +1104,90 @@ final class SocialStore {
         var off = Set(Self.groupDefaults?.stringArray(forKey: Self.quietReactionsKey) ?? [])
         if on { off.remove(crewID.rawValue) } else { off.insert(crewID.rawValue) }
         Self.groupDefaults?.set(off.sorted(), forKey: Self.quietReactionsKey)
+        note(.reactionsOff, crewID.rawValue, on ? 0 : 1)
         outboxRevision += 1
+    }
+
+    // MARK: Choices on every phone
+
+    /// iCloud's key-value store, where blocks and mutes meet your other
+    /// phones (`CrewChoicesSync`). Nil keeps them on this phone only.
+    @ObservationIgnored var choicesCloud: KeyValueCloud?
+    private static let choicesAdoptedKey = "crews.sync.adopted"
+
+    private func entries(_ table: CrewChoicesSync.Table) -> CrewChoicesSync.Entries {
+        defaults.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
+    }
+
+    /// A choice made on this phone: stamped, kept, and sent.
+    private func note(_ table: CrewChoicesSync.Table, _ key: String, _ value: Double, name: String? = nil) {
+        var mine = entries(table)
+        mine[key] = CrewChoicesSync.entry(value, at: now().timeIntervalSince1970, name: name)
+        defaults.set(mine, forKey: table.rawValue)
+        guard let choicesCloud else { return }
+        let remote = choicesCloud.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
+        choicesCloud.set(CrewChoicesSync.merge(mine, remote), forKey: table.rawValue)
+    }
+
+    /// What your other phones chose, merged with this one's, newest first,
+    /// and put into effect. At launch and whenever iCloud says it changed.
+    func pullChoices() {
+        adoptChoicesMadeBeforeSync()
+        for table in CrewChoicesSync.Table.allCases {
+            let remote = choicesCloud?.dictionary(forKey: table.rawValue) as? CrewChoicesSync.Entries ?? [:]
+            let merged = CrewChoicesSync.merge(entries(table), remote)
+            defaults.set(merged, forKey: table.rawValue)
+            if let choicesCloud, CrewChoicesSync.isAhead(merged, of: remote) {
+                choicesCloud.set(merged, forKey: table.rawValue)
+            }
+            apply(table, merged)
+        }
+        recomputeUnread()
+        outboxRevision += 1
+    }
+
+    /// Blocks and mutes from before this sync existed join it stamped as
+    /// old as can be, so anything decided on another phone since wins.
+    private func adoptChoicesMadeBeforeSync() {
+        guard !defaults.bool(forKey: Self.choicesAdoptedKey) else { return }
+        defaults.set(true, forKey: Self.choicesAdoptedKey)
+        var blockedEntries = entries(.blocked)
+        for id in blocked where blockedEntries[id.uuidString] == nil {
+            blockedEntries[id.uuidString] = CrewChoicesSync.entry(1, at: 0, name: blockedNames[id.uuidString])
+        }
+        defaults.set(blockedEntries, forKey: CrewChoicesSync.Table.blocked.rawValue)
+        var mutedEntries = entries(.muted)
+        for (crew, until) in Self.groupDefaults?.dictionary(forKey: Self.mutedKey) as? [String: Double] ?? [:]
+        where mutedEntries[crew] == nil {
+            mutedEntries[crew] = CrewChoicesSync.entry(until, at: 0)
+        }
+        defaults.set(mutedEntries, forKey: CrewChoicesSync.Table.muted.rawValue)
+        var quietEntries = entries(.reactionsOff)
+        for crew in Self.groupDefaults?.stringArray(forKey: Self.quietReactionsKey) ?? [] where quietEntries[crew] == nil {
+            quietEntries[crew] = CrewChoicesSync.entry(1, at: 0)
+        }
+        defaults.set(quietEntries, forKey: CrewChoicesSync.Table.reactionsOff.rawValue)
+    }
+
+    private func apply(_ table: CrewChoicesSync.Table, _ merged: CrewChoicesSync.Entries) {
+        switch table {
+        case .blocked:
+            let on = merged.filter { CrewChoicesSync.value($0.value) == 1 }
+            blocked = Set(on.keys.compactMap(UUID.init(uuidString:)))
+            defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
+            var names = blockedNames.filter { on[$0.key] != nil }
+            for (id, entry) in on { if let name = CrewChoicesSync.name(entry), !name.isEmpty { names[id] = name } }
+            defaults.set(names, forKey: Self.blockedNamesKey)
+        case .muted:
+            let stamps = merged.compactMapValues { entry -> Double? in
+                let until = CrewChoicesSync.value(entry)
+                return until > 0 ? until : nil
+            }
+            Self.groupDefaults?.set(stamps, forKey: Self.mutedKey)
+        case .reactionsOff:
+            let off = merged.filter { CrewChoicesSync.value($0.value) == 1 }.keys.sorted()
+            Self.groupDefaults?.set(off, forKey: Self.quietReactionsKey)
+        }
     }
 
     // MARK: Test and debug seams
