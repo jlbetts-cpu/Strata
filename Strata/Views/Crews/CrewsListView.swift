@@ -119,10 +119,6 @@ struct CrewsListView: View {
                         Text(Self.when(latest.createdAt))
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkSecondary)
-                        Image(systemName: "chevron.right")
-                            .font(Typography.screenSubtitle)
-                            .imageScale(.small)
-                            .foregroundStyle(AppColors.inkTertiary)
                     }
                 }
                 Text(Self.preview(latest, in: crew, me: store.me))
@@ -130,6 +126,9 @@ struct CrewsListView: View {
                     .foregroundStyle(AppColors.inkSecondary)
                     .lineLimit(2)
             }
+            // Today's tower, small, bottom-aligned like the real one.
+            MiniCrewTower(wins: store.today(in: crew.id))
+                .frame(minHeight: 44, alignment: .bottom)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

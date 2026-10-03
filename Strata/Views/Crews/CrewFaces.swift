@@ -133,3 +133,55 @@ struct CrewFaces: View {
         }
     }
 }
+
+/// A crew's day at a glance, for its row in the list: today's wins packed by
+/// the tower's own rule, each a small block in its own colour.
+///
+/// **Where Messages has a chevron, Sturdy has the tower.** The list borrows
+/// Messages' shape because that is how people read a list of groups; this is
+/// the part only this app can show. Empty before the first win, so a quiet
+/// crew's row is quiet.
+struct MiniCrewTower: View {
+    let wins: [SharedWin]
+    var cell: CGFloat = 6
+    var gap: CGFloat = 1.5
+    /// The top of a tall day is what shows, as on a phone held up to it.
+    var maxRows = 6
+
+    var body: some View {
+        let placed = Self.pack(wins.sorted { $0.createdAt < $1.createdAt })
+        let rows = min(placed.map { $0.row + $0.rowSpan }.max() ?? 0, maxRows)
+        let floor = max((placed.map { $0.row + $0.rowSpan }.max() ?? 0) - maxRows, 0)
+        let width = CGFloat(GridConstants.columnCount) * cell + CGFloat(GridConstants.columnCount - 1) * gap
+        let height = CGFloat(rows) * cell + CGFloat(max(rows - 1, 0)) * gap
+        ZStack(alignment: .topLeading) {
+            ForEach(placed.filter { $0.row >= floor }, id: \.id) { block in
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(block.colour.style.baseColor)
+                    .frame(width: CGFloat(block.columnSpan) * cell + CGFloat(block.columnSpan - 1) * gap,
+                           height: CGFloat(block.rowSpan) * cell + CGFloat(block.rowSpan - 1) * gap)
+                    .offset(x: CGFloat(block.column) * (cell + gap),
+                            y: height - CGFloat(block.row - floor + block.rowSpan) * (cell + gap) + gap)
+            }
+        }
+        .frame(width: width, height: height, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
+    struct Placed: Identifiable {
+        let id: UUID
+        let colour: HabitCategory
+        let column: Int, row: Int, columnSpan: Int, rowSpan: Int
+    }
+
+    static func pack(_ wins: [SharedWin]) -> [Placed] {
+        var grid: [[Bool]] = []
+        return wins.compactMap { win in
+            let size = win.blockSize
+            guard let spot = GridPacker.firstFit(columnSpan: size.columnSpan, rowSpan: size.rowSpan,
+                                                 columns: GridConstants.columnCount, grid: &grid) else { return nil }
+            return Placed(id: win.winID, colour: win.colour, column: spot.column, row: spot.row,
+                          columnSpan: size.columnSpan, rowSpan: size.rowSpan)
+        }
+    }
+}
