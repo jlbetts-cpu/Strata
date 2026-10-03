@@ -323,39 +323,34 @@ struct FlippableBlockView: View {
 struct ReactionBadge: View {
     let emoji: [String]
     let count: Int
-    /// You reacted: the chip is near white rather than frosted, the way
-    /// Messages fills the tapback you sent.
+    /// You reacted.
     var mine = false
 
-    @Environment(\.colorScheme) private var colorScheme
-
+    /// **Quiet** (the owner, 2026-10-03: "the reactions in the crew right now
+    /// they feel too loud like in the pill... can we make it feel a bit more
+    /// minimal"). One emoji, the one most given (yours first, when you gave
+    /// one), at the page's smallest size and on no chip; a small white count beside it
+    /// when more than one person reacted. Yours sits on a soft white dot, so
+    /// you can tell at a glance without it shouting. Who gave what is in the
+    /// carousel's line.
     var body: some View {
-        HStack(spacing: 2) {
-            HStack(spacing: -4) {
-                ForEach(Array(emoji.enumerated()), id: \.offset) { index, e in
-                    Text(e)
-                        .font(Typography.screenSubtitle)
-                        .zIndex(Double(emoji.count - index))
-                }
+        HStack(spacing: 3) {
+            if let first = emoji.first {
+                Text(first)
+                    .font(Typography.screenSubtitle)
+                    .padding(2)
+                    .background {
+                        if mine { Circle().fill(Color.white.opacity(0.55)) }
+                    }
             }
-            if count > emoji.count {
+            if count > 1 {
                 Text("\(count)")
                     .font(Typography.headerSmall)
                     .monospacedDigit()
-                    .foregroundStyle(AppColors.inkPrimary)
+                    .foregroundStyle(Color.white.opacity(0.92))
                     .contentTransition(.numericText())
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        // A flat frosted chip, not glass: Liquid Glass brings its own shadow,
-        // and on every reacted block at once that was too much (the owner,
-        // 2026-10-02). The block's corner is where it sits, not above it.
-        .background(.ultraThinMaterial, in: Capsule())
-        .background {
-            if mine { Capsule().fill(Color.white.opacity(0.82)) }
-        }
-        .environment(\.colorScheme, mine ? .light : colorScheme)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel((count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
                                         : "\(count) reactions, \(emoji.joined(separator: " "))")
