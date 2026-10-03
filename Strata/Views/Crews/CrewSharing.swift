@@ -38,7 +38,7 @@ enum CrewSharing {
         } catch {
             CrewRouter.shared.joinProblem = (error as? CrewError) == .crewFull
                 ? "This crew already has eight people."
-                : "The invitation could not be made. Check you're signed in to iCloud and try again."
+                : "The invitation could not be made: \(error.localizedDescription)"
         }
     }
 

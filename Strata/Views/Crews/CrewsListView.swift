@@ -54,7 +54,9 @@ struct CrewsListView: View {
         }
         .background(WarmBackground().ignoresSafeArea())
         .navigationTitle("Crews")
-        .navigationBarTitleDisplayMode(.large)
+        // Small and centred, as Messages titles its list (the owner,
+        // 2026-10-02: "it would look better in the middle like iMessages").
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if age.opensCrews { ToolbarItem(placement: .topBarTrailing) {
@@ -223,8 +225,8 @@ struct NewCrewSheet: View {
                 if needsPhoto { photoPicker.frame(maxWidth: .infinity).padding(.bottom, GridConstants.gapTight) }
                 // Open, like Add Win's "What did you do?": a name is typed
                 // onto the page, not into a box.
-                TextField("Name your crew", text: $name,
-                          prompt: Text("Name your crew").foregroundStyle(AppColors.inkTertiary))
+                TextField("Name (optional)", text: $name,
+                          prompt: Text("Name (optional)").foregroundStyle(AppColors.inkTertiary))
                     .font(Typography.headerMedium)
                     .foregroundStyle(AppColors.inkPrimary)
                     .focused($focused)
@@ -241,8 +243,6 @@ struct NewCrewSheet: View {
                 Spacer(minLength: 0)
                 if working {
                     PrimaryCapsule(waiting: "Starting", because: "The crew is being made")
-                } else if needsPhoto && photoData == nil {
-                    PrimaryCapsule(waiting: "Invite People", because: "Choose a photo for the crew first")
                 } else {
                     PrimaryCapsule(title: "Invite People", action: start)
                 }
@@ -280,10 +280,12 @@ struct NewCrewSheet: View {
                 started(crew.id)
                 try? await Task.sleep(for: .milliseconds(450))
                 await CrewSharing.invite(crew.id)
-            } catch let error as CrewError {
+            } catch let error as CrewError where error != .unknownCrew {
                 problem = StrataSceneDelegate.words(for: error)
             } catch {
-                problem = "The crew could not be started. Check you're signed in to iCloud and try again."
+                // Say what iCloud said: on a tester's phone this line is the
+                // only way to know why.
+                problem = "The crew could not be started: \(error.localizedDescription)"
             }
             working = false
         }

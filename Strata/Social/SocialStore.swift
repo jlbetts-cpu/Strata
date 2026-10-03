@@ -36,7 +36,10 @@ final class SocialStore {
         }
         store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
         store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
-        store.requiresCrewPhoto = true
+        // A photo is offered first and can be added later; it is never what
+        // stands between you and inviting people (the owner, 2026-10-02:
+        // "why do I have to name or do a pfp to add people").
+        store.requiresCrewPhoto = false
         return store
     }()
 

@@ -175,11 +175,17 @@ struct TowerLattice: View {
     /// full ink against a resting cell's two percent: four or five times the
     /// cell you can already see, which is the "more visible" he asked for,
     /// and still quiet enough to be a material rather than an effect.
+    ///
+    /// **Raised by about a third** (2026-10-02). On his phone the owner could
+    /// not see it at all: "I want it really subtle but right now you cant even
+    /// see it". 0.07 to 0.12 was nothing at arm's length; 0.11 to 0.18,
+    /// filmed, read as grey patches at the ring's peak; 0.10 to 0.16 is the
+    /// surface answering, and still not a flash.
     static func peak(for span: Int) -> Double {
         switch span {
-        case 4: return 0.12     // a 2x2
-        case 2: return 0.09     // a 2x1
-        default: return 0.07    // a 1x1
+        case 4: return 0.16     // a 2x2
+        case 2: return 0.13     // a 2x1
+        default: return 0.10    // a 1x1
         }
     }
 

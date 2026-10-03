@@ -25,6 +25,9 @@ final class CloudKitCrewCloud: CrewCloud {
 
     /// Where each crew's zone is and which database reaches it.
     private var zones: [CrewID: (id: CKRecordZone.ID, shared: Bool)] = [:]
+    /// Crews made on this phone this run: a listing taken before one existed
+    /// must never take it away.
+    private var madeHere: Set<CrewID> = []
     /// Every record in every crew, as fields, keyed "Type/name".
     private var cache: [CrewID: [String: RecordFields]] = [:]
     private var tokens: [CrewID: CKServerChangeToken] = [:]
@@ -98,13 +101,21 @@ final class CloudKitCrewCloud: CrewCloud {
         _ = try await container.privateCloudDatabase.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)],
                                                                        deleting: [])
         zones[crew.id] = (zoneID, false)
+        madeHere.insert(crew.id)
         let share = CKShare(recordZoneID: zoneID)
         share.publicPermission = .none
         share[CKShare.SystemFieldKey.title] = crew.name.isEmpty ? "Crew" : crew.name
         let saved = try await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
-        guard case .success(let record)? = saved.saveResults[share.recordID],
-              let url = (record as? CKShare)?.url else { throw CrewError.unknownCrew }
-        return url
+        // iCloud's own error, not a generic one: on a tester's phone it is the
+        // only way to know what went wrong (2026-10-02, the first real test).
+        switch saved.saveResults[share.recordID] {
+        case .failure(let error)?: throw error
+        case .success(let record)?:
+            if let url = (record as? CKShare)?.url { return url }
+        case nil: break
+        }
+        // Saved without its link yet: read it back.
+        return try await shareURL(for: crew.id)
     }
 
     /// The zone-wide share of a crew, for the system's sharing sheet.
@@ -231,8 +242,14 @@ final class CloudKitCrewCloud: CrewCloud {
         for zone in joined where zone.zoneID.zoneName.hasPrefix("crew-") {
             found[CrewID(rawValue: zone.zoneID.zoneName)] = (zone.zoneID, true)
         }
-        for gone in Set(zones.keys).subtracting(found.keys) { forget(gone) }
-        zones = found.mapValues { (id: $0.0, shared: $0.1) }
+        // **Added to, never replaced.** The list's refresh lists the zones,
+        // and a crew started while that listing was in flight was missing
+        // from it; replacing the map dropped the crew the moment it was made,
+        // and its first record failed with "could not be opened" (the first
+        // real test, 2026-10-02). Only a zone missing from a listing AND not
+        // made here this run is forgotten.
+        for gone in Set(zones.keys).subtracting(found.keys).subtracting(madeHere) { forget(gone) }
+        for (id, zone) in found { zones[id] = (id: zone.0, shared: zone.1) }
     }
 
     /// Brings one crew's cache up to date from its change token.
