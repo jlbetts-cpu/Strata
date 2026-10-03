@@ -159,8 +159,12 @@ chosen.
   somewins.app, @somewins.
 - **App Store:** name `Some Wins` (the exact name, so it is ours), subtitle
   `Daily photo journal for wins`, keywords
-  `small,proof,done,list,accomplishment,gratitude,diary,camera,tower,friend,share,group,recap,memory`
-  (97 of 100 bytes). No "habit" and no "streak", per §2. See `docs/aso-plan.md`.
+  `habit,streak,tracker,small,done,list,goal,gratitude,diary,camera,friend,share,group,recap,memory`
+  (96 of 100 bytes). **"habit" and "streak" are allowed in the KEYWORDS
+  now** (the owner, 2026-10-03: "if the key words habit and streak get more
+  searches i wouldnt mind putting them in... I want the app to be easily
+  searched"); §2 still keeps them out of the name, subtitle and copy people
+  read. See `docs/aso-plan.md`.
 - **Checked 2026-10-03:** no app, US trademark or company by the name;
   somewins.app unregistered; somewins.com for sale. The neighbourhood is
   crowded with "Small Wins" and "Tiny Wins" apps, so a trademark filing is
