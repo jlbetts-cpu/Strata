@@ -14,11 +14,18 @@ struct CrewTowerView: View {
     var onBack: () -> Void
 
     @State private var model = CrewTowerModel()
+    @State private var parking: CrewParking
     @State private var showsInfo = false
     @State private var openWin: SharedWin?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+
+    init(crewID: CrewID, onBack: @escaping () -> Void) {
+        self.crewID = crewID
+        self.onBack = onBack
+        _parking = State(initialValue: CrewParking(crewID: crewID))
+    }
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -33,6 +40,14 @@ struct CrewTowerView: View {
         }
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .safeAreaInset(edge: .top, spacing: 0) { header }
+        // Everyone's heads, over the header too, so one can be carried up
+        // into the bubble. See `CrewHeadArena`.
+        .overlay {
+            if let crew {
+                CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
+                    .ignoresSafeArea()
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
@@ -74,19 +89,26 @@ struct CrewTowerView: View {
         ZStack(alignment: .top) {
             HStack(alignment: .top) {
                 GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Crews") { onBack() }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
                 if let crew, crew.members.count < CrewCaps.members {
                     GlassIconButton(systemName: "person.badge.plus", onPage: true,
                                     accessibilityLabel: "Add People") {
                         Task { await CrewSharing.invite(crewID) }
                     }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
                 }
             }
             if let crew {
-                Button { showsInfo = true } label: {
-                    VStack(spacing: -10) {
-                        CrewFaces(crew: crew, me: store.me, side: 60)
-                            .background(Circle().fill(AppColors.quietFill).padding(-3))
+                VStack(spacing: parking.parked.isEmpty ? -10 : -2) {
+                    CrewBubble(crew: crew, me: store.me, parking: parking, side: 60)
+                        .onTapGesture { if parking.parked.isEmpty { showsInfo = true } }
+                        .accessibilityElement(children: parking.parked.isEmpty ? .ignore : .contain)
+                        .accessibilityLabel(parking.parked.isEmpty ? "\(crew.displayName(excluding: store.me)), \(crew.members.count) people" : "The bubble")
+                        .accessibilityAddTraits(parking.parked.isEmpty ? .isButton : [])
+                        .accessibilityAction { if parking.parked.isEmpty { showsInfo = true } }
+                        .zIndex(1)
+                    Button { showsInfo = true } label: {
                         HStack(spacing: 4) {
                             Text(crew.displayName(excluding: store.me))
                                 .font(Typography.headerSmall)
@@ -98,16 +120,14 @@ struct CrewTowerView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .glassCapsule(onPage: true, carriesType: true)
+                        .glassCapsule(onPage: true)
                         .frame(maxWidth: 220)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["name"] = $0 }
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.pressSurface)
+                    .accessibilityLabel("\(crew.displayName(excluding: store.me)), details")
+                    .accessibilityAddTraits(.isHeader)
                 }
-                .buttonStyle(.pressSurface)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(crew.displayName(excluding: store.me)), \(crew.members.count) people")
-                .accessibilityHint("Shows the crew's details.")
-                .accessibilityAddTraits(.isHeader)
             }
         }
         .padding(.horizontal, hPad)
@@ -128,9 +148,9 @@ struct CrewTowerView: View {
                     .allowsHitTesting(false)
                     .frame(width: gridW, height: max(gridH, 1))
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rect in
-                        model.gridTopOnScreen = rect.minY
-                        model.gridHeight = gridH
-                        model.cellSize = colW
+                        model.probe.gridTopOnScreen = rect.minY
+                        model.probe.gridHeight = gridH
+                        model.probe.cellSize = colW
                     }
                 if rows > 0 {
                     TowerBlocksForEach(

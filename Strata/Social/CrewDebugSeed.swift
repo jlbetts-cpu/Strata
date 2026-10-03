@@ -77,6 +77,11 @@ extension DebugHarness {
         }
         await store.refresh()
         NSLog("[strata-crew] seeded %d crews", store.crews.count)
+        // `-strataCrewParked <n>`: the first crew's bubble starts with n heads in it.
+        if let n = argument("-strataCrewParked").flatMap(Int.init), let first = store.crews.first {
+            let ids = first.others(than: store.me).prefix(n).map(\.profileID.uuidString)
+            UserDefaults.standard.set(ids, forKey: "crews.parked.\(first.id.rawValue)")
+        }
         if let index = openCrew, store.crews.indices.contains(index) {
             CrewRouter.shared.open = store.crews[index].id
         }

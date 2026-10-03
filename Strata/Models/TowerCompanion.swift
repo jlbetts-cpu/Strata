@@ -1627,6 +1627,33 @@ nonisolated struct TowerCompanionSim {
     ///
     /// It exists because `touch` stopped being a way to teleport: a finger picks
     /// the head up where it is now, so `.began` no longer moves it anywhere.
+    /// **Two heads in one room do not pass through each other** (a crew
+    /// tower, 2026-10-02). Pushes this head half the overlap away from
+    /// `other` and turns back the part of its velocity heading into it, with a
+    /// little lost, the way two balloons part. Each head does its own half, so
+    /// a pair separates evenly. A head in a hand is never moved by another.
+    /// Returns whether they were touching.
+    @discardableResult
+    mutating func bump(away other: CGPoint, otherRadius: CGFloat, restitution: CGFloat = 0.8) -> Bool {
+        guard state != .held else { return false }
+        let dx = position.x - other.x
+        let dy = position.y - other.y
+        let distance = hypot(dx, dy)
+        let reach = halfWidth + otherRadius
+        guard distance < reach else { return false }
+        // Exactly on top of each other: part them sideways.
+        let (nx, ny): (CGFloat, CGFloat) = distance > 0.001 ? (dx / distance, dy / distance) : (1, 0)
+        let push = (reach - distance) / 2
+        position.x += nx * push
+        position.y += ny * push
+        let towards = velocity.dx * nx + velocity.dy * ny
+        if towards < 0 {
+            velocity.dx -= (1 + restitution) * towards * nx
+            velocity.dy -= (1 + restitution) * towards * ny
+        }
+        return true
+    }
+
     mutating func place(in world: TowerCompanionWorld, at point: CGPoint,
                         velocity v: CGVector = .zero) {
         place(in: world)

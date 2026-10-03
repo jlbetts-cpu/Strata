@@ -15,11 +15,10 @@ final class CrewTowerModel {
     let animation = TowerAnimationCoordinator()
     private(set) var latticeRipple: LatticeRipple?
 
-    /// Where the grid is on screen, for starting a fall above the top edge.
-    @ObservationIgnored var gridTopOnScreen: CGFloat = 0
-    @ObservationIgnored var gridHeight: CGFloat = 0
-    @ObservationIgnored var cellSize: CGFloat = 0
-    @ObservationIgnored private var hasMeasured: Bool { cellSize > 0 }
+    /// Where the grid is on screen: for starting a fall above the top edge,
+    /// and for the heads to stand on. The Wins tab's own kind of probe, never
+    /// observed, so measuring it invalidates nothing.
+    @ObservationIgnored let probe = TowerGeometryProbe()
     @ObservationIgnored private var lastDanceMilestone: Int?
     @ObservationIgnored private var wired = false
 
@@ -85,9 +84,9 @@ final class CrewTowerModel {
     /// The same measurement the Wins tab makes: far enough above its slot
     /// that the block enters from off the top of the screen.
     private func fallStartOffset(for block: PlacedBlock) -> CGFloat {
-        guard hasMeasured else { return -GridConstants.dropRunway }
-        let frame = block.frame(cellSize: cellSize)
-        let slotTopOnScreen = gridTopOnScreen + (gridHeight - frame.maxY)
+        guard probe.hasMeasured else { return -GridConstants.dropRunway }
+        let frame = block.frame(cellSize: probe.cellSize)
+        let slotTopOnScreen = probe.gridTopOnScreen + (probe.gridHeight - frame.maxY)
         return -max(slotTopOnScreen + frame.height + GridConstants.dropClearance, GridConstants.dropRunway)
     }
 

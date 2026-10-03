@@ -1,0 +1,491 @@
+import Observation
+import SwiftUI
+import UIKit
+
+// MARK: - Who is in the bubble
+
+/// A crew tower's bubble: which heads are in it, which one is being carried,
+/// and which is flying in or popping out.
+///
+/// **Yours alone.** Parking is how the tower looks on your phone, not on
+/// anyone else's, so it is kept in `UserDefaults` per crew and never sent.
+@MainActor
+@Observable
+final class CrewParking {
+    let crewID: CrewID
+    /// In the order they went in, so the bubble's arrangement is stable.
+    private(set) var parked: [UUID]
+    /// The member under a finger.
+    var dragging: UUID?
+    /// The finger is over the bubble.
+    var over = false
+    /// A head on its way in, from where it was drawn (global coordinates).
+    private(set) var arriving: [UUID: CGPoint] = [:]
+    /// Bumped on every landing, so the bubble swells and its heads jostle.
+    private(set) var landed = 0
+    /// Bumped on every pop, with who popped.
+    private(set) var popped: (member: UUID, count: Int)?
+    /// The bubble, in global coordinates.
+    var bubbleFrame: CGRect = .zero
+    /// The capsule and the two buttons, for the heads to keep off.
+    var controls: [String: CGRect] = [:]
+
+    private var key: String { "crews.parked.\(crewID.rawValue)" }
+
+    init(crewID: CrewID, defaults: UserDefaults = .standard) {
+        self.crewID = crewID
+        parked = (defaults.stringArray(forKey: "crews.parked.\(crewID.rawValue)") ?? []).compactMap(UUID.init(uuidString:))
+        self.defaults = defaults
+    }
+
+    @ObservationIgnored private let defaults: UserDefaults
+
+    func isParked(_ member: UUID) -> Bool { parked.contains(member) }
+    func isHidden(_ member: UUID) -> Bool { parked.contains(member) || arriving[member] != nil }
+
+    /// Within reach of the bubble, with a little slop: a target you have to
+    /// hit exactly is a target you miss.
+    func isOver(_ point: CGPoint) -> Bool {
+        !bubbleFrame.isEmpty && bubbleFrame.insetBy(dx: -18, dy: -18).contains(point)
+    }
+
+    func beginArrival(_ member: UUID, from point: CGPoint) {
+        arriving[member] = point
+    }
+
+    /// The flight is over: he is in.
+    func land(_ member: UUID) {
+        arriving[member] = nil
+        guard !parked.contains(member) else { return }
+        withAnimation(GridConstants.elasticPop) {
+            parked.append(member)
+            landed += 1
+        }
+        persist()
+        HapticsEngine.success()
+    }
+
+    /// Straight in, for VoiceOver and Reduce Motion.
+    func parkNow(_ member: UUID) {
+        land(member)
+    }
+
+    func pop(_ member: UUID) {
+        guard parked.contains(member) else { return }
+        HapticsEngine.lightTap()
+        withAnimation(GridConstants.popBurst) {
+            parked.removeAll { $0 == member }
+        }
+        popped = (member, (popped?.count ?? 0) + 1)
+        persist()
+    }
+
+    /// Members who left the crew leave the bubble.
+    func keepOnly(_ members: Set<UUID>) {
+        let kept = parked.filter(members.contains)
+        if kept != parked { parked = kept; persist() }
+    }
+
+    private func persist() {
+        defaults.set(parked.map(\.uuidString), forKey: key)
+    }
+}
+
+// MARK: - The bubble, crowded
+
+/// The top of a crew tower: the crew's faces, or, once heads are dropped into
+/// it, those heads crammed into one glass circle.
+///
+/// **Crammed on purpose** (the owner: "it should actually look like they are
+/// cramped in there"). The circle grows only a little with each head while
+/// the heads shrink less than it would take to fit, so they overlap and press
+/// out past the rim; each is squashed toward the middle and tipped a few
+/// degrees; and every arrival makes the circle swell and everyone inside
+/// shuffle up. Tap a head to pop it back out.
+struct CrewBubble: View {
+    let crew: Crew
+    let me: UUID
+    let parking: CrewParking
+    var side: CGFloat = 60
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let parked = parking.parked.compactMap { id in crew.member(id) }
+        let k = parked.count
+        let circle = k == 0 ? side : side + min(CGFloat(k - 1) * 4, 24)
+        ZStack {
+            if k == 0 {
+                CrewFaces(crew: crew, me: me, side: side)
+                    .background(Circle().fill(AppColors.quietFill).padding(-3))
+            } else {
+                Color.clear
+                    .frame(width: circle, height: circle)
+                    .stillGlassCircle()
+                ForEach(Array(parked.enumerated()), id: \.element.id) { index, member in
+                    crammed(member, index: index, of: k, circle: circle)
+                }
+            }
+        }
+        .frame(width: circle, height: circle)
+        .phaseAnimator([false, true], trigger: parking.landed) { content, swell in
+            content.scaleEffect(swell && !reduceMotion ? 1.12 : 1)
+        } animation: { swell in
+            swell ? GridConstants.tapSquashSpring : GridConstants.elasticPop
+        }
+        .scaleEffect(parking.over && !reduceMotion ? 1.16 : 1)
+        .animation(GridConstants.motionSnappy, value: parking.over)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.bubbleFrame = $0 }
+    }
+
+    @ViewBuilder
+    private func crammed(_ member: CrewMember, index: Int, of count: Int, circle: CGFloat) -> some View {
+        let spot = Self.spot(index, of: count)
+        let size = circle * spot.size
+        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
+        Group {
+            if let rig {
+                LivingHeadView(rig: rig, side: size, liveliness: .calm)
+                    .frame(width: size, height: size)
+            } else {
+                CrewFace(member: member, crew: crew.id, me: me, side: size * 0.8)
+            }
+        }
+        // Squashed toward the middle: pressed by the others.
+        .scaleEffect(x: count > 1 ? 0.9 : 1, y: count > 1 ? 1.04 : 1)
+        .rotationEffect(.degrees(count > 1 ? spot.tilt : 0))
+        .offset(x: circle * spot.x, y: circle * spot.y)
+        // Everyone shuffles up when someone new squeezes in.
+        .phaseAnimator([false, true], trigger: parking.landed) { content, shove in
+            content.offset(x: shove && !reduceMotion ? spot.x * 6 : 0, y: shove && !reduceMotion ? spot.y * 6 : 0)
+        } animation: { shove in
+            shove ? GridConstants.tapSquashSpring : GridConstants.elasticPop
+        }
+        .zIndex(Double(index))
+        .contentShape(Circle().scale(0.8))
+        .onTapGesture { parking.pop(member.profileID) }
+        .transition(.scale(scale: 0.4).combined(with: .opacity))
+        .accessibilityElement()
+        .accessibilityLabel(member.profileID == me ? "Your head, in the bubble" : "\(member.shortName)'s head, in the bubble")
+        .accessibilityHint("Double-tap to let them out.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { parking.pop(member.profileID) }
+    }
+
+    /// Where head `index` of `count` sits, as fractions of the circle, how big
+    /// it is, and how far it is tipped. Bigger than fits, deliberately.
+    static func spot(_ index: Int, of count: Int) -> (x: CGFloat, y: CGFloat, size: CGFloat, tilt: Double) {
+        let tilts: [Double] = [-7, 6, -4, 8, -6, 5, -8, 4]
+        switch count {
+        case 1: return (0, 0.02, 0.92, 0)
+        case 2: return [(-0.2, 0.02, 0.74, -6), (0.21, 0, 0.72, 7)][index]
+        case 3: return [(-0.2, -0.12, 0.64, -6), (0.21, -0.1, 0.62, 7), (0, 0.2, 0.62, -3)][index]
+        case 4: return [(-0.2, -0.17, 0.58, -7), (0.2, -0.18, 0.56, 6), (-0.19, 0.19, 0.56, 5), (0.21, 0.2, 0.55, -6)][index]
+        default:
+            // A ring, and one in the middle on top of everyone.
+            if index == count - 1 { return (0, 0.02, 0.56, 0) }
+            let ring = count - 1
+            let angle = Double(index) / Double(ring) * 2 * .pi - .pi / 2
+            return (CGFloat(cos(angle)) * 0.27, CGFloat(sin(angle)) * 0.27, 0.5 - CGFloat(count - 5) * 0.03,
+                    tilts[index % tilts.count])
+        }
+    }
+}
+
+// MARK: - Everyone's heads, loose
+
+/// What every head in one crew tower shares: where each one is, so they can
+/// bump, and the world they are in. Not observed, like `TowerCompanionLife`:
+/// writing to it invalidates nothing.
+@MainActor
+final class CrewArenaBox {
+    var positions: [UUID: (point: CGPoint, radius: CGFloat)] = [:]
+    var statusBar: CGFloat = 0
+    var windowSize: CGSize = .zero
+}
+
+/// Every member with a head, alive in the crew tower: floating, bouncing off
+/// the walls, the blocks and each other; carried by a finger; tapped for a
+/// face; dropped into the bubble.
+///
+/// Built from the same parts as the head on your own tower:
+/// `TowerCompanionSim` moves each one and `LivingHeadView` draws it. Each head
+/// runs its own `TimelineView`, so each head's view is built once outside its
+/// clock and only its transform changes per frame, which is what keeps the
+/// Wins tab's one head cheap.
+struct CrewHeadArena: View {
+    let crew: Crew
+    let me: UUID
+    let model: CrewTowerModel
+    let parking: CrewParking
+
+    @State private var box = CrewArenaBox()
+
+    var body: some View {
+        GeometryReader { geo in
+            let arena = geo.frame(in: .global)
+            ZStack(alignment: .topLeading) {
+                ForEach(crew.members) { member in
+                    if let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me) {
+                        CrewHeadRunner(member: member, isMe: member.profileID == me, rig: rig,
+                                       arena: arena, model: model, parking: parking, box: box)
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        }
+        .onChange(of: crew.members.map(\.profileID), initial: true) { _, ids in
+            parking.keepOnly(Set(ids))
+        }
+    }
+}
+
+@MainActor
+private final class CrewHeadLife {
+    var sim: TowerCompanionSim
+    var placed = false
+    var lastFrame: Date?
+    var position: CGPoint = .zero
+    var tilt: Double = 0
+    var world = TowerCompanionWorld(bounds: .zero)
+    var emergeFrom: CGSize = .zero
+    var emergeStart: Date?
+    var emergePending = false
+    /// A flight into the bubble: from, and when it started.
+    var flightFrom: CGPoint?
+    var flightStart: Date?
+
+    init(seed: UInt64) {
+        sim = TowerCompanionSim(halfWidth: TowerCompanion.side * TowerCompanion.inkHalfWidth,
+                                halfHeight: TowerCompanion.side * TowerCompanion.inkHalfHeight,
+                                seed: seed)
+    }
+}
+
+private struct CrewHeadRunner: View {
+    let member: CrewMember
+    let isMe: Bool
+    let rig: HeadRig
+    let arena: CGRect
+    let model: CrewTowerModel
+    let parking: CrewParking
+    let box: CrewArenaBox
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.headsAwake) private var headsAwake
+    @State private var life: CrewHeadLife
+    @State private var take: HeadTake.Played?
+    @State private var deck = HeadTakeDeck()
+
+    init(member: CrewMember, isMe: Bool, rig: HeadRig, arena: CGRect, model: CrewTowerModel,
+         parking: CrewParking, box: CrewArenaBox) {
+        self.member = member
+        self.isMe = isMe
+        self.rig = rig
+        self.arena = arena
+        self.model = model
+        self.parking = parking
+        self.box = box
+        let bits = member.profileID.uuid
+        _life = State(initialValue: CrewHeadLife(seed: UInt64(bits.0) << 32 | UInt64(bits.1) << 16 | UInt64(bits.2) | 1))
+    }
+
+    private var id: UUID { member.profileID }
+    private var name: String { isMe ? "Your head" : "\(member.shortName.isEmpty ? "A friend" : member.shortName)'s head" }
+
+    var body: some View {
+        let hidden = parking.isParked(id)
+        let flying = parking.arriving[id] != nil
+        let carried = parking.dragging == id
+        let paused = (reduceMotion && !carried && !flying) || !headsAwake || scenePhase != .active
+            || (hidden && !flying)
+        let side = TowerCompanion.side(forCell: model.probe.cellSize) * 0.86
+        let head = LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
+            .frame(width: side, height: side)
+            .contentShape(Circle())
+
+        TimelineView(.animation(paused: paused)) { context in
+            let flight = step(to: context.date, paused: paused, side: side)
+            if !hidden {
+                let emerge = emergence(at: context.date)
+                head
+                    .scaleEffect(flight)
+                    .rotationEffect(.degrees(life.tilt))
+                    .offset(x: life.position.x - side / 2 + emerge.width,
+                            y: life.position.y - side / 2 + emerge.height)
+                    .gesture(drag(side: side))
+                    .simultaneousGesture(TapGesture().onEnded { changeFace() })
+                    .accessibilityElement()
+                    .accessibilityLabel(name)
+                    .accessibilityHint("Double-tap for a new face.")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { changeFace() }
+                    .accessibilityAction(named: "Put in the bubble") { parking.parkNow(id) }
+                    .transition(.identity)
+            }
+        }
+        .frame(width: arena.width, height: arena.height, alignment: .topLeading)
+        .onChange(of: parking.popped?.count) {
+            guard parking.popped?.member == id else { return }
+            leaveTheBubble()
+        }
+    }
+
+    // MARK: Gestures
+
+    private func drag(side: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+            .onChanged { value in
+                let p = CGPoint(x: value.location.x - arena.minX, y: value.location.y - arena.minY)
+                if parking.dragging != id { parking.dragging = id }
+                let over = parking.isOver(value.location)
+                if over != parking.over {
+                    parking.over = over
+                    if over { HapticsEngine.tick() }
+                }
+                life.sim.touch(life.sim.state == .held ? .moved : .began, at: p, in: life.world)
+            }
+            .onEnded { value in
+                let p = CGPoint(x: value.location.x - arena.minX, y: value.location.y - arena.minY)
+                let v = CGVector(dx: (value.predictedEndTranslation.width - value.translation.width) / 0.25,
+                                 dy: (value.predictedEndTranslation.height - value.translation.height) / 0.25)
+                let parks = parking.over
+                parking.over = false
+                parking.dragging = nil
+                life.sim.touch(.ended, at: p, velocity: parks ? .zero : v, in: life.world)
+                guard parks else { return }
+                if reduceMotion {
+                    parking.parkNow(id)
+                } else {
+                    // From where he is drawn, not from the finger.
+                    parking.beginArrival(id, from: CGPoint(x: arena.minX + life.position.x,
+                                                           y: arena.minY + life.position.y))
+                    life.flightFrom = life.position
+                    life.flightStart = nil
+                }
+            }
+    }
+
+    private func changeFace() {
+        let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
+        guard let next = deck.next(from: available) else { return }
+        HapticsEngine.tick()
+        take = HeadTake.Played(id: next.id, direction: Bool.random() ? 1 : -1, nonce: (take?.nonce ?? 0) + 1)
+    }
+
+    // MARK: The bubble
+
+    private var bubbleCentre: CGPoint {
+        CGPoint(x: parking.bubbleFrame.midX - arena.minX, y: parking.bubbleFrame.midY - arena.minY)
+    }
+
+    /// Out of the bubble: placed at its centre, drawn from there, and clear of
+    /// it a third of a second later.
+    private func leaveTheBubble() {
+        let centre = bubbleCentre
+        life.sim.place(in: life.world, at: CGPoint(x: centre.x, y: centre.y + 40),
+                       velocity: CGVector(dx: CGFloat.random(in: -80...80), dy: 120))
+        life.emergeFrom = CGSize(width: centre.x - life.sim.position.x, height: centre.y - life.sim.position.y)
+        life.emergeStart = nil
+        life.emergePending = !reduceMotion
+    }
+
+    private func emergence(at now: Date) -> CGSize {
+        if life.emergePending {
+            life.emergePending = false
+            life.emergeStart = now
+        }
+        guard let start = life.emergeStart else { return .zero }
+        let p = min(max(now.timeIntervalSince(start) / 0.32, 0), 1)
+        if p >= 1 { life.emergeStart = nil; return .zero }
+        let left = pow(1 - p, 3)
+        return CGSize(width: life.emergeFrom.width * left, height: life.emergeFrom.height * left)
+    }
+
+    // MARK: The frame
+
+    /// Steps the head; during a flight into the bubble, carries it there
+    /// instead and returns how small it has got.
+    private func step(to now: Date, paused: Bool, side: CGFloat) -> CGFloat {
+        guard arena.width > 1, arena.height > 1, arena.minX.isFinite, arena.minY.isFinite else { return 1 }
+        let world = makeWorld(side: side)
+        life.world = world
+        life.sim.halfWidth = side * TowerCompanion.inkHalfWidth
+        life.sim.halfHeight = side * TowerCompanion.inkHalfHeight
+
+        if !life.placed {
+            life.placed = true
+            // Spread across the room, not all on one spot.
+            let slot = CGFloat(abs(id.hashValue) % 5) / 4
+            life.sim.place(in: world, at: CGPoint(x: world.bounds.minX + world.bounds.width * (0.18 + 0.64 * slot),
+                                                  y: world.opening.lowerBound + 40 + CGFloat(abs(id.hashValue) % 90)))
+            life.lastFrame = now
+        }
+
+        if let from = life.flightFrom {
+            if life.flightStart == nil { life.flightStart = now }
+            let t = min(now.timeIntervalSince(life.flightStart ?? now) / 0.26, 1)
+            let e = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2
+            let to = bubbleCentre
+            life.position = CGPoint(x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e)
+            life.tilt *= 0.9
+            if t >= 1 {
+                life.flightFrom = nil
+                life.flightStart = nil
+                parking.land(id)
+            }
+            return 1 - 0.45 * e
+        }
+
+        life.sim.reduceMotion = reduceMotion
+        let elapsed = life.lastFrame.map { now.timeIntervalSince($0) } ?? TowerCompanionSim.tick
+        life.lastFrame = now
+        if !paused || reduceMotion {
+            life.sim.update(world, elapsed: elapsed)
+            // The others, where they were last frame.
+            for (other, spot) in box.positions where other != id && !parking.isHidden(other) {
+                life.sim.bump(away: spot.point, otherRadius: spot.radius)
+            }
+        }
+        guard life.sim.position.x.isFinite, life.sim.position.y.isFinite else { return 1 }
+        life.position = life.sim.position
+        life.tilt = life.sim.tilt
+        box.positions[id] = parking.isHidden(id) ? nil : (life.position, life.sim.halfWidth)
+        return 1
+    }
+
+    private func makeWorld(side: CGFloat) -> TowerCompanionWorld {
+        if box.windowSize == .zero {
+            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+                if let w = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first {
+                    box.windowSize = w.bounds.size
+                    box.statusBar = w.safeAreaInsets.top
+                    break
+                }
+            }
+        }
+        let probe = model.probe
+        let cell = probe.cellSize
+        let gutter = GridConstants.spacing
+        let gridWidth = CGFloat(TowerSkyline.columns) * cell + CGFloat(TowerSkyline.columns - 1) * gutter
+        let originX = max((arena.width - gridWidth) / 2, 0)
+        let gridTopY = probe.gridTopOnScreen - arena.minY
+        let ceiling = box.statusBar
+        let bounds = CGRect(x: -arena.minX, y: -arena.minY + ceiling,
+                            width: max(box.windowSize.width, arena.width),
+                            height: arena.minY + arena.height - ceiling)
+        let skyline: TowerSkyline = probe.hasMeasured
+            ? TowerSkyline.build(cells: model.tower.placedBlocks.lazy.map {
+                TowerCompanionWorld.Cell($0.column, $0.row, $0.columnSpan, $0.rowSpan)
+              }, originX: originX, cellSize: cell, gutter: gutter, gridTopY: gridTopY,
+              gridHeight: probe.gridHeight, cornerInset: GridConstants.blockCornerRadius(forCell: cell))
+            : TowerSkyline()
+        // The header's controls and, unless a head is being carried to it,
+        // the bubble: real objects he bounces off, never invisible walls.
+        var obstacles = Array(parking.controls.values)
+        if parking.dragging == nil { obstacles.append(parking.bubbleFrame) }
+        let local = obstacles.filter { !$0.isEmpty }.map { $0.offsetBy(dx: -arena.minX, dy: -arena.minY) }
+        return TowerCompanionWorld(bounds: bounds, skyline: skyline, obstacles: local)
+    }
+}
