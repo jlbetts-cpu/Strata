@@ -87,8 +87,14 @@ struct BlockSurface<Fill: View>: View {
 
     var body: some View {
         ZStack {
+            // Clipped back to the block's own corners after blurring. The
+            // blur spreads past the silhouette, and the mask's square bounds
+            // cut that spread off flat, so the bottom read as a hard edge
+            // with square corners while the top was round (the owner,
+            // 2026-10-03: "it should be curved on both the top and bottom").
             surface
                 .blur(radius: GridConstants.blockRimBlur * scale)
+                .clipShape(shape)
                 .mask(blurredMask)
             surface.mask(sharpMask)
         }

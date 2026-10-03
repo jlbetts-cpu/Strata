@@ -1789,14 +1789,14 @@ struct CameraView: View {
                     return
                 }
                 HapticsEngine.success()
-                // **What the viewfinder showed, and you at your best.** Cut to
-                // the viewfinder's own shape (the preview fills its frame from
-                // a wider sensor), then each face gently polished; both off
-                // the main thread, and the review shows the result.
-                let bounds = previewBox.layer?.bounds.size ?? .zero
-                let aspect = bounds.height > 0 ? bounds.width / bounds.height : 0
+                // **The whole frame, and you at your best.** The sensor's full
+                // picture is kept, wider than the viewfinder shows, so there
+                // is room to crop it on the block (the owner, 2026-10-03,
+                // undoing the viewfinder crop: "for regular its like im
+                // getting none of the photo"). Each face is gently polished
+                // off the main thread, and the review shows the result.
                 let finished = await Task.detached(priority: .userInitiated) {
-                    PortraitPolish.apply(to: PortraitPolish.cropped(image, toAspect: aspect))
+                    PortraitPolish.apply(to: image)
                 }.value
                 // Nothing is kept yet.
                 //
