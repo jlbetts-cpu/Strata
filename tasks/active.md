@@ -23,6 +23,17 @@ precise rather than dark and neon. Read it before touching any screen. The two
 rules it is easiest to break: **Jaro is for the app's own nouns and numbers
 only**, and **nothing animates because a screen appeared.**
 
+## Crews (2026-10-02), built, behind `CrewsFlag` (off)
+
+Spec `docs/superpowers/specs/2026-10-02-crews-design.md`, plan
+`docs/superpowers/plans/2026-10-02-crews.md`. Everything in the plan is in
+code with tests (`Crew*Tests`, `TowerEntryTests`). Before the flag is on:
+Push, Sensitive Content Analysis and Declared Age Range capabilities on the
+app ID plus entitlements and a new profile; the `Report` record type's
+permissions in the CloudKit dashboard; the answers in
+`docs/crews-app-store-privacy.md`; a two-phone test of invite, a win
+crossing, a notification.
+
 ## Landed
 
 - **The lattice.** `TowerLattice` draws the tower's own grid behind it: same
