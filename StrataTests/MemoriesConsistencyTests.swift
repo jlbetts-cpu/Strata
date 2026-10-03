@@ -124,7 +124,11 @@ struct MemoriesConsistencyTests {
         // indent separates the two cases exactly where the meaning does. A
         // reformat would make this stop finding anything, which is what
         // `rowTintsExist` below is for.
-        let rowTints = Self.hits("                .tint(AppColors.")
+        // Plus any switch wearing the switch token at a shallower indent: Crew
+        // Info's reaction switch lives in its own property, at 12 spaces, and
+        // the indent alone stopped seeing it (2026-10-02).
+        let deep = Self.hits("                .tint(AppColors.")
+        let rowTints = deep + Self.hits(".tint(AppColors.switchTrack)").filter { !deep.contains($0) }
         #expect(!rowTints.isEmpty, "the sweep found no row-level tint at all, so it is measuring nothing")
         let wrong = rowTints.filter { !$0.contains("switchTrack") }
         #expect(wrong.isEmpty,

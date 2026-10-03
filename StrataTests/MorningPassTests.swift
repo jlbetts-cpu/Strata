@@ -43,7 +43,9 @@ struct MorningPassTests {
     @Test("a block with no tap does not press")
     func noPressWithoutADestination() throws {
         let block = try source("Views/FlippableBlockView.swift")
-        #expect(block.contains("including: onTap == nil ? .subviews : .all"))
+        // Since reactions (2026-10-02) the single tap also stands down when a
+        // double-tap owns the block; with no onTap it still never answers.
+        #expect(block.contains("including: onTap == nil || onDoubleTap != nil ? .subviews : .all"))
         let album = try source("Views/DayAlbumDetailView.swift")
         // Read off `look` since crews (2026-10-02): a block may have no log.
         #expect(album.contains("canTapBlock: { $0.look.imageFileName != nil }"))
