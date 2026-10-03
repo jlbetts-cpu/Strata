@@ -168,7 +168,11 @@ enum SharedModelContainer {
         let result = climb(open: realOpen)
         made = result.container
         _opening = result.opening
-        if result.opening.savesToDisk { StoreStamp.observe() }
+        if result.opening.savesToDisk {
+            StoreStamp.observe()
+            // Keeps wins already sent to a crew in step with every save.
+            CrewSync.observe()
+        }
         logger.log("store opened: \(result.opening.summary, privacy: .private)")
         logger.log("store sync: \(result.opening.syncPlan.summary, privacy: .private)")
         #if DEBUG

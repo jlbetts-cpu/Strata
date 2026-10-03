@@ -86,6 +86,9 @@ struct AddWinSheet: View {
     /// rather than logging a second one.
     @State private var savedHabit: Habit?
     @State private var savedLog: HabitLog?
+    /// The crews this win goes to (`CrewPicker`). Last time's choice for a new
+    /// win; the crews it is already in for one being edited.
+    @State private var crewChoice: Set<CrewID> = []
 
     private var isEditing: Bool { editing != nil }
     /// A name is optional.
@@ -219,6 +222,8 @@ struct AddWinSheet: View {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
                         decisions
+                        CrewPicker(selection: $crewChoice)
+                            .padding(.top, GridConstants.gapSection)
                         subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                             .padding(.top, GridConstants.gapSection)
                     }
@@ -1103,6 +1108,9 @@ struct AddWinSheet: View {
         if let initialTitle, !initialTitle.isEmpty {
             title = initialTitle
         }
+        if CrewsFlag.isOn {
+            crewChoice = editingLog.map { SocialStore.shared.crews(holding: $0.id) } ?? CrewChoice.load()
+        }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title
             category = habit.displayCategory
@@ -1168,6 +1176,10 @@ struct AddWinSheet: View {
                     fail(photo == nil ? .removal : .photo)
                     return
                 }
+            }
+            if let log = editingLog ?? savedLog {
+                if editingLog == nil { CrewChoice.save(crewChoice) }
+                CrewSync.setCrews(for: log, to: crewChoice)
             }
             finish(habit)
             return

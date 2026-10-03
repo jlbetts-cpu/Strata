@@ -20,8 +20,11 @@ final class SocialStore {
     /// The phone's store. Its cloud is chosen once, at first use: the fake
     /// one behind `-strataSeedCrew`, otherwise CloudKit.
     static let shared: SocialStore = {
-        let cloud = makeCloud()
-        return SocialStore(cloud: cloud, defaults: .standard, directory: defaultDirectory)
+        let store = SocialStore(cloud: makeCloud(), defaults: .standard, directory: defaultDirectory)
+        store.photosAllowed = { CrewAge.current.sendsPhotos }
+        store.myFirstName = { ProfileStore.shared.name }
+        store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
+        return store
     }()
 
     /// Replaced by the CloudKit adapter at launch (Task 3) and by the debug
@@ -57,6 +60,8 @@ final class SocialStore {
     @ObservationIgnored var photosAllowed: () -> Bool = { true }
     /// What you called yourself, for your Member record.
     @ObservationIgnored var myFirstName: () -> String = { "" }
+    /// Your head, packed to send, or nil for no head.
+    @ObservationIgnored var myHeadPack: () -> Data? = { nil }
     /// Makes the copy of a photograph that is sent.
     @ObservationIgnored var derive: (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
     /// Today, injectable for pruning and the crew day.
@@ -153,6 +158,7 @@ final class SocialStore {
         winsByCrew[crew.id] = []
         // A refresh already in flight fetched before this zone existed.
         if isRefreshing { refreshAgain = true }
+        if let head = myHeadPack() { await setMyHead(head) }
         return (crew, url)
     }
 
@@ -181,6 +187,7 @@ final class SocialStore {
         let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
         try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
         await refresh()
+        if let head = myHeadPack() { await setMyHead(head) }
         return self.crew(id) ?? crew
     }
 
