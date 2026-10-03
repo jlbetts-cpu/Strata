@@ -487,6 +487,14 @@ struct CrewTowerView: View {
                                    action: { size in
                                        onLogWin?(size, slotColour)
                                        slotColour = HabitCategory.selectable.filter { $0 != slotColour }.randomElement() ?? slotColour
+                                       // Back to one square for the next win,
+                                       // once this one has landed, as Wins
+                                       // does after its drop (the owner: "the
+                                       // next + box is also that size").
+                                       Task { @MainActor in
+                                           try? await Task.sleep(for: .milliseconds(700))
+                                           withAnimation(GridConstants.slotSnap) { drawingSize = .small }
+                                       }
                                    },
                                    onOpenMenu: onAddWin)
                         .frame(width: f.width, height: f.height)

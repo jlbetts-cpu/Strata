@@ -45,7 +45,10 @@ enum PortraitPolish {
             : CGSize(width: size.width, height: size.width / aspect)
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
-        format.preferredRange = .automatic
+        // Standard range, always: the camera's frame on a recent iPhone is
+        // extended range, and redrawn as such it came out a kind of image the
+        // rest of the app (thumbnails, recaps) was never shown reading.
+        format.preferredRange = .standard
         return UIGraphicsImageRenderer(size: target, format: format).image { _ in
             image.draw(at: CGPoint(x: (target.width - size.width) / 2, y: (target.height - size.height) / 2))
         }

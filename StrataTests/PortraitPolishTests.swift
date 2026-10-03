@@ -43,3 +43,26 @@ extension PortraitPolishTests {
     }
 }
 
+
+/// The owner, 2026-10-03: "the photos arent in the recap videos". A photo saved
+/// the way the camera saves one must come back through the recap's loader.
+@Suite("Recap photos")
+struct RecapPhotoTests {
+    @Test @MainActor func aSavedPhotoReachesTheRecap() async throws {
+        let photo = try #require(UIImage(named: "DemoPhoto1"))
+        let name = try #require(try await ImageManager.shared.save(image: photo, for: UUID()))
+        var got: UIImage?
+        await ReplayImages.decode([(photo: .stored(name), span: 1)], cellPixels: 240) { _, image in got = image }
+        #expect(got != nil, "the recap could not load a photo the camera saved")
+    }
+
+    @Test @MainActor func aPolishedCameraPhotoReachesTheRecap() async throws {
+        // What the camera hands over now: cropped to the viewfinder, polished.
+        let raw = try #require(UIImage(named: "CreatorPortrait"))
+        let shot = PortraitPolish.apply(to: PortraitPolish.cropped(raw, toAspect: 402.0 / 640.0))
+        let name = try #require(try await ImageManager.shared.save(image: shot, for: UUID()))
+        var got: UIImage?
+        await ReplayImages.decode([(photo: .stored(name), span: 1)], cellPixels: 240) { _, image in got = image }
+        #expect(got != nil, "the recap could not load a camera photo")
+    }
+}
