@@ -148,7 +148,27 @@ Nothing in it names another app, and nothing in it claims a medical benefit.
 
 ---
 
-## The name is Sturdy (2026-09-30)
+## The name is Some Wins (2026-10-03)
+
+**Some Wins**, the owner's choice: "its simple makes sense and is clean". It
+supersedes Sturdy, below, which is kept as the record of how that one was
+chosen.
+
+- **Written** "Some Wins": two words, title case, in the app, on the App
+  Store and anywhere a person reads it. **somewins** where a space cannot go:
+  somewins.app, @somewins.
+- **App Store:** name `Some Wins` (the exact name, so it is ours), subtitle
+  `Daily photo journal for wins`, keywords
+  `small,proof,done,list,accomplishment,gratitude,diary,camera,tower,friend,share,group,recap,memory`
+  (97 of 100 bytes). No "habit" and no "streak", per §2. See `docs/aso-plan.md`.
+- **Checked 2026-10-03:** no app, US trademark or company by the name;
+  somewins.app unregistered; somewins.com for sale. The neighbourhood is
+  crowded with "Small Wins" and "Tiny Wins" apps, so a trademark filing is
+  worth it.
+- **The code is still Strata**, and the bundle id, App Group and iCloud
+  container never change: they hold every install's data and every crew.
+
+## The name was Sturdy (2026-09-30, superseded)
 
 **Strata Neo is retired.** It was rejected twice under App Store guideline
 4.1(a) and `tools/name-check.py` says why in one line: search the store for
