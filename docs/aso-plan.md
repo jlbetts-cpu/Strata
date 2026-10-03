@@ -12,7 +12,9 @@ Research only: nothing submitted or changed in App Store Connect.
   phone before submitting; a descriptive suffix anchors it.
 
 ## Metadata (counts measured)
-A (recommended)
+**Chosen 2026-10-03: A.**
+
+A (recommended, chosen)
 - Name: `Some Wins: Daily Photo Journal` (30)
 - Subtitle: `Small wins, kept with friends` (29)
 - Keywords (95 bytes): `proof,done,list,accomplishment,gratitude,diary,camera,tower,share,group,recap,memory,motivation`
