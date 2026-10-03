@@ -881,6 +881,23 @@ final class SocialStore {
 
     func isMuted(_ crewID: CrewID) -> Bool { mutedUntil(crewID) != nil }
 
+    // MARK: Heads, per crew
+
+    /// Crews whose heads you have switched off: the tower shows only its
+    /// wins and the bubble only the crew's picture (the owner, 2026-10-03:
+    /// "a way to shut off the heads for individual crew chats"). Yours
+    /// alone, never sent.
+    private(set) var headsHidden: Set<CrewID> = Set(
+        (UserDefaults.standard.stringArray(forKey: SocialStore.headsHiddenKey) ?? []).map(CrewID.init(rawValue:)))
+    static let headsHiddenKey = "crews.headsHidden"
+
+    func showsHeads(_ crewID: CrewID) -> Bool { !headsHidden.contains(crewID) }
+
+    func setShowsHeads(_ on: Bool, for crewID: CrewID) {
+        if on { headsHidden.remove(crewID) } else { headsHidden.insert(crewID) }
+        UserDefaults.standard.set(headsHidden.map(\.rawValue).sorted(), forKey: Self.headsHiddenKey)
+    }
+
     func mute(_ crewID: CrewID, _ length: Mute?) {
         var stamps = Self.groupDefaults?.dictionary(forKey: Self.mutedKey) as? [String: Double] ?? [:]
         if let length {

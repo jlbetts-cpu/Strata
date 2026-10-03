@@ -337,7 +337,7 @@ struct MemoriesView: View {
                     // against its own disc, which is an empty white circle on
                     // a map that is mostly white.
                     .overlay(alignment: .topLeading) {
-                        MapBackButton { path.removeLast() }
+                        MapBackButton(night: mapStyle == .night) { path.removeLast() }
                     }
                 case .day(let key):
                     DayAlbumDetailView(route: DayRoute(dateString: key))

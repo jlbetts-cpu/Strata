@@ -548,7 +548,9 @@ struct MainAppView: View {
             // there is no longer a filter to put anywhere.
             towerTab
                 .toolbar(.hidden, for: .navigationBar)
-                .modifier(CrewDestinations(path: $crewPath) { winDraft = WinDraft(crews: [$0]) })
+                .modifier(CrewDestinations(path: $crewPath,
+                                           addWin: { winDraft = WinDraft(crews: [$0]) },
+                                           logWin: { logCrewWin(size: $1, colour: $2, to: $0) }))
         }
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
@@ -1789,6 +1791,22 @@ struct MainAppView: View {
             tower: towerManager.activeTower
         )
         scheduleRefresh()
+    }
+
+    /// A crew tower's empty slot: the same one-tap win as this tower's, in
+    /// the colour that slot showed, sent to that crew and no other. It is
+    /// your win, so it stands on your tower too.
+    private func logCrewWin(size: BlockSize, colour: HabitCategory, to crew: CrewID) {
+        do {
+            let win = try QuickWinService.logWin(size: size, spontaneous: colour,
+                                                 context: modelContext, tower: towerManager.activeTower)
+            if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+                CrewSync.post(log, to: [crew])
+            }
+            scheduleRefresh()
+        } catch {
+            HapticsEngine.warning()
+        }
     }
 
     private func logWin(size: BlockSize = .small, photo: UIImage? = nil) {

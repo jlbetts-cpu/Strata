@@ -35,7 +35,11 @@ struct CrewsListView: View {
                         Button { open(crew.id) } label: { row(store.visible(crew.id) ?? crew) }
                             .buttonStyle(.pressSurface)
                             .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 10, leading: 8, bottom: 10, trailing: 16))
+                            // Space between crews, never a rule: the app
+                            // separates with room, not lines (the owner,
+                            // 2026-10-03: "we dont use lines we use space").
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 16))
                             .swipeActions(edge: .trailing) {
                                 Button(crew.isOwner(store.me) ? "End" : "Leave", role: .destructive) { leaving = crew }
                                 Button {
@@ -75,6 +79,13 @@ struct CrewsListView: View {
         .sheet(isPresented: $startsCrew) {
             NewCrewSheet { crew in open(crew) }
         }
+        // Hung on a point at the foot of the screen, not the whole list: iOS
+        // 26 draws a dialog from the view it hangs on, and from a full-screen
+        // one End Crew never appeared (the owner, 2026-10-03).
+        .overlay(alignment: .bottom) {
+            Color.clear.frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         .confirmationDialog(leaving.map { $0.isOwner(store.me) ? "End this crew for everyone?" : "Leave this crew?" } ?? "",
                             isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } }),
                             titleVisibility: .visible, presenting: leaving) { crew in
@@ -87,6 +98,7 @@ struct CrewsListView: View {
                     }
                 }
             }
+        }
         }
         .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
@@ -343,6 +355,8 @@ struct CrewDestinations: ViewModifier {
     @Binding var path: [CrewRoute]
     /// Add Win, with a crew ticked.
     var addWin: (CrewID) -> Void
+    /// The empty slot's one-tap win, into a crew.
+    var logWin: (CrewID, BlockSize, HabitCategory) -> Void = { _, _, _ in }
     private var router: CrewRouter { CrewRouter.shared }
 
     func body(content: Content) -> some View {
@@ -353,7 +367,8 @@ struct CrewDestinations: ViewModifier {
                     CrewsListView { path.append(.crew($0)) }
                 case .crew(let id):
                     CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
-                                  onAddWin: { addWin(id) })
+                                  onAddWin: { addWin(id) },
+                                  onLogWin: { logWin(id, $0, $1) })
                 }
             }
             .onChange(of: router.open) { _, crew in

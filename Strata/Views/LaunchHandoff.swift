@@ -26,7 +26,6 @@ import SwiftUI
 /// Reduce Motion: no rolling. The white S stands in the centre, then the
 /// same two fades, shorter.
 struct LaunchHandoff: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clock = RollClock()
     @State private var running = false
     @State private var finished = false
@@ -40,8 +39,13 @@ struct LaunchHandoff: View {
     var body: some View {
         if !finished {
             TimelineView(.animation(paused: !running)) { context in
+                // **No roll, for everyone** (the owner, 2026-10-03: "its a
+                // clean logo but the animation doesnt really fit the clean
+                // theme"). The S rolled through the block colours; now it
+                // holds a beat and fades, which was Reduce Motion's path and
+                // is the app's path. The roll's frames stay in `LaunchRoll`.
                 let frame = LaunchRoll.frame(at: running ? clock.advance(to: context.date) : 0,
-                                             reduceMotion: reduceMotion)
+                                             reduceMotion: true)
                 stage(frame)
                     .onChange(of: frame.finished) { _, done in
                         if done { finished = true }

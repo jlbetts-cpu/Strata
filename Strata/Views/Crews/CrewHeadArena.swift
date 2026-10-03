@@ -154,11 +154,14 @@ struct CrewBubble: View {
     let me: UUID
     let parking: CrewParking
     var side: CGFloat = 60
+    /// Off: heads are switched off for this crew, and the bubble is only the
+    /// crew's picture.
+    var showsHeads = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let parked = parking.parked.compactMap { id in crew.member(id) }
+        let parked = showsHeads ? parking.parked.compactMap { id in crew.member(id) } : []
         let k = parked.count
         let circle = Self.circle(for: k, side: side)
         ZStack {
@@ -377,7 +380,13 @@ private struct CrewHeadRunner: View {
         let carried = parking.dragging == id
         let paused = (reduceMotion && !carried && !flying) || !headsAwake || scenePhase != .active
             || (hidden && !flying)
-        let side = TowerCompanion.side(forCell: model.probe.cellSize) * 0.86
+        // **The Wins head's size, exactly** (the owner, 2026-10-03: "the head
+        // should be the same size on the crew and normal"). It was 0.86 of
+        // it here, to make room for eight; one head is one size everywhere,
+        // and 0.88 of a cell is the size that size was settled at, legible
+        // at arm's length and still smaller than one block. See
+        // `TowerCompanion.side(forCell:)`.
+        let side = TowerCompanion.side(forCell: model.probe.cellSize)
         let head = LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
             .frame(width: side, height: side)
             .contentShape(Circle())

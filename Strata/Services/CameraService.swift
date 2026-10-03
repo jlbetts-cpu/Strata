@@ -38,7 +38,12 @@ final class CameraService: NSObject {
     /// is where the macro's generated accessors and the observer meet, and it
     /// is not a combination to rely on — persistence happens at the call site
     /// instead, which is one line and cannot interfere with observation.
-    var showsGuides = UserDefaults.standard.object(forKey: "cameraShowsGuides") as? Bool ?? true
+    ///
+    /// **Off until you turn it on** (the owner, 2026-10-03: "turn off the rule
+    /// of third lines off by default"). An empty viewfinder is the camera at
+    /// its cleanest; the grid is one tap away for whoever wants it, and a
+    /// choice already made is kept.
+    var showsGuides = UserDefaults.standard.object(forKey: "cameraShowsGuides") as? Bool ?? false
 
     /// Off / 3 / 10 — the three delays iOS Camera offers.
     var timerSeconds = UserDefaults.standard.integer(forKey: "cameraTimerSeconds")

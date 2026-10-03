@@ -139,8 +139,10 @@ struct MemoriesConsistencyTests {
         // whole switch population is one colour now.
         // Twelve since Crews (2026-10-02): Crew Info's reaction switch. Its
         // Hide Alerts switch became the Mute menu the same day.
-        #expect(rowTints.count == 12,
-                "there are \(rowTints.count) switches in the app and there were 12; a new one needs the token too")
+        // Thirteen since 2026-10-03: Crew Info's Heads switch, which turns a
+        // crew's heads off on this phone. It wears the token.
+        #expect(rowTints.count == 13,
+                "there are \(rowTints.count) switches in the app and there were 13; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**

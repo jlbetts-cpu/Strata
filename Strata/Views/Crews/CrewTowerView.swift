@@ -13,6 +13,14 @@ struct CrewTowerView: View {
     let crewID: CrewID
     var onBack: () -> Void
     var onAddWin: () -> Void = {}
+    /// The empty slot's one-tap win, sent to this crew. The same slot as
+    /// Wins, doing the same thing (the owner, 2026-10-03: "where is the +
+    /// block for the crew chats they should function pretty much the exact
+    /// same"). Nil hides the slot.
+    var onLogWin: ((BlockSize, HabitCategory) -> Void)? = nil
+    /// The size the slot is being drawn out to, and the colour it shows.
+    @State private var drawingSize: BlockSize = .small
+    @State private var slotColour: HabitCategory = HabitCategory.selectable.randomElement() ?? .health
 
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
@@ -24,6 +32,7 @@ struct CrewTowerView: View {
     @State private var reporting: SharedWin?
     /// Double-tap hearts in the air, over the blocks they landed on.
     @State private var bursts: [Burst] = []
+    @State private var touchRipples: [TouchRipple] = []
     private struct Burst: Identifiable { let id = UUID(); let block: UUID; let emoji: String }
     /// The block a press and hold opened the reactions over.
     @State private var reacting: UUID?
@@ -35,10 +44,12 @@ struct CrewTowerView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
 
-    init(crewID: CrewID, onBack: @escaping () -> Void, onAddWin: @escaping () -> Void = {}) {
+    init(crewID: CrewID, onBack: @escaping () -> Void, onAddWin: @escaping () -> Void = {},
+         onLogWin: ((BlockSize, HabitCategory) -> Void)? = nil) {
         self.crewID = crewID
         self.onBack = onBack
         self.onAddWin = onAddWin
+        self.onLogWin = onLogWin
         _parking = State(initialValue: CrewParking(crewID: crewID))
     }
 
@@ -53,12 +64,19 @@ struct CrewTowerView: View {
             let colW = floor((geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)) / CGFloat(columns))
             tower(colW: colW, viewport: geo.size.height)
         }
-        .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .safeAreaInset(edge: .top, spacing: 0) { header }
+        // **The page answers a touch, as Wins does**, header and all: rings
+        // on water behind the content, consuming nothing. It was missing
+        // here (the owner, 2026-10-03: "the ripple taps dont go in the crew
+        // chats... should be the same"). The ground goes on AFTER it, which
+        // puts the ground UNDER it; the other way round it drew the rings
+        // beneath an opaque page.
+        .touchRipples($touchRipples)
+        .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         // Everyone's heads, over the header too, so one can be carried up
         // into the bubble. See `CrewHeadArena`.
         .overlay {
-            if let crew {
+            if let crew, store.showsHeads(crewID) {
                 CrewHeadArena(crew: crew, me: store.me, model: model, parking: parking)
                     .ignoresSafeArea()
             }
@@ -87,7 +105,6 @@ struct CrewTowerView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
         // **The crew's midnight, while you are looking.** Today's tower is the
         // crew's day; when it ends the tower empties and starts again, as the
@@ -209,9 +226,15 @@ struct CrewTowerView: View {
                             return AnyView(CrewPhotoReactions(winID: id, crewID: crewID, mine: shown.byline == nil))
                         })
         }
-        // Report, from a block's menu or the viewer's ⋯: the reasons, and
-        // nobody in the crew is told.
-        .confirmationDialog("Report this win?",
+        // Report, from the viewer's ⋯: the reasons, and nobody in the crew is
+        // told. Hung on a point at the foot of the screen, never on the whole
+        // tower: iOS 26 draws a dialog from the view it hangs on, and from a
+        // full-screen one it never appeared (End Crew did the same).
+        .overlay(alignment: .bottom) {
+            Color.clear.frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .confirmationDialog("Report this win?",
                             isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
                             titleVisibility: .visible, presenting: reporting) { win in
             ForEach(CrewSafety.Reason.allCases) { reason in
@@ -221,6 +244,7 @@ struct CrewTowerView: View {
             }
         } message: { _ in
             Text("Your report goes to Sturdy. Nobody in the crew is told.")
+        }
         }
         .accessibilityAction(.escape) { onBack() }
     }
@@ -319,8 +343,10 @@ struct CrewTowerView: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
             }
             if let crew {
-                VStack(spacing: parking.parked.isEmpty ? -17 : -9) {
-                    CrewBubble(crew: crew, me: store.me, parking: parking, side: 60)
+                let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)
+                VStack(spacing: crowded ? -9 : -17) {
+                    CrewBubble(crew: crew, me: store.me, parking: parking, side: 60,
+                               showsHeads: store.showsHeads(crewID))
                         // The whole bubble is the target, never one 34pt head.
                         .contentShape(Circle())
                         .onTapGesture { tapBubble() }
@@ -332,7 +358,7 @@ struct CrewTowerView: View {
                             }
                         }
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(parking.parked.isEmpty
+                        .accessibilityLabel(!crowded
                             ? "\(crew.displayName(excluding: store.me)), \(crew.members.count) people"
                             : (parking.parked.count == 1 ? "1 head in the bubble" : "\(parking.parked.count) heads in the bubble"))
                         .accessibilityAddTraits(.isButton)
@@ -381,7 +407,7 @@ struct CrewTowerView: View {
     /// Empty, the bubble is the crew: its details. With heads in it, a tap
     /// fans them out to choose from.
     private func tapBubble() {
-        if parking.parked.isEmpty {
+        if parking.parked.isEmpty || !store.showsHeads(crewID) {
             showsInfo = true
         } else {
             HapticsEngine.tick()
@@ -393,7 +419,8 @@ struct CrewTowerView: View {
 
     private func tower(colW: CGFloat, viewport: CGFloat) -> some View {
         let tower = model.tower
-        let rows = tower.totalRows
+        let slot = onLogWin == nil ? nil : tower.computeGhostPosition(for: drawingSize)
+        let rows = max(tower.totalRows, slot.map { $0.row + drawingSize.rowSpan } ?? 0)
         let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let gridH = rows > 0 ? CGFloat(rows) * colW + CGFloat(rows - 1) * spacing : 0
         return ScrollView(.vertical, showsIndicators: false) {
@@ -425,6 +452,24 @@ struct CrewTowerView: View {
                         liftedBlockID: nil,
                         onDoubleTapBlock: { doubleTap($0) },
                         onLongPressBlock: { hold($0) })
+                }
+                // The next slot, as on Wins: tap for a win in this crew, draw
+                // it out for a bigger one, hold for the full Add Win.
+                if !model.animation.isCascading, let pos = slot {
+                    let f = GridConstants.blockFrame(column: pos.column, row: pos.row,
+                                                     columnSpan: drawingSize.columnSpan,
+                                                     rowSpan: drawingSize.rowSpan, cellSize: colW)
+                    NextSlotButton(reduceMotion: reduceMotion,
+                                   cornerRadius: GridConstants.cornerRadius,
+                                   previewCategory: slotColour,
+                                   onSizeChanged: { drawingSize = $0 },
+                                   action: { size in
+                                       onLogWin?(size, slotColour)
+                                       slotColour = HabitCategory.selectable.filter { $0 != slotColour }.randomElement() ?? slotColour
+                                   },
+                                   onOpenMenu: onAddWin)
+                        .frame(width: f.width, height: f.height)
+                        .offset(x: f.minX, y: gridH - f.minY - f.height)
                 }
             }
             // The hearts, over the block each one landed on. An OVERLAY, never

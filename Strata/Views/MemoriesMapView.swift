@@ -202,7 +202,7 @@ struct MemoriesMapView: View {
             .overlay { if hasLoaded && pins.isEmpty { emptyState } }
             .overlay(alignment: .bottomTrailing) {
                 if isInteractive {
-                    RecentreButton(location: location) { goToMe() }
+                    RecentreButton(location: location, night: style == .night) { goToMe() }
                 }
             }
             // The recentre button starts location; leaving the map ends it.
@@ -1682,6 +1682,8 @@ private extension View {
 /// competes with the screen's main gesture is not a way back. That is the whole
 /// argument for this button being visible, which until now it was not.
 struct MapBackButton: View {
+    /// The map is the night style: the button is dark glass with it.
+    var night = false
     let action: () -> Void
 
     var body: some View {
@@ -1689,12 +1691,13 @@ struct MapBackButton: View {
                         accessibilityLabel: "Back to Memories") {
             action()
         }
-        // Light in both appearances, exactly as `RecentreButton` is pinned,
-        // and for the same measured reason: glass follows the system, and a
-        // dark disc on the night map is invisible. The glyph is left at
-        // `GlassIconButton`'s default `.primary`, which under a pinned light
-        // scheme is the near-black the recentre chevron already measures.
-        .environment(\.colorScheme, .light)
+        // **The MAP's scheme, as `RecentreButton` has it** (2026-10-03). Both
+        // were pinned light whatever the map was, and Liquid Glass then
+        // re-decided each one from whatever lay under it: on the night map
+        // the back button went dark and the locate button stayed light, two
+        // controls of one screen in two styles (the owner: "looks off").
+        // Following the map, they agree with it and with each other.
+        .environment(\.colorScheme, night ? .dark : .light)
         .padding(.leading, GridConstants.horizontalPadding)
         .padding(.top, GridConstants.headerArtworkTopPadding)
     }
@@ -1720,6 +1723,8 @@ struct MapBackButton: View {
 /// its annotations. Now an update redraws this button.
 private struct RecentreButton: View {
     let location: LocationService
+    /// The map is the night style. See `MapBackButton`.
+    var night = false
     let action: () -> Void
 
     var body: some View {
@@ -1727,9 +1732,8 @@ private struct RecentreButton: View {
                         accessibilityLabel: "Show my location") {
             action()
         }
-        // Light in both appearances — see `MemoriesView.overMap`. Glass
-        // follows the system, and a dark disc on the night map is invisible.
-        .environment(\.colorScheme, .light)
+        // The map's scheme, as the back button: see `MapBackButton`.
+        .environment(\.colorScheme, night ? .dark : .light)
         .padding(.trailing, GridConstants.horizontalPadding)
         // See the map's own `safeAreaPadding` above for why this reads
         // `GridConstants` rather than the deleted `DrawerMetrics`.

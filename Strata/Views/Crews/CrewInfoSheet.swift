@@ -20,6 +20,8 @@ struct CrewInfoSheet: View {
     @State private var problem: String?
     @FocusState private var editingName: Bool
     @State private var systemOff = false
+    /// A crew day playing, presented from the page rather than a List row.
+    @State private var replay: Replay?
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -30,7 +32,7 @@ struct CrewInfoSheet: View {
             if let crew {
                 List {
                     identity(crew)
-                    CrewStatsSections(crew: crew)
+                    CrewStatsSections(crew: crew) { replay = $0 }
                     Section {
                         ForEach(members(crew)) { member in
                             memberRow(member, in: crew)
@@ -44,19 +46,44 @@ struct CrewInfoSheet: View {
                             }
                         }
                     } header: {
-                        Text(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
+                        // The page's one header style, as Crew Streak and
+                        // Days above it have.
+                        FormSectionLabel(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
                     } footer: {
                         Text("Up to 8 people. Everyone here sees the wins sent to this crew today.")
+                    }
+                    Section {
+                        Toggle(isOn: Binding(get: { store.showsHeads(crewID) },
+                                             set: { on in withAnimation(GridConstants.motionSnappy) { store.setShowsHeads(on, for: crewID) } })) {
+                            Label("Heads", systemImage: "face.smiling")
+                                .font(Typography.bodyLarge)
+                        }
+                        .tint(AppColors.switchTrack)
+                    } footer: {
+                        Text(store.showsHeads(crewID) ? "Everyone's heads live on this crew's tower."
+                                                     : "Only the wins, on your phone. Nobody else is told.")
                     }
                     notifications
                     Section {
                         Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { confirmsLeave = true }
                             .font(Typography.bodyLarge)
+                            // **On the button, not the List.** iOS 26 draws a
+                            // dialog from the view it hangs on, and hung on the
+                            // whole List it never appeared: End Crew did
+                            // nothing at all (the owner, 2026-10-03).
+                            .confirmationDialog(isOwner ? "End this crew for everyone?" : "Leave this crew?",
+                                                isPresented: $confirmsLeave, titleVisibility: .visible) {
+                                Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { leave() }
+                            }
                     } footer: {
                         Text(isOwner ? "Ending the crew removes it, and every win in it, for everyone."
                                      : "Your wins leave the crew with you.")
                     }
                 }
+                // No rules between rows: a card's rows are told apart by
+                // their room, as everywhere else in the app (2026-10-03).
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
                 .background(WarmBackground().ignoresSafeArea())
@@ -66,10 +93,6 @@ struct CrewInfoSheet: View {
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
-                .confirmationDialog(isOwner ? "End this crew for everyone?" : "Leave this crew?",
-                                    isPresented: $confirmsLeave, titleVisibility: .visible) {
-                    Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { leave() }
-                }
                 .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
                     Button("OK", role: .cancel) {}
                 } message: {
@@ -87,6 +110,9 @@ struct CrewInfoSheet: View {
                     }
                 }
             }
+        }
+        .fullScreenCover(item: $replay) { shown in
+            ReplayView(replay: shown) { replay = nil }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -138,7 +164,7 @@ struct CrewInfoSheet: View {
             .tint(AppColors.switchTrack)
             .disabled(store.isMuted(crewID))
         } header: {
-            Text("Notifications")
+            FormSectionLabel("Notifications")
         } footer: {
             Text(store.isMuted(crewID) ? "Nothing from this crew until the mute ends. Its wins still arrive."
                                        : "A notification for every win, and for reactions to yours.")

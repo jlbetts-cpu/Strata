@@ -61,9 +61,13 @@ struct CrewStats: Equatable {
 /// `WinTrendSection`), so a crew's numbers read the way yours do.
 struct CrewStatsSections: View {
     let crew: Crew
+    /// A day to play. Presented by the page, never from in here: these are
+    /// a List's sections, and a cover hung on them was copied onto every
+    /// section by `Group` and torn down with a cell, so a day's video opened
+    /// and closed at once (the owner, 2026-10-02: "it closes immediately").
+    let play: (Replay) -> Void
 
     @State private var stats = CrewStats()
-    @State private var replay: Replay?
     @AppStorage("crewChartUnit") private var unitRaw = WinTrend.Unit.week.rawValue
 
     private var store: SocialStore { SocialStore.shared }
@@ -77,24 +81,26 @@ struct CrewStatsSections: View {
     }
 
     var body: some View {
-        Group {
-            streak
-            WinTrendSection(bars: stats.bars, summaries: stats.summaries, unitRaw: $unitRaw, owner: .crew)
-            if !stats.days.isEmpty { days }
-        }
-        .task(id: inputs) {
-            stats = CrewStats.make(inputs)
-            #if DEBUG
-            // `-strataCrewDayReplay 1`: the newest day plays, so it can be filmed.
-            if DebugHarness.argument("-strataCrewDayReplay") == "1", replay == nil, let day = stats.days.first {
-                play(day.key)
+        // **The work hangs on ONE section.** A modifier on a `Group` is
+        // applied to each of its children, so this ran three times a change.
+        streak
+            .task(id: inputs) {
+                stats = CrewStats.make(inputs)
+                #if DEBUG
+                // `-strataCrewDayReplay 1`: the newest day plays, so it can be filmed.
+                if DebugHarness.argument("-strataCrewDayReplay") == "1", !debugPlayed, let day = stats.days.first {
+                    debugPlayed = true
+                    playDay(day.key)
+                }
+                #endif
             }
-            #endif
-        }
-        .fullScreenCover(item: $replay) { shown in
-            ReplayView(replay: shown) { replay = nil }
-        }
+        WinTrendSection(bars: stats.bars, summaries: stats.summaries, unitRaw: $unitRaw, owner: .crew)
+        if !stats.days.isEmpty { days }
     }
+
+    #if DEBUG
+    @State private var debugPlayed = false
+    #endif
 
     // MARK: - Streak
 
@@ -118,6 +124,11 @@ struct CrewStatsSections: View {
     /// a name is an invitation.
     private var streakLine: String {
         if stats.people > 1, stats.waiting.isEmpty { return "Everyone's in today." }
+        // Nobody yet, as at the start of a day: one line for the crew, not a
+        // roll call of every name.
+        if stats.people > 1, stats.waiting.count == stats.people {
+            return stats.current > 0 ? "A new day. Everyone's win keeps it going." : "A day counts when everyone posts a win."
+        }
         let names = stats.waiting.map { $0.profileID == store.me ? "you" : ($0.firstName.isEmpty ? "a friend" : $0.firstName) }
         guard !names.isEmpty else { return "A day counts when everyone posts a win." }
         let list = names.formatted(.list(type: .and))
@@ -131,7 +142,7 @@ struct CrewStatsSections: View {
     private var days: some View {
         Section {
             ForEach(stats.days) { day in
-                Button { play(day.key) } label: {
+                Button { playDay(day.key) } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(dayName(day.key))
@@ -170,7 +181,7 @@ struct CrewStatsSections: View {
         return start.formatted(style)
     }
 
-    private func play(_ key: String) {
+    private func playDay(_ key: String) {
         guard let period = ReplayPeriod.day(key, name: crew.displayName(excluding: store.me),
                                             calendar: Self.calendar(crew.timeZone)) else { return }
         let wins = store.wins(in: crew.id)
@@ -182,7 +193,7 @@ struct CrewStatsSections: View {
                           crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
             }
         HapticsEngine.tick()
-        replay = Replay(period: period, wins: wins)
+        play(Replay(period: period, wins: wins))
     }
 
     private static func calendar(_ zone: TimeZone) -> Calendar {
