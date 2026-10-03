@@ -32,6 +32,7 @@ enum CrewNotifications {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
+        log.notice("asking for notifications")
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
     }
 
@@ -57,6 +58,9 @@ enum CrewNotifications {
     /// Wins that arrived since the last call, as notifications. Called after
     /// every refresh. The first call on a phone only remembers what is there.
     static func announce(_ store: SocialStore, defaults: UserDefaults = .standard) async {
+        #if DEBUG
+        NSLog("[strata-crew] announce")
+        #endif
         let seen = Set(defaults.stringArray(forKey: seenKey) ?? [])
         let all = store.crews.flatMap { store.wins(in: $0.id) }
         defaults.set(all.map(\.winID.uuidString), forKey: seenKey)

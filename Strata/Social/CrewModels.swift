@@ -41,6 +41,8 @@ nonisolated enum CrewError: Error, Equatable, Sendable {
     case notSignedIn
     /// The crew is not one this phone knows.
     case unknownCrew
+    /// A photograph that may not be sent: under 16, or held back by the check.
+    case photoNotAllowed
 }
 
 nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {

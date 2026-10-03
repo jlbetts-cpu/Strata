@@ -212,3 +212,18 @@ extension CrewStoreTests {
         #expect(a.heldBackPhoto == mine.winID)
     }
 }
+
+extension CrewStoreTests {
+    @Test func aCrewPictureFollowsTheSameRules() async throws {
+        let (a, _, _) = store(jayden)
+        let (crew, _) = try await a.createCrew(name: "One")
+        a.photosAllowed = { false }
+        await #expect(throws: CrewError.photoNotAllowed) { try await a.setPhoto(crew.id, jpeg: Data([1, 2, 3])) }
+        a.photosAllowed = { true }
+        a.photoCheck = { _ in false }
+        await #expect(throws: CrewError.photoNotAllowed) { try await a.setPhoto(crew.id, jpeg: Data([1, 2, 3])) }
+        a.photoCheck = { _ in true }
+        try await a.setPhoto(crew.id, jpeg: Data([1, 2, 3]))
+        #expect(a.crew(crew.id)?.photo != nil)
+    }
+}

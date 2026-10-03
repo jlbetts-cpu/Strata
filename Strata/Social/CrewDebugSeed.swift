@@ -44,6 +44,10 @@ extension DebugHarness {
         // `-strataCrewAge under13|teen|adult`; adult otherwise, so the seed's
         // photos travel.
         CrewAge.save(argument("-strataCrewAge").flatMap(CrewAge.init(rawValue:)) ?? .adult)
+        // No permission prompt over the captures: a person sees it when they
+        // start or join a crew, which the seed only pretends to do.
+        store.announces = false
+        defer { store.announces = true }
         store.myFirstName = { ProfileStore.shared.name.isEmpty ? "Jayden" : ProfileStore.shared.name }
         let support = FileManager.default.temporaryDirectory.appending(path: "crew-seed", directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: support)

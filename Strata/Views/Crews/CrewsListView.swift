@@ -66,6 +66,9 @@ struct CrewsListView: View {
             }
         }
         .task { await store.refresh() }
+        #if DEBUG
+        .onAppear { if DebugHarness.argument("-strataCrewSheet") == "new" { startsCrew = true } }
+        #endif
         .modifier(AskAgeOnce(age: $age))
         .sheet(isPresented: $startsCrew) {
             NewCrewSheet { crew in open(crew) }

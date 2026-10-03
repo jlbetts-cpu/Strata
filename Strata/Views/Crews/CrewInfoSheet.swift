@@ -82,7 +82,9 @@ struct CrewInfoSheet: View {
                     guard let item else { return }
                     Task {
                         let data = try? await item.loadTransferable(type: Data.self)
-                        do { try await store.setPhoto(crewID, jpeg: data) } catch { problem = "The picture could not be saved." }
+                        do { try await store.setPhoto(crewID, jpeg: data) } catch CrewError.photoNotAllowed {
+                            problem = "That photo stays with you. Pick another, or keep everyone's faces."
+                        } catch { problem = "The picture could not be saved." }
                         pickerItem = nil
                     }
                 }

@@ -54,6 +54,15 @@ struct CrewTowerView: View {
         .onAppear {
             CrewNotifications.visibleCrew = crewID
             model.wire(reduceMotion: reduceMotion)
+            #if DEBUG
+            // `-strataCrewSheet info|win`: the crew's sheets, for captures.
+            switch DebugHarness.argument("-strataCrewSheet") {
+            case "info": showsInfo = true
+            case "win": openWin = store.today(in: crewID).last { $0.senderProfileID != store.me }
+            case "mine": openWin = store.today(in: crewID).last { $0.senderProfileID == store.me }
+            default: break
+            }
+            #endif
             rebuild()
             store.markSeen(crewID)
         }

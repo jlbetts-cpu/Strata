@@ -24,7 +24,11 @@ final class SocialStore {
         store.photosAllowed = { CrewAge.current.sendsPhotos }
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.announces = true
-        store.myFirstName = { ProfileStore.shared.name }
+        // The first word only: a crew needs to know it is Sam, not Sam's
+        // surname (spec 4.2, "firstName").
+        store.myFirstName = {
+            ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
+        }
         store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
         return store
     }()
@@ -211,7 +215,11 @@ final class SocialStore {
     func setPhoto(_ crewID: CrewID, jpeg: Data?) async throws {
         try requireOn()
         guard var crew = crew(crewID) else { throw CrewError.unknownCrew }
-        if let jpeg, let small = derive(jpeg) {
+        if let jpeg {
+            // A crew's picture is a photograph like any other: the same age
+            // rule and the same check (found 2026-10-02, privacy pass).
+            guard photosAllowed(), let small = derive(jpeg) else { throw CrewError.photoNotAllowed }
+            guard await photoCheck(small) else { throw CrewError.photoNotAllowed }
             let url = directory.appending(path: "Photos/\(crewID.rawValue)/crew-\(UUID().uuidString).jpg")
             try write(small, to: url)
             crew.photo = url
