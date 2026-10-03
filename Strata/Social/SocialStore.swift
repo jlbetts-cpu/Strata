@@ -23,6 +23,7 @@ final class SocialStore {
         let store = SocialStore(cloud: makeCloud(), defaults: .standard, directory: defaultDirectory)
         store.photosAllowed = { CrewAge.current.sendsPhotos }
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
+        store.announces = true
         store.myFirstName = { ProfileStore.shared.name }
         store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
         return store
@@ -164,6 +165,7 @@ final class SocialStore {
         // A refresh already in flight fetched before this zone existed.
         if isRefreshing { refreshAgain = true }
         if let head = myHeadPack() { await setMyHead(head) }
+        if announces { await CrewNotifications.askOnce() }
         return (crew, url)
     }
 
@@ -193,6 +195,7 @@ final class SocialStore {
         try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
         await refresh()
         if let head = myHeadPack() { await setMyHead(head) }
+        if announces { await CrewNotifications.askOnce() }
         return self.crew(id) ?? crew
     }
 
@@ -367,7 +370,12 @@ final class SocialStore {
             refreshAgain = false
             await refreshOnce()
         } while refreshAgain
+        if announces { await CrewNotifications.announce(self) }
     }
+
+    /// Whether this store says what is new as notifications. The phone's own
+    /// store does; a test's or a debug friend's never does.
+    @ObservationIgnored var announces = false
 
     @ObservationIgnored private var refreshAgain = false
 

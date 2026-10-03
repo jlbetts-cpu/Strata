@@ -85,3 +85,41 @@ struct CrewSyncTests {
         #expect(!CrewAge.unknown.sendsPhotos)
     }
 }
+
+extension CrewSyncTests {
+    @Test func aNotificationReadsLikeMessages() {
+        let me = UUID(), sam = UUID()
+        let crew = Crew(id: CrewID(rawValue: "crew-n"), name: "Roommates", ownerProfileID: me, timeZoneIdentifier: "UTC",
+                        createdAt: .now, photo: nil,
+                        members: [CrewMember(profileID: me, firstName: "Jayden", head: nil, joinedAt: .distantPast),
+                                  CrewMember(profileID: sam, firstName: "Sam Lee", head: nil, joinedAt: .now)])
+        func win(_ title: String, photo: URL? = nil) -> SharedWin {
+            SharedWin(winID: UUID(), crewID: crew.id, senderProfileID: sam, crewDay: "2026-10-02", title: title,
+                      colour: .health, icon: .health, blockSize: .small, photo: photo, cropX: nil, cropY: nil,
+                      createdAt: .now, updatedAt: .now)
+        }
+        #expect(CrewNotifications.Text.of(win("Gym"), in: crew, me: me) == ("Roommates", "Sam: Gym"))
+        #expect(CrewNotifications.Text.of(win("", photo: URL(fileURLWithPath: "/tmp/x.jpg")), in: crew, me: me).body
+                == "Sam added a photo")
+        #expect(CrewNotifications.Text.of(win(""), in: crew, me: me).body == "Sam added a win")
+    }
+
+    @Test func noCrewWordUsesALongDashOrSoundsLikeWatching() throws {
+        let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Strata")
+        let files = ["Views/Crews/CrewsListView.swift", "Views/Crews/CrewTowerView.swift", "Views/Crews/CrewInfoSheet.swift",
+                     "Views/Crews/CrewWinSheet.swift", "Views/Crews/CrewPicker.swift", "Views/Crews/CrewSharing.swift",
+                     "Social/CrewNotifications.swift", "Social/StrataAppDelegate.swift", "Social/CrewSafety.swift"]
+        for file in files {
+            let text = try String(contentsOf: folder.appending(path: file), encoding: .utf8)
+            // Only what a person reads: string literals.
+            let literals = text.split(separator: "\"").enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            for literal in literals {
+                #expect(!literal.contains("\u{2014}") && !literal.contains("\u{2013}"), "\(file): \(literal)")
+                for word in ["watching", "tracking", "active now", "see what your friends"] {
+                    #expect(!literal.lowercased().contains(word), "\(file): \(literal)")
+                }
+            }
+        }
+    }
+}

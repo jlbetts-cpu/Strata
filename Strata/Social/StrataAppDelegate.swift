@@ -1,5 +1,6 @@
 import CloudKit
 import Observation
+import UserNotifications
 import SwiftUI
 import UIKit
 import os
@@ -19,7 +20,38 @@ final class CrewRouter {
 
 /// The UIKit hooks a SwiftUI app has no modifier for: an accepted CloudKit
 /// share and remote notifications. Strata had neither until crews.
-final class StrataAppDelegate: NSObject, UIApplicationDelegate {
+final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        guard CrewsFlag.isOn else { return true }
+        UNUserNotificationCenter.current().delegate = self
+        // The silent push that says a crew changed. Without the Push
+        // capability this simply fails, and crews refresh on foreground.
+        application.registerForRemoteNotifications()
+        Task { @MainActor in
+            if let cloud = SocialStore.shared.cloud as? CloudKitCrewCloud {
+                await CrewNotifications.subscribe(cloud.container)
+            }
+        }
+        return true
+    }
+
+    /// A crew notification tapped: open that crew.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        guard let raw = response.notification.request.content.userInfo["crew"] as? String else { return }
+        await MainActor.run { CrewRouter.shared.open = CrewID(rawValue: raw) }
+    }
+
+    /// In the app, a crew's notification still shows as a banner (the crew on
+    /// screen never sends one). Every other notification the app makes keeps
+    /// the system's behaviour from before this delegate existed: nothing
+    /// while the app is open.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        notification.request.content.userInfo["crew"] == nil ? [] : [.banner, .list, .sound]
+    }
+
     func application(_ application: UIApplication,
                      configurationForConnecting connectingSceneSession: UISceneSession,
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {

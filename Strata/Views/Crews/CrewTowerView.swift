@@ -50,7 +50,9 @@ struct CrewTowerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
+        .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
         .onAppear {
+            CrewNotifications.visibleCrew = crewID
             model.wire(reduceMotion: reduceMotion)
             rebuild()
             store.markSeen(crewID)
