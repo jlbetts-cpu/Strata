@@ -23,6 +23,10 @@ struct PlanBullet: View {
     /// state is drawn from it, so the outline is the exact silhouette of what
     /// lands in it.
     var side: CGFloat = 24
+    /// The outline in the category's own colour rather than neutral ink. A
+    /// suggestion's colour is part of what is being suggested, so its empty
+    /// box shows it (`PlanSuggestionsView`); a line you wrote stays neutral.
+    var tinted: Bool = false
 
     private var radius: CGFloat { GridConstants.blockCornerRadius(forCell: side) }
     private var shape: RoundedRectangle {
@@ -79,7 +83,7 @@ struct PlanBullet: View {
                 // Both numbers come from the pair above, so the plan's ghost
                 // row and this one cannot say different things about the same
                 // shape.
-                .strokeBorder(Self.outlineInk,
+                .strokeBorder(tinted ? AnyShapeStyle(category.style.baseColor) : AnyShapeStyle(Self.outlineInk),
                               lineWidth: Self.outlineWidth(forSide: side))
                 .opacity(isDone ? 0 : 1)
 

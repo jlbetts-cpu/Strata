@@ -41,9 +41,17 @@ final class PlanItem {
     /// can hold an array of `Int`, but it cannot be used inside a
     /// `#Predicate`, and this is a field the sweep has to filter on.
     var repeatDaysRaw: String = ""
+    /// The size its block opens at once checked. Small unless a suggestion
+    /// sized it (`PlanSuggestions`); the add sheet can still change it.
+    var sizeRaw: String = BlockSize.small.rawValue
 
     var category: HabitCategory {
         HabitCategory(rawValue: categoryRaw) ?? .unlabeled
+    }
+
+    var size: BlockSize {
+        get { BlockSize(rawValue: sizeRaw) ?? .small }
+        set { sizeRaw = newValue.rawValue }
     }
 
     var isDone: Bool { completedAt != nil }
@@ -76,7 +84,12 @@ final class PlanItem {
 
     /// A human reading of the repeat, for the row's subtitle.
     func repeatSummary(calendar: Calendar) -> String? {
-        guard repeats else { return nil }
+        Self.repeatSummary(repeatDays, calendar: calendar)
+    }
+
+    /// The same reading for days that are not a line yet: a suggestion's.
+    static func repeatSummary(_ repeatDays: Set<Int>, calendar: Calendar) -> String? {
+        guard !repeatDays.isEmpty else { return nil }
         let days = repeatDays.sorted()
         if days.count == 7 { return "Every day" }
         if days == [2, 3, 4, 5, 6] { return "Weekdays" }

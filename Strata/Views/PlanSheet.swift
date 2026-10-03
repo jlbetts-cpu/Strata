@@ -315,7 +315,41 @@ struct PlanSheet: View {
                 .frame(minHeight: proxy.size.height, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
+            // Suggest stands at the foot of the page, where the app's main
+            // things stand (`PlanSuggestionsView`). Only on a phone that has
+            // Apple's on-device model; otherwise the page is as it was.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if PlanSuggestions.isAvailable {
+                    PlanSuggestionsView(context: suggestionContext, keep: keep, unkeep: unkeep)
+                }
+            }
         }
+    }
+
+    // MARK: - Suggestions
+
+    private func suggestionContext(_ alreadyShown: [String]) -> PlanSuggestionContext {
+        PlanSuggestionContext.make(plan: items.map(\.text),
+                                   wins: habits.map { ($0.title, $0.category, $0.createdAt) },
+                                   alreadyShown: alreadyShown)
+    }
+
+    /// A checked suggestion becomes a line at the end of the plan, in its
+    /// colour, at its size, with its repeat.
+    private func keep(_ suggestion: PlanSuggestion) -> UUID {
+        let position = (allItems.last?.order ?? -1) + 1
+        let line = PlanItem(text: suggestion.title, order: position, category: suggestion.category)
+        line.size = suggestion.size
+        line.repeatDays = suggestion.repeatDays
+        modelContext.insert(line)
+        try? modelContext.save()
+        return line.id
+    }
+
+    private func unkeep(_ id: UUID) {
+        guard let line = allItems.first(where: { $0.id == id }) else { return }
+        modelContext.delete(line)
+        StoreReset.commitDelete("taking back a suggested plan line", context: modelContext)
     }
 
     /// **A hairline in ink, not a `Divider`.**

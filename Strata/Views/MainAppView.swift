@@ -571,7 +571,8 @@ struct MainAppView: View {
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
-                pendingDraft = WinDraft(title: item.text, colour: item.category, planItemID: item.id)
+                pendingDraft = WinDraft(title: item.text, size: item.size, colour: item.category,
+                                        planItemID: item.id)
                 tickAwaitingWin = item.id
                 isPlanning = false
             }
