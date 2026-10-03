@@ -62,6 +62,25 @@ struct CrewTowerView: View {
             case "mine": openWin = store.today(in: crewID).last { $0.senderProfileID == store.me }
             default: break
             }
+            // `-strataCrewParkEvery <s>`: a head goes into the bubble, or one
+            // pops out, every s seconds, so both can be filmed.
+            if let every = DebugHarness.argument("-strataCrewParkEvery").flatMap(Double.init) {
+                Task { @MainActor in
+                    var going = true
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(every))
+                        guard let crew else { continue }
+                        let free = crew.members.map(\.profileID).filter { !parking.isHidden($0) }
+                        if going, let next = free.randomElement() {
+                            parking.beginArrival(next, from: .zero)
+                        } else if let out = parking.parked.randomElement() {
+                            parking.pop(out)
+                        }
+                        if parking.parked.count >= 3 { going = false }
+                        if parking.parked.isEmpty { going = true }
+                    }
+                }
+            }
             #endif
             rebuild()
             store.markSeen(crewID)

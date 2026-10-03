@@ -321,7 +321,12 @@ private struct CrewHeadRunner: View {
                     .accessibilityHint("Double-tap for a new face.")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { changeFace() }
-                    .accessibilityAction(named: "Put in the bubble") { parking.parkNow(id) }
+                    .accessibilityAction(named: "Put in the bubble") {
+                        if reduceMotion { parking.parkNow(id) } else {
+                            parking.beginArrival(id, from: CGPoint(x: arena.minX + life.position.x,
+                                                                   y: arena.minY + life.position.y))
+                        }
+                    }
                     .transition(.identity)
             }
         }
@@ -329,6 +334,13 @@ private struct CrewHeadRunner: View {
         .onChange(of: parking.popped?.count) {
             guard parking.popped?.member == id else { return }
             leaveTheBubble()
+        }
+        // An arrival this head did not start itself (VoiceOver's action, a
+        // debug film): fly from wherever it is.
+        .onChange(of: parking.arriving[id] != nil) { _, arriving in
+            guard arriving, life.flightFrom == nil else { return }
+            life.flightFrom = life.position
+            life.flightStart = nil
         }
     }
 
@@ -384,8 +396,13 @@ private struct CrewHeadRunner: View {
     /// it a third of a second later.
     private func leaveTheBubble() {
         let centre = bubbleCentre
-        life.sim.place(in: life.world, at: CGPoint(x: centre.x, y: centre.y + 40),
-                       velocity: CGVector(dx: CGFloat.random(in: -80...80), dy: 120))
+        // Out under the bubble and the name, into the room, not onto the
+        // bubble's rim: placed on the rim, a head pressed against it and sat
+        // there (filmed 2026-10-02).
+        let below = (parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY) - arena.minY
+        life.sim.place(in: life.world, at: CGPoint(x: centre.x + CGFloat.random(in: -30...30),
+                                                   y: below + life.sim.halfHeight + 12),
+                       velocity: CGVector(dx: CGFloat.random(in: -90...90), dy: 140))
         life.emergeFrom = CGSize(width: centre.x - life.sim.position.x, height: centre.y - life.sim.position.y)
         life.emergeStart = nil
         life.emergePending = !reduceMotion
@@ -486,6 +503,13 @@ private struct CrewHeadRunner: View {
         var obstacles = Array(parking.controls.values)
         if parking.dragging == nil { obstacles.append(parking.bubbleFrame) }
         let local = obstacles.filter { !$0.isEmpty }.map { $0.offsetBy(dx: -arena.minX, dy: -arena.minY) }
-        return TowerCompanionWorld(bounds: bounds, skyline: skyline, obstacles: local)
+        // **They float in the room between the header and the tower**, not
+        // in the default band under the status bar: with eight heads there,
+        // they lined up along the top edge (filmed 2026-10-02).
+        let headerBottom = (parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY) - arena.minY
+        let lower = max(headerBottom + side * 0.5, bounds.minY)
+        let roof = probe.hasMeasured ? skyline.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
+        let upper = max(lower + side, min(roof - side * 0.6, lower + 320))
+        return TowerCompanionWorld(bounds: bounds, opening: lower...upper, skyline: skyline, obstacles: local)
     }
 }

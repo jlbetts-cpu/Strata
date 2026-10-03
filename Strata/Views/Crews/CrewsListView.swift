@@ -57,13 +57,13 @@ struct CrewsListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            if age.opensCrews { ToolbarItem(placement: .topBarTrailing) {
                 Button { startsCrew = true } label: {
                     Image(systemName: "square.and.pencil").sheetAction(.confirm, as: .glyph)
                 }
                 .disabled(store.crews.count >= CrewCaps.crews)
                 .accessibilityLabel("New Crew")
-            }
+            } }
         }
         .task { await store.refresh() }
         #if DEBUG
@@ -195,24 +195,23 @@ struct NewCrewSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: GridConstants.gapWide) {
-                TextField("Crew name (optional)", text: $name)
+            VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                // Open, like Add Win's "What did you do?": a name is typed
+                // onto the page, not into a box.
+                TextField("Name your crew", text: $name,
+                          prompt: Text("Name your crew").foregroundStyle(AppColors.inkTertiary))
                     .font(Typography.headerMedium)
-                    .multilineTextAlignment(.center)
+                    .foregroundStyle(AppColors.inkPrimary)
                     .focused($focused)
                     .submitLabel(.go)
                     .onSubmit(start)
-                    .padding(.vertical, 14)
-                    .glassRoundedRect(cornerRadius: 16, carriesType: true)
                 Text("Up to 8 people, you included. Everyone sees the wins sent to the crew that day, with their photos.")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkSecondary)
-                    .multilineTextAlignment(.center)
                 if let problem {
                     Text(problem)
                         .font(Typography.screenSubtitle)
                         .foregroundStyle(AppColors.inkPrimary)
-                        .multilineTextAlignment(.center)
                 }
                 Spacer(minLength: 0)
                 if working {
