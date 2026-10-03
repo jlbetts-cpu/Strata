@@ -197,10 +197,26 @@ struct MonthCalendarView: View {
 
     // MARK: - Body
 
+    /// Monday first, as the grid is (`MemoriesViewModel.mondayCalendar`).
+    static let weekdayLetters = ["M", "T", "W", "T", "F", "S", "S"]
+
     var body: some View {
         let days = byDay
         let today = todayIfVisible
         VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            // **The days of the week, over their columns** (the owner,
+            // 2026-10-03). One letter each, Monday first as the grid is, in
+            // the quiet ink, so a day's place reads as its weekday without
+            // counting from the 1st.
+            HStack(spacing: spacing) {
+                ForEach(Array(Self.weekdayLetters.enumerated()), id: \.offset) { _, letter in
+                    Text(letter)
+                        .font(Typography.screenSubtitle)
+                        .foregroundStyle(AppColors.inkTertiary)
+                        .frame(width: cell)
+                }
+            }
+            .accessibilityHidden(true)
             VStack(spacing: spacing) {
                 ForEach(0..<rows, id: \.self) { row in
                     HStack(spacing: spacing) {

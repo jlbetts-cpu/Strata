@@ -1,0 +1,151 @@
+DEFINE SCHEMA
+
+    CREATE ROLE Moderator;
+
+    RECORD TYPE Ban (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        account STRING QUERYABLE,
+        reason  STRING,
+        GRANT CREATE, WRITE TO "Moderator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Crew (
+        "___createTime"    TIMESTAMP,
+        "___createdBy"     REFERENCE,
+        "___etag"          STRING,
+        "___modTime"       TIMESTAMP,
+        "___modifiedBy"    REFERENCE,
+        "___recordID"      REFERENCE QUERYABLE,
+        createdAt          TIMESTAMP,
+        name               STRING,
+        ownerProfileID     STRING,
+        photo              ASSET,
+        timeZoneIdentifier STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Identity (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        profileID       STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Member (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        firstName       STRING,
+        head            ASSET,
+        joinedAt        TIMESTAMP,
+        photo           ASSET,
+        profileID       STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Reaction (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        createdAt       TIMESTAMP,
+        emoji           STRING,
+        profileID       STRING,
+        winID           STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Report (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        crew          STRING,
+        photo         ASSET,
+        reason        STRING,
+        reporter      STRING,
+        sender        STRING,
+        senderAccount STRING,
+        title         STRING,
+        winID         STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_creator",
+        GRANT READ TO "Moderator"
+    );
+
+    RECORD TYPE SharedWin (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        blockSize       STRING,
+        colour          STRING,
+        createdAt       TIMESTAMP,
+        crewDay         STRING,
+        cropX           DOUBLE,
+        cropY           DOUBLE,
+        icon            STRING,
+        photo           ASSET,
+        senderProfileID STRING,
+        title           STRING,
+        updatedAt       TIMESTAMP,
+        winID           STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE "cloudkit.share" (
+        "___createTime"               TIMESTAMP,
+        "___createdBy"                REFERENCE,
+        "___etag"                     STRING,
+        "___modTime"                  TIMESTAMP,
+        "___modifiedBy"               REFERENCE,
+        "___recordID"                 REFERENCE,
+        "cloudkit.thumbnailImageData" BYTES,
+        "cloudkit.title"              STRING,
+        "cloudkit.type"               STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );

@@ -23,9 +23,12 @@ enum CrewSafety {
     }
 
     /// A report goes to Some Wins, never to the crew: a `Report` record in the
-    /// app's PUBLIC database, which only the developer can read (the record
-    /// type's permissions are set that way in the CloudKit dashboard). It
-    /// names the crew, the win and the reason. It carries no photograph.
+    /// app's PUBLIC database, readable only by its writer and the Moderator
+    /// role (the developer). It names the crew, the win, the reason, the
+    /// sender's iCloud ACCOUNT (as CloudKit recorded it, not as the app says),
+    /// and carries the photograph's sent copy, so the report can be judged
+    /// and the sender banned (the 2026-10-03 audit: a report has to be
+    /// something someone can act on).
     static func report(win: SharedWin, in crew: CrewID, reason: Reason) async {
         guard let cloud = SocialStore.shared.cloud as? CloudKitCrewCloud else {
             log.notice("report (no cloud): \(reason.rawValue, privacy: .public)")
@@ -38,6 +41,12 @@ enum CrewSafety {
         record["reporter"] = SocialStore.shared.me.uuidString as NSString
         record["reason"] = reason.rawValue as NSString
         record["title"] = win.title as NSString
+        if let account = cloud.account(of: win.senderProfileID, in: crew) {
+            record["senderAccount"] = account as NSString
+        }
+        if let photo = win.photo, FileManager.default.fileExists(atPath: photo.path) {
+            record["photo"] = CKAsset(fileURL: photo)
+        }
         do {
             _ = try await cloud.container.publicCloudDatabase.save(record)
         } catch {

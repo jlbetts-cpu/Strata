@@ -161,16 +161,21 @@ struct MemoriesView: View {
                         if !pageIsUndecided || pageIsEmpty {
                             monthTower
                         }
-                        if !pageIsEmpty, count > 0 {
-                            photosToggle(count)
-                                .padding(.top, GridConstants.gapTight)
-                        }
                     }
+                    // The scroll view already stops above the tab bar; the
+                    // calendar's last row sits where the tower's last row
+                    // does on Wins (the owner, 2026-10-03: "the calendar
+                    // bottom should sit where the tower bottom is and then the
+                    // photos under that").
                     .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
-                        max(length - GridConstants.tabBarClearance, 0)
+                        max(length - GridConstants.gapTight, 0)
                     }
 
+                    // Under the fold: the photos are a scroll away, the line
+                    // that opens them just showing under the tab bar's glass.
                     if !pageIsEmpty, count > 0 {
+                        photosToggle(count)
+                            .padding(.top, GridConstants.gapSection)
                         do {
                             if photosOpen {
                                 // The camera roll, edge to edge, as it was:
@@ -188,6 +193,9 @@ struct MemoriesView: View {
                         }
                     }
                 }
+                // Room under the photos for the tab bar, only when they are
+                // open; closed, the page is exactly one screen and does not
+                // scroll.
                 .padding(.bottom, GridConstants.tabBarClearance)
                 .id("MemoriesContent")
             }

@@ -152,6 +152,7 @@ final class CloudKitCrewCloud: CrewCloud {
         try await requireAccount()
         try await discoverZones()
         var crews: [Crew] = []
+        await refreshBans()
         for (crewID, _) in zones {
             do {
                 try await sync(crewID)
@@ -170,6 +171,10 @@ final class CloudKitCrewCloud: CrewCloud {
             let names = records[Self.namesKey] ?? [:]
             let members = records.filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }
                 .values.compactMap { fields -> CrewMember? in
+                    // Someone the developer has banned is in no crew, on any
+                    // phone; their wins and reactions go with them, because
+                    // the store keeps only members' (see `refreshBans`).
+                    if let user = fields[Self.creatorKey]?.string, banned.contains(user) { return nil }
                     guard var member = CrewRecords.member(fields) else { return nil }
                     if member.firstName.isEmpty, let user = fields[Self.creatorKey]?.string,
                        let given = names[user]?.string {
@@ -181,6 +186,35 @@ final class CloudKitCrewCloud: CrewCloud {
         }
         saveCache()
         return crews.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    // MARK: Moderation
+
+    /// iCloud accounts the developer has banned: public `Ban` records, which
+    /// only the Moderator role may write (the schema says so), naming the
+    /// account by its user record. Asked for at most once an hour.
+    private var banned: Set<String> = []
+    private var bansCheckedAt: Date = .distantPast
+
+    func refreshBans() async {
+        guard Date().timeIntervalSince(bansCheckedAt) > 3600 else { return }
+        bansCheckedAt = Date()
+        let query = CKQuery(recordType: "Ban", predicate: NSPredicate(value: true))
+        do {
+            let (results, _) = try await container.publicCloudDatabase.records(matching: query, resultsLimit: 400)
+            banned = Set(results.compactMap { try? $0.1.get()["account"] as? String })
+        } catch {
+            // Before the Ban type is deployed, or offline: nobody is banned
+            // that was not already.
+            Self.log.notice("bans not read: \(error)")
+        }
+    }
+
+    /// The iCloud account behind a member of a crew, as CloudKit recorded
+    /// who wrote their Member record: what a report names, because a
+    /// profile id is only what the app says.
+    func account(of profileID: UUID, in crew: CrewID) -> String? {
+        cache[crew]?["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"]?[Self.creatorKey]?.string
     }
 
     func fetchWins(in crew: CrewID) async throws -> [SharedWin] {
