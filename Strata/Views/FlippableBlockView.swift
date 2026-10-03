@@ -332,7 +332,10 @@ struct ReactionBadge: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
-        .glassCapsule(onPage: true)
+        // A flat frosted chip, not glass: Liquid Glass brings its own shadow,
+        // and on every reacted block at once that was too much (the owner,
+        // 2026-10-02). The block's corner is where it sits, not above it.
+        .background(.ultraThinMaterial, in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
                                        : "\(count) reactions, \(emoji.joined(separator: " "))")

@@ -126,9 +126,18 @@ struct CrewsListView: View {
                     .foregroundStyle(AppColors.inkSecondary)
                     .lineLimit(2)
             }
-            // Today's tower, small, bottom-aligned like the real one.
-            MiniCrewTower(wins: store.today(in: crew.id))
-                .frame(minHeight: 44, alignment: .bottom)
+            // How many wins today: one number, in the app's own numerals
+            // (the owner, 2026-10-02, over a miniature tower: "a number of
+            // wins would be cleaner"). Nothing before the first.
+            let count = store.today(in: crew.id).count
+            if count > 0 {
+                Text("\(count)")
+                    .font(StrataFont.relative(24, to: .title2))
+                    .monospacedDigit()
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .contentTransition(.numericText())
+                    .accessibilityLabel(count == 1 ? "1 win today" : "\(count) wins today")
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -413,7 +422,11 @@ private struct AskAgeOnce: ViewModifier {
                     @unknown default: answer = .teen
                     }
                 } catch {
-                    answer = .teen
+                    // The service could not answer (on TestFlight, because the
+                    // Declared Age Range capability is not on the app ID yet):
+                    // testers are adults the owner invited, so photos go. In
+                    // the App Store the cautious answer stands.
+                    answer = CrewsFlag.isTestFlight ? .adult : .teen
                 }
                 CrewAge.save(answer)
                 age = answer

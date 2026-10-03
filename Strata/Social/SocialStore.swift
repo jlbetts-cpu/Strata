@@ -82,7 +82,16 @@ final class SocialStore {
     /// that are about something else.
     @ObservationIgnored var requiresCrewPhoto = false
     /// Makes the copy of a photograph that is sent.
-    @ObservationIgnored var derive: (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
+    @ObservationIgnored var derive: @Sendable (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
+
+    /// The derivative, made OFF the main actor. Re-encoding a photograph to
+    /// 1080px takes tens of milliseconds, and on the main actor it landed as a
+    /// 54 to 92ms hitch exactly as a win was sent, which is when your block is
+    /// falling (measured with `-strataPerfProbe`, 2026-10-02).
+    private func derived(_ jpeg: Data) async -> Data? {
+        let make = derive
+        return await Task.detached(priority: .userInitiated) { make(jpeg) }.value
+    }
     /// The photo check before anything is sent (`CrewSafety.photoIsFine`).
     @ObservationIgnored var photoCheck: (Data) async -> Bool = { _ in true }
     /// A photo the check held back, for a quiet word to the sender.
@@ -245,7 +254,7 @@ final class SocialStore {
         var picture: Data?
         if photosAllowed() {
             if let photoJPEG {
-                guard let small = derive(photoJPEG), await photoCheck(small) else { throw CrewError.photoNotAllowed }
+                guard let small = await derived(photoJPEG), await photoCheck(small) else { throw CrewError.photoNotAllowed }
                 picture = small
             } else if requiresCrewPhoto {
                 throw CrewError.photoNeeded
@@ -322,7 +331,7 @@ final class SocialStore {
         if let jpeg {
             // A crew's picture is a photograph like any other: the same age
             // rule and the same check (found 2026-10-02, privacy pass).
-            guard photosAllowed(), let small = derive(jpeg) else { throw CrewError.photoNotAllowed }
+            guard photosAllowed(), let small = await derived(jpeg) else { throw CrewError.photoNotAllowed }
             guard await photoCheck(small) else { throw CrewError.photoNotAllowed }
             let url = directory.appending(path: "Photos/\(crewID.rawValue)/crew-\(UUID().uuidString).jpg")
             try write(small, to: url)
@@ -339,7 +348,8 @@ final class SocialStore {
     /// a crew and whenever either changes.
     func shareMyself() async {
         guard isEnabled() else { return }
-        let photo = photosAllowed() ? myPhoto().flatMap(derive) : nil
+        var photo: Data?
+        if photosAllowed(), let mine = myPhoto() { photo = await derived(mine) }
         await setMyHead(myHeadPack(), photo: photo)
     }
 
@@ -579,7 +589,16 @@ final class SocialStore {
         await cloud.prepare()
         await flush()
         do {
-            let fetched = try await cloud.fetchCrews()
+            // **In a fixed order**, members, wins and reactions alike. A
+            // fetch hands them back in dictionary order, so an unchanged crew
+            // compared as changed on every refresh and the whole crew screen
+            // redrew: a 96ms hitch every 15 seconds with nobody posting
+            // (measured with `-strataPerfProbe`, 2026-10-02).
+            let fetched = try await cloud.fetchCrews().map { crew -> Crew in
+                var crew = crew
+                crew.members.sort { ($0.joinedAt, $0.profileID.uuidString) < ($1.joinedAt, $1.profileID.uuidString) }
+                return crew
+            }
             var wins: [CrewID: [SharedWin]] = [:]
             for crew in fetched {
                 do {
@@ -592,7 +611,7 @@ final class SocialStore {
                             held.append(mine)
                         }
                     }
-                    wins[crew.id] = held
+                    wins[crew.id] = held.sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
                 } catch {
                     Self.log.error("fetching wins in \(crew.id.rawValue, privacy: .public) failed: \(error)")
                     wins[crew.id] = winsByCrew[crew.id] ?? []
@@ -605,7 +624,7 @@ final class SocialStore {
                     held.removeAll { $0.id == entry.name }
                     if let fields = entry.fields, let mine = CrewRecords.reaction(fields, crew: crew.id) { held.append(mine) }
                 }
-                reactions[crew.id] = held
+                reactions[crew.id] = held.sorted { $0.id < $1.id }
             }
             // Writes for crews that are gone (ended, or you were removed) can
             // never be sent: drop them rather than retry them for ever.
@@ -868,7 +887,7 @@ final class SocialStore {
     /// The derivative, once per post, or nothing when photos may not leave
     /// or the check held it back.
     private func checkedPhoto(for win: OwnWin) async -> Data? {
-        guard photosAllowed(), let jpeg = win.photoJPEG, let small = derive(jpeg) else { return nil }
+        guard photosAllowed(), let jpeg = win.photoJPEG, let small = await derived(jpeg) else { return nil }
         guard await photoCheck(small) else {
             heldBackPhoto = win.winID
             return nil

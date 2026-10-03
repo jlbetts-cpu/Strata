@@ -135,10 +135,21 @@ extension DebugHarness {
         }
     }
 
+    /// Decoded once each: a friend's phone would not be decoding our demo
+    /// photos on OUR main thread, so a film of their posts must not either
+    /// (it was the largest cost in a sample of one, 2026-10-02).
+    @MainActor private static var demoPhotos: [Int: Data] = [:]
+    @MainActor private static func demoPhoto(_ n: Int) -> Data? {
+        if let cached = demoPhotos[n] { return cached }
+        let data = UIImage(named: "DemoPhoto\(n)")?.jpegData(compressionQuality: 0.8)
+        demoPhotos[n] = data
+        return data
+    }
+
     private static func win(_ i: Int, minutesAgo: Int) -> OwnWin {
         let (title, colour, size) = friendWins[i % friendWins.count]
         let date = Date().addingTimeInterval(-Double(minutesAgo) * 60)
-        let photo = i % 3 == 1 ? UIImage(named: "DemoPhoto\(1 + i % 12)")?.jpegData(compressionQuality: 0.8) : nil
+        let photo = i % 3 == 1 ? demoPhoto(1 + i % 12) : nil
         return OwnWin(winID: UUID(), title: title, colour: colour, icon: colour, blockSize: size,
                       photoJPEG: photo, cropX: nil, cropY: nil, createdAt: date, updatedAt: date)
     }

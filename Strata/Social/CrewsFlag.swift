@@ -8,7 +8,21 @@ import Foundation
 nonisolated enum CrewsFlag {
     static let key = "crewsEnabled"
 
-    static var isOn: Bool { isOn(in: .standard, arguments: ProcessInfo.processInfo.arguments) }
+    static var isOn: Bool {
+        isOn(in: .standard, arguments: ProcessInfo.processInfo.arguments) || isTestFlight
+    }
+
+    /// **On in TestFlight builds, so the owner can try crews with friends**
+    /// (2026-10-02), and only there: an App Store build stays dark until the
+    /// spec's section 9 is done. A TestFlight install carries a sandbox
+    /// receipt; an App Store one does not, and nor does a debug run.
+    static let isTestFlight: Bool = {
+        #if DEBUG
+        return false
+        #else
+        return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        #endif
+    }()
 
     static func isOn(in defaults: UserDefaults, arguments: [String]) -> Bool {
         if let i = arguments.firstIndex(of: "-strataCrews"), i + 1 < arguments.count {
