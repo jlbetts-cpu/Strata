@@ -427,12 +427,13 @@ final class HeadStore {
         head = rig
         dress()
         SocialStore.noteMyselfChanged()
-        // Making a head is itself the request to use it: as your picture, and
-        // as a sticker you can add to a photo (it still takes a press each
-        // time). The map and the tower put it somewhere without asking each
-        // time, so those stay off until switched on.
+        // **On the map and on your photos; not on the tower, not as your
+        // picture** (the owner, 2026-10-03: "show head on map and add my head
+        // to photos is on by default while let my head onto the tower and use
+        // as profile picture should not be"). Your crews see it either way:
+        // it is in use (`headForCrews`).
         if isFirstHead {
-            setProfilePicture(true)
+            setShowsOnMap(true)
             setShowsCameraSticker(true)
         }
     }

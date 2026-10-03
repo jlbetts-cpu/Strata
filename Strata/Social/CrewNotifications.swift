@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import UIKit
 import UserNotifications
 import os
 
@@ -57,11 +58,22 @@ enum CrewNotifications {
 
     /// Wins that arrived since the last call, as notifications. Called after
     /// every refresh. The first call on a phone only remembers what is there.
+    /// **How far back a notification may reach.** In the background (a push
+    /// woke the app) the last six hours, so a quiet phone still hears about
+    /// the day. With the app OPEN, two minutes: opening Sturdy after a while
+    /// used to fire one banner for every win since, over the crews you were
+    /// about to look at anyway (the 2026-10-03 audit). Open, only what is
+    /// arriving now is news.
+    static var reach: () async -> TimeInterval = {
+        await MainActor.run { UIApplication.shared.applicationState == .active } ? 120 : 6 * 3600
+    }
+
     static func announce(_ store: SocialStore, defaults: UserDefaults = .standard) async {
         #if DEBUG
         NSLog("[strata-crew] announce")
         #endif
         let seen = Set(defaults.stringArray(forKey: seenKey) ?? [])
+        let window = await reach()
         let all = store.crews.flatMap { store.wins(in: $0.id) }
         defaults.set(all.map(\.winID.uuidString), forKey: seenKey)
         guard defaults.object(forKey: seenKey + ".started") != nil else {
@@ -75,7 +87,7 @@ enum CrewNotifications {
                 && win.crewID != visibleCrew
                 // Muted, as in Messages: nothing from that crew.
                 && !store.isMuted(win.crewID)
-                && Date().timeIntervalSince(win.createdAt) < 6 * 3600
+                && Date().timeIntervalSince(win.createdAt) < window
         }
         let center = UNUserNotificationCenter.current()
         for win in fresh {
@@ -109,17 +121,20 @@ enum CrewNotifications {
     static func announceReactions(_ store: SocialStore, defaults: UserDefaults = .standard) async {
         let key = "crews.notifiedReactions"
         let seen = Set(defaults.stringArray(forKey: key) ?? [])
+        let window = await reach()
         var now: [String] = []
         var fresh: [Reaction] = []
         for crew in store.crews {
             let mine = Dictionary(uniqueKeysWithValues: store.wins(in: crew.id)
                 .filter { $0.senderProfileID == store.me }.map { ($0.winID, $0) })
             for reaction in store.reactionsByCrew[crew.id] ?? [] where mine[reaction.winID] != nil {
-                let tag = reaction.id + reaction.emoji
+                // By who and which win, not by emoji: a friend changing ❤️ to
+                // 🔥 is not a second reaction, and it notified again.
+                let tag = reaction.id
                 now.append(tag)
                 if !seen.contains(tag), reaction.profileID != store.me, !store.blocked.contains(reaction.profileID),
                    store.reactionAlerts(crew.id), !store.isMuted(crew.id), crew.id != visibleCrew,
-                   Date().timeIntervalSince(reaction.createdAt) < 6 * 3600 {
+                   Date().timeIntervalSince(reaction.createdAt) < window {
                     fresh.append(reaction)
                 }
             }
@@ -139,7 +154,7 @@ enum CrewNotifications {
             content.userInfo = ["crew": crew.id.rawValue]
             content.sound = .default
             try? await UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: "reaction-" + reaction.id + reaction.emoji, content: content, trigger: nil))
+                UNNotificationRequest(identifier: "reaction-" + reaction.id, content: content, trigger: nil))
         }
     }
 

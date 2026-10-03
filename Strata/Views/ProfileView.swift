@@ -708,35 +708,10 @@ struct ProfileView: View {
                 }
                 .tint(AppColors.switchTrack)
 
-                // Not "Make It Again". Saving adds a head now and never writes
-                // over one, so a label that promised a replacement would be
-                // describing something the code no longer does.
-                Button {
-                    HapticsEngine.lightTap()
-                    showsMaker = true
-                } label: {
-                    Label {
-                        Text("Add Another Head").foregroundStyle(AppColors.inkPrimary)
-                    } icon: {
-                        // **`plus`, and it was `camera` fifteen points under
-                        // another `camera`** (2026-10-01,
-                        // `docs/consistency-audit.md` §1.11). "Add My Head to
-                        // Photos" directly above this row draws
-                        // `SettingsIcon(systemName: "camera")` too, so two
-                        // consecutive rows wore one glyph for two different
-                        // things, and the second one is the only row in the
-                        // section that opens a whole screen. Visible in
-                        // `/tmp/g3/after/19-head-picker.png`: the two rows under
-                        // the switches are the same camera outline.
-                        //
-                        // The camera belongs to the row above, which is about
-                        // photographs. This row is an ADD, and `plus` is already
-                        // the app's add glyph (`PlanSheet`'s own leading item).
-                        // One concept, one glyph, which is §3.6.
-                        SettingsIcon(systemName: "plus")
-                    }
-                }
-
+                // **One head, yours** (the owner, 2026-10-03: "lets remove the
+                // option to add another head I think i like the intimacy of
+                // just making your head"). "Add Another Head" is gone; Delete
+                // and make it again is the way to a new one.
                 Button(role: .destructive) {
                     confirmsDeleteHead = true
                 } label: {

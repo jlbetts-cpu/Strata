@@ -344,7 +344,14 @@ struct CrewTowerView: View {
             }
             if let crew {
                 let crowded = !parking.parked.isEmpty && store.showsHeads(crewID)
-                VStack(spacing: crowded ? -9 : -17) {
+                // **Apart, not overlapping** (the owner, 2026-10-03: "the shadow
+                // is too dark"). Each glass shape casts its own soft shadow, and
+                // where the name overlapped the bubble the two shadows met and
+                // read as a dark patch. A small gap between them leaves one
+                // shadow each, as every other control in the app has. (A shared
+                // glass container would merge them, but it frosted the heads
+                // inside the bubble.)
+                VStack(spacing: GridConstants.spacing) {
                     CrewBubble(crew: crew, me: store.me, parking: parking, side: 60,
                                showsHeads: store.showsHeads(crewID))
                         // The whole bubble is the target, never one 34pt head.

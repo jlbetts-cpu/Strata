@@ -420,9 +420,10 @@ struct MonthPicker: View {
             }
             .accessibilityLabel("Month, \(title). Choose another")
             .accessibilityIdentifier("MonthPicker")
-
-            Spacer(minLength: 0)
         }
+        // Its own width, no wider: it sits in the middle of the page's top
+        // row now, between the map and Profile (2026-10-03), and a picker
+        // that took the row covered the map.
         .frame(height: 44)
     }
 

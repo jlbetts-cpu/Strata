@@ -513,7 +513,17 @@ final class SocialStore {
         try await cloud.removeParticipant(profileID, from: crewID)
         crew.members.removeAll { $0.profileID == profileID }
         replace(crew)
+        // Their wins and reactions leave with them, from the crew's own
+        // zone: the owner may delete anything in it.
+        for win in winsByCrew[crewID] ?? [] where win.senderProfileID == profileID {
+            enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: win), fields: nil))
+        }
+        for reaction in reactionsByCrew[crewID] ?? [] where reaction.profileID == profileID {
+            enqueue(.init(crew: crewID, type: .reaction, name: reaction.id, fields: nil))
+        }
         winsByCrew[crewID]?.removeAll { $0.senderProfileID == profileID }
+        reactionsByCrew[crewID]?.removeAll { $0.profileID == profileID }
+        await flush()
     }
 
     // MARK: Wins
@@ -708,7 +718,12 @@ final class SocialStore {
                             held.append(mine)
                         }
                     }
-                    wins[crew.id] = held.sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
+                    // Only people in the crew: someone removed is gone with
+                    // their wins, whoever's phone had not yet deleted them
+                    // (the 2026-10-03 audit: they came back as "A friend").
+                    let people = Set(crew.members.map(\.profileID))
+                    wins[crew.id] = held.filter { people.contains($0.senderProfileID) }
+                        .sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
                     counted[crew.id] = wins[crew.id]
                 } catch {
                     Self.log.error("fetching wins in \(crew.id.rawValue, privacy: .public) failed: \(error)")
@@ -722,7 +737,8 @@ final class SocialStore {
                     held.removeAll { $0.id == entry.name }
                     if let fields = entry.fields, let mine = CrewRecords.reaction(fields, crew: crew.id) { held.append(mine) }
                 }
-                reactions[crew.id] = held.sorted { $0.id < $1.id }
+                let people = Set(crew.members.map(\.profileID))
+                reactions[crew.id] = held.filter { people.contains($0.profileID) }.sorted { $0.id < $1.id }
             }
             // Writes for crews that are gone (ended, or you were removed) can
             // never be sent: drop them rather than retry them for ever.
@@ -747,7 +763,7 @@ final class SocialStore {
     /// Sends whatever is waiting. A failure keeps the write for next time and
     /// is logged, never swallowed.
     func flush() async {
-        guard isEnabled(), !outbox.isEmpty else { return }
+        guard isEnabled(), !outbox.isEmpty, now() >= retryAfter else { return }
         // **One flush at a time, in order.** Two at once could reach the
         // server in either order, so an older photo could land after a newer
         // edit (the 2026-10-02 audit). A flush asked for mid-flush runs again.
@@ -766,6 +782,16 @@ final class SocialStore {
                     outbox.removeIfUnchanged(entry)
                 } catch {
                     Self.log.error("\(entry.type.rawValue, privacy: .public) to \(entry.crew.rawValue, privacy: .public) not sent: \(error)")
+                    // **No signal is not a failure** (the 2026-10-03 audit). A
+                    // dropped connection, a busy server or a rate limit says
+                    // nothing about the write, and counting them gave up on
+                    // a win posted offline after about a minute of the live
+                    // sync's retries. Those wait, for as long as CloudKit
+                    // asks, and the rest of the queue waits with them.
+                    if let wait = Self.transientWait(error) {
+                        retryAfter = now().addingTimeInterval(wait)
+                        break
+                    }
                     outbox.noteFailure(entry)
                 }
             }
@@ -778,6 +804,23 @@ final class SocialStore {
 
     @ObservationIgnored private var flushing = false
     @ObservationIgnored private var flushAgain = false
+    /// Not before: set by a transient failure.
+    @ObservationIgnored private var retryAfter: Date = .distantPast
+
+    /// How long to wait before trying again, when `error` says nothing about
+    /// the write itself (no network, a busy or limited server, iCloud signed
+    /// out for now). Nil for a real failure, which counts.
+    nonisolated static func transientWait(_ error: Error) -> TimeInterval? {
+        if error is URLError { return 5 }
+        guard let ck = error as? CKError else { return nil }
+        switch ck.code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable,
+             .requestRateLimited, .zoneBusy, .notAuthenticated, .accountTemporarilyUnavailable:
+            return max(ck.retryAfterSeconds ?? 5, 1)
+        default:
+            return nil
+        }
+    }
 
     /// A crew is a window on now, not an archive: anything older than the
     /// crew's previous day, plus two days of grace for a phone that was off,

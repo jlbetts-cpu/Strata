@@ -26,6 +26,13 @@ struct PhotoGalleryGrid: View {
     /// the picture you touched is the picture that opens, and nothing else
     /// moves.
     var transitionNamespace: Namespace.ID?
+    /// Between photographs. 2 is the camera roll's hairline of black.
+    var gutter: CGFloat = 2
+    /// From the screen's edge. 0 is the camera roll, edge to edge.
+    var inset: CGFloat = 0
+    /// A cell's corner, from its side. Nil is square, the camera roll's.
+    var radius: ((CGFloat) -> CGFloat)? = nil
+
     var onSelect: (GalleryPhoto) -> Void = { _ in }
     /// The screen's own title. When the grid is ONE section whose heading
     /// says the same thing ("August" over "AUGUST"), the heading is dropped:
@@ -44,7 +51,8 @@ struct PhotoGalleryGrid: View {
     /// as spacing turns a wall of pictures into a set of cards; the camera
     /// roll's hairline is there only so two photographs of the same colour do
     /// not merge into one.
-    private static let gutter: CGFloat = 2
+    /// The width the cells share: the grid's, less its margins.
+    private var inner: CGFloat { max(gridWidth - inset * 2, 0) }
 
     /// The grid's own width, measured once rather than by a `GeometryReader`
     /// in every cell. See `cell`.
@@ -56,7 +64,7 @@ struct PhotoGalleryGrid: View {
     @Environment(\.displayScale) private var displayScale
 
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: Self.gutter), count: 3)
+        Array(repeating: GridItem(.flexible(), spacing: gutter), count: 3)
     }
 
     var body: some View {
@@ -77,11 +85,12 @@ struct PhotoGalleryGrid: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(sections) { section in
                 Section {
-                    LazyVGrid(columns: columns, spacing: Self.gutter) {
+                    LazyVGrid(columns: columns, spacing: gutter) {
                         ForEach(section.photos) { photo in
                             cell(photo)
                         }
                     }
+                    .padding(.horizontal, inset)
                 } header: {
                     if !Self.headingRepeatsTitle(sections, title: screenTitle) {
                         heading(section)
@@ -93,7 +102,7 @@ struct PhotoGalleryGrid: View {
         .onChange(of: sections, initial: true) { _, now in
             let dropped = prefetcher.update(now.flatMap { $0.photos.map(\.fileName) })
             if !dropped.isEmpty, gridWidth > 0 {
-                ThumbnailStore.shared.cancelPrefetch(dropped, width: (gridWidth - Self.gutter * 2) / 3 * displayScale)
+                ThumbnailStore.shared.cancelPrefetch(dropped, width: (inner - gutter * 2) / 3 * displayScale)
             }
         }
     }
@@ -103,8 +112,8 @@ struct PhotoGalleryGrid: View {
     /// the one the cell finds.
     private func prefetchAhead(of photo: GalleryPhoto) {
         guard gridWidth > 0 else { return }
-        let side = (gridWidth - Self.gutter * 2) / 3
-        let result = prefetcher.appeared(photo.fileName, rowHeight: Double(side + Self.gutter))
+        let side = (inner - gutter * 2) / 3
+        let result = prefetcher.appeared(photo.fileName, rowHeight: Double(side + gutter))
         let pixels = side * displayScale
         if !result.cancel.isEmpty { ThumbnailStore.shared.cancelPrefetch(result.cancel, width: pixels) }
         if !result.ask.isEmpty { ThumbnailStore.shared.prefetch(result.ask, width: pixels) }
@@ -162,9 +171,9 @@ struct PhotoGalleryGrid: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     if gridWidth > 0 {
-                        let side = (gridWidth - Self.gutter * 2) / 3
+                        let side = (inner - gutter * 2) / 3
                         CachedImageView(fileName: photo.fileName, width: side,
-                                        height: side, cornerRadius: 0)
+                                        height: side, cornerRadius: radius?(side) ?? 0)
                             .frame(width: side, height: side)
                     } else {
                         // Before the grid has measured itself: the same

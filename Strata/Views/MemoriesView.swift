@@ -180,9 +180,11 @@ struct MemoriesView: View {
 
                     Section {
                         if pageIsEmpty {
-                            // The copy, and then the real calendar under it.
-                            // See `emptyState`.
-                            emptyState
+                            // **Just the calendar, empty** (2026-10-03). It
+                            // had a sentence over it; an empty month already
+                            // says it is waiting, and the emptiness you then
+                            // fill is the point (the owner: "I love how empty
+                            // the app feels").
                             monthTower
                         } else if pageIsUndecided {
                             // Neither the empty state nor an empty month for
@@ -219,23 +221,26 @@ struct MemoriesView: View {
                         // hands a view a namespace and a play handler says the
                         // view plays things and opens transitions out of them,
                         // and this one draws neither.
-                        MemoriesShelf(albums: vm.carousel,
-                                      onOpenAlbum: { route in
-                                          switch route {
-                                          case .day(let key):     path.append(.day(key))
-                                          case .curated(let key): path.append(.curated(key))
-                                          case .moment(let id):   path.append(.moment(id))
-                                          }
-                                      })
-                            .id("MemoriesShelf")
-                        // Edge to edge. Every other thing on this page is
-                        // inset to the page margin; the camera roll is the one
-                        // that is not, because a photo grid with a margin is a
-                        // set of cards.
-                        PhotoGalleryGrid(sections: vm.gallery,
-                                         transitionNamespace: photoTransition) { photo in
+                        // **One way to see the photographs, not three** (the
+                        // owner, 2026-10-03: "so many different ways of showing
+                        // off the images makes the screen not look as structured
+                        // and clean"). The calendar is the days, and this is the
+                        // pictures, drawn as the calendar is drawn: the page's
+                        // margin, its gap, a block's corner. The carousel of
+                        // curated albums under the calendar is gone.
+                        // **This month's photographs, and only this month's**
+                        // (see `pageHeader`). Untitled: the month is at the top.
+                        let shown = monthPhotos
+                        PhotoGalleryGrid(sections: shown,
+                                         transitionNamespace: photoTransition,
+                                         gutter: GridConstants.spacing,
+                                         inset: GridConstants.horizontalPadding,
+                                         radius: { GridConstants.blockCornerRadius(forCell: $0) },
+                                         onSelect: { photo in
                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
-                        }
+                        },
+                                         screenTitle: shown.first?.title)
+                        .padding(.top, GridConstants.gapSection)
                     }
                 }
                 .padding(.bottom, GridConstants.tabBarClearance)
@@ -555,83 +560,30 @@ struct MemoriesView: View {
     /// memories title", and it is right: a screen that fills the display and
     /// says nothing about itself is a screen you have to remember your way
     /// out of. `Done` is the way out, stated rather than implied by a drag.
+    /// **No title** (the owner, 2026-10-03: "the memories big title would work
+    /// if we used that anywhere else but we dont use titles anywhere else").
+    /// The top of the page is every page's top: two glass buttons in its
+    /// corners and, between them, the one thing that is this page's: the
+    /// month.
+    ///
+    /// **The month governs the whole page** (the owner, 2026-10-03: "if you
+    /// are going to make the october picker dictate the page then it should
+    /// actually dictate the page like things that show should only be from
+    /// that month"): its calendar, then its photographs, and nothing from
+    /// any other month. It does not scroll.
     private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 8) {
-                // **The title says its name and nothing else.**
-                //
-                // It carried a photograph count for an afternoon and the
-                // owner cut it: "the memories section didn't really change
-                // outside of adding photos to the title, which looks bad and
-                // isn't needed." He is right twice over. A number welded to a
-                // drawn wordmark fights it, and the page already had five
-                // other places telling you how much was in it.
-                HStack(alignment: .lastTextBaseline, spacing: GridConstants.gapTight) {
-                    MemoriesTitle(color: AppColors.inkPrimary)
-
-                }
-                Spacer(minLength: 0)
+        ZStack {
+            HStack(spacing: 8) {
                 // **THE MAP, AS A BUTTON.** The owner: "the map would be a
                 // button on the top instead of the Memories sheet being a
                 // button — I think that makes more sense."
-                //
-                // This slot held "Done", which dismissed the page back to the
-                // map it was a drawer over. Now the page is the screen and the
-                // map is the thing you go to, so the same corner does the
-                // opposite job with one fewer concept: there is nothing to come
-                // back FROM, so there is nothing to say Done to.
-                //
-                // **ALWAYS THERE**, and gating it was my own mistake twice over.
-                //
-                // The owner: "make sure you are adding the map button, I still
-                // don't see it in the Memories." It was there — gated on
-                // `vm.pins`, which is empty until a photograph has a PLACE, and
-                // a place only arrives once location has been granted, and the
-                // only screen that asks for location is the map. A closed loop,
-                // and the comment I wrote beside the gate said so in the same
-                // breath as adding it.
-                //
-                // The map opens on its own empty state, which is where the
-                // asking belongs. That is the same reasoning the old
-                // photographs button had written on it, which is how this was
-                // avoidable.
                 GlassIconButton(systemName: "map", onPage: true,
                                 accessibilityLabel: "Map") {
                     path.append(.map)
                 }
-                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
+                Spacer(minLength: 0)
                 ProfileButton { openProfile?() }
-                // Centred on the title's cap by hand. A drawn title is only as
-                // tall as its cap, so a baseline or centre rule against a 44pt
-                // control puts the title 7.6pt below the line every other
-                // header sits on — measured, and recorded in CLAUDE.md.
-                .offset(y: (Typography.screenTitleCap - GlassIconButton.defaultSide) / 2)
             }
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapItem)
-            // **THE MONTH IS IN THE HEADER NOW, AND IT DOES NOT MOVE.**
-            //
-            // The owner: "I don't like that the September dropdown moves — what
-            // is the point of that? Keep it in one place."
-            //
-            // It was a pinned section header, which is a thing that travels up
-            // the page and then sticks. That was right when it governed a tower
-            // somewhere down a long scroll: pinning kept it with the thing it
-            // controls for exactly as long as that thing is on screen. It is
-            // wrong now, because the calendar is the FIRST thing on the page,
-            // so the picker's whole journey is the few points between where it
-            // starts and where it pins — motion with no destination, which
-            // reads as the control being loose.
-            //
-            // In the fixed band it is simply where it is. The page scrolls
-            // under it, which is what the band is for.
-            monthHeader
-                .padding(.bottom, GridConstants.gapTight)
-        }
-    }
-
-    private var monthHeader: some View {
-        HStack(spacing: 0) {
             MonthPicker(
                 title: vm.monthTitle,
                 months: vm.availableMonths,
@@ -642,67 +594,20 @@ struct MemoriesView: View {
                     }
                 }
             )
-            // **ON THE PAGE MARGIN, AND IT WAS 6.** (2026-10-01, check 11d)
-            //
-            // This was `horizontalPadding - 10`, and the comment beside it said
-            // the 10 was "the menu label's own inset, so the WORD lines up with
-            // the title above it". That inset is `gapLabel`, 16, not 10 — the
-            // picker's label is a `glassCapsule` with 16pt of its own horizontal
-            // padding (`MonthPicker`) — so the 10 bought neither alignment: the
-            // word landed at 22 and the CAPSULE, which is the drawn object, at
-            // **6.0**. Measured on the built page, that 6.0 was the leftmost of
-            // ten different left edges on this screen and the one furthest from
-            // the margin (`docs/space.md` §6, clause 11d).
-            //
-            // The capsule is a surface, so the capsule's edge is the band. It
-            // stands on 16 like the title, the replay rows, the album shelf and
-            // every heading on the page; its word sits 16 inside it, which is
-            // what a filled control's label does and is not a margin.
-            .padding(.leading, GridConstants.horizontalPadding)
-
-            // **How much of the month is here.** The design language's §7,
-            // and the count is DAYS rather than wins on purpose: the blocks
-            // under this heading are days, one each, so the number can be
-            // checked against the thing it labels by looking. That is what
-            // §7 means by the structure being visible. The exact win count
-            // belongs to the day's own screen, one tap away, which is the
-            // line `MonthTower.size` already draws ("this ranks days; it does
-            // not measure them").
-            //
-            // `.center`, and the picker is 44pt tall with its label centred
-            // in that, so the two words sit on one line without either of
-            // them depending on a baseline surviving a `frame`.
-            // **And no count here either.** The blocks under this heading
-            // ARE the days, which is the doc's own "structure visible, not
-            // implied": the tower says how many there are by being that many.
-            // A number on top of it is the page narrating itself.
         }
-        .padding(.top, GridConstants.gapTight)
+        .padding(.horizontal, GridConstants.horizontalPadding)
+        .padding(.top, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapTight)
-        // **Above the tower, or its chevrons do not take their own taps.**
-        //
-        // The month blocks are positioned with `.offset`, which moves what is
-        // drawn and not what is laid out, so a block's hit area reaches up
-        // over the picker. Measured off the accessibility tree: the topmost
-        // block's frame was `{17, 120, 182, 242}` and the back chevron's
-        // `{18, 136.7, 44, 44}` — entirely inside it. Pressing `‹` opened a
-        // DAY instead of stepping the month.
-        //
-        // The picker now sits OUTSIDE the scroll view, which clips its own
-        // content, so the tower can no longer reach it at all. This is kept
-        // because it costs nothing and the hazard it guards against is a
-        // silent one — the symptom is a different screen opening, not an
-        // error. `testTheMonthPickerStepsAndStopsAtToday` is the proof.
         .zIndex(1)
     }
 
-    /// The width the month is packed into, and the cell that falls out of it.
-    ///
-    /// Named because two things need the same answer now: the tower draws its
-    /// blocks at this cell and the lattice behind it draws its slots at the
-    /// same one. A lattice a few points out of step with the blocks is worse
-    /// than no lattice, which is the warning `TowerLatticeShape.cellRects`
-    /// already carries.
+    /// The chosen month's photographs, as one untitled section.
+    private var monthPhotos: [GallerySection] {
+        let parts = MemoriesViewModel.mondayCalendar.dateComponents([.year, .month], from: vm.selectedMonth)
+        let key = String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
+        return vm.gallery.filter { $0.id == key }
+    }
+
     private var monthGridWidth: CGFloat {
         UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
     }
@@ -784,105 +689,6 @@ struct MemoriesView: View {
             .id(vm.monthTitle)
             .transition(.opacity)
         }
-    }
-
-    /// What this page says before there is anything on it.
-    ///
-    /// **Show the shape of the thing that is missing**, which is still the
-    /// right instruction and used to be followed with a drawing of the wrong
-    /// thing. The calendar under this copy is the shape, so nothing here has
-    /// to draw one.
-    private var emptyState: some View {
-        // **A SUBHEAD, NOT A POSTER.**
-        //
-        // It was a centred cluster of four dashed ghost blocks packed the way
-        // the month tower used to pack them, with a centred headline and a
-        // centred sentence under it, 72pt down an otherwise blank page. Three
-        // things were wrong at once.
-        //
-        // The ghosts drew a packed tower, and this page is a calendar. The
-        // empty state was still advertising the design it had replaced.
-        //
-        // The dash was the wrong vocabulary HERE, and the sentence that stood
-        // here said the app does not have one at all, which is false
-        // (corrected 2026-10-01, `docs/consistency-audit.md` §2.3 — the same
-        // claim is live in `AddWinSheet`, whose version is "The dash exists
-        // nowhere else in this app").
-        //
-        // Three dashed outlines ship: the replay's loading slot, the empty
-        // plan's ghost bullet, and the head outline over the viewfinder.
-        // `ReplayView` states the rule the other two should have cited: "the
-        // real slot is a thing you press and a continuous hairline is a boundary
-        // you can aim at, while this is a thing you wait for, and a dash is how
-        // this app says not yet." That is a coherent vocabulary, and the next
-        // pass that reads one of these sentences would delete a dash carrying a
-        // meaning.
-        //
-        // **What was wrong here is that a month is not a thing you wait for.**
-        // The tower's slot is a solid stroke and the calendar's empty days are
-        // solid wells, and the real calendar sits directly under this copy, so
-        // the dash was drawing a promise of something that is already on screen.
-        //
-        // And it was centred on a page whose title, picker and calendar all
-        // start at 16. Centred copy on a left aligned page is two alignment
-        // systems on one screen, and the same fault the empty tower had.
-        //
-        // So the art is deleted rather than redrawn: the real calendar sits
-        // under this copy and shows a real empty month, which is a better
-        // promise of the thing than a drawing of a different thing. This is
-        // what is left, and it is the page's one sentence on its own margin.
-        //
-        // **AND NOW IT IS ONE LINE.** (`docs/copy-audit.md` cut 11.) The second
-        // line read "Every win you log becomes a block, and they collect here by
-        // month." — thirteen words restating onboarding page 1 ("Finish
-        // something and it becomes a block"), under a line that already makes
-        // the promise, over a real empty calendar that makes it again. The
-        // paragraph above is the argument: a drawing of the thing loses to the
-        // thing, and a sentence describing the calendar loses to the calendar
-        // under it. The owner, the same afternoon: "the areas are very self
-        // explanitory and I think over explaining components loses the charm."
-        //
-        // What is left is one medium-weight line on the page's own margin, which
-        // is what he asked the app's text to be.
-        // **CHECK 11c FAILS HERE AND THE FIX WAS REFUSED, SO IT IS WRITTEN DOWN**
-        // (2026-10-02). Measured on `/tmp/c2/light/m0-memories-none.png` and
-        // `m1-memories-one.png` at 402x874:
-        //
-        //     empty     78.7% of rows empty, biggest break 281pt at y510-791
-        //     one win   74.9% of rows empty, biggest break 325pt at y466-791
-        //
-        // y791 is the tab bar. So on both states the page's largest run of air
-        // falls AFTER its last band of content, with nothing but the app's own
-        // chrome below it, and 11c says "the air is between things, not after
-        // them. A tab bar is not the second band."
-        //
-        // **The obvious fix is to move this line BELOW the calendar**, which
-        // would put the break between two pieces of content and turn the clause
-        // green. It is refused, for the reason the Plan sheet's invitation was
-        // put back on row one the same week: a figure moved to satisfy a
-        // measurement is "a picture of a row instead of the row", and **the one
-        // that measured best was the one that looked worst**. This sentence is
-        // the page's opening statement; it belongs where you start reading,
-        // above the thing it is about.
-        //
-        // **And it cannot be fixed by adding something**, which is the other
-        // route: everything that would sit under the calendar — the replay row,
-        // the collections shelf, the camera roll — is deliberately not drawn
-        // when there is nothing finished ("no heading over a gap"). Drawing a
-        // placeholder for them is the dashed-ghost empty state this screen
-        // already deleted.
-        //
-        // So Memories grades **9/10 at none and at one win**, failing 11c, and
-        // 10/10 from the first finished week onward (`m3`, biggest break 71.3pt,
-        // between the calendar and the collections shelf). That is the honest
-        // shape of it: this clause is about a page with content on it, and the
-        // first week is when this page has any.
-        Text("Your first month starts here")
-            .font(Typography.headerMedium)
-            .foregroundStyle(AppColors.inkPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.top, GridConstants.gapWide)
     }
 }
 
