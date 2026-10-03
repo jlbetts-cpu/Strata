@@ -185,7 +185,9 @@ struct CrewTowerView: View {
             #endif
             rebuild()
             store.markSeen(crewID)
+            openWinFromNotification()
         }
+        .onChange(of: CrewRouter.shared.openWin) { _, _ in openWinFromNotification() }
         .onChange(of: store.today(in: crewID)) { _, _ in
             rebuild()
             store.markSeen(crewID)
@@ -267,6 +269,18 @@ struct CrewTowerView: View {
         }
         if store.myReaction(to: id, in: crewID) != Reaction.doubleTap {
             Task { await store.react(Reaction.doubleTap, to: id, in: crewID) }
+        }
+    }
+
+    /// A tapped notification named a win: open it in the carousel, as a tap
+    /// on its block would, once it is here.
+    private func openWinFromNotification() {
+        guard let id = CrewRouter.shared.openWin,
+              store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
+        CrewRouter.shared.openWin = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            viewing = id.uuidString
         }
     }
 

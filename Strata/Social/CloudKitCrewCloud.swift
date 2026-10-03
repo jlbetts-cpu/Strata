@@ -219,12 +219,29 @@ final class CloudKitCrewCloud: CrewCloud {
 
     func fetchWins(in crew: CrewID) async throws -> [SharedWin] {
         (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.sharedWin.rawValue + "/") }
-            .values.compactMap { CrewRecords.sharedWin($0, crew: crew) }
+            .values.compactMap { fields in
+                CrewRecords.sharedWin(fields, crew: crew).flatMap { authentic(fields, as: $0.senderProfileID, in: crew) ? $0 : nil }
+            }
     }
 
     func fetchReactions(in crew: CrewID) async throws -> [Reaction] {
         (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.reaction.rawValue + "/") }
-            .values.compactMap { CrewRecords.reaction($0, crew: crew) }
+            .values.compactMap { fields in
+                CrewRecords.reaction(fields, crew: crew).flatMap { authentic(fields, as: $0.profileID, in: crew) ? $0 : nil }
+            }
+    }
+
+    /// **Whether a record was written by the person it says it is from.**
+    /// A member can write to the crew's zone, and the sender on a win is a
+    /// field the app fills in, so a changed app could post as someone else
+    /// (the 2026-10-03 audit). CloudKit records who really wrote each record;
+    /// a win or a reaction whose writer is not the writer of that person's
+    /// own Member record is dropped. A record not yet synced (one of this
+    /// phone's own, just saved) carries no writer and is trusted: it is ours.
+    private func authentic(_ fields: RecordFields, as profileID: UUID, in crew: CrewID) -> Bool {
+        guard let writer = fields[Self.creatorKey]?.string,
+              let member = account(of: profileID, in: crew) else { return true }
+        return writer == member
     }
 
     // MARK: Records
@@ -345,7 +362,10 @@ final class CloudKitCrewCloud: CrewCloud {
                 // Who wrote a Member record is how a profile id is matched to
                 // a share participant when someone is removed. Kept in the
                 // cache only; `save` writes the type's own keys and no other.
-                if type == .member, let creator = record.creatorUserRecordID {
+                // Kept for EVERY record now, not only members: a win or a
+                // reaction is checked against the member it claims to be
+                // from (`authentic`).
+                if let creator = record.creatorUserRecordID {
                     fields[Self.creatorKey] = .string(creator.recordName)
                 }
                 cache[crew, default: [:]]["\(type.rawValue)/\(id.recordName)"] = fields

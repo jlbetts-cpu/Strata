@@ -9,9 +9,9 @@ DEFINE SCHEMA
         "___modTime"    TIMESTAMP,
         "___modifiedBy" REFERENCE,
         "___recordID"   REFERENCE QUERYABLE,
-        account STRING QUERYABLE,
-        reason  STRING,
-        GRANT CREATE, WRITE TO "Moderator",
+        account         STRING QUERYABLE,
+        reason          STRING,
+        GRANT CREATE, WRITE TO Moderator,
         GRANT READ TO "_world"
     );
 
@@ -85,18 +85,17 @@ DEFINE SCHEMA
         "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
         "___modifiedBy" REFERENCE,
         "___recordID"   REFERENCE QUERYABLE,
-        crew          STRING,
-        photo         ASSET,
-        reason        STRING,
-        reporter      STRING,
-        sender        STRING,
-        senderAccount STRING,
-        title         STRING,
-        winID         STRING,
-        GRANT WRITE TO "_creator",
-        GRANT CREATE TO "_icloud",
-        GRANT READ TO "_creator",
-        GRANT READ TO "Moderator"
+        crew            STRING,
+        photo           ASSET,
+        reason          STRING,
+        reporter        STRING,
+        sender          STRING,
+        senderAccount   STRING,
+        title           STRING,
+        winID           STRING,
+        GRANT READ TO Moderator,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud"
     );
 
     RECORD TYPE SharedWin (
@@ -129,7 +128,7 @@ DEFINE SCHEMA
         "___etag"       STRING,
         "___modTime"    TIMESTAMP,
         "___modifiedBy" REFERENCE,
-        "___recordID"   REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
         roles           LIST<INT64>,
         GRANT WRITE TO "_creator",
         GRANT READ TO "_world"

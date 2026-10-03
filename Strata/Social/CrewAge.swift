@@ -25,6 +25,21 @@ nonisolated enum CrewAge: String, Sendable {
 
     static func save(_ age: CrewAge) {
         UserDefaults.standard.set(age.rawValue, forKey: key)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: askedKey)
+    }
+
+    static let askedKey = "crews.ageAskedAt"
+
+    /// **Asked again, now and then.** An answer was kept for ever, so someone
+    /// who declined to share, or a fifteen-year-old who has since turned
+    /// sixteen, stayed held back for good (the 2026-10-03 audit). Anything
+    /// short of a confirmed adult is asked again after ninety days.
+    static func needsAsking(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let age = CrewAge(rawValue: defaults.string(forKey: key) ?? "") ?? .unknown
+        guard age != .unknown else { return true }
+        guard age != .adult else { return false }
+        let asked = Date(timeIntervalSince1970: defaults.double(forKey: askedKey))
+        return now.timeIntervalSince(asked) > 90 * 86_400
     }
 
     var opensCrews: Bool { self != .under13 }

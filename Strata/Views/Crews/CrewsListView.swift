@@ -1,3 +1,4 @@
+import CloudKit
 import DeclaredAgeRange
 import PhotosUI
 import SwiftUI
@@ -22,6 +23,7 @@ struct CrewsListView: View {
     private var store: SocialStore { SocialStore.shared }
 
     @State private var age = CrewAge.current
+    @State private var signedOut = false
 
     var body: some View {
         Group {
@@ -192,17 +194,37 @@ struct CrewsListView: View {
     private var empty: some View {
         VStack(spacing: GridConstants.gapWide) {
             Spacer()
-            Text("Start a crew. Just the people you'd tell anyway.")
-                .font(Typography.headerMedium)
-                .foregroundStyle(AppColors.inkPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, GridConstants.gapSection)
-            PrimaryCapsule(title: "New Crew") { startsCrew = true }
+            // **Signed out of iCloud, said first** (the 2026-10-03 audit). A
+            // crew lives in your iCloud, and the page offered New Crew and
+            // only failed once you had pressed it.
+            if signedOut {
+                Text("Crews are shared through iCloud. Sign in to iCloud in Settings to start one.")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, GridConstants.gapSection)
+                PrimaryCapsule(title: "Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }
                 .frame(maxWidth: 240)
+            } else {
+                Text("Start a crew. Just the people you'd tell anyway.")
+                    .font(Typography.headerMedium)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, GridConstants.gapSection)
+                PrimaryCapsule(title: "New Crew") { startsCrew = true }
+                    .frame(maxWidth: 240)
+            }
             Spacer()
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .task {
+            guard let cloud = store.cloud as? CloudKitCrewCloud else { return }
+            let status = try? await cloud.container.accountStatus()
+            signedOut = status != .available
+        }
     }
 }
 
@@ -429,7 +451,7 @@ private struct AskAgeOnce: ViewModifier {
 
         func body(content: Content) -> some View {
             content.task {
-                guard age == .unknown else { return }
+                guard CrewAge.needsAsking() else { return }
                 let answer: CrewAge
                 do {
                     switch try await requestAgeRange(ageGates: 13, 16) {

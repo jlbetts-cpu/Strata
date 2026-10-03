@@ -97,7 +97,7 @@ enum CrewNotifications {
             content.title = text.title
             content.body = text.body
             content.threadIdentifier = win.crewID.rawValue
-            content.userInfo = ["crew": win.crewID.rawValue]
+            content.userInfo = ["crew": win.crewID.rawValue, "win": win.winID.uuidString]
             content.sound = .default
             if let photo = win.photo, let attachment = attachment(photo) {
                 content.attachments = [attachment]
@@ -151,7 +151,7 @@ enum CrewNotifications {
             content.title = crew.displayName(excluding: store.me)
             content.body = Text.reacted(reaction, to: win, in: crew)
             content.threadIdentifier = crew.id.rawValue
-            content.userInfo = ["crew": crew.id.rawValue]
+            content.userInfo = ["crew": crew.id.rawValue, "win": win.winID.uuidString]
             content.sound = .default
             try? await UNUserNotificationCenter.current().add(
                 UNNotificationRequest(identifier: "reaction-" + reaction.id, content: content, trigger: nil))

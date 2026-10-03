@@ -203,6 +203,8 @@ struct FlippableBlockView: View {
             }
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop,
                        value: block.look.reactionEmoji)
+            .modifier(CrewBlockSpeech(look: block.look, isCrew: onDoubleTap != nil,
+                                      open: onTap, react: onLongPress))
     }
 
     @ViewBuilder
@@ -355,5 +357,39 @@ struct ReactionBadge: View {
         .accessibilityLabel((count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
                                         : "\(count) reactions, \(emoji.joined(separator: " "))")
                             + (mine ? ", yours among them" : ""))
+    }
+}
+
+
+/// **A crew block, said aloud** (the 2026-10-03 audit). Whose win it is, what,
+/// and how many reacted, as one element; Open and React as actions, because
+/// a hold and a double tap are gestures VoiceOver users cannot make. Your own
+/// tower's blocks are left as they were.
+private struct CrewBlockSpeech: ViewModifier {
+    let look: PlacedBlock.Look
+    let isCrew: Bool
+    var open: (() -> Void)?
+    var react: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if isCrew {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { open?() }
+                .accessibilityAction(named: "React") { react?() }
+        } else {
+            content
+        }
+    }
+
+    private var label: String {
+        let who = look.sender.map { "\($0)'s win" } ?? "Your win"
+        let what = look.title.isEmpty ? (look.hasPhoto ? "a photo" : "untitled") : look.title
+        let reactions = look.reactionCount == 0 ? ""
+            : (look.reactionCount == 1 ? ", 1 reaction" : ", \(look.reactionCount) reactions")
+        let yours = look.myReaction.map { ", you reacted \($0)" } ?? ""
+        return "\(who), \(what)\(reactions)\(yours)"
     }
 }

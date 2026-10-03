@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import Observation
 import UIKit
+import UserNotifications
 import os
 
 /// Your crews, today's shared wins in each, and every write still on its way.
@@ -445,6 +446,14 @@ final class SocialStore {
     func withdrawEverything() async {
         guard isEnabled() else { return }
         for id in everythingSent { await deleteEverywhere(winID: id) }
+        // And every reaction you gave, in every crew.
+        for (crewID, reactions) in reactionsByCrew {
+            for reaction in reactions where reaction.profileID == me {
+                enqueue(.init(crew: crewID, type: .reaction, name: reaction.id, fields: nil))
+            }
+            reactionsByCrew[crewID]?.removeAll { $0.profileID == me }
+        }
+        await flush()
         await shareMyself()
     }
 
@@ -490,6 +499,11 @@ final class SocialStore {
         if crew.isOwner(me) { return try await end(crewID) }
         for win in winsByCrew[crewID] ?? [] where win.senderProfileID == me {
             try await cloud.delete(type: .sharedWin, name: CrewRecords.name(of: win), in: crewID)
+        }
+        // Your reactions leave with you as well (the 2026-10-03 audit: they
+        // stayed on your friends' wins after you had gone).
+        for reaction in reactionsByCrew[crewID] ?? [] where reaction.profileID == me {
+            try? await cloud.delete(type: .reaction, name: reaction.id, in: crewID)
         }
         try await cloud.delete(type: .member, name: me.uuidString, in: crewID)
         try await cloud.leave(crewID)
@@ -856,6 +870,20 @@ final class SocialStore {
         seen[crewID.rawValue] = now().timeIntervalSince1970
         defaults.set(seen, forKey: Self.lastSeenKey)
         unread.remove(crewID)
+        // Read on screen: its notifications leave the lock screen and the
+        // badge counts one fewer crew (the 2026-10-03 audit).
+        if announces {
+            CrewNotifications.removeDelivered(for: crewID)
+            updateBadge()
+        }
+    }
+
+    /// The app's badge: how many crews have something new. Only the phone's
+    /// own store sets it; a test's never does.
+    private func updateBadge() {
+        guard announces else { return }
+        let count = unread.count
+        Task { try? await UNUserNotificationCenter.current().setBadgeCount(count) }
     }
 
     private static let lastSeenKey = "crews.lastSeen"
@@ -880,6 +908,7 @@ final class SocialStore {
             return newWin || newReaction ? crew.id : nil
         })
         if unread != fresh { unread = fresh }
+        updateBadge()
     }
 
     // MARK: Alerts

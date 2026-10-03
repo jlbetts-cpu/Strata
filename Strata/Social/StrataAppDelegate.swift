@@ -14,6 +14,9 @@ final class CrewRouter {
     static let shared = CrewRouter()
     /// The crew to open. Cleared by whoever opens it.
     var open: CrewID?
+    /// The win to open in it, when a notification about one was tapped.
+    /// Cleared by the crew's tower when it has opened it.
+    var openWin: UUID?
     /// Something went wrong joining, in words a person can read.
     var joinProblem: String?
 }
@@ -36,11 +39,16 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         return true
     }
 
-    /// A crew notification tapped: open that crew.
+    /// A crew notification tapped: open that crew, at the win it was about.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
-        guard let raw = response.notification.request.content.userInfo["crew"] as? String else { return }
-        await MainActor.run { CrewRouter.shared.open = CrewID(rawValue: raw) }
+        let info = response.notification.request.content.userInfo
+        guard let raw = info["crew"] as? String else { return }
+        let win = (info["win"] as? String).flatMap(UUID.init(uuidString:))
+        await MainActor.run {
+            CrewRouter.shared.openWin = win
+            CrewRouter.shared.open = CrewID(rawValue: raw)
+        }
     }
 
     /// In the app, a crew's notification still shows as a banner (the crew on
