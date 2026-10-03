@@ -1771,7 +1771,7 @@ struct CameraView: View {
         // flash is what raises it. So the front camera fires as fast as the
         // back one.
         Task { @MainActor in
-            camera.capture { image in
+            camera.capture { image in Task { @MainActor in
                 guard let image else {
                     // No photograph, so nothing was drawn for. Leaving the
                     // shutter wide would make the NEXT shot inherit a size
@@ -1780,6 +1780,15 @@ struct CameraView: View {
                     return
                 }
                 HapticsEngine.success()
+                // **What the viewfinder showed, and you at your best.** Cut to
+                // the viewfinder's own shape (the preview fills its frame from
+                // a wider sensor), then each face gently polished; both off
+                // the main thread, and the review shows the result.
+                let bounds = previewBox.layer?.bounds.size ?? .zero
+                let aspect = bounds.height > 0 ? bounds.width / bounds.height : 0
+                let finished = await Task.detached(priority: .userInitiated) {
+                    PortraitPolish.apply(to: PortraitPolish.cropped(image, toAspect: aspect))
+                }.value
                 // Nothing is kept yet.
                 //
                 // The camera roll used to be written HERE, before anything was
@@ -1787,8 +1796,8 @@ struct CameraView: View {
                 // a shot and became a bug the moment there was: every photo
                 // you retook would already be in your library. It happens on
                 // "Use Photo" now.
-                withAnimation(GridConstants.motionSnappy) { review = image }
-            }
+                withAnimation(GridConstants.motionSnappy) { review = finished }
+            } }
         }
     }
 }

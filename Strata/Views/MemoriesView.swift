@@ -31,6 +31,7 @@ struct MemoriesView: View {
     @Environment(\.displayScale) private var displayScale
     /// Whether a cover above this page has put its heads to sleep.
     @Environment(\.headsAwake) private var coveringHeadsAwake
+    @AppStorage("memoriesPhotosOpen") private var photosOpen = false
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
@@ -231,16 +232,24 @@ struct MemoriesView: View {
                         // **This month's photographs, and only this month's**
                         // (see `pageHeader`). Untitled: the month is at the top.
                         let shown = monthPhotos
-                        PhotoGalleryGrid(sections: shown,
-                                         transitionNamespace: photoTransition,
-                                         gutter: GridConstants.spacing,
-                                         inset: GridConstants.horizontalPadding,
-                                         radius: { GridConstants.blockCornerRadius(forCell: $0) },
-                                         onSelect: { photo in
-                            viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
-                        },
-                                         screenTitle: shown.first?.title)
-                        .padding(.top, GridConstants.gapSection)
+                        let count = shown.reduce(0) { $0 + $1.photos.count }
+                        if count > 0 {
+                            photosToggle(count)
+                                .padding(.top, GridConstants.gapSection)
+                            if photosOpen {
+                                // The camera roll, edge to edge, as it was:
+                                                // opened, it reads as the photos, not as
+                                                // more blocks (the owner, 2026-10-03).
+                                PhotoGalleryGrid(sections: shown,
+                                                 transitionNamespace: photoTransition,
+                                                 onSelect: { photo in
+                                    viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
+                                },
+                                                 screenTitle: shown.first?.title)
+                                .padding(.top, GridConstants.gapTight)
+                                .transition(.opacity.combined(with: .offset(y: -8)))
+                            }
+                        }
                     }
                 }
                 .padding(.bottom, GridConstants.tabBarClearance)
@@ -599,6 +608,33 @@ struct MemoriesView: View {
         .padding(.top, GridConstants.gapItem)
         .padding(.bottom, GridConstants.gapTight)
         .zIndex(1)
+    }
+
+    /// **The month's photographs, folded under the calendar** (the owner,
+    /// 2026-10-03: "make the photos dropdown so the calendar gets its air...
+    /// not super noticable or ugly"). One quiet line, the count and a
+    /// chevron in the secondary ink, no glass and no rule: the calendar keeps
+    /// the page, and the photos are a tap away. Remembered.
+    private func photosToggle(_ count: Int) -> some View {
+        Button {
+            HapticsEngine.tick()
+            withAnimation(GridConstants.motionSnappy) { photosOpen.toggle() }
+        } label: {
+            HStack(spacing: GridConstants.gapTight) {
+                Text(count == 1 ? "1 Photo" : "\(count) Photos")
+                    .font(Typography.screenSubtitle)
+                Image(systemName: "chevron.down")
+                    .iconSize(GridConstants.iconChevron, relativeTo: .subheadline, weight: .semibold)
+                    .rotationEffect(.degrees(photosOpen ? 180 : 0))
+            }
+            .foregroundStyle(AppColors.inkSecondary)
+            .frame(minHeight: 44)
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel(count == 1 ? "1 photo" : "\(count) photos")
+        .accessibilityHint(photosOpen ? "Hides them." : "Shows them.")
     }
 
     /// The chosen month's photographs, as one untitled section.
