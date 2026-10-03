@@ -15,6 +15,14 @@ the design below, both deliberate:
   crew notifications when it next opens. Hide Alerts drops them entirely,
   which the extension design could not.
 
+**Reactions, added 2026-10-02 at the owner's word**, reversing the brief's
+"no likes": one per person per win (a Tapback), sent as a `Reaction` record
+(`winID profileID emoji createdAt`). Double-tap a friend's block for ❤️; the
+Apollo Figma bar (+ 🔥 👑 ❤️) on a win's sheet and in the photo viewer; the
+system emoji keyboard behind +. Still no replies, comments or counts compared
+between people. Per crew: Mute (1 hour, 8 hours, 1 week, always) and a
+separate switch for reactions to your wins.
+
 Before the flag can be on: the Push Notifications, Sensitive Content Analysis
 and Declared Age Range capabilities on the app ID, their entitlements, and a
 new App Store profile; the `Report` record type's permissions in the CloudKit

@@ -92,6 +92,8 @@ measurement beside it.
 | **A crew starts with a photo**; no colour or faces choice (13 to 15 keep faces) | 2026-10-02 | "I think the groups should need to be a photo... the photo would mean more and be more social" |
 | The right of a crew's header is **+ Add a win here**, not Add People | 2026-10-02 | "change the add button on the right because its already in the menu" |
 | A crew block with a photo opens **the same viewer a past day's block does** | 2026-10-02 | "clicking on a block should have the same effect as clicking on a previous day" |
+| **Reactions**: double-tap a friend's block for ❤️; the Figma bar + 🔥 👑 ❤️ where a tap leads; one per person per win | 2026-10-02 | "adding a way to like it by double tapping the win with clear visual and animation"; the bar is his Apollo Figma frame 12839:5135 |
+| **Mute a crew** for 1 hour, 8 hours, 1 week or until turned back on; reactions have their own switch | 2026-10-02 | "make sure there is a way to mute chats turn on notifications all the necessary things" |
 | Inviting is the **system share sheet** as a collaboration, not a contact picker of ours | 2026-10-02 | his "invite people from your contacts", met by the platform's own sheet: contacts first, and Messages carries the invitation |
 
 ### The blocks and the tower
