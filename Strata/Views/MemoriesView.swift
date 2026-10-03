@@ -33,7 +33,6 @@ struct MemoriesView: View {
     @Environment(\.headsAwake) private var coveringHeadsAwake
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
     @State private var monthStep = 0
-    @AppStorage("memoriesPhotosOpen") private var photosOpen = false
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
@@ -171,31 +170,26 @@ struct MemoriesView: View {
                         max(length - GridConstants.gapTight, 0)
                     }
 
-                    // Under the fold: the photos are a scroll away, the line
-                    // that opens them just showing under the tab bar's glass.
+                    // Under the fold: the photos are a scroll away, their
+                    // count just showing under the tab bar's glass. Always
+                    // there: a fold hid them for nothing (the owner,
+                    // 2026-10-03: "i dont think theres a point to closing
+                    // them at all").
                     if !pageIsEmpty, count > 0 {
-                        photosToggle(count)
+                        photosCaption(count)
                             .padding(.top, GridConstants.gapSection)
-                        do {
-                            if photosOpen {
-                                // The camera roll, edge to edge, as it was:
-                                                // opened, it reads as the photos, not as
-                                                // more blocks (the owner, 2026-10-03).
-                                PhotoGalleryGrid(sections: shown,
-                                                 transitionNamespace: photoTransition,
-                                                 onSelect: { photo in
-                                    viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
-                                },
-                                                 screenTitle: shown.first?.title)
-                                .padding(.top, GridConstants.gapTight)
-                                .transition(.opacity.combined(with: .offset(y: -8)))
-                            }
-                        }
+                        // The camera roll, edge to edge: it reads as the
+                        // photos, not as more blocks (the owner, 2026-10-03).
+                        PhotoGalleryGrid(sections: shown,
+                                         transitionNamespace: photoTransition,
+                                         onSelect: { photo in
+                                             viewing = ViewedPhoto(id: photo.fileName, title: photo.title)
+                                         },
+                                         screenTitle: shown.first?.title)
+                            .padding(.top, GridConstants.gapTight)
                     }
                 }
-                // Room under the photos for the tab bar, only when they are
-                // open; closed, the page is exactly one screen and does not
-                // scroll.
+                // Room under the photos for the tab bar.
                 .padding(.bottom, GridConstants.tabBarClearance)
                 .id("MemoriesContent")
             }
@@ -555,31 +549,18 @@ struct MemoriesView: View {
         .zIndex(1)
     }
 
-    /// **The month's photographs, folded under the calendar** (the owner,
-    /// 2026-10-03: "make the photos dropdown so the calendar gets its air...
-    /// not super noticable or ugly"). One quiet line, the count and a
-    /// chevron in the secondary ink, no glass and no rule: the calendar keeps
-    /// the page, and the photos are a tap away. Remembered.
-    private func photosToggle(_ count: Int) -> some View {
-        Button {
-            HapticsEngine.tick()
-            withAnimation(GridConstants.motionSnappy) { photosOpen.toggle() }
-        } label: {
-            HStack(spacing: GridConstants.gapTight) {
-                Text(count == 1 ? "1 Photo" : "\(count) Photos")
-                    .font(Typography.screenSubtitle)
-                Image(systemName: "chevron.down")
-                    .iconSize(GridConstants.iconChevron, relativeTo: .subheadline, weight: .semibold)
-                    .rotationEffect(.degrees(photosOpen ? 180 : 0))
-            }
+    /// **The month's photographs, under the calendar.** One quiet line, the
+    /// count in the secondary ink, no glass and no rule: the calendar keeps
+    /// the screen, and the photos are a scroll away. It was a fold with a
+    /// chevron; the owner, 2026-10-03, "make the photos expanded by default...
+    /// actually i dont think theres a point to closing them at all".
+    private func photosCaption(_ count: Int) -> some View {
+        Text(count == 1 ? "1 Photo" : "\(count) Photos")
+            .font(Typography.screenSubtitle)
             .foregroundStyle(AppColors.inkSecondary)
             .frame(minHeight: 44)
             .padding(.horizontal, GridConstants.horizontalPadding)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressWord)
-        .accessibilityLabel(count == 1 ? "1 photo" : "\(count) photos")
-        .accessibilityHint(photosOpen ? "Hides them." : "Shows them.")
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// **The recap, as one glass button beside Profile.** One recap ready:
