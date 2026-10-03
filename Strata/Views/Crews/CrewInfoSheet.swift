@@ -20,6 +20,12 @@ struct CrewInfoSheet: View {
     @State private var problem: String?
     @FocusState private var editingName: Bool
     @State private var systemOff = false
+    @State private var reportingMember: CrewMember?
+    @State private var blockingMember: CrewMember?
+    @State private var removingMember: CrewMember?
+    @State private var reportingCrew = false
+    /// A report just went: say so.
+    @State private var thanked = false
     /// A crew day playing, presented from the page rather than a List row.
     @State private var replay: Replay?
 
@@ -52,6 +58,7 @@ struct CrewInfoSheet: View {
                     } footer: {
                         Text("Up to 8 people. Everyone here sees the wins sent to this crew today.")
                     }
+                    .listRowSeparator(.hidden)
                     Section {
                         Toggle(isOn: Binding(get: { store.showsHeads(crewID) },
                                              set: { on in withAnimation(GridConstants.motionSnappy) { store.setShowsHeads(on, for: crewID) } })) {
@@ -63,8 +70,24 @@ struct CrewInfoSheet: View {
                         Text(store.showsHeads(crewID) ? "Everyone's heads live on this crew's tower."
                                                      : "Only the wins, on your phone. Nobody else is told.")
                     }
+                    .listRowSeparator(.hidden)
                     notifications
+                    blockedSection
                     Section {
+                        Button("Report Crew", role: .destructive) { reportingCrew = true }
+                            .font(Typography.bodyLarge)
+                            .confirmationDialog("Report this crew?", isPresented: $reportingCrew, titleVisibility: .visible) {
+                                ForEach(CrewSafety.Reason.allCases) { reason in
+                                    Button(reason.words) {
+                                        Task {
+                                            await CrewSafety.report(.crew(crew), in: crewID, reason: reason)
+                                            thanked = true
+                                        }
+                                    }
+                                }
+                            } message: {
+                                Text("Its name or picture. Your report goes to Some Wins and nobody in the crew is told.")
+                            }
                         Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { confirmsLeave = true }
                             .font(Typography.bodyLarge)
                             // **On the button, not the List.** iOS 26 draws a
@@ -76,9 +99,10 @@ struct CrewInfoSheet: View {
                                 Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { leave() }
                             }
                     } footer: {
-                        Text(isOwner ? "Ending the crew removes it, and every win in it, for everyone."
-                                     : "Your wins leave the crew with you.")
+                        Text(isOwner ? "Ending the crew removes it, and every win in it, for everyone. A crew can't be handed to someone else."
+                                     : "Your wins and reactions leave the crew with you.")
                     }
+                    .listRowSeparator(.hidden)
                 }
                 // No rules between rows: a card's rows are told apart by
                 // their room, as everywhere else in the app (2026-10-03).
@@ -93,12 +117,21 @@ struct CrewInfoSheet: View {
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
+                .alert("Thanks for telling us", isPresented: $thanked) {
+                    Button("Done", role: .cancel) {}
+                } message: {
+                    Text("Every report is looked at within a day.")
+                }
                 .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
                     Button("OK", role: .cancel) {}
                 } message: {
                     Text(problem ?? "")
                 }
                 .onAppear { name = crew.name }
+                // Saved however the page is left, a swipe down included: only
+                // Done and Return saved it, so a swipe threw the edit away.
+                .onDisappear { commitName() }
+                .onChange(of: editingName) { _, editing in if !editing { commitName() } }
                 .onChange(of: pickerItem) { _, item in
                     guard let item else { return }
                     Task {
@@ -169,6 +202,7 @@ struct CrewInfoSheet: View {
             Text(store.isMuted(crewID) ? "Nothing from this crew until the mute ends. Its wins still arrive."
                                        : "A notification for every win, and for reactions to yours.")
         }
+        .listRowSeparator(.hidden)
         .task {
             systemOff = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .denied
         }
@@ -203,7 +237,11 @@ struct CrewInfoSheet: View {
                     }
                     .accessibilityLabel("Change the crew's photo")
                 }
-                TextField(crew.displayName(excluding: store.me), text: $name)
+                // The placeholder is what an EMPTY name shows, the people's
+                // names: it used to be the current name, so clearing the
+                // field looked like it had put the old name back (the owner,
+                // 2026-10-03).
+                TextField(unnamed(crew).displayName(excluding: store.me), text: $name)
                     .font(Typography.headerMedium)
                     .multilineTextAlignment(.center)
                     .submitLabel(.done)
@@ -223,6 +261,7 @@ struct CrewInfoSheet: View {
             .frame(maxWidth: .infinity)
             .listRowBackground(Color.clear)
         }
+        .listRowSeparator(.hidden)
     }
 
     private func members(_ crew: Crew) -> [CrewMember] {
@@ -250,21 +289,101 @@ struct CrewInfoSheet: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .swipeActions {
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        // **A tap on someone: what you can do about them**, said plainly
+        // (the 2026-10-03 audit: Report and Block hid in a swipe nobody
+        // finds, and a block happened without a word). Report covers the
+        // person, their name, photo and head; each choice asks first.
+        .overlay {
             if !isMe {
-                if isOwner {
-                    Button("Remove", role: .destructive) {
-                        Task {
-                            do { try await store.remove(member: member.profileID, from: crewID) }
-                            catch { problem = "They could not be removed. Try again in a moment." }
+                Menu {
+                    Button("Report", systemImage: "exclamationmark.bubble") { reportingMember = member }
+                    if !store.blocked.contains(member.profileID) {
+                        Button("Block", systemImage: "nosign", role: .destructive) { blockingMember = member }
+                    }
+                    if isOwner {
+                        Button("Remove from Crew", systemImage: "person.badge.minus", role: .destructive) {
+                            removingMember = member
                         }
                     }
+                } label: {
+                    Color.clear.contentShape(Rectangle())
                 }
-                Button("Block") {
-                    Task { await CrewSafety.block(member.profileID, from: crewID) }
+                .accessibilityLabel("Options for \(member.firstName.isEmpty ? "this person" : member.firstName)")
+            }
+        }
+        .confirmationDialog("Report \(member.shortName.isEmpty ? "this person" : member.shortName)?",
+                            isPresented: Binding(get: { reportingMember?.profileID == member.profileID },
+                                                 set: { if !$0 { reportingMember = nil } }),
+                            titleVisibility: .visible) {
+            ForEach(CrewSafety.Reason.allCases) { reason in
+                Button(reason.words) {
+                    Task {
+                        await CrewSafety.report(.person(member), in: crewID, reason: reason)
+                        thanked = true
+                    }
+                }
+            }
+        } message: {
+            Text("Their name, photo or head. Your report goes to Some Wins and nobody in the crew is told.")
+        }
+        .confirmationDialog("Block \(member.shortName.isEmpty ? "this person" : member.shortName)?",
+                            isPresented: Binding(get: { blockingMember?.profileID == member.profileID },
+                                                 set: { if !$0 { blockingMember = nil } }),
+                            titleVisibility: .visible) {
+            Button("Block", role: .destructive) {
+                Task { await CrewSafety.block(member.profileID, from: crewID) }
+            }
+        } message: {
+            Text(isOwner ? "You won't see their wins in any crew, and they leave this one. They are not told."
+                         : "You won't see their wins in any crew. They are not told.")
+        }
+        .confirmationDialog("Remove \(member.shortName.isEmpty ? "this person" : member.shortName) from the crew?",
+                            isPresented: Binding(get: { removingMember?.profileID == member.profileID },
+                                                 set: { if !$0 { removingMember = nil } }),
+                            titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                Task {
+                    do { try await store.remove(member: member.profileID, from: crewID) }
+                    catch { problem = "They could not be removed. Try again in a moment." }
                 }
             }
         }
+    }
+
+    /// People you have blocked, with the way back.
+    @ViewBuilder
+    private var blockedSection: some View {
+        if !store.blocked.isEmpty {
+            Section {
+                ForEach(store.blocked.sorted { store.blockedName($0) < store.blockedName($1) }, id: \.self) { id in
+                    HStack {
+                        Text(store.blockedName(id))
+                            .font(Typography.bodyLarge)
+                            .foregroundStyle(AppColors.inkPrimary)
+                        Spacer()
+                        Button("Unblock") {
+                            HapticsEngine.tick()
+                            store.unblock(id)
+                        }
+                        .font(Typography.headerSmall)
+                        .buttonStyle(.pressWord)
+                    }
+                }
+            } header: {
+                FormSectionLabel("Blocked")
+            } footer: {
+                Text("Blocked people stay hidden from you in every crew.")
+            }
+            .listRowSeparator(.hidden)
+        }
+    }
+
+    private func unnamed(_ crew: Crew) -> Crew {
+        var copy = crew
+        copy.name = ""
+        return copy
     }
 
     private func commitName() {

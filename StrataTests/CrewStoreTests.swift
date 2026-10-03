@@ -307,3 +307,40 @@ extension CrewStoreTests {
         #expect(a.reactions(to: gym.winID, in: crew.id).count == 1)
     }
 }
+
+extension CrewStoreTests {
+    /// The 2026-10-03 audit: a friend's photo is checked on the phone it
+    /// arrives on, and until it has passed it is not shown.
+    @Test func aFriendsPhotoShowsOnlyOnceItHasPassedTheCheck() async throws {
+        let (a, b, crew) = try await pair()
+        a.incomingPolicy = { .check }
+        var verdict = false
+        a.photoCheck = { _ in verdict }
+        await b.post(win("Run", photo: Data([1, 2, 3])), to: [crew.id])
+        await a.refresh()
+        let run = try #require(a.wins(in: crew.id).first)
+        #expect(run.photo == nil, "unchecked: not shown")
+        await a.checkArrivedPhotos()
+        #expect(a.wins(in: crew.id).first?.photo == nil, "flagged: not shown")
+        // A verdict is kept, so a flagged photo stays hidden.
+        verdict = true
+        await a.checkArrivedPhotos()
+        #expect(a.wins(in: crew.id).first?.photo == nil)
+    }
+
+    @Test func underSixteenWithTheCheckOffSeesNoFriendsPhotos() async throws {
+        let (a, b, crew) = try await pair()
+        a.incomingPolicy = { .hide }
+        await b.post(win("Run", photo: Data([1, 2, 3])), to: [crew.id])
+        await a.refresh()
+        #expect(a.wins(in: crew.id).first?.photo == nil)
+    }
+
+    @Test func blockingRemembersTheNameForTheUnblockList() async throws {
+        let (a, _, _) = try await pair()
+        a.block(sam, name: "Sam")
+        #expect(a.blockedName(sam) == "Sam")
+        a.unblock(sam)
+        #expect(!a.blocked.contains(sam))
+    }
+}

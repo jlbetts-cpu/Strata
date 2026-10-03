@@ -30,6 +30,8 @@ struct CrewTowerView: View {
     /// previous day").
     @State private var viewing: String?
     @State private var reporting: SharedWin?
+    /// Reported a moment ago: the thank-you and the offer to block.
+    @State private var reported: SharedWin?
     /// Double-tap hearts in the air, over the blocks they landed on.
     @State private var bursts: [Burst] = []
     @State private var touchRipples: [TouchRipple] = []
@@ -241,12 +243,30 @@ struct CrewTowerView: View {
                             titleVisibility: .visible, presenting: reporting) { win in
             ForEach(CrewSafety.Reason.allCases) { reason in
                 Button(reason.words) {
-                    Task { await CrewSafety.report(win: win, in: crewID, reason: reason) }
+                    Task {
+                        await CrewSafety.report(.win(win), in: crewID, reason: reason)
+                        reported = win
+                    }
                 }
             }
         } message: { _ in
             Text("Your report goes to Some Wins. Nobody in the crew is told.")
         }
+        }
+        // **The report was heard**, and the next step is offered right there
+        // (the 2026-10-03 audit: a report vanished without a word, and
+        // blocking was a separate hunt).
+        .alert("Thanks for telling us",
+               isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
+               presenting: reported) { win in
+            if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
+                Button("Block \(crew?.member(win.senderProfileID)?.shortName.nonEmpty ?? "Them")", role: .destructive) {
+                    Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
+                }
+            }
+            Button("Done", role: .cancel) {}
+        } message: { _ in
+            Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
         }
         .accessibilityAction(.escape) { onBack() }
     }
@@ -563,4 +583,9 @@ private struct CrewPhotoReactions: View {
     var body: some View {
         CrewReactionsPanel(winID: winID, crewID: crewID, mine: mine, onDark: true)
     }
+}
+
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

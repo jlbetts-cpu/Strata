@@ -118,6 +118,7 @@ struct CrewStatsSections: View {
         } footer: {
             Text(streakLine).formFooter()
         }
+        .listRowSeparator(.hidden)
     }
 
     /// What keeps the streak going today, in a few words. Never a scolding:
@@ -169,6 +170,7 @@ struct CrewStatsSections: View {
             Text("A crew's photos stay for a few days. Play a day to save it as a video.")
                 .formFooter()
         }
+        .listRowSeparator(.hidden)
     }
 
     private func dayName(_ key: String) -> String {

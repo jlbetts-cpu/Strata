@@ -120,15 +120,21 @@ struct PrivacyPolicyView: View {
         ("Block and Report",
          "Block hides that person's wins, head and name in every crew on your "
          + "phone. They are not told. If you started the crew, they are removed "
-         + "from it too. Report sends Some Wins the win's title, the reason you chose, "
-         + "and the random ids of the crew, the win, the person who sent it and "
-         + "you. No photo. A report goes only to Some Wins, never to the crew, and "
-         + "only Some Wins can read it."),
+         + "from it too. You can unblock them in a crew's details. You can report "
+         + "a win, a person (their name, photo or head) or a crew (its name or "
+         + "picture). A report sends Some Wins what you reported (the title and, "
+         + "if there is one, the photo), the reason you chose, the random ids of "
+         + "the crew, the person and you, and the iCloud account identifier that "
+         + "sent it, so the account can be removed from every crew. A report goes "
+         + "only to Some Wins, never to the crew, only Some Wins can read it, and "
+         + "every report is looked at within a day."),
         ("The photo check",
          "Before a photo goes to a crew, your phone checks it with Apple's "
          + "sensitive content check, when Sensitive Content Warning or "
          + "Communication Safety is turned on. A photo it flags stays with you, "
-         + "and the win goes without it."),
+         + "and the win goes without it. Photos that arrive from your crews are "
+         + "checked on your phone the same way, and one it flags is never shown. "
+         + "Under 16, with the check turned off, friends' photos are not shown."),
         ("Ages",
          "Crews are for 13 and up. The first time you open Crews, Some Wins asks for "
          + "your age range through Apple, never your birthday, and keeps the answer "

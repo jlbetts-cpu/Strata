@@ -27,6 +27,7 @@ final class SocialStore {
         let store = SocialStore(cloud: makeCloud(), defaults: .standard, directory: defaultDirectory)
         store.photosAllowed = { CrewAge.current.sendsPhotos }
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
+        store.incomingPolicy = { CrewSafety.incoming }
         store.announces = true
         NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
             Task { @MainActor in await SocialStore.shared.accountChanged() }
@@ -172,7 +173,57 @@ final class SocialStore {
 
     /// Every shared win still held for a crew, oldest first.
     func wins(in crew: CrewID) -> [SharedWin] {
-        (winsByCrew[crew] ?? []).sorted { $0.createdAt < $1.createdAt }
+        (winsByCrew[crew] ?? []).sorted { $0.createdAt < $1.createdAt }.map { win in
+            guard win.senderProfileID != me, let photo = win.photo, !photoIsShown(photo) else { return win }
+            var hidden = win
+            hidden.photo = nil
+            return hidden
+        }
+    }
+
+    // MARK: Photos that arrive
+
+    /// **A friend's photograph is checked on THIS phone too** (the 2026-10-03
+    /// audit: only the sender's phone checked, so a teen saw an adult's
+    /// photo unblurred). Where the system's sensitive-content analysis is on
+    /// (Sensitive Content Warning for adults, Communication Safety for
+    /// children), every arriving photo is analysed once and a flagged one is
+    /// never shown, not even in a notification; until it has been checked it
+    /// is not shown either. Under sixteen with the analysis off, friends'
+    /// photos are not shown at all. An adult with it off sees them as sent:
+    /// that choice is theirs, made for every app.
+    @ObservationIgnored var incomingPolicy: () -> CrewSafety.Incoming = { .show }
+    @ObservationIgnored private lazy var photoVerdicts: [String: Bool] =
+        defaults.dictionary(forKey: Self.verdictsKey) as? [String: Bool] ?? [:]
+    private static let verdictsKey = "crews.photoVerdicts"
+    /// Bumped as verdicts arrive, so the screens draw again.
+    private(set) var verdictRevision = 0
+
+    func photoIsShown(_ photo: URL) -> Bool {
+        // Read, so a screen showing photos is told when a verdict lands.
+        _ = verdictRevision
+        return switch incomingPolicy() {
+        case .show: true
+        case .hide: false
+        case .check: photoVerdicts[photo.lastPathComponent] == true
+        }
+    }
+
+    /// Analyses every friend's photo not yet seen. After each refresh.
+    func checkArrivedPhotos() async {
+        guard incomingPolicy() == .check else { return }
+        var changed = false
+        for wins in winsByCrew.values {
+            for win in wins where win.senderProfileID != me {
+                guard let photo = win.photo, photoVerdicts[photo.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: photo) else { continue }
+                photoVerdicts[photo.lastPathComponent] = await photoCheck(data)
+                changed = true
+            }
+        }
+        guard changed else { return }
+        defaults.set(photoVerdicts, forKey: Self.verdictsKey)
+        verdictRevision += 1
     }
 
     /// The crew's wins for its current day: what its tower shows. Nothing
@@ -197,15 +248,35 @@ final class SocialStore {
     private(set) var blocked: Set<UUID> = []
     private static let blockedKey = "crews.blocked"
 
-    func block(_ profileID: UUID) {
+    func block(_ profileID: UUID, name: String = "") {
         blocked.insert(profileID)
         defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
+        // Their name, kept so the Blocked list can say who it is after they
+        // have left every crew you share.
+        var names = blockedNames
+        names[profileID.uuidString] = name
+        defaults.set(names, forKey: Self.blockedNamesKey)
         recomputeUnread()
     }
 
     func unblock(_ profileID: UUID) {
         blocked.remove(profileID)
         defaults.set(blocked.map(\.uuidString).sorted(), forKey: Self.blockedKey)
+        var names = blockedNames
+        names[profileID.uuidString] = nil
+        defaults.set(names, forKey: Self.blockedNamesKey)
+        recomputeUnread()
+    }
+
+    private static let blockedNamesKey = "crews.blockedNames"
+    /// Who each blocked person is, by name, as they were when blocked.
+    var blockedNames: [String: String] {
+        defaults.dictionary(forKey: Self.blockedNamesKey) as? [String: String] ?? [:]
+    }
+
+    func blockedName(_ profileID: UUID) -> String {
+        let name = blockedNames[profileID.uuidString] ?? ""
+        return name.isEmpty ? "Someone" : name
     }
 
     /// The newest win in a crew, for its row in the list.
@@ -362,6 +433,12 @@ final class SocialStore {
         guard var crew = crew(crewID) else { throw CrewError.unknownCrew }
         crew.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         replace(crew)
+        // Held over any refresh until it is saved: the live sync every few
+        // seconds fetched the crew before the save landed and put the old
+        // name back (the owner, 2026-10-03: "it goes back to the name it
+        // just was").
+        editing[crewID] = crew
+        defer { editing[crewID] = nil }
         try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crewID)
     }
 
@@ -381,6 +458,8 @@ final class SocialStore {
             crew.photo = nil
         }
         replace(crew)
+        editing[crewID] = crew
+        defer { editing[crewID] = nil }
         try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crewID)
     }
 
@@ -391,7 +470,11 @@ final class SocialStore {
         guard isEnabled() else { return }
         var photo: Data?
         let source = photosAllowed() ? myPhoto() : nil
-        if let source { photo = await derived(source) }
+        if let source, let small = await derived(source) {
+            // Your own picture goes through the same check as a win's
+            // photograph (the 2026-10-03 audit: it went unchecked).
+            photo = await photoCheck(small) ? small : nil
+        }
         let pack = await myHeadPack()
         await setMyHead(pack, photo: photo)
         defaults.set(selfDigest(pack: pack, photo: source), forKey: Self.sentSelfKey)
@@ -680,6 +763,8 @@ final class SocialStore {
             await CrewNotifications.announce(self)
             await CrewNotifications.announceReactions(self)
             await shareMyselfIfChanged()
+            await CrewSafety.sendPending()
+            await checkArrivedPhotos()
         }
     }
 
@@ -704,6 +789,8 @@ final class SocialStore {
     @ObservationIgnored var announces = false
 
     @ObservationIgnored private var refreshAgain = false
+    /// Crews whose name or picture is being saved right now.
+    @ObservationIgnored private var editing: [CrewID: Crew] = [:]
 
     private func refreshOnce() async {
         await cloud.prepare()
@@ -762,7 +849,15 @@ final class SocialStore {
             let known = Set(fetched.map(\.id)).union(fresh)
             for gone in Set(outbox.entries.map(\.crew)).subtracting(known) { outbox.drop(crew: gone) }
             for gone in Set(crews.map(\.id)).subtracting(known) { forget(gone) }
-            if crews != fetched { crews = fetched }
+            // A name or picture still being saved wins over what was fetched.
+            let merged = fetched.map { crew -> Crew in
+                guard let edit = editing[crew.id] else { return crew }
+                var crew = crew
+                crew.name = edit.name
+                crew.photo = edit.photo
+                return crew
+            }
+            if crews != merged { crews = merged }
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
             recordHistory(counted, for: fetched)

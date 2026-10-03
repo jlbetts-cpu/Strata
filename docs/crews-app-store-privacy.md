@@ -98,8 +98,8 @@ these facts; the wording of Apple's questions may differ.
 
 - [ ] **User-Generated Content: Yes.** A crew sees titles and photographs
   other people wrote and took.
-- [ ] **Messaging and Chat: No.** There is no chat, no comments, no
-  reactions. A crew sees wins, nothing typed to each other.
+- [ ] **Messaging and Chat: No.** There is no chat and no comments: a crew
+  sees wins and reacts to them with an emoji, nothing typed to each other.
 - [ ] **Unrestricted Web Access: No. Advertising: No.**
 - [ ] **Age assurance / in-app controls: Yes.** Declared Age Range is asked
   the first time Crews opens. Under 13, Crews do not open; 13 to 15, photos
@@ -116,17 +116,23 @@ second test iCloud account if Review asks for one.
   an iCloud invite sent from the app), and every photo is checked on the
   phone with Apple's Sensitive Content Analysis before it is sent; a flagged
   photo is not sent. (Blocked until the entitlement in section 0 is added.)
-- [ ] **Report:** on the back of any friend's win. A report goes to the
-  developer, never to the crew. Say how quickly you will act on one; Apple
-  asks for "timely" and the number is yours to set.
-- [ ] **Block:** on any member row in Crew Info. Their wins, head and name
+- [ ] **Report:** a win (the photo carousel's menu), a person (tap them in
+  the crew's details) or the crew's name and picture (Report Crew). A report
+  carries the photo and the sender's iCloud account and goes to the developer,
+  never to the crew; every report is looked at within 24 hours, and a Ban
+  record removes the account from every crew on every phone.
+- [ ] **Block:** tap a person in the crew's details. Their wins, head and name
   disappear from every crew on the blocker's phone; they are not told; if the
-  blocker started the crew they are also removed.
+  blocker started the crew they are also removed. Blocked people are listed
+  there, with Unblock.
+- [ ] **Terms:** the crew rules (zero tolerance) are agreed to before Crews
+  opens the first time.
 - [ ] **Contact:** jbett5@hotmail.com, already in the in-app privacy policy
   and Settings > Send Feedback, and on `docs/privacy.html`. Add it to the
   product page's support URL or description too.
-- [ ] **Where reports arrive:** nothing emails you. Reports are records in the
-  CloudKit Console (section 4). Decide how often you will look.
+- [ ] **Where reports arrive:** Report records in the CloudKit Console,
+  readable by the Moderator role (you). Look daily while there are testers;
+  ban with a Ban record (account = the report's senderAccount).
 
 ## 4. CloudKit Console: the `Report` record type
 

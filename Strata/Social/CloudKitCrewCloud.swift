@@ -40,6 +40,7 @@ final class CloudKitCrewCloud: CrewCloud {
     }
 
     private static let creatorKey = "_creator"
+    private static let editorKey = "_editor"
     /// The cache entry holding a crew's participants' iCloud first names.
     private static let namesKey = "_names"
 
@@ -217,6 +218,11 @@ final class CloudKitCrewCloud: CrewCloud {
         cache[crew]?["\(CrewRecordType.member.rawValue)/\(profileID.uuidString)"]?[Self.creatorKey]?.string
     }
 
+    /// The account that last changed a crew's name or picture.
+    func lastEditor(of crew: CrewID) -> String? {
+        cache[crew]?["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"]?[Self.editorKey]?.string
+    }
+
     func fetchWins(in crew: CrewID) async throws -> [SharedWin] {
         (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.sharedWin.rawValue + "/") }
             .values.compactMap { fields in
@@ -367,6 +373,11 @@ final class CloudKitCrewCloud: CrewCloud {
                 // from (`authentic`).
                 if let creator = record.creatorUserRecordID {
                     fields[Self.creatorKey] = .string(creator.recordName)
+                }
+                // Who last changed the crew's name or picture, for a report
+                // of either: any member may change them.
+                if type == .crew, let editor = record.lastModifiedUserRecordID {
+                    fields[Self.editorKey] = .string(editor.recordName)
                 }
                 cache[crew, default: [:]]["\(type.rawValue)/\(id.recordName)"] = fields
             }
