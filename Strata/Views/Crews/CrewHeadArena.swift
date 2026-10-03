@@ -305,11 +305,16 @@ struct CrewHeadArena: View {
         GeometryReader { geo in
             let arena = geo.frame(in: .global)
             ZStack(alignment: .topLeading) {
+                // **Everyone, head or not** (the owner, 2026-10-03: "even if a
+                // friend doesnt have a head there pfp should still show... they
+                // shouldnt be excluded"). A member with no head floats as the
+                // circle they are everywhere else in Crews: their photo, or
+                // their initial.
                 ForEach(crew.members) { member in
-                    if let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me) {
-                        CrewHeadRunner(member: member, isMe: member.profileID == me, rig: rig,
-                                       arena: arena, model: model, parking: parking, box: box)
-                    }
+                    CrewHeadRunner(member: member, isMe: member.profileID == me,
+                                   rig: CrewHeads.shared.rig(for: member, in: crew.id, me: me),
+                                   crewID: crew.id, me: me,
+                                   arena: arena, model: model, parking: parking, box: box)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -345,7 +350,10 @@ private final class CrewHeadLife {
 private struct CrewHeadRunner: View {
     let member: CrewMember
     let isMe: Bool
-    let rig: HeadRig
+    /// Nil for someone with no head: they float as their circle.
+    let rig: HeadRig?
+    let crewID: CrewID
+    let me: UUID
     let arena: CGRect
     let model: CrewTowerModel
     let parking: CrewParking
@@ -358,11 +366,13 @@ private struct CrewHeadRunner: View {
     @State private var take: HeadTake.Played?
     @State private var deck = HeadTakeDeck()
 
-    init(member: CrewMember, isMe: Bool, rig: HeadRig, arena: CGRect, model: CrewTowerModel,
-         parking: CrewParking, box: CrewArenaBox) {
+    init(member: CrewMember, isMe: Bool, rig: HeadRig?, crewID: CrewID, me: UUID, arena: CGRect,
+         model: CrewTowerModel, parking: CrewParking, box: CrewArenaBox) {
         self.member = member
         self.isMe = isMe
         self.rig = rig
+        self.crewID = crewID
+        self.me = me
         self.arena = arena
         self.model = model
         self.parking = parking
@@ -387,9 +397,15 @@ private struct CrewHeadRunner: View {
         // at arm's length and still smaller than one block. See
         // `TowerCompanion.side(forCell:)`.
         let side = TowerCompanion.side(forCell: model.probe.cellSize)
-        let head = LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
-            .frame(width: side, height: side)
-            .contentShape(Circle())
+        let head = Group {
+            if let rig {
+                LivingHeadView(rig: rig, side: side, liveliness: .calm, take: take)
+            } else {
+                CrewFace(member: member, crew: crewID, me: me, side: side * 0.78)
+            }
+        }
+        .frame(width: side, height: side)
+        .contentShape(Circle())
 
         TimelineView(.animation(paused: paused)) { context in
             let flight = step(to: context.date, paused: paused, side: side)
@@ -466,6 +482,7 @@ private struct CrewHeadRunner: View {
     }
 
     private func changeFace() {
+        guard let rig else { HapticsEngine.tick(); return }
         let available = HeadTake.available(faces: rig.takeFaces, hasShut: rig.shut != nil, reduceMotion: reduceMotion)
         guard let next = deck.next(from: available) else { return }
         HapticsEngine.tick()
