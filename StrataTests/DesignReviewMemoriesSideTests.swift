@@ -137,9 +137,9 @@ struct DesignReviewMemoriesSideTests {
     func emptyPosterIsRetried() throws {
         #expect(ReplayShelfModel.emptyRenderRetries > 0)
         let page = SourceSweep.code(try SourceSweep.read("Strata/Views/MemoriesView.swift"))
-        // The row's poster comes out of the offer, not out of a dictionary read
-        // inside the ForEach closure.
-        #expect(page.contains("poster: row.poster"))
+        // The recap ROW is gone (2026-10-03: a play button in the top row
+        // replaced it), so there is no row poster to check; what still holds
+        // is that nothing reads the poster dictionary inside a closure.
         #expect(!page.contains("poster: replays.cards["))
     }
 

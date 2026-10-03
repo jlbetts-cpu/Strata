@@ -31,6 +31,8 @@ struct MemoriesView: View {
     @Environment(\.displayScale) private var displayScale
     /// Whether a cover above this page has put its heads to sleep.
     @Environment(\.headsAwake) private var coveringHeadsAwake
+    /// The direction of the last swipe, for the month's slide. 0 is the picker.
+    @State private var monthStep = 0
     @AppStorage("memoriesPhotosOpen") private var photosOpen = false
     @State private var vm = MemoriesViewModel()
     @State private var path: [MemoriesRoute] = []
@@ -136,106 +138,40 @@ struct MemoriesView: View {
                     // one action, and the month beginning — which is the page
                     // saying what it is and what you can do with it before it
                     // starts listing.
-                    if !replayRows.isEmpty {
-                        // **ONE ROW OR TWO, AND NEVER THREE.** See
-                        // `replayRows`: the month you have chosen, and the
-                        // period whose window is open if the first row is not
-                        // already it. `gapItem` between them, because two rows
-                        // offering the same kind of thing are items in a set.
-                        VStack(alignment: .leading, spacing: GridConstants.gapItem) {
-                            // **The poster rides IN the offer, read where
-                            // the body is evaluated** (2026-10-02). It was
-                            // read here, inside the `ForEach` closure, and
-                            // CLAUDE.md's rule is that a read in there is not a
-                            // dependency you can rely on. This was NOT the
-                            // blank row (that was the thumbnail's crop, see
-                            // `ReplayRow.thumbnail`); it is the rule applied
-                            // where it was being broken. `replayRows` reads
-                            // `cards` now, in the body's own pass.
-                            ForEach(replayRows) { row in
-                                ReplayRow(
-                                    replay: row.replay,
-                                    poster: row.poster,
-                                    title: row.title
-                                ) { playing = row.replay }
-                            }
-                        }
-                        // **NO BOTTOM PADDING, BECAUSE THE CALENDAR ALREADY
-                        // CARRIES ONE.**
-                        //
-                        // Measured on the built page: 22pt above this row and
-                        // 56 below it. `gapSection` here and `gapWide` on
-                        // `MonthCalendarView` are each defensible alone and
-                        // they stack, which is the same fault as two shadows
-                        // under one object. An element with 22 above and 56
-                        // below reads as belonging to the thing above it and
-                        // spaced as if it belongs to nothing.
-                        //
-                        // The picker, this row and the calendar are one
-                        // section about one month: you choose the month, you
-                        // play the month, you read the month. So they take
-                        // one rhythm, `gapWide` throughout, and the page's
-                        // biggest gap is kept for the real section break
-                        // below the calendar where the collections begin.
-                    }
+                    // The recaps are a play button in the top row now, not a
+                    // section of their own (the owner, 2026-10-03: "instead of
+                    // a bulky section lets just add a play button next to the
+                    // profile icon"). See `recapButton`.
 
-                    Section {
-                        if pageIsEmpty {
-                            // **Just the calendar, empty** (2026-10-03). It
-                            // had a sentence over it; an empty month already
-                            // says it is waiting, and the emptiness you then
-                            // fill is the point (the owner: "I love how empty
-                            // the app feels").
-                            monthTower
-                        } else if pageIsUndecided {
-                            // Neither the empty state nor an empty month for
-                            // the moment the shelf takes to answer.
-                            EmptyView()
-                        } else {
-                            // The month leads. It used to open on a search
-                            // field, then a shelf of photo cards, with the
-                            // month tower — the one element on this page that
-                            // is unmistakably this app — starting around 60%
-                            // down and cut off by the tab bar.
+                    // **The month stands at the foot of the page, as the
+                    // tower does on Wins** (the owner, 2026-10-03: "put the
+                    // calendar and stuff near the bottom so it balances with
+                    // the wins page"). The room above it is the month's own,
+                    // for the drawing he is making for each month
+                    // (`monthArt`), and empty until there is one. The photos
+                    // open below and scroll.
+                    let shown = monthPhotos
+                    let count = shown.reduce(0) { $0 + $1.photos.count }
+                    VStack(alignment: .leading, spacing: 0) {
+                        Spacer(minLength: 0)
+                        monthArt
+                        // Nothing for the moment the page takes to learn
+                        // whether it is empty; an empty month is the calendar
+                        // alone, the emptiness you then fill being the point.
+                        if !pageIsUndecided || pageIsEmpty {
                             monthTower
                         }
-                    }
-
-                    if !pageIsEmpty {
-                        // Between the month and the albums: finished months
-                        // and weeks as posters. Draws nothing, heading
-                        // included, until one has a win.
-                        // **ONE SHELF.** Replays and albums were two bands of
-                        // cards, one directly under the other, at the same
-                        // width — and the owner's read of the page was that it
-                        // was still four stacked lists. They are the same kind
-                        // of thing: something the app made out of wins you
-                        // already logged, opened by pressing a picture of it.
-                        // See `MemoriesShelf`.
-                        // **Two albums and two closures, where it used to take
-                        // seven arguments.** `model`, `now`, `excluding`,
-                        // `transitionNamespace` and the trailing `onPlay` were
-                        // all filled in here and read by nothing: they fed
-                        // `MemoriesShelf.card`, which lost its caller when the
-                        // replays became `ReplayRow`s and has been deleted
-                        // (`docs/consistency-audit.md` §1.13). A call site that
-                        // hands a view a namespace and a play handler says the
-                        // view plays things and opens transitions out of them,
-                        // and this one draws neither.
-                        // **One way to see the photographs, not three** (the
-                        // owner, 2026-10-03: "so many different ways of showing
-                        // off the images makes the screen not look as structured
-                        // and clean"). The calendar is the days, and this is the
-                        // pictures, drawn as the calendar is drawn: the page's
-                        // margin, its gap, a block's corner. The carousel of
-                        // curated albums under the calendar is gone.
-                        // **This month's photographs, and only this month's**
-                        // (see `pageHeader`). Untitled: the month is at the top.
-                        let shown = monthPhotos
-                        let count = shown.reduce(0) { $0 + $1.photos.count }
-                        if count > 0 {
+                        if !pageIsEmpty, count > 0 {
                             photosToggle(count)
-                                .padding(.top, GridConstants.gapSection)
+                                .padding(.top, GridConstants.gapTight)
+                        }
+                    }
+                    .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
+                        max(length - GridConstants.tabBarClearance, 0)
+                    }
+
+                    if !pageIsEmpty, count > 0 {
+                        do {
                             if photosOpen {
                                 // The camera roll, edge to edge, as it was:
                                                 // opened, it reads as the photos, not as
@@ -354,12 +290,12 @@ struct MemoriesView: View {
                         MapBackButton(night: mapStyle == .night) { path.removeLast() }
                     }
                 case .day(let key):
+                    // **The standard push and back**, not a zoom out of the
+                    // day's block (2026-10-03): coming back, the zoom aimed
+                    // at a cell that had moved under the new top row and the
+                    // page went off the screen sideways (the owner: "it
+                    // transitions off the screen weird").
                     DayAlbumDetailView(route: DayRoute(dateString: key))
-                        // Out of the day's own block on the month tower, the
-                        // same way a photograph comes out of its thumbnail.
-                        // A month you can open is what makes the two pages
-                        // one place rather than two lists of the same days.
-                        .navigationTransition(.zoom(sourceID: key, in: photoTransition))
                 case .place(let key):
                     PhotoCollectionView(source: .place(key))
                 case .curated(let key):
@@ -591,6 +527,7 @@ struct MemoriesView: View {
                     path.append(.map)
                 }
                 Spacer(minLength: 0)
+                recapButton
                 ProfileButton { openProfile?() }
             }
             MonthPicker(
@@ -635,6 +572,50 @@ struct MemoriesView: View {
         .buttonStyle(.pressWord)
         .accessibilityLabel(count == 1 ? "1 photo" : "\(count) photos")
         .accessibilityHint(photosOpen ? "Hides them." : "Shows them.")
+    }
+
+    /// **The recap, as one glass button beside Profile.** One recap ready:
+    /// it plays. A month and a week both ready: a small menu names them.
+    /// Nothing ready: no button.
+    @ViewBuilder
+    private var recapButton: some View {
+        let rows = replayRows
+        if rows.count == 1, let only = rows.first {
+            GlassIconButton(systemName: "play.fill", onPage: true,
+                            accessibilityLabel: "Play \(only.title)") {
+                playing = only.replay
+            }
+            .transition(.scale.combined(with: .opacity))
+        } else if rows.count > 1 {
+            Menu {
+                ForEach(rows) { row in
+                    Button { playing = row.replay } label: { Label(row.title, systemImage: "play.fill") }
+                }
+            } label: {
+                GlassIconLabel(systemName: "play.fill", onPage: true)
+            }
+            .accessibilityLabel("Play a recap")
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    /// **The month's drawing**, in the room above its calendar: an asset
+    /// named for the month, "MonthOctober", when one is in the catalogue, and
+    /// nothing at all until then (the owner is drawing one for each month).
+    @ViewBuilder
+    private var monthArt: some View {
+        let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
+        let name = "Month" + month
+        if let art = UIImage(named: name) {
+            Image(uiImage: art)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: 220)
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.bottom, GridConstants.gapWide)
+                .accessibilityHidden(true)
+                .transition(.opacity)
+        }
     }
 
     /// The chosen month's photographs, as one untitled section.
@@ -711,7 +692,7 @@ struct MemoriesView: View {
                 calendar: MemoriesViewModel.mondayCalendar,
                 width: monthGridWidth,
                 onSelect: { path.append(.day($0)) },
-                transitionNamespace: photoTransition
+                transitionNamespace: nil
             )
             .frame(maxWidth: .infinity, alignment: .center)
             // **Air, and the owner asked for it by name**: "make the white
@@ -722,8 +703,46 @@ struct MemoriesView: View {
             .padding(.top, GridConstants.gapWide)
             // The month is REPLACED, not moved, so it cross-fades. A spring
             // would claim the blocks travelled somewhere.
+            //
+            // **Except under a finger** (the owner, 2026-10-03: "swiping left
+            // and right on the calendar should also be a way of changing
+            // months"). A swipe moves the months, so the month slides the way
+            // the finger went; the picker still cross-fades.
             .id(vm.monthTitle)
-            .transition(.opacity)
+            .transition(monthStep == 0 ? .opacity
+                        : .push(from: monthStep > 0 ? .trailing : .leading))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { value in
+                        let dx = value.translation.width, dy = value.translation.height
+                        guard abs(dx) > 50, abs(dx) > abs(dy) * 1.5 else { return }
+                        stepMonth(dx < 0 ? 1 : -1)
+                    }
+            )
+        }
+    }
+
+    /// One month on (+1) or back (-1), as far as there are months.
+    /// `availableMonths` is newest first.
+    private func stepMonth(_ step: Int) {
+        let months = vm.availableMonths
+        guard let here = months.firstIndex(where: {
+            MemoriesViewModel.mondayCalendar.isDate($0, equalTo: vm.selectedMonth, toGranularity: .month)
+        }) else { return }
+        let next = here - step
+        guard months.indices.contains(next) else {
+            HapticsEngine.warning()
+            return
+        }
+        HapticsEngine.tick()
+        monthStep = step
+        withAnimation(GridConstants.motionSnappy) {
+            vm.select(month: months[next], context: modelContext)
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            monthStep = 0
         }
     }
 }
