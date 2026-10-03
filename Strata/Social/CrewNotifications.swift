@@ -73,8 +73,8 @@ enum CrewNotifications {
                 && win.senderProfileID != store.me
                 && !store.blocked.contains(win.senderProfileID)
                 && win.crewID != visibleCrew
-                // Hide Alerts, as in Messages: nothing from that crew.
-                && !store.hidesAlerts(win.crewID)
+                // Muted, as in Messages: nothing from that crew.
+                && !store.isMuted(win.crewID)
                 && Date().timeIntervalSince(win.createdAt) < 6 * 3600
         }
         let center = UNUserNotificationCenter.current()
@@ -104,6 +104,45 @@ enum CrewNotifications {
         return try? UNNotificationAttachment(identifier: "photo", url: copy)
     }
 
+    /// Reactions to YOUR wins since the last call: "Sam reacted 🔥 to Gym".
+    /// Each crew's own switch, and its mute, decide.
+    static func announceReactions(_ store: SocialStore, defaults: UserDefaults = .standard) async {
+        let key = "crews.notifiedReactions"
+        let seen = Set(defaults.stringArray(forKey: key) ?? [])
+        var now: [String] = []
+        var fresh: [Reaction] = []
+        for crew in store.crews {
+            let mine = Dictionary(uniqueKeysWithValues: store.wins(in: crew.id)
+                .filter { $0.senderProfileID == store.me }.map { ($0.winID, $0) })
+            for reaction in store.reactionsByCrew[crew.id] ?? [] where mine[reaction.winID] != nil {
+                let tag = reaction.id + reaction.emoji
+                now.append(tag)
+                if !seen.contains(tag), reaction.profileID != store.me, !store.blocked.contains(reaction.profileID),
+                   store.reactionAlerts(crew.id), !store.isMuted(crew.id), crew.id != visibleCrew,
+                   Date().timeIntervalSince(reaction.createdAt) < 6 * 3600 {
+                    fresh.append(reaction)
+                }
+            }
+        }
+        defaults.set(now, forKey: key)
+        guard defaults.bool(forKey: key + ".started") else {
+            defaults.set(true, forKey: key + ".started")
+            return
+        }
+        for reaction in fresh {
+            guard let crew = store.crew(reaction.crewID),
+                  let win = store.wins(in: crew.id).first(where: { $0.winID == reaction.winID }) else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = crew.displayName(excluding: store.me)
+            content.body = Text.reacted(reaction, to: win, in: crew)
+            content.threadIdentifier = crew.id.rawValue
+            content.userInfo = ["crew": crew.id.rawValue]
+            content.sound = .default
+            try? await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(identifier: "reaction-" + reaction.id + reaction.emoji, content: content, trigger: nil))
+        }
+    }
+
     /// The words, kept apart so a test can read them.
     enum Text {
         static func of(_ win: SharedWin, in crew: Crew, me: UUID) -> (title: String, body: String) {
@@ -117,6 +156,14 @@ enum CrewNotifications {
                 body = "\(who): \(title)"
             }
             return (crew.displayName(excluding: me), body)
+        }
+
+        static func reacted(_ reaction: Reaction, to win: SharedWin, in crew: Crew) -> String {
+            let name = crew.member(reaction.profileID)?.shortName ?? ""
+            let who = name.isEmpty ? "A friend" : name
+            let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? "\(who) reacted \(reaction.emoji) to your win"
+                                 : "\(who) reacted \(reaction.emoji) to \u{201C}\(title)\u{201D}"
         }
     }
 }

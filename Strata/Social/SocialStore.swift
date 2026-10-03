@@ -50,6 +50,7 @@ final class SocialStore {
 
     private(set) var crews: [Crew] = []
     private(set) var winsByCrew: [CrewID: [SharedWin]] = [:]
+    private(set) var reactionsByCrew: [CrewID: [Reaction]] = [:]
     /// Crews holding a friend's win you have not looked at.
     private(set) var unread: Set<CrewID> = []
     /// Bumped whenever `outbox` changes, so a block's back can say "Not sent
@@ -401,6 +402,42 @@ final class SocialStore {
         await flush()
     }
 
+    // MARK: Reactions
+
+    /// Everyone's reactions to a win, oldest first, without anyone you blocked.
+    func reactions(to winID: UUID, in crewID: CrewID) -> [Reaction] {
+        (reactionsByCrew[crewID] ?? [])
+            .filter { $0.winID == winID && !blocked.contains($0.profileID) }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    func myReaction(to winID: UUID, in crewID: CrewID) -> String? {
+        reactionsByCrew[crewID]?.first { $0.winID == winID && $0.profileID == me }?.emoji
+    }
+
+    /// React to a win, the way a Tapback works: a new emoji replaces yours,
+    /// the same one again takes it back. Your own wins take no reactions
+    /// from you.
+    func react(_ emoji: String, to winID: UUID, in crewID: CrewID) async {
+        guard isEnabled(), crew(crewID) != nil,
+              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
+              win.senderProfileID != me else { return }
+        let name = Reaction.name(winID: winID, profileID: me)
+        var list = reactionsByCrew[crewID] ?? []
+        let previous = list.first { $0.id == name }
+        list.removeAll { $0.id == name }
+        if previous?.emoji == emoji {
+            reactionsByCrew[crewID] = list
+            enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
+        } else {
+            let reaction = Reaction(winID: winID, crewID: crewID, profileID: me, emoji: emoji, createdAt: now())
+            list.append(reaction)
+            reactionsByCrew[crewID] = list
+            enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        }
+        await flush()
+    }
+
     // MARK: Syncing
 
     /// Everything, from the cloud: on foreground, on opening the list, while a
@@ -417,7 +454,10 @@ final class SocialStore {
             refreshAgain = false
             await refreshOnce()
         } while refreshAgain
-        if announces { await CrewNotifications.announce(self) }
+        if announces {
+            await CrewNotifications.announce(self)
+            await CrewNotifications.announceReactions(self)
+        }
     }
 
     /// Whether this store says what is new as notifications. The phone's own
@@ -448,8 +488,18 @@ final class SocialStore {
                     wins[crew.id] = winsByCrew[crew.id] ?? []
                 }
             }
+            var reactions: [CrewID: [Reaction]] = [:]
+            for crew in fetched {
+                var held = (try? await cloud.fetchReactions(in: crew.id)) ?? reactionsByCrew[crew.id] ?? []
+                for entry in outbox.entries where entry.crew == crew.id && entry.type == .reaction {
+                    held.removeAll { $0.id == entry.name }
+                    if let fields = entry.fields, let mine = CrewRecords.reaction(fields, crew: crew.id) { held.append(mine) }
+                }
+                reactions[crew.id] = held
+            }
             if crews != fetched { crews = fetched }
             if winsByCrew != wins { winsByCrew = wins }
+            if reactionsByCrew != reactions { reactionsByCrew = reactions }
             let known = Set(fetched.map(\.id))
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
             recomputeUnread()
@@ -486,6 +536,16 @@ final class SocialStore {
         for crew in crews {
             let today = CrewDay.string(for: now(), in: crew.timeZone)
             guard let cutoff = CrewDay.day(today, offsetBy: -3, in: crew.timeZone) else { continue }
+            // Reactions go with their wins, and a reaction whose win has gone
+            // (withdrawn, deleted) goes too, whoever made it.
+            let live = Set((winsByCrew[crew.id] ?? []).filter { $0.crewDay >= cutoff }.map(\.winID))
+            let orphans = (reactionsByCrew[crew.id] ?? []).filter { !live.contains($0.winID) }
+            if !orphans.isEmpty, winsByCrew[crew.id] != nil {
+                reactionsByCrew[crew.id]?.removeAll { !live.contains($0.winID) }
+                for reaction in orphans where reaction.profileID == me {
+                    enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
+                }
+            }
             let old = (winsByCrew[crew.id] ?? []).filter { $0.crewDay < cutoff }
             guard !old.isEmpty else { continue }
             winsByCrew[crew.id]?.removeAll { $0.crewDay < cutoff }
@@ -514,29 +574,86 @@ final class SocialStore {
         let seen = lastSeen
         let fresh = Set(crews.compactMap { crew -> CrewID? in
             let since = Date(timeIntervalSince1970: seen[crew.id.rawValue] ?? 0)
-            return (winsByCrew[crew.id] ?? []).contains {
+            let mine = Set((winsByCrew[crew.id] ?? []).filter { $0.senderProfileID == me }.map(\.winID))
+            let newWin = (winsByCrew[crew.id] ?? []).contains {
                 $0.senderProfileID != me && !blocked.contains($0.senderProfileID) && $0.updatedAt > since
-            } ? crew.id : nil
+            }
+            let newReaction = (reactionsByCrew[crew.id] ?? []).contains {
+                mine.contains($0.winID) && $0.profileID != me && !blocked.contains($0.profileID) && $0.createdAt > since
+            }
+            return newWin || newReaction ? crew.id : nil
         })
         if unread != fresh { unread = fresh }
     }
 
-    // MARK: Hide Alerts
+    // MARK: Alerts
 
-    /// Shared with the notification extension through the app group, so it
-    /// can quiet a crew's notifications without the app running.
+    /// Shared with the notification code through the app group, so the
+    /// choice holds even where the app is not running.
     static let groupDefaults = UserDefaults(suiteName: "group.JaydenBetts.Strata")
-    private static let hiddenKey = "crews.hiddenAlerts"
+    private static let mutedKey = "crews.mutedUntil"
+    private static let quietReactionsKey = "crews.reactionAlertsOff"
 
-    func hidesAlerts(_ crewID: CrewID) -> Bool {
-        _ = outboxRevision
-        return (Self.groupDefaults?.stringArray(forKey: Self.hiddenKey) ?? []).contains(crewID.rawValue)
+    /// How long a crew is quiet for, as Messages and WhatsApp offer it.
+    enum Mute: CaseIterable, Identifiable {
+        case hour, eightHours, week, always
+        var id: Self { self }
+        var words: String {
+            switch self {
+            case .hour: "For 1 Hour"
+            case .eightHours: "For 8 Hours"
+            case .week: "For 1 Week"
+            case .always: "Until I Turn It Back On"
+            }
+        }
+        var interval: TimeInterval? {
+            switch self {
+            case .hour: 3600
+            case .eightHours: 8 * 3600
+            case .week: 7 * 86_400
+            case .always: nil
+            }
+        }
     }
 
-    func setHidesAlerts(_ hide: Bool, for crewID: CrewID) {
-        var hidden = Set(Self.groupDefaults?.stringArray(forKey: Self.hiddenKey) ?? [])
-        if hide { hidden.insert(crewID.rawValue) } else { hidden.remove(crewID.rawValue) }
-        Self.groupDefaults?.set(hidden.sorted(), forKey: Self.hiddenKey)
+    /// When a crew's alerts come back. Nil: they are on. `distantFuture`:
+    /// muted until you turn them back on.
+    func mutedUntil(_ crewID: CrewID) -> Date? {
+        _ = outboxRevision
+        let stamps = Self.groupDefaults?.dictionary(forKey: Self.mutedKey) as? [String: Double] ?? [:]
+        guard let stamp = stamps[crewID.rawValue] else { return nil }
+        let until = Date(timeIntervalSince1970: stamp)
+        return until > now() ? until : nil
+    }
+
+    func isMuted(_ crewID: CrewID) -> Bool { mutedUntil(crewID) != nil }
+
+    func mute(_ crewID: CrewID, _ length: Mute?) {
+        var stamps = Self.groupDefaults?.dictionary(forKey: Self.mutedKey) as? [String: Double] ?? [:]
+        if let length {
+            stamps[crewID.rawValue] = length.interval.map { now().addingTimeInterval($0).timeIntervalSince1970 }
+                ?? Date.distantFuture.timeIntervalSince1970
+        } else {
+            stamps[crewID.rawValue] = nil
+        }
+        Self.groupDefaults?.set(stamps, forKey: Self.mutedKey)
+        outboxRevision += 1
+    }
+
+    /// The old name, still what the list's swipe and Crew Info's switch say.
+    func hidesAlerts(_ crewID: CrewID) -> Bool { isMuted(crewID) }
+    func setHidesAlerts(_ hide: Bool, for crewID: CrewID) { mute(crewID, hide ? .always : nil) }
+
+    /// Whether you hear when someone in this crew reacts to your win.
+    func reactionAlerts(_ crewID: CrewID) -> Bool {
+        _ = outboxRevision
+        return !(Self.groupDefaults?.stringArray(forKey: Self.quietReactionsKey) ?? []).contains(crewID.rawValue)
+    }
+
+    func setReactionAlerts(_ on: Bool, for crewID: CrewID) {
+        var off = Set(Self.groupDefaults?.stringArray(forKey: Self.quietReactionsKey) ?? [])
+        if on { off.remove(crewID.rawValue) } else { off.insert(crewID.rawValue) }
+        Self.groupDefaults?.set(off.sorted(), forKey: Self.quietReactionsKey)
         outboxRevision += 1
     }
 
@@ -547,6 +664,15 @@ final class SocialStore {
     func adopt(crews: [Crew], wins: [CrewID: [SharedWin]]) {
         self.crews = crews
         self.winsByCrew = wins
+        recomputeUnread()
+    }
+
+    /// A friend's reaction arriving, as a refresh would deliver it.
+    func receive(_ reaction: Reaction) {
+        var list = reactionsByCrew[reaction.crewID] ?? []
+        list.removeAll { $0.id == reaction.id }
+        list.append(reaction)
+        reactionsByCrew[reaction.crewID] = list
         recomputeUnread()
     }
 
@@ -573,6 +699,7 @@ final class SocialStore {
         if let wins = winsByCrew.removeValue(forKey: crewID) {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }
+        reactionsByCrew[crewID] = nil
         unread.remove(crewID)
         outbox.drop(crew: crewID)
         persistOutbox()

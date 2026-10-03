@@ -159,3 +159,30 @@ nonisolated struct OwnWin: Sendable, Equatable {
     let createdAt: Date
     var updatedAt: Date
 }
+
+/// One person's reaction to one win, in one crew.
+///
+/// **One per person per win**, like a Tapback: reacting again with another
+/// emoji replaces it, and with the same one takes it back. Added at the
+/// owner's word (2026-10-02), reversing the brief's "no likes": a crew should
+/// be able to say "nice" without a feed or a comment thread.
+nonisolated struct Reaction: Identifiable, Codable, Equatable, Sendable {
+    let winID: UUID
+    let crewID: CrewID
+    let profileID: UUID
+    var emoji: String
+    var createdAt: Date
+
+    var id: String { Self.name(winID: winID, profileID: profileID) }
+
+    static func name(winID: UUID, profileID: UUID) -> String {
+        "\(winID.uuidString)-\(profileID.uuidString)"
+    }
+
+    /// The quick ones, in the Figma bar's order (Apollo, node 12839:5135).
+    static let quick = ["🔥", "👑", "❤️"]
+    /// Behind the bar's "+": a short, warm set, not the whole keyboard.
+    static let more = ["👏", "💪", "🙌", "😂", "😮", "🥹", "🎉", "⚡️", "🌱", "🏆", "✨", "🫡"]
+    /// What a double-tap on a block sends.
+    static let doubleTap = "❤️"
+}

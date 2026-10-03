@@ -34,6 +34,7 @@ nonisolated enum CrewRecordType: String, Codable, Sendable, CaseIterable {
     case crew = "Crew"
     case member = "Member"
     case sharedWin = "SharedWin"
+    case reaction = "Reaction"
 }
 
 /// The three kinds of record a crew zone holds, and EXACTLY what goes in them.
@@ -52,12 +53,14 @@ nonisolated enum CrewRecords {
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
     static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
+    static let reactionKeys: Set<String> = ["winID", "profileID", "emoji", "createdAt"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
         case .crew: crewKeys
         case .member: memberKeys
         case .sharedWin: sharedWinKeys
+        case .reaction: reactionKeys
         }
     }
 
@@ -97,6 +100,22 @@ nonisolated enum CrewRecords {
                          title: title, colour: colour, icon: icon, blockSize: size,
                          photo: fields["photo"]?.asset, cropX: fields["cropX"]?.double,
                          cropY: fields["cropY"]?.double, createdAt: created, updatedAt: updated)
+    }
+
+    // MARK: Reaction
+
+    static func fields(_ reaction: Reaction) -> RecordFields {
+        ["winID": .uuid(reaction.winID), "profileID": .uuid(reaction.profileID),
+         "emoji": .string(reaction.emoji), "createdAt": .date(reaction.createdAt)]
+    }
+
+    static func reaction(_ fields: RecordFields, crew: CrewID) -> Reaction? {
+        guard let win = fields["winID"]?.uuid, let who = fields["profileID"]?.uuid,
+              let emoji = fields["emoji"]?.string, !emoji.isEmpty else { return nil }
+        // One grapheme, whatever a record claims: a reaction is an emoji,
+        // never a message.
+        return Reaction(winID: win, crewID: crew, profileID: who, emoji: String(emoji.prefix(1)),
+                        createdAt: fields["createdAt"]?.date ?? .distantPast)
     }
 
     // MARK: Crew

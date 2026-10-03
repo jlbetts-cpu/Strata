@@ -122,6 +122,11 @@ final class CloudKitCrewCloud: CrewCloud {
             .values.compactMap { CrewRecords.sharedWin($0, crew: crew) }
     }
 
+    func fetchReactions(in crew: CrewID) async throws -> [Reaction] {
+        (cache[crew] ?? [:]).filter { $0.key.hasPrefix(CrewRecordType.reaction.rawValue + "/") }
+            .values.compactMap { CrewRecords.reaction($0, crew: crew) }
+    }
+
     // MARK: Records
 
     func save(_ fields: RecordFields, type: CrewRecordType, name: String, in crew: CrewID) async throws {
