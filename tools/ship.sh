@@ -96,7 +96,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <key>signingCertificate</key><string>Apple Distribution</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>JaydenBetts.Strata</key><string>Strata App Store 34</string>
+        <key>JaydenBetts.Strata</key><string>Strata App Store 37</string>
         <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
     </dict>
     <key>uploadSymbols</key><true/>
@@ -104,7 +104,12 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
-# **The app signs with "Strata App Store 34"** (2026-10-02). The profile named
+# **The app signs with "Strata App Store 37"** (2026-10-02, Crews): made by
+# `tools/asc_profiles.py create` once Push Notifications was enabled on the app
+# ID, so it carries `aps-environment` as well as the iCloud container. 34
+# before it, for the reason below.
+#
+# "Strata App Store 34" (2026-10-02). The profile named
 # here before, "Strata App Store (cli)", predates iCloud sync (2026-09-23) and
 # cannot sign an app with the iCloud container; build 34 was signed with the
 # one made that day, which can. The widget's profile exists in the account

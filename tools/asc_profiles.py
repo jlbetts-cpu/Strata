@@ -4,6 +4,8 @@
     ASC_KEY_ID=... ASC_ISSUER_ID=... tools/asc_profiles.py list
     ... tools/asc_profiles.py install "<profile name>"
     ... tools/asc_profiles.py create <bundle identifier> "<profile name>"
+    ... tools/asc_profiles.py capabilities <bundle identifier>
+    ... tools/asc_profiles.py enable <bundle identifier> <CAPABILITY_TYPE>
 
 `list` reads. `install` downloads a profile that already exists in the account
 and puts it where xcodebuild looks. `create` makes a new App Store profile for
@@ -101,6 +103,21 @@ def main():
         made = call("POST", "/profiles", body)["data"]
         print(f"created {name} for {identifier}")
         install(made)
+    elif cmd in ("capabilities", "enable"):
+        identifier = sys.argv[2]
+        bundles = call("GET", f"/bundleIds?filter[identifier]={identifier}&limit=5")["data"]
+        bundle = next((b for b in bundles if b["attributes"]["identifier"] == identifier), None)
+        if not bundle:
+            sys.exit(f"no bundle id {identifier} in the account")
+        if cmd == "enable":
+            kind = sys.argv[3]
+            body = {"data": {"type": "bundleIdCapabilities",
+                             "attributes": {"capabilityType": kind},
+                             "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bundle["id"]}}}}}
+            call("POST", "/bundleIdCapabilities", body)
+            print(f"enabled {kind} on {identifier}")
+        for c in call("GET", f"/bundleIds/{bundle['id']}/bundleIdCapabilities")["data"]:
+            print(c["attributes"]["capabilityType"])
     else:
         sys.exit(__doc__)
 
