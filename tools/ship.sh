@@ -81,6 +81,7 @@ echo "this build is $BUILD_NUMBER"
 say "Archive (Release)"
 xcodebuild archive -scheme Strata -configuration Release \
     -destination 'generic/platform=iOS' \
+    -xcconfig tools/archive-signing.xcconfig \
     -archivePath "$ARCHIVE" -quiet
 fi
 

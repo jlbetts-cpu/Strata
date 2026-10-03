@@ -86,7 +86,10 @@ extension DebugHarness {
         NSLog("[strata-crew] seeded %d crews", store.crews.count)
         // `-strataCrewParked <n>`: the first crew's bubble starts with n heads in it.
         if let n = argument("-strataCrewParked").flatMap(Int.init), let first = store.crews.first {
-            let ids = first.others(than: store.me).prefix(n).map(\.profileID.uuidString)
+            // Yours too, last, when n asks for more than the others: the
+            // bubble full is eight heads.
+            var ids = first.others(than: store.me).prefix(n).map(\.profileID.uuidString)
+            if ids.count < n { ids.append(store.me.uuidString) }
             UserDefaults.standard.set(ids, forKey: "crews.parked.\(first.id.rawValue)")
         }
         if let index = openCrew, store.crews.indices.contains(index) {

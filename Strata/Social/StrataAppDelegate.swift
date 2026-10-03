@@ -60,7 +60,9 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         return configuration
     }
 
-    func application(_ application: UIApplication,
+    /// Off the main actor: the payload is not Sendable and nothing in it is
+    /// read. A crew changed; fetch.
+    nonisolated func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         guard CrewsFlag.isOn else { return .noData }
         await SocialStore.shared.refresh()

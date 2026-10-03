@@ -1,0 +1,13 @@
+// Archive signing for tools/ship.sh (2026-10-02).
+//
+// The archive used to sign with Xcode's own "iOS Team Provisioning Profile",
+// which this Mac cannot refresh (no Apple ID is signed in to Xcode). It
+// stopped working the day Push Notifications was added to the app ID: the
+// stale team profile has no aps-environment. So the archive signs manually
+// with the same distribution profiles the export uses, one per target.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Apple Distribution
+DEVELOPMENT_TEAM = W34J6358L7
+STRATA_PROFILE_Strata = Strata App Store 37
+STRATA_PROFILE_StrataWidget = Strata Widget App Store (cli)
+PROVISIONING_PROFILE_SPECIFIER = $(STRATA_PROFILE_$(TARGET_NAME))
