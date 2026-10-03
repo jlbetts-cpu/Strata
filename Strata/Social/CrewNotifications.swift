@@ -5,7 +5,7 @@ import os
 
 /// A notification for every friend's win, the way Messages does it (the
 /// owner, 2026-10-02): titled with the crew, "Sam: Gym" underneath, grouped by
-/// crew on the lock screen, silent for a crew whose alerts you hid, and never
+/// crew on the lock screen, none at all for a crew whose alerts you hid, never
 /// for the crew you are looking at.
 ///
 /// **How it arrives.** iCloud sends a silent push when a crew's zone changes
@@ -73,6 +73,8 @@ enum CrewNotifications {
                 && win.senderProfileID != store.me
                 && !store.blocked.contains(win.senderProfileID)
                 && win.crewID != visibleCrew
+                // Hide Alerts, as in Messages: nothing from that crew.
+                && !store.hidesAlerts(win.crewID)
                 && Date().timeIntervalSince(win.createdAt) < 6 * 3600
         }
         let center = UNUserNotificationCenter.current()
@@ -84,11 +86,7 @@ enum CrewNotifications {
             content.body = text.body
             content.threadIdentifier = win.crewID.rawValue
             content.userInfo = ["crew": win.crewID.rawValue]
-            if store.hidesAlerts(win.crewID) {
-                content.interruptionLevel = .passive
-            } else {
-                content.sound = .default
-            }
+            content.sound = .default
             if let photo = win.photo, let attachment = attachment(photo) {
                 content.attachments = [attachment]
             }

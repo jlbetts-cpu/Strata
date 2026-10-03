@@ -145,7 +145,8 @@ struct CrewTowerView: View {
                                 .foregroundStyle(AppColors.inkPrimary)
                                 .lineLimit(1)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(Typography.headerSmall)
+                                .imageScale(.small)
                                 .foregroundStyle(AppColors.inkTertiary)
                         }
                         .padding(.horizontal, 12)

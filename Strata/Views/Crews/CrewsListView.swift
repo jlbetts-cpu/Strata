@@ -32,7 +32,7 @@ struct CrewsListView: View {
                 List {
                     ForEach(store.crews) { crew in
                         Button { open(crew.id) } label: { row(store.visible(crew.id) ?? crew) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressSurface)
                             .listRowBackground(Color.clear)
                             .listRowInsets(EdgeInsets(top: 10, leading: 8, bottom: 10, trailing: 16))
                             .swipeActions(edge: .trailing) {
@@ -43,7 +43,6 @@ struct CrewsListView: View {
                                     Label(store.hidesAlerts(crew.id) ? "Show Alerts" : "Hide Alerts",
                                           systemImage: store.hidesAlerts(crew.id) ? "bell" : "bell.slash")
                                 }
-                                .tint(AppColors.inkSecondary)
                             }
                     }
                 }
@@ -112,7 +111,8 @@ struct CrewsListView: View {
                             .font(Typography.screenSubtitle)
                             .foregroundStyle(AppColors.inkSecondary)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(Typography.screenSubtitle)
+                            .imageScale(.small)
                             .foregroundStyle(AppColors.inkTertiary)
                     }
                 }

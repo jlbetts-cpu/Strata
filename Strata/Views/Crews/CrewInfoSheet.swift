@@ -50,6 +50,7 @@ struct CrewInfoSheet: View {
                             get: { store.hidesAlerts(crewID) },
                             set: { store.setHidesAlerts($0, for: crewID) }))
                             .font(Typography.bodyLarge)
+                            .tint(AppColors.switchTrack)
                     }
                     Section {
                         Button(isOwner ? "End Crew" : "Leave Crew", role: .destructive) { confirmsLeave = true }
@@ -168,7 +169,6 @@ struct CrewInfoSheet: View {
                 Button("Block") {
                     Task { await CrewSafety.block(member.profileID, from: crewID) }
                 }
-                .tint(AppColors.inkSecondary)
             }
         }
     }

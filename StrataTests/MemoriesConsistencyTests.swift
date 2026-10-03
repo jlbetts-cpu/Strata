@@ -133,8 +133,9 @@ struct MemoriesConsistencyTests {
         // another worker moved onto this token in the same pass. The audit
         // counted the plan line among the five `switchOn` sites, so the app's
         // whole switch population is one colour now.
-        #expect(rowTints.count == 11,
-                "there are \(rowTints.count) switches in the app and there were 11; a new one needs the token too")
+        // Twelve since Crews (2026-10-02): Crew Info's Hide Alerts.
+        #expect(rowTints.count == 12,
+                "there are \(rowTints.count) switches in the app and there were 12; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
@@ -289,6 +290,9 @@ struct MemoriesConsistencyTests {
             // the context's own units and `displayScale` is already applied to
             // the whole drawing. Not a card's edge, and not this file's to change.
             .filter { !$0.hasPrefix("MainAppView.swift") }
+            // The same skipped-block stripes, moved unchanged out of
+            // MainAppView into TowerBlocks.swift (2026-10-02), still a Canvas.
+            .filter { !$0.hasPrefix("TowerBlocks.swift") }
         #expect(flat.isEmpty, "a flat 0.5 hairline is 50% too heavy on a 3x phone: \(flat)")
     }
 
