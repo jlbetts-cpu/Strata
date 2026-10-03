@@ -39,7 +39,7 @@ struct CrewHeadArenaTests {
         #expect(held.position == before)
     }
 
-    @Test func theBubbleIsKeptPerCrewAndForgetsWhoLeft() {
+    @Test func theBubbleIsKeptPerCrewAndForgetsWhoLeft() async {
         let defaults = UserDefaults(suiteName: "crew-park-\(UUID().uuidString)")!
         let one = CrewID(rawValue: "crew-one"), two = CrewID(rawValue: "crew-two")
         let sam = UUID(), ana = UUID()
@@ -49,6 +49,8 @@ struct CrewHeadArenaTests {
         #expect(CrewParking(crewID: one, defaults: defaults).parked == [sam, ana])
         #expect(CrewParking(crewID: two, defaults: defaults).parked.isEmpty)
         a.pop(sam)
+        // Let go a beat after being placed, so the pop has no stray frame.
+        try? await Task.sleep(for: .milliseconds(50))
         #expect(a.parked == [ana])
         #expect(a.popped?.member == sam)
         a.keepOnly([sam])

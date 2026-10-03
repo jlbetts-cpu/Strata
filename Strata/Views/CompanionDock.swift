@@ -300,11 +300,21 @@ struct CompanionDock: View {
         } completion: {
             // He is at his own size on the bubble's spot: the tower takes him
             // from here, at exactly this size and place, and he drifts off.
-            parking.releasing = false
+            //
+            // **Placed first, handed over a beat later.** Both in one update,
+            // the tower drew him for one frame at the simulation's old spot,
+            // 107pt below the bubble, before it moved him onto it (filmed at
+            // 60fps, 2026-10-02). `popped` first lets the tower put him on the
+            // bubble's centre while the bubble still draws him; then the
+            // bubble lets go.
             parking.popped += 1
-            bursting = false
-            spray = 0
-            grow = 0
+            Task { @MainActor in
+                await Task.yield()
+                parking.releasing = false
+                bursting = false
+                spray = 0
+                grow = 0
+            }
         }
         withAnimation(GridConstants.popSpray) { spray = 1 }
         // Wake the tower's clock now, so it is running when it takes him.

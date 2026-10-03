@@ -76,15 +76,26 @@ final class CrewParking {
     }
 
     func pop(_ member: UUID, from point: CGPoint? = nil) {
-        guard parked.contains(member) else { return }
+        guard parked.contains(member), !leaving.contains(member) else { return }
         HapticsEngine.lightTap()
-        withAnimation(GridConstants.popBurst) {
-            parked.removeAll { $0 == member }
-            if parked.isEmpty { fanned = false }
-        }
+        leaving.insert(member)
+        // **Placed first, let go a beat later**, the Wins bubble's own fix:
+        // in one update the arena drew the head for a frame at its old spot
+        // before it was moved onto the bubble.
         popped = (member, (popped?.count ?? 0) + 1, point)
-        persist()
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(GridConstants.popBurst) {
+                parked.removeAll { $0 == member }
+                if parked.isEmpty { fanned = false }
+            }
+            leaving.remove(member)
+            persist()
+        }
     }
+
+    /// Heads on their way out, so a second tap cannot pop one twice.
+    @ObservationIgnored private var leaving: Set<UUID> = []
 
     /// Everyone out, one at a time rather than all at once (the owner:
     /// "pop them out one by one so its not like overwhelming"). Only ever
@@ -133,7 +144,7 @@ struct CrewBubble: View {
     var body: some View {
         let parked = parking.parked.compactMap { id in crew.member(id) }
         let k = parked.count
-        let circle = k == 0 ? side : side + min(CGFloat(k - 1) * 4, 24)
+        let circle = Self.circle(for: k, side: side)
         ZStack {
             if k == 0 {
                 CrewFaces(crew: crew, me: me, side: side)
@@ -187,8 +198,16 @@ struct CrewBubble: View {
         }
         .zIndex(Double(index))
         .allowsHitTesting(false)
-        .transition(.scale(scale: 0.4).combined(with: .opacity))
+        // In with a swell; out at once, because the tower already draws him
+        // leaving from this spot and a fading copy here was a second head for
+        // two frames (filmed, 2026-10-02).
+        .transition(.asymmetric(insertion: .scale(scale: 0.4).combined(with: .opacity), removal: .identity))
         .accessibilityHidden(true)
+    }
+
+    /// How wide the bubble is with `count` heads in it.
+    static func circle(for count: Int, side: CGFloat) -> CGFloat {
+        count <= 1 ? side : side + min(CGFloat(count - 1) * 4, 24)
     }
 
     /// Where head `index` of `count` sits, as fractions of the circle, how big
@@ -473,7 +492,16 @@ private struct CrewHeadRunner: View {
             if life.flightStart == nil { life.flightStart = now }
             let t = min(now.timeIntervalSince(life.flightStart ?? now) / 0.26, 1)
             let e = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2
-            let to = bubbleCentre
+            // **To his own seat, at his own seat's size.** Flown to the
+            // centre at 55%, he landed and jumped to the 92% the bubble draws
+            // a lone head at (filmed, 2026-10-02). The seat is the one the
+            // bubble will give him: the next of however many are in it.
+            let count = parking.parked.count + 1
+            let circle = CrewBubble.circle(for: count, side: parking.bubbleFrame.width > 0
+                                           ? min(parking.bubbleFrame.width, 60) : 60)
+            let seat = CrewBubble.spot(count - 1, of: count)
+            let to = CGPoint(x: bubbleCentre.x + seat.x * circle, y: bubbleCentre.y + seat.y * circle)
+            let landing = circle * seat.size / side
             life.position = CGPoint(x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e)
             life.tilt *= 0.9
             if t >= 1 {
@@ -481,7 +509,7 @@ private struct CrewHeadRunner: View {
                 life.flightStart = nil
                 parking.land(id)
             }
-            return 1 - 0.45 * e
+            return 1 + (landing - 1) * e
         }
 
         life.sim.reduceMotion = reduceMotion
