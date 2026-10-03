@@ -7,11 +7,14 @@ import SwiftData
 enum ReplayPhoto: Hashable {
     case stored(String)
     case bundled(String)
+    /// A file by its path: a crew's photograph, kept in the crew's folder.
+    case file(String)
 
     var key: String {
         switch self {
         case .stored(let name): "stored:" + name
         case .bundled(let name): "bundled:" + name
+        case .file(let path): "file:" + path
         }
     }
 }

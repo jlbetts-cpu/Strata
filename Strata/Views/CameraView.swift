@@ -25,6 +25,13 @@ struct CameraView: View {
     /// True when nothing else is on screen — presented as its own sheet rather
     /// than as a tab with a bar beneath it.
     var fillsScreen: Bool = false
+    /// The crews of the win this photo is for, when the camera is opened
+    /// from Add Win. Its ticks are the sheet's own, so a crew ticked there
+    /// (or the crew whose tower opened it) is still ticked here, and a
+    /// change here is the sheet's change. Nil from the tower's camera, which
+    /// keeps last time's choice (the owner, 2026-10-02: "it unchecks the
+    /// slot when you are adding the photo").
+    var crews: Binding<Set<CrewID>>? = nil
 
     @State private var camera = CameraService()
     /// Whether the composition guides are drawn. Remembered, because it is a
@@ -635,13 +642,13 @@ struct CameraView: View {
                     set: { lookRaw = $0.rawValue }))
                     .padding(.bottom, GridConstants.gapWide)
 
-                CrewPicker(selection: Binding(get: { crewChoice },
-                                              set: { crewChoice = $0; CrewChoice.save($0) }),
+                CrewPicker(selection: crews ?? Binding(get: { crewChoice },
+                                                       set: { crewChoice = $0; CrewChoice.save($0) }),
                            onDark: true, mentionsPhotos: true)
                     .padding(.bottom, GridConstants.gapTight)
                     // Read fresh each review: the choice may have changed in
                     // Add Win since this view was built.
-                    .onAppear { crewChoice = CrewChoice.load() }
+                    .onAppear { if crews == nil { crewChoice = CrewChoice.load() } }
 
                 HStack(spacing: 0) {
                     Button {

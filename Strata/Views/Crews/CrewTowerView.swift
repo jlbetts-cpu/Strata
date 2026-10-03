@@ -26,6 +26,12 @@ struct CrewTowerView: View {
     /// Double-tap hearts in the air, over the blocks they landed on.
     @State private var bursts: [Burst] = []
     private struct Burst: Identifiable { let id = UUID(); let block: UUID; let emoji: String }
+    /// The block a press and hold opened the reactions over.
+    @State private var reacting: UUID?
+    /// When it opened: the finger lifting off a hold must not also count as
+    /// a tap and open the block.
+    @State private var heldAt = Date.distantPast
+    @State private var barSize = CGSize(width: 200, height: 44)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -81,6 +87,17 @@ struct CrewTowerView: View {
                 .ignoresSafeArea()
             }
         }
+        // No head of yours yet: the way to make one, at the foot of the
+        // tower, under the heads that show what it is.
+        // An inset rather than an overlay, so the tower's last row stops
+        // above it instead of under it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let crew, HeadStore.shared.headForCrews == nil {
+                MakeYourHeadPill(crew: crew, me: store.me)
+                    .padding(.bottom, GridConstants.gapTight)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
@@ -115,6 +132,16 @@ struct CrewTowerView: View {
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
             case "fan": parking.fanned = !parking.parked.isEmpty
             default: break
+            }
+            // `-strataCrewHold 1`: a press and hold on a friend's block, so
+            // the reactions it opens can be captured.
+            if DebugHarness.argument("-strataCrewHold") == "1" {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if let win = store.today(in: crewID).first(where: { $0.senderProfileID != store.me }) {
+                        hold(win.winID)
+                    }
+                }
             }
             // `-strataCrewHeartEvery <s>`: a double-tap on a friend's block
             // every s seconds, so the heart can be filmed.
@@ -225,6 +252,48 @@ struct CrewTowerView: View {
         }
     }
 
+    /// A held block: the reaction bar over a friend's, as Messages opens
+    /// its reactions over a held message. Your own block shows who reacted,
+    /// when someone has.
+    private func hold(_ id: UUID) {
+        guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
+        if win.senderProfileID == store.me, store.reactions(to: id, in: crewID).isEmpty { return }
+        HapticsEngine.success()
+        heldAt = Date()
+        reacting = id
+    }
+
+    private func closeReactions() {
+        reacting = nil
+        heldAt = Date()
+    }
+
+    @ViewBuilder
+    private func reactionsOver(_ id: UUID, mine: Bool) -> some View {
+        if mine {
+            HStack(spacing: -4) {
+                ForEach(store.reactions(to: id, in: crewID)) { Text($0.emoji).font(Typography.headerMedium) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .glassCapsule(onPage: true)
+            .onTapGesture { closeReactions() }
+        } else {
+            ReactionBar(mine: store.myReaction(to: id, in: crewID)) { emoji in
+                let given = store.myReaction(to: id, in: crewID) != emoji
+                if given {
+                    let burst = Burst(block: id, emoji: emoji)
+                    bursts.append(burst)
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(1100))
+                        bursts.removeAll { $0.id == burst.id }
+                    }
+                }
+                Task { await store.react(emoji, to: id, in: crewID) }
+                closeReactions()
+            }
+        }
+    }
+
     /// Today's photographs in the order the tower stacks them, for the viewer.
     private var galleryPhotos: [GalleryPhoto] {
         store.today(in: crewID)
@@ -264,7 +333,7 @@ struct CrewTowerView: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
             }
             if let crew {
-                VStack(spacing: parking.parked.isEmpty ? -10 : -2) {
+                VStack(spacing: parking.parked.isEmpty ? -17 : -9) {
                     CrewBubble(crew: crew, me: store.me, parking: parking, side: 60)
                         // The whole bubble is the target, never one 34pt head.
                         .contentShape(Circle())
@@ -302,8 +371,17 @@ struct CrewTowerView: View {
                         .frame(maxWidth: 240)
                         .minimumScaleFactor(0.85)
                         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["name"] = $0 }
+                        // A 44pt target round a 30pt capsule, so the press
+                        // lands without hunting for the glass.
+                        .padding(.vertical, 7)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressSurface)
+                    // **Over the bubble, always.** With heads parked the
+                    // bubble's crowd spills onto the capsule, and the bubble
+                    // sat above it and took the tap: the details were nearly
+                    // impossible to open (the owner, 2026-10-02).
+                    .zIndex(2)
                     .accessibilityLabel("\(crew.displayName(excluding: store.me)), details")
                     .accessibilityAddTraits(.isHeader)
                 }
@@ -350,11 +428,14 @@ struct CrewTowerView: View {
                         cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
                         reduceMotion: reduceMotion, colorScheme: colorScheme,
                         onTapExpandBlock: { id in
+                            if reacting != nil { closeReactions(); return }
+                            guard Date().timeIntervalSince(heldAt) > 0.6 else { return }
                             guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
                             if win.photo != nil { viewing = win.winID.uuidString } else { openWin = win }
                         },
                         liftedBlockID: nil,
-                        onDoubleTapBlock: { doubleTap($0) })
+                        onDoubleTapBlock: { doubleTap($0) },
+                        onLongPressBlock: { hold($0) })
                 }
             }
             // The hearts, over the block each one landed on. An OVERLAY, never
@@ -371,6 +452,29 @@ struct CrewTowerView: View {
                     }
                 }
             }
+            // The reactions a hold opened, over the block that was held,
+            // and anywhere else on the tower closes them.
+            .overlay(alignment: .topLeading) {
+                if let id = reacting, let block = tower.placedBlocks.first(where: { $0.id == id }) {
+                    let f = block.frame(cellSize: colW)
+                    let mine = store.today(in: crewID).first { $0.winID == id }?.senderProfileID == store.me
+                    ZStack(alignment: .topLeading) {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { closeReactions() }
+                        // Centred over the block, kept inside the tower's
+                        // width, and 8pt clear of the block's top edge.
+                        reactionsOver(id, mine: mine)
+                            .fixedSize()
+                            .onGeometryChange(for: CGSize.self) { $0.size } action: { barSize = $0 }
+                            .position(x: min(max(f.midX, barSize.width / 2), gridW - barSize.width / 2),
+                                      y: gridH - f.minY - f.height - 8 - barSize.height / 2)
+                            .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
+                    }
+                    .frame(width: gridW, height: gridH, alignment: .topLeading)
+                }
+            }
+            .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: reacting)
             .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
             .background(alignment: .bottom) {
                 TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: model.latticeRipple)

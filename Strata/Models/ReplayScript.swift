@@ -134,6 +134,8 @@ struct ReplayScript {
         static func of(_ kind: ReplayKind) -> Pacing {
             switch kind {
             case .week: Pacing(buildBudget: 10, buildCap: 12.5, air: 0.35, emptyHold: 0.45, reveal: 1.0, reduceMotionSpan: 4, totalCap: 18)
+            // A day is a handful of wins: the week's air, a shorter build.
+            case .day: Pacing(buildBudget: 6, buildCap: 8, air: 0.35, emptyHold: 0.45, reveal: 1.0, reduceMotionSpan: 3, totalCap: 12)
             case .month: Pacing(buildBudget: 18, buildCap: 22, air: 0.12, emptyHold: 0.2, reveal: 1.4, reduceMotionSpan: 6, totalCap: 28)
             }
         }

@@ -39,9 +39,14 @@ final class CrewParking {
 
     init(crewID: CrewID, defaults: UserDefaults = .standard) {
         self.crewID = crewID
-        parked = (defaults.stringArray(forKey: "crews.parked.\(crewID.rawValue)") ?? []).compactMap(UUID.init(uuidString:))
+        let stored = defaults.stringArray(forKey: "crews.parked.\(crewID.rawValue)")
+        parked = (stored ?? []).compactMap(UUID.init(uuidString:))
+        firstOpen = stored == nil
         self.defaults = defaults
     }
+
+    /// Never opened on this phone: everyone starts in the bubble.
+    @ObservationIgnored private var firstOpen: Bool
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -112,12 +117,23 @@ final class CrewParking {
     }
 
     /// Members who left the crew leave the bubble.
-    func keepOnly(_ members: Set<UUID>) {
+    func keepOnly(_ members: [UUID]) {
+        // **Contained on first open** (the owner and a friend of his,
+        // 2026-10-02): heads already loose on a tower you have never seen
+        // read as a glitch, and nothing says the bubble is theirs. In it,
+        // a tap lets them out, and you learn where they go back to.
+        if firstOpen, !members.isEmpty {
+            firstOpen = false
+            parked = members
+            persist()
+            return
+        }
         let kept = parked.filter(members.contains)
         if kept != parked { parked = kept; persist() }
     }
 
     private func persist() {
+        firstOpen = false
         defaults.set(parked.map(\.uuidString), forKey: key)
     }
 }
@@ -273,7 +289,7 @@ struct CrewHeadArena: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         .onChange(of: crew.members.map(\.profileID), initial: true) { _, ids in
-            parking.keepOnly(Set(ids))
+            parking.keepOnly(ids)
         }
     }
 }

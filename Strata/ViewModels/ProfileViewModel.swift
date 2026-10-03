@@ -15,8 +15,8 @@ import SwiftData
 final class ProfileViewModel {
     private(set) var currentStreak = 0
     private(set) var bestStreak = 0
-    private var barsByUnit: [WinTrend.Unit: [WinTrend.Bar]] = [:]
-    private var summaryByUnit: [WinTrend.Unit: WinTrend.Summary] = [:]
+    private(set) var barsByUnit: [WinTrend.Unit: [WinTrend.Bar]] = [:]
+    private(set) var summaryByUnit: [WinTrend.Unit: WinTrend.Summary] = [:]
 
     func bars(_ unit: WinTrend.Unit) -> [WinTrend.Bar] { barsByUnit[unit] ?? [] }
     func summary(_ unit: WinTrend.Unit) -> WinTrend.Summary { summaryByUnit[unit] ?? WinTrend.Summary(kind: .empty) }

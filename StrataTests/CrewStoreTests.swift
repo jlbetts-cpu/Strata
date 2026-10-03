@@ -251,3 +251,39 @@ extension CrewStoreTests {
         #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] == nil)
     }
 }
+
+extension CrewStoreTests {
+    /// The owner's sister, 2026-10-02: she joined, made a head, and it never
+    /// reached him. A head made after joining, or on a build that never sent
+    /// it, goes on the next launch's first refresh.
+    @Test func aHeadMadeAfterJoiningReachesTheCrew() async throws {
+        let (a, b, crew) = try await pair()
+        await a.refresh()
+        #expect(a.crew(crew.id)?.member(sam)?.head == nil)
+        b.announces = true
+        b.myHeadPack = { Data([7, 7, 7]) }
+        await b.refresh()
+        await a.refresh()
+        let head = try #require(a.crew(crew.id)?.member(sam)?.head)
+        #expect(try Data(contentsOf: head) == Data([7, 7, 7]))
+        // Once a launch, and not again for nothing.
+        let calls = world.records(of: .member, in: crew.id).count
+        await b.refresh()
+        #expect(world.records(of: .member, in: crew.id).count == calls)
+    }
+
+    @Test func nothingChangedSendsNothing() async throws {
+        let (_, b, _) = try await pair()
+        b.myHeadPack = { Data([1]) }
+        await b.shareMyself()
+        b.checkedSelf = false
+        let (_, cloud, _) = (b, b.cloud as! FakeCrewCloud, ())
+        let before = cloud.calls
+        await b.shareMyselfIfChanged()
+        #expect(cloud.calls == before)
+        b.checkedSelf = false
+        b.myHeadPack = { Data([2]) }
+        await b.shareMyselfIfChanged()
+        #expect(cloud.calls > before)
+    }
+}

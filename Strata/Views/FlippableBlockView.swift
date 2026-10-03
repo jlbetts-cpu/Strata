@@ -41,6 +41,8 @@ struct FlippableBlockView: View {
     /// everywhere else, which keeps the single tap there immediate: a block
     /// that listens for two taps has to wait out the first (about 250ms).
     var onDoubleTap: (() -> Void)? = nil
+    /// A crew block's press and hold: the reaction bar. Nil everywhere else.
+    var onLongPress: (() -> Void)? = nil
     var showOverlay: Bool = true
     /// True while this block is the one being carried.
     var isLifted: Bool = false
@@ -181,6 +183,14 @@ struct FlippableBlockView: View {
                         onTap?()
                     }),
                 including: onDoubleTap == nil ? .subviews : .all
+            )
+            // Held: the reactions, at the moment the hold is long enough,
+            // not on release, as Messages does it. Simultaneous, so the
+            // tower still scrolls under a finger that moves.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.35, maximumDistance: 10)
+                    .onEnded { _ in onLongPress?() },
+                including: onLongPress == nil ? .subviews : .all
             )
             .overlay(alignment: .topTrailing) {
                 if !block.look.reactionEmoji.isEmpty, !isGroupMember {

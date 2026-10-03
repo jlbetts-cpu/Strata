@@ -367,6 +367,7 @@ final class HeadStore {
     }
 
     func setShowsOnTower(_ on: Bool) {
+        if on, !showsOnTower { CompanionParking.shared.containOnArrival() }
         showsOnTower = on
         UserDefaults.standard.set(on, forKey: Key.tower)
         // Your crews see the head on your tower, so they hear about it.
@@ -380,6 +381,12 @@ final class HeadStore {
     var headForMap: HeadRig? { showsOnMap ? head : nil }
     var headForSticker: HeadRig? { showsCameraSticker ? head : nil }
     var headForTower: HeadRig? { showsOnTower ? head : nil }
+    /// **The head your crews see: the one you use, wherever you use it.**
+    /// Not the tower switch: a first head starts with the tower switch off,
+    /// so tying crews to it meant a friend's new head never reached anyone
+    /// (the owner's sister, 2026-10-02). A head switched off everywhere is
+    /// one you have put away, and it stays home.
+    var headForCrews: HeadRig? { isSomewhere ? head : nil }
 
     // MARK: - Saving
 
@@ -580,6 +587,8 @@ final class HeadStore {
     /// (`CrewHeadPack`). Nil when no head is on the tower: a head you keep off
     /// your own tower does not go to your friends either.
     var towerHeadDirectory: URL? { showsOnTower ? activeDirectory : nil }
+    /// The folder `headForCrews` is read from, for packing.
+    var crewHeadDirectory: URL? { isSomewhere ? activeDirectory : nil }
 
     nonisolated static func directory(of entry: Entry?) -> URL? {
         guard let support else { return nil }

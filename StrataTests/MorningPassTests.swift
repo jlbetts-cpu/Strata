@@ -132,7 +132,9 @@ struct LastFourToTenTests {
 
     @Test("the trend control only shows once there is a trend")
     func trendControlNeedsData() throws {
-        let text = try MorningSource.read("Views/ProfileView.swift")
+        // The chart moved into `WinTrendSection` when a crew's page needed
+        // the same one (2026-10-02); the rule moved with it.
+        let text = try MorningSource.read("Views/WinTrendSection.swift")
         let trend = text.components(separatedBy: "private var trend: some View {").last ?? ""
         let picker = trend.components(separatedBy: "Picker(\"Wins per\"").first ?? ""
         #expect(picker.contains("if summary.kind != .empty {"))

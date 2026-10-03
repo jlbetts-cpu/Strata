@@ -57,6 +57,22 @@ struct CrewHeadArenaTests {
         #expect(a.parked.isEmpty)
     }
 
+    /// A crew never opened on this phone starts with everyone in the
+    /// bubble; once anyone is let out, that is remembered, not undone.
+    @Test func aFirstOpenStartsEveryoneContained() async {
+        let defaults = UserDefaults(suiteName: "crew-park-\(UUID().uuidString)")!
+        let crew = CrewID(rawValue: "crew-first")
+        let sam = UUID(), ana = UUID()
+        let a = CrewParking(crewID: crew, defaults: defaults)
+        a.keepOnly([sam, ana])
+        #expect(a.parked == [sam, ana])
+        a.pop(sam)
+        try? await Task.sleep(for: .milliseconds(50))
+        a.keepOnly([sam, ana])
+        #expect(a.parked == [ana])
+        #expect(CrewParking(crewID: crew, defaults: defaults).parked == [ana])
+    }
+
     @Test func everyCrampedHeadStaysCentredOnTheBubble() {
         for count in 1...CrewCaps.members {
             for index in 0..<count {

@@ -69,7 +69,16 @@ final class CompanionParking {
     private static let key = "strata.companionParked"
 
     private init() {
-        parked = UserDefaults.standard.bool(forKey: Self.key)
+        // Never set: he starts in the bubble (the owner, 2026-10-02), so the
+        // first thing you learn about the head on your tower is where it
+        // lives and that a tap lets it out.
+        parked = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true
+    }
+
+    /// The head was just put on the tower: in the bubble first, for the
+    /// same reason.
+    func containOnArrival() {
+        parked = true
     }
 
     /// Whether the bubble is on screen at all.

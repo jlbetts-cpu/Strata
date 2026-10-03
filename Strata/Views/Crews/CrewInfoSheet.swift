@@ -20,6 +20,7 @@ struct CrewInfoSheet: View {
     @State private var problem: String?
     @FocusState private var editingName: Bool
     @State private var systemOff = false
+    @State private var makingHead = false
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -30,9 +31,16 @@ struct CrewInfoSheet: View {
             if let crew {
                 List {
                     identity(crew)
+                    CrewStatsSections(crew: crew)
                     Section {
                         ForEach(members(crew)) { member in
                             memberRow(member, in: crew)
+                        }
+                        if HeadStore.shared.headForCrews == nil {
+                            Button { makingHead = true } label: {
+                                Label("Make Your Head", systemImage: "face.smiling")
+                                    .font(Typography.bodyLarge)
+                            }
                         }
                         if crew.members.count < CrewCaps.members {
                             Button {
@@ -87,6 +95,7 @@ struct CrewInfoSheet: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $makingHead) { HeadMakerView() }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

@@ -1,4 +1,5 @@
 import CloudKit
+import CryptoKit
 import Foundation
 import Observation
 import UIKit
@@ -34,7 +35,11 @@ final class SocialStore {
         store.myFirstName = {
             ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
         }
-        store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
+        store.myHeadPack = {
+            // Packing shrinks every face: off the main actor.
+            guard let folder = HeadStore.shared.crewHeadDirectory else { return nil }
+            return await Task.detached(priority: .utility) { CrewHeadPack.make(from: folder) }.value
+        }
         store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
         // A photo is offered first and can be added later; it is never what
         // stands between you and inviting people (the owner, 2026-10-02:
@@ -78,7 +83,7 @@ final class SocialStore {
     /// What you called yourself, for your Member record.
     @ObservationIgnored var myFirstName: () -> String = { "" }
     /// Your head, packed to send, or nil for no head.
-    @ObservationIgnored var myHeadPack: () -> Data? = { nil }
+    @ObservationIgnored var myHeadPack: () async -> Data? = { nil }
     /// Your profile photograph as JPEG, or nil.
     @ObservationIgnored var myPhoto: () -> Data? = { nil }
     /// A crew must start with a photo (the owner, 2026-10-02). Off in tests
@@ -125,12 +130,44 @@ final class SocialStore {
         self.defaults = defaults
         self.directory = directory
         self.outbox = CrewOutbox.load(from: directory.appending(path: "outbox.json"))
+        self.history = (try? Data(contentsOf: directory.appending(path: "history.json")))
+            .flatMap { try? JSONDecoder().decode([String: CrewHistory].self, from: $0) }
+            .map { Dictionary(uniqueKeysWithValues: $0.map { (CrewID(rawValue: $0.key), $0.value) }) } ?? [:]
         self.blocked = Set((defaults.stringArray(forKey: Self.blockedKey) ?? []).compactMap(UUID.init(uuidString:)))
     }
 
     // MARK: Reading
 
     func crew(_ id: CrewID) -> Crew? { crews.first { $0.id == id } }
+
+    /// Each crew's days as numbers (`CrewHistory`): its streak and its chart.
+    private(set) var history: [CrewID: CrewHistory] = [:]
+
+    #if DEBUG
+    /// The debug seed's months of history, which no fake cloud could hold.
+    func debugSetHistory(_ seeded: CrewHistory, for crew: CrewID) { history[crew] = seeded }
+    #endif
+
+    /// The cloud's wins, counted into each crew's history. Only for crews
+    /// whose fetch worked: a failed fetch is not a day with no wins.
+    private func recordHistory(_ wins: [CrewID: [SharedWin]], for crews: [Crew]) {
+        var next = history
+        for crew in crews {
+            guard let held = wins[crew.id] else { continue }
+            let today = CrewDay.string(for: now(), in: crew.timeZone)
+            guard let cutoff = CrewDay.day(today, offsetBy: -3, in: crew.timeZone) else { continue }
+            next[crew.id, default: CrewHistory()].record(held, from: cutoff, through: today)
+        }
+        guard next != history else { return }
+        history = next
+        let keyed = Dictionary(uniqueKeysWithValues: next.map { ($0.key.rawValue, $0.value) })
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(keyed).write(to: directory.appending(path: "history.json"), options: .atomic)
+        } catch {
+            Self.log.error("history not written: \(error)")
+        }
+    }
 
     /// Every shared win still held for a crew, oldest first.
     func wins(in crew: CrewID) -> [SharedWin] {
@@ -352,8 +389,40 @@ final class SocialStore {
     func shareMyself() async {
         guard isEnabled() else { return }
         var photo: Data?
-        if photosAllowed(), let mine = myPhoto() { photo = await derived(mine) }
-        await setMyHead(myHeadPack(), photo: photo)
+        let source = photosAllowed() ? myPhoto() : nil
+        if let source { photo = await derived(source) }
+        let pack = await myHeadPack()
+        await setMyHead(pack, photo: photo)
+        defaults.set(selfDigest(pack: pack, photo: source), forKey: Self.sentSelfKey)
+    }
+
+    /// **You, sent again when you changed while this phone was not
+    /// sending.** Once a launch, after the first refresh: a head made on a
+    /// build that never sent it, or a change made with no signal, reaches
+    /// your crews without anyone touching anything. Cheap when nothing
+    /// changed: one digest compared.
+    func shareMyselfIfChanged() async {
+        guard isEnabled(), !checkedSelf, !crews.isEmpty else { return }
+        checkedSelf = true
+        let source = photosAllowed() ? myPhoto() : nil
+        let pack = await myHeadPack()
+        let digest = selfDigest(pack: pack, photo: source)
+        let mineMissingHead = pack != nil && crews.contains { $0.member(me).map { $0.head == nil } ?? false }
+        guard digest != defaults.string(forKey: Self.sentSelfKey) || mineMissingHead else { return }
+        await shareMyself()
+    }
+
+    @ObservationIgnored var checkedSelf = false
+    static let sentSelfKey = "crews.sentSelf"
+
+    private func selfDigest(pack: Data?, photo: Data?) -> String {
+        var hasher = SHA256()
+        hasher.update(data: pack ?? Data())
+        hasher.update(data: Data([0]))
+        hasher.update(data: photo ?? Data())
+        hasher.update(data: Data(myFirstName().utf8))
+        hasher.update(data: Data(crews.map(\.id.rawValue).sorted().joined(separator: ",").utf8))
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     /// Something about you changed (your name, photo or head): your crews
@@ -401,6 +470,13 @@ final class SocialStore {
                 mine.photo = nil
             }
             mine.firstName = myFirstName()
+            // Held here at once, not only after the next fetch: what this
+            // phone shows of you, and what `shareMyselfIfChanged` compares,
+            // is what was just sent.
+            if let i = crews.firstIndex(where: { $0.id == crew.id }),
+               let j = crews[i].members.firstIndex(where: { $0.profileID == me }) {
+                crews[i].members[j] = mine
+            }
             enqueue(.init(crew: crew.id, type: .member, name: CrewRecords.name(of: mine), fields: CrewRecords.fields(mine)))
         }
         await flush()
@@ -579,6 +655,7 @@ final class SocialStore {
         if announces {
             await CrewNotifications.announce(self)
             await CrewNotifications.announceReactions(self)
+            await shareMyselfIfChanged()
         }
     }
 
@@ -603,6 +680,7 @@ final class SocialStore {
                 return crew
             }
             var wins: [CrewID: [SharedWin]] = [:]
+            var counted: [CrewID: [SharedWin]] = [:]
             for crew in fetched {
                 do {
                     var held = try await cloud.fetchWins(in: crew.id)
@@ -615,6 +693,7 @@ final class SocialStore {
                         }
                     }
                     wins[crew.id] = held.sorted { ($0.createdAt, $0.winID.uuidString) < ($1.createdAt, $1.winID.uuidString) }
+                    counted[crew.id] = wins[crew.id]
                 } catch {
                     Self.log.error("fetching wins in \(crew.id.rawValue, privacy: .public) failed: \(error)")
                     wins[crew.id] = winsByCrew[crew.id] ?? []
@@ -640,6 +719,7 @@ final class SocialStore {
             if crews != fetched { crews = fetched }
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
+            recordHistory(counted, for: fetched)
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
             recomputeUnread()
             prune()
@@ -857,6 +937,7 @@ final class SocialStore {
             for photo in wins.compactMap(\.photo) { try? FileManager.default.removeItem(at: photo) }
         }
         reactionsByCrew[crewID] = nil
+        history[crewID] = nil
         unread.remove(crewID)
         outbox.drop(crew: crewID)
         persistOutbox()

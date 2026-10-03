@@ -11,6 +11,9 @@ import Foundation
 /// the reason `Streaks` gives: a day is not always that long.
 enum ReplayKind: String, Hashable {
     case week, month
+    /// One crew day, saved from the crew before it goes (2026-10-02). Never
+    /// shelved, never announced: it exists only when someone asks for it.
+    case day
 }
 
 struct ReplayPeriod: Hashable, Identifiable {
@@ -20,11 +23,14 @@ struct ReplayPeriod: Hashable, Identifiable {
     /// Start of the first day.
     let firstDay: Date
     let calendar: Calendar
+    /// A crew's day is titled with the crew's name; yours are "Your week"
+    /// and "Your month".
+    var name: String? = nil
 
     var id: String { "\(kind.rawValue)-\(days.first ?? "")" }
 
-    static func == (a: ReplayPeriod, b: ReplayPeriod) -> Bool { a.kind == b.kind && a.days == b.days }
-    func hash(into h: inout Hasher) { h.combine(kind); h.combine(days) }
+    static func == (a: ReplayPeriod, b: ReplayPeriod) -> Bool { a.kind == b.kind && a.days == b.days && a.name == b.name }
+    func hash(into h: inout Hasher) { h.combine(kind); h.combine(days); h.combine(name) }
 
     // MARK: - Making one
 
@@ -40,6 +46,14 @@ struct ReplayPeriod: Hashable, Identifiable {
         let first = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
         let count = calendar.range(of: .day, in: .month, for: first)!.count
         return make(.month, from: first, count: count, calendar: calendar)
+    }
+
+    /// One day, `yyyy-MM-dd`, of the crew called `name`.
+    static func day(_ key: String, name: String?, calendar: Calendar = .current) -> ReplayPeriod? {
+        let bits = key.split(separator: "-").compactMap { Int($0) }
+        guard bits.count == 3,
+              let start = calendar.date(from: DateComponents(year: bits[0], month: bits[1], day: bits[2])) else { return nil }
+        return ReplayPeriod(kind: .day, days: [key], firstDay: start, calendar: calendar, name: name)
     }
 
     private static func make(_ kind: ReplayKind, from first: Date, count: Int, calendar: Calendar) -> ReplayPeriod {
@@ -65,7 +79,7 @@ struct ReplayPeriod: Hashable, Identifiable {
 
     /// A week: as Tuesday starts. A month: as the 3rd starts.
     var windowCloses: Date {
-        date(ofDay: days.count + (kind == .week ? 1 : 2))
+        date(ofDay: days.count + (kind == .month ? 2 : 1))
     }
 
     /// A week: Sunday at 6pm. A month: the 1st of the next month at 10am.
@@ -73,6 +87,8 @@ struct ReplayPeriod: Hashable, Identifiable {
         switch kind {
         case .week:
             return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: date(ofDay: 6))!
+        case .day:
+            return windowOpens
         case .month:
             return calendar.date(bySettingHour: 10, minute: 0, second: 0, of: date(ofDay: days.count))!
         }
@@ -82,6 +98,8 @@ struct ReplayPeriod: Hashable, Identifiable {
     static func current(_ kind: ReplayKind, at now: Date, calendar: Calendar = .current) -> ReplayPeriod? {
         let candidates: [ReplayPeriod]
         switch kind {
+        case .day:
+            return nil
         case .week:
             let lastWeek = calendar.date(byAdding: .day, value: -7, to: now)!
             candidates = [week(containing: now, calendar: calendar), week(containing: lastWeek, calendar: calendar)]
@@ -108,7 +126,13 @@ struct ReplayPeriod: Hashable, Identifiable {
 
     // MARK: - Words
 
-    var title: String { kind == .week ? "Your week" : "Your month" }
+    var title: String {
+        switch kind {
+        case .week: "Your week"
+        case .month: "Your month"
+        case .day: name ?? "Your day"
+        }
+    }
 
     /// Made once per format, locale, calendar and time zone, and kept.
     ///
@@ -157,6 +181,13 @@ struct ReplayPeriod: Hashable, Identifiable {
         switch kind {
         case .month:
             return formatter(calendar.component(.year, from: first) != nowYear ? "MMMM yyyy" : "MMMM").string(from: first)
+        case .day:
+            // "Roommates, 10/2": whose day, and which. A replay is shared,
+            // and the crew's name is what tells a friend what they are
+            // watching.
+            let date = formatter(calendar.component(.year, from: first) != nowYear ? "yyMd" : "Md",
+                                 template: true, locale: locale).string(from: first)
+            return [name, date].compactMap { $0 }.joined(separator: ", ")
         case .week:
             let otherYear = calendar.component(.year, from: first) != nowYear
                 || calendar.component(.year, from: last) != nowYear
@@ -182,6 +213,8 @@ struct ReplayPeriod: Hashable, Identifiable {
         switch kind {
         case .month:
             return formatter(otherYear ? "MMMM yyyy" : "MMMM").string(from: first)
+        case .day:
+            return formatter(otherYear ? "d MMMM yyyy" : "d MMMM").string(from: first)
         case .week:
             let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
             let head = formatter(otherYear ? "d MMMM yyyy" : (sameMonth ? "d" : "d MMMM")).string(from: first)

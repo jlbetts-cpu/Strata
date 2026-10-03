@@ -1627,7 +1627,16 @@ Crews (`Strata/Social`, `Strata/Views/Crews`, spec
 Simulator: `-strataSeedCrew <n> -strataSeedCrews <k>`, `-strataOpenCrew 0`,
 `-strataOpenCrews 1`, `-strataCrewDropEvery <s>`, `-strataCrewParkEvery <s>`,
 `-strataCrewParked <n>`, `-strataCrewSheet info|win|mine|new`,
-`-strataCrewAge under13|teen|adult`. A system permission prompt survives an
+`-strataCrewAge under13|teen|adult`, `-strataSeedCrewHistory <days>` (a
+crew's streak and chart), `-strataCrewDayReplay 1` (a crew day's video),
+`-strataCrewHold 1` (the reactions a hold opens).
+
+- **A crew's numbers are local** (`CrewHistory`, `history.json`): counts per
+  person per crew day, never a title or photo. The cloud's days rewrite their
+  counts each refresh; older days are kept as last seen.
+- **The head a crew sees is `HeadStore.headForCrews`**, the head you use
+  anywhere, NOT the tower switch: a first head starts with the tower switch
+  off, and gating on it meant a friend's head never reached anyone. A system permission prompt survives an
 uninstall in the simulator; reboot it.
 
 ## Words the app says

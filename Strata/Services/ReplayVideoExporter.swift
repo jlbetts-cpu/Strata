@@ -99,7 +99,7 @@ final class ReplayVideoExporter {
         // app: "Your week.mp4", in a folder of its own so two never collide.
         let folder = URL.temporaryDirectory.appending(path: "replay-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let url = folder.appending(path: "\(replay.period.title).mp4")
+        let url = folder.appending(path: "\(replay.period.title.replacingOccurrences(of: "/", with: "-")).mp4")
         let writer: AVAssetWriter
         do {
             writer = try AVAssetWriter(outputURL: url, fileType: .mp4)

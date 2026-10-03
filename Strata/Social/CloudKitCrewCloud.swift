@@ -40,6 +40,8 @@ final class CloudKitCrewCloud: CrewCloud {
     }
 
     private static let creatorKey = "_creator"
+    /// The cache entry holding a crew's participants' iCloud first names.
+    private static let namesKey = "_names"
 
     private func database(_ shared: Bool) -> CKDatabase {
         shared ? container.sharedCloudDatabase : container.privateCloudDatabase
@@ -158,10 +160,23 @@ final class CloudKitCrewCloud: CrewCloud {
                 forget(crewID)
                 continue
             }
+            // A crew synced before names were kept has its share already
+            // behind its change token: asked for once.
+            if cache[crewID]?[Self.namesKey] == nil, let share = try? await share(for: crewID) {
+                keepNames(of: share, in: crewID)
+            }
             let records = cache[crewID] ?? [:]
             guard let fields = records["\(CrewRecordType.crew.rawValue)/\(CrewRecords.crewRecordName)"] else { continue }
+            let names = records[Self.namesKey] ?? [:]
             let members = records.filter { $0.key.hasPrefix(CrewRecordType.member.rawValue + "/") }
-                .values.compactMap(CrewRecords.member)
+                .values.compactMap { fields -> CrewMember? in
+                    guard var member = CrewRecords.member(fields) else { return nil }
+                    if member.firstName.isEmpty, let user = fields[Self.creatorKey]?.string,
+                       let given = names[user]?.string {
+                        member.firstName = given
+                    }
+                    return member
+                }
             if let crew = CrewRecords.crew(fields, id: crewID, members: members) { crews.append(crew) }
         }
         saveCache()
@@ -252,6 +267,17 @@ final class CloudKitCrewCloud: CrewCloud {
         for (id, zone) in found { zones[id] = (id: zone.0, shared: zone.1) }
     }
 
+    private func keepNames(of share: CKShare, in crew: CrewID) {
+        var names: RecordFields = [:]
+        for participant in share.participants {
+            guard let user = participant.userIdentity.userRecordID?.recordName,
+                  let given = participant.userIdentity.nameComponents?.givenName,
+                  !given.isEmpty else { continue }
+            names[user] = .string(given)
+        }
+        cache[crew, default: [:]][Self.namesKey] = names
+    }
+
     /// Brings one crew's cache up to date from its change token.
     private func sync(_ crew: CrewID) async throws {
         let (zoneID, db) = try zone(crew)
@@ -261,6 +287,14 @@ final class CloudKitCrewCloud: CrewCloud {
             for (id, result) in changes.modificationResultsByID {
                 guard case .success(let modification) = result else { continue }
                 let record = modification.record
+                // The crew's share: who is in it, by their iCloud first
+                // names, for a member who never gave Sturdy a name. Messages
+                // names a group by its people; with no name to go on it fell
+                // back to "New Crew" (the owner, 2026-10-02).
+                if let share = record as? CKShare {
+                    keepNames(of: share, in: crew)
+                    continue
+                }
                 guard let type = CrewRecordType(rawValue: record.recordType) else { continue }
                 var fields = fields(of: record, type: type, crew: crew)
                 // Who wrote a Member record is how a profile id is matched to
@@ -299,13 +333,29 @@ final class CloudKitCrewCloud: CrewCloud {
                 let suffix = type == .member && key == "head" ? "head" : "jpg"
                 // Named by key as well: a Member record has a head AND a
                 // photo, and one path for both let each overwrite the other.
-                let name = type == .crew ? "crew-\(record.recordChangeTag ?? "0")" : "\(record.recordID.recordName)-\(key)"
-                let url = directory.appending(path: "\(folder)/\(crew.rawValue)/\(name).\(suffix)")
+                // And by the record's change tag, so a new head is a new
+                // file: a phone that had unpacked the old one under the same
+                // name kept drawing it forever (2026-10-02).
+                let tag = record.recordChangeTag ?? "0"
+                // "crew-picture", never "crew": the store writes its own
+                // "crew-<uuid>.jpg" in this folder, and the sweep below must
+                // not reach it.
+                let stem = type == .crew ? "crew-picture" : "\(record.recordID.recordName)-\(key)"
+                let url = directory.appending(path: "\(folder)/\(crew.rawValue)/\(stem)-\(tag).\(suffix)")
                 do {
-                    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                            withIntermediateDirectories: true)
-                    if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
-                    try FileManager.default.copyItem(at: source, to: url)
+                    let manager = FileManager.default
+                    let parent = url.deletingLastPathComponent()
+                    try manager.createDirectory(at: parent, withIntermediateDirectories: true)
+                    if !manager.fileExists(atPath: url.path) {
+                        try manager.copyItem(at: source, to: url)
+                    }
+                    // The versions before this one, and anything unpacked
+                    // from them, go.
+                    for old in (try? manager.contentsOfDirectory(atPath: parent.path)) ?? []
+                    where old.hasPrefix("\(stem)-") && old != url.lastPathComponent
+                        && old != url.deletingPathExtension().lastPathComponent {
+                        try? manager.removeItem(at: parent.appending(path: old))
+                    }
                     fields[key] = .asset(url)
                 } catch {
                     Self.log.error("asset \(key, privacy: .public) not kept: \(error)")

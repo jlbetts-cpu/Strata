@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -92,6 +93,8 @@ struct ReplayImages {
                     group.addTask { (photo, await decodeBundled(name, width: width)) }
                 case .stored(let name):
                     group.addTask { (photo, await ImageManager.shared.loadThumbnail(fileName: name, maxWidth: width, lane: .prefetch)) }
+                case .file(let path):
+                    group.addTask { (photo, decodeFile(path, width: width)) }
                 }
             }
             for _ in 0..<concurrentDecodes { addNext() }
@@ -106,6 +109,18 @@ struct ReplayImages {
     /// what `ImageRenderer` cannot wait for. Downsampled and decoded here
     /// instead, bounded on its longest side as a stored photo's decode is.
     /// Off the main actor: both calls are thread-safe.
+    /// A photograph by path, bounded and decoded now for the same reason.
+    nonisolated private static func decodeFile(_ path: String, width: CGFloat) -> UIImage? {
+        let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, options as CFDictionary) else { return nil }
+        let thumb: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                      kCGImageSourceCreateThumbnailWithTransform: true,
+                                      kCGImageSourceShouldCacheImmediately: true,
+                                      kCGImageSourceThumbnailMaxPixelSize: max(width, 1)]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, thumb as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
+    }
+
     nonisolated private static func decodeBundled(_ name: String, width: CGFloat) async -> UIImage? {
         guard let image = UIImage(named: name) else { return nil }
         let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)

@@ -22,6 +22,10 @@ extension DebugHarness {
     static var opensCrewList: Bool { argument("-strataOpenCrews") == "1" }
     /// Wins already in each seeded crew's tower.
     static var seedCrewWins: Int { argument("-strataSeedCrewWins").flatMap(Int.init) ?? 7 }
+    /// `-strataSeedCrewHistory <days>`: everyone joined that many days ago,
+    /// and the crew has that many days of numbers, so its streak, its chart
+    /// and its saved days can be seen.
+    static var seedCrewHistory: Int? { argument("-strataSeedCrewHistory").flatMap(Int.init) }
 
     static let crewNames = ["Roommates", "", "Run Club", "Family", "Studio"]
     static let friendNames = ["Sam", "Ana", "Leo", "Kai", "Mia", "Theo", "Zoe"]
@@ -57,6 +61,9 @@ extension DebugHarness {
             // Every crew starts with its photo.
             let picture = UIImage(named: ["DemoPhoto3", "DemoPhoto7", "DemoPhoto5", "DemoPhoto1", "DemoPhoto6"][c % 5])?
                 .jpegData(compressionQuality: 0.8)
+            let back = Double(seedCrewHistory ?? 0) * 86_400
+            store.now = { Date().addingTimeInterval(-back) }
+            defer { store.now = Date.init }
             do { made = try await store.createCrew(name: crewNames[c % crewNames.count], photoJPEG: picture) } catch {
                 NSLog("[strata-crew] createCrew failed: %@", String(describing: error))
                 continue
@@ -72,7 +79,9 @@ extension DebugHarness {
                 friend.isEnabled = { true }
                 let name = friendNames[(f + c) % friendNames.count]
                 friend.myFirstName = { name }
+                friend.now = { Date().addingTimeInterval(-back) }
                 _ = try? await friend.accept(CrewInvite(url: link))
+                friend.now = Date.init
                 // Every third friend has no head, only a profile photo, so
                 // the mixed circles can be seen.
                 if f % 3 == 2 {
@@ -86,10 +95,37 @@ extension DebugHarness {
                 }
                 friends.append(friend)
             }
+            store.now = Date.init
             // Today's tower: friends' wins and a couple of mine, interleaved.
             let crewFriends = friends.suffix(people)
+            if let days = seedCrewHistory, days > 0 {
+                // The last three days, still in the cloud: everyone posted,
+                // so the streak runs into today.
+                for ago in 1...3 {
+                    for (k, poster) in ([store] + Array(crewFriends)).enumerated() {
+                        await poster.post(win(ago * 5 + k, minutesAgo: ago * 1440 - k * 17), to: [crew.id])
+                    }
+                }
+                var history = CrewHistory()
+                let zone = crew.timeZone
+                let today = CrewDay.string(for: Date(), in: zone)
+                let ids = [store.me] + crewFriends.map(\.me)
+                for ago in 4...max(4, days) {
+                    guard let day = CrewDay.day(today, offsetBy: -ago, in: zone) else { continue }
+                    for (k, id) in ids.enumerated() {
+                        // A gap every so often, so the best run is longer
+                        // than the current one.
+                        if k == 1, ago % 17 == 0 { continue }
+                        history.days[day, default: [:]][id.uuidString] = 1 + (ago * 7 + k) % 3
+                    }
+                }
+                store.debugSetHistory(history, for: crew.id)
+            }
             for i in 0..<seedCrewWins {
-                let poster = (i % 4 == 3 || crewFriends.isEmpty) ? store : crewFriends[crewFriends.startIndex + (i % crewFriends.count)]
+                var poster = (i % 4 == 3 || crewFriends.isEmpty) ? store : crewFriends[crewFriends.startIndex + (i % crewFriends.count)]
+                // With history seeded, the last friend has not posted yet
+                // today, so the page has someone to wait on.
+                if seedCrewHistory != nil, crewFriends.count > 1, poster === crewFriends.last { poster = store }
                 await poster.post(win(i, minutesAgo: (seedCrewWins - i) * 23), to: [crew.id])
             }
         }

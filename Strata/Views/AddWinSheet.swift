@@ -590,7 +590,9 @@ struct AddWinSheet: View {
                     showCamera = false
                 },
                 onClose: { showCamera = false },
-                fillsScreen: true
+                fillsScreen: true,
+                crews: Binding(get: { crewChoice },
+                               set: { crewChoice = $0; crewChoiceTouched = true })
             )
             // No colour-scheme override on this one.
             //

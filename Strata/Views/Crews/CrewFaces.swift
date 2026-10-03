@@ -20,8 +20,10 @@ final class CrewHeads {
     /// The head to draw for a member, or nil (an initial is drawn instead).
     /// Starts the load the first time it is asked for.
     func rig(for member: CrewMember, in crew: CrewID, me: UUID) -> HeadRig? {
-        if member.profileID == me { return HeadStore.shared.headForTower }
-        let key = key(crew, member.profileID)
+        if member.profileID == me { return HeadStore.shared.headForCrews }
+        // Keyed by the pack's file as well: a friend who makes a new head
+        // sends a new file, and the old rig is not the one to draw.
+        let key = key(crew, member.profileID) + "/" + (member.head?.lastPathComponent ?? "")
         if let rig = rigs[key] { return rig }
         guard let pack = member.head, !loading.contains(key) else { return nil }
         loading.insert(key)
@@ -42,7 +44,8 @@ final class CrewHeads {
 
     /// A member changed heads: forget the old one.
     func forget(_ member: UUID, in crew: CrewID) {
-        rigs[key(crew, member)] = nil
+        let prefix = key(crew, member) + "/"
+        for key in rigs.keys where key.hasPrefix(prefix) { rigs[key] = nil }
     }
 }
 
@@ -109,7 +112,10 @@ struct CrewFaces: View {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Circle().fill(AppColors.quietFill)
-                let people = Array(crew.others(than: me).prefix(4))
+                // Nobody has joined yet: the crew is you, so far, and its
+                // picture is your face rather than an empty circle.
+                let others = crew.others(than: me)
+                let people = others.isEmpty ? crew.members.filter { $0.profileID == me } : Array(others.prefix(4))
                 ForEach(Array(people.enumerated()), id: \.element.id) { index, member in
                     let spot = Self.spot(index, of: people.count)
                     CrewFace(member: member, crew: crew.id, me: me, side: side * spot.size)
