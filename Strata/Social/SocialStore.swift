@@ -28,6 +28,7 @@ final class SocialStore {
         store.photosAllowed = { CrewAge.current.sendsPhotos }
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.incomingPolicy = { CrewSafety.incoming }
+        store.incomingCheck = { await CrewSafety.verdict($0) }
         store.announces = true
         // Off until the notification extension ships with it: its app ID
         // has to be linked to the iCloud container and the app group in the
@@ -209,9 +210,14 @@ final class SocialStore {
     /// photos are not shown at all. An adult with it off sees them as sent:
     /// that choice is theirs, made for every app.
     @ObservationIgnored var incomingPolicy: () -> CrewSafety.Incoming = { .show }
+    /// A friend's photo, checked: nil when the check could not run, which is
+    /// tried again next time rather than remembered.
+    @ObservationIgnored var incomingCheck: (Data) async -> Bool? = { _ in true }
     @ObservationIgnored private lazy var photoVerdicts: [String: Bool] =
         defaults.dictionary(forKey: Self.verdictsKey) as? [String: Bool] ?? [:]
-    private static let verdictsKey = "crews.photoVerdicts"
+    /// ".v2": the verdicts kept before build 54 could be a check that failed
+    /// to run, stored as flagged; every photo is checked once more.
+    private static let verdictsKey = "crews.photoVerdicts.v2"
     /// Bumped as verdicts arrive, so the screens draw again.
     private(set) var verdictRevision = 0
 
@@ -232,8 +238,9 @@ final class SocialStore {
         for wins in winsByCrew.values {
             for win in wins where win.senderProfileID != me {
                 guard let photo = win.photo, photoVerdicts[photo.lastPathComponent] == nil,
-                      let data = try? Data(contentsOf: photo) else { continue }
-                photoVerdicts[photo.lastPathComponent] = await photoCheck(data)
+                      let data = try? Data(contentsOf: photo),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[photo.lastPathComponent] = verdict
                 changed = true
             }
         }

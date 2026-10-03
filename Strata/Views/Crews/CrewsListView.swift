@@ -432,7 +432,8 @@ struct CrewDestinations: ViewModifier {
 
 /// Asks Apple's Declared Age Range once, the first time Crews opens, and
 /// keeps the answer (spec 9.1). Declining, or a phone that cannot answer, is
-/// kept as 13 to 15: crews work and photographs stay on the phone.
+/// kept as `declined`: crews work, your photographs stay on the phone, and
+/// friends' ones show.
 private struct AskAgeOnce: ViewModifier {
     @Binding var age: CrewAge
 
@@ -440,7 +441,7 @@ private struct AskAgeOnce: ViewModifier {
         if #available(iOS 26.0, *) {
             content.modifier(Ask(age: $age))
         } else {
-            content.onAppear { if age == .unknown { age = .teen; CrewAge.save(.teen) } }
+            content.onAppear { if age == .unknown { age = .declined; CrewAge.save(.declined) } }
         }
     }
 
@@ -456,15 +457,15 @@ private struct AskAgeOnce: ViewModifier {
                 do {
                     switch try await requestAgeRange(ageGates: 13, 16) {
                     case .sharing(let range): answer = CrewAge.from(lowerBound: range.lowerBound)
-                    case .declinedSharing: answer = .teen
-                    @unknown default: answer = .teen
+                    case .declinedSharing: answer = .declined
+                    @unknown default: answer = .declined
                     }
                 } catch {
                     // The service could not answer (on TestFlight, because the
                     // Declared Age Range capability is not on the app ID yet):
                     // testers are adults the owner invited, so photos go. In
                     // the App Store the cautious answer stands.
-                    answer = CrewsFlag.isTestFlight ? .adult : .teen
+                    answer = CrewsFlag.isTestFlight ? .adult : .declined
                 }
                 CrewAge.save(answer)
                 age = answer

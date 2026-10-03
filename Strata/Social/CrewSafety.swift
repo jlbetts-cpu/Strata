@@ -119,7 +119,7 @@ enum CrewSafety {
 
     static var incoming: Incoming {
         if SCSensitivityAnalyzer().analysisPolicy != .disabled { return .check }
-        return CrewAge.current == .adult ? .show : .hide
+        return CrewAge.current.seesPhotosUnchecked ? .show : .hide
     }
 
     /// **The photo check** (guideline 1.2's filter). Apple's on-device
@@ -130,6 +130,23 @@ enum CrewSafety {
     /// When the person has the analysis switched off in Settings it cannot
     /// run, and the photo goes as it would have before the check existed:
     /// the phone's owner has made that choice for every app.
+    /// A friend's photograph, checked: true fine, false flagged, nil when the
+    /// check could not run. Nil is not remembered, so it is tried again
+    /// rather than hiding the photo for good (it was stored as flagged).
+    static func verdict(_ jpeg: Data) async -> Bool? {
+        let analyzer = SCSensitivityAnalyzer()
+        guard analyzer.analysisPolicy != .disabled else { return true }
+        let url = FileManager.default.temporaryDirectory.appending(path: "crew-verdict-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        do {
+            try jpeg.write(to: url)
+            return try await !analyzer.analyzeImage(at: url).isSensitive
+        } catch {
+            log.error("photo check could not run, will try again: \(error)")
+            return nil
+        }
+    }
+
     static func photoIsFine(_ jpeg: Data) async -> Bool {
         let analyzer = SCSensitivityAnalyzer()
         guard analyzer.analysisPolicy != .disabled else { return true }

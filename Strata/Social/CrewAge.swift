@@ -16,6 +16,15 @@ nonisolated enum CrewAge: String, Sendable {
     case under13
     case teen
     case adult
+    /// Asked, and chose not to say (or the phone could not answer). Sends no
+    /// photographs, as before; but sees friends' ones, because it is not a
+    /// known child. It used to be stored as `teen`, and since build 51 that
+    /// hid every friend's photo from an adult who had simply said no to the
+    /// prompt (the owner, 2026-10-03: "when i updated it all the photos
+    /// from the crew disappeared"). A real child's phone has Communication
+    /// Safety on by default, which checks every photo instead
+    /// (`CrewSafety.incoming`).
+    case declined
 
     static let key = "crews.age"
 
@@ -24,11 +33,17 @@ nonisolated enum CrewAge: String, Sendable {
     }
 
     static func save(_ age: CrewAge) {
+        UserDefaults.standard.set(version, forKey: versionKey)
         UserDefaults.standard.set(age.rawValue, forKey: key)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: askedKey)
     }
 
     static let askedKey = "crews.ageAskedAt"
+    /// Bumped when a stored answer may mean something it did not: version 2
+    /// split "declined" out of "teen", so anyone stored as a teen is asked
+    /// once more.
+    static let versionKey = "crews.ageVersion"
+    static let version = 2
 
     /// **Asked again, now and then.** An answer was kept for ever, so someone
     /// who declined to share, or a fifteen-year-old who has since turned
@@ -38,6 +53,7 @@ nonisolated enum CrewAge: String, Sendable {
         let age = CrewAge(rawValue: defaults.string(forKey: key) ?? "") ?? .unknown
         guard age != .unknown else { return true }
         guard age != .adult else { return false }
+        if age == .teen, defaults.integer(forKey: versionKey) < version { return true }
         let asked = Date(timeIntervalSince1970: defaults.double(forKey: askedKey))
         return now.timeIntervalSince(asked) > 90 * 86_400
     }
@@ -45,6 +61,9 @@ nonisolated enum CrewAge: String, Sendable {
     var opensCrews: Bool { self != .under13 }
     /// Unknown sends no photos until an answer comes back.
     var sendsPhotos: Bool { self == .adult }
+    /// Whether friends' photographs show without a check, when the phone's
+    /// own analysis is off: everyone but a known child.
+    var seesPhotosUnchecked: Bool { self != .under13 && self != .teen }
 
     /// From the lower bound of a declared range.
     static func from(lowerBound: Int?) -> CrewAge {

@@ -314,8 +314,8 @@ extension CrewStoreTests {
     @Test func aFriendsPhotoShowsOnlyOnceItHasPassedTheCheck() async throws {
         let (a, b, crew) = try await pair()
         a.incomingPolicy = { .check }
-        var verdict = false
-        a.photoCheck = { _ in verdict }
+        var verdict: Bool? = false
+        a.incomingCheck = { _ in verdict }
         await b.post(win("Run", photo: Data([1, 2, 3])), to: [crew.id])
         await a.refresh()
         let run = try #require(a.wins(in: crew.id).first)
@@ -326,6 +326,20 @@ extension CrewStoreTests {
         verdict = true
         await a.checkArrivedPhotos()
         #expect(a.wins(in: crew.id).first?.photo == nil)
+    }
+
+    @Test func aCheckThatCouldNotRunIsTriedAgainNotKept() async throws {
+        let (a, b, crew) = try await pair()
+        a.incomingPolicy = { .check }
+        var verdict: Bool? = nil
+        a.incomingCheck = { _ in verdict }
+        await b.post(win("Run", photo: Data([1, 2, 3])), to: [crew.id])
+        await a.refresh()
+        await a.checkArrivedPhotos()
+        #expect(a.wins(in: crew.id).first?.photo == nil, "not checked yet: not shown")
+        verdict = true
+        await a.checkArrivedPhotos()
+        #expect(a.wins(in: crew.id).first?.photo != nil, "checked on the next try: shown")
     }
 
     @Test func underSixteenWithTheCheckOffSeesNoFriendsPhotos() async throws {

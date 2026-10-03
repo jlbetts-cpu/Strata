@@ -83,6 +83,19 @@ struct CrewSyncTests {
         #expect(!CrewAge.under13.opensCrews)
         #expect(!CrewAge.teen.sendsPhotos && CrewAge.adult.sendsPhotos)
         #expect(!CrewAge.unknown.sendsPhotos)
+        // Declining is not being a child: no photos sent, friends' shown.
+        #expect(!CrewAge.declined.sendsPhotos && CrewAge.declined.opensCrews)
+        #expect(CrewAge.declined.seesPhotosUnchecked && CrewAge.adult.seesPhotosUnchecked)
+        #expect(!CrewAge.teen.seesPhotosUnchecked && !CrewAge.under13.seesPhotosUnchecked)
+    }
+
+    @Test func aTeenFromBeforeDeclinedWasSplitOutIsAskedOnceMore() {
+        let defaults = UserDefaults(suiteName: "age-\(UUID().uuidString)")!
+        defaults.set(CrewAge.teen.rawValue, forKey: CrewAge.key)
+        defaults.set(Date().timeIntervalSince1970, forKey: CrewAge.askedKey)
+        #expect(CrewAge.needsAsking(defaults: defaults))
+        defaults.set(CrewAge.version, forKey: CrewAge.versionKey)
+        #expect(!CrewAge.needsAsking(defaults: defaults))
     }
 }
 
