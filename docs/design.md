@@ -79,6 +79,7 @@ measurement beside it.
 
 | Decision | When | His words, or the record |
 |---|---|---|
+| The groups are called **Crews** ("New Crew", "Leave Crew") | 2026-10-02 | his answer, over Circles, Squads and Builds |
 | A crew is up to **8 people, you included**; up to 5 crews each | 2026-10-02 | "up to 8 people I think fits the best"; 8 includes you, his answer |
 | Crews are reached from a **glass button top left of Wins**, then a list like Messages, then the crew's tower | 2026-10-02 | "a simple social button on the top left... when you click into a group it shows the shared tower" |
 | A crew's **members sit top middle**, name in a capsule under them, like a Messages group | 2026-10-02 | "it will have the members on the top middle just like imessage" |
