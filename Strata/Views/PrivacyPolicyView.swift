@@ -106,9 +106,10 @@ struct PrivacyPolicyView: View {
         ("What a crew sees",
          "Of a win you send: its title, colour, size and icon, its photo, and when "
          + "you logged it. The photo is a smaller copy with no place and no camera "
-         + "details in it. With it, your name, and your head if it is on your tower. "
+         + "details in it. With it, your first name, your head if it is on your tower, "
+         + "and your profile photo, which is never sent if you are under 16. "
          + "Never your notes, captions, places or mood. The crew itself has a name "
-         + "and a picture that anyone in it can change, and keeps the time zone of "
+         + "and a photo that anyone in it can change, and keeps the time zone of "
          + "whoever started it, so its day ends at one midnight for everyone."),
         ("Taking a win back",
          "Untick a crew on a win and the win leaves that crew. Delete a win and "

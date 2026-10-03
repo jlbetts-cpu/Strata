@@ -87,6 +87,11 @@ measurement beside it.
 | Everyone's **heads float in the crew tower**, and dropped into the top bubble they are **crammed** | 2026-10-02 | "it should actually look like they are cramped in there" |
 | Friends' heads are **fully alive** (blinks, faces) | 2026-10-02 | his answer |
 | **13+ with limits**: under 13 no crews, 13 to 15 no photos | 2026-10-02 | his answer |
+| Tapping a crowded bubble **fans its heads out** at a full tap size; one tap lets one out; **Let Everyone Out** is press-and-hold only and releases them one at a time | 2026-10-02 | "I dont wanna click one thing and then accidently pop all the heads out... pop them out one by one" |
+| **Everyone in a circle**: a head sits on the disc a profile photo fills | 2026-10-02 | his answer, from the research and the mock |
+| **A crew starts with a photo**; no colour or faces choice (13 to 15 keep faces) | 2026-10-02 | "I think the groups should need to be a photo... the photo would mean more and be more social" |
+| The right of a crew's header is **+ Add a win here**, not Add People | 2026-10-02 | "change the add button on the right because its already in the menu" |
+| A crew block with a photo opens **the same viewer a past day's block does** | 2026-10-02 | "clicking on a block should have the same effect as clicking on a previous day" |
 | Inviting is the **system share sheet** as a collaboration, not a contact picker of ours | 2026-10-02 | his "invite people from your contacts", met by the platform's own sheet: contacts first, and Messages carries the invitation |
 
 ### The blocks and the tower
