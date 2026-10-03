@@ -12,18 +12,25 @@ import SwiftUI
 struct CrewTowerView: View {
     let crewID: CrewID
     var onBack: () -> Void
+    var onAddWin: () -> Void = {}
 
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
     @State private var showsInfo = false
     @State private var openWin: SharedWin?
+    /// A photograph opened from its block, in the same viewer a past day's
+    /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
+    /// previous day").
+    @State private var viewing: String?
+    @State private var reporting: SharedWin?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
 
-    init(crewID: CrewID, onBack: @escaping () -> Void) {
+    init(crewID: CrewID, onBack: @escaping () -> Void, onAddWin: @escaping () -> Void = {}) {
         self.crewID = crewID
         self.onBack = onBack
+        self.onAddWin = onAddWin
         _parking = State(initialValue: CrewParking(crewID: crewID))
     }
 
@@ -48,6 +55,29 @@ struct CrewTowerView: View {
                     .ignoresSafeArea()
             }
         }
+        // The fan, over everything, under the bubble; a tap anywhere else
+        // folds it back.
+        .overlay {
+            if parking.fanned, let crew {
+                GeometryReader { geo in
+                    // Under the name, not over it: the crew stays legible
+                    // while you choose.
+                    let anchor = parking.controls["name"]?.maxY ?? parking.bubbleFrame.maxY
+                    let top = anchor - geo.frame(in: .global).minY + 10
+                    ZStack(alignment: .top) {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { withAnimation(GridConstants.motionSnappy) { parking.fanned = false } }
+                            .accessibilityHidden(true)
+                        CrewFan(crew: crew, me: store.me, parking: parking)
+                            .padding(.top, max(top, 0))
+                            .transition(.scale(scale: 0.7, anchor: .top).combined(with: .opacity))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                }
+                .ignoresSafeArea()
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
@@ -60,6 +90,8 @@ struct CrewTowerView: View {
             case "info": showsInfo = true
             case "win": openWin = store.today(in: crewID).last { $0.senderProfileID != store.me }
             case "mine": openWin = store.today(in: crewID).last { $0.senderProfileID == store.me }
+            case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
+            case "fan": parking.fanned = !parking.parked.isEmpty
             default: break
             }
             // `-strataCrewParkEvery <s>`: a head goes into the bubble, or one
@@ -105,7 +137,46 @@ struct CrewTowerView: View {
         .sheet(item: $openWin) { win in
             CrewWinSheet(win: win, crewID: crewID)
         }
+        .fullScreenCover(item: Binding(get: { viewing.map(ViewedPhoto.init) }, set: { viewing = $0?.id })) { photo in
+            PhotoViewer(photos: galleryPhotos, startAt: photo.id, onClose: { viewing = nil },
+                        crew: crewID,
+                        onReport: { shown in
+                            viewing = nil
+                            // After the cover has gone: UIKit drops a sheet
+                            // asked for while another is still dismissing.
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(450))
+                                reporting = store.today(in: crewID).first { $0.winID.uuidString == shown.id }
+                            }
+                        },
+                        onWithdraw: { shown in
+                            guard let id = UUID(uuidString: shown.id) else { return }
+                            Task { await store.withdraw(winID: id, from: crewID) }
+                        })
+        }
+        // Report from the viewer lands on the win's own sheet, which holds
+        // the reasons.
+        .sheet(item: $reporting) { win in
+            CrewWinSheet(win: win, crewID: crewID, startsReporting: true)
+        }
         .accessibilityAction(.escape) { onBack() }
+    }
+
+    private struct ViewedPhoto: Identifiable { let id: String }
+
+    /// Today's photographs in the order the tower stacks them, for the viewer.
+    private var galleryPhotos: [GalleryPhoto] {
+        store.today(in: crewID)
+            .filter { $0.photo != nil }
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { win in
+                let name = crew?.member(win.senderProfileID)?.shortName ?? ""
+                return GalleryPhoto(fileName: win.winID.uuidString,
+                                    title: win.title.isEmpty ? nil : win.title,
+                                    date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
+                                    file: win.photo,
+                                    byline: win.senderProfileID == store.me ? nil : (name.isEmpty ? "A friend" : name))
+            }
     }
 
     private func rebuild() {
@@ -121,22 +192,34 @@ struct CrewTowerView: View {
                 GlassIconButton(systemName: "chevron.left", onPage: true, accessibilityLabel: "Crews") { onBack() }
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["back"] = $0 }
                 Spacer(minLength: 0)
-                if let crew, crew.members.count < CrewCaps.members {
-                    GlassIconButton(systemName: "person.badge.plus", onPage: true,
-                                    accessibilityLabel: "Add People") {
-                        Task { await CrewSharing.invite(crewID) }
-                    }
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
+                // Adding a win straight into this tower. Add People lives in
+                // Crew Info, one tap away, so this corner does the thing a
+                // crew is for (the owner, 2026-10-02).
+                GlassIconButton(systemName: "plus", onPage: true,
+                                accessibilityLabel: "Add a win to \(crew?.displayName(excluding: store.me) ?? "this crew")") {
+                    onAddWin()
                 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["add"] = $0 }
             }
             if let crew {
                 VStack(spacing: parking.parked.isEmpty ? -10 : -2) {
                     CrewBubble(crew: crew, me: store.me, parking: parking, side: 60)
-                        .onTapGesture { if parking.parked.isEmpty { showsInfo = true } }
-                        .accessibilityElement(children: parking.parked.isEmpty ? .ignore : .contain)
-                        .accessibilityLabel(parking.parked.isEmpty ? "\(crew.displayName(excluding: store.me)), \(crew.members.count) people" : "The bubble")
-                        .accessibilityAddTraits(parking.parked.isEmpty ? .isButton : [])
-                        .accessibilityAction { if parking.parked.isEmpty { showsInfo = true } }
+                        // The whole bubble is the target, never one 34pt head.
+                        .contentShape(Circle())
+                        .onTapGesture { tapBubble() }
+                        .contextMenu {
+                            if !parking.parked.isEmpty {
+                                Button("Let Everyone Out", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
+                                    parking.releaseAll()
+                                }
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(parking.parked.isEmpty
+                            ? "\(crew.displayName(excluding: store.me)), \(crew.members.count) people"
+                            : (parking.parked.count == 1 ? "1 head in the bubble" : "\(parking.parked.count) heads in the bubble"))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { tapBubble() }
                         .zIndex(1)
                     Button { showsInfo = true } label: {
                         HStack(spacing: 4) {
@@ -166,6 +249,17 @@ struct CrewTowerView: View {
         .padding(.bottom, GridConstants.gapTight)
     }
 
+    /// Empty, the bubble is the crew: its details. With heads in it, a tap
+    /// fans them out to choose from.
+    private func tapBubble() {
+        if parking.parked.isEmpty {
+            showsInfo = true
+        } else {
+            HapticsEngine.tick()
+            withAnimation(GridConstants.motionSnappy) { parking.fanned.toggle() }
+        }
+    }
+
     // MARK: Tower
 
     private func tower(colW: CGFloat, viewport: CGFloat) -> some View {
@@ -191,7 +285,8 @@ struct CrewTowerView: View {
                         cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
                         reduceMotion: reduceMotion, colorScheme: colorScheme,
                         onTapExpandBlock: { id in
-                            openWin = store.today(in: crewID).first { $0.winID == id }
+                            guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
+                            if win.photo != nil { viewing = win.winID.uuidString } else { openWin = win }
                         },
                         liftedBlockID: nil)
                 }

@@ -474,6 +474,12 @@ nonisolated struct GalleryPhoto: Identifiable, Equatable, Sendable {
     /// synthesized init entirely, which is the trap `WinRecord.place`
     /// documents.
     var place: WinPlace?
+    /// **A friend's photograph in a crew**, read from the crew's cache rather
+    /// than through `ImageManager` (whose file names are YOUR photographs).
+    /// Nil for every photograph of your own.
+    var file: URL? = nil
+    /// Whose win, in a crew: "Sam". Nil for yours.
+    var byline: String? = nil
 
     /// What VoiceOver says for this photograph in a grid or a strip of many:
     /// its name and its day, "Photo, 21 September" when it has no name. The

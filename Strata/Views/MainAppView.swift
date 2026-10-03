@@ -548,7 +548,7 @@ struct MainAppView: View {
             // there is no longer a filter to put anywhere.
             towerTab
                 .toolbar(.hidden, for: .navigationBar)
-                .modifier(CrewDestinations(path: $crewPath))
+                .modifier(CrewDestinations(path: $crewPath) { winDraft = WinDraft(crews: [$0]) })
         }
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
@@ -590,6 +590,7 @@ struct MainAppView: View {
                 initialPlace: draft.place,
                 initialCrop: draft.crop,
                 initialColour: draft.colour,
+                initialCrews: draft.crews,
                 onSaved: { habit in
                     if let id = draft.planItemID {
                         // The win remembers the line, so deleting it later can

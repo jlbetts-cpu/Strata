@@ -43,6 +43,8 @@ nonisolated enum CrewError: Error, Equatable, Sendable {
     case unknownCrew
     /// A photograph that may not be sent: under 16, or held back by the check.
     case photoNotAllowed
+    /// A crew starts with a photo (the owner, 2026-10-02), except for 13 to 15.
+    case photoNeeded
 }
 
 nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {
@@ -55,6 +57,10 @@ nonisolated struct CrewMember: Identifiable, Codable, Equatable, Sendable {
     /// have one.
     var head: URL?
     var joinedAt: Date
+    /// Their profile photograph, for someone with no head: drawn filling the
+    /// same circle a head sits in, so the two read as one set (the owner,
+    /// 2026-10-02, "everyone in a circle"). Never sent under 16.
+    var photo: URL? = nil
 
     var id: UUID { profileID }
 

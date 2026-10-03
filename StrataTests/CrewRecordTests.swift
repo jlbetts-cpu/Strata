@@ -35,7 +35,8 @@ struct CrewRecordTests {
         for type in CrewRecordType.allCases {
             for key in forbidden { #expect(!CrewRecords.keys(of: type).contains(key), "\(type) has \(key)") }
         }
-        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "joinedAt"])
+        // `photo` since 2026-10-02: a profile photo, for someone with no head.
+        #expect(CrewRecords.memberKeys == ["profileID", "firstName", "head", "photo", "joinedAt"])
         #expect(CrewRecords.crewKeys == ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"])
     }
 

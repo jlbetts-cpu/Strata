@@ -51,7 +51,7 @@ nonisolated enum CrewRecords {
         "blockSize", "photo", "cropX", "cropY", "createdAt", "updatedAt",
     ]
     static let crewKeys: Set<String> = ["name", "ownerProfileID", "timeZoneIdentifier", "createdAt", "photo"]
-    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "joinedAt"]
+    static let memberKeys: Set<String> = ["profileID", "firstName", "head", "photo", "joinedAt"]
 
     static func keys(of type: CrewRecordType) -> Set<String> {
         switch type {
@@ -134,6 +134,7 @@ nonisolated enum CrewRecords {
             "joinedAt": .date(member.joinedAt),
         ]
         if let head = member.head { fields["head"] = .asset(head) }
+        if let photo = member.photo { fields["photo"] = .asset(photo) }
         return fields
     }
 
@@ -142,6 +143,7 @@ nonisolated enum CrewRecords {
         return CrewMember(profileID: id,
                           firstName: fields["firstName"]?.string ?? "",
                           head: fields["head"]?.asset,
-                          joinedAt: fields["joinedAt"]?.date ?? .distantPast)
+                          joinedAt: fields["joinedAt"]?.date ?? .distantPast,
+                          photo: fields["photo"]?.asset)
     }
 }

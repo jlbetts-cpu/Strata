@@ -1,4 +1,5 @@
 import DeclaredAgeRange
+import PhotosUI
 import SwiftUI
 
 /// Where a crew is opened from: the push the tower's header leads to.
@@ -189,6 +190,13 @@ struct NewCrewSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    /// A crew starts with its photo (the owner, 2026-10-02: "the photo would
+    /// mean more and be more social"). 13 to 15 send no photos, so their
+    /// crews show everyone's faces instead.
+    @State private var photoItem: PhotosPickerItem?
+    @State private var photoData: Data?
+    @State private var photo: UIImage?
+    private var needsPhoto: Bool { CrewAge.current.sendsPhotos }
     @State private var working = false
     @State private var problem: String?
     @FocusState private var focused: Bool
@@ -196,6 +204,7 @@ struct NewCrewSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+                if needsPhoto { photoPicker.frame(maxWidth: .infinity).padding(.bottom, GridConstants.gapTight) }
                 // Open, like Add Win's "What did you do?": a name is typed
                 // onto the page, not into a box.
                 TextField("Name your crew", text: $name,
@@ -216,6 +225,8 @@ struct NewCrewSheet: View {
                 Spacer(minLength: 0)
                 if working {
                     PrimaryCapsule(waiting: "Starting", because: "The crew is being made")
+                } else if needsPhoto && photoData == nil {
+                    PrimaryCapsule(waiting: "Invite People", because: "Choose a photo for the crew first")
                 } else {
                     PrimaryCapsule(title: "Invite People", action: start)
                 }
@@ -229,9 +240,16 @@ struct NewCrewSheet: View {
                     Button { dismiss() } label: { Text("Cancel").sheetAction(.cancel) }
                 }
             }
-            .onAppear { focused = true }
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                Task {
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                    photoData = data
+                    photo = UIImage(data: data)
+                }
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 
@@ -241,7 +259,7 @@ struct NewCrewSheet: View {
         problem = nil
         Task {
             do {
-                let (crew, _) = try await SocialStore.shared.createCrew(name: name)
+                let (crew, _) = try await SocialStore.shared.createCrew(name: name, photoJPEG: photoData)
                 dismiss()
                 started(crew.id)
                 try? await Task.sleep(for: .milliseconds(450))
@@ -253,6 +271,33 @@ struct NewCrewSheet: View {
             }
             working = false
         }
+    }
+}
+
+extension NewCrewSheet {
+    /// The crew's picture, first: a circle to tap, the photo in it once chosen.
+    var photoPicker: some View {
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            ZStack {
+                Circle().fill(AppColors.quietFill)
+                if let photo {
+                    Image(uiImage: photo).resizable().scaledToFill()
+                } else {
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(Typography.headerMedium)
+                        Text("Add Photo")
+                            .font(Typography.headerSmall)
+                    }
+                    .foregroundStyle(AppColors.inkSecondary)
+                }
+            }
+            .frame(width: 112, height: 112)
+            .clipShape(Circle())
+            .contentShape(Circle())
+        }
+        .buttonStyle(.pressSurface)
+        .accessibilityLabel(photo == nil ? "Add a photo for the crew" : "Change the crew's photo")
     }
 }
 
@@ -286,6 +331,8 @@ struct CrewsButton: View {
 /// `MainAppView`'s body, already at the type-checker's ceiling, gains one line.
 struct CrewDestinations: ViewModifier {
     @Binding var path: [CrewRoute]
+    /// Add Win, with a crew ticked.
+    var addWin: (CrewID) -> Void
     private var router: CrewRouter { CrewRouter.shared }
 
     func body(content: Content) -> some View {
@@ -295,7 +342,8 @@ struct CrewDestinations: ViewModifier {
                 case .list:
                     CrewsListView { path.append(.crew($0)) }
                 case .crew(let id):
-                    CrewTowerView(crewID: id) { if !path.isEmpty { path.removeLast() } }
+                    CrewTowerView(crewID: id, onBack: { if !path.isEmpty { path.removeLast() } },
+                                  onAddWin: { addWin(id) })
                 }
             }
             .onChange(of: router.open) { _, crew in

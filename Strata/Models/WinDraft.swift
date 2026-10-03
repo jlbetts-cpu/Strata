@@ -31,4 +31,6 @@ struct WinDraft: Identifiable {
     var colour: HabitCategory? = nil
     /// The plan line this came from, so it can be marked done on save.
     var planItemID: UUID?
+    /// Opened from a crew's tower: ticked for that crew, and only that crew.
+    var crews: Set<CrewID>? = nil
 }

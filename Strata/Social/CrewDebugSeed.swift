@@ -54,7 +54,10 @@ extension DebugHarness {
 
         for c in 0..<max(1, min(seedCrewCount, CrewCaps.crews)) {
             let made: (crew: Crew, invite: URL)
-            do { made = try await store.createCrew(name: crewNames[c % crewNames.count]) } catch {
+            // Every crew starts with its photo.
+            let picture = UIImage(named: ["DemoPhoto3", "DemoPhoto7", "DemoPhoto5", "DemoPhoto1", "DemoPhoto6"][c % 5])?
+                .jpegData(compressionQuality: 0.8)
+            do { made = try await store.createCrew(name: crewNames[c % crewNames.count], photoJPEG: picture) } catch {
                 NSLog("[strata-crew] createCrew failed: %@", String(describing: error))
                 continue
             }
@@ -70,9 +73,17 @@ extension DebugHarness {
                 let name = friendNames[(f + c) % friendNames.count]
                 friend.myFirstName = { name }
                 _ = try? await friend.accept(CrewInvite(url: link))
-                let headDir = dir.appending(path: "head", directoryHint: .isDirectory)
-                HeadStore.writeVersion2Fixture(to: headDir)
-                await friend.setMyHead(CrewHeadPack.make(from: headDir))
+                // Every third friend has no head, only a profile photo, so
+                // the mixed circles can be seen.
+                if f % 3 == 2 {
+                    let face = UIImage(named: ["DemoPhoto8", "DemoPhoto6", "CreatorPortrait"][(f + c) % 3])?
+                        .jpegData(compressionQuality: 0.8)
+                    await friend.setMyHead(nil, photo: face.flatMap { ShareDerivative.jpeg(from: $0, longEdge: 600) })
+                } else {
+                    let headDir = dir.appending(path: "head", directoryHint: .isDirectory)
+                    HeadStore.writeVersion2Fixture(to: headDir)
+                    await friend.setMyHead(CrewHeadPack.make(from: headDir))
+                }
                 friends.append(friend)
             }
             // Today's tower: friends' wins and a couple of mine, interleaved.

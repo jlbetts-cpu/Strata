@@ -8,6 +8,8 @@ import SwiftUI
 struct CrewWinSheet: View {
     let win: SharedWin
     let crewID: CrewID
+    /// Opened from the photo viewer's Report: the reasons come straight up.
+    var startsReporting = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var confirmsReport = false
@@ -84,6 +86,7 @@ struct CrewWinSheet: View {
         }
         .padding(.horizontal, GridConstants.horizontalPadding)
         .padding(.bottom, GridConstants.gapWide)
+        .onAppear { if startsReporting { confirmsReport = true } }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }

@@ -100,23 +100,19 @@ struct CrewInfoSheet: View {
             VStack(spacing: GridConstants.gapTight) {
                 CrewFaces(crew: crew, me: store.me, side: 96)
                     .accessibilityHidden(true)
-                Menu {
+                // A crew's picture is a photograph (the owner, 2026-10-02);
+                // there is no colour or faces option to swap it for. 13 to
+                // 15 send no photos, so their crews keep everyone's faces.
+                if CrewAge.current.sendsPhotos {
                     PhotosPicker(selection: $pickerItem, matching: .images) {
-                        Label("Choose Photo", systemImage: "photo")
+                        Text("Edit")
+                            .font(Typography.headerSmall)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .glassCapsule(onPage: true, carriesType: true)
                     }
-                    if crew.photo != nil {
-                        Button("Use Everyone's Faces", systemImage: "person.2") {
-                            Task { try? await store.setPhoto(crewID, jpeg: nil) }
-                        }
-                    }
-                } label: {
-                    Text("Edit")
-                        .font(Typography.headerSmall)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .glassCapsule(onPage: true, carriesType: true)
+                    .accessibilityLabel("Change the crew's photo")
                 }
-                .accessibilityLabel("Edit crew photo")
                 TextField(crew.displayName(excluding: store.me), text: $name)
                     .font(Typography.headerMedium)
                     .multilineTextAlignment(.center)

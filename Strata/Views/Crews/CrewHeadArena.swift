@@ -23,8 +23,13 @@ final class CrewParking {
     private(set) var arriving: [UUID: CGPoint] = [:]
     /// Bumped on every landing, so the bubble swells and its heads jostle.
     private(set) var landed = 0
-    /// Bumped on every pop, with who popped.
-    private(set) var popped: (member: UUID, count: Int)?
+    /// Bumped on every pop, with who popped and, from the fan, where they
+    /// were (global coordinates).
+    private(set) var popped: (member: UUID, count: Int, from: CGPoint?)?
+    /// The heads in the bubble, spread out at a size a finger can choose
+    /// between (the owner, 2026-10-02: tap fans them out). Eight crammed
+    /// heads are 34pt each, under the 44pt a target needs.
+    var fanned = false
     /// The bubble, in global coordinates.
     var bubbleFrame: CGRect = .zero
     /// The capsule and the two buttons, for the heads to keep off.
@@ -70,14 +75,29 @@ final class CrewParking {
         land(member)
     }
 
-    func pop(_ member: UUID) {
+    func pop(_ member: UUID, from point: CGPoint? = nil) {
         guard parked.contains(member) else { return }
         HapticsEngine.lightTap()
         withAnimation(GridConstants.popBurst) {
             parked.removeAll { $0 == member }
+            if parked.isEmpty { fanned = false }
         }
-        popped = (member, (popped?.count ?? 0) + 1)
+        popped = (member, (popped?.count ?? 0) + 1, point)
         persist()
+    }
+
+    /// Everyone out, one at a time rather than all at once (the owner:
+    /// "pop them out one by one so its not like overwhelming"). Only ever
+    /// from the bubble's press-and-hold menu, never from a tap.
+    func releaseAll() {
+        fanned = false
+        let order = Array(parked.reversed())
+        Task { @MainActor in
+            for member in order {
+                pop(member)
+                try? await Task.sleep(for: .milliseconds(180))
+            }
+        }
     }
 
     /// Members who left the crew leave the bubble.
@@ -122,9 +142,12 @@ struct CrewBubble: View {
                 Color.clear
                     .frame(width: circle, height: circle)
                     .stillGlassCircle()
+                // While they are fanned out below, the bubble is empty glass:
+                // the heads are in the fan, not in two places at once.
                 ForEach(Array(parked.enumerated()), id: \.element.id) { index, member in
                     crammed(member, index: index, of: k, circle: circle)
                 }
+                .opacity(parking.fanned ? 0 : 1)
             }
         }
         .frame(width: circle, height: circle)
@@ -134,6 +157,7 @@ struct CrewBubble: View {
             swell ? GridConstants.tapSquashSpring : GridConstants.elasticPop
         }
         .scaleEffect(parking.over && !reduceMotion ? 1.16 : 1)
+        .animation(GridConstants.motionSnappy, value: parking.fanned)
         .animation(GridConstants.motionSnappy, value: parking.over)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.bubbleFrame = $0 }
     }
@@ -162,14 +186,9 @@ struct CrewBubble: View {
             shove ? GridConstants.tapSquashSpring : GridConstants.elasticPop
         }
         .zIndex(Double(index))
-        .contentShape(Circle().scale(0.8))
-        .onTapGesture { parking.pop(member.profileID) }
+        .allowsHitTesting(false)
         .transition(.scale(scale: 0.4).combined(with: .opacity))
-        .accessibilityElement()
-        .accessibilityLabel(member.profileID == me ? "Your head, in the bubble" : "\(member.shortName)'s head, in the bubble")
-        .accessibilityHint("Double-tap to let them out.")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { parking.pop(member.profileID) }
+        .accessibilityHidden(true)
     }
 
     /// Where head `index` of `count` sits, as fractions of the circle, how big
@@ -332,8 +351,8 @@ private struct CrewHeadRunner: View {
         }
         .frame(width: arena.width, height: arena.height, alignment: .topLeading)
         .onChange(of: parking.popped?.count) {
-            guard parking.popped?.member == id else { return }
-            leaveTheBubble()
+            guard let popped = parking.popped, popped.member == id else { return }
+            leaveTheBubble(from: popped.from)
         }
         // An arrival this head did not start itself (VoiceOver's action, a
         // debug film): fly from wherever it is.
@@ -394,7 +413,17 @@ private struct CrewHeadRunner: View {
 
     /// Out of the bubble: placed at its centre, drawn from there, and clear of
     /// it a third of a second later.
-    private func leaveTheBubble() {
+    private func leaveTheBubble(from point: CGPoint? = nil) {
+        if let point {
+            // Out of the fan: from exactly where the finger chose it.
+            let local = CGPoint(x: point.x - arena.minX, y: point.y - arena.minY)
+            life.sim.place(in: life.world, at: CGPoint(x: local.x, y: local.y + 30),
+                           velocity: CGVector(dx: CGFloat.random(in: -60...60), dy: 150))
+            life.emergeFrom = CGSize(width: local.x - life.sim.position.x, height: local.y - life.sim.position.y)
+            life.emergeStart = nil
+            life.emergePending = !reduceMotion
+            return
+        }
         let centre = bubbleCentre
         // Out under the bubble and the name, into the room, not onto the
         // bubble's rim: placed on the rim, a head pressed against it and sat
@@ -511,5 +540,76 @@ private struct CrewHeadRunner: View {
         let roof = probe.hasMeasured ? skyline.highestTop(from: bounds.minX, to: bounds.maxX) : bounds.maxY
         let upper = max(lower + side, min(roof - side * 0.6, lower + 320))
         return TowerCompanionWorld(bounds: bounds, opening: lower...upper, skyline: skyline, obstacles: local)
+    }
+}
+
+// MARK: - The fan
+
+/// The bubble's heads, spread out: one row up to four, two rows beyond, each
+/// at 56pt on one glass panel under the bubble. Tap one and only that one
+/// comes out, from where it is. Tapping anywhere else folds them back.
+struct CrewFan: View {
+    let crew: Crew
+    let me: UUID
+    let parking: CrewParking
+
+    static let side: CGFloat = 56
+    static let gap: CGFloat = 10
+
+    @State private var centres: [UUID: CGPoint] = [:]
+
+    static func rows(_ count: Int) -> [Range<Int>] {
+        guard count > 0 else { return [] }
+        let perRow = count <= 4 ? count : Int((Double(count) / 2).rounded(.up))
+        return stride(from: 0, to: count, by: perRow).map { $0..<min($0 + perRow, count) }
+    }
+
+    static func height(_ count: Int) -> CGFloat {
+        let rows = CGFloat(rows(count).count)
+        return rows * side + max(rows - 1, 0) * gap + 2 * 14
+    }
+
+    var body: some View {
+        let parked = parking.parked.compactMap { crew.member($0) }
+        VStack(spacing: Self.gap) {
+            ForEach(Self.rows(parked.count), id: \.lowerBound) { range in
+                HStack(spacing: Self.gap) {
+                    ForEach(parked[range]) { member in head(member) }
+                }
+            }
+        }
+        .padding(14)
+        .glassRoundedRect(cornerRadius: 28)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Heads in the bubble")
+    }
+
+    private func head(_ member: CrewMember) -> some View {
+        let rig = CrewHeads.shared.rig(for: member, in: crew.id, me: me)
+        return Button {
+            parking.pop(member.profileID, from: centres[member.profileID])
+        } label: {
+            // Everyone in the same circle: a head on the disc a photo fills.
+            Group {
+                if let rig {
+                    LivingHeadView(rig: rig, side: Self.side * 0.92, liveliness: .calm)
+                        .frame(width: Self.side, height: Self.side)
+                        .background(Circle().fill(AppColors.quietFill))
+                        .clipShape(Circle())
+                } else {
+                    CrewFace(member: member, crew: crew.id, me: me, side: Self.side)
+                }
+            }
+            .frame(width: Self.side, height: Self.side)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.pressSurface)
+        .onGeometryChange(for: CGPoint.self) { proxy in
+            let f = proxy.frame(in: .global)
+            return CGPoint(x: f.midX, y: f.midY)
+        } action: { centres[member.profileID] = $0 }
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
+        .accessibilityLabel(member.profileID == me ? "Your head" : "\(member.shortName.isEmpty ? "A friend" : member.shortName)'s head")
+        .accessibilityHint("Lets them out of the bubble.")
     }
 }

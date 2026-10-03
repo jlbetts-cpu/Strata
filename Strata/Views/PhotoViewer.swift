@@ -27,6 +27,13 @@ struct PhotoViewer: View {
     /// Called after a photograph has been removed, so the screen underneath
     /// can drop it from its own list.
     var onDelete: (GalleryPhoto) -> Void = { _ in }
+    /// Set when these are a crew's photographs (`CrewTowerView`): the menu
+    /// offers Report on a friend's, and taking your own back out of the
+    /// crew, instead of deleting a photograph that is not this viewer's to
+    /// delete.
+    var crew: CrewID? = nil
+    var onReport: (GalleryPhoto) -> Void = { _ in }
+    var onWithdraw: (GalleryPhoto) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @State private var confirmingDelete = false
@@ -398,11 +405,23 @@ struct PhotoViewer: View {
             }
             .disabled(saving || isSaved)
             Divider()
-            Button(role: .destructive) {
-                HapticsEngine.warning()
-                confirmingDelete = true
-            } label: {
-                Label("Remove Photo", systemImage: "trash")
+            if crew != nil, let current {
+                if current.byline != nil {
+                    Button(role: .destructive) { onReport(current) } label: {
+                        Label("Report", systemImage: "exclamationmark.bubble")
+                    }
+                } else {
+                    Button(role: .destructive) { onWithdraw(current); onClose() } label: {
+                        Label("Remove from Crew", systemImage: "minus.circle")
+                    }
+                }
+            } else {
+                Button(role: .destructive) {
+                    HapticsEngine.warning()
+                    confirmingDelete = true
+                } label: {
+                    Label("Remove Photo", systemImage: "trash")
+                }
             }
         } label: {
             GlassIconLabel(systemName: "ellipsis", tint: .white)
@@ -467,9 +486,11 @@ struct PhotoViewer: View {
 
     private var caption: String {
         guard let current else { return " " }
+        // In a crew, whose it is comes before everything.
+        let who = current.byline.map { "\($0) · " } ?? ""
         // Size first: it is the one fact about the win that the picture cannot
         // show you, and it is why the block on the tower is the shape it is.
-        return current.size.effortLabel + " · "
+        return who + current.size.effortLabel + " · "
             + Self.dayLabel(current.date) + " · " + Self.timeLabel(current.date)
     }
 
@@ -535,6 +556,15 @@ struct PhotoViewer: View {
         // decode for a page you have left, and never writes a picture into a
         // window that has moved on. `decodeOriginal` also drops a queued full
         // decode when the task is cancelled.
+        // A crew's photographs come from the crew's cache, already the 1080px
+        // copy that was sent, so there is one decode and no preview.
+        let files = Dictionary(photos.compactMap { p in p.file.map { (p.fileName, $0) } }, uniquingKeysWith: { a, _ in a })
+        for name in window where images[name] == nil {
+            guard let file = files[name], !Task.isCancelled else { continue }
+            let decoded = await Task.detached(priority: .userInitiated) { UIImage(contentsOfFile: file.path) }.value
+            guard !Task.isCancelled else { return }
+            images[name] = decoded
+        }
         if let first = window.first, images[first] == nil, !Task.isCancelled,
            let preview = await ImageManager.shared.loadThumbnail(
                fileName: first, maxWidth: CGFloat(ImageDerivatives.medium)),
@@ -543,7 +573,7 @@ struct PhotoViewer: View {
             previewOnly.insert(first)
             await Task.yield()
         }
-        for name in window where images[name] == nil || previewOnly.contains(name) {
+        for name in window where (images[name] == nil || previewOnly.contains(name)) && files[name] == nil {
             guard !Task.isCancelled else { return }
             if let ui = await ImageManager.shared.loadFullImage(fileName: name) {
                 guard !Task.isCancelled else { return }
@@ -561,7 +591,11 @@ struct PhotoViewer: View {
         guard let current, !saving, !isSaved else { return }
         saving = true
         Task { @MainActor in
-            let image = await ImageManager.shared.loadFullImage(fileName: current.fileName)
+            let image: UIImage? = if let file = current.file {
+                UIImage(contentsOfFile: file.path)
+            } else {
+                await ImageManager.shared.loadFullImage(fileName: current.fileName)
+            }
             guard let image else { saving = false; return }
             let ok = await PhotoLibrarySaver.save(image, respectingPreference: false)
             saving = false
@@ -690,10 +724,17 @@ struct Filmstrip: View {
             HStack(spacing: Self.gap) {
                 ForEach(drawn, id: \.element.id) { offset, photo in
                     let distance = min(abs(Double(lo + offset) - progress), 1)
-                    CachedImageView(fileName: photo.fileName,
-                                    width: Self.side,
-                                    height: Self.side,
-                                    cornerRadius: Self.radius)
+                    Group {
+                        if let file = photo.file {
+                            CrewPhotoView(url: file, width: Self.side, height: Self.side)
+                                .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+                        } else {
+                            CachedImageView(fileName: photo.fileName,
+                                            width: Self.side,
+                                            height: Self.side,
+                                            cornerRadius: Self.radius)
+                        }
+                    }
                         // One size for every frame. The depth does the work; a
                         // second, smaller size for the neighbours would be
                         // saying it twice.

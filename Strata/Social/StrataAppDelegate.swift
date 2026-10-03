@@ -107,6 +107,7 @@ final class StrataSceneDelegate: NSObject, UIWindowSceneDelegate {
         case .notSignedIn: "Sign in to iCloud in Settings to join a crew."
         case .flagOff, .notOwner, .unknownCrew: "That crew could not be opened. Try the link again in a moment."
         case .photoNotAllowed: "That photo stays with you."
+        case .photoNeeded: "Choose a photo for the crew first."
         }
     }
 }

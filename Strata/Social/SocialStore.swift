@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 import os
 
 /// Your crews, today's shared wins in each, and every write still on its way.
@@ -30,6 +31,8 @@ final class SocialStore {
             ProfileStore.shared.name.split(separator: " ").first.map(String.init) ?? ""
         }
         store.myHeadPack = { HeadStore.shared.towerHeadDirectory.flatMap { CrewHeadPack.make(from: $0) } }
+        store.myPhoto = { ProfileStore.shared.photo?.jpegData(compressionQuality: 0.85) }
+        store.requiresCrewPhoto = true
         return store
     }()
 
@@ -68,6 +71,11 @@ final class SocialStore {
     @ObservationIgnored var myFirstName: () -> String = { "" }
     /// Your head, packed to send, or nil for no head.
     @ObservationIgnored var myHeadPack: () -> Data? = { nil }
+    /// Your profile photograph as JPEG, or nil.
+    @ObservationIgnored var myPhoto: () -> Data? = { nil }
+    /// A crew must start with a photo (the owner, 2026-10-02). Off in tests
+    /// that are about something else.
+    @ObservationIgnored var requiresCrewPhoto = false
     /// Makes the copy of a photograph that is sent.
     @ObservationIgnored var derive: (Data) -> Data? = { ShareDerivative.jpeg(from: $0) }
     /// The photo check before anything is sent (`CrewSafety.photoIsFine`).
@@ -149,17 +157,33 @@ final class SocialStore {
 
     // MARK: Crews
 
-    func createCrew(name: String) async throws -> (crew: Crew, invite: URL) {
+    func createCrew(name: String, photoJPEG: Data? = nil) async throws -> (crew: Crew, invite: URL) {
         try requireOn()
         guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
+        // The photo first, so a refused one stops the crew before its zone
+        // exists. 13 to 15 send no photos and start crews with faces.
+        var picture: Data?
+        if photosAllowed() {
+            if let photoJPEG {
+                guard let small = derive(photoJPEG), await photoCheck(small) else { throw CrewError.photoNotAllowed }
+                picture = small
+            } else if requiresCrewPhoto {
+                throw CrewError.photoNeeded
+            }
+        }
         let now = now()
-        let crew = Crew(id: .new(),
+        var crew = Crew(id: .new(),
                         name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                         ownerProfileID: me,
                         timeZoneIdentifier: TimeZone.current.identifier,
                         createdAt: now,
                         photo: nil,
                         members: [CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now)])
+        if let picture {
+            let file = directory.appending(path: "Photos/\(crew.id.rawValue)/crew-\(UUID().uuidString).jpg")
+            try write(picture, to: file)
+            crew.photo = file
+        }
         let url = try await cloud.createZone(crew)
         try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crew.id)
         try await cloud.save(CrewRecords.fields(crew.members[0]), type: .member,
@@ -168,7 +192,7 @@ final class SocialStore {
         winsByCrew[crew.id] = []
         // A refresh already in flight fetched before this zone existed.
         if isRefreshing { refreshAgain = true }
-        if let head = myHeadPack() { await setMyHead(head) }
+        await shareMyself()
         if announces { await CrewNotifications.askOnce() }
         return (crew, url)
     }
@@ -198,7 +222,7 @@ final class SocialStore {
         let member = CrewMember(profileID: me, firstName: myFirstName(), head: nil, joinedAt: now())
         try await cloud.save(CrewRecords.fields(member), type: .member, name: CrewRecords.name(of: member), in: id)
         await refresh()
-        if let head = myHeadPack() { await setMyHead(head) }
+        await shareMyself()
         if announces { await CrewNotifications.askOnce() }
         return self.crew(id) ?? crew
     }
@@ -230,8 +254,17 @@ final class SocialStore {
         try await cloud.save(CrewRecords.fields(crew), type: .crew, name: CrewRecords.crewRecordName, in: crewID)
     }
 
+    /// You, as your crews see you: your head, and your profile photo for
+    /// when there is no head (never under 16). Called on starting or joining
+    /// a crew and whenever either changes.
+    func shareMyself() async {
+        guard isEnabled() else { return }
+        let photo = photosAllowed() ? myPhoto().flatMap(derive) : nil
+        await setMyHead(myHeadPack(), photo: photo)
+    }
+
     /// Your head, as friends see it. Nil takes it away.
-    func setMyHead(_ pack: Data?) async {
+    func setMyHead(_ pack: Data?, photo: Data? = nil) async {
         guard isEnabled() else { return }
         for crew in crews {
             guard var mine = crew.member(me) else { continue }
@@ -244,6 +277,12 @@ final class SocialStore {
                 mine.head = url
             } else {
                 mine.head = nil
+            }
+            if let photo {
+                let url = directory.appending(path: "Heads/\(crew.id.rawValue)/\(me.uuidString).jpg")
+                if (try? write(photo, to: url)) != nil { mine.photo = url }
+            } else {
+                mine.photo = nil
             }
             mine.firstName = myFirstName()
             enqueue(.init(crew: crew.id, type: .member, name: CrewRecords.name(of: mine), fields: CrewRecords.fields(mine)))

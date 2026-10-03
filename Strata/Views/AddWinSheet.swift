@@ -44,6 +44,10 @@ struct AddWinSheet: View {
     /// colour, not claimed as a category: a plan line's colour may have been
     /// assigned rather than picked, and nothing records which.
     var initialColour: HabitCategory? = nil
+    /// The crews to tick, when the sheet is opened from a crew's tower. Not
+    /// remembered as next time's choice: the choice made from a crew is that
+    /// crew's.
+    var initialCrews: Set<CrewID>? = nil
     var onSaved: (Habit) -> Void = { _ in }
     var onDeleted: () -> Void = {}
 
@@ -1109,7 +1113,7 @@ struct AddWinSheet: View {
             title = initialTitle
         }
         if CrewsFlag.isOn {
-            crewChoice = editingLog.map { SocialStore.shared.crews(holding: $0.id) } ?? CrewChoice.load()
+            crewChoice = editingLog.map { SocialStore.shared.crews(holding: $0.id) } ?? initialCrews ?? CrewChoice.load()
         }
         if let habit = editing {
             title = habit.title == QuickWinService.untitled ? "" : habit.title

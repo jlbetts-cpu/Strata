@@ -227,3 +227,27 @@ extension CrewStoreTests {
         #expect(a.crew(crew.id)?.photo != nil)
     }
 }
+
+extension CrewStoreTests {
+    @Test func aCrewStartsWithAPhotoUnlessYouAreUnderSixteen() async throws {
+        let (a, _, _) = store(jayden)
+        a.requiresCrewPhoto = true
+        await #expect(throws: CrewError.photoNeeded) { try await a.createCrew(name: "No picture") }
+        let (crew, _) = try await a.createCrew(name: "Picture", photoJPEG: Data([1, 2, 3]))
+        #expect(crew.photo != nil)
+        #expect(world.records(of: .crew, in: crew.id).values.first?["photo"] != nil)
+        a.photosAllowed = { false }
+        let (teen, _) = try await a.createCrew(name: "Faces")
+        #expect(teen.photo == nil, "13 to 15 start crews with everyone's faces")
+    }
+
+    @Test func aMemberWithNoHeadSharesTheirPhotoButNotUnderSixteen() async throws {
+        let (a, _, _) = store(jayden)
+        a.myPhoto = { Data([9, 9, 9]) }
+        let (crew, _) = try await a.createCrew(name: "One")
+        #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] != nil)
+        a.photosAllowed = { false }
+        await a.shareMyself()
+        #expect(world.records(of: .member, in: crew.id)[jayden.uuidString]?["photo"] == nil)
+    }
+}

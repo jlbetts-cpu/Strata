@@ -65,6 +65,11 @@ struct CrewFace: View {
                     .scaledToFill()
                     .scaleEffect(1 / max(rig?.contentHeight ?? 0.86, 0.5) * 0.9, anchor: .center)
                     .offset(y: side * 0.04)
+            } else if let photo = member.photo, let image = UIImage(contentsOfFile: photo.path) {
+                // A photograph fills the circle a head sits in, so the two
+                // read as one set (Messages' own answer for Memoji beside
+                // photos; the owner chose it 2026-10-02).
+                Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Text(member.initial.isEmpty ? " " : member.initial)
                     .font(.system(size: side * 0.42, weight: .semibold, design: .rounded))
@@ -79,7 +84,7 @@ struct CrewFace: View {
     /// A colour of the app's own palette, picked by the person's id so it is
     /// the same on every phone.
     private var fill: Color {
-        if CrewHeads.shared.rig(for: member, in: crew, me: me) != nil { return AppColors.quietFill }
+        if CrewHeads.shared.rig(for: member, in: crew, me: me) != nil || member.photo != nil { return AppColors.quietFill }
         let palette = HabitCategory.selectable
         let index = Int(member.profileID.uuid.0) % max(palette.count, 1)
         return palette[index].style.baseColor
