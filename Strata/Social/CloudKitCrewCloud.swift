@@ -299,7 +299,7 @@ final class CloudKitCrewCloud: CrewCloud {
                 guard case .success(let modification) = result else { continue }
                 let record = modification.record
                 // The crew's share: who is in it, by their iCloud first
-                // names, for a member who never gave Sturdy a name. Messages
+                // names, for a member who never gave Some Wins a name. Messages
                 // names a group by its people; with no name to go on it fell
                 // back to "New Crew" (the owner, 2026-10-02).
                 if let share = record as? CKShare {

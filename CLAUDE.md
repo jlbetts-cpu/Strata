@@ -15,6 +15,13 @@ hours, so that a new session does not repeat them.
 
 ## What this is
 
+**The app is called Some Wins** (renamed from Sturdy, 2026-10-03; "somewins"
+where a space cannot go: somewins.app, @somewins). Only what people READ
+changed: the display name, every sentence, the permission prompts and the
+privacy pages. The code is still `Strata`, and the bundle id, the App Group
+and the iCloud container are untouched on purpose: changing any of them
+orphans every install's data and every crew.
+
 A SwiftUI + SwiftData iOS **win tracker**. You log something you already did;
 it becomes a 2.5D block, and the blocks stack into a tower. Three tabs:
 

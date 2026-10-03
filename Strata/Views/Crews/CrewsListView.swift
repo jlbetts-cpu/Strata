@@ -353,6 +353,9 @@ struct CrewsButton: View {
 /// `MainAppView`'s body, already at the type-checker's ceiling, gains one line.
 struct CrewDestinations: ViewModifier {
     @Binding var path: [CrewRoute]
+    /// The crew rules, once, the first time anything of Crews is opened:
+    /// the list, a crew, or an invitation (`CrewRules`).
+    @State private var rulesAccepted = CrewRules.accepted
     /// Add Win, with a crew ticked.
     var addWin: (CrewID) -> Void
     /// The empty slot's one-tap win, into a crew.
@@ -361,6 +364,10 @@ struct CrewDestinations: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .sheet(isPresented: Binding(get: { !path.isEmpty && !rulesAccepted }, set: { _ in })) {
+                CrewRulesSheet(onAgree: { rulesAccepted = true },
+                               onNotNow: { path = [] })
+            }
             .navigationDestination(for: CrewRoute.self) { route in
                 switch route {
                 case .list:
@@ -390,7 +397,7 @@ struct CrewDestinations: ViewModifier {
                 set: { if !$0 { SocialStore.shared.clearHeldBackPhoto() } })) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("It looked like something Sturdy doesn't send to crews. Your win was still sent, without it.")
+                Text("It looked like something Some Wins doesn't send to crews. Your win was still sent, without it.")
             }
             .alert("Crews", isPresented: Binding(get: { router.joinProblem != nil },
                                                  set: { if !$0 { router.joinProblem = nil } })) {

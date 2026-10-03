@@ -243,7 +243,7 @@ struct CrewTowerView: View {
                 }
             }
         } message: { _ in
-            Text("Your report goes to Sturdy. Nobody in the crew is told.")
+            Text("Your report goes to Some Wins. Nobody in the crew is told.")
         }
         }
         .accessibilityAction(.escape) { onBack() }

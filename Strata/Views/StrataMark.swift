@@ -289,6 +289,6 @@ struct StrataMark: View {
                 .foregroundStyle(.white)
         }
         .accessibilityElement()
-        .accessibilityLabel("Sturdy")
+        .accessibilityLabel("Some Wins")
     }
 }

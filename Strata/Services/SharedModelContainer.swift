@@ -353,7 +353,7 @@ enum SharedModelContainer {
 /// The words the app uses when the store did not open, in one place, so the
 /// blocking screen and Siri cannot say different things.
 enum StoreUnavailableCopy {
-    static let title = "Sturdy could not open your wins"
+    static let title = "Some Wins could not open your wins"
     /// **Trimmed from 28 words to 9** (2026-10-01, `docs/copy-audit.md` cut 16).
     /// It carried on: "...and Strata cannot read them right now, so it is
     /// showing you this instead of an empty tower." The first six words are the
@@ -361,10 +361,10 @@ enum StoreUnavailableCopy {
     /// own implementation choice to the one reader who cannot act on it.
     /// `stillFailing` below says what to actually DO, and that is untouched.
     static let body = "Nothing has been deleted. Your wins are on this phone."
-    static let stillFailing = "Still not opening. Close Sturdy from the app switcher, then open it again."
+    static let stillFailing = "Still not opening. Close Some Wins from the app switcher, then open it again."
     /// What Siri and Shortcuts say. The screen's title and its first sentence,
     /// because a spoken answer has no room for the rest.
-    static let spoken = "Sturdy could not open your wins. Nothing has been deleted."
+    static let spoken = "Some Wins could not open your wins. Nothing has been deleted."
 }
 
 /// Thrown by every App Intent that touches the store when the store did not

@@ -22,7 +22,7 @@ enum CrewSafety {
         }
     }
 
-    /// A report goes to Sturdy, never to the crew: a `Report` record in the
+    /// A report goes to Some Wins, never to the crew: a `Report` record in the
     /// app's PUBLIC database, which only the developer can read (the record
     /// type's permissions are set that way in the CloudKit dashboard). It
     /// names the crew, the win and the reason. It carries no photograph.

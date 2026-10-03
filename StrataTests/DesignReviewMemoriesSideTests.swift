@@ -29,10 +29,10 @@ struct DesignReviewMemoriesSideTests {
         "Strata/Views/StoreUnavailableView.swift",
     ]
 
-    // MARK: - The app is called Sturdy
+    // MARK: - The app is called Some Wins
 
-    /// `docs/brand.md`, "The name is Sturdy" (2026-09-30). The home screen,
-    /// the Settings app and every permission prompt say Sturdy; twenty-one
+    /// `docs/brand.md`, "The name is Some Wins" (2026-09-30). The home screen,
+    /// the Settings app and every permission prompt say Some Wins; twenty-one
     /// sentences on these screens said Strata, including two instructions that
     /// send somebody to the Settings app to find an entry under a name that is
     /// not there. A word inside a string literal, so `StrataFont`, an asset

@@ -131,7 +131,7 @@ struct CrewInfoSheet: View {
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications are off for Sturdy")
+                        Text("Notifications are off for Some Wins")
                             .font(Typography.bodyLarge)
                             .foregroundStyle(AppColors.inkPrimary)
                         Text("Turn On in Settings")

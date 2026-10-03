@@ -56,16 +56,16 @@ struct PrivacyPolicyView: View {
     }
 
     private static let sections: [(title: String, body: String)] = [
-        ("What Sturdy stores",
+        ("What Some Wins stores",
          "Your wins: their names, sizes, colours, dates, any photo you attach, and "
          + "where a photo was taken if you turn that on. And, if you add them, "
          + "your name and a profile photo. That is the whole of it."),
         ("Where it is stored",
-         "On your device. Sturdy has no account, no server, and no analytics. "
+         "On your device. Some Wins has no account, no server, and no analytics. "
          + "Nothing you log is sent anywhere unless you send a win to a crew, "
          + "and nobody but you can read it unless you do."),
         ("Photos",
-         "A photo you attach is copied into Sturdy's own storage on your device so "
+         "A photo you attach is copied into Some Wins' own storage on your device so "
          + "the block still has it if you later remove the original. Deleting a win "
          + "deletes its photo with it."),
         ("Your profile",
@@ -74,15 +74,15 @@ struct PrivacyPolicyView: View {
          + "never sent anywhere. It is a small copy made from the one you choose; "
          + "removing it deletes that copy."),
         ("Your head",
-         "If you make a head, Sturdy takes a few photos with the front camera and turns "
+         "If you make a head, Some Wins takes a few photos with the front camera and turns "
          + "them into your head, right on your device. It keeps only those small "
          + "pictures, never video. Your head only shows up where you turn it on, and "
          + "Delete Head removes it. If your head is on your tower and you join a "
          + "crew, a smaller copy goes to the crew so its people can see it; "
          + "otherwise it never leaves your device."),
         ("Places",
-         "Sturdy asks first, and iOS will not give it a position until you say yes. "
-         + "After that, Sturdy notes where a photo was taken, at "
+         "Some Wins asks first, and iOS will not give it a position until you say yes. "
+         + "After that, Some Wins notes where a photo was taken, at "
          + "the moment you take it, so your wins can appear on your map. It "
          + "checks only while the camera is open, never in the background, and the "
          + "coordinates are stored on your device beside the photo and nowhere "
@@ -93,16 +93,16 @@ struct PrivacyPolicyView: View {
          + "there is between you and whatever app you send it to. Save to Photos, "
          + "if you leave it on, puts a copy of each photo you take in your photo "
          + "library, where it is yours like any other. When you press Save Video on "
-         + "a replay, Sturdy saves that video to your camera roll. It is made on your "
+         + "a replay, Some Wins saves that video to your camera roll. It is made on your "
          + "device and not sent anywhere."),
         ("Crews",
          "A crew is up to 8 people who share a tower for the day. It runs on "
          + "iCloud: a crew lives in the iCloud of whoever started it, and Apple "
-         + "shares it with the people in it. There is no Sturdy server, and Sturdy "
+         + "shares it with the people in it. There is no Some Wins server, and Some Wins "
          + "cannot read what a crew holds. A win goes to a crew only if you tick "
          + "that crew for that win; the crews you ticked last stay ticked until you "
          + "change them. When someone adds a win, iCloud sends your phone a silent "
-         + "signal and Sturdy writes the notification on your phone."),
+         + "signal and Some Wins writes the notification on your phone."),
         ("What a crew sees",
          "Of a win you send: its title, colour, size and icon, its photo, and when "
          + "you logged it. The photo is a smaller copy with no place and no camera "
@@ -120,20 +120,20 @@ struct PrivacyPolicyView: View {
         ("Block and Report",
          "Block hides that person's wins, head and name in every crew on your "
          + "phone. They are not told. If you started the crew, they are removed "
-         + "from it too. Report sends Sturdy the win's title, the reason you chose, "
+         + "from it too. Report sends Some Wins the win's title, the reason you chose, "
          + "and the random ids of the crew, the win, the person who sent it and "
-         + "you. No photo. A report goes only to Sturdy, never to the crew, and "
-         + "only Sturdy can read it."),
+         + "you. No photo. A report goes only to Some Wins, never to the crew, and "
+         + "only Some Wins can read it."),
         ("The photo check",
          "Before a photo goes to a crew, your phone checks it with Apple's "
          + "sensitive content check, when Sensitive Content Warning or "
          + "Communication Safety is turned on. A photo it flags stays with you, "
          + "and the win goes without it."),
         ("Ages",
-         "Crews are for 13 and up. The first time you open Crews, Sturdy asks for "
+         "Crews are for 13 and up. The first time you open Crews, Some Wins asks for "
          + "your age range through Apple, never your birthday, and keeps the answer "
          + "on your phone. Under 13, Crews do not open. From 13 to 15, crews work, "
-         + "but photos are never sent. If you would rather not say, Sturdy treats "
+         + "but photos are never sent. If you would rather not say, Some Wins treats "
          + "you as 13 to 15."),
         ("Deleting everything",
          "Profile › Settings › Data › Reset All Data removes every win, every photo, "

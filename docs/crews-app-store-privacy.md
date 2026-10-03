@@ -69,11 +69,11 @@ as collected when it leaves the device "in a way that allows you and/or your
 third-party partners to access it". A crew's wins, names, heads and pictures
 sit in the private iCloud database of whoever started the crew and are shared
 with its members by Apple's iCloud sharing. You cannot read a user's private
-or shared database, there is no Sturdy server to copy it to, and Apple's
+or shared database, there is no Some Wins server to copy it to, and Apple's
 iCloud is not a "third-party partner" in Apple's sense (code from a vendor you
 added to the app). So they are not collected. The research doc reached the
 same reading, marked as inference to confirm. The spec's 9.3 had listed them;
-declaring them would tell people Sturdy collects their photos and their name,
+declaring them would tell people Some Wins collects their photos and their name,
 which is untrue in the same way the HealthAndFitness label was.
 
 - [ ] **Your call:** if App Review questions it, or you read Apple's page
@@ -133,7 +133,7 @@ second test iCloud account if Review asks for one.
 Container `iCloud.JaydenBetts.Strata`. A report is written to the **public**
 database by `CrewSafety.report`, and the public database is readable by every
 user of the app unless its permissions say otherwise. This step is what makes
-"only Sturdy can read it" true.
+"only Some Wins can read it" true.
 
 - [ ] CloudKit Console > Schema > Record Types, **Development**. If `Report`
   does not exist yet, create it with six String fields: `crew`, `winID`,

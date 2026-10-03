@@ -47,7 +47,7 @@
        PhotosOrVideos, OtherUserContent and UserID are NOT declared for it.
        The research doc reached the same reading (4.5, "arguably stays not
        collected", marked as inference to confirm). The spec's section 9.3
-       listed those four as linked; declaring them would put "Sturdy
+       listed those four as linked; declaring them would put "Some Wins
        collects your photos and your name" on the product page, which is
        the same kind of false statement this file was cleaned of on
        2026-09-10. If Apple's guidance or review says otherwise, add them

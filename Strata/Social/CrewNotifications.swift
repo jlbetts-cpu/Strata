@@ -14,7 +14,7 @@ import os
 /// and says what changed in a local notification it writes itself, with the
 /// real names. No server, and nothing about a win travels in the push.
 ///
-/// The limit, stated: a phone where Sturdy was swiped away from the app
+/// The limit, stated: a phone where Some Wins was swiped away from the app
 /// switcher is not woken by a silent push, so its notifications wait until
 /// it is next opened. A notification service extension lifts that; it needs
 /// its own app ID with the iCloud container, which is a step in the developer
@@ -60,7 +60,7 @@ enum CrewNotifications {
     /// every refresh. The first call on a phone only remembers what is there.
     /// **How far back a notification may reach.** In the background (a push
     /// woke the app) the last six hours, so a quiet phone still hears about
-    /// the day. With the app OPEN, two minutes: opening Sturdy after a while
+    /// the day. With the app OPEN, two minutes: opening Some Wins after a while
     /// used to fire one banner for every win since, over the crews you were
     /// about to look at anyway (the 2026-10-03 audit). Open, only what is
     /// arriving now is news.

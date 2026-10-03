@@ -110,7 +110,7 @@ enum BackupRestore {
         var warnings: [String] {
             var lines: [String] = []
             if summary.version < BackupArchive.currentFormatVersion, summary.photographs > 0 {
-                lines.append("This backup was made by an older version of Sturdy, which did not record which win each photograph belongs to. Its \(summary.photographs) photograph\(summary.photographs == 1 ? "" : "s") cannot be put back on your wins. You can still save them from the zip in the Files app.")
+                lines.append("This backup was made by an older version of Some Wins, which did not record which win each photograph belongs to. Its \(summary.photographs) photograph\(summary.photographs == 1 ? "" : "s") cannot be put back on your wins. You can still save them from the zip in the Files app.")
             }
             if winsWithoutATemplate > 0 {
                 lines.append("\(winsWithoutATemplate) win\(winsWithoutATemplate == 1 ? "" : "s") in this backup doesn't say what kind of win it was, so \(winsWithoutATemplate == 1 ? "it" : "they") can't be restored.")
@@ -284,7 +284,7 @@ enum BackupRestore {
             localHabits = try context.fetch(FetchDescriptor<Habit>())
             localLogs = try context.fetch(FetchDescriptor<HabitLog>())
         } catch {
-            report.failure = "Sturdy could not read what is already on this phone (\(error.localizedDescription)), so nothing was added."
+            report.failure = "Some Wins could not read what is already on this phone (\(error.localizedDescription)), so nothing was added."
             return report
         }
         let habitsByID = Dictionary(localHabits.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -357,7 +357,7 @@ enum BackupRestore {
             // store.** Every insert above is discarded and the person's existing
             // wins are exactly as they were.
             context.rollback()
-            report.failure = "Sturdy could not save the restored wins (\(error.localizedDescription)). Nothing was added, and nothing you already had was changed."
+            report.failure = "Some Wins could not save the restored wins (\(error.localizedDescription)). Nothing was added, and nothing you already had was changed."
             report.winsAdded = 0
             report.photographsReattached = 0
             // `photographsRestored` is left as it is: those files really are on

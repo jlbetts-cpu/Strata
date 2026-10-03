@@ -19,7 +19,7 @@ enum BackupExport {
     static func name(on date: Date) -> String {
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyy-MM-dd"
-        return "Sturdy Backup \(stamp.string(from: date))"
+        return "Some Wins Backup \(stamp.string(from: date))"
     }
 
     /// The index, from the store.

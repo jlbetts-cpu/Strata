@@ -714,8 +714,8 @@ struct MemoriesMapView: View {
             // one is the page's own width less its margins, so the panel's
             // padding is the measure.
             Text(denied
-                 ? "Sturdy can't tell where a photo was taken."
-                 : "Photos you take in Sturdy keep the place they were taken, and land here.")
+                 ? "Some Wins can't tell where a photo was taken."
+                 : "Photos you take in Some Wins keep the place they were taken, and land here.")
                 .font(Typography.screenSubtitle)
                 .foregroundStyle(AppColors.inkSecondary)
                 .multilineTextAlignment(.center)

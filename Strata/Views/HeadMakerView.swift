@@ -457,7 +457,7 @@ struct HeadMakerView: View {
         // already knows what they came for.
         case .unavailable:
             return model.isDenied
-                ? "Turn the camera on for Sturdy in Settings."
+                ? "Turn the camera on for Some Wins in Settings."
                 : "The camera isn't available here."
         case .lining:
             // Once the shutter will take, say so. Holding the correction up

@@ -458,7 +458,7 @@ struct SettingsView: View {
                 // be discovered". The `gapTight` moved off the line above and
                 // onto this one, so the air exists only when the line does.
                 if location.isDenied {
-                    Text("Location is off for Sturdy in the Settings app, so photographs can't be placed on your map.")
+                    Text("Location is off for Some Wins in the Settings app, so photographs can't be placed on your map.")
                         .formFooter()
                         .padding(.top, GridConstants.gapTight)
                 }
@@ -472,7 +472,7 @@ struct SettingsView: View {
                     replayOnboarding = true
                 } label: {
                     Label {
-                        Text("How Sturdy Works")
+                        Text("How Some Wins Works")
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "questionmark.circle")
@@ -676,7 +676,7 @@ struct SettingsView: View {
                 // screen explains a control; this one is the claim the app is
                 // for. If it is ever cut, it should be cut by the owner and not
                 // by the rule.
-                Text("Everything you log stays on this device. Sturdy has no account and no server.")
+                Text("Everything you log stays on this device. Some Wins has no account and no server.")
                     .formFooter()
             }
 
@@ -793,7 +793,7 @@ struct SettingsView: View {
         .alert("Nothing was deleted", isPresented: $resetFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Sturdy could not reset your data, so every win and photo is still here. Try again.")
+            Text("Some Wins could not reset your data, so every win and photo is still here. Try again.")
         }
         .alert("The backup was not made", isPresented: $exportFailed) {
             Button("OK", role: .cancel) { }
@@ -812,7 +812,7 @@ struct SettingsView: View {
             case .success(let urls):
                 if let url = urls.first { copyForRestore(url) }
             case .failure(let error):
-                restoreFailure = "Sturdy could not open that file (\(error.localizedDescription))."
+                restoreFailure = "Some Wins could not open that file (\(error.localizedDescription))."
             }
         }
         .alert("That file could not be opened", isPresented: Binding(
@@ -1002,7 +1002,7 @@ struct SettingsView: View {
             exportFailure = failure.message
             exportFailed = true
         } catch {
-            exportFailure = "Sturdy could not write the backup file (\(error.localizedDescription))."
+            exportFailure = "Some Wins could not write the backup file (\(error.localizedDescription))."
             exportFailed = true
         }
     }
@@ -1029,7 +1029,7 @@ struct SettingsView: View {
         do {
             try fm.copyItem(at: picked, to: destination)
         } catch {
-            restoreFailure = "Sturdy could not read that file (\(error.localizedDescription))."
+            restoreFailure = "Some Wins could not read that file (\(error.localizedDescription))."
             return
         }
         restoreZip = RestoreBackupView.Picked(url: destination)

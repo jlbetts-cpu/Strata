@@ -14,7 +14,7 @@ import UIKit
 /// like Messages).
 @MainActor
 enum CrewSharing {
-    static let message = "Join my crew on Sturdy"
+    static let message = "Join my crew on Some Wins"
 
     static func invite(_ crewID: CrewID) async {
         let store = SocialStore.shared

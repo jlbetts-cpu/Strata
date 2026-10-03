@@ -6,16 +6,16 @@ import CoreSpotlight
 /// **What the app is called, asked of the bundle rather than typed out.**
 ///
 /// Found 2026-10-01, photographing the camera's refused state: the built
-/// `Info.plist` carries `CFBundleDisplayName` **Sturdy** and `CFBundleName`
+/// `Info.plist` carries `CFBundleDisplayName` **Some Wins** and `CFBundleName`
 /// **Strata**, and a sentence on that screen read "Turn the camera on for
-/// Strata in Settings". The home screen says Sturdy, the Settings row says
-/// Sturdy, and the app was naming a row that does not exist — on the one
+/// Strata in Settings". The home screen says Some Wins, the Settings row says
+/// Some Wins, and the app was naming a row that does not exist — on the one
 /// screen whose whole job is to send somebody to that row.
 ///
 /// `CLAUDE.md` records the wordmark being off "pending the RENAME", and this is
 /// the other half of the same thing: the drawing came off and the WORDS did
 /// not. Asking the bundle fixes every name at once and survives the next one,
-/// which is the point — a hard-coded "Sturdy" would be the same bug again with
+/// which is the point — a hard-coded "Some Wins" would be the same bug again with
 /// a different spelling.
 ///
 /// `CFBundleDisplayName` first, because that is the one iOS prints under the
@@ -27,12 +27,12 @@ import CoreSpotlight
 /// had before it was renamed: a missing key would have printed the OLD name
 /// into a sentence. Twenty-one other user-facing strings across the app said it
 /// too, two of them sending people to look for a Settings entry that does not
-/// exist under that name; all of them say Sturdy now.
+/// exist under that name; all of them say Some Wins now.
 enum AppName {
     static let display: String =
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
         ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
-        ?? "Sturdy"
+        ?? "Some Wins"
 }
 
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
