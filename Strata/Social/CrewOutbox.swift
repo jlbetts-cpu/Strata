@@ -29,6 +29,20 @@ nonisolated struct CrewOutbox: Codable, Equatable, Sendable {
         entries.append(entry)
     }
 
+    /// Removes `entry` only if it is still the one waiting: a newer write to
+    /// the same record that arrived while this one was being sent must stay.
+    mutating func removeIfUnchanged(_ entry: Entry) {
+        entries.removeAll { $0.crew == entry.crew && $0.type == entry.type && $0.name == entry.name
+            && $0.fields == entry.fields }
+    }
+
+    /// Writes that failed this many times are for something that is gone.
+    mutating func dropHopeless(after attempts: Int = 20) -> [Entry] {
+        let gone = entries.filter { $0.attempts >= attempts }
+        entries.removeAll { $0.attempts >= attempts }
+        return gone
+    }
+
     mutating func remove(_ entry: Entry) {
         entries.removeAll { $0.crew == entry.crew && $0.type == entry.type && $0.name == entry.name }
     }

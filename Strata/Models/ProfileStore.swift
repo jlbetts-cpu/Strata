@@ -88,6 +88,7 @@ final class ProfileStore {
     func setName(_ newValue: String) {
         name = newValue
         UserDefaults.standard.set(newValue, forKey: Self.nameKey)
+        SocialStore.noteMyselfChanged()
     }
 
     func setBackground(_ colour: HabitCategory?) {
@@ -145,6 +146,7 @@ final class ProfileStore {
                                                     withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
             photo = image
+            SocialStore.noteMyselfChanged()
         } catch {
             // Leave the old picture in place rather than show one that is not
             // on disk and would vanish on the next launch.
@@ -156,6 +158,7 @@ final class ProfileStore {
     func removePhoto() {
         if let url = Self.photoURL { try? FileManager.default.removeItem(at: url) }
         photo = nil
+        SocialStore.noteMyselfChanged()
     }
 
     /// Everything, for Reset All Data — which the privacy policy says removes

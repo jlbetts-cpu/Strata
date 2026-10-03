@@ -20,8 +20,11 @@ enum CrewSync {
     private static let log = Logger(subsystem: "Strata", category: "crews.sync")
     private static var token: NSObjectProtocol?
 
-    static func observe() {
-        guard token == nil, CrewsFlag.isOn else { return }
+    /// The store wins go to. `.shared` in the app; a test's own in a test.
+    static var store: () -> SocialStore = { SocialStore.shared }
+
+    static func observe(evenIfOff: Bool = false) {
+        guard token == nil, CrewsFlag.isOn || evenIfOff else { return }
         token = NotificationCenter.default.addObserver(forName: ModelContext.willSave, object: nil, queue: nil) { note in
             guard Thread.isMainThread, let context = note.object as? ModelContext else { return }
             MainActor.assumeIsolated { saw(context) }
@@ -33,17 +36,17 @@ enum CrewSync {
         guard CrewsFlag.isOn, let win = ownWin(entry) else { return }
         let crews = chosen ?? CrewChoice.load()
         guard !crews.isEmpty else { return }
-        Task { await SocialStore.shared.post(win, to: crews) }
+        Task { await store().post(win, to: crews) }
     }
 
     /// The Edit screen's checkboxes.
     static func setCrews(for entry: HabitLog, to chosen: Set<CrewID>) {
         guard CrewsFlag.isOn, let win = ownWin(entry) else { return }
-        Task { await SocialStore.shared.setCrews(for: win, to: chosen) }
+        Task { await store().setCrews(for: win, to: chosen) }
     }
 
     private static func saw(_ context: ModelContext) {
-        let store = SocialStore.shared
+        let store = store()
         var changed: [UUID: HabitLog] = [:]
         for model in context.changedModelsArray {
             switch model {
@@ -58,14 +61,30 @@ enum CrewSync {
         }
         let deleted = context.deletedModelsArray.compactMap { ($0 as? HabitLog)?.id }
             .filter { !store.crews(holding: $0).isEmpty }
-        // The save has not happened yet: read the values now, send after.
-        let updates = changed.values.compactMap(ownWin)
-        guard !updates.isEmpty || !deleted.isEmpty else { return }
-        Task {
-            for id in deleted { await store.deleteEverywhere(winID: id) }
-            for win in updates where !deleted.contains(win.winID) { await store.update(win) }
+        guard !changed.isEmpty || !deleted.isEmpty else { return }
+        if !deleted.isEmpty {
+            Task { for id in deleted { await store.deleteEverywhere(winID: id) } }
+        }
+        // **Gathered, then read once, after the saves have settled.** One edit
+        // is often two saves (the name, then the photo), and reading each
+        // save's values into its own update let an older one land last and
+        // put a removed photo back (the 2026-10-02 audit). The log is read
+        // when the update is sent, so it carries the final values.
+        for (id, entry) in changed where !deleted.contains(id) { waiting[id] = entry }
+        scheduled?.cancel()
+        scheduled = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            let batch = waiting
+            waiting.removeAll()
+            for (_, entry) in batch where !entry.isDeleted && entry.modelContext != nil {
+                if let win = ownWin(entry) { await store.update(win) }
+            }
         }
     }
+
+    private static var waiting: [UUID: HabitLog] = [:]
+    private static var scheduled: Task<Void, Never>?
 
     /// A win as a crew is handed it: what it looks like, and its photograph
     /// as it is on disk. `ShareDerivative` makes what is actually sent.
@@ -82,6 +101,7 @@ enum CrewSync {
                       icon: habit.category,
                       blockSize: habit.blockSize,
                       photoJPEG: photo,
+                      photoKey: entry.imageFileName,
                       cropX: entry.cropPositionX,
                       cropY: entry.cropPositionY,
                       createdAt: entry.createdAt,

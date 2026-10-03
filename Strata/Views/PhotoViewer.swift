@@ -137,6 +137,13 @@ struct PhotoViewer: View {
                         ), topPadding: Self.headerHeight)
 
                         dateLine
+                            .overlay(alignment: .top) {
+                                // A crew's photograph: the reaction bar on the
+                                // picture's lower edge, where a thumb is.
+                                if let reactions, let current {
+                                    reactions(current).offset(y: -64)
+                                }
+                            }
                             // **Top-aligned, so the caption sits at the same
                             // y on every photograph.** Centred in a two-line
                             // band it would hang 9pt lower on a picture with

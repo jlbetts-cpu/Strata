@@ -42,6 +42,9 @@ final class FakeCrewCloud: CrewCloud {
         self.myProfileID = me
     }
 
+    func prepare() async {}
+    func reset() {}
+
     private func touch() throws {
         calls += 1
         if offline { throw Offline() }

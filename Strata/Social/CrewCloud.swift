@@ -19,8 +19,15 @@ nonisolated struct CrewInvite: @unchecked Sendable {
 /// allowed to leave the phone are `SocialStore`'s; this layer moves fields.
 @MainActor
 protocol CrewCloud: AnyObject {
-    /// `ProfileStore.profileID` on this phone.
+    /// `ProfileStore.profileID` on this phone, or, once `prepare` has run on
+    /// a second phone of the same person, the one their first phone made.
     var myProfileID: UUID { get }
+
+    /// Anything to settle before the first call: the identity record that
+    /// makes two phones on one iCloud account one person.
+    func prepare() async
+    /// Forgets everything held for the account that was signed in.
+    func reset()
 
     /// Makes the crew's zone and its share. Returns the invitation link.
     func createZone(_ crew: Crew) async throws -> URL

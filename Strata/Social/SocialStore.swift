@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import Observation
 import UIKit
@@ -25,6 +26,9 @@ final class SocialStore {
         store.photosAllowed = { CrewAge.current.sendsPhotos }
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.announces = true
+        NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
+            Task { @MainActor in await SocialStore.shared.accountChanged() }
+        }
         // The first word only: a crew needs to know it is Sam, not Sam's
         // surname (spec 4.2, "firstName").
         store.myFirstName = {
@@ -88,6 +92,22 @@ final class SocialStore {
 
     var me: UUID { cloud.myProfileID }
 
+    /// Signed out of iCloud, or into another account: nothing of the old
+    /// account's crews may stay on the phone (the 2026-10-02 audit).
+    func accountChanged() async {
+        guard isEnabled() else { return }
+        cloud.reset()
+        for crew in crews { forget(crew.id) }
+        crews = []
+        winsByCrew = [:]
+        reactionsByCrew = [:]
+        outbox = CrewOutbox()
+        persistOutbox()
+        sent = [:]
+        try? FileManager.default.removeItem(at: directory)
+        await refresh()
+    }
+
     init(cloud: CrewCloud, defaults: UserDefaults, directory: URL) {
         self.cloud = cloud
         self.defaults = defaults
@@ -149,17 +169,76 @@ final class SocialStore {
         return outbox.pendingCrews(for: winID)
     }
 
-    /// The crews a win of yours is in, sent or on its way.
+    /// The crews a win of yours is in, sent or on its way. The ledger is
+    /// what this phone sent, kept on disk, so it is right before the first
+    /// fetch and offline: an edit or a delete made then still reaches every
+    /// copy, and the Edit sheet shows the right ticks.
     func crews(holding winID: UUID) -> Set<CrewID> {
         var held = Set(winsByCrew.compactMap { id, wins in wins.contains { $0.winID == winID } ? id : nil })
         held.formUnion(pendingCrews(for: winID))
-        return held
+        held.formUnion(sent[winID]?.crews ?? [])
+        return held.filter { id in crews.isEmpty || crews.contains { $0.id == id } }
     }
+
+    // MARK: The ledger
+
+    struct Sent: Codable, Equatable {
+        var crews: Set<CrewID>
+        /// What was sent, so an edit that changed nothing sends nothing.
+        var signature: String
+    }
+
+    @ObservationIgnored private var sentCache: [UUID: Sent]?
+    private static let sentKey = "crews.sent"
+
+    private var sent: [UUID: Sent] {
+        get {
+            if let sentCache { return sentCache }
+            let loaded = (defaults.data(forKey: Self.sentKey))
+                .flatMap { try? JSONDecoder().decode([UUID: Sent].self, from: $0) } ?? [:]
+            sentCache = loaded
+            return loaded
+        }
+        set {
+            sentCache = newValue
+            defaults.set(try? JSONEncoder().encode(newValue), forKey: Self.sentKey)
+        }
+    }
+
+    private static func signature(_ win: OwnWin) -> String {
+        [win.title, win.colour.rawValue, win.icon.rawValue, win.blockSize.rawValue,
+         win.photoKey ?? "-", win.cropX.map { String($0) } ?? "-", win.cropY.map { String($0) } ?? "-"]
+            .joined(separator: "|")
+    }
+
+    private func record(_ win: OwnWin, in crewIDs: Set<CrewID>) {
+        var ledger = sent
+        var entry = ledger[win.winID] ?? Sent(crews: [], signature: "")
+        entry.crews.formUnion(crewIDs)
+        entry.signature = Self.signature(win)
+        ledger[win.winID] = entry
+        sent = ledger
+    }
+
+    private func unrecord(_ winID: UUID, from crewIDs: Set<CrewID>? = nil) {
+        var ledger = sent
+        if let crewIDs {
+            ledger[winID]?.crews.subtract(crewIDs)
+            if ledger[winID]?.crews.isEmpty == true { ledger[winID] = nil }
+        } else {
+            ledger[winID] = nil
+        }
+        sent = ledger
+    }
+
+    /// Every win of yours in any crew: for Reset All Data.
+    var everythingSent: [UUID] { Array(sent.keys) }
 
     // MARK: Crews
 
     func createCrew(name: String, photoJPEG: Data? = nil) async throws -> (crew: Crew, invite: URL) {
         try requireOn()
+        await cloud.prepare()
         guard crews.count < CrewCaps.crews else { throw CrewError.tooManyCrews }
         // The photo first, so a refused one stops the crew before its zone
         // exists. 13 to 15 send no photos and start crews with faces.
@@ -264,6 +343,29 @@ final class SocialStore {
         await setMyHead(myHeadPack(), photo: photo)
     }
 
+    /// Something about you changed (your name, photo or head): your crews
+    /// hear once things settle, so typing a name sends one update, not one a
+    /// letter. Cheap to call from anywhere; does nothing while crews are off.
+    static func noteMyselfChanged() {
+        guard CrewsFlag.isOn else { return }
+        shared.shareSoon?.cancel()
+        shared.shareSoon = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            await shared.shareMyself()
+        }
+    }
+
+    @ObservationIgnored private var shareSoon: Task<Void, Never>?
+
+    /// Reset All Data: every win of yours leaves every crew, and you are what
+    /// the reset left (no name, no photo, no head).
+    func withdrawEverything() async {
+        guard isEnabled() else { return }
+        for id in everythingSent { await deleteEverywhere(winID: id) }
+        await shareMyself()
+    }
+
     /// Your head, as friends see it. Nil takes it away.
     func setMyHead(_ pack: Data?, photo: Data? = nil) async {
         guard isEnabled() else { return }
@@ -338,14 +440,18 @@ final class SocialStore {
             upsertLocal(shared)
             enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: shared), fields: CrewRecords.fields(shared)))
         }
+        record(win, in: chosen.filter { crew($0) != nil })
         await flush()
     }
 
-    /// An edit: every copy changes, in every crew it is in.
+    /// An edit: every copy changes, in every crew it is in. An edit that
+    /// changed nothing a crew sees (a save that only touched a note, say)
+    /// sends nothing.
     func update(_ win: OwnWin) async {
         guard isEnabled() else { return }
         let holding = crews(holding: win.winID)
         guard !holding.isEmpty else { return }
+        guard sent[win.winID]?.signature != Self.signature(win) else { return }
         let photo = await checkedPhoto(for: win)
         for crewID in holding {
             guard let crew = crew(crewID) else { continue }
@@ -356,6 +462,7 @@ final class SocialStore {
             upsertLocal(shared)
             enqueue(.init(crew: crewID, type: .sharedWin, name: CrewRecords.name(of: shared), fields: CrewRecords.fields(shared)))
         }
+        record(win, in: [])
         await flush()
     }
 
@@ -374,6 +481,7 @@ final class SocialStore {
         guard isEnabled() else { return }
         winsByCrew[crewID]?.removeAll { $0.winID == winID }
         enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: nil))
+        unrecord(winID, from: [crewID])
         await flush()
     }
 
@@ -384,6 +492,7 @@ final class SocialStore {
             winsByCrew[crewID]?.removeAll { $0.winID == winID }
             enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: nil))
         }
+        unrecord(winID)
         await flush()
     }
 
@@ -467,6 +576,7 @@ final class SocialStore {
     @ObservationIgnored private var refreshAgain = false
 
     private func refreshOnce() async {
+        await cloud.prepare()
         await flush()
         do {
             let fetched = try await cloud.fetchCrews()
@@ -497,10 +607,17 @@ final class SocialStore {
                 }
                 reactions[crew.id] = held
             }
+            // Writes for crews that are gone (ended, or you were removed) can
+            // never be sent: drop them rather than retry them for ever.
+            // A crew made in the last minute may not be in a fetch that began
+            // before it existed: never forget one of those.
+            let fresh = Set(crews.filter { now().timeIntervalSince($0.createdAt) < 60 }.map(\.id))
+            let known = Set(fetched.map(\.id)).union(fresh)
+            for gone in Set(outbox.entries.map(\.crew)).subtracting(known) { outbox.drop(crew: gone) }
+            for gone in Set(crews.map(\.id)).subtracting(known) { forget(gone) }
             if crews != fetched { crews = fetched }
             if winsByCrew != wins { winsByCrew = wins }
             if reactionsByCrew != reactions { reactionsByCrew = reactions }
-            let known = Set(fetched.map(\.id))
             for gone in CrewChoice.load(defaults).subtracting(known) { CrewChoice.forget(gone, defaults) }
             recomputeUnread()
             prune()
@@ -513,21 +630,36 @@ final class SocialStore {
     /// is logged, never swallowed.
     func flush() async {
         guard isEnabled(), !outbox.isEmpty else { return }
-        for entry in outbox.entries {
-            do {
-                if let fields = entry.fields {
-                    try await cloud.save(fields, type: entry.type, name: entry.name, in: entry.crew)
-                } else {
-                    try await cloud.delete(type: entry.type, name: entry.name, in: entry.crew)
+        // **One flush at a time, in order.** Two at once could reach the
+        // server in either order, so an older photo could land after a newer
+        // edit (the 2026-10-02 audit). A flush asked for mid-flush runs again.
+        if flushing { flushAgain = true; return }
+        flushing = true
+        defer { flushing = false }
+        repeat {
+            flushAgain = false
+            for entry in outbox.entries {
+                do {
+                    if let fields = entry.fields {
+                        try await cloud.save(fields, type: entry.type, name: entry.name, in: entry.crew)
+                    } else {
+                        try await cloud.delete(type: entry.type, name: entry.name, in: entry.crew)
+                    }
+                    outbox.removeIfUnchanged(entry)
+                } catch {
+                    Self.log.error("\(entry.type.rawValue, privacy: .public) to \(entry.crew.rawValue, privacy: .public) not sent: \(error)")
+                    outbox.noteFailure(entry)
                 }
-                outbox.remove(entry)
-            } catch {
-                Self.log.error("\(entry.type.rawValue, privacy: .public) to \(entry.crew.rawValue, privacy: .public) not sent: \(error)")
-                outbox.noteFailure(entry)
             }
-        }
-        persistOutbox()
+            for gone in outbox.dropHopeless() {
+                Self.log.error("gave up on \(gone.type.rawValue, privacy: .public) to \(gone.crew.rawValue, privacy: .public)")
+            }
+            persistOutbox()
+        } while flushAgain
     }
+
+    @ObservationIgnored private var flushing = false
+    @ObservationIgnored private var flushAgain = false
 
     /// A crew is a window on now, not an archive: anything older than the
     /// crew's previous day, plus two days of grace for a phone that was off,
@@ -575,8 +707,11 @@ final class SocialStore {
         let fresh = Set(crews.compactMap { crew -> CrewID? in
             let since = Date(timeIntervalSince1970: seen[crew.id.rawValue] ?? 0)
             let mine = Set((winsByCrew[crew.id] ?? []).filter { $0.senderProfileID == me }.map(\.winID))
+            // Only what the tower shows: today's wins. An edit to a past day's
+            // win is not something new on screen.
+            let day = CrewDay.string(for: now(), in: crew.timeZone)
             let newWin = (winsByCrew[crew.id] ?? []).contains {
-                $0.senderProfileID != me && !blocked.contains($0.senderProfileID) && $0.updatedAt > since
+                $0.crewDay == day && $0.senderProfileID != me && !blocked.contains($0.senderProfileID) && $0.updatedAt > since
             }
             let newReaction = (reactionsByCrew[crew.id] ?? []).contains {
                 mine.contains($0.winID) && $0.profileID != me && !blocked.contains($0.profileID) && $0.createdAt > since
@@ -704,6 +839,10 @@ final class SocialStore {
         outbox.drop(crew: crewID)
         persistOutbox()
         CrewChoice.forget(crewID, defaults)
+        var ledger = sent
+        for (id, _) in ledger { ledger[id]?.crews.remove(crewID); if ledger[id]?.crews.isEmpty == true { ledger[id] = nil } }
+        sent = ledger
+        CrewNotifications.removeDelivered(for: crewID)
         try? FileManager.default.removeItem(at: directory.appending(path: "Photos/\(crewID.rawValue)"))
         try? FileManager.default.removeItem(at: directory.appending(path: "Heads/\(crewID.rawValue)"))
     }

@@ -537,6 +537,19 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
         }
         // The bubble popped: he comes out where it was, at its size, and grows.
         .onChange(of: parking.popped) { leaveTheBubble() }
+        #if DEBUG
+        // `-strataDockCycle <s>`: into the bubble, then popped, every s
+        // seconds, so the pop can be filmed.
+        .task {
+            guard let every = DebugHarness.argument("-strataDockCycle").flatMap(Double.init) else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(every))
+                if !parking.parked { parkWithoutCarrying() }
+                try? await Task.sleep(for: .seconds(every))
+                parking.debugPop += 1
+            }
+        }
+        #endif
         // **One element, and only because he does things now** (2026-10-02).
         // He was hidden as decoration: nothing to read, one more stop on the
         // way to a win. Once a tap gives him a face and he can be parked, he

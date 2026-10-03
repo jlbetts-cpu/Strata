@@ -369,6 +369,8 @@ final class HeadStore {
     func setShowsOnTower(_ on: Bool) {
         showsOnTower = on
         UserDefaults.standard.set(on, forKey: Key.tower)
+        // Your crews see the head on your tower, so they hear about it.
+        SocialStore.noteMyselfChanged()
     }
 
     /// A head exists AND its switch is on. Callers ask this rather than the
@@ -417,6 +419,7 @@ final class HeadStore {
         undressed = rig
         head = rig
         dress()
+        SocialStore.noteMyselfChanged()
         // Making a head is itself the request to use it: as your picture, and
         // as a sticker you can add to a photo (it still takes a press each
         // time). The map and the tower put it somewhere without asking each
@@ -434,6 +437,7 @@ final class HeadStore {
         roster.use(id)
         persistRoster()
         loadActive()
+        SocialStore.noteMyselfChanged()
     }
 
     /// Renames one head. An empty name keeps the one it has.
@@ -458,6 +462,7 @@ final class HeadStore {
         persistRoster()
         if wasActive { loadActive() }
         if roster.heads.isEmpty { turnEverySwitchOff() }
+        SocialStore.noteMyselfChanged()
     }
 
     /// **Every head**, for Reset All Data, which is the one caller
@@ -473,6 +478,7 @@ final class HeadStore {
         undressed = nil
         head = nil
         turnEverySwitchOff()
+        SocialStore.noteMyselfChanged()
     }
 
     private func turnEverySwitchOff() {

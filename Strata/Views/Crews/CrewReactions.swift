@@ -47,8 +47,10 @@ struct ReactionBar: View {
             HapticsEngine.tick()
             action()
         } label: {
+            // 20pt in the Figma frame, which is Title 3; it grows with
+            // Dynamic Type.
             Text(glyph)
-                .font(.system(size: 20))
+                .font(.title3)
                 .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
                 .frame(width: 44, height: 44)
                 .background {

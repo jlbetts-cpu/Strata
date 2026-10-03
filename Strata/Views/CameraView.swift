@@ -72,7 +72,7 @@ struct CameraView: View {
     /// Who sees this photograph, decided where it is taken (the owner,
     /// 2026-10-02: posting a photo is when you decide who sees it). The
     /// sticky choice itself, so the win that follows goes where these say.
-    @State private var crewChoice: Set<CrewID> = CrewChoice.load()
+    @State private var crewChoice: Set<CrewID> = []
     /// Whether the looks panel is open. Shut on every appearance: it is a
     /// decision, not a state to come back to.
     /// The review photograph with the chosen look on it, at screen size. The
@@ -639,6 +639,9 @@ struct CameraView: View {
                                               set: { crewChoice = $0; CrewChoice.save($0) }),
                            onDark: true, mentionsPhotos: true)
                     .padding(.bottom, GridConstants.gapTight)
+                    // Read fresh each review: the choice may have changed in
+                    // Add Win since this view was built.
+                    .onAppear { crewChoice = CrewChoice.load() }
 
                 HStack(spacing: 0) {
                     Button {

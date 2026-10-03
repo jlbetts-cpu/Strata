@@ -19,7 +19,8 @@ final class CloudKitCrewCloud: CrewCloud {
     private static let log = Logger(subsystem: "Strata", category: "crews.cloud")
 
     let container: CKContainer
-    let myProfileID: UUID
+    private(set) var myProfileID: UUID
+    private var prepared = false
     private let directory: URL
 
     /// Where each crew's zone is and which database reaches it.
@@ -48,6 +49,45 @@ final class CloudKitCrewCloud: CrewCloud {
     private func zone(_ crew: CrewID) throws -> (id: CKRecordZone.ID, db: CKDatabase) {
         guard let zone = zones[crew] else { throw CrewError.unknownCrew }
         return (zone.id, database(zone.shared))
+    }
+
+    // MARK: Who you are
+
+    /// **One person, however many phones.** `ProfileStore.profileID` is made
+    /// per phone, so a second phone on the same iCloud account would join its
+    /// crews as a second member (the 2026-10-02 audit). The first phone writes
+    /// its id to a record in the PRIVATE database, which only that account's
+    /// phones can read; a later phone finds it and adopts it, so the iCloud
+    /// account is mapped TO the profile id rather than becoming it.
+    func prepare() async {
+        guard !prepared else { return }
+        do {
+            guard try await container.accountStatus() == .available else { return }
+            let id = CKRecord.ID(recordName: "sturdy-identity")
+            let db = container.privateCloudDatabase
+            if let record = try? await db.record(for: id),
+               let raw = record["profileID"] as? String, let theirs = UUID(uuidString: raw) {
+                if theirs != myProfileID {
+                    UserDefaults.standard.set(theirs.uuidString, forKey: ProfileStore.profileIDKey)
+                    myProfileID = theirs
+                }
+            } else {
+                let record = CKRecord(recordType: "Identity", recordID: id)
+                record["profileID"] = myProfileID.uuidString as NSString
+                _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged)
+            }
+            prepared = true
+        } catch {
+            Self.log.error("identity not settled: \(error)")
+        }
+    }
+
+    func reset() {
+        zones.removeAll()
+        cache.removeAll()
+        tokens.removeAll()
+        prepared = false
+        try? FileManager.default.removeItem(at: cacheURL)
     }
 
     // MARK: Crews
@@ -239,8 +279,10 @@ final class CloudKitCrewCloud: CrewCloud {
             case let asset as CKAsset:
                 guard let source = asset.fileURL else { continue }
                 let folder = type == .member ? "Heads" : "Photos"
-                let suffix = type == .member ? "head" : "jpg"
-                let name = type == .crew ? "crew-\(record.recordChangeTag ?? "0")" : record.recordID.recordName
+                let suffix = type == .member && key == "head" ? "head" : "jpg"
+                // Named by key as well: a Member record has a head AND a
+                // photo, and one path for both let each overwrite the other.
+                let name = type == .crew ? "crew-\(record.recordChangeTag ?? "0")" : "\(record.recordID.recordName)-\(key)"
                 let url = directory.appending(path: "\(folder)/\(crew.rawValue)/\(name).\(suffix)")
                 do {
                     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),

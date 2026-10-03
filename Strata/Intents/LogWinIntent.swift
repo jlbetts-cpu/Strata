@@ -36,6 +36,11 @@ struct LogWinIntent: AppIntent {
         let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled,
                                              context: context, tower: tower)
         WidgetReloader.reload()
+        // A win said to Siri goes where the last one went, as a one-tap win
+        // does (crews, spec 2.6).
+        if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+            CrewSync.post(log)
+        }
 
         let today = TodaysWins.count(in: context)
         let named = win.habit.title == QuickWinService.untitled ? nil : win.habit.title

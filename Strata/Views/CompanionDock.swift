@@ -44,6 +44,10 @@ final class CompanionParking {
     var landed = 0
     /// Bumped when the bubble pops, so the head can come back out of it.
     var popped = 0
+    #if DEBUG
+    /// `-strataDockCycle`: asks the bubble to pop, as a tap would.
+    var debugPop = 0
+    #endif
     /// The bubble's frame in the window, reported by the bubble itself.
     var dockFrame: CGRect = .zero
     /// Where the finger let go of him, in the window, while he flies in. The
@@ -162,6 +166,9 @@ struct CompanionDock: View {
         // it.** As an obstacle all the time, it held a carried head beside it
         // and he could never be dragged INTO the bubble (filmed, 2026-10-02).
         .onChange(of: parking.dragging) { registerObstacle() }
+        #if DEBUG
+        .onChange(of: parking.debugPop) { pop() }
+        #endif
         .onDisappear { CompanionObstacles.shared.remove("dock") }
         .accessibilityElement()
         .accessibilityLabel("Your head, parked")

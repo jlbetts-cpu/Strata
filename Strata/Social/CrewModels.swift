@@ -154,6 +154,10 @@ nonisolated struct OwnWin: Sendable, Equatable {
     var blockSize: BlockSize
     /// The photograph as it is on disk. `ShareDerivative` makes what is sent.
     var photoJPEG: Data?
+    /// Which photograph that is (its file name): how an edit that changed
+    /// nothing is told from one that changed the photo, without comparing
+    /// bytes.
+    var photoKey: String? = nil
     var cropX: Double?
     var cropY: Double?
     let createdAt: Date

@@ -143,6 +143,16 @@ enum CrewNotifications {
         }
     }
 
+    /// A crew you left or that ended: its notifications go from the lock
+    /// screen and Notification Center too.
+    static func removeDelivered(for crew: CrewID) {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { delivered in
+            let ids = delivered.filter { $0.request.content.threadIdentifier == crew.rawValue }.map(\.request.identifier)
+            center.removeDeliveredNotifications(withIdentifiers: ids)
+        }
+    }
+
     /// The words, kept apart so a test can read them.
     enum Text {
         static func of(_ win: SharedWin, in crew: Crew, me: UUID) -> (title: String, body: String) {

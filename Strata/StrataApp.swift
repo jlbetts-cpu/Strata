@@ -39,6 +39,17 @@ struct StrataApp: App {
         // decides what gets BUILT, so it runs before anything is. See
         // `EtherealControls`.
         EtherealControls.install()
+        // **Crews reach iCloud only when they are on**, chosen here, before
+        // anything can touch `SocialStore.shared` and fix its cloud. Off, the
+        // store keeps a fake that nothing reaches. The debug seed keeps the
+        // fake too: it is a pretend crew on a pretend iCloud.
+        if CrewsFlag.isOn {
+            #if DEBUG
+            if DebugHarness.seedsCrew == nil { SocialStore.makeCloud = { CloudKitCrewCloud() } }
+            #else
+            SocialStore.makeCloud = { CloudKitCrewCloud() }
+            #endif
+        }
         #if DEBUG
         // **In `init`, not in the body.** Forgetting onboarding from inside
         // `body` is too late: `showsOnboarding` is read in the same evaluation

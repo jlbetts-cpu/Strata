@@ -715,6 +715,9 @@ struct MainAppView: View {
                     .accessibilityLabel("Memories")
             }
         }
+        // A crew asked for from outside (a notification, an invitation) is on
+        // the Wins tab: go there, wherever the app was.
+        .onChange(of: CrewRouter.shared.open) { _, crew in if crew != nil { selectedTab = .tower } }
         // The window's appearance, changed without an animation.
         //
         // Two things had to be true and they pulled against each other.
@@ -1798,6 +1801,12 @@ struct MainAppView: View {
                 tower: towerManager.activeTower
             )
             rerollNextWinCategory()
+            // A one-tap win goes where the last one went, with no step
+            // (crews, spec 2.6). Its photograph follows on the save below,
+            // which `CrewSync` sees and sends as an edit.
+            if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+                CrewSync.post(log)
+            }
             // Written before the drop is queued, so the block arrives with its
             // face on rather than growing one a moment after it lands.
             if let photo, let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
@@ -1874,6 +1883,8 @@ struct MainAppView: View {
                     // profile photo is one, and a head is made of them.
                     ProfileStore.shared.reset()
                     HeadStore.shared.delete()
+                    // Your wins leave every crew with the record.
+                    if CrewsFlag.isOn { Task { await SocialStore.shared.withdrawEverything() } }
                     return true
                 },
                 opensSettings: profileOpensSettings

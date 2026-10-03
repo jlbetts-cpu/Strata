@@ -84,6 +84,25 @@ struct CrewTowerView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
+        // **The crew's midnight, while you are looking.** Today's tower is the
+        // crew's day; when it ends the tower empties and starts again, as the
+        // Wins tab does at yours.
+        .task(id: crew?.timeZoneIdentifier) {
+            while !Task.isCancelled, let zone = crew?.timeZone {
+                let today = CrewDay.string(for: Date(), in: zone)
+                guard let next = CrewDay.day(today, offsetBy: 1, in: zone).flatMap({ CrewDay.start(of: $0, in: zone) })
+                else { return }
+                try? await Task.sleep(for: .seconds(max(1, next.timeIntervalSinceNow + 1)))
+                guard !Task.isCancelled else { return }
+                rebuild()
+            }
+        }
+        // Ended by whoever started it, or you were removed: say so, and go.
+        .onChange(of: store.crew(crewID) == nil) { _, gone in
+            guard gone else { return }
+            CrewRouter.shared.joinProblem = "This crew has ended."
+            onBack()
+        }
         .onAppear {
             CrewNotifications.visibleCrew = crewID
             model.wire(reduceMotion: reduceMotion)
@@ -121,7 +140,10 @@ struct CrewTowerView: View {
                         if going, let next = free.randomElement() {
                             parking.beginArrival(next, from: .zero)
                         } else if let out = parking.parked.randomElement() {
-                            parking.pop(out)
+                            // Alternately as a tap on the bubble would, and
+                            // from where the fan puts a head.
+                            let fan = CGPoint(x: parking.bubbleFrame.midX, y: parking.bubbleFrame.maxY + 110)
+                            parking.pop(out, from: parking.parked.count % 2 == 0 ? fan : nil)
                         }
                         if parking.parked.count >= 3 { going = false }
                         if parking.parked.isEmpty { going = true }
@@ -275,7 +297,10 @@ struct CrewTowerView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .glassCapsule(onPage: true)
-                        .frame(maxWidth: 220)
+                        // Wide enough for a long name at a large text size,
+                        // clear of the two buttons either side.
+                        .frame(maxWidth: 240)
+                        .minimumScaleFactor(0.85)
                         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { parking.controls["name"] = $0 }
                     }
                     .buttonStyle(.pressSurface)

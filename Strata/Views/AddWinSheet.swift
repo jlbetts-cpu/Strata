@@ -93,6 +93,17 @@ struct AddWinSheet: View {
     /// The crews this win goes to (`CrewPicker`). Last time's choice for a new
     /// win; the crews it is already in for one being edited.
     @State private var crewChoice: Set<CrewID> = []
+    /// Whether the ticks were changed on this sheet. An edit that never
+    /// touched them never sends or withdraws anything (the 2026-10-02 audit:
+    /// an Edit opened before crews had loaded saw no ticks, and saving it
+    /// withdrew the win from every crew).
+    @State private var crewChoiceTouched = false
+
+    /// A win from today or yesterday: anything older is past every crew's day.
+    private var crewsCanTakeIt: Bool {
+        guard let log = editingLog else { return true }
+        return Date().timeIntervalSince(log.createdAt) < 36 * 3600
+    }
 
     private var isEditing: Bool { editing != nil }
     /// A name is optional.
@@ -226,8 +237,13 @@ struct AddWinSheet: View {
                         nameField
                             .overlay(alignment: .bottomLeading) { failureLine }
                         decisions
-                        CrewPicker(selection: $crewChoice)
-                            .padding(.top, GridConstants.gapSection)
+                        // Not on a win too old for any crew's tower: ticked,
+                        // it would arrive in a day already gone.
+                        if crewsCanTakeIt {
+                            CrewPicker(selection: Binding(get: { crewChoice },
+                                                          set: { crewChoice = $0; crewChoiceTouched = true }))
+                                .padding(.top, GridConstants.gapSection)
+                        }
                         subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                             .padding(.top, GridConstants.gapSection)
                     }
@@ -1181,7 +1197,7 @@ struct AddWinSheet: View {
                     return
                 }
             }
-            if let log = editingLog ?? savedLog {
+            if let log = editingLog ?? savedLog, editingLog == nil || crewChoiceTouched {
                 if editingLog == nil { CrewChoice.save(crewChoice) }
                 CrewSync.setCrews(for: log, to: crewChoice)
             }
@@ -1232,6 +1248,13 @@ struct AddWinSheet: View {
                 fail(.photo)
                 return
             }
+        }
+        // Who sees it: the ticks on this sheet, sent with the photo already
+        // attached. Next time's choice too, unless the sheet was opened from
+        // a crew, whose choice is that crew's.
+        if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
+            if initialCrews == nil { CrewChoice.save(crewChoice) }
+            CrewSync.post(log, to: crewChoice)
         }
         finish(win.habit)
     }

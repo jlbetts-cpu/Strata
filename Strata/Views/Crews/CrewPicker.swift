@@ -48,7 +48,7 @@ struct CrewPicker: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(Typography.headerMedium)
                     .contentTransition(.symbolEffect(.replace))
                 Text(crew.displayName(excluding: store.me))
                     .font(Typography.headerSmall)
