@@ -17,7 +17,6 @@ struct CrewTowerView: View {
     @State private var model = CrewTowerModel()
     @State private var parking: CrewParking
     @State private var showsInfo = false
-    @State private var openWin: SharedWin?
     /// A photograph opened from its block, in the same viewer a past day's
     /// blocks open (the owner, 2026-10-02: "the same effect as clicking on a
     /// previous day").
@@ -87,17 +86,6 @@ struct CrewTowerView: View {
                 .ignoresSafeArea()
             }
         }
-        // No head of yours yet: the way to make one, at the foot of the
-        // tower, under the heads that show what it is.
-        // An inset rather than an overlay, so the tower's last row stops
-        // above it instead of under it.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let crew, HeadStore.shared.headForCrews == nil {
-                MakeYourHeadPill(crew: crew, me: store.me)
-                    .padding(.bottom, GridConstants.gapTight)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .onDisappear { if CrewNotifications.visibleCrew == crewID { CrewNotifications.visibleCrew = nil } }
@@ -127,8 +115,8 @@ struct CrewTowerView: View {
             // `-strataCrewSheet info|win`: the crew's sheets, for captures.
             switch DebugHarness.argument("-strataCrewSheet") {
             case "info": showsInfo = true
-            case "win": openWin = store.today(in: crewID).last { $0.senderProfileID != store.me }
-            case "mine": openWin = store.today(in: crewID).last { $0.senderProfileID == store.me }
+            case "win": reacting = store.today(in: crewID).last { $0.senderProfileID != store.me }?.winID
+            case "mine": reacting = store.today(in: crewID).last { $0.senderProfileID == store.me }?.winID
             case "photo": viewing = galleryPhotos.last { $0.byline != nil }?.id
             case "fan": parking.fanned = !parking.parked.isEmpty
             default: break
@@ -199,9 +187,6 @@ struct CrewTowerView: View {
         .sheet(isPresented: $showsInfo) {
             if let crew { CrewInfoSheet(crewID: crew.id, onLeft: onBack) }
         }
-        .sheet(item: $openWin) { win in
-            CrewWinSheet(win: win, crewID: crewID)
-        }
         .fullScreenCover(item: Binding(get: { viewing.map(ViewedPhoto.init) }, set: { viewing = $0?.id })) { photo in
             PhotoViewer(photos: galleryPhotos, startAt: photo.id, onClose: { viewing = nil },
                         crew: crewID,
@@ -223,10 +208,18 @@ struct CrewTowerView: View {
                             return AnyView(CrewPhotoReactions(winID: id, crewID: crewID, mine: shown.byline == nil))
                         })
         }
-        // Report from the viewer lands on the win's own sheet, which holds
-        // the reasons.
-        .sheet(item: $reporting) { win in
-            CrewWinSheet(win: win, crewID: crewID, startsReporting: true)
+        // Report, from a block's menu or the viewer's ⋯: the reasons, and
+        // nobody in the crew is told.
+        .confirmationDialog("Report this win?",
+                            isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
+                            titleVisibility: .visible, presenting: reporting) { win in
+            ForEach(CrewSafety.Reason.allCases) { reason in
+                Button(reason.words) {
+                    Task { await CrewSafety.report(win: win, in: crewID, reason: reason) }
+                }
+            }
+        } message: { _ in
+            Text("Your report goes to Sturdy. Nobody in the crew is told.")
         }
         .accessibilityAction(.escape) { onBack() }
     }
@@ -252,12 +245,10 @@ struct CrewTowerView: View {
         }
     }
 
-    /// A held block: the reaction bar over a friend's, as Messages opens
-    /// its reactions over a held message. Your own block shows who reacted,
-    /// when someone has.
+    /// A held block, or a tapped one with no photograph: its menu over it,
+    /// as Messages opens one over a held message (`CrewWinMenu`).
     private func hold(_ id: UUID) {
-        guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
-        if win.senderProfileID == store.me, store.reactions(to: id, in: crewID).isEmpty { return }
+        guard store.today(in: crewID).contains(where: { $0.winID == id }) else { return }
         HapticsEngine.success()
         heldAt = Date()
         reacting = id
@@ -270,27 +261,29 @@ struct CrewTowerView: View {
 
     @ViewBuilder
     private func reactionsOver(_ id: UUID, mine: Bool) -> some View {
-        if mine {
-            HStack(spacing: -4) {
-                ForEach(store.reactions(to: id, in: crewID)) { Text($0.emoji).font(Typography.headerMedium) }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .glassCapsule(onPage: true)
-            .onTapGesture { closeReactions() }
-        } else {
-            ReactionBar(mine: store.myReaction(to: id, in: crewID)) { emoji in
-                let given = store.myReaction(to: id, in: crewID) != emoji
-                if given {
-                    let burst = Burst(block: id, emoji: emoji)
-                    bursts.append(burst)
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(1100))
-                        bursts.removeAll { $0.id == burst.id }
-                    }
-                }
-                Task { await store.react(emoji, to: id, in: crewID) }
-                closeReactions()
-            }
+        if let win = store.today(in: crewID).first(where: { $0.winID == id }) {
+            CrewWinMenu(win: win, crewID: crewID,
+                        onReact: { emoji in
+                            if store.myReaction(to: id, in: crewID) != emoji {
+                                let burst = Burst(block: id, emoji: emoji)
+                                bursts.append(burst)
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(1100))
+                                    bursts.removeAll { $0.id == burst.id }
+                                }
+                            }
+                            Task { await store.react(emoji, to: id, in: crewID) }
+                            closeReactions()
+                        },
+                        onReport: {
+                            closeReactions()
+                            reporting = win
+                        },
+                        onRemove: {
+                            closeReactions()
+                            HapticsEngine.lightTap()
+                            Task { await store.withdraw(winID: id, from: crewID) }
+                        })
         }
     }
 
@@ -431,7 +424,9 @@ struct CrewTowerView: View {
                             if reacting != nil { closeReactions(); return }
                             guard Date().timeIntervalSince(heldAt) > 0.6 else { return }
                             guard let win = store.today(in: crewID).first(where: { $0.winID == id }) else { return }
-                            if win.photo != nil { viewing = win.winID.uuidString } else { openWin = win }
+                            // A photograph opens as a past day's does; any
+                            // other block opens its menu where it stands.
+                            if win.photo != nil { viewing = win.winID.uuidString } else { hold(id) }
                         },
                         liftedBlockID: nil,
                         onDoubleTapBlock: { doubleTap($0) },
@@ -491,31 +486,13 @@ struct CrewTowerView: View {
     }
 }
 
-/// Over a crew photograph in the viewer: the bar for a friend's, and who
-/// reacted, for anyone's.
+/// Over a crew photograph in the viewer: `CrewReactionsPanel`, on the dark.
 private struct CrewPhotoReactions: View {
     let winID: UUID
     let crewID: CrewID
     let mine: Bool
-    private var store: SocialStore { SocialStore.shared }
 
     var body: some View {
-        let reactions = store.reactions(to: winID, in: crewID)
-        VStack(spacing: 10) {
-            if mine {
-                if !reactions.isEmpty {
-                    HStack(spacing: -4) {
-                        ForEach(reactions) { Text($0.emoji).font(Typography.headerMedium) }
-                    }
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .glassCapsule()
-                    .accessibilityLabel("\(reactions.count) reactions")
-                }
-            } else {
-                ReactionBar(mine: store.myReaction(to: winID, in: crewID), onDark: true) { emoji in
-                    Task { await store.react(emoji, to: winID, in: crewID) }
-                }
-            }
-        }
+        CrewReactionsPanel(winID: winID, crewID: crewID, mine: mine, onDark: true)
     }
 }

@@ -135,15 +135,20 @@ struct PhotoViewer: View {
                                 - Self.topInset - Self.bottomInset
                                 - Self.dateHeight - Self.stripHeight
                         ), topPadding: Self.headerHeight)
+                        .overlay(alignment: .bottom) {
+                            // A crew's photograph: the reactions on the
+                            // picture's lower edge, where a thumb is. Pinned
+                            // by their FOOT, 10pt over the caption, so they
+                            // grow up over the picture as they open and never
+                            // down onto the date (a fixed offset let the
+                            // who-reacted line cover it, 2026-10-02).
+                            if let reactions, let current {
+                                reactions(current)
+                                    .padding(.bottom, 10)
+                            }
+                        }
 
                         dateLine
-                            .overlay(alignment: .top) {
-                                // A crew's photograph: the reaction bar on the
-                                // picture's lower edge, where a thumb is.
-                                if let reactions, let current {
-                                    reactions(current).offset(y: -64)
-                                }
-                            }
                             // **Top-aligned, so the caption sits at the same
                             // y on every photograph.** Centred in a two-line
                             // band it would hang 9pt lower on a picture with

@@ -51,7 +51,7 @@ final class CrewTowerModel {
                 sender = name.isEmpty ? "A friend" : name
             }
             entries.append(TowerViewModel.TowerEntry(
-                id: win.winID, look: PlacedBlock.Look(win: win, sender: sender, reactions: reactions(win.winID))))
+                id: win.winID, look: PlacedBlock.Look(win: win, sender: sender, reactions: reactions(win.winID), me: me)))
         }
         let hadBuilt = tower.hasBuiltOnce
         withAnimation(GridConstants.motionSnappy) {

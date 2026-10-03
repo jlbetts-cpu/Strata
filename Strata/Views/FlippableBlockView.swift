@@ -194,7 +194,8 @@ struct FlippableBlockView: View {
             )
             .overlay(alignment: .topTrailing) {
                 if !block.look.reactionEmoji.isEmpty, !isGroupMember {
-                    ReactionBadge(emoji: block.look.reactionEmoji, count: block.look.reactionCount)
+                    ReactionBadge(emoji: block.look.reactionEmoji, count: block.look.reactionCount,
+                                  mine: block.look.myReaction != nil)
                         .padding(5)
                         .allowsHitTesting(false)
                         .transition(.scale(scale: 0.5, anchor: .topTrailing).combined(with: .opacity))
@@ -322,6 +323,11 @@ struct FlippableBlockView: View {
 struct ReactionBadge: View {
     let emoji: [String]
     let count: Int
+    /// You reacted: the chip is near white rather than frosted, the way
+    /// Messages fills the tapback you sent.
+    var mine = false
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 2) {
@@ -346,8 +352,13 @@ struct ReactionBadge: View {
         // and on every reacted block at once that was too much (the owner,
         // 2026-10-02). The block's corner is where it sits, not above it.
         .background(.ultraThinMaterial, in: Capsule())
+        .background {
+            if mine { Capsule().fill(Color.white.opacity(0.82)) }
+        }
+        .environment(\.colorScheme, mine ? .light : colorScheme)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
-                                       : "\(count) reactions, \(emoji.joined(separator: " "))")
+        .accessibilityLabel((count == 1 ? "1 reaction, \(emoji.joined(separator: " "))"
+                                        : "\(count) reactions, \(emoji.joined(separator: " "))")
+                            + (mine ? ", yours among them" : ""))
     }
 }

@@ -212,6 +212,13 @@ struct CrewBubble: View {
         } animation: { shove in
             shove ? GridConstants.tapSquashSpring : GridConstants.elasticPop
         }
+        // Alive in there: each head bobs on its own slow beat, never in
+        // step with its neighbours, so the crowd fidgets rather than pulses.
+        .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, up in
+            content.offset(y: up ? -1.5 : 0.5)
+        } animation: { _ in
+            .easeInOut(duration: 1.5 + Double((index * 3) % 5) * 0.21)
+        }
         .zIndex(Double(index))
         .allowsHitTesting(false)
         // In with a swell; out at once, because the tower already draws him
@@ -228,21 +235,37 @@ struct CrewBubble: View {
 
     /// Where head `index` of `count` sits, as fractions of the circle, how big
     /// it is, and how far it is tipped. Bigger than fits, deliberately.
+    ///
+    /// **Rows, like a group photo, never a ring** (the owner, 2026-10-02: "it
+    /// kinda looks like a cross"). A ring of four round a fifth in the middle
+    /// IS a plus sign. People crammed into a booth sit in rows, the back row a
+    /// little smaller and higher, each row offset from the one in front so
+    /// every face shows between two others: two over two staggered, 2 over 3,
+    /// a 1-2-3 pyramid, a 2-3-2 honeycomb, 2-3-3. Later arrivals land in the
+    /// front row and are drawn over the back.
     static func spot(_ index: Int, of count: Int) -> (x: CGFloat, y: CGFloat, size: CGFloat, tilt: Double) {
         let tilts: [Double] = [-7, 6, -4, 8, -6, 5, -8, 4]
+        let seats: [(x: CGFloat, y: CGFloat, size: CGFloat)]
         switch count {
         case 1: return (0, 0.02, 0.92, 0)
-        case 2: return [(-0.2, 0.02, 0.74, -6), (0.21, 0, 0.72, 7)][index]
-        case 3: return [(-0.2, -0.12, 0.64, -6), (0.21, -0.1, 0.62, 7), (0, 0.2, 0.62, -3)][index]
-        case 4: return [(-0.2, -0.17, 0.58, -7), (0.2, -0.18, 0.56, 6), (-0.19, 0.19, 0.56, 5), (0.21, 0.2, 0.55, -6)][index]
-        default:
-            // A ring, and one in the middle on top of everyone.
-            if index == count - 1 { return (0, 0.02, 0.56, 0) }
-            let ring = count - 1
-            let angle = Double(index) / Double(ring) * 2 * .pi - .pi / 2
-            return (CGFloat(cos(angle)) * 0.27, CGFloat(sin(angle)) * 0.27, 0.5 - CGFloat(count - 5) * 0.03,
-                    tilts[index % tilts.count])
+        case 2: seats = [(-0.19, 0.03, 0.72), (0.2, -0.03, 0.68)]
+        case 3: seats = [(-0.19, -0.12, 0.6), (0.2, -0.13, 0.57), (0.02, 0.19, 0.62)]
+        case 4: seats = [(-0.19, -0.16, 0.52), (0.15, -0.19, 0.5),
+                         (-0.12, 0.17, 0.53), (0.22, 0.13, 0.52)]
+        case 5: seats = [(-0.14, -0.19, 0.46), (0.16, -0.2, 0.44),
+                         (-0.27, 0.13, 0.45), (0.0, 0.18, 0.47), (0.27, 0.12, 0.45)]
+        case 6: seats = [(0.01, -0.27, 0.4),
+                         (-0.15, -0.03, 0.42), (0.16, -0.04, 0.41),
+                         (-0.27, 0.21, 0.42), (0.0, 0.23, 0.43), (0.27, 0.2, 0.42)]
+        case 7: seats = [(-0.13, -0.23, 0.36), (0.14, -0.24, 0.36),
+                         (-0.27, 0.0, 0.37), (0.0, 0.0, 0.38), (0.27, -0.01, 0.37),
+                         (-0.13, 0.24, 0.37), (0.14, 0.23, 0.37)]
+        default: seats = [(-0.13, -0.26, 0.34), (0.14, -0.27, 0.34),
+                          (-0.26, -0.03, 0.36), (0.0, -0.02, 0.36), (0.26, -0.04, 0.36),
+                          (-0.25, 0.22, 0.37), (0.0, 0.25, 0.37), (0.25, 0.21, 0.37)]
         }
+        let seat = seats[min(index, seats.count - 1)]
+        return (seat.x, seat.y, seat.size, tilts[index % tilts.count])
     }
 }
 

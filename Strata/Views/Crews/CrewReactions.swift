@@ -18,6 +18,8 @@ struct ReactionBar: View {
     /// Yours, if you reacted.
     let mine: String?
     var onDark = false
+    /// Inside a container that is already glass: no capsule of its own.
+    var bare = false
     let react: (String) -> Void
 
     @State private var picking = false
@@ -36,7 +38,7 @@ struct ReactionBar: View {
             }
         }
         .padding(.horizontal, 2)
-        .glassCapsule(onPage: !onDark)
+        .modifier(BarGlass(apply: !bare, onPage: !onDark))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("React")
     }
@@ -216,6 +218,197 @@ struct ReactionBurst: View {
         case .pop: 1.22
         case .settle: 1
         case .leave: 0.9
+        }
+    }
+}
+
+private struct BarGlass: ViewModifier {
+    let apply: Bool
+    let onPage: Bool
+    func body(content: Content) -> some View {
+        if apply { content.glassCapsule(onPage: onPage) } else { content }
+    }
+}
+
+// MARK: - Reactions, under a photograph
+
+/// A crew photograph's reactions in the viewer: ONE control (the owner,
+/// 2026-10-02: "why should there be multiple buttons").
+///
+/// At rest it is a capsule that says who reacted, yours first ("❤️🔥 You
+/// and Sam"), or, on a friend's win nobody has reacted to, a smiley. A tap
+/// opens the bar and everyone's faces over it; reacting folds it again. The
+/// bar is never simply there. Report and Remove stay in the viewer's ⋯.
+struct CrewReactionsPanel: View {
+    let winID: UUID
+    let crewID: CrewID
+    let mine: Bool
+    var onDark = false
+
+    @State private var open = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var store: SocialStore { SocialStore.shared }
+
+    var body: some View {
+        let reactions = CrewReactionsPanel.ordered(store.reactions(to: winID, in: crewID), me: store.me)
+        let myReaction = store.myReaction(to: winID, in: crewID)
+        VStack(spacing: 10) {
+            if open, !mine {
+                ReactionBar(mine: myReaction, onDark: onDark) { emoji in
+                    Task { await store.react(emoji, to: winID, in: crewID) }
+                    withAnimation(motion) { open = false }
+                }
+                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+            }
+            if open, let crew = store.visible(crewID), !reactions.isEmpty {
+                ReactorRow(reactions: reactions, crew: crew, me: store.me, onDark: onDark)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            if !reactions.isEmpty || !mine {
+                Button {
+                    HapticsEngine.tick()
+                    withAnimation(motion) { open.toggle() }
+                } label: {
+                    Group {
+                        if reactions.isEmpty {
+                            Image(systemName: open ? "xmark" : "face.smiling")
+                                .font(.system(size: GridConstants.iconToolbar, weight: .medium))
+                                .contentTransition(.symbolEffect(.replace))
+                                .frame(width: 44, height: 44)
+                        } else {
+                            CrewReactionsPanel.line(reactions, crewID: crewID, onDark: onDark, open: open)
+                                .padding(.horizontal, 14)
+                                .frame(minHeight: 44)
+                        }
+                    }
+                    .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
+                    .glassCapsule(onPage: !onDark)
+                }
+                .buttonStyle(.pressSurface)
+                .accessibilityLabel(reactions.isEmpty ? "React"
+                    : "Reactions: " + reactions.map { "\(CrewReactionsPanel.name($0.profileID, crewID: crewID)) \($0.emoji)" }.joined(separator: ", "))
+            }
+        }
+        .animation(motion, value: myReaction)
+        .animation(motion, value: open)
+    }
+
+    private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
+
+    /// Yours first, then in the order they came.
+    static func ordered(_ reactions: [Reaction], me: UUID) -> [Reaction] {
+        reactions.sorted { a, b in
+            if a.profileID == me { return true }
+            if b.profileID == me { return false }
+            return a.createdAt < b.createdAt
+        }
+    }
+
+    /// "❤️🔥 You and Sam": the emoji given, then who gave them.
+    @MainActor
+    static func line(_ reactions: [Reaction], crewID: CrewID, onDark: Bool, open: Bool? = nil) -> some View {
+        var emoji: [String] = []
+        for r in reactions where !emoji.contains(r.emoji) { emoji.append(r.emoji) }
+        let names = reactions.map { name($0.profileID, crewID: crewID) }
+        let words = names.count > 3
+            ? "\(names.prefix(2).joined(separator: ", ")) and \(names.count - 2) others"
+            : names.formatted(.list(type: .and))
+        return HStack(spacing: 8) {
+            HStack(spacing: -4) {
+                ForEach(Array(emoji.prefix(3).enumerated()), id: \.offset) { index, e in
+                    Text(e).font(Typography.headerMedium).zIndex(Double(3 - index))
+                }
+            }
+            Text(words)
+                .font(Typography.headerSmall)
+                .lineLimit(1)
+            if let open {
+                Image(systemName: "chevron.up")
+                    .font(Typography.headerSmall)
+                    .imageScale(.small)
+                    .foregroundStyle(onDark ? AppColors.onDarkQuiet : AppColors.inkTertiary)
+                    .rotationEffect(.degrees(open ? 180 : 0))
+            }
+        }
+    }
+
+    @MainActor
+    static func name(_ id: UUID, crewID: CrewID) -> String {
+        let store = SocialStore.shared
+        if id == store.me { return "You" }
+        let short = store.crew(crewID)?.member(id)?.shortName ?? ""
+        return short.isEmpty ? "A friend" : short
+    }
+}
+
+// MARK: - A block's menu, on the tower
+
+/// What a tap or a hold on a crew block opens, over the block: one glass
+/// card, as Messages opens one over a held message. Its reactions (a
+/// friend's win), who reacted, and the one thing to do about it: Report a
+/// friend's, or take yours out of the crew.
+///
+/// It replaced a sheet that held the same three things a screen away (the
+/// owner, 2026-10-02: "what is this sheet like when would this be needed?").
+struct CrewWinMenu: View {
+    let win: SharedWin
+    let crewID: CrewID
+    let onReact: (String) -> Void
+    let onReport: () -> Void
+    let onRemove: () -> Void
+
+    private var store: SocialStore { SocialStore.shared }
+
+    var body: some View {
+        let mine = win.senderProfileID == store.me
+        let reactions = CrewReactionsPanel.ordered(store.reactions(to: win.winID, in: crewID), me: store.me)
+        VStack(spacing: 0) {
+            if !mine {
+                ReactionBar(mine: store.myReaction(to: win.winID, in: crewID), bare: true, react: onReact)
+                    .padding(.vertical, 2)
+            }
+            if !reactions.isEmpty {
+                if !mine { hairline }
+                CrewReactionsPanel.line(reactions, crewID: crewID, onDark: false)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Reactions: " + reactions.map { "\(CrewReactionsPanel.name($0.profileID, crewID: crewID)) \($0.emoji)" }.joined(separator: ", "))
+            }
+            hairline
+            Button(role: .destructive) {
+                mine ? onRemove() : onReport()
+            } label: {
+                Text(mine ? "Remove from \(store.crew(crewID)?.displayName(excluding: store.me) ?? "Crew")" : "Report")
+                    .font(Typography.bodyLarge)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressSurface)
+        }
+        .frame(width: 236)
+        .modifier(MenuGlass())
+    }
+
+    private var hairline: some View {
+        Rectangle().fill(AppColors.quietFill).frame(height: GridConstants.headerDividerHeight)
+    }
+}
+
+/// The page's glass in a rounded card. Chrome separates by glass and a
+/// hairline, never a shadow of its own.
+private struct MenuGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(GlassRecipe.onPageStill, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
         }
     }
 }

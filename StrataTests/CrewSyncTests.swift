@@ -108,7 +108,10 @@ extension CrewSyncTests {
         let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Strata")
         let files = ["Views/Crews/CrewsListView.swift", "Views/Crews/CrewTowerView.swift", "Views/Crews/CrewInfoSheet.swift",
-                     "Views/Crews/CrewWinSheet.swift", "Views/Crews/CrewPicker.swift", "Views/Crews/CrewSharing.swift",
+                     // The win sheet went for a menu over the block (2026-10-02);
+                     // its words live in CrewReactions now.
+                     "Views/Crews/CrewReactions.swift", "Views/Crews/CrewPicker.swift", "Views/Crews/CrewSharing.swift",
+                     "Views/Crews/CrewStatsSections.swift", "Views/Crews/MakeYourHead.swift",
                      "Social/CrewNotifications.swift", "Social/StrataAppDelegate.swift", "Social/CrewSafety.swift"]
         for file in files {
             let text = try String(contentsOf: folder.appending(path: file), encoding: .utf8)

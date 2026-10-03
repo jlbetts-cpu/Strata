@@ -20,7 +20,6 @@ struct CrewInfoSheet: View {
     @State private var problem: String?
     @FocusState private var editingName: Bool
     @State private var systemOff = false
-    @State private var makingHead = false
 
     private var store: SocialStore { SocialStore.shared }
     private var crew: Crew? { store.visible(crewID) }
@@ -35,12 +34,6 @@ struct CrewInfoSheet: View {
                     Section {
                         ForEach(members(crew)) { member in
                             memberRow(member, in: crew)
-                        }
-                        if HeadStore.shared.headForCrews == nil {
-                            Button { makingHead = true } label: {
-                                Label("Make Your Head", systemImage: "face.smiling")
-                                    .font(Typography.bodyLarge)
-                            }
                         }
                         if crew.members.count < CrewCaps.members {
                             Button {
@@ -95,7 +88,6 @@ struct CrewInfoSheet: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $makingHead) { HeadMakerView() }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -178,7 +170,10 @@ struct CrewInfoSheet: View {
                             .font(Typography.headerSmall)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
-                            .glassCapsule(onPage: true, carriesType: true)
+                            // The page's clear glass, as the crew's name
+                            // capsule has: the type-panel recipe is for words
+                            // over a photograph and read as a grey pill here.
+                            .glassCapsule(onPage: true)
                     }
                     .accessibilityLabel("Change the crew's photo")
                 }
@@ -190,6 +185,14 @@ struct CrewInfoSheet: View {
                     .onSubmit(commitName)
                     .padding(.top, GridConstants.gapTight)
                     .accessibilityLabel("Crew name")
+                // Only while you have no head: the crew's page is where its
+                // people are, so it is where yours is asked for (the owner,
+                // 2026-10-02: "only pops up if you havent made it... in the
+                // middle menu not on the main page").
+                if HeadStore.shared.headForCrews == nil {
+                    MakeYourHeadPill(crew: crew, me: store.me)
+                        .padding(.top, GridConstants.gapTight)
+                }
             }
             .frame(maxWidth: .infinity)
             .listRowBackground(Color.clear)

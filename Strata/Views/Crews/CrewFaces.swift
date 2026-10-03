@@ -60,13 +60,16 @@ struct CrewFace: View {
         let rig = CrewHeads.shared.rig(for: member, in: crew, me: me)
         ZStack {
             Circle().fill(fill)
-            if let face = rig?.faces[.neutral]?.image {
-                // Framed by the face, not the file: crown to chin fills about
-                // nine tenths of the circle, the way a contact photo does.
-                Image(uiImage: face)
-                    .resizable()
-                    .scaledToFill()
-                    .scaleEffect(1 / max(rig?.contentHeight ?? 0.86, 0.5) * 0.9, anchor: .center)
+            if let rig {
+                // **With its eyes.** The face picture alone has empty eye
+                // whites: the irises are their own layer, and a circle drawn
+                // from the picture stared out with no pupils (the owner,
+                // 2026-10-02: "creepy"). `HeadStill` is the head as a still,
+                // resting gaze and all, the one every still head uses.
+                // Crown to chin fills about nine tenths of the circle, the
+                // way a contact photo does.
+                HeadStill(rig: rig, side: side * 0.9)
+                    .frame(width: side, height: side)
                     .offset(y: side * 0.04)
             } else if let photo = member.photo, let image = UIImage(contentsOfFile: photo.path) {
                 // A photograph fills the circle a head sits in, so the two
