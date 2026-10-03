@@ -3,8 +3,8 @@
 <!--
     Strata's privacy manifest.
 
-    NSPrivacyCollectedDataTypes IS DELIBERATELY EMPTY, and that is not an
-    oversight. Apple's definition, verbatim from the App Privacy Details page:
+    Apple's definition of "collect", verbatim from the App Privacy Details
+    page, is the test every entry below is held to:
 
         "Collect" refers to transmitting data off the device in a way that
         allows you and/or your third-party partners to access it for a period
@@ -12,23 +12,71 @@
         real time. ... Data that is processed only on device is not "collected"
         and does not need to be disclosed.
 
-    Strata transmits nothing. Wins live in SwiftData on the device, photographs
-    live in the app's own container, and there is no server, no account, no
-    analytics and no third-party SDK in the project. The one network call in
-    the app is CLGeocoder asking Apple what a coordinate is called, which is a
-    real-time request Apple services and we never retain.
+    Two words in it decide everything: "you" is the developer, and "third-party
+    partners" is, on the same page, the analytics tools, ad networks, SDKs and
+    other external vendors whose code you added to your app. Apple's own
+    iCloud, reached through the system's CloudKit framework, is neither.
 
-    This file used to declare HealthAndFitness and PhotosOrVideos. Both were
-    wrong, and wrong in the direction that hurts: Apple builds the App Store
-    product page's privacy label from what is declared here, so it was telling
-    people Strata collects their health data and their photographs when it
-    collects neither and there is no HealthKit code left in the app at all.
-    A privacy label is a statement to users, and an untrue one is worse than a
-    missing one.
+    UNTIL CREWS (2026-10-02) this list was empty, and that was right: wins live
+    in SwiftData on the device, photographs live in the app's own container,
+    and there is no server, no account, no analytics and no third-party SDK.
+    CLGeocoder asking Apple what a coordinate is called is a real-time request
+    Apple services and we never retain.
+
+    This file once declared HealthAndFitness and PhotosOrVideos. Both were
+    wrong, and wrong in the direction that hurts: the product page's privacy
+    label told people Strata collects their health data and their photographs
+    when it collected neither. A label is a statement to users; an untrue one
+    is worse than a missing one, in EITHER direction.
+
+    CREWS (spec docs/superpowers/specs/2026-10-02-crews-design.md, section 9;
+    research docs/research/concept-and-social.md 4.3 and 4.5). What leaves
+    the phone, and whether it is "collected":
+
+    1. A crew's records (Crew, Member, SharedWin in Strata/Social/
+       CrewRecords.swift: the crew's name, picture and time zone; your
+       Profile name and your head's small pictures; a win's title, colour,
+       icon, size, re-encoded photo, framing and times) are written to one
+       custom zone in the PRIVATE iCloud database of whoever started the
+       crew, and shared with its members through a CKShare whose
+       publicPermission is .none. The developer cannot read a user's private
+       or shared database: the CloudKit console shows the developer only
+       their own iCloud account's private data, and the app has no server
+       to copy anything to. Apple is not a third-party partner in Apple's
+       own sense of the phrase. So none of it is "collected", and Name,
+       PhotosOrVideos, OtherUserContent and UserID are NOT declared for it.
+       The research doc reached the same reading (4.5, "arguably stays not
+       collected", marked as inference to confirm). The spec's section 9.3
+       listed those four as linked; declaring them would put "Sturdy
+       collects your photos and your name" on the product page, which is
+       the same kind of false statement this file was cleaned of on
+       2026-09-10. If Apple's guidance or review says otherwise, add them
+       here AND in App Store Connect together
+       (docs/crews-app-store-privacy.md has the exact answers either way).
+
+    2. A REPORT IS collected, and is declared below. CrewSafety.report
+       writes a `Report` record to the app's PUBLIC CloudKit database, and
+       that record type is readable only by the developer (set in the
+       CloudKit dashboard, docs/crews-app-store-privacy.md). The developer
+       reads it, for as long as it takes to act on it, which is the
+       definition. It carries:
+           crew, winID          random ids of the crew and the win
+           sender, reporter     the random profile ids (ProfileStore.profileID)
+                                of the person reported and the person reporting
+           reason, title        the reason picked from a fixed list, and the
+                                reported win's title (words a person wrote)
+       plus CloudKit's own creatorUserRecordID, the reporter's app-scoped
+       iCloud user record id. No photo, no name, no head.
+
+    3. Not collected: the notification. iCloud sends a silent push and the
+       app writes the notification on the phone (CrewNotifications.swift);
+       the push token goes to Apple, never to the developer. The age range
+       from Declared Age Range and the Sensitive Content Analysis verdict on
+       a photo stay on the phone (CrewAge, CrewSafety.photoIsFine).
 
     If a server, an account, a backup or an analytics SDK is ever added, this
     is the first file to change and the App Store Connect answers are the
-    second — they have to agree.
+    second: they have to agree.
 -->
 <plist version="1.0">
 <dict>
@@ -37,15 +85,72 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
+	<array>
+		<!--
+		    The reporter's and the reported person's profile ids, and the
+		    reporter's CloudKit user record id, on a Report record.
+
+		    LINKED: an id is by its nature linked to the person it names;
+		    it is the whole point of the field, so the developer can see
+		    that two reports concern the same sender.
+		    NOT TRACKING: never combined with data from other companies'
+		    apps or sites, never shared with a data broker. There is no
+		    ad or analytics code in the app.
+		    APP FUNCTIONALITY: Apple's purpose for "implement security
+		    measures" and "customer support". A report exists so the
+		    developer can act on abuse (guideline 1.2) and for nothing
+		    else.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!--
+		    The reported win's title and the reason chosen, on a Report
+		    record. A title is words someone wrote; Apple's nearest type is
+		    Other User Content. No photograph is in a report, so
+		    PhotosOrVideos is not declared for it.
+
+		    LINKED: the title sits on the same record as the sender's
+		    profile id. NOT TRACKING and APP FUNCTIONALITY: as above.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<!--
 		    UserDefaults, for the app's own settings: the timer length, whether
 		    photographs go to the camera roll, whether wins remember where they
-		    were. CA92.1 is "accessing information from the app itself", which
-		    is the whole of it — there is no app group and no managed
-		    configuration.
+		    were, and Crews' own (the last crews a win went to, people you
+		    blocked, your age range). CA92.1 is "accessing information from
+		    the app itself".
+
+		    1C8F.1 is the App Group: SocialStore.groupDefaults keeps the crews
+		    whose alerts you hid in UserDefaults(suiteName:
+		    "group.JaydenBetts.Strata"), so a notification extension can read
+		    it without the app running. CA92.1 does not cover a suite shared
+		    with the group; 1C8F.1 is the reason that does. (This comment used
+		    to say "there is no app group"; there has been one since the
+		    widget.) No managed configuration.
 
 		    Nothing else in the app touches a required-reason API. Audited:
 		    no file-timestamp calls, no disk-space calls, no system-boot-time
@@ -57,6 +162,7 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 	</array>
