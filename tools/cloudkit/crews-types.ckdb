@@ -104,3 +104,22 @@
         GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud"
     );
+
+    // The system type every CKShare is saved as. A container that has never
+    // saved a share in development has no such type, and production refuses
+    // it: "Cannot create new type cloudkit.share in production schema" (the
+    // first crew on a phone, 2026-10-02).
+    RECORD TYPE "cloudkit.share" (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        "cloudkit.title"              STRING,
+        "cloudkit.thumbnailImageData" BYTES,
+        "cloudkit.type"               STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );

@@ -12,6 +12,11 @@
 #   tools/cloudkit/add-crews-schema.sh
 #   CloudKit Console > iCloud.JaydenBetts.Strata > Deploy Schema Changes > Deploy
 set -euo pipefail
+# A token handed in by environment is also kept in the keychain, so it is
+# pasted once and never again.
+if [[ -n "${CLOUDKIT_MANAGEMENT_TOKEN:-}" ]]; then
+    xcrun cktool save-token "$CLOUDKIT_MANAGEMENT_TOKEN" --type management --method keychain --force >/dev/null 2>&1 || true
+fi
 TEAM=W34J6358L7
 CONTAINER=iCloud.JaydenBetts.Strata
 HERE=${0:A:h}
@@ -21,12 +26,19 @@ xcrun cktool export-schema --team-id $TEAM --container-id $CONTAINER --environme
 python3 - "$WORK/current.ckdb" "$HERE/crews-types.ckdb" "$WORK/merged.ckdb" <<'PY'
 import re, sys
 current, extra, out = (open(p).read() if i < 2 else p for i, p in enumerate(sys.argv[1:]))
-have = set(re.findall(r'RECORD TYPE\s+(\w+)', current))
+have = set(re.findall(r'RECORD TYPE\s+"?([\w.]+)"?', current))
 blocks = re.split(r'(?=\n\s*(?://[^\n]*\n\s*)*RECORD TYPE )', extra)
-add = [b for b in blocks if (m := re.search(r'RECORD TYPE\s+(\w+)', b)) and m.group(1) not in have]
+add = [b for b in blocks if (m := re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b)) and m.group(1) not in have]
 open(out, 'w').write(current.rstrip() + '\n' + '\n'.join(add) + '\n')
-print('adding:', [re.search(r'RECORD TYPE\s+(\w+)', b).group(1) for b in add] or 'nothing, all present')
+print('adding:', [re.search(r'RECORD TYPE\s+"?([\w.]+)"?', b).group(1) for b in add] or 'nothing, all present')
 PY
-xcrun cktool import-schema --team-id $TEAM --container-id $CONTAINER --environment development \
-    --validate --file $WORK/merged.ckdb
+if ! xcrun cktool import-schema --team-id $TEAM --container-id $CONTAINER --environment development \
+    --validate --file $WORK/merged.ckdb; then
+    # The share's own "cloudkit." fields may be reserved: try once without
+    # them (the type and its system fields are what production refuses).
+    echo "Trying again without the share's title fields..."
+    grep -v '"cloudkit\.title"\|"cloudkit\.thumbnailImageData"\|"cloudkit\.type"' $WORK/merged.ckdb > $WORK/plain.ckdb
+    xcrun cktool import-schema --team-id $TEAM --container-id $CONTAINER --environment development \
+        --validate --file $WORK/plain.ckdb
+fi
 echo "Development has the Crews types. Now deploy to production in the CloudKit Console."
