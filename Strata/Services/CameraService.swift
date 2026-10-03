@@ -15,6 +15,8 @@ final class CameraService: NSObject {
     /// What the preview layer renders. Handed to the view once and then left
     /// alone — reassigning it mid-session tears down the preview.
     let session = AVCaptureSession()
+    /// The front camera's viewfinder with the face touch on it, live.
+    let retouch = LiveRetouch()
 
     private(set) var facing: Facing = .back
     private(set) var isAuthorized = false
@@ -123,7 +125,12 @@ final class CameraService: NSObject {
         session.addInput(deviceInput)
         session.addOutput(output)
         input = deviceInput
+        if session.canAddOutput(retouch.output) {
+            session.addOutput(retouch.output)
+            orientRetouch()
+        }
         session.commitConfiguration()
+        retouch.setEnabled(facing == .front)
         isConfigured = true
         // **Open at 1x, not at the widest lens.**
         //
@@ -190,6 +197,8 @@ final class CameraService: NSObject {
             zoom = 1
             exposureBias = 0
             applyPortraitCropIfFront(device)
+            orientRetouch()
+            retouch.setEnabled(next == .front)
             // Same reason as `configure()`: on a virtual device, 1.0 is the
             // ultra wide, so flipping back to a three lens camera has to land
             // on its 1x rather than on its widest.
@@ -232,6 +241,21 @@ final class CameraService: NSObject {
         } catch {
             // A device that will not lock is being reconfigured; the wide
             // framing is a worse default, not a broken one.
+        }
+    }
+
+    /// The live frames upright and, for the front camera, mirrored, so a
+    /// frame is the picture the preview layer would have shown. The angle is
+    /// asked of the device: the iPhone 17 front sensor is mounted a quarter
+    /// turn from its predecessors (see `attachFrames`).
+    private func orientRetouch() {
+        guard let connection = retouch.output.connection(with: .video), let input else { return }
+        let angle = AVCaptureDevice.RotationCoordinator(device: input.device, previewLayer: nil)
+            .videoRotationAngleForHorizonLevelCapture
+        if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = facing == .front
         }
     }
 
@@ -280,11 +304,18 @@ final class CameraService: NSObject {
         zoomBeforeFrames = zoom
         setZoom(1)
         session.beginConfiguration()
+        // The head maker has the frames to itself: the live touch steps out
+        // (one video output at a time), and the maker sees the plain face it
+        // measures.
+        retouch.setEnabled(false)
+        session.removeOutput(retouch.output)
         presetBeforeFrames = session.sessionPreset
         if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
         guard session.canAddOutput(output) else {
             if let previous = presetBeforeFrames { session.sessionPreset = previous }
+            if session.canAddOutput(retouch.output) { session.addOutput(retouch.output); orientRetouch() }
             session.commitConfiguration()
+            retouch.setEnabled(facing == .front)
             return
         }
         session.addOutput(output)
@@ -325,7 +356,12 @@ final class CameraService: NSObject {
         if let previous = presetBeforeFrames, session.canSetSessionPreset(previous) {
             session.sessionPreset = previous
         }
+        if session.canAddOutput(retouch.output) {
+            session.addOutput(retouch.output)
+            orientRetouch()
+        }
         session.commitConfiguration()
+        retouch.setEnabled(facing == .front)
         frameOutput = nil
         presetBeforeFrames = nil
         // Back to the framing the shutter wants.

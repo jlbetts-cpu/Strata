@@ -206,12 +206,21 @@ struct CameraView: View {
 
             ZStack {
                 CameraPreview(session: camera.session, box: previewBox)
+                // **The front camera, touched, live** (`LiveRetouch`). Over
+                // the plain preview, which stays underneath for focus and
+                // exposure taps and shows until the first touched frame is
+                // drawn, so flipping never flashes black.
+                if (camera.facing == .front && !camera.isDenied) || Self.debugRetouchStill {
+                    RetouchPreview(retouch: camera.retouch)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
 
                 // **What a refused camera says, instead of saying nothing.**
                 //
                 // Over the preview rather than instead of it, so the one
                 // layout serves both states and nothing below has to move.
-                if camera.isDenied { accessRefused }
+                if camera.isDenied && !Self.debugRetouchStill { accessRefused }
 
                 // The gestures the native camera has, on the viewfinder and
                 // under the chrome, so the buttons still take their own taps.
@@ -1928,3 +1937,58 @@ private struct FocusReticle: View {
 // gave still holds: this is a button, so the effect reacting to the press is an
 // affordance rather than decoration. That argument now lives once, on
 // `glassCircle`, instead of twice.
+
+
+/// The Metal layer `LiveRetouch` draws the front camera into, sized to the
+/// viewfinder in pixels.
+extension CameraView {
+    static var debugRetouchStill: Bool {
+        #if DEBUG
+        DebugHarness.argument("-strataRetouchStill") != nil
+        #else
+        false
+        #endif
+    }
+}
+
+struct RetouchPreview: UIViewRepresentable {
+    let retouch: LiveRetouch
+
+    func makeUIView(context: Context) -> MetalView {
+        let view = MetalView()
+        view.retouch = retouch
+        // Clear until its first frame, so the plain preview underneath shows
+        // through rather than a black square.
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ view: MetalView, context: Context) {
+        view.retouch = retouch
+    }
+
+    final class MetalView: UIView {
+        override class var layerClass: AnyClass { CAMetalLayer.self }
+        var retouch: LiveRetouch?
+        private var attached = false
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard let retouch, let metal = layer as? CAMetalLayer, bounds.width > 0 else { return }
+            let scale = window?.screen.scale ?? traitCollection.displayScale
+            let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+            if attached { retouch.resize(to: size) } else {
+                retouch.attach(metal, size: size)
+                attached = true
+                #if DEBUG
+                if CameraView.debugRetouchStill,
+                   let still = UIImage(named: DebugHarness.argument("-strataRetouchStill") ?? "CreatorPortrait")
+                    .flatMap({ CIImage(image: $0) }) {
+                    retouch.debugFeed(still)
+                }
+                #endif
+            }
+        }
+    }
+}

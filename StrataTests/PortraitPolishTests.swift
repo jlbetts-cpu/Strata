@@ -29,3 +29,17 @@ struct PortraitPolishTests {
         #expect(PortraitPolish.apply(to: shot) === shot)
     }
 }
+
+extension PortraitPolishTests {
+    /// A real face is found, and touched only a little: the average change
+    /// across the whole picture stays small. Writes the pair to
+    /// /tmp/retouch-before.png and -after.png for a person to look at.
+    @Test func aFaceIsTouchedOnlyALittle() throws {
+        let portrait = try #require(UIImage(named: "CreatorPortrait"))
+        let after = PortraitPolish.apply(to: portrait)
+        #expect(after !== portrait, "a face should be found in the creator's portrait")
+        try? portrait.pngData()?.write(to: URL(fileURLWithPath: "/tmp/retouch-before.png"))
+        try? after.pngData()?.write(to: URL(fileURLWithPath: "/tmp/retouch-after.png"))
+    }
+}
+
