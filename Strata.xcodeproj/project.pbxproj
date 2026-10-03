@@ -50,7 +50,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				AA1000000000000000000E /* StrataWidgetExtension.appex in Embed Foundation Extensions */,
-				AB1000000000000000000E /* SomeWinsNotifications.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -251,7 +250,6 @@
 			);
 			dependencies = (
 				AA10000000000000000009 /* PBXTargetDependency */,
-				AB10000000000000000009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA10000000000000000001 /* Shared */,

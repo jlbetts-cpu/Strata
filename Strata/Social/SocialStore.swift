@@ -29,7 +29,12 @@ final class SocialStore {
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.incomingPolicy = { CrewSafety.incoming }
         store.announces = true
-        store.sendsPings = true
+        // Off until the notification extension ships with it: its app ID
+        // has to be linked to the iCloud container and the app group in the
+        // developer portal first. Without the extension a ping's alert would
+        // say only "A friend added a win", and the app's own, better
+        // notifications would stand down for it.
+        store.sendsPings = false
         NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
             Task { @MainActor in await SocialStore.shared.accountChanged() }
         }
