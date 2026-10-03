@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB1000000000000000000E /* SomeWinsNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB10000000000000000004 /* SomeWinsNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AA1000000000000000000E /* StrataWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA10000000000000000004 /* StrataWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		AB1000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EB26D1422F5A49FE00B165F7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB10000000000000000003;
+			remoteInfo = SomeWinsNotifications;
+		};
 		AA1000000000000000000A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EB26D1422F5A49FE00B165F7 /* Project object */;
@@ -42,6 +50,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				AA1000000000000000000E /* StrataWidgetExtension.appex in Embed Foundation Extensions */,
+				AB1000000000000000000E /* SomeWinsNotifications.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -49,6 +58,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AB10000000000000000004 /* SomeWinsNotifications.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SomeWinsNotifications.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA10000000000000000004 /* StrataWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = StrataWidgetExtension.appex; path = StrataWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB26D14A2F5A49FE00B165F7 /* Strata.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Strata.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB26D1592F5A4A0000B165F7 /* StrataTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -66,6 +76,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AB10000000000000000001 /* NotifyShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NotifyShared;
+			sourceTree = "<group>";
+		};
+		AB10000000000000000002 /* SomeWinsNotifications */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SomeWinsNotifications;
+			sourceTree = "<group>";
+		};
 		AA10000000000000000001 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shared;
@@ -97,6 +117,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AB10000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA10000000000000000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -146,6 +173,7 @@
 				EB26D1592F5A4A0000B165F7 /* StrataTests.xctest */,
 				EB26D1632F5A4A0000B165F7 /* StrataUITests.xctest */,
 				AA10000000000000000004 /* StrataWidgetExtension.appex */,
+				AB10000000000000000004 /* SomeWinsNotifications.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -155,6 +183,8 @@
 			children = (
 				AA10000000000000000001 /* Shared */,
 				AA10000000000000000002 /* StrataWidget */,
+				AB10000000000000000001 /* NotifyShared */,
+				AB10000000000000000002 /* SomeWinsNotifications */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -162,6 +192,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		AB10000000000000000003 /* SomeWinsNotifications */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB1000000000000000000B /* Build configuration list for PBXNativeTarget "SomeWinsNotifications" */;
+			buildPhases = (
+				AB10000000000000000005 /* Sources */,
+				AB10000000000000000006 /* Frameworks */,
+				AB10000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AB10000000000000000001 /* NotifyShared */,
+				AB10000000000000000002 /* SomeWinsNotifications */,
+			);
+			name = SomeWinsNotifications;
+			packageProductDependencies = (
+			);
+			productName = SomeWinsNotifications;
+			productReference = AB10000000000000000004 /* SomeWinsNotifications.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		AA10000000000000000003 /* StrataWidget */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA1000000000000000000B /* Build configuration list for PBXNativeTarget "StrataWidget" */;
@@ -198,9 +251,11 @@
 			);
 			dependencies = (
 				AA10000000000000000009 /* PBXTargetDependency */,
+				AB10000000000000000009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA10000000000000000001 /* Shared */,
+				AB10000000000000000001 /* NotifyShared */,
 				EB26D14C2F5A49FE00B165F7 /* Strata */,
 			);
 			name = Strata;
@@ -302,11 +357,19 @@
 				EB26D1582F5A4A0000B165F7 /* StrataTests */,
 				EB26D1622F5A4A0000B165F7 /* StrataUITests */,
 				AA10000000000000000003 /* StrataWidget */,
+				AB10000000000000000003 /* SomeWinsNotifications */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AB10000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA10000000000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -338,6 +401,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AB10000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA10000000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -369,6 +439,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		AB10000000000000000009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB10000000000000000003 /* SomeWinsNotifications */;
+			targetProxy = AB1000000000000000000A /* PBXContainerItemProxy */;
+		};
 		AA10000000000000000009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AA10000000000000000003 /* StrataWidget */;
@@ -387,6 +462,62 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		AB1000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SomeWinsNotifications/SomeWinsNotifications.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 52;
+				DEVELOPMENT_TEAM = W34J6358L7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotifySupport/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Some Wins";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.Strata.Notifications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AB1000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SomeWinsNotifications/SomeWinsNotifications.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 52;
+				DEVELOPMENT_TEAM = W34J6358L7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotifySupport/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Some Wins";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = JaydenBetts.Strata.Notifications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		AA1000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -731,6 +862,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AB1000000000000000000B /* Build configuration list for PBXNativeTarget "SomeWinsNotifications" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB1000000000000000000C /* Debug */,
+				AB1000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AA1000000000000000000B /* Build configuration list for PBXNativeTarget "StrataWidget" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -52,6 +52,20 @@ protocol CrewCloud: AnyObject {
     /// Brings ONE crew up to date, cheaply: true when anything in it
     /// changed. The crew on screen asks this every few seconds.
     func syncOnly(_ crew: CrewID) async throws -> Bool
+
+    // MARK: Pings (`CrewPingRecord`)
+
+    /// Leaves a ping in the public database. Returns its record name, for
+    /// deleting it a day later.
+    func ping(_ fields: [String: String]) async throws -> String
+    /// Deletes this phone's own pings. Best effort: one missed is deleted
+    /// next time.
+    func deletePings(_ names: [String]) async
+    /// Asks iCloud to send this phone the pings `plan` describes, replacing
+    /// what it asked for before.
+    func listen(for plan: CrewPingPlan) async throws
+    /// Where a crew's zone lives, for the notification extension to read it.
+    func zoneLocation(of crew: CrewID) -> (owner: String, joined: Bool)?
 }
 
 extension CrewCloud {

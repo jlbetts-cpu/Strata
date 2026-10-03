@@ -14,11 +14,13 @@ import os
 /// and says what changed in a local notification it writes itself, with the
 /// real names. No server, and nothing about a win travels in the push.
 ///
-/// The limit, stated: a phone where Some Wins was swiped away from the app
-/// switcher is not woken by a silent push, so its notifications wait until
-/// it is next opened. A notification service extension lifts that; it needs
-/// its own app ID with the iCloud container, which is a step in the developer
-/// portal (`docs/superpowers/specs/2026-10-02-crews-design.md`, 5).
+/// **Pings, once they are live.** A silent push does not wake a phone where
+/// Some Wins was swiped away, and iOS rations them anyway. So a win or a
+/// reaction also leaves a ping (`CrewPingRecord`), and iCloud sends each phone
+/// a visible alert for the pings it asked for; the notification extension
+/// writes the words. From then on the app's own notifications below stand
+/// down (`SocialStore.pingsLive`), and they remain for a phone whose
+/// subscriptions are not saved yet.
 @MainActor
 enum CrewNotifications {
     private static let log = Logger(subsystem: "Strata", category: "crews.notify")
@@ -89,6 +91,9 @@ enum CrewNotifications {
                 && !store.isMuted(win.crewID)
                 && Date().timeIntervalSince(win.createdAt) < window
         }
+        // iCloud's pings say it now, even to a phone where the app was
+        // swiped away; saying it here as well would say it twice.
+        guard !store.pingsLive else { return }
         let center = UNUserNotificationCenter.current()
         for win in fresh {
             guard let crew = store.crew(win.crewID) else { continue }
@@ -144,6 +149,7 @@ enum CrewNotifications {
             defaults.set(true, forKey: key + ".started")
             return
         }
+        guard !store.pingsLive else { return }
         for reaction in fresh {
             guard let crew = store.crew(reaction.crewID),
                   let win = store.wins(in: crew.id).first(where: { $0.winID == reaction.winID }) else { continue }

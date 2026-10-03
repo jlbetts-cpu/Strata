@@ -53,6 +53,11 @@ developer. Declare exactly two types:
   - What it is: the random profile ids of the person reporting and the person
     reported, and CloudKit's own id for the reporting iCloud account, on a
     `Report` record.
+  - Also covers **pings** (`NotifyShared/CrewNotes.swift`): a public `Ping`
+    record per win or reaction, holding one-way tags of the crew and profile
+    ids, the win's random id and its kind, deleted by the sender after ten
+    minutes. The tags derive from the same User IDs, so nothing new is
+    declared; there are no names, titles or photos in it.
 - [ ] **User Content > Other User Content**
   - Used for: **App Functionality** only.
   - Linked to the user's identity: **Yes**.

@@ -101,8 +101,15 @@ struct PrivacyPolicyView: View {
          + "shares it with the people in it. There is no Some Wins server, and Some Wins "
          + "cannot read what a crew holds. A win goes to a crew only if you tick "
          + "that crew for that win; the crews you ticked last stay ticked until you "
-         + "change them. When someone adds a win, iCloud sends your phone a silent "
-         + "signal and Some Wins writes the notification on your phone."),
+         + "change them. When someone adds a win or reacts to yours, their phone "
+         + "also leaves a short note in iCloud's public area so iCloud can alert "
+         + "the crew. The note holds scrambled tags for the crew and the people "
+         + "(which only phones already in the crew can match), the win's random "
+         + "id, and whether it is a win or a reaction: no names, titles or photos. "
+         + "Your phone asks to hear only about your crews, never from people you "
+         + "blocked or crews you muted. The phone that left the note deletes it, "
+         + "usually within minutes. Your phone then reads the win from the crew "
+         + "and writes the notification itself."),
         ("What a crew sees",
          "Of a win you send: its title, colour, size and icon, its photo, and when "
          + "you logged it. The photo is a smaller copy with no place and no camera "

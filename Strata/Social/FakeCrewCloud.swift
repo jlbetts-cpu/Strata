@@ -13,6 +13,8 @@ final class FakeCrewWorld {
     }
 
     var zones: [CrewID: Zone] = [:]
+    /// Pings in the pretend public database, by record name.
+    var pings: [String: [String: String]] = [:]
 
     func records(of type: CrewRecordType, in crew: CrewID) -> [String: RecordFields] {
         var out: [String: RecordFields] = [:]
@@ -44,6 +46,30 @@ final class FakeCrewCloud: CrewCloud {
 
     func prepare() async {}
     func reset() {}
+
+    /// What this phone last asked to hear about.
+    private(set) var listening: CrewPingPlan?
+
+    func ping(_ fields: [String: String]) async throws -> String {
+        try touch()
+        let name = "ping-\(UUID().uuidString)"
+        world.pings[name] = fields
+        return name
+    }
+
+    func deletePings(_ names: [String]) async {
+        for name in names { world.pings[name] = nil }
+    }
+
+    func listen(for plan: CrewPingPlan) async throws {
+        try touch()
+        listening = plan
+    }
+
+    func zoneLocation(of crew: CrewID) -> (owner: String, joined: Bool)? {
+        guard let zone = world.zones[crew] else { return nil }
+        return (zone.owner == myProfileID ? "__defaultOwner__" : zone.owner.uuidString, zone.owner != myProfileID)
+    }
 
     private func touch() throws {
         calls += 1

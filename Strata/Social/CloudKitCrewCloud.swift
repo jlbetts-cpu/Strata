@@ -302,6 +302,74 @@ final class CloudKitCrewCloud: CrewCloud {
         try await delete(type: .member, name: profileID.uuidString, in: crew)
     }
 
+    // MARK: Pings
+
+    func ping(_ fields: [String: String]) async throws -> String {
+        let name = "ping-\(UUID().uuidString)"
+        let record = CKRecord(recordType: CrewPingRecord.type, recordID: CKRecord.ID(recordName: name))
+        for (key, value) in fields { record[key] = value as NSString }
+        let result = try await container.publicCloudDatabase.modifyRecords(saving: [record], deleting: [])
+        if case .failure(let error)? = result.saveResults[record.recordID] { throw error }
+        return name
+    }
+
+    func deletePings(_ names: [String]) async {
+        guard !names.isEmpty else { return }
+        do {
+            _ = try await container.publicCloudDatabase.modifyRecords(
+                saving: [], deleting: names.map { CKRecord.ID(recordName: $0) })
+        } catch {
+            Self.log.notice("pings not deleted: \(error)")
+        }
+    }
+
+    /// Two query subscriptions in the public database, one for wins and one
+    /// for reactions, each a visible alert that the notification extension
+    /// puts into words. The old ones go first: a subscription's predicate
+    /// cannot be changed, only replaced.
+    func listen(for plan: CrewPingPlan) async throws {
+        let db = container.publicCloudDatabase
+        let ids = [CrewPingPlan.winsID, CrewPingPlan.reactionsID]
+        let removed = try await db.modifySubscriptions(saving: [], deleting: ids)
+        for (id, result) in removed.deleteResults {
+            if case .failure(let error) = result, (error as? CKError)?.code != .unknownItem {
+                Self.log.notice("ping subscription \(id, privacy: .public) not removed: \(error)")
+            }
+        }
+        var saving: [CKSubscription] = []
+        if !plan.winCrews.isEmpty {
+            saving.append(Self.subscription(CrewPingPlan.winsID, plan.winsPredicate,
+                                            fallback: CrewPingRecord.fallbackWin))
+        }
+        if !plan.reactionCrews.isEmpty {
+            saving.append(Self.subscription(CrewPingPlan.reactionsID, plan.reactionsPredicate,
+                                            fallback: CrewPingRecord.fallbackReaction))
+        }
+        guard !saving.isEmpty else { return }
+        let saved = try await db.modifySubscriptions(saving: saving, deleting: [])
+        for (_, result) in saved.saveResults {
+            if case .failure(let error) = result { throw error }
+        }
+    }
+
+    private static func subscription(_ id: String, _ predicate: NSPredicate, fallback: String) -> CKQuerySubscription {
+        let subscription = CKQuerySubscription(recordType: CrewPingRecord.type, predicate: predicate,
+                                               subscriptionID: id, options: [.firesOnRecordCreation])
+        let info = CKSubscription.NotificationInfo()
+        // Shown as it is only if the extension cannot run at all; the
+        // extension replaces it with names.
+        info.alertBody = fallback
+        info.soundName = "default"
+        info.shouldSendMutableContent = true
+        info.desiredKeys = CrewPingRecord.fields
+        subscription.notificationInfo = info
+        return subscription
+    }
+
+    func zoneLocation(of crew: CrewID) -> (owner: String, joined: Bool)? {
+        zones[crew].map { ($0.id.ownerName, $0.shared) }
+    }
+
     // MARK: Syncing
 
     private func discoverZones() async throws {

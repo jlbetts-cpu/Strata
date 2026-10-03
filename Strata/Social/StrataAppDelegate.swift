@@ -57,7 +57,10 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     /// while the app is open.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        notification.request.content.userInfo["crew"] == nil ? [] : [.banner, .list, .sound]
+        guard let crew = notification.request.content.userInfo["crew"] as? String else { return [] }
+        // A ping about the crew you are looking at says nothing new.
+        let onScreen = await MainActor.run { CrewNotifications.visibleCrew?.rawValue }
+        return crew == onScreen ? [] : [.banner, .list, .sound]
     }
 
     func application(_ application: UIApplication,

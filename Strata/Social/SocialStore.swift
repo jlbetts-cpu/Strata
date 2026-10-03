@@ -29,6 +29,7 @@ final class SocialStore {
         store.photoCheck = { await CrewSafety.photoIsFine($0) }
         store.incomingPolicy = { CrewSafety.incoming }
         store.announces = true
+        store.sendsPings = true
         NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
             Task { @MainActor in await SocialStore.shared.accountChanged() }
         }
@@ -268,6 +269,7 @@ final class SocialStore {
         defaults.set(names, forKey: Self.blockedNamesKey)
         note(.blocked, profileID.uuidString, 1, name: name)
         recomputeUnread()
+        replan()
     }
 
     func unblock(_ profileID: UUID) {
@@ -278,6 +280,7 @@ final class SocialStore {
         defaults.set(names, forKey: Self.blockedNamesKey)
         note(.blocked, profileID.uuidString, 0)
         recomputeUnread()
+        replan()
     }
 
     private static let blockedNamesKey = "crews.blockedNames"
@@ -771,6 +774,11 @@ final class SocialStore {
             refreshAgain = false
             await refreshOnce()
         } while refreshAgain
+        if sendsPings {
+            writeNoteCache()
+            await listenForPings()
+            await deleteOldPings()
+        }
         if announces {
             await CrewNotifications.announce(self)
             await CrewNotifications.announceReactions(self)
@@ -897,6 +905,7 @@ final class SocialStore {
                 do {
                     if let fields = entry.fields {
                         try await cloud.save(fields, type: entry.type, name: entry.name, in: entry.crew)
+                        await pingIfNew(entry.type, fields, in: entry.crew)
                     } else {
                         try await cloud.delete(type: entry.type, name: entry.name, in: entry.crew)
                     }
@@ -1088,6 +1097,7 @@ final class SocialStore {
         Self.groupDefaults?.set(stamps, forKey: Self.mutedKey)
         note(.muted, crewID.rawValue, stamps[crewID.rawValue] ?? 0)
         outboxRevision += 1
+        replan()
     }
 
     /// The old name, still what the list's swipe and Crew Info's switch say.
@@ -1106,6 +1116,138 @@ final class SocialStore {
         Self.groupDefaults?.set(off.sorted(), forKey: Self.quietReactionsKey)
         note(.reactionsOff, crewID.rawValue, on ? 0 : 1)
         outboxRevision += 1
+        replan()
+    }
+
+    // MARK: Pings
+
+    /// Whether this store leaves pings and listens for them
+    /// (`CrewPingRecord`). The phone's own store does; a test turns it on to
+    /// watch it, and a debug friend never does.
+    @ObservationIgnored var sendsPings = false
+    private static let pingedKey = "crews.pings.done"
+    private static let sentPingsKey = "crews.pings.sent"
+    private static let planKey = "crews.pings.plan"
+
+    /// What this phone wants iCloud to tell it about, now.
+    func pingPlan() -> CrewPingPlan {
+        let heard = crews.map(\.id).filter { !isMuted($0) }
+        let tag = CrewPingRecord.tag
+        return CrewPingPlan(winCrews: heard.map { tag($0.rawValue) },
+                            reactionCrews: heard.filter { reactionAlerts($0) }.map { tag($0.rawValue) },
+                            me: tag(me.uuidString),
+                            excluding: blocked.map { tag($0.uuidString) })
+    }
+
+    /// Whether iCloud is sending this phone pings: then they are what
+    /// notifies, and the app's own notifications would only repeat them.
+    var pingsLive: Bool { sendsPings && defaults.data(forKey: Self.planKey) != nil }
+
+    /// Tells iCloud the plan when it has changed since it last heard it. A
+    /// timed mute ending is a change too, so every refresh asks.
+    func listenForPings() async {
+        guard sendsPings, !crews.isEmpty || defaults.data(forKey: Self.planKey) != nil else { return }
+        let plan = pingPlan()
+        let told = defaults.data(forKey: Self.planKey).flatMap { try? JSONDecoder().decode(CrewPingPlan.self, from: $0) }
+        guard plan != told else { return }
+        do {
+            try await cloud.listen(for: plan)
+            defaults.set(try? JSONEncoder().encode(plan), forKey: Self.planKey)
+        } catch {
+            // Before the Ping type is in iCloud, or offline: the app's own
+            // notifications carry on, and the next refresh asks again.
+            Self.log.notice("ping subscriptions not saved: \(error)")
+        }
+    }
+
+    private func replan() {
+        guard sendsPings else { return }
+        Task { await listenForPings() }
+    }
+
+    /// After a win or a reaction reaches the crew: one ping, the first time
+    /// only. An edit to a win, or a changed emoji, is not news.
+    private func pingIfNew(_ type: CrewRecordType, _ fields: RecordFields, in crewID: CrewID) async {
+        guard sendsPings, let winID = fields["winID"]?.uuid else { return }
+        var ping = [CrewPingRecord.crew: CrewPingRecord.tag(crewID.rawValue),
+                    CrewPingRecord.sender: CrewPingRecord.tag(me.uuidString),
+                    CrewPingRecord.win: winID.uuidString]
+        let key: String
+        switch type {
+        case .sharedWin:
+            // A win sent long after it was made (a phone offline all day)
+            // is not worth waking anyone for.
+            guard let made = fields["createdAt"]?.date, now().timeIntervalSince(made) < 6 * 3600 else { return }
+            ping[CrewPingRecord.kind] = CrewPingRecord.Kind.win.rawValue
+            key = "win-\(winID.uuidString)"
+        case .reaction:
+            guard let owner = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID,
+                  owner != me else { return }
+            ping[CrewPingRecord.kind] = CrewPingRecord.Kind.reaction.rawValue
+            ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
+            key = "reaction-\(winID.uuidString)"
+        case .crew, .member:
+            return
+        }
+        var done = defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:]
+        guard done[key] == nil else { return }
+        do {
+            let name = try await cloud.ping(ping)
+            done[key] = now().timeIntervalSince1970
+            defaults.set(done, forKey: Self.pingedKey)
+            var sent = defaults.dictionary(forKey: Self.sentPingsKey) as? [String: Double] ?? [:]
+            sent[name] = now().timeIntervalSince1970
+            defaults.set(sent, forKey: Self.sentPingsKey)
+        } catch {
+            Self.log.notice("ping not sent: \(error)")
+        }
+    }
+
+    /// This phone's pings, gone once iCloud has had time to send them: a
+    /// ping is only ever a nudge, and the alert goes out the moment it is
+    /// saved. Ten minutes leaves room for a slow delivery.
+    static let pingLifetime: TimeInterval = 600
+
+    func deleteOldPings() async {
+        let cutoff = now().timeIntervalSince1970 - Self.pingLifetime
+        var sent = defaults.dictionary(forKey: Self.sentPingsKey) as? [String: Double] ?? [:]
+        let old = sent.filter { $0.value < cutoff }.map(\.key)
+        if !old.isEmpty {
+            await cloud.deletePings(old)
+            for name in old { sent[name] = nil }
+            defaults.set(sent, forKey: Self.sentPingsKey)
+        }
+        // What was pinged is remembered a little longer than a crew day, so
+        // a win edited later that day is still known not to be news.
+        let done = (defaults.dictionary(forKey: Self.pingedKey) as? [String: Double] ?? [:])
+            .filter { $0.value >= now().timeIntervalSince1970 - 3 * 86_400 }
+        defaults.set(done, forKey: Self.pingedKey)
+    }
+
+    /// The names the notification extension needs (`CrewNoteCache`): each
+    /// crew's title, its members' first names, your own wins' titles, and
+    /// where its zone is. Never a photo.
+    func noteCache() -> CrewNoteCache {
+        var out: [String: CrewNoteCache.Crew] = [:]
+        for crew in crews {
+            guard let zone = cloud.zoneLocation(of: crew.id) else { continue }
+            let members = Dictionary(crew.members.map {
+                (CrewPingRecord.tag($0.profileID.uuidString),
+                 CrewNoteCache.Member(profileID: $0.profileID.uuidString, name: $0.shortName))
+            }, uniquingKeysWith: { first, _ in first })
+            let mine = Dictionary((winsByCrew[crew.id] ?? []).filter { $0.senderProfileID == me }
+                .map { ($0.winID.uuidString, $0.title) }, uniquingKeysWith: { first, _ in first })
+            out[CrewPingRecord.tag(crew.id.rawValue)] = .init(
+                title: crew.displayName(excluding: me), zoneName: crew.id.rawValue, zoneOwner: zone.owner,
+                joined: zone.joined, members: members, myWins: mine)
+        }
+        return CrewNoteCache(me: me.uuidString, crews: out)
+    }
+
+    private func writeNoteCache() {
+        let cache = noteCache()
+        guard cache != CrewNoteCache.load() else { return }
+        cache.save()
     }
 
     // MARK: Choices on every phone
@@ -1144,6 +1286,7 @@ final class SocialStore {
         }
         recomputeUnread()
         outboxRevision += 1
+        replan()
     }
 
     /// Blocks and mutes from before this sync existed join it stamped as

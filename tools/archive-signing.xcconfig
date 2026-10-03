@@ -10,4 +10,5 @@ CODE_SIGN_IDENTITY = Apple Distribution
 DEVELOPMENT_TEAM = W34J6358L7
 STRATA_PROFILE_Strata = Strata App Store 49
 STRATA_PROFILE_StrataWidget = Strata Widget App Store (cli)
+STRATA_PROFILE_SomeWinsNotifications = Some Wins Notifications App Store
 PROVISIONING_PROFILE_SPECIFIER = $(STRATA_PROFILE_$(TARGET_NAME))
