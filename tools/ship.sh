@@ -97,7 +97,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <key>signingCertificate</key><string>Apple Distribution</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>JaydenBetts.Strata</key><string>Strata App Store 37</string>
+        <key>JaydenBetts.Strata</key><string>Strata App Store 49</string>
         <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
     </dict>
     <key>uploadSymbols</key><true/>
