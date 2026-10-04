@@ -611,10 +611,10 @@ struct MemoriesView: View {
         }
     }
 
-    /// The line each month's card says, in his words where he has given them.
-    static let monthLine: [String: String] = [
-        "October": "Happy Halloween",
-    ]
+    /// The line under a month's drawing, in his words where he has given
+    /// them. October's "Happy Halloween" came off (the owner, 2026-10-03):
+    /// the drawing says it.
+    static let monthLine: [String: String] = [:]
 
     /// The chosen month's photographs, as one untitled section.
     private var monthPhotos: [GallerySection] {
