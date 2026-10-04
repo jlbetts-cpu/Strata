@@ -77,7 +77,10 @@ struct CopyCutsTests {
         // The other half: there is still a bar, and its glyphs still come from
         // the one place in the app that decides filled against hollow. Without
         // this, deleting the whole tab bar would pass the assertion above.
-        #expect(SourceSweep.code(still).contains("tab.icon(selected: on)"))
+        // The still draws the bar's own glyphs, from the one function that
+        // decides them (renamed `image(selected:)` when two of them became
+        // drawn assets, 2026-10-03).
+        #expect(SourceSweep.code(still).contains("tab.image(selected: on)"))
     }
 
     /// And the real bar it is a picture of still has no words, which is the

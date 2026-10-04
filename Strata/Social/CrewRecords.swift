@@ -22,7 +22,31 @@ nonisolated enum CrewValue: Equatable, Codable, Sendable {
         default: nil
         }
     }
-    var asset: URL? { if case .asset(let v) = self { v } else { nil } }
+    /// The file, wherever this install keeps it (`CrewFiles.here`).
+    var asset: URL? { if case .asset(let v) = self { CrewFiles.here(v) } else { nil } }
+}
+
+/// **A saved file path, moved to where this install lives.**
+///
+/// iOS can move an app's data container when the app updates: the folder
+/// named by a long id in the middle of every path changes. Crews kept each
+/// photograph and head as a full path, so after an update every one pointed
+/// into a folder that was gone, and a crew's photos vanished with each build
+/// and never came back, since a sync only fetches what changed (the owner,
+/// 2026-10-03: "the photos are still not showing over updates"). Measured on
+/// the simulator: one install moved the container from 73D56EDC... to
+/// AF781242.... A path inside an app's data container is re-rooted at this
+/// install's home; anything else is left alone.
+nonisolated enum CrewFiles {
+    static func here(_ url: URL, home: String = NSHomeDirectory()) -> URL {
+        guard url.isFileURL else { return url }
+        let path = url.path
+        guard let marker = path.range(of: "/Containers/Data/Application/") else { return url }
+        let rest = path[marker.upperBound...]
+        guard let slash = rest.firstIndex(of: "/") else { return url }
+        let inside = String(rest[rest.index(after: slash)...])
+        return URL(fileURLWithPath: home).appending(path: inside)
+    }
 }
 
 /// A record's fields. **A record is always written whole**: a key that is

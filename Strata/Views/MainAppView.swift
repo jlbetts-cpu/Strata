@@ -681,7 +681,7 @@ struct MainAppView: View {
             Tab(value: StrataTab.tower) {
                 towerTabRoot
             } label: {
-                Image(systemName: StrataTab.tower.icon(selected: selectedTab == .tower))
+                StrataTab.tower.image(selected: selectedTab == .tower)
                     .symbolVariant(.none)
                     .accessibilityLabel("Wins")
             }
@@ -706,14 +706,14 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                Image(systemName: StrataTab.camera.icon(selected: selectedTab == .camera))
+                StrataTab.camera.image(selected: selectedTab == .camera)
                     .symbolVariant(.none)
                     .accessibilityLabel("Camera")
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot
             } label: {
-                Image(systemName: StrataTab.memories.icon(selected: selectedTab == .memories))
+                StrataTab.memories.image(selected: selectedTab == .memories)
                     .symbolVariant(.none)
                     .accessibilityLabel("Memories")
             }

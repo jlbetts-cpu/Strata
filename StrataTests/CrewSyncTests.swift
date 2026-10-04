@@ -139,3 +139,24 @@ extension CrewSyncTests {
         }
     }
 }
+
+/// A path saved by an earlier install still finds its file.
+@Suite("Crew files across updates")
+struct CrewFilesTests {
+    @Test func aPathFromAnEarlierInstallMovesToThisOne() {
+        let old = URL(fileURLWithPath: "/private/var/mobile/Containers/Data/Application/73D56EDC-2F59-46AE-A72E-C47A73939A75/Library/Application Support/Crews/Photos/crew-1/win-photo-3.jpg")
+        let here = CrewFiles.here(old, home: "/private/var/mobile/Containers/Data/Application/AF781242-B339-45C8-8A41-CB5C1BCB7245")
+        #expect(here.path == "/private/var/mobile/Containers/Data/Application/AF781242-B339-45C8-8A41-CB5C1BCB7245/Library/Application Support/Crews/Photos/crew-1/win-photo-3.jpg")
+    }
+
+    @Test func aPathElsewhereIsLeftAlone() {
+        let tmp = URL(fileURLWithPath: "/tmp/x.jpg")
+        #expect(CrewFiles.here(tmp, home: "/home") == tmp)
+    }
+
+    @Test func aRecordsPhotoIsReadFromThisInstall() {
+        let old = URL(fileURLWithPath: "/a/Containers/Data/Application/OLD/Library/p.jpg")
+        let value = CrewValue.asset(old)
+        #expect(value.asset?.path == URL(fileURLWithPath: NSHomeDirectory()).appending(path: "Library/p.jpg").path)
+    }
+}

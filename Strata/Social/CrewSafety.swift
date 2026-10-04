@@ -96,7 +96,9 @@ enum CrewSafety {
         }
         let record = CKRecord(recordType: "Report")
         for (key, value) in fields where key != "photoPath" { record[key] = value as NSString }
-        if let path = fields["photoPath"], FileManager.default.fileExists(atPath: path) {
+        if let saved = fields["photoPath"],
+           case let path = CrewFiles.here(URL(fileURLWithPath: saved)).path,
+           FileManager.default.fileExists(atPath: path) {
             record["photo"] = CKAsset(fileURL: URL(fileURLWithPath: path))
         }
         do {

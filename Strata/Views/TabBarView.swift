@@ -22,11 +22,19 @@ enum StrataTab: String, CaseIterable {
     ///
     /// `docs/design-system-future.md` section 10, rule 8: never two solutions to
     /// the same problem on one screen.
-    func icon(selected: Bool) -> String {
+    ///
+    /// **Each says what its tab is** (the owner, 2026-10-03: "make sure icons
+    /// on the bottom are clear... they kinda help understand what the tab is
+    /// for", and "I only want sf symbols"). Wins was `square.stack`, a pile of
+    /// cards, and Memories `photo.stack`, a pile of photos; neither named its
+    /// tab. Wins is the trophy, his pick; Memories is the calendar the page
+    /// opens on. `calendar` has no filled form, so it is the same drawing in
+    /// both states and the bar's own highlight says "here".
+    func image(selected: Bool) -> Image {
         switch self {
-        case .tower: return selected ? "square.stack.fill" : "square.stack"
-        case .camera: return selected ? "camera.fill" : "camera"
-        case .memories: return selected ? "photo.stack.fill" : "photo.stack"
+        case .tower: Image(systemName: selected ? "trophy.fill" : "trophy")
+        case .camera: Image(systemName: selected ? "camera.fill" : "camera")
+        case .memories: Image(systemName: "calendar")
         }
     }
 

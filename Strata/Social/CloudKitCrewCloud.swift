@@ -518,7 +518,7 @@ final class CloudKitCrewCloud: CrewCloud {
         case .double(let v): NSNumber(value: v)
         case .int(let v): NSNumber(value: v)
         case .uuid(let v): v.uuidString as NSString
-        case .asset(let url): CKAsset(fileURL: url)
+        case .asset(let url): CKAsset(fileURL: CrewFiles.here(url))
         }
     }
 
