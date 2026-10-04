@@ -143,6 +143,241 @@ square, 4 variations. Elsewhere: square, 4 variations, then vectorise.
 - December: a figure carrying a small tree home, snow on its hat.
 - Crews: three friends on a hill, arms up, a few rays of light.
 
+
+## Prompts by screen
+
+Every prompt below is the v3 prompt with its scene filled in. Paste it as is,
+with the negative prompt from above. One drawing per screen, where the screen
+is waiting for you; the Wins tower itself stays empty, because it is the
+space you fill. **Size** is the most the app draws it, in points; store it
+at 3x. **Asset** is the name to save it as, so it drops straight in.
+
+### Memories
+
+**January**: asset `MonthJanuary`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body in a long scarf walking a small dog through two strokes of snow.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**February**: asset `MonthFebruary`, up to 170pt tall
+
+```
+A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies sharing one small umbrella, a heart-shaped puddle at their feet.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**March**: asset `MonthMarch`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body kneeling to pat the soil around one seedling, a worm peeking out.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**April**: asset `MonthApril`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body mid-jump over a puddle, a frog on the edge looking unimpressed.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**May**: asset `MonthMay`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body on the corner of a picnic blanket, a single bee on their sandwich.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**June**: asset `MonthJune`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body reading under a small round tree, feet crossed up on the trunk.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**July**: asset `MonthJuly`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body sitting on a hill looking up at one simple firework.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**August**: asset `MonthAugust`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body riding a bike with a little kite trailing behind.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**September**: asset `MonthSeptember`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body carrying a stack of three books, the top one tipping.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**October**: asset `MonthOctober`, up to 170pt tall
+
+```
+A minimal doodle illustration of a crow perched on a round pumpkin with a broom leaning against it, one small bat above.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**November**: asset `MonthNovember`, up to 170pt tall
+
+```
+A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies holding mugs side by side, their steam curling into one swirl.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**December**: asset `MonthDecember`, up to 170pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body carrying a small round tree home, a little snow on their hat.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+### Crews
+
+**Under the crews list**: asset `CrewsTogether`, up to 120pt tall
+
+```
+A minimal doodle illustration of three small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies standing close on a small hill, arms up, a few short rays above them.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**No crews yet**: asset `CrewsEmpty`, up to 140pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a door open and waving someone in.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Crews are for 13 and up**: asset `CrewsTooYoung`, up to 120pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body happily stacking three small blocks into a little tower on their own.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Signed out of iCloud**: asset `CrewsNoICloud`, up to 120pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding the string of a small cloud like a balloon.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Crew rules (before the first crew)**: asset `CrewRules`, up to 120pt tall
+
+```
+A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies giving each other a high five.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Report sent**: asset `ReportThanks`, up to 100pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body dropping a small envelope into a round postbox.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+### Wins and Plan
+
+**Empty plan**: asset `PlanEmpty`, up to 120pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body with a pencil tucked behind the ear, looking at one short checklist.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**First open, before the first win**: asset `WinsFirst`, up to 140pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body placing one small square block on the ground, very proud.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+### Memories states
+
+**A day with nothing logged**: asset `DayEmpty`, up to 120pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body napping on a small bench, one 'z' above.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**No photographs in a month**: asset `PhotosEmpty`, up to 120pt tall
+
+```
+A minimal doodle illustration of a simple camera sitting on a stool, a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body peeking from behind it.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**No recap yet**: asset `RecapEmpty`, up to 110pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a small film reel and waiting, tapping one foot.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Location off (map)**: asset `MapNoLocation`, up to 110pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a folded map upside down, puzzled.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+### Camera and settings
+
+**Camera turned off**: asset `CameraOff`, up to 120pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a camera with the lens cap still on.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Notifications off**: asset `NotificationsOff`, up to 100pt tall
+
+```
+A minimal doodle illustration of a small round bell asleep, wearing a nightcap.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
+**Privacy: everything stays on the phone**: asset `PrivacyLocal`, up to 110pt tall
+
+```
+A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body tucking a phone into a coat pocket with a little smile.
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+```
+
 ## Making it ready for the app
 
 The app shows drawings as a single-colour template (it inks them itself and
