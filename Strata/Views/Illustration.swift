@@ -6,6 +6,14 @@ import SwiftUI
 /// blank"). The drawing is in the page's ink, so it follows dark mode; the
 /// line is SF Pro, set small and close under it so the two read as one piece,
 /// the way HeyTea sets theirs.
+///
+/// **And it can move, once** (the owner, 2026-10-03: "a little animation
+/// would really make the app come to life"). A drawing with a `motion` is two
+/// of his layers, the same size so they line up exactly, and the moving one
+/// plays when the page opens and again on a tap. Once, not a loop: nothing in
+/// this app loops (`SkeletonBlockView` has why), and he chose "once, then on
+/// tap". Under Reduce Motion it is the still drawing. The timeline runs only
+/// while a play is under way.
 struct Illustration: View {
     let art: UIImage
     let line: String?
@@ -13,14 +21,21 @@ struct Illustration: View {
     /// up to half of it on a small screen rather than crowd what is beside it
     /// (an iPhone SE has about 130pt above October's calendar).
     var height: CGFloat = 150
+    var motion: IllustrationMotion? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// When the current play began; nil at rest.
+    @State private var playedAt: Date?
+    /// Plays since the page appeared: the first is the arrival.
+    @State private var plays = 0
+    /// Where the moving layer's ink is, as a fraction of the drawing: what
+    /// it tilts and squashes around (the crow's own feet, not the corner of
+    /// the full-size layer it is drawn on, which swung it onto the sleeve).
+    @State private var ink: CGRect?
 
     var body: some View {
         VStack(spacing: GridConstants.gapItem) {
-            Image(uiImage: art)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(AppColors.inkPrimary)
+            drawing
                 .frame(minHeight: height * 0.5, maxHeight: height)
                 // Takes its room before the space around it does, so the
                 // space shrinks first and the drawing only after.
@@ -37,5 +52,304 @@ struct Illustration: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line ?? "")
         .accessibilityHidden(line == nil)
+    }
+
+    @ViewBuilder
+    private var drawing: some View {
+        if let motion, !reduceMotion {
+            TimelineView(.animation(paused: playedAt == nil)) { context in
+                // Before the first play the moving layer is where the play
+                // starts (the crow out of sight), so nothing jumps.
+                let t = plays == 0 ? 0 : playedAt.map { context.date.timeIntervalSince($0) } ?? .infinity
+                ZStack {
+                    layer(art)
+                        .modifier(motion.base(at: t, play: max(plays, 1)))
+                    layer(motion.layer)
+                        .modifier(motion.moving(at: t, play: max(plays, 1), ink: ink ?? CGRect(x: 0, y: 0, width: 1, height: 1)))
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { play() }
+            .onAppear {
+                if ink == nil { ink = IllustrationMotion.inkBounds(of: motion.layer) }
+                plays = 0
+                play()
+            }
+            .onDisappear { playedAt = nil }
+        } else {
+            ZStack {
+                layer(art)
+                if let motion { layer(motion.layer) }
+            }
+        }
+    }
+
+    private func layer(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(AppColors.inkPrimary)
+    }
+
+    /// Starts a play unless one is under way, and lets the timeline rest
+    /// when it is over.
+    private func play() {
+        guard let motion, playedAt == nil else { return }
+        plays += 1
+        let started = Date()
+        playedAt = started
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(motion.duration(play: plays) + 0.05))
+            if playedAt == started { playedAt = nil }
+        }
+    }
+}
+
+/// How a drawing moves: which of its layers moves, and how, as a pure
+/// function of the seconds since the play began.
+enum IllustrationMotion {
+    /// October: the crow flies in and lands on the scarecrow's shoulder. The
+    /// first play is the arrival; a tap after it sends the crow off into the
+    /// sky and back to the same shoulder.
+    case crowLands(crow: UIImage)
+    /// Crews: the three friends hop together, and their cheer marks burst out.
+    case cheer(marks: UIImage)
+
+    var layer: UIImage {
+        switch self {
+        case .crowLands(let crow): crow
+        case .cheer(let marks): marks
+        }
+    }
+
+    func duration(play: Int) -> Double {
+        switch self {
+        case .crowLands: play <= 1 ? Crow.arrive : Crow.away + Crow.arrive
+        case .cheer: Cheer.total
+        }
+    }
+
+    /// The layer that stays: still for the crow, hopping for the friends.
+    func base(at t: Double, play: Int) -> LayerPose {
+        switch self {
+        case .crowLands: .rest
+        case .cheer: Cheer.friends(at: t)
+        }
+    }
+
+    func moving(at t: Double, play: Int, ink: CGRect) -> LayerPose {
+        var pose: LayerPose
+        switch self {
+        case .crowLands:
+            if play <= 1 { pose = Crow.arriving(at: t) }
+            else { pose = t < Crow.away ? Crow.leaving(at: t) : Crow.arriving(at: t - Crow.away) }
+        case .cheer:
+            pose = Cheer.marks(at: t)
+        }
+        // Turn and squash around the layer's own ink: its middle, or its
+        // foot when the pose says bottom.
+        pose.anchor = pose.anchor == .bottom ? UnitPoint(x: ink.midX, y: ink.maxY)
+                                             : UnitPoint(x: ink.midX, y: ink.midY)
+        return pose
+    }
+
+    /// The box round a layer's ink, as fractions of the image, found once.
+    static func inkBounds(of image: UIImage) -> CGRect {
+        guard let cg = image.cgImage else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
+        let w = cg.width, h = cg.height
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return CGRect(x: 0, y: 0, width: 1, height: 1)
+        }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var minX = w, minY = h, maxX = 0, maxY = 0
+        for y in 0..<h {
+            for x in 0..<w where pixels[(y * w + x) * 4 + 3] > 40 {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
+        return CGRect(x: Double(minX) / Double(w), y: Double(minY) / Double(h),
+                      width: Double(maxX - minX) / Double(w), height: Double(maxY - minY) / Double(h))
+    }
+
+    // MARK: The crow
+
+    /// Drawn the way a bird actually comes in (the owner, 2026-10-03: "really
+    /// smooth and thought through not stiffy"): wingbeats that slow into a
+    /// glide, a brake (the body tips back) just before the feet touch, and a
+    /// landing that gives and springs, settling in two small wobbles. Every
+    /// value is continuous across the phases, so nothing jumps.
+    private enum Crow {
+        static let fly = 1.15         // in the air
+        static let settle = 0.55      // the springy touchdown
+        static let arrive = fly + settle
+        static let crouch = 0.14      // the anticipation before a take-off
+        static let away = crouch + 0.95
+        /// Where the flight starts, as a fraction of the drawing's size: up
+        /// and off to the right, out of the drawing.
+        static let from = CGPoint(x: 0.6, y: -0.55)
+
+        static func arriving(at t: Double) -> LayerPose {
+            if t >= arrive { return .rest }
+            if t < fly {
+                let u = t / fly
+                // Fast in, slowing to the perch (a cubic ease-out), along a
+                // curve that dips under the straight line like a swoop.
+                let e = IllustrationMotion.easeOut(u)
+                let p = IllustrationMotion.curve(from: from, to: .zero, bend: CGPoint(x: 0.22, y: 0.08), at: e)
+                // Wingbeats: strong early, fading to a glide by 70%.
+                let flap = max(0, 1 - u / 0.7)
+                let beat = sin(t * .pi * 2 * 4.5)
+                // The brake: the body tips back over the last fifth.
+                let brake = max(0, (u - 0.8) / 0.2)
+                let tilt = -16 * (1 - e) + 14 * sin(brake * .pi / 2) * (1 - brake * 0.6)
+                return LayerPose(x: p.x, y: p.y + beat * flap * 0.01,
+                                 scaleX: 1, scaleY: 1 - (beat + 1) * 0.5 * flap * 0.07,
+                                 rotation: tilt, opacity: min(1, t / 0.1), anchor: .center)
+            }
+            // Touchdown: the tilt eases out and the body gives, springing
+            // back in a damped wobble.
+            let s = t - fly
+            // Starts at nothing and gives at once, so the touchdown flows on
+            // from the glide rather than snapping to a squash.
+            let give = IllustrationMotion.springOut(s, frequency: 2.6, damping: 0.34) * 0.17
+            let tilt = 14 * 0.4 * exp(-s * 9)
+            return LayerPose(x: 0, y: 0, scaleX: 1 + give * 0.55, scaleY: 1 - give,
+                             rotation: tilt, opacity: 1, anchor: .bottom)
+        }
+
+        /// A crouch, a spring up and away to the left, beating hard, out of
+        /// the drawing.
+        static func leaving(at t: Double) -> LayerPose {
+            if t < crouch {
+                let u = t / crouch
+                let dip = sin(u * .pi / 2) * 0.12
+                return LayerPose(x: 0, y: 0, scaleX: 1 + dip * 0.5, scaleY: 1 - dip,
+                                 rotation: 0, opacity: 1, anchor: .bottom)
+            }
+            let u = min((t - crouch) / (away - crouch), 1)
+            let e = IllustrationMotion.easeIn(u) * 0.7 + u * 0.3
+            // The crouch lets go over a few frames, not in one.
+            let release = 0.12 * exp(-(t - crouch) * 22)
+            let p = IllustrationMotion.curve(from: .zero, to: CGPoint(x: -0.2, y: -0.65),
+                                             bend: CGPoint(x: 0.28, y: -0.18), at: e)
+            let beat = sin((t - crouch) * .pi * 2 * 5)
+            return LayerPose(x: p.x, y: p.y + beat * 0.01,
+                             scaleX: 1 + release * 0.5, scaleY: 1 - (beat + 1) * 0.5 * 0.07 - release,
+                             rotation: 10 * e, opacity: 1 - max(0, (u - 0.85) / 0.15), anchor: .center)
+        }
+    }
+
+    // MARK: The cheer
+
+    /// One hop, the way a body jumps: a crouch, a stretch on take-off, a
+    /// gravity arc with its hang at the top, and a landing that squashes
+    /// and springs. The cheer marks pop as the friends reach the top.
+    private enum Cheer {
+        static let crouch = 0.16
+        static let air = 0.42
+        static let land = 0.6
+        static let total = crouch + air + land
+        static let height = 0.09      // of the drawing's height
+
+        static func friends(at t: Double) -> LayerPose {
+            guard t > 0, t < total else { return .rest }
+            if t < crouch {
+                let u = t / crouch
+                let dip = sin(u * .pi / 2) * 0.07
+                return LayerPose(x: 0, y: 0, scaleX: 1 + dip * 0.5, scaleY: 1 - dip,
+                                 rotation: 0, opacity: 1, anchor: .bottom)
+            }
+            if t < crouch + air {
+                let u = (t - crouch) / air
+                let lift = 4 * u * (1 - u) * height                 // a parabola: gravity
+                // Stretched leaving the ground and arriving, round at the top.
+                // (The crouch's 0.07 lets go over the first frames of the air.)
+                let stretch = (1 - 4 * u * (1 - u)) * 0.06 - 0.13 * exp(-(t - crouch) * 20)
+                return LayerPose(x: 0, y: -lift, scaleX: 1 - stretch * 0.5, scaleY: 1 + stretch,
+                                 rotation: 0, opacity: 1, anchor: .bottom)
+            }
+            // Lands still stretched (0.06), and the stretch turns into the
+            // squash and springs out: continuous with the last frame in the air.
+            let s = t - crouch - air
+            let y = 0.06 * IllustrationMotion.spring(s, frequency: 3.0, damping: 0.32)
+                - 0.07 * IllustrationMotion.springOut(s, frequency: 3.0, damping: 0.32)
+            return LayerPose(x: 0, y: 0, scaleX: 1 - y * 0.55, scaleY: 1 + y,
+                             rotation: 0, opacity: 1, anchor: .bottom)
+        }
+
+        /// The marks: faint while the friends gather, then a springy pop at
+        /// the top of the hop, settling as they land.
+        static func marks(at t: Double) -> LayerPose {
+            guard t > 0, t < total else { return .rest }
+            let popAt = crouch + air * 0.35
+            if t < popAt {
+                let u = t / popAt
+                return LayerPose(x: 0, y: 0, scaleX: 0.82, scaleY: 0.82,
+                                 rotation: 0, opacity: 0.15 + 0.35 * u, anchor: .center)
+            }
+            let s = t - popAt
+            let scale = 1 - 0.18 * IllustrationMotion.spring(s, frequency: 2.6, damping: 0.38)
+            return LayerPose(x: 0, y: 0, scaleX: scale, scaleY: scale,
+                             rotation: 0, opacity: min(1, 0.5 + s * 4), anchor: .center)
+        }
+    }
+
+    // MARK: Curves
+
+    static func easeOut(_ u: Double) -> Double { 1 - pow(1 - u, 3) }
+    static func easeIn(_ u: Double) -> Double { u * u * u }
+    static func easeOutBack(_ u: Double) -> Double {
+        let c = 1.70158
+        return 1 + (c + 1) * pow(u - 1, 3) + c * pow(u - 1, 2)
+    }
+    /// A damped spring released from 1 at t = 0, settling to 0: the give and
+    /// wobble of a landing. `frequency` in wobbles a second, `damping` 0..1.
+    static func spring(_ t: Double, frequency: Double, damping: Double) -> Double {
+        let w = 2 * .pi * frequency
+        return exp(-damping * w * t) * cos(w * sqrt(1 - damping * damping) * t)
+    }
+    /// The same spring set off from rest by a push: 0 at t = 0, out, back,
+    /// settling to 0. What a landing's give looks like.
+    static func springOut(_ t: Double, frequency: Double, damping: Double) -> Double {
+        let w = 2 * .pi * frequency
+        return exp(-damping * w * t) * sin(w * sqrt(1 - damping * damping) * t)
+    }
+    /// A quadratic curve through a control point bent off the straight line.
+    static func curve(from a: CGPoint, to b: CGPoint, bend: CGPoint, at u: Double) -> CGPoint {
+        let mid = CGPoint(x: (a.x + b.x) / 2 + bend.x, y: (a.y + b.y) / 2 + bend.y)
+        let v = 1 - u
+        return CGPoint(x: v * v * a.x + 2 * v * u * mid.x + u * u * b.x,
+                       y: v * v * a.y + 2 * v * u * mid.y + u * u * b.y)
+    }
+}
+
+/// Where a layer is at one instant, in fractions of the drawing's own size,
+/// so it moves the same on every screen.
+struct LayerPose: ViewModifier {
+    var x: Double
+    var y: Double
+    var scaleX: Double
+    var scaleY: Double
+    var rotation: Double
+    var opacity: Double
+    var anchor: UnitPoint
+
+    static let rest = LayerPose(x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, opacity: 1, anchor: .center)
+
+    func body(content: Content) -> some View {
+        let pose = self
+        return content
+            .visualEffect { view, proxy in
+                view
+                    .scaleEffect(x: pose.scaleX, y: pose.scaleY, anchor: pose.anchor)
+                    .rotationEffect(.degrees(pose.rotation), anchor: pose.anchor)
+                    .offset(x: pose.x * proxy.size.width, y: pose.y * proxy.size.height)
+            }
+            .opacity(pose.opacity)
     }
 }
