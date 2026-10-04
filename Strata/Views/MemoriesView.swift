@@ -606,7 +606,10 @@ struct MemoriesView: View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         if let art = UIImage(named: "Month" + month) {
             Illustration(art: art, line: Self.monthLine[month], height: 290,
-                         motion: UIImage(named: "Month" + month + "Crow").map { .crowLands(crow: $0) })
+                         motion: UIImage(named: "Month" + month + "Crow").map {
+                             .crowLands(crow: $0, eyes: UIImage(named: "Month" + month + "Eyes"),
+                                        mouth: UIImage(named: "Month" + month + "Mouth"))
+                         })
                 .layoutPriority(1)
                 .transition(.opacity)
         }

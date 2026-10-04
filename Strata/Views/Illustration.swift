@@ -28,10 +28,11 @@ struct Illustration: View {
     @State private var playedAt: Date?
     /// Plays since the page appeared: the first is the arrival.
     @State private var plays = 0
-    /// Where the moving layer's ink is, as a fraction of the drawing: what
-    /// it tilts and squashes around (the crow's own feet, not the corner of
-    /// the full-size layer it is drawn on, which swung it onto the sleeve).
-    @State private var ink: CGRect?
+    /// Where each moving layer's ink is, as fractions of the drawing: what it
+    /// tilts and squashes around (the crow's own feet, not the corner of the
+    /// full-size layer it is drawn on, which swung it onto the sleeve), and
+    /// where the eyes look from.
+    @State private var inks: [CGRect] = []
 
     var body: some View {
         VStack(spacing: GridConstants.gapItem) {
@@ -64,14 +65,16 @@ struct Illustration: View {
                 ZStack {
                     layer(art)
                         .modifier(motion.base(at: t, play: max(plays, 1)))
-                    layer(motion.layer)
-                        .modifier(motion.moving(at: t, play: max(plays, 1), ink: ink ?? CGRect(x: 0, y: 0, width: 1, height: 1)))
+                    ForEach(Array(motion.layers.enumerated()), id: \.offset) { index, image in
+                        layer(image)
+                            .modifier(motion.pose(of: index, at: t, play: max(plays, 1), inks: inks))
+                    }
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture { play() }
             .onAppear {
-                if ink == nil { ink = IllustrationMotion.inkBounds(of: motion.layer) }
+                if inks.isEmpty { inks = motion.layers.map(IllustrationMotion.inkBounds) }
                 plays = 0
                 play()
             }
@@ -79,7 +82,9 @@ struct Illustration: View {
         } else {
             ZStack {
                 layer(art)
-                if let motion { layer(motion.layer) }
+                if let motion {
+                    ForEach(Array(motion.layers.enumerated()), id: \.offset) { _, image in layer(image) }
+                }
             }
         }
     }
@@ -109,23 +114,31 @@ struct Illustration: View {
 /// How a drawing moves: which of its layers moves, and how, as a pure
 /// function of the seconds since the play began.
 enum IllustrationMotion {
-    /// October: the crow flies in and lands on the scarecrow's shoulder. The
-    /// first play is the arrival; a tap after it sends the crow off into the
-    /// sky and back to the same shoulder.
-    case crowLands(crow: UIImage)
+    /// October: the crow flies in and lands on the scarecrow's shoulder, and
+    /// the scarecrow watches it come (the owner, 2026-10-03: "can the face
+    /// actually react to the bird"): its eyes follow the crow a beat behind,
+    /// as eyes do, its mouth rounds to an "oh" as the crow comes close and
+    /// lands, and a moment later it looks back out at you. The first play is
+    /// the arrival; a tap sends the crow off into the sky and back.
+    case crowLands(crow: UIImage, eyes: UIImage?, mouth: UIImage?)
     /// Crews: the three friends hop together, and their cheer marks burst out.
     case cheer(marks: UIImage)
 
-    var layer: UIImage {
+    enum Role { case crow, eyes, mouth, marks }
+
+    var roles: [(Role, UIImage)] {
         switch self {
-        case .crowLands(let crow): crow
-        case .cheer(let marks): marks
+        case .crowLands(let crow, let eyes, let mouth):
+            [(.crow, crow)] + (eyes.map { [(.eyes, $0)] } ?? []) + (mouth.map { [(.mouth, $0)] } ?? [])
+        case .cheer(let marks): [(.marks, marks)]
         }
     }
 
+    var layers: [UIImage] { roles.map(\.1) }
+
     func duration(play: Int) -> Double {
         switch self {
-        case .crowLands: play <= 1 ? Crow.arrive : Crow.away + Crow.arrive
+        case .crowLands: (play <= 1 ? Crow.arrive : Crow.away + Crow.arrive) + Face.tail
         case .cheer: Cheer.total
         }
     }
@@ -138,20 +151,94 @@ enum IllustrationMotion {
         }
     }
 
-    func moving(at t: Double, play: Int, ink: CGRect) -> LayerPose {
+    /// One moving layer's pose. `inks` are the layers' ink boxes, in the
+    /// order of `layers`; until they are measured, everything rests.
+    func pose(of index: Int, at t: Double, play: Int, inks: [CGRect]) -> LayerPose {
+        guard inks.count == roles.count else { return .rest }
+        let ink = inks[index]
         var pose: LayerPose
-        switch self {
-        case .crowLands:
-            if play <= 1 { pose = Crow.arriving(at: t) }
-            else { pose = t < Crow.away ? Crow.leaving(at: t) : Crow.arriving(at: t - Crow.away) }
-        case .cheer:
+        switch roles[index].0 {
+        case .crow:
+            pose = crow(at: t, play: play)
+        case .marks:
             pose = Cheer.marks(at: t)
+        case .eyes:
+            guard let crowIndex = roles.firstIndex(where: { $0.0 == .crow }) else { return .rest }
+            // Where the crow is a beat ago: eyes trail a moving thing.
+            let lagged = crow(at: max(0, t - Face.lag), play: play)
+            let crowBox = inks[crowIndex]
+            pose = Face.eyes(looking: CGPoint(x: crowBox.midX + lagged.x, y: crowBox.midY + lagged.y),
+                             from: CGPoint(x: ink.midX, y: ink.midY),
+                             strength: Face.attention(at: t, play: play))
+        case .mouth:
+            pose = Face.mouth(at: t, play: play)
         }
         // Turn and squash around the layer's own ink: its middle, or its
         // foot when the pose says bottom.
         pose.anchor = pose.anchor == .bottom ? UnitPoint(x: ink.midX, y: ink.maxY)
                                              : UnitPoint(x: ink.midX, y: ink.midY)
         return pose
+    }
+
+    private func crow(at t: Double, play: Int) -> LayerPose {
+        if play <= 1 { return Crow.arriving(at: t) }
+        return t < Crow.away ? Crow.leaving(at: t) : Crow.arriving(at: t - Crow.away)
+    }
+
+    // MARK: The face
+
+    /// The scarecrow watching the crow.
+    private enum Face {
+        /// How far behind the crow the eyes are, in seconds.
+        static let lag = 0.09
+        /// How long after the crow lands the face holds, then looks back.
+        static let hold = 0.45
+        static let back = 0.6
+        static let tail = hold + back
+
+        /// How much the eyes are on the crow: they find it as it appears,
+        /// stay on it until a moment after it lands, then drift back out.
+        static func attention(at t: Double, play: Int) -> Double {
+            let landed = play <= 1 ? Crow.arrive : Crow.away + Crow.arrive
+            let find = smooth(t / 0.3)
+            let release = smooth((t - landed - hold) / back)
+            return find * (1 - release)
+        }
+
+        /// The dots shift toward the crow, a couple of points at most: a
+        /// glance, not a rotation. Direction only; the distance is fixed.
+        static func eyes(looking target: CGPoint, from eye: CGPoint, strength: Double) -> LayerPose {
+            // In points' proportions: the drawing is two-thirds as wide as tall.
+            let dx = (target.x - eye.x) * 0.667, dy = target.y - eye.y
+            let length = max(sqrt(dx * dx + dy * dy), 0.0001)
+            let reach = 0.0095 * strength
+            return LayerPose(x: dx / length * reach / 0.667, y: dy / length * reach,
+                             scaleX: 1, scaleY: 1, rotation: 0, opacity: 1, anchor: .center)
+        }
+
+        /// An "oh": rounds as the crow comes close, widest just after it
+        /// lands, then softens back. A small one when it takes off.
+        static func mouth(at t: Double, play: Int) -> LayerPose {
+            var oh = bump(t, rise: Crow.fly * 0.55, peak: Crow.fly + 0.12, fall: Crow.fly + 0.85)
+            if play > 1 {
+                oh = 0.55 * bump(t, rise: 0, peak: Crow.crouch + 0.15, fall: 0.75)
+                    + bump(t, rise: Crow.away + Crow.fly * 0.55, peak: Crow.away + Crow.fly + 0.12,
+                           fall: Crow.away + Crow.fly + 0.85)
+            }
+            return LayerPose(x: 0, y: 0, scaleX: 1 + 0.16 * oh, scaleY: 1 + 0.32 * oh,
+                             rotation: 0, opacity: 1, anchor: .center)
+        }
+
+        static func smooth(_ x: Double) -> Double {
+            let u = min(max(x, 0), 1)
+            return u * u * (3 - 2 * u)
+        }
+
+        /// 0 before `rise`, easing up to 1 at `peak`, easing down to 0 by `fall`.
+        static func bump(_ t: Double, rise: Double, peak: Double, fall: Double) -> Double {
+            if t <= rise || t >= fall { return 0 }
+            return t < peak ? smooth((t - rise) / (peak - rise)) : 1 - smooth((t - peak) / (fall - peak))
+        }
     }
 
     /// The box round a layer's ink, as fractions of the image, found once.
