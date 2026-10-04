@@ -612,6 +612,7 @@ struct MemoriesView: View {
                                         wingsDown: UIImage(named: "Month" + month + "CrowDown"),
                                         wingsOut: UIImage(named: "Month" + month + "CrowOut"),
                                         eyes: UIImage(named: "Month" + month + "Eyes"),
+                                        nose: UIImage(named: "Month" + month + "Nose"),
                                         mouth: UIImage(named: "Month" + month + "Mouth"))
                          })
                 .layoutPriority(1)

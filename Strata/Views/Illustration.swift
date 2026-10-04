@@ -131,20 +131,26 @@ enum IllustrationMotion {
     /// a flicker, and the body lifting on each downstroke. It glides in on
     /// spread wings, drops them to land, and is the perched crow from the
     /// touchdown; settled, it cocks its head (its own layer, on its neck).
+    ///
+    /// **The whole face turns, not just the eyes** (the owner: "is there a
+    /// reason the nose doesnt move?"). The eyes go furthest, the nose less
+    /// and the mouth least, which is what makes it read as a head turning
+    /// toward the crow rather than two dots sliding.
     case crowLands(crow: UIImage, head: UIImage?, wingsDown: UIImage?, wingsOut: UIImage?,
-                   eyes: UIImage?, mouth: UIImage?)
+                   eyes: UIImage?, nose: UIImage?, mouth: UIImage?)
     /// Crews: the three friends hop together, and their cheer marks burst out.
     case cheer(marks: UIImage)
 
-    enum Role { case crow, crowHead, crowDown, crowOut, eyes, mouth, marks }
+    enum Role { case crow, crowHead, crowDown, crowOut, eyes, nose, mouth, marks }
 
     var roles: [(Role, UIImage)] {
         switch self {
-        case .crowLands(let crow, let head, let down, let out, let eyes, let mouth):
+        case .crowLands(let crow, let head, let down, let out, let eyes, let nose, let mouth):
             var list: [(Role, UIImage)] = [(.crow, crow)]
             if let head { list.append((.crowHead, head)) }
             if let down, let out { list += [(.crowDown, down), (.crowOut, out)] }
             if let eyes { list.append((.eyes, eyes)) }
+            if let nose { list.append((.nose, nose)) }
             if let mouth { list.append((.mouth, mouth)) }
             return list
         case .cheer(let marks): return [(.marks, marks)]
@@ -192,16 +198,29 @@ enum IllustrationMotion {
             return pose
         case .marks:
             pose = Cheer.marks(at: t)
-        case .eyes:
-            guard let crowIndex = roles.firstIndex(where: { $0.0 == .crow }) else { return .rest }
-            // Where the crow is a beat ago: eyes trail a moving thing.
-            let lagged = crow(at: max(0, t - Face.lag), play: play)
-            let crowBox = inks[crowIndex]
-            pose = Face.eyes(looking: CGPoint(x: crowBox.midX + lagged.x, y: crowBox.midY + lagged.y),
-                             from: CGPoint(x: ink.midX, y: ink.midY),
-                             strength: Face.attention(at: t, play: play))
-        case .mouth:
-            pose = Face.mouth(at: t, play: play)
+        case .eyes, .nose, .mouth:
+            // Each feature looks toward where the crow was a beat ago (eyes
+            // trail a moving thing), the eyes furthest, the nose and mouth
+            // less, so the face turns as one.
+            let share: Double = switch roles[index].0 {
+            case .eyes: 1
+            case .nose: 0.45
+            default: 0.3
+            }
+            var look = LayerPose.rest
+            if let crowIndex = roles.firstIndex(where: { $0.0 == .crow }) {
+                let lagged = crow(at: max(0, t - Face.lag), play: play)
+                let crowBox = inks[crowIndex]
+                look = Face.eyes(looking: CGPoint(x: crowBox.midX + lagged.x, y: crowBox.midY + lagged.y),
+                                 from: CGPoint(x: ink.midX, y: ink.midY),
+                                 strength: Face.attention(at: t, play: play) * share)
+            }
+            if roles[index].0 == .mouth {
+                pose = Face.mouth(at: t, play: play)
+                pose.x = look.x; pose.y = look.y
+            } else {
+                pose = look
+            }
         }
         // Turn and squash around the layer's own ink: its middle, or its
         // foot when the pose says bottom.
