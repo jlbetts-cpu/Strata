@@ -27,12 +27,14 @@ enum StrataTab: String, CaseIterable {
     /// on the bottom are clear... they kinda help understand what the tab is
     /// for", and "I only want sf symbols"). Wins was `square.stack`, a pile of
     /// cards, and Memories `photo.stack`, a pile of photos; neither named its
-    /// tab. Wins is the trophy, his pick; Memories is the calendar the page
+    /// tab. Wins is the house, where the app opens (his call, over the trophy
+    /// he first picked: a trophy reads as a big achievement, not a small daily
+    /// one); Memories is the calendar the page
     /// opens on. `calendar` has no filled form, so it is the same drawing in
     /// both states and the bar's own highlight says "here".
     func image(selected: Bool) -> Image {
         switch self {
-        case .tower: Image(systemName: selected ? "trophy.fill" : "trophy")
+        case .tower: Image(systemName: selected ? "house.fill" : "house")
         case .camera: Image(systemName: selected ? "camera.fill" : "camera")
         case .memories: Image(systemName: "calendar")
         }
