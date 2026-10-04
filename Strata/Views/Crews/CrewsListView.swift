@@ -52,6 +52,17 @@ struct CrewsListView: View {
                                 }
                             }
                     }
+                    // Under the crews, the owner's drawing of three friends
+                    // and its line (2026-10-03): what a crew is for, said
+                    // once, where the list ends.
+                    if let art = UIImage(named: "CrewsTogether") {
+                        Illustration(art: art, line: "Winning is better together", height: 120)
+                            .padding(.top, GridConstants.gapSection)
+                            .padding(.bottom, GridConstants.gapWide)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .selectionDisabled()
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)

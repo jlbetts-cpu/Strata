@@ -596,20 +596,16 @@ struct MemoriesView: View {
     /// named for the month, "MonthOctober", when one is in the catalogue, and
     /// nothing at all until then (the owner is drawing one for each month).
     ///
-    /// **Set the way HeyTea sets its illustrations** (the owner, 2026-10-03:
-    /// "they tastefully add it in... in a neat container... some text like
-    /// happy halloween in the clean sf pro... make it a part of the image"):
-    /// the drawing and its line together in one quiet card. The card is an
-    /// empty calendar day grown large, the same recess and the same lit rim,
-    /// so it belongs to the calendar under it rather than sitting on the page
-    /// like a sticker. The drawing is in the page's ink, so it follows dark
-    /// mode.
+    /// The drawing and its line on the page itself, set the way HeyTea sets
+    /// its illustrations (the owner, 2026-10-03: "some text like happy
+    /// halloween in the clean sf pro... make it a part of the image"). It was
+    /// in a card for one build; "I dont like the illustration in the block
+    /// try it just blank". See `Illustration`.
     @ViewBuilder
     private var monthArt: some View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         if let art = UIImage(named: "Month" + month) {
-            MonthCard(art: art, line: Self.monthLine[month])
-                .frame(maxWidth: .infinity)
+            Illustration(art: art, line: Self.monthLine[month], height: 170)
                 .transition(.opacity)
         }
     }
@@ -795,45 +791,3 @@ enum MemoriesRoute: Hashable {
     case moment(String)
 }
 
-/// One month's drawing and its line, in a card made like an empty day.
-private struct MonthCard: View {
-    let art: UIImage
-    let line: String?
-    @Environment(\.colorScheme) private var colorScheme
-
-    /// About two calendar columns wide either side of the middle: big enough
-    /// to be the page's picture, small enough that the page stays the month's.
-    private static let width: CGFloat = 212
-    private static let radius: CGFloat = 28
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-        VStack(spacing: GridConstants.gapItem) {
-            Image(uiImage: art)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(AppColors.inkPrimary)
-                .frame(maxHeight: 150)
-            if let line {
-                Text(line)
-                    .font(.system(.subheadline, design: .default, weight: .semibold))
-                    .tracking(0.2)
-                    .foregroundStyle(AppColors.inkPrimary)
-            }
-        }
-        .padding(.horizontal, GridConstants.gapWide)
-        .padding(.top, GridConstants.gapWide)
-        .padding(.bottom, GridConstants.gapItem + 4)
-        .frame(width: Self.width)
-        .background {
-            shape.fill(AppColors.slotInk.opacity(MonthCalendarCell.wellInk(filled: 0)))
-                .overlay {
-                    shape.strokeBorder(BlockRim.gradient(in: colorScheme), lineWidth: GridConstants.blockRimWidth)
-                }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(line ?? "")
-        .accessibilityHidden(line == nil)
-    }
-}
