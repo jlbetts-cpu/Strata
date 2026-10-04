@@ -60,72 +60,86 @@ sketch, then trace it in Procreate with your own hand. You keep the
 composition and gain the real wobble. Your own drawings already have the thing
 AI can't fake; this gives them structure.
 
-## The prompt (v3)
+## The prompt (v4)
 
-**Why v2 failed** (first real result, 2026-10-03, a scarecrow): every contour
-drawn with several hairy strokes, hatching on the hat, the coat and the
-ground, a grey pencil smudge, six falling leaves, straw fingers. The owner:
-"too many lines... doesnt have the hey tea style at all... too complicated".
-The words did it: "pen-and-ink", "storybook sketch", "1920s" and "hatch
-strokes" ask a model for exactly that rendering, and the Shepard reference
-pages pull the same way. What it got right, and v3 keeps: the slumped
-gesture, the dot eyes, one prop.
+**Why v3 still read as AI** (second result, 2026-10-03, a pumpkin, a broom
+and a crow): one perfectly even line weight, every curve smooth and closed,
+a kawaii smile on the pumpkin, a symmetrical pumpkin and a neatly detailed
+broom binding. Clean, polished and cute: the default look of an image model.
+"Tea-brand illustration" means nothing to a model, and "playful" pulled it
+toward kawaii.
 
-**v3 flips the weighting.** HeyTea leads: one clean line, each contour drawn
-once, very few elements, lots of white. Shepard is reduced to three things:
-a slight wobble, contours left open, and at most one tiny patch of shadow.
+**What HeyTea actually does, in a model's terms:** a thin, slightly shaky
+fineliner line on paper; strokes that don't quite meet; naive, slightly
+awkward proportions drawn that way on purpose by an adult; deadpan figures,
+often in profile, with a dot eye or no face; dry humour in an ordinary
+moment; lots of empty paper. Not cute. Shepard stays only as the occasional
+open contour.
 
 ### References
 
-Use **only your own drawings** (01 and 02 in `illustration-references/`)
-for the custom style. Leave the Shepard pages out: they teach density, and
-density is what went wrong. Add your best v3 results to the style as they
-come.
+Into the custom style: **5 to 8 HeyTea illustrations you save yourself**
+(black line only, one figure, deadpan, mostly white; from HeyTea's own
+Instagram or Weibo, Icy Tan's HeyTea project, or the HeyTea illustration
+board on Pinterest), **plus your October drawing**. Imitating the style is
+fair; the images stay private references and nothing of theirs is published.
+Leave the Shepard pages out.
 
 ### The recurring character
 
-> a small round-headed person, slightly lopsided round head, two dot eyes,
-> simple soft bean-shaped body, short stubby arms and legs, no fingers
+> a deadpan little person drawn naively, a slightly too-big round head, a
+> single dot eye, often seen in profile, a plain soft body, stick-like arms,
+> no fingers
 
 ### The prompt
 
 ```
-A minimal doodle illustration of [SCENE, one small everyday moment, one
-character, at most one prop].
+A naive fineliner doodle of [SCENE, one ordinary moment, one character or
+object, at most one prop].
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each
-contour drawn once in a single smooth stroke, even medium weight with soft
-round ends, slightly wobbly as if by hand, some contours left open. Simple
-round shapes, dot eyes, no fingers. Lots of white space: the drawing is small
-and centred. The ground is one short line. At most one tiny patch of three
-short parallel strokes for shadow. About 15 to 25 lines in total. Quiet,
-playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult
+on purpose simply: slightly shaky, small gaps where strokes don't quite
+meet, a few lines that overshoot, uneven pressure. Slightly awkward naive
+proportions. Deadpan: a single dot eye or no face, figures often in profile,
+no smiles. Dry, understated humour. Lots of empty paper; the doodle is small
+and centred. One short ground line. About 12 to 20 lines in total. Black line
+on white only.
 ```
 
 ### Negative prompt
 
 ```
-sketchy lines, multiple overlapping strokes, hairy lines, cross-hatching,
-hatching, pencil shading, smudge, grey, texture, stippling, detailed
-rendering, vintage engraving, scattered elements, falling leaves, confetti,
-motion lines, background, frame, border, fingers, straw, text, letters,
-signature, watermark, colour, gradient, 3D, realistic proportions
+cute, kawaii, smiling faces, chibi, cartoon mascot, clip art, vector art,
+perfectly smooth curves, uniform line weight, closed outlines, symmetry,
+polished, detailed, hatching, shading, grey, texture, colour, gradient,
+scattered elements, background, frame, text, letters, signature, watermark,
+fingers, 3D
 ```
 
 ### Settings
 
-Recraft: Vector illustration (or the custom style from your drawings only),
-square, 4 variations. Elsewhere: square, 4 variations, then vectorise.
+Recraft: your custom style (the HeyTea references and October), square, 4
+variations. If the tool has a "raw" or low-stylisation setting, use it: the
+model's own polish is what reads as AI. Vectorise after (below) keeping the
+wobble; don't smooth.
 
 ### Pick the one that passes
 
-- **Can you count the lines?** If not, it's too busy.
-- **Is every contour a single stroke,** never a bundle of hairy ones?
-- **One character, at most one prop,** nothing scattered around them?
-- **Is white most of the picture?**
+- **Does it look slightly wrong in a charming way** (proportions, a gap, a
+  wobble)? If it looks perfect, it reads as AI.
+- **No smile, no kawaii face?**
+- **Line thin and a little uneven, strokes not all closed?**
+- **12 to 20 lines, one subject, mostly white?**
 - **At 60pt, can you still tell what's happening?**
-- **No hatching beyond one tiny patch, no grey, no fingers, no text?**
-- **Beside October and the crews drawing,** does it look like the same hand?
+- **Beside your October drawing,** could it be the same hand?
+
+### The surest route
+
+Draw the composition yourself as a rough doodle (your October drawing is
+exactly the right energy), then use the tool's image-to-image or sketch mode
+with this prompt and low strength, so it only tidies your line. The
+imperfection stays yours, and the result can't look generated because it
+isn't, mostly.
 
 **Scene ideas, one per month, each a small win:**
 
@@ -146,7 +160,7 @@ square, 4 variations. Elsewhere: square, 4 variations, then vectorise.
 
 ## Prompts by screen
 
-Every prompt below is the v3 prompt with its scene filled in. Paste it as is,
+Every prompt below is the v4 prompt with its scene filled in. Paste it as is,
 with the negative prompt from above. One drawing per screen, where the screen
 is waiting for you; the Wins tower itself stays empty, because it is the
 space you fill. **Size** is the most the app draws it, in points; store it
@@ -157,97 +171,97 @@ at 3x. **Asset** is the name to save it as, so it drops straight in.
 **January**: asset `MonthJanuary`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body in a long scarf walking a small dog through two strokes of snow.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye in a long scarf walking a small dog through two strokes of snow.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **February**: asset `MonthFebruary`, up to 170pt tall
 
 ```
-A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies sharing one small umbrella, a heart-shaped puddle at their feet.
+A naive fineliner doodle of two deadpan little people with slightly too-big round heads and single dot eyes sharing one small umbrella, a heart-shaped puddle at their feet.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **March**: asset `MonthMarch`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body kneeling to pat the soil around one seedling, a worm peeking out.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye kneeling to pat the soil around one seedling, a worm peeking out.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **April**: asset `MonthApril`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body mid-jump over a puddle, a frog on the edge looking unimpressed.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye mid-jump over a puddle, a frog on the edge looking unimpressed.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **May**: asset `MonthMay`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body on the corner of a picnic blanket, a single bee on their sandwich.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye on the corner of a picnic blanket, a single bee on their sandwich.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **June**: asset `MonthJune`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body reading under a small round tree, feet crossed up on the trunk.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye reading under a small round tree, feet crossed up on the trunk.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **July**: asset `MonthJuly`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body sitting on a hill looking up at one simple firework.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye sitting on a hill looking up at one simple firework.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **August**: asset `MonthAugust`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body riding a bike with a little kite trailing behind.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye riding a bike with a little kite trailing behind.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **September**: asset `MonthSeptember`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body carrying a stack of three books, the top one tipping.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye carrying a stack of three books, the top one tipping.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **October**: asset `MonthOctober`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a crow perched on a round pumpkin with a broom leaning against it, one small bat above.
+A naive fineliner doodle of a crow perched on a round pumpkin with a broom leaning against it, one small bat above.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **November**: asset `MonthNovember`, up to 170pt tall
 
 ```
-A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies holding mugs side by side, their steam curling into one swirl.
+A naive fineliner doodle of two deadpan little people with slightly too-big round heads and single dot eyes holding mugs side by side, their steam curling into one swirl.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **December**: asset `MonthDecember`, up to 170pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body carrying a small round tree home, a little snow on their hat.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye carrying a small round tree home, a little snow on their hat.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 ### Crews
@@ -255,49 +269,49 @@ Drawn like a modern tea-brand illustration: a few confident black lines, each co
 **Under the crews list**: asset `CrewsTogether`, up to 120pt tall
 
 ```
-A minimal doodle illustration of three small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies standing close on a small hill, arms up, a few short rays above them.
+A naive fineliner doodle of three deadpan little people with slightly too-big round heads and single dot eyes standing close on a small hill, arms up, a few short rays above them.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **No crews yet**: asset `CrewsEmpty`, up to 140pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a door open and waving someone in.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye holding a door open and waving someone in.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Crews are for 13 and up**: asset `CrewsTooYoung`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body happily stacking three small blocks into a little tower on their own.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye happily stacking three small blocks into a little tower on their own.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Signed out of iCloud**: asset `CrewsNoICloud`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding the string of a small cloud like a balloon.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye holding the string of a small cloud like a balloon.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Crew rules (before the first crew)**: asset `CrewRules`, up to 120pt tall
 
 ```
-A minimal doodle illustration of two small round-headed people with slightly lopsided heads, dot eyes and soft bean-shaped bodies giving each other a high five.
+A naive fineliner doodle of two deadpan little people with slightly too-big round heads and single dot eyes giving each other a high five.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Report sent**: asset `ReportThanks`, up to 100pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body dropping a small envelope into a round postbox.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye dropping a small envelope into a round postbox.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 ### Wins and Plan
@@ -305,17 +319,17 @@ Drawn like a modern tea-brand illustration: a few confident black lines, each co
 **Empty plan**: asset `PlanEmpty`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body with a pencil tucked behind the ear, looking at one short checklist.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye with a pencil tucked behind the ear, looking at one short checklist.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **First open, before the first win**: asset `WinsFirst`, up to 140pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body placing one small square block on the ground, very proud.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye placing one small square block on the ground, very proud.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 ### Memories states
@@ -323,33 +337,33 @@ Drawn like a modern tea-brand illustration: a few confident black lines, each co
 **A day with nothing logged**: asset `DayEmpty`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body napping on a small bench, one 'z' above.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye napping on a small bench, one 'z' above.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **No photographs in a month**: asset `PhotosEmpty`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a simple camera sitting on a stool, a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body peeking from behind it.
+A naive fineliner doodle of a simple camera sitting on a stool, a deadpan little person with a slightly too-big round head and a single dot eye peeking from behind it.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **No recap yet**: asset `RecapEmpty`, up to 110pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a small film reel and waiting, tapping one foot.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye holding a small film reel and waiting, tapping one foot.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Location off (map)**: asset `MapNoLocation`, up to 110pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a folded map upside down, puzzled.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye holding a folded map upside down, puzzled.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 ### Camera and settings
@@ -357,25 +371,25 @@ Drawn like a modern tea-brand illustration: a few confident black lines, each co
 **Camera turned off**: asset `CameraOff`, up to 120pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body holding a camera with the lens cap still on.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye holding a camera with the lens cap still on.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Notifications off**: asset `NotificationsOff`, up to 100pt tall
 
 ```
-A minimal doodle illustration of a small round bell asleep, wearing a nightcap.
+A naive fineliner doodle of a small round bell asleep, wearing a nightcap.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 **Privacy: everything stays on the phone**: asset `PrivacyLocal`, up to 110pt tall
 
 ```
-A minimal doodle illustration of a small round-headed person with a slightly lopsided head, two dot eyes and a soft bean-shaped body tucking a phone into a coat pocket with a little smile.
+A naive fineliner doodle of a deadpan little person with a slightly too-big round head and a single dot eye tucking a phone into a coat pocket with a little smile.
 
-Drawn like a modern tea-brand illustration: a few confident black lines, each contour drawn once in a single smooth stroke, even medium weight with soft round ends, slightly wobbly as if by hand, some contours left open. Simple round shapes, dot eyes, no fingers. Lots of white space: the drawing is small and centred. The ground is one short line. At most one tiny patch of three short parallel strokes for shadow. About 15 to 25 lines in total. Quiet, playful humour. Black line on white.
+Thin black fineliner line on white paper, drawn quickly by hand by an adult on purpose simply: slightly shaky, small gaps where strokes don't quite meet, a few lines that overshoot, uneven pressure. Slightly awkward naive proportions. Deadpan: a single dot eye or no face, figures often in profile, no smiles. Dry, understated humour. Lots of empty paper; the doodle is small and centred. One short ground line. About 12 to 20 lines in total. Black line on white only.
 ```
 
 ## Making it ready for the app
