@@ -9,7 +9,9 @@ import SwiftUI
 struct Illustration: View {
     let art: UIImage
     let line: String?
-    /// The drawing's height. The width follows the drawing.
+    /// The drawing's height at most; the width follows the drawing. It gives
+    /// up to half of it on a small screen rather than crowd what is beside it
+    /// (an iPhone SE has about 130pt above October's calendar).
     var height: CGFloat = 150
 
     var body: some View {
@@ -19,7 +21,10 @@ struct Illustration: View {
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(AppColors.inkPrimary)
-                .frame(height: height)
+                .frame(minHeight: height * 0.5, maxHeight: height)
+                // Takes its room before the space around it does, so the
+                // space shrinks first and the drawing only after.
+                .layoutPriority(1)
             if let line {
                 Text(line)
                     .font(.system(.subheadline, design: .default, weight: .semibold))

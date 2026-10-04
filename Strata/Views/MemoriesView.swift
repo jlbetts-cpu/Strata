@@ -606,6 +606,7 @@ struct MemoriesView: View {
         let month = vm.monthTitle.split(separator: " ").first.map { String($0).capitalized } ?? ""
         if let art = UIImage(named: "Month" + month) {
             Illustration(art: art, line: Self.monthLine[month], height: 170)
+                .layoutPriority(1)
                 .transition(.opacity)
         }
     }
