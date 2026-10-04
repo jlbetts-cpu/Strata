@@ -56,6 +56,8 @@ PURPLE = (0xAF, 0x9C, 0xFA)   # creativity
 ORANGE = (0xFD, 0xB5, 0x4F)   # focus
 PINK = (0xEC, 0x85, 0xB4)     # mindfulness — the app's own colour
 WARM_BLACK = (0x1C, 0x1A, 0x18)
+# `AppColors.inkPrimary` on the white page: black at 85%.
+APP_INK = (38, 38, 38)
 
 # The mark is ONE colour, knocked out of a field.
 #
@@ -644,15 +646,24 @@ def main():
     #
     # `render_mark` and the ziggurat stay in this file. They cost nothing, they
     # are generated, and the reasoning behind them is on the record.
-    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
+    #
+    # **WHITE, AND FLAT** (2026-10-03). The owner: "make the logo white now
+    # instead of black... it matches the clean background better", and asked
+    # whether the S should be lighter than black. It is the app's own text
+    # ink, `inkPrimary` on the white page (black at 85%, 38/38/38): lighter
+    # than black, and the colour of every word and drawing in the app, so the
+    # icon and the app are one thing. Lighter greys were rendered beside it
+    # (#403D39, #5A5754) and went muddy at 60pt. Flat, not a block: drawn as a
+    # block, the rim put a pale halo round the S on white, which is the shine
+    # the owner had just taken out of dark mode.
+    render_svg_mark(ink=APP_INK, ground=(255, 255, 255), margin=0.2).save(
         os.path.join(OUT, "AppIcon-light.png"))
-    # Dark is the same drawing. The light one is already dark, and an icon
-    # that changes identity between appearances is two icons.
-    render_letter_block(ground=WARM_BLACK, surface=(255, 255, 255)).save(
+    # Dark: the same S, white, on the app's dark ground.
+    render_svg_mark(ink=(255, 255, 255), ground=WARM_BLACK, margin=0.2).save(
         os.path.join(OUT, "AppIcon-dark.png"))
     # Tinted is recoloured by iOS off luminance, so it has to be monochrome
     # going in — colour here would only be thrown away.
-    render_letter_block(ground=(0, 0, 0), surface=(250, 250, 250)).save(
+    render_svg_mark(ink=(250, 250, 250), ground=(0, 0, 0), margin=0.2).save(
         os.path.join(OUT, "AppIcon-tinted.png"))
     for name in ("light", "dark", "tinted"):
         p = os.path.join(OUT, f"AppIcon-{name}.png")
