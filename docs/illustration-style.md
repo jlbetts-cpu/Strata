@@ -1,5 +1,29 @@
 # Some Wins illustration style
 
+> **Decision, 2026-10-03: the owner draws them; Claude cleans and fits them.**
+> Two AI rounds read as AI. His own drawings already have the naive, deadpan
+> charm; what held them back was mechanics (a thick uneven marker line, big
+> filled blacks, extra strokes), not skill. The prompts below stay for
+> composition ideas only.
+
+## Drawing one in Procreate
+
+1. **Canvas:** 2048 x 2048 px. Hide the background layer before exporting,
+   so it comes out transparent.
+2. **Brush:** Inking > Technical Pen, black, about 18 to 22 px (roughly 1% of
+   the canvas width). Streamline low (10 to 20%) so your wobble stays. No
+   QuickShape: let circles be a bit lopsided.
+3. **Draw less:** one subject, 12 to 20 strokes. Stop when it reads.
+4. **No big black fills.** A crow or a bat is an outline with one dot eye.
+   Keep solid black to eyes and tiny details.
+5. **Leave it imperfect:** let strokes overshoot or not quite meet, and don't
+   redraw a line that wobbles. That's the charm.
+6. **Deadpan:** dot eyes, no smiles, no fingers.
+7. **Export:** Share > PNG, named for its place (`MonthNovember`,
+   `CrewsTogether`, `PlanEmpty`; see "Prompts by screen" for every name), and
+   send it. Claude crops it, removes specks, sizes it to 3x and fits it on the
+   page in the app's ink, so it works in dark mode.
+
 The owner, 2026-10-03: HeyTea's charm plus E.H. Shepard's old-timey pen
 sketches, simple and minimal, SVG, made for digital, and reading as human,
 imperfections and all.
