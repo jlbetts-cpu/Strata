@@ -148,17 +148,27 @@ struct BlockSurface<Fill: View>: View {
 /// side of centre carry their highlight on opposite corners and the tower reads
 /// as one thing standing in one place. `aim: .overhead` is the old behaviour and
 /// is what anything outside a tower still gets.
+///
+/// **AND IN DARK MODE IT IS THE PAGE, NOT A LIGHT** (2026-10-03). The owner:
+/// "the dark mode look... feels so different from the light mode like the rim
+/// light... instead of this shiny light for dark mode why dont we do the
+/// opposite... the light mode clearly looks better and more premium." He is
+/// right about why: on the light page the white rim is nearly the page's own
+/// colour, so it reads as the block's edge meeting the ground, cleanly. On the
+/// dark page the same white was a lit outline round every block, calendar day
+/// and swatch: a different look, not the same one inverted. So the rim is the
+/// GROUND in both: white on the white page, the dark page's charcoal on the
+/// dark one, at the same strengths. The two modes are now one design.
 enum BlockRim {
     static func gradient(in colorScheme: ColorScheme,
                          aim: BlockAim = .overhead) -> LinearGradient {
         let fall = GridConstants.blockRimFalloff
-        let peak = colorScheme == .dark ? 0.85 : 1.0
-        let rest = colorScheme == .dark ? fall * 0.7 : fall
+        let ground: Color = colorScheme == .dark ? WarmBackground.top : .white
         return LinearGradient(
             stops: [
-                .init(color: .white.opacity(peak), location: 0.0),
-                .init(color: .white.opacity(rest), location: 0.55),
-                .init(color: .white.opacity(rest), location: 1.0)
+                .init(color: ground.opacity(1.0), location: 0.0),
+                .init(color: ground.opacity(fall), location: 0.55),
+                .init(color: ground.opacity(fall), location: 1.0)
             ],
             startPoint: aim.lit,
             endPoint: aim.shaded
@@ -170,14 +180,20 @@ enum BlockRim {
 ///
 /// One definition, used by `BlockSurface` and by `MergedGroupView`, which
 /// anchors it to the bottom of the whole run instead of to each block in it.
+///
+/// Toward the GROUND, not toward white: white on the light page, the dark
+/// page's charcoal on the dark one (2026-10-03, with `BlockRim`). A white
+/// band on a dark page was a glow at the foot of every block.
 struct BlockWash: View {
     var opacity: Double = GridConstants.blockScrimOpacity
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let ground: Color = colorScheme == .dark ? WarmBackground.top : .white
         LinearGradient(
             stops: [
                 .init(color: .clear, location: GridConstants.blockBandStart),
-                .init(color: .white.opacity(opacity), location: 1.0)
+                .init(color: ground.opacity(opacity), location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom
