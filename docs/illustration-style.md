@@ -102,6 +102,31 @@ bold enough to read at icon size. Gentle, understated humour; posture tells
 the feeling. Black ink on white only.
 ```
 
+### 3b. A/B version: Shepard named, lightly
+
+Why the names are left out of 3: HeyTea's illustration barely exists in
+image models' training, so the name mostly yields tea cups and logos;
+Shepard's name is strong enough to pull Pooh and Piglet into the frame,
+which reads as pastiche (the most AI-looking result) and comes close to a
+known character; some services refuse or rewrite named-style requests; and
+two names average into two famous looks instead of one of yours. This
+version names Shepard as a mood only and fences off his characters. Run it
+beside 3 and keep whichever passes the checklist more often.
+
+```
+A pen-and-ink spot illustration of [SCENE, with the recurring character], in
+the spirit of E. H. Shepard's loose storybook pen sketches, simplified into a
+playful modern minimal brand illustration. One loose black ink line with
+gentle pressure variation, contours left open in places, a few short diagonal
+hatch strokes for shadow with light from the upper left, a hint of ground in
+two or three strokes fading into a pure white page. Centred vignette about a
+third of the square canvas, under 40 strokes, readable at icon size. Original
+characters only. Black ink on white only.
+```
+
+Add to the negative prompt for this version: `Winnie-the-Pooh, Pooh bear,
+Piglet, Eeyore, Christopher Robin, teddy bear, Hundred Acre Wood`.
+
 ### 4. Negative prompt
 
 ```
