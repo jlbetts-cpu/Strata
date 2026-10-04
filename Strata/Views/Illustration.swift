@@ -67,6 +67,9 @@ struct Illustration: View {
                         .modifier(motion.base(at: t, play: max(plays, 1)))
                     ForEach(Array(motion.layers.enumerated()), id: \.offset) { index, image in
                         layer(image)
+                            // Its own small move first (the crow's head
+                            // cocking on its neck), then the move it shares.
+                            .modifier(motion.localPose(of: index, at: t, play: max(plays, 1), inks: inks))
                             .modifier(motion.pose(of: index, at: t, play: max(plays, 1), inks: inks))
                     }
                 }
@@ -83,7 +86,8 @@ struct Illustration: View {
             ZStack {
                 layer(art)
                 if let motion {
-                    ForEach(Array(motion.layers.enumerated()), id: \.offset) { _, image in layer(image) }
+                    // Still: the perched crow, never its flying frames.
+                    ForEach(Array(motion.stillLayers.enumerated()), id: \.offset) { _, image in layer(image) }
                 }
             }
         }
@@ -120,21 +124,38 @@ enum IllustrationMotion {
     /// as eyes do, its mouth rounds to an "oh" as the crow comes close and
     /// lands, and a moment later it looks back out at you. The first play is
     /// the arrival; a tap sends the crow off into the sky and back.
-    case crowLands(crow: UIImage, eyes: UIImage?, mouth: UIImage?)
+    ///
+    /// **It flies on his drawings** (2026-10-03): two more crows he drew in
+    /// place, wings down and wings spread, alternate as the wingbeats, with
+    /// a two-frame blend at each change so the beat reads as motion, not as
+    /// a flicker, and the body lifting on each downstroke. It glides in on
+    /// spread wings, drops them to land, and is the perched crow from the
+    /// touchdown; settled, it cocks its head (its own layer, on its neck).
+    case crowLands(crow: UIImage, head: UIImage?, wingsDown: UIImage?, wingsOut: UIImage?,
+                   eyes: UIImage?, mouth: UIImage?)
     /// Crews: the three friends hop together, and their cheer marks burst out.
     case cheer(marks: UIImage)
 
-    enum Role { case crow, eyes, mouth, marks }
+    enum Role { case crow, crowHead, crowDown, crowOut, eyes, mouth, marks }
 
     var roles: [(Role, UIImage)] {
         switch self {
-        case .crowLands(let crow, let eyes, let mouth):
-            [(.crow, crow)] + (eyes.map { [(.eyes, $0)] } ?? []) + (mouth.map { [(.mouth, $0)] } ?? [])
-        case .cheer(let marks): [(.marks, marks)]
+        case .crowLands(let crow, let head, let down, let out, let eyes, let mouth):
+            var list: [(Role, UIImage)] = [(.crow, crow)]
+            if let head { list.append((.crowHead, head)) }
+            if let down, let out { list += [(.crowDown, down), (.crowOut, out)] }
+            if let eyes { list.append((.eyes, eyes)) }
+            if let mouth { list.append((.mouth, mouth)) }
+            return list
+        case .cheer(let marks): return [(.marks, marks)]
         }
     }
 
     var layers: [UIImage] { roles.map(\.1) }
+    var stillLayers: [UIImage] {
+        roles.filter { $0.0 != .crowDown && $0.0 != .crowOut }.map(\.1)
+    }
+    private var flies: Bool { roles.contains { $0.0 == .crowOut } }
 
     func duration(play: Int) -> Double {
         switch self {
@@ -158,8 +179,17 @@ enum IllustrationMotion {
         let ink = inks[index]
         var pose: LayerPose
         switch roles[index].0 {
-        case .crow:
+        case .crow, .crowHead, .crowDown, .crowOut:
+            // One move for every drawing of the crow, about the perched
+            // crow's own feet, so the frames stay on top of each other.
             pose = crow(at: t, play: play)
+            pose.opacity *= frameWeight(roles[index].0, at: t, play: play)
+            if let body = roles.firstIndex(where: { $0.0 == .crow }) {
+                let box = inks[body]
+                pose.anchor = pose.anchor == .bottom ? UnitPoint(x: box.midX, y: box.maxY)
+                                                     : UnitPoint(x: box.midX, y: box.midY)
+            }
+            return pose
         case .marks:
             pose = Cheer.marks(at: t)
         case .eyes:
@@ -181,8 +211,36 @@ enum IllustrationMotion {
     }
 
     private func crow(at t: Double, play: Int) -> LayerPose {
-        if play <= 1 { return Crow.arriving(at: t) }
-        return t < Crow.away ? Crow.leaving(at: t) : Crow.arriving(at: t - Crow.away)
+        if play <= 1 { return Crow.arriving(at: t, flies: flies) }
+        return t < Crow.away ? Crow.leaving(at: t, flies: flies) : Crow.arriving(at: t - Crow.away, flies: flies)
+    }
+
+    /// How much of each drawing of the crow shows: perched on the shoulder,
+    /// the flying frames in the air.
+    private func frameWeight(_ role: Role, at t: Double, play: Int) -> Double {
+        guard flies else { return role == .crow || role == .crowHead ? 1 : 0 }
+        let w: (perched: Double, down: Double, out: Double)
+        if play <= 1 { w = Crow.frames(arrivingAt: t) }
+        else if t < Crow.away { w = Crow.frames(leavingAt: t) }
+        else { w = Crow.frames(arrivingAt: t - Crow.away) }
+        switch role {
+        case .crow, .crowHead: return w.perched
+        case .crowDown: return w.down
+        case .crowOut: return w.out
+        default: return 1
+        }
+    }
+
+    /// A layer's own small move inside the shared one: the crow's head
+    /// cocking on its neck once it has settled.
+    func localPose(of index: Int, at t: Double, play: Int, inks: [CGRect]) -> LayerPose {
+        guard inks.count == roles.count, roles[index].0 == .crowHead else { return .rest }
+        let landed = play <= 1 ? Crow.fly : Crow.away + Crow.fly
+        let ink = inks[index]
+        var pose = LayerPose.rest
+        pose.rotation = Crow.headCock(at: t - landed)
+        pose.anchor = UnitPoint(x: ink.midX, y: ink.maxY)
+        return pose
     }
 
     // MARK: The face
@@ -192,7 +250,7 @@ enum IllustrationMotion {
         /// How far behind the crow the eyes are, in seconds.
         static let lag = 0.09
         /// How long after the crow lands the face holds, then looks back.
-        static let hold = 0.45
+        static let hold = 0.6
         static let back = 0.6
         static let tail = hold + back
 
@@ -271,47 +329,75 @@ enum IllustrationMotion {
     /// landing that gives and springs, settling in two small wobbles. Every
     /// value is continuous across the phases, so nothing jumps.
     private enum Crow {
-        static let fly = 1.15         // in the air
+        static let fly = 1.25         // in the air
         static let settle = 0.55      // the springy touchdown
         static let arrive = fly + settle
         static let crouch = 0.14      // the anticipation before a take-off
         static let away = crouch + 0.95
+        /// Wingbeats a second.
+        static let beats = 3.4
         /// Where the flight starts, as a fraction of the drawing's size: up
         /// and off to the right, out of the drawing.
         static let from = CGPoint(x: 0.6, y: -0.55)
 
-        static func arriving(at t: Double) -> LayerPose {
+        /// The wing stroke: +1 wings spread, -1 wings down.
+        static func stroke(_ t: Double) -> Double { cos(t * .pi * 2 * beats) }
+
+        /// Which drawing shows as the crow comes in: beating, then a glide on
+        /// spread wings, then wings down to land, then perched.
+        static func frames(arrivingAt t: Double) -> (perched: Double, down: Double, out: Double) {
+            if t >= fly {
+                let p = smooth((t - fly) / 0.1)
+                return (p, 1 - p, 0)
+            }
+            let u = max(t, 0) / fly
+            var out = flap(stroke(t))
+            out += (1 - out) * smooth((u - 0.55) / 0.12)     // into the glide
+            out *= 1 - smooth((u - 0.84) / 0.1)               // wings down to land
+            return (0, 1 - out, out)
+        }
+
+        /// Taking off: perched through the crouch, then beating hard.
+        static func frames(leavingAt t: Double) -> (perched: Double, down: Double, out: Double) {
+            if t < crouch { return (1, 0, 0) }
+            let p = 1 - smooth((t - crouch) / 0.06)
+            let out = flap(stroke(t - crouch))
+            return (p, (1 - p) * (1 - out), (1 - p) * out)
+        }
+
+        /// The blend at each change of frame: two frames' worth, centred on
+        /// the change, so the beat reads as motion rather than a flicker.
+        static func flap(_ stroke: Double) -> Double { smooth((stroke + 0.28) / 0.56) }
+
+        static func arriving(at t: Double, flies: Bool) -> LayerPose {
             if t >= arrive { return .rest }
             if t < fly {
                 let u = t / fly
-                // Fast in, slowing to the perch (a cubic ease-out), along a
-                // curve that dips under the straight line like a swoop.
+                // Fast in, slowing to the perch, along a curve that dips
+                // under the straight line like a swoop.
                 let e = IllustrationMotion.easeOut(u)
                 let p = IllustrationMotion.curve(from: from, to: .zero, bend: CGPoint(x: 0.22, y: 0.08), at: e)
-                // Wingbeats: strong early, fading to a glide by 70%.
-                let flap = max(0, 1 - u / 0.7)
-                let beat = sin(t * .pi * 2 * 4.5)
+                let beating = 1 - smooth((u - 0.5) / 0.15)
+                // The body rises as the wings come down, and sinks as they
+                // lift: a quarter beat behind the stroke.
+                let lift = -sin(t * .pi * 2 * beats) * 0.011 * beating
                 // The brake: the body tips back over the last fifth.
                 let brake = max(0, (u - 0.8) / 0.2)
                 let tilt = -16 * (1 - e) + 14 * sin(brake * .pi / 2) * (1 - brake * 0.6)
-                return LayerPose(x: p.x, y: p.y + beat * flap * 0.01,
-                                 scaleX: 1, scaleY: 1 - (beat + 1) * 0.5 * flap * 0.07,
-                                 rotation: tilt, opacity: min(1, t / 0.1), anchor: .center)
+                // Without the flying frames, the body squash stands in for wings.
+                let squash = flies ? 0 : (stroke(t) + 1) * 0.5 * beating * 0.07
+                return LayerPose(x: p.x, y: p.y + lift, scaleX: 1, scaleY: 1 - squash,
+                                 rotation: tilt + 3 * sin(t * .pi * 2 * beats) * beating,
+                                 opacity: min(1, t / 0.1), anchor: .center)
             }
-            // Touchdown: the tilt eases out and the body gives, springing
-            // back in a damped wobble.
             let s = t - fly
-            // Starts at nothing and gives at once, so the touchdown flows on
-            // from the glide rather than snapping to a squash.
             let give = IllustrationMotion.springOut(s, frequency: 2.6, damping: 0.34) * 0.17
             let tilt = 14 * 0.4 * exp(-s * 9)
             return LayerPose(x: 0, y: 0, scaleX: 1 + give * 0.55, scaleY: 1 - give,
                              rotation: tilt, opacity: 1, anchor: .bottom)
         }
 
-        /// A crouch, a spring up and away to the left, beating hard, out of
-        /// the drawing.
-        static func leaving(at t: Double) -> LayerPose {
+        static func leaving(at t: Double, flies: Bool) -> LayerPose {
             if t < crouch {
                 let u = t / crouch
                 let dip = sin(u * .pi / 2) * 0.12
@@ -320,14 +406,32 @@ enum IllustrationMotion {
             }
             let u = min((t - crouch) / (away - crouch), 1)
             let e = IllustrationMotion.easeIn(u) * 0.7 + u * 0.3
-            // The crouch lets go over a few frames, not in one.
-            let release = 0.12 * exp(-(t - crouch) * 22)
             let p = IllustrationMotion.curve(from: .zero, to: CGPoint(x: -0.2, y: -0.65),
                                              bend: CGPoint(x: 0.28, y: -0.18), at: e)
-            let beat = sin((t - crouch) * .pi * 2 * 5)
-            return LayerPose(x: p.x, y: p.y + beat * 0.01,
-                             scaleX: 1 + release * 0.5, scaleY: 1 - (beat + 1) * 0.5 * 0.07 - release,
-                             rotation: 10 * e, opacity: 1 - max(0, (u - 0.85) / 0.15), anchor: .center)
+            let release = 0.12 * exp(-(t - crouch) * 22)
+            let lift = -sin((t - crouch) * .pi * 2 * beats) * 0.011
+            let squash = flies ? 0 : (stroke(t - crouch) + 1) * 0.5 * 0.07
+            return LayerPose(x: p.x, y: p.y + lift,
+                             scaleX: 1 + release * 0.5, scaleY: 1 - squash - release,
+                             rotation: 10 * e + 3 * sin((t - crouch) * .pi * 2 * beats),
+                             opacity: 1 - max(0, (u - 0.85) / 0.15), anchor: .center)
+        }
+
+        /// Settled on the shoulder, the head cocks, as birds do: a tilt and
+        /// back, then a smaller one the other way. `s` is seconds since the
+        /// feet touched.
+        static func headCock(at s: Double) -> Double {
+            func ease(_ a: Double, _ b: Double, _ from: Double, _ to: Double) -> Double? {
+                guard s >= a, s < b else { return nil }
+                return from + (to - from) * smooth((s - a) / (b - a))
+            }
+            return ease(0.35, 0.6, 0, 11) ?? ease(0.6, 0.95, 11, 11) ?? ease(0.95, 1.25, 11, 0)
+                ?? ease(1.25, 1.45, 0, -6) ?? ease(1.45, 1.7, -6, 0) ?? 0
+        }
+
+        static func smooth(_ x: Double) -> Double {
+            let u = min(max(x, 0), 1)
+            return u * u * (3 - 2 * u)
         }
     }
 

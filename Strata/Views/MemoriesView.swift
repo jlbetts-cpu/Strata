@@ -607,7 +607,11 @@ struct MemoriesView: View {
         if let art = UIImage(named: "Month" + month) {
             Illustration(art: art, line: Self.monthLine[month], height: 290,
                          motion: UIImage(named: "Month" + month + "Crow").map {
-                             .crowLands(crow: $0, eyes: UIImage(named: "Month" + month + "Eyes"),
+                             .crowLands(crow: $0,
+                                        head: UIImage(named: "Month" + month + "CrowHead"),
+                                        wingsDown: UIImage(named: "Month" + month + "CrowDown"),
+                                        wingsOut: UIImage(named: "Month" + month + "CrowOut"),
+                                        eyes: UIImage(named: "Month" + month + "Eyes"),
                                         mouth: UIImage(named: "Month" + month + "Mouth"))
                          })
                 .layoutPriority(1)
