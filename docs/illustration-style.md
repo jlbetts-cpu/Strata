@@ -23,24 +23,27 @@ and scenes that fade out at the edges instead of sitting in a frame.
 
 ## The rules
 
-1. **One ink, one weight family.** Near-black line (the app tints it), a nib
-   that swells slightly on downstrokes and thins at the ends. No fills except
-   eyes and the occasional tiny solid (a crow, a shoe).
+1. **One clean line, drawn once.** Near-black (the app tints it), even medium
+   weight, soft round ends, a slight hand wobble. Every contour is a single
+   stroke, never a bundle of sketchy ones. No fills except eyes and the
+   occasional tiny solid (a crow, a shoe).
 2. **Lines don't close.** Contours break, overshoot a little, or stop short.
    A shape is suggested, not traced shut.
-3. **Hatching is shadow, and there is little of it.** Three to seven short
-   parallel strokes on the side away from the light, and a small patch under
-   whatever stands on the ground. Never a grey fill.
-4. **No frame. A vignette.** The ground is two to four short horizontal strokes
-   and a tuft or two of grass; the scene fades into white at the edges.
-5. **White is most of the picture.** The subject takes about a third of the
+3. **Almost no shadow.** At most one tiny patch of three short parallel
+   strokes, usually under whatever stands on the ground. Never a grey fill,
+   never hatching across a form.
+4. **No frame, no scenery.** The ground is one short line. Nothing scattered
+   around the subject: no leaves, no confetti, no motion lines.
+5. **Count the lines.** About 15 to 25 in the whole drawing. One character,
+   at most one prop.
+6. **White is most of the picture.** The subject takes about a third of the
    canvas, centred, with air on every side.
-6. **Gesture over detail.** Round heads, dot eyes, at most a short mouth. Arms
+7. **Gesture over detail.** Round heads, dot eyes, at most a short mouth. Arms
    and posture say the feeling. No fingers (mittens or simple ends), no noses
    beyond a bump.
-7. **One small moment, gently funny.** A win the size of a day: a walk, a
+8. **One small moment, gently funny.** A win the size of a day: a walk, a
    tidied desk, a friend's call, a first coffee.
-8. **No text inside the drawing.** The app sets any words.
+9. **No text inside the drawing.** The app sets any words.
 
 ## What gives AI away, avoided by design
 
@@ -57,109 +60,72 @@ sketch, then trace it in Procreate with your own hand. You keep the
 composition and gain the real wobble. Your own drawings already have the thing
 AI can't fake; this gives them structure.
 
-## The prompt (v2)
+## The prompt (v3)
 
-v1 rated 7/10 against these criteria: it put "no colour, no text, no frame"
-inside the prompt, where image models tend to draw the nouns; it was long
-and loose for Recraft, which follows short structured prompts; nothing held
-a series together from month to month; nothing kept it readable at 120 to
-170pt; it asked for a re-traced line, which comes out as a doubled outline;
-and it gave no way to judge results. v2 fixes each. It is rated on craft,
-not on runs: test it on the tool and adjust the scene line first.
+**Why v2 failed** (first real result, 2026-10-03, a scarecrow): every contour
+drawn with several hairy strokes, hatching on the hat, the coat and the
+ground, a grey pencil smudge, six falling leaves, straw fingers. The owner:
+"too many lines... doesnt have the hey tea style at all... too complicated".
+The words did it: "pen-and-ink", "storybook sketch", "1920s" and "hatch
+strokes" ask a model for exactly that rendering, and the Shepard reference
+pages pull the same way. What it got right, and v3 keeps: the slumped
+gesture, the dot eyes, one prop.
 
-### 1. Make it one series (once)
+**v3 flips the weighting.** HeyTea leads: one clean line, each contour drawn
+once, very few elements, lots of white. Shepard is reduced to three things:
+a slight wobble, contours left open, and at most one tiny patch of shadow.
 
-In Recraft, create a **custom style** from 3 to 5 references: your October
-and crews drawings plus the first outputs you love. Every month is then
-generated in that saved style, so the series holds together even when the
-scene changes. Re-save the style as better pieces come in.
+### References
 
-### 2. The recurring character
+Use **only your own drawings** (01 and 02 in `illustration-references/`)
+for the custom style. Leave the Shepard pages out: they teach density, and
+density is what went wrong. Add your best v3 results to the style as they
+come.
 
-Keep one figure across every drawing, so the series has a face:
+### The recurring character
 
-> a small round-headed person with a slightly lopsided round head, two dot
-> eyes, no mouth unless smiling, a simple rounded body like a soft bean, short
-> stubby arms and legs, no fingers
+> a small round-headed person, slightly lopsided round head, two dot eyes,
+> simple soft bean-shaped body, short stubby arms and legs, no fingers
 
-### 3. The prompt
-
-Two parts. The **style block** never changes; only the **scene** does.
-
-```
-A pen-and-ink spot illustration of [SCENE, one small everyday moment, with the
-recurring character].
-
-Style: 1920s storybook pen sketch meets modern minimalist brand illustration.
-One black ink line, medium weight and loose, drawn quickly by hand, slightly
-wobbly, with gentle pressure variation and tapered ends. Contours left open
-in places. Light from the upper left: a few short diagonal hatch strokes on
-the lower right of each form and a small hatched patch on the ground beneath.
-The ground is two or three short horizontal strokes and a tuft of grass,
-fading into the white page. Pure white page around a centred vignette that
-fills about a third of the square canvas. Under 40 strokes in total, each
-bold enough to read at icon size. Gentle, understated humour; posture tells
-the feeling. Black ink on white only.
-```
-
-### 3b. A/B version: Shepard named, lightly
-
-Why the names are left out of 3: HeyTea's illustration barely exists in
-image models' training, so the name mostly yields tea cups and logos;
-Shepard's name is strong enough to pull Pooh and Piglet into the frame,
-which reads as pastiche (the most AI-looking result) and comes close to a
-known character; some services refuse or rewrite named-style requests; and
-two names average into two famous looks instead of one of yours. This
-version names Shepard as a mood only and fences off his characters. Run it
-beside 3 and keep whichever passes the checklist more often.
+### The prompt
 
 ```
-A pen-and-ink spot illustration of [SCENE, with the recurring character], in
-the spirit of E. H. Shepard's loose storybook pen sketches, simplified into a
-playful modern minimal brand illustration. One loose black ink line with
-gentle pressure variation, contours left open in places, a few short diagonal
-hatch strokes for shadow with light from the upper left, a hint of ground in
-two or three strokes fading into a pure white page. Centred vignette about a
-third of the square canvas, under 40 strokes, readable at icon size. Original
-characters only. Black ink on white only.
+A minimal doodle illustration of [SCENE, one small everyday moment, one
+character, at most one prop].
+
+Drawn like a modern tea-brand illustration: a few confident black lines, each
+contour drawn once in a single smooth stroke, even medium weight with soft
+round ends, slightly wobbly as if by hand, some contours left open. Simple
+round shapes, dot eyes, no fingers. Lots of white space: the drawing is small
+and centred. The ground is one short line. At most one tiny patch of three
+short parallel strokes for shadow. About 15 to 25 lines in total. Quiet,
+playful humour. Black line on white.
 ```
 
-Add to the negative prompt for this version: `Winnie-the-Pooh, Pooh bear,
-Piglet, Eeyore, Christopher Robin, teddy bear, Hundred Acre Wood`.
-
-### 4. Negative prompt
+### Negative prompt
 
 ```
-colour, grey, gradient, soft shading, solid black fills, 3D, glossy,
-perfect symmetry, uniform line weight, smooth closed outlines, doubled
-outlines, clip art, corporate flat vector, thick cartoon outline, frame,
-border, background scenery, pattern, text, letters, signature, watermark,
-hands with fingers, detailed faces, realistic proportions, tiny fine details
+sketchy lines, multiple overlapping strokes, hairy lines, cross-hatching,
+hatching, pencil shading, smudge, grey, texture, stippling, detailed
+rendering, vintage engraving, scattered elements, falling leaves, confetti,
+motion lines, background, frame, border, fingers, straw, text, letters,
+signature, watermark, colour, gradient, 3D, realistic proportions
 ```
 
-### 5. Settings
+### Settings
 
-- Recraft: **Vector illustration** style (or your saved custom style), square
-  1:1, 4 variations per run.
-- Elsewhere (Midjourney, GPT image, Imagen): square, generate 4, then
-  vectorise as below.
+Recraft: Vector illustration (or the custom style from your drawings only),
+square, 4 variations. Elsewhere: square, 4 variations, then vectorise.
 
-### 6. Pick the one that passes
+### Pick the one that passes
 
-Keep a drawing only if every answer is yes:
-
-- **At 60pt (thumbnail size):** can you still tell what's happening?
+- **Can you count the lines?** If not, it's too busy.
+- **Is every contour a single stroke,** never a bundle of hairy ones?
+- **One character, at most one prop,** nothing scattered around them?
 - **Is white most of the picture?**
-- **Do some lines stop short or overshoot?** (If every contour is sealed, it
-  will read as machine-made.)
-- **Is the hatching under 8 strokes per form, all one direction?**
-- **No fingers, no text, no frame, no grey?**
-- **Is something slightly off-balance?** (A tilt, a dropped stroke, a
-  lopsided head.)
+- **At 60pt, can you still tell what's happening?**
+- **No hatching beyond one tiny patch, no grey, no fingers, no text?**
 - **Beside October and the crews drawing,** does it look like the same hand?
-
-Then do the human pass: trace it once in Procreate at your own speed. That
-pass is what makes it yours.
 
 **Scene ideas, one per month, each a small win:**
 
