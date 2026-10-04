@@ -57,37 +57,84 @@ sketch, then trace it in Procreate with your own hand. You keep the
 composition and gain the real wobble. Your own drawings already have the thing
 AI can't fake; this gives them structure.
 
-## The prompt
+## The prompt (v2)
 
-Use Recraft (V3 or later) with the vector illustration style for a direct
-SVG, or any image model and then vectorise (below).
+v1 rated 7/10 against these criteria: it put "no colour, no text, no frame"
+inside the prompt, where image models tend to draw the nouns; it was long
+and loose for Recraft, which follows short structured prompts; nothing held
+a series together from month to month; nothing kept it readable at 120 to
+170pt; it asked for a re-traced line, which comes out as a doubled outline;
+and it gave no way to judge results. v2 fixes each. It is rated on craft,
+not on runs: test it on the tool and adjust the scene line first.
+
+### 1. Make it one series (once)
+
+In Recraft, create a **custom style** from 3 to 5 references: your October
+and crews drawings plus the first outputs you love. Every month is then
+generated in that saved style, so the series holds together even when the
+scene changes. Re-save the style as better pieces come in.
+
+### 2. The recurring character
+
+Keep one figure across every drawing, so the series has a face:
+
+> a small round-headed person with a slightly lopsided round head, two dot
+> eyes, no mouth unless smiling, a simple rounded body like a soft bean, short
+> stubby arms and legs, no fingers
+
+### 3. The prompt
+
+Two parts. The **style block** never changes; only the **scene** does.
 
 ```
-A minimal pen-and-ink vignette of [SCENE].
+A pen-and-ink spot illustration of [SCENE, one small everyday moment, with the
+recurring character].
 
-Drawn like an old-timey storybook sketch with a modern, playful simplicity:
-a single near-black ink line from a flexible dip pen, swelling slightly on
-downstrokes and tapering at the ends. Loose, confident, slightly wobbly lines
-that often don't close, overshoot a little or stop short. Simple round-headed
-characters with dot eyes and no fingers; posture and gesture carry the
-feeling. Shadow only as a few short, uneven cross-hatched strokes on one side
-and a small hatched patch on the ground beneath. The ground is just two or
-three short horizontal strokes and a couple of grass tufts that fade into
-white. No frame and no background: a vignette on pure white, the subject
-about a third of the canvas and centred, with lots of empty space. Gentle,
-understated humour. Hand-drawn imperfections: uneven hatching spacing,
-asymmetry, one line slightly re-traced. Black ink only, no colour, no grey,
-no gradients, no text.
+Style: 1920s storybook pen sketch meets modern minimalist brand illustration.
+One black ink line, medium weight and loose, drawn quickly by hand, slightly
+wobbly, with gentle pressure variation and tapered ends. Contours left open
+in places. Light from the upper left: a few short diagonal hatch strokes on
+the lower right of each form and a small hatched patch on the ground beneath.
+The ground is two or three short horizontal strokes and a tuft of grass,
+fading into the white page. Pure white page around a centred vignette that
+fills about a third of the square canvas. Under 40 strokes in total, each
+bold enough to read at icon size. Gentle, understated humour; posture tells
+the feeling. Black ink on white only.
 ```
 
-**Avoid (negative prompt, where the tool has one):**
+### 4. Negative prompt
 
 ```
-colour, grey fill, gradient, shading, soft shadows, 3D, glossy, perfect
-symmetry, uniform line weight, closed smooth outlines, clip art, flat
-corporate vector, thick cartoon outlines, frame, border, background, pattern,
-text, letters, logo, watermark, hands with fingers, detailed faces, photoreal
+colour, grey, gradient, soft shading, solid black fills, 3D, glossy,
+perfect symmetry, uniform line weight, smooth closed outlines, doubled
+outlines, clip art, corporate flat vector, thick cartoon outline, frame,
+border, background scenery, pattern, text, letters, signature, watermark,
+hands with fingers, detailed faces, realistic proportions, tiny fine details
 ```
+
+### 5. Settings
+
+- Recraft: **Vector illustration** style (or your saved custom style), square
+  1:1, 4 variations per run.
+- Elsewhere (Midjourney, GPT image, Imagen): square, generate 4, then
+  vectorise as below.
+
+### 6. Pick the one that passes
+
+Keep a drawing only if every answer is yes:
+
+- **At 60pt (thumbnail size):** can you still tell what's happening?
+- **Is white most of the picture?**
+- **Do some lines stop short or overshoot?** (If every contour is sealed, it
+  will read as machine-made.)
+- **Is the hatching under 8 strokes per form, all one direction?**
+- **No fingers, no text, no frame, no grey?**
+- **Is something slightly off-balance?** (A tilt, a dropped stroke, a
+  lopsided head.)
+- **Beside October and the crews drawing,** does it look like the same hand?
+
+Then do the human pass: trace it once in Procreate at your own speed. That
+pass is what makes it yours.
 
 **Scene ideas, one per month, each a small win:**
 
