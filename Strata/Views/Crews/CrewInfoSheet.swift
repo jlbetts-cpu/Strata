@@ -56,7 +56,7 @@ struct CrewInfoSheet: View {
                         // Days above it have.
                         FormSectionLabel(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
                     } footer: {
-                        Text("Up to 8 people. Everyone here sees the wins sent to this crew today.")
+                        Text("Up to 8 people. Everyone here sees the wins sent to this crew.")
                     }
                     .listRowSeparator(.hidden)
                     Section {

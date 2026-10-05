@@ -194,12 +194,57 @@ struct CrewStoreTests {
         let (a, _, _) = store(jayden)
         let (crew, _) = try await a.createCrew(name: "One")
         let now = Date()
-        await a.post(win("Old", at: now.addingTimeInterval(-5 * 86_400)), to: [crew.id])
+        // Two weeks are kept (`CrewDay.keptDays`, the owner, 2026-10-05).
+        await a.post(win("Old", at: now.addingTimeInterval(-16 * 86_400)), to: [crew.id])
+        await a.post(win("Last week", at: now.addingTimeInterval(-13 * 86_400)), to: [crew.id])
         await a.post(win("Yesterday", at: now.addingTimeInterval(-86_400)), to: [crew.id])
         a.prune()
-        #expect(a.wins(in: crew.id).map(\.title) == ["Yesterday"])
+        #expect(Set(a.wins(in: crew.id).map(\.title)) == ["Last week", "Yesterday"])
         await a.flush()
-        #expect(world.records(of: .sharedWin, in: crew.id).count == 1)
+        #expect(world.records(of: .sharedWin, in: crew.id).count == 2)
+    }
+
+    /// Past `photoCap` photos the oldest whole days go, never half a day.
+    @Test func thePhotoCapTakesWholeOldDays() async throws {
+        let (a, _, _) = store(jayden)
+        let (crew, _) = try await a.createCrew(name: "One")
+        let zone = a.crew(crew.id)!.timeZone
+        let today = CrewDay.string(for: Date(), in: zone)
+        func shot(_ ago: Int) -> SharedWin {
+            SharedWin(winID: UUID(), crewID: crew.id, senderProfileID: sam,
+                      crewDay: CrewDay.day(today, offsetBy: -ago, in: zone)!, title: "", colour: .health,
+                      icon: .health, blockSize: .small, photo: URL(fileURLWithPath: "/tmp/none.jpg"),
+                      cropX: nil, cropY: nil, createdAt: Date(), updatedAt: Date())
+        }
+        let older = (0..<150).map { _ in shot(3) }, newer = (0..<151).map { _ in shot(2) }
+        a.adopt(crews: a.crews, wins: [crew.id: older + newer + [shot(5)]])
+        a.prune()
+        #expect(Set(a.wins(in: crew.id).map(\.crewDay)) == [CrewDay.day(today, offsetBy: -2, in: zone)!])
+    }
+
+    @Test func theStarterCanRemoveAFriendsWinAndNobodyElseCan() async throws {
+        let (a, b, crew) = try await pair()
+        await b.post(win("Sam's"), to: [crew.id])
+        await a.post(win("Jayden's"), to: [crew.id])
+        await a.refresh()
+        await b.refresh()
+        let sams = try #require(a.wins(in: crew.id).first { $0.title == "Sam's" })
+        let jaydens = try #require(b.wins(in: crew.id).first { $0.title == "Jayden's" })
+        #expect(!b.canRemove(jaydens.winID, from: crew.id))
+        await b.remove(winID: jaydens.winID, from: crew.id)
+        #expect(world.records(of: .sharedWin, in: crew.id).count == 2)
+        #expect(a.canRemove(sams.winID, from: crew.id))
+        await a.remove(winID: sams.winID, from: crew.id)
+        await b.refresh()
+        #expect(b.wins(in: crew.id).map(\.title) == ["Jayden's"])
+    }
+
+    @Test func aHiddenWinIsGoneOnEveryPhoneButOnlyForYou() async throws {
+        let (phone, pad) = twoPhones()
+        let id = UUID()
+        phone.hide(winID: id)
+        pad.pullChoices()
+        #expect(pad.hiddenWins.contains(id))
     }
 
     @Test func offMeansNothingIsAsked() async throws {

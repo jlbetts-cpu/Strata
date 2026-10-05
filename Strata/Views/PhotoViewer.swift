@@ -34,6 +34,11 @@ struct PhotoViewer: View {
     var crew: CrewID? = nil
     var onReport: (GalleryPhoto) -> Void = { _ in }
     var onWithdraw: (GalleryPhoto) -> Void = { _ in }
+    /// Whether a friend's photograph may be taken out of the crew from here:
+    /// true for whoever started the crew (`SocialStore.canRemove`).
+    var canRemove: (GalleryPhoto) -> Bool = { _ in false }
+    /// Out of your sight only. Nil where hiding means nothing.
+    var onHide: ((GalleryPhoto) -> Void)? = nil
     /// A crew photo's reaction bar, drawn over the bottom of the picture.
     /// Nil everywhere else.
     var reactions: ((GalleryPhoto) -> AnyView)? = nil
@@ -444,8 +449,18 @@ struct PhotoViewer: View {
             }
             if crew != nil, let current {
                 if current.byline != nil {
+                    if let onHide {
+                        Button { onHide(current); onClose() } label: {
+                            Label("Hide for Me", systemImage: "eye.slash")
+                        }
+                    }
                     Button(role: .destructive) { onReport(current) } label: {
                         Label("Report", systemImage: "exclamationmark.bubble")
+                    }
+                    if canRemove(current) {
+                        Button(role: .destructive) { onWithdraw(current); onClose() } label: {
+                            Label("Remove from Crew", systemImage: "minus.circle")
+                        }
                     }
                 } else {
                     Button(role: .destructive) { onWithdraw(current); onClose() } label: {

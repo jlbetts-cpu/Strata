@@ -34,8 +34,9 @@ struct CrewStats: Equatable {
         var history = inputs.history
         // Today's wins arrive before the next refresh counts them: counted
         // here as well, so a win you just sent moves the numbers at once.
-        if let cutoff = CrewDay.day(inputs.today, offsetBy: -3, in: inputs.zone) {
-            history.record(inputs.wins, from: cutoff, through: inputs.today)
+        if let cutoff = CrewDay.oldestKept(today: inputs.today, in: inputs.zone) {
+            history.record(inputs.wins, from: cutoff,
+                           rewritingFrom: CrewHistory.rewriteFrom(inputs.today, in: inputs.zone), through: inputs.today)
         }
         let full = history.fullDays(members: inputs.members, zone: inputs.zone)
         var stats = CrewStats()
@@ -74,7 +75,7 @@ struct CrewStatsSections: View {
 
     private var inputs: CrewStats.Inputs {
         CrewStats.Inputs(history: store.history[crew.id] ?? CrewHistory(),
-                         wins: store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) },
+                         wins: store.wins(in: crew.id).filter { !store.blocked.contains($0.senderProfileID) && !store.hiddenWins.contains($0.winID) },
                          members: crew.members,
                          zone: crew.timeZone,
                          today: CrewDay.string(for: Date(), in: crew.timeZone))
@@ -138,12 +139,16 @@ struct CrewStatsSections: View {
 
     // MARK: - Days
 
-    /// The days the crew still holds. A crew's photos leave it after a few
-    /// days, so this is where a day is kept: played, and saved as a video.
+    /// **Recent Days**: the two weeks a crew holds. A row opens the day
+    /// itself, its tower and its photographs (`CrewDayView`); the video is in
+    /// that page's corner. It used to play straight away, when a crew held
+    /// only a couple of days and the video was the only way to keep one.
     private var days: some View {
         Section {
             ForEach(stats.days) { day in
-                Button { playDay(day.key) } label: {
+                NavigationLink {
+                    CrewDayView(crew: crew, day: day.key, title: dayName(day.key)) { playDay(day.key) }
+                } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(dayName(day.key))
@@ -154,20 +159,15 @@ struct CrewStatsSections: View {
                                 .foregroundStyle(AppColors.inkSecondary)
                         }
                         Spacer()
-                        Image(systemName: "play.circle")
-                            .font(Typography.headerMedium)
-                            .foregroundStyle(AppColors.inkSecondary)
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressSurface)
                 .accessibilityLabel("\(dayName(day.key)), \(day.count) \(day.count == 1 ? "win" : "wins")")
-                .accessibilityHint("Plays the day. You can save it as a video.")
             }
         } header: {
-            FormSectionLabel("Days")
+            FormSectionLabel("Recent Days")
         } footer: {
-            Text("A crew's photos stay for a few days. Play a day to save it as a video.")
+            Text("Wins stay for two weeks. Play a day to save it as a video.")
                 .formFooter()
         }
         .listRowSeparator(.hidden)
@@ -186,8 +186,7 @@ struct CrewStatsSections: View {
     private func playDay(_ key: String) {
         guard let period = ReplayPeriod.day(key, name: crew.displayName(excluding: store.me),
                                             calendar: Self.calendar(crew.timeZone)) else { return }
-        let wins = store.wins(in: crew.id)
-            .filter { $0.crewDay == key && !store.blocked.contains($0.senderProfileID) }
+        let wins = store.wins(in: crew.id, on: key)
             .map { win in
                 ReplayWin(id: win.winID, dateString: win.crewDay, completedAt: win.createdAt,
                           title: win.title, category: win.colour, size: win.blockSize,

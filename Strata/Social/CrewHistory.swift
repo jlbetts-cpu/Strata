@@ -4,10 +4,10 @@ import Foundation
 /// counted on this phone from what it fetched.
 ///
 /// Counts only: never a title, never a photograph. A crew's wins leave the
-/// cloud after a few days (`SocialStore.prune`) and that stays true; what is
-/// kept is the tally, on the phone, so the crew's streak and its chart outlive
-/// the pictures (the owner, 2026-10-02: "the photos shouldnt be saved on the
-/// cloud overnight but it should show some statistics").
+/// cloud after two weeks (`CrewDay.keptDays`; it was a few days until the
+/// owner asked for recent days on 2026-10-05); what is kept is the tally, on
+/// the phone, so the crew's streak and its chart outlive the pictures (the
+/// owner, 2026-10-02: "it should show some statistics").
 ///
 /// A phone fills in every day the cloud still holds when it refreshes, so a
 /// phone opened once every couple of days misses nothing.
@@ -17,15 +17,32 @@ nonisolated struct CrewHistory: Codable, Equatable, Sendable {
 
     /// What the cloud holds now, written over the days it covers.
     ///
-    /// The days from `cutoff` on are the cloud's to say: a withdrawn win
+    /// The days from `rewrite` on are the cloud's to say: a withdrawn win
     /// comes off the count, and a day that had wins and has none now is
-    /// emptied. Days before `cutoff` are no longer in the cloud and are kept
-    /// as they were last seen.
-    mutating func record(_ wins: [SharedWin], from cutoff: String, through today: String) {
-        for day in days.keys where day >= cutoff && day <= today { days[day] = nil }
+    /// emptied. Days from `cutoff` up to `rewrite` are filled in from the
+    /// cloud only where this phone has no count yet. Days before `cutoff` are
+    /// no longer in the cloud and are kept as they were last seen.
+    ///
+    /// **Why the older days only fill in.** When a crew's window grew from
+    /// three days to fourteen (2026-10-05), the cloud still held only three:
+    /// written over from the new cutoff, days 4 to 14 would have read as
+    /// empty and every crew's streak would have broken on the update. A
+    /// phone new to the crew still fills all fourteen.
+    mutating func record(_ wins: [SharedWin], from cutoff: String, rewritingFrom rewrite: String? = nil,
+                         through today: String) {
+        let rewrite = max(rewrite ?? cutoff, cutoff)
+        let known = Set(days.keys)
+        for day in days.keys where day >= rewrite && day <= today { days[day] = nil }
         for win in wins where win.crewDay >= cutoff && win.crewDay <= today {
+            if win.crewDay < rewrite, known.contains(win.crewDay) { continue }
             days[win.crewDay, default: [:]][win.senderProfileID.uuidString, default: 0] += 1
         }
+    }
+
+    /// The days a refresh rewrites outright: today and the two before it,
+    /// where a win is still likely to be withdrawn or arrive late.
+    static func rewriteFrom(_ today: String, in zone: TimeZone) -> String? {
+        CrewDay.day(today, offsetBy: -2, in: zone)
     }
 
     /// Every win the crew posted, by day: what the chart draws.

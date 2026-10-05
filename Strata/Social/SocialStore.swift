@@ -174,6 +174,8 @@ final class SocialStore {
             .flatMap { try? JSONDecoder().decode([String: CrewHistory].self, from: $0) }
             .map { Dictionary(uniqueKeysWithValues: $0.map { (CrewID(rawValue: $0.key), $0.value) }) } ?? [:]
         self.blocked = Set((defaults.stringArray(forKey: Self.blockedKey) ?? []).compactMap(UUID.init(uuidString:)))
+        let hidden = defaults.dictionary(forKey: CrewChoicesSync.Table.hidden.rawValue) as? CrewChoicesSync.Entries ?? [:]
+        self.hiddenWins = Set(hidden.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
     }
 
     // MARK: Reading
@@ -195,8 +197,10 @@ final class SocialStore {
         for crew in crews {
             guard let held = wins[crew.id] else { continue }
             let today = CrewDay.string(for: now(), in: crew.timeZone)
-            guard let cutoff = CrewDay.day(today, offsetBy: -3, in: crew.timeZone) else { continue }
-            next[crew.id, default: CrewHistory()].record(held, from: cutoff, through: today)
+            guard let cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) else { continue }
+            next[crew.id, default: CrewHistory()].record(held, from: cutoff,
+                                                         rewritingFrom: CrewHistory.rewriteFrom(today, in: crew.timeZone),
+                                                         through: today)
         }
         guard next != history else { return }
         history = next
@@ -274,8 +278,51 @@ final class SocialStore {
     /// from someone you blocked.
     func today(in crewID: CrewID) -> [SharedWin] {
         guard let crew = crew(crewID) else { return [] }
-        let day = CrewDay.string(for: now(), in: crew.timeZone)
-        return wins(in: crewID).filter { $0.crewDay == day && !blocked.contains($0.senderProfileID) }
+        return wins(in: crewID, on: CrewDay.string(for: now(), in: crew.timeZone))
+    }
+
+    /// One crew day's wins as you see them: without anyone you blocked or
+    /// anything you hid.
+    func wins(in crewID: CrewID, on day: String) -> [SharedWin] {
+        wins(in: crewID).filter {
+            $0.crewDay == day && !blocked.contains($0.senderProfileID) && !hiddenWins.contains($0.winID)
+        }
+    }
+
+    /// Wins you hid for yourself (`hide`), on every phone you own.
+    private(set) var hiddenWins: Set<UUID> = []
+
+    /// Out of your sight, and nobody else's: a friend's photo you would
+    /// rather not see again. The crew is not told.
+    func hide(winID: UUID) {
+        hiddenWins.insert(winID)
+        note(.hidden, winID.uuidString, 1)
+    }
+
+    /// Whether you may take a win out of the crew for everyone: your own,
+    /// or anyone's in a crew you started (the moderation App Review asks
+    /// for, and what a Shared Album's owner can do).
+    func canRemove(_ winID: UUID, from crewID: CrewID) -> Bool {
+        guard let crew = crew(crewID),
+              let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }) else { return false }
+        return win.senderProfileID == me || crew.ownerProfileID == me
+    }
+
+    /// Takes a win out of the crew, from everyone's phone. Yours, or, in a
+    /// crew you started, anyone's.
+    func remove(winID: UUID, from crewID: CrewID) async {
+        guard canRemove(winID, from: crewID) else { return }
+        if winsByCrew[crewID]?.first(where: { $0.winID == winID })?.senderProfileID == me {
+            await withdraw(winID: winID, from: crewID)
+            return
+        }
+        guard isEnabled() else { return }
+        if let photo = winsByCrew[crewID]?.first(where: { $0.winID == winID })?.photo {
+            try? FileManager.default.removeItem(at: photo)
+        }
+        winsByCrew[crewID]?.removeAll { $0.winID == winID }
+        enqueue(.init(crew: crewID, type: .sharedWin, name: winID.uuidString, fields: nil))
+        await flush()
     }
 
     /// A crew as you see it: without anyone you blocked.
@@ -991,13 +1038,27 @@ final class SocialStore {
         }
     }
 
-    /// A crew is a window on now, not an archive: anything older than the
-    /// crew's previous day, plus two days of grace for a phone that was off,
-    /// goes. Whoever opens the crew next does the deleting.
+    /// A crew keeps two weeks (`CrewDay.keptDays`), not an archive: anything
+    /// older goes, and so do the oldest photos past `photoCap`. Whoever opens
+    /// the crew next does the deleting.
     func prune() {
         for crew in crews {
             let today = CrewDay.string(for: now(), in: crew.timeZone)
-            guard let cutoff = CrewDay.day(today, offsetBy: -3, in: crew.timeZone) else { continue }
+            guard var cutoff = CrewDay.oldestKept(today: today, in: crew.timeZone) else { continue }
+            // **At most `photoCap` photos in the window.** Fifteen days of a
+            // crew posting far more than a photo a day each would fill the
+            // starter's iCloud, and then every post fails. Past the cap the
+            // window starts later: whole days go, oldest first, so a day is
+            // never shown with half its photos missing.
+            let photoDays = (winsByCrew[crew.id] ?? []).filter { $0.photo != nil && $0.crewDay >= cutoff }
+                .map(\.crewDay).sorted(by: >)
+            if photoDays.count > Self.photoCap {
+                let last = photoDays[Self.photoCap - 1]
+                // The day the cap falls in goes too, unless it ends there.
+                cutoff = last != photoDays[Self.photoCap] ? last
+                    : (CrewDay.day(last, offsetBy: 1, in: crew.timeZone) ?? last)
+                cutoff = min(cutoff, today)
+            }
             // Reactions go with their wins, and a reaction whose win has gone
             // (withdrawn, deleted) goes too, whoever made it.
             let live = Set((winsByCrew[crew.id] ?? []).filter { $0.crewDay >= cutoff }.map(\.winID))
@@ -1017,6 +1078,9 @@ final class SocialStore {
             }
         }
     }
+
+    /// The most photos a crew holds at once (about 90 MB).
+    static let photoCap = 300
 
     // MARK: Unread
 
@@ -1369,6 +1433,8 @@ final class SocialStore {
         case .reactionsOff:
             let off = merged.filter { CrewChoicesSync.value($0.value) == 1 }.keys.sorted()
             Self.groupDefaults?.set(off, forKey: Self.quietReactionsKey)
+        case .hidden:
+            hiddenWins = Set(merged.filter { CrewChoicesSync.value($0.value) == 1 }.keys.compactMap(UUID.init(uuidString:)))
         }
     }
 

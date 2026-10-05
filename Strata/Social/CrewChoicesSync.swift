@@ -13,7 +13,7 @@ import Foundation
 /// entry, so an unblock on one phone undoes a block made earlier on the other
 /// instead of losing to it.
 enum CrewChoicesSync {
-    /// The three tables. Their names are the keys in iCloud.
+    /// The tables. Their names are the keys in iCloud.
     enum Table: String, CaseIterable {
         /// Value 1 blocked, 0 unblocked; "n" keeps the name for the Blocked list.
         case blocked = "crews.sync.blocked"
@@ -21,6 +21,8 @@ enum CrewChoicesSync {
         case muted = "crews.sync.muted"
         /// Value 1 when reaction alerts are off for that crew.
         case reactionsOff = "crews.sync.reactionsOff"
+        /// Value 1 for a win hidden from you (`SocialStore.hide`).
+        case hidden = "crews.sync.hiddenWins"
     }
 
     typealias Entries = [String: [String: Any]]

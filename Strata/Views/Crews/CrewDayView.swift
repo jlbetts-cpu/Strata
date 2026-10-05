@@ -1,0 +1,210 @@
+import SwiftUI
+
+/// **One of a crew's recent days**, opened from Recent Days in Crew Info.
+///
+/// The owner, 2026-10-05: "being able to see the previous day from the middle
+/// menu or just seeing images from previous days saved in the chat". The
+/// day's tower as it stood at the crew's midnight, the same blocks today's
+/// tower is made of, and under it the day's photographs, newest first. A
+/// tap on either opens the day's carousel, reactions and all. The video is
+/// one tap away, in the corner.
+///
+/// Nothing here counts who looked. A crew keeps two weeks of days
+/// (`CrewDay.keptDays`); after that only the numbers stay.
+struct CrewDayView: View {
+    let crew: Crew
+    /// The crew day, `yyyy-MM-dd` in the crew's zone.
+    let day: String
+    let title: String
+    let play: () -> Void
+
+    @State private var model = CrewTowerModel()
+    @State private var viewing: String?
+    @State private var reporting: SharedWin?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var store: SocialStore { SocialStore.shared }
+    private let spacing = GridConstants.spacing
+    private let columns = GridConstants.columnCount
+    private let hPad = GridConstants.horizontalPadding
+
+    private var wins: [SharedWin] {
+        store.wins(in: crew.id, on: day).sorted { $0.createdAt < $1.createdAt }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let usable = geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)
+            let colW = floor(usable / CGFloat(columns))
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: GridConstants.gapSection) {
+                    tower(colW: colW)
+                    photos(width: geo.size.width - hPad * 2)
+                }
+                .padding(.horizontal, hPad)
+                .padding(.vertical, GridConstants.gapSection)
+            }
+        }
+        .background(WarmBackground())
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: play) { Image(systemName: "play.fill") }
+                    .accessibilityLabel("Play \(title)")
+                    .accessibilityHint("You can save it as a video.")
+            }
+        }
+        .task(id: wins) {
+            let names = Dictionary(uniqueKeysWithValues: crew.members.map { ($0.profileID, $0.shortName) })
+            model.rebuild(wins: wins, me: store.me, names: names,
+                          reactions: { store.reactions(to: $0, in: crew.id) })
+        }
+        .fullScreenCover(item: Binding(get: { viewing.map(Viewed.init) }, set: { viewing = $0?.id })) { shown in
+            PhotoViewer(photos: CrewGallery.photos(wins, crew: crew, me: store.me), startAt: shown.id,
+                        onClose: { viewing = nil },
+                        crew: crew.id,
+                        onReport: { photo in
+                            viewing = nil
+                            // After the cover has gone: UIKit drops a dialog
+                            // asked for while another view is dismissing.
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(450))
+                                reporting = wins.first { $0.winID.uuidString == photo.id }
+                            }
+                        },
+                        onWithdraw: { photo in
+                            guard let id = UUID(uuidString: photo.id) else { return }
+                            Task { await store.remove(winID: id, from: crew.id) }
+                        },
+                        canRemove: { photo in
+                            UUID(uuidString: photo.id).map { store.canRemove($0, from: crew.id) } ?? false
+                        },
+                        onHide: { photo in
+                            if let id = UUID(uuidString: photo.id) { store.hide(winID: id) }
+                        },
+                        reactions: { photo in
+                            guard let id = UUID(uuidString: photo.id) else { return AnyView(EmptyView()) }
+                            return AnyView(CrewReactionsPanel(winID: id, crewID: crew.id,
+                                                              mine: photo.byline == nil, onDark: true))
+                        })
+        }
+        .overlay(alignment: .bottom) { CrewReportAnchor(reporting: $reporting, crewID: crew.id) }
+    }
+
+    private struct Viewed: Identifiable { let id: String }
+
+    // MARK: The tower
+
+    /// Built once, without a drop: the day is over, so its blocks are simply
+    /// there (a model's first build never falls).
+    private func tower(colW: CGFloat) -> some View {
+        let tower = model.tower
+        let rows = tower.totalRows
+        let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
+        let gridH = rows > 0 ? CGFloat(rows) * colW + CGFloat(rows - 1) * spacing : 0
+        return ZStack(alignment: .topLeading) {
+            Color.clear
+                .allowsHitTesting(false)
+                .frame(width: gridW, height: max(gridH, 1))
+            if rows > 0 {
+                TowerBlocksForEach(
+                    visibleBlocks: tower.placedBlocks, animCoord: model.animation, towerVM: tower,
+                    groupedIDs: [], mergeDestinedIDs: [],
+                    colW: colW, gridH: gridH,
+                    cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
+                    reduceMotion: reduceMotion, colorScheme: colorScheme,
+                    onTapExpandBlock: { viewing = $0.uuidString },
+                    liftedBlockID: nil)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: The photographs
+
+    private func photos(width: CGFloat) -> some View {
+        let shots = wins.filter { $0.photo != nil }.reversed()
+        let side = floor((width - spacing * 2) / 3)
+        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: spacing), count: 3),
+                         spacing: spacing) {
+            ForEach(Array(shots)) { win in
+                if let url = win.photo {
+                    Button { viewing = win.winID.uuidString } label: {
+                        CrewPhotoView(url: url, width: side, height: side,
+                                      crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
+                            .frame(width: side, height: side)
+                            .background(win.colour.style.baseColor)
+                            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
+                    }
+                    .buttonStyle(.pressSurface)
+                    .accessibilityLabel(win.title.isEmpty ? "Photo" : win.title)
+                }
+            }
+        }
+    }
+}
+
+/// A crew's wins as the photo viewer's carousel: photographs, and the rest
+/// as their blocks, each with who sent it.
+enum CrewGallery {
+    @MainActor
+    static func photos(_ wins: [SharedWin], crew: Crew?, me: UUID) -> [GalleryPhoto] {
+        wins.sorted { $0.createdAt < $1.createdAt }.map { win in
+            let name = crew?.member(win.senderProfileID)?.shortName ?? ""
+            return GalleryPhoto(fileName: win.winID.uuidString,
+                                title: win.title.isEmpty ? nil : win.title,
+                                date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
+                                file: win.photo,
+                                byline: win.senderProfileID == me ? nil : (name.isEmpty ? "A friend" : name),
+                                block: win.photo == nil ? win.colour : nil)
+        }
+    }
+}
+
+/// Report, from a crew viewer's ⋯, and the thanks after it, offering a block
+/// right there (the 2026-10-03 audit: a report vanished without a word, and
+/// blocking was a separate hunt). Hang it on a point at the foot of the
+/// screen: iOS 26 draws a dialog from the view it hangs on, and from a
+/// full-screen one it never appeared.
+struct CrewReportAnchor: View {
+    @Binding var reporting: SharedWin?
+    let crewID: CrewID
+    @State private var reported: SharedWin?
+
+    private var store: SocialStore { SocialStore.shared }
+
+    var body: some View {
+        Color.clear.frame(width: 1, height: 1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .confirmationDialog("Report this win?",
+                                isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
+                                titleVisibility: .visible, presenting: reporting) { win in
+                ForEach(CrewSafety.Reason.allCases) { reason in
+                    Button(reason.words) {
+                        Task {
+                            await CrewSafety.report(.win(win), in: crewID, reason: reason)
+                            reported = win
+                        }
+                    }
+                }
+            } message: { _ in
+                Text("Your report goes to Some Wins. Nobody in the crew is told.")
+            }
+            .alert("Thanks for telling us",
+                   isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
+                   presenting: reported) { win in
+                if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
+                    let name = store.crew(crewID)?.member(win.senderProfileID)?.shortName ?? ""
+                    Button("Block \(name.isEmpty ? "Them" : name)", role: .destructive) {
+                        Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
+                    }
+                }
+                Button("Done", role: .cancel) {}
+            } message: { _ in
+                Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
+            }
+    }
+}

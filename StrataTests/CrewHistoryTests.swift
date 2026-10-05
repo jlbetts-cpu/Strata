@@ -48,6 +48,22 @@ struct CrewHistoryTests {
         #expect(CrewHistory.streak(full, today: "2026-09-30", zone: zone) == 2)
     }
 
+    /// The window grew from three days to fourteen (2026-10-05) while the
+    /// cloud held only three: a day the phone already counted is never
+    /// emptied by a cloud that no longer holds it, and a day it never saw is
+    /// filled in.
+    @Test func olderDaysFillInButAreNeverEmptied() {
+        var history = CrewHistory()
+        history.days["2026-09-20"] = [jayden.uuidString: 2]
+        history.record([win(sam, on: "2026-09-22"), win(jayden, on: "2026-09-29")],
+                       from: "2026-09-16", rewritingFrom: "2026-09-28", through: "2026-09-30")
+        #expect(history.totals == ["2026-09-20": 2, "2026-09-22": 1, "2026-09-29": 1])
+        history.record([win(jayden, on: "2026-09-22"), win(jayden, on: "2026-09-22")],
+                       from: "2026-09-16", rewritingFrom: "2026-09-28", through: "2026-09-30")
+        #expect(history.totals["2026-09-22"] == 1)
+        #expect(history.totals["2026-09-29"] == nil)
+    }
+
     @Test func theCloudsDaysAreRewrittenAndOlderOnesKept() {
         var history = CrewHistory()
         history.record([win(jayden, on: "2026-09-20"), win(jayden, on: "2026-09-29")], from: "2026-09-17", through: "2026-09-29")

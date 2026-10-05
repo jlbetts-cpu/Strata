@@ -31,7 +31,6 @@ struct CrewTowerView: View {
     @State private var viewing: String?
     @State private var reporting: SharedWin?
     /// Reported a moment ago: the thank-you and the offer to block.
-    @State private var reported: SharedWin?
     /// Double-tap hearts in the air, over the blocks they landed on.
     @State private var bursts: [Burst] = []
     @State private var touchRipples: [TouchRipple] = []
@@ -208,38 +207,7 @@ struct CrewTowerView: View {
     /// Report, from the viewer's ⋯, and the thanks after it: hung on one
     /// point at the foot of the screen (see the call site).
     private var reportAnchor: some View {
-        Color.clear.frame(width: 1, height: 1)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .confirmationDialog("Report this win?",
-                                isPresented: Binding(get: { reporting != nil }, set: { if !$0 { reporting = nil } }),
-                                titleVisibility: .visible, presenting: reporting) { win in
-                ForEach(CrewSafety.Reason.allCases) { reason in
-                    Button(reason.words) {
-                        Task {
-                            await CrewSafety.report(.win(win), in: crewID, reason: reason)
-                            reported = win
-                        }
-                    }
-                }
-            } message: { _ in
-                Text("Your report goes to Some Wins. Nobody in the crew is told.")
-            }
-            // **The report was heard**, and the next step is offered right
-            // there (the 2026-10-03 audit: a report vanished without a word,
-            // and blocking was a separate hunt).
-            .alert("Thanks for telling us",
-                   isPresented: Binding(get: { reported != nil }, set: { if !$0 { reported = nil } }),
-                   presenting: reported) { win in
-                if win.senderProfileID != store.me, !store.blocked.contains(win.senderProfileID) {
-                    Button("Block \(crew?.member(win.senderProfileID)?.shortName.nonEmpty ?? "Them")", role: .destructive) {
-                        Task { await CrewSafety.block(win.senderProfileID, from: crewID) }
-                    }
-                }
-                Button("Done", role: .cancel) {}
-            } message: { _ in
-                Text("Every report is looked at within a day. Blocking hides them from you everywhere, and they are not told.")
-            }
+        CrewReportAnchor(reporting: $reporting, crewID: crewID)
     }
 
     /// Two taps on a friend's block: a heart, every time, as on Instagram. A
@@ -330,7 +298,13 @@ struct CrewTowerView: View {
                     },
                     onWithdraw: { shown in
                         guard let id = UUID(uuidString: shown.id) else { return }
-                        Task { await store.withdraw(winID: id, from: crewID) }
+                        Task { await store.remove(winID: id, from: crewID) }
+                    },
+                    canRemove: { shown in
+                        UUID(uuidString: shown.id).map { store.canRemove($0, from: crewID) } ?? false
+                    },
+                    onHide: { shown in
+                        if let id = UUID(uuidString: shown.id) { store.hide(winID: id) }
                     },
                     reactions: { shown in
                         guard let id = UUID(uuidString: shown.id) else { return AnyView(EmptyView()) }
@@ -431,17 +405,7 @@ struct CrewTowerView: View {
     /// Today's wins in the order the tower stacks them, for the carousel:
     /// photographs, and the rest as their blocks.
     private var galleryPhotos: [GalleryPhoto] {
-        store.today(in: crewID)
-            .sorted { $0.createdAt < $1.createdAt }
-            .map { win in
-                let name = crew?.member(win.senderProfileID)?.shortName ?? ""
-                return GalleryPhoto(fileName: win.winID.uuidString,
-                                    title: win.title.isEmpty ? nil : win.title,
-                                    date: win.createdAt, dateString: win.crewDay, size: win.blockSize,
-                                    file: win.photo,
-                                    byline: win.senderProfileID == store.me ? nil : (name.isEmpty ? "A friend" : name),
-                                    block: win.photo == nil ? win.colour : nil)
-            }
+        CrewGallery.photos(store.today(in: crewID), crew: crew, me: store.me)
     }
 
     private func rebuild() {

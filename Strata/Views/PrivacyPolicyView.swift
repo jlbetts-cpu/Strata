@@ -122,8 +122,10 @@ struct PrivacyPolicyView: View {
          "Untick a crew on a win and the win leaves that crew. Delete a win and "
          + "every copy goes. Remove its photo and the photo goes from every copy. "
          + "Leave a crew and your wins leave with you; end a crew you started and "
-         + "it is deleted for everyone. A crew keeps its yesterday and the two days "
-         + "before it, and older wins are deleted the next time anyone opens it."),
+         + "it is deleted for everyone. A crew keeps two weeks of days, and older "
+         + "wins and their photos are deleted the next time anyone opens it. "
+         + "Whoever started a crew can remove any win in it, and anyone can hide "
+         + "a win for themselves."),
         ("Block and Report",
          "Block hides that person's wins, head and name in every crew on your "
          + "phones. Your blocks and mutes reach your other devices through your "
