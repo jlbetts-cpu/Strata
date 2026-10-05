@@ -80,6 +80,7 @@ struct StrataApp: App {
         // container once a retry opens it.
         if SharedModelContainer.opening.savesToDisk {
             AppDependencyManager.shared.add(dependency: container)
+            Self.handQuickLog(to: container)
         }
         _storeOpening = State(initialValue: SharedModelContainer.opening)
     }
@@ -94,7 +95,18 @@ struct StrataApp: App {
         // the first registration, and it is of the container that opened.
         let container = SharedModelContainer.shared
         AppDependencyManager.shared.add(dependency: container)
+        Self.handQuickLog(to: container)
         return true
+    }
+
+    /// The logging behind Control Center, the Lock Screen, the Action button
+    /// and the Log widget (`QuickLogIntent`), which run here, in the app's
+    /// process, and only ever into a store that saves.
+    private static func handQuickLog(to container: ModelContainer) {
+        QuickLog.handler = { size in
+            try StoreUnavailableIntentError.check()
+            _ = try LogWinIntent.log(name: nil, size: LogWinIntent.blockSize(size), in: container)
+        }
     }
 
     /// Whether to put onboarding on screen.

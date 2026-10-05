@@ -14,6 +14,12 @@ import WidgetKit
 /// milliseconds, and the point of the snapshot is that every decision was
 /// already made in the app.
 struct StrataWidget: Widget {
+    // **Answered 2026-10-05:** logging from outside the app now goes through
+    // `QuickLogIntent` (`Shared/`), a `LiveActivityIntent` in both targets
+    // that the system performs in the APP's process, so this target still
+    // never opens the store. See `LogWinWidgets.swift`. The note below is
+    // kept for why it had to be done that way.
+    //
     // **WHAT A TAP ON THIS WIDGET COSTS, measured 2026-10-01 rather than
     // guessed.** Nothing here is wired yet, and the sizing is the finding.
     //
@@ -128,5 +134,7 @@ struct TowerProvider: TimelineProvider {
 struct StrataWidgetBundle: WidgetBundle {
     var body: some Widget {
         StrataWidget()
+        LogWinWidget()
+        LogWinControl()
     }
 }

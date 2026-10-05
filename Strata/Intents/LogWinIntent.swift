@@ -31,9 +31,22 @@ struct LogWinIntent: AppIntent {
         // registered, and a win logged into nothing must not be reported as
         // logged.
         try StoreUnavailableIntentError.check()
-        let context = ModelContext(modelContainer)
-        let tower = Self.activeTower(in: context)
-        let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled,
+        let logged = try Self.log(name: name, size: .small, in: modelContainer)
+        let dialog: IntentDialog = logged.title.map { "Logged \($0). That's \(logged.today) today." }
+            ?? "Logged. That's \(logged.today) today."
+        return .result(dialog: dialog) {
+            WinLoggedSnippet(title: logged.title, colour: logged.colour, today: logged.today)
+        }
+    }
+
+    /// One win onto today's tower, as the tap makes it: Siri's path, and the
+    /// controls' and the Log widget's (`QuickLogIntent`).
+    @MainActor
+    static func log(name: String?, size: BlockSize,
+                    in container: ModelContainer) throws -> (title: String?, colour: HabitCategory, today: Int) {
+        let context = ModelContext(container)
+        let tower = activeTower(in: context)
+        let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled, size: size,
                                              context: context, tower: tower)
         WidgetReloader.reload()
         // A win said to Siri goes where the last one went, as a one-tap win
@@ -41,13 +54,16 @@ struct LogWinIntent: AppIntent {
         if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
             CrewSync.post(log)
         }
-
-        let today = TodaysWins.count(in: context)
         let named = win.habit.title == QuickWinService.untitled ? nil : win.habit.title
-        let dialog: IntentDialog = named.map { "Logged \($0). That's \(today) today." }
-            ?? "Logged. That's \(today) today."
-        return .result(dialog: dialog) {
-            WinLoggedSnippet(title: named, colour: win.habit.displayCategory, today: today)
+        return (named, win.habit.displayCategory, TodaysWins.count(in: context))
+    }
+
+    /// The controls' and the Log widget's sizes, as the tower's.
+    static func blockSize(_ size: QuickLogSize) -> BlockSize {
+        switch size {
+        case .quick: .small
+        case .regular: .medium
+        case .deep: .hard
         }
     }
 
