@@ -4,10 +4,10 @@ import SwiftUI
 ///
 /// The owner, 2026-10-05: "being able to see the previous day from the middle
 /// menu or just seeing images from previous days saved in the chat". The
-/// day's tower as it stood at the crew's midnight, the same blocks today's
-/// tower is made of, and under it the day's photographs, newest first. A
-/// tap on either opens the day's carousel, reactions and all. The video is
-/// one tap away, in the corner.
+/// day's tower as it stood at the crew's midnight, drawn exactly as today's
+/// is: no photo grid under it (the owner: "looks dumb"). A tap on a block
+/// opens the day's carousel, reactions and all. The video is one tap away,
+/// in the corner.
 ///
 /// Nothing here counts who looked. A crew keeps two weeks of days
 /// (`CrewDay.keptDays`); after that only the numbers stay.
@@ -36,17 +36,9 @@ struct CrewDayView: View {
     var body: some View {
         GeometryReader { geo in
             let usable = geo.size.width - hPad * 2 - spacing * CGFloat(columns - 1)
-            let colW = floor(usable / CGFloat(columns))
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: GridConstants.gapSection) {
-                    tower(colW: colW)
-                    photos(width: geo.size.width - hPad * 2)
-                }
-                .padding(.horizontal, hPad)
-                .padding(.vertical, GridConstants.gapSection)
-            }
+            tower(colW: floor(usable / CGFloat(columns)), viewport: geo.size.height)
         }
-        .background(WarmBackground())
+        .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -97,52 +89,47 @@ struct CrewDayView: View {
 
     // MARK: The tower
 
-    /// Built once, without a drop: the day is over, so its blocks are simply
-    /// there (a model's first build never falls).
-    private func tower(colW: CGFloat) -> some View {
+    /// **Today's tower, exactly, on another day** (the owner, 2026-10-05:
+    /// "just have it be the tower with the lattice looking exactly the same
+    /// as the tower"). The same lattice, the same light, the same bottom
+    /// anchor and margins as `CrewTowerView.tower`; only the next slot is
+    /// missing, because the day is over. Built once, without a drop: a
+    /// model's first build never falls. A tap on a block opens the day's
+    /// carousel, photographs and all.
+    private func tower(colW: CGFloat, viewport: CGFloat) -> some View {
         let tower = model.tower
         let rows = tower.totalRows
         let gridW = CGFloat(columns) * colW + CGFloat(columns - 1) * spacing
         let gridH = rows > 0 ? CGFloat(rows) * colW + CGFloat(rows - 1) * spacing : 0
-        return ZStack(alignment: .topLeading) {
-            Color.clear
-                .allowsHitTesting(false)
-                .frame(width: gridW, height: max(gridH, 1))
-            if rows > 0 {
-                TowerBlocksForEach(
-                    visibleBlocks: tower.placedBlocks, animCoord: model.animation, towerVM: tower,
-                    groupedIDs: [], mergeDestinedIDs: [],
-                    colW: colW, gridH: gridH,
-                    cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
-                    reduceMotion: reduceMotion, colorScheme: colorScheme,
-                    onTapExpandBlock: { viewing = $0.uuidString },
-                    liftedBlockID: nil)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: The photographs
-
-    private func photos(width: CGFloat) -> some View {
-        let shots = wins.filter { $0.photo != nil }.reversed()
-        let side = floor((width - spacing * 2) / 3)
-        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: spacing), count: 3),
-                         spacing: spacing) {
-            ForEach(Array(shots)) { win in
-                if let url = win.photo {
-                    Button { viewing = win.winID.uuidString } label: {
-                        CrewPhotoView(url: url, width: side, height: side,
-                                      crop: CGPoint(x: win.cropX ?? 0, y: win.cropY ?? 0))
-                            .frame(width: side, height: side)
-                            .background(win.colour.style.baseColor)
-                            .clipShape(RoundedRectangle(cornerRadius: GridConstants.cornerRadius, style: .continuous))
-                    }
-                    .buttonStyle(.pressSurface)
-                    .accessibilityLabel(win.title.isEmpty ? "Photo" : win.title)
+        return ScrollView(.vertical, showsIndicators: false) {
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                    .allowsHitTesting(false)
+                    .frame(width: gridW, height: max(gridH, 1))
+                if rows > 0 {
+                    TowerBlocksForEach(
+                        visibleBlocks: tower.placedBlocks, animCoord: model.animation, towerVM: tower,
+                        groupedIDs: [], mergeDestinedIDs: [],
+                        colW: colW, gridH: gridH,
+                        cornerRadius: GridConstants.cornerRadius, expandedBlockID: nil,
+                        reduceMotion: reduceMotion, colorScheme: colorScheme,
+                        onTapExpandBlock: { viewing = $0.uuidString },
+                        liftedBlockID: nil)
                 }
             }
+            .environment(\.blockLight, BlockLight.over(rows: max(rows, 1)))
+            .background(alignment: .bottom) {
+                TowerLattice(cellSize: colW, contentHeight: max(gridH, 1), ripple: nil)
+                    .frame(width: gridW)
+            }
+            .padding(.horizontal, hPad)
+            .padding(.bottom, GridConstants.gapWide)
+            .frame(minHeight: viewport, alignment: .bottom)
         }
+        .defaultScrollAnchor(.bottom)
+        .softScrollEdge(.top)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title)'s crew tower, \(tower.placedBlocks.count) wins")
     }
 }
 
