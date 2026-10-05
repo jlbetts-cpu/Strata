@@ -67,6 +67,7 @@ outlines), viewBox square or 4:3, drawn at any size. Everything below is
 
 The one page that must stay almost empty. It is the app.
 
+- **The crane: dropped** (the owner, 2026-10-05: "I decided against the crane I want to keep it fairly minimal"). Kept below for the record.
 - **The crane.** His own idea, and the best one in the list: a crane that lowers
   a block into the slot. Draw it as **arm, cable, hook** in three pieces so the
   arm can swing, the cable can pay out and the hook can open. Flat ink, drawn

@@ -28,6 +28,10 @@ protocol CrewCloud: AnyObject {
     func prepare() async
     /// Forgets everything held for the account that was signed in.
     func reset()
+    /// Who is signed in to iCloud, asked fresh: what tells a real change of
+    /// account from the many times iOS says the account changed when it
+    /// did not.
+    func account() async -> CrewAccount
 
     /// Makes the crew's zone and its share. Returns the invitation link.
     func createZone(_ crew: Crew) async throws -> URL
@@ -72,4 +76,14 @@ extension CrewCloud {
     /// A pretend cloud has nothing to fetch: it says something may have
     /// changed and lets the full refresh find out.
     func syncOnly(_ crew: CrewID) async throws -> Bool { true }
+}
+
+/// The iCloud account behind the crews, as far as can be told right now.
+nonisolated enum CrewAccount: Equatable, Sendable {
+    /// Signed in, as this user record.
+    case signedIn(String)
+    case signedOut
+    /// Restricted, busy, offline or not answering: nothing can be said, and
+    /// nothing may be thrown away on it.
+    case unknown
 }

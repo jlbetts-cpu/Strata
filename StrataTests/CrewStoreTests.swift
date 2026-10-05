@@ -37,6 +37,30 @@ struct CrewStoreTests {
         return (a, b, crew)
     }
 
+    /// iOS says the account changed far more often than it does. Only a
+    /// different user, or none, may clear the crews (the owner, 2026-10-05:
+    /// chats disappeared and came back).
+    @Test func anAccountNoticeKeepsTheCrewsUnlessTheAccountReallyChanged() async throws {
+        let (a, cloud, _) = store(jayden)
+        _ = try await a.createCrew(name: "Roommates")
+        await a.refresh()
+        #expect(a.crews.count == 1)
+
+        await a.accountChanged()                 // same account
+        #expect(a.crews.count == 1)
+        cloud.signedIn = .unknown                // iCloud busy, or offline
+        await a.accountChanged()
+        #expect(a.crews.count == 1)
+        #expect(cloud.resets == 0)
+
+        cloud.signedIn = .signedIn("someone-else")
+        await a.accountChanged()
+        #expect(cloud.resets == 1)
+        cloud.signedIn = .signedOut
+        await a.accountChanged()
+        #expect(cloud.resets == 2)
+    }
+
     @Test func aSixthCrewIsRefused() async throws {
         let (a, _, _) = store(jayden)
         for i in 0..<CrewCaps.crews { _ = try await a.createCrew(name: "Crew \(i)") }

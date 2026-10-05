@@ -45,7 +45,11 @@ final class FakeCrewCloud: CrewCloud {
     }
 
     func prepare() async {}
-    func reset() {}
+    func reset() { resets += 1 }
+    private(set) var resets = 0
+    /// Who a test says is signed in.
+    var signedIn: CrewAccount = .signedIn("fake-account")
+    func account() async -> CrewAccount { signedIn }
 
     /// What this phone last asked to hear about.
     private(set) var listening: CrewPingPlan?

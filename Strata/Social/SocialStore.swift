@@ -130,8 +130,29 @@ final class SocialStore {
 
     /// Signed out of iCloud, or into another account: nothing of the old
     /// account's crews may stay on the phone (the 2026-10-02 audit).
+    ///
+    /// **Only when it really changed.** iOS posts `CKAccountChanged` for far
+    /// more than a sign-in or out (a token refresh, iCloud settings, coming
+    /// back from the background), and wiping on every one emptied the crews
+    /// list, closed the open crew with "This crew has ended." and threw away
+    /// writes still waiting to send, until the next refresh brought it all
+    /// back (the owner, 2026-10-05: "chats randomly disapearing... then they
+    /// come back"). The account is asked who it is, and only a different
+    /// user, or none, clears anything.
     func accountChanged() async {
         guard isEnabled() else { return }
+        let was = defaults.string(forKey: Self.accountKey)
+        switch await cloud.account() {
+        case .unknown:
+            return
+        case .signedIn(let who):
+            defaults.set(who, forKey: Self.accountKey)
+            // First seen (a phone updated from before this was kept): the
+            // crews on it are this account's.
+            guard let was, was != who else { return }
+        case .signedOut:
+            defaults.removeObject(forKey: Self.accountKey)
+        }
         cloud.reset()
         for crew in crews { forget(crew.id) }
         crews = []
@@ -270,6 +291,8 @@ final class SocialStore {
     /// crew on this phone, and they are not told (spec 9.2).
     private(set) var blocked: Set<UUID> = []
     private static let blockedKey = "crews.blocked"
+    /// The iCloud user the crews on this phone belong to.
+    static let accountKey = "crews.account"
 
     func block(_ profileID: UUID, name: String = "") {
         blocked.insert(profileID)
@@ -826,6 +849,10 @@ final class SocialStore {
 
     private func refreshOnce() async {
         await cloud.prepare()
+        // Who the crews belong to, kept before any change can be announced.
+        if defaults.string(forKey: Self.accountKey) == nil, case .signedIn(let who) = await cloud.account() {
+            defaults.set(who, forKey: Self.accountKey)
+        }
         await flush()
         do {
             // **In a fixed order**, members, wins and reactions alike. A

@@ -96,6 +96,18 @@ final class CloudKitCrewCloud: CrewCloud {
         try? FileManager.default.removeItem(at: cacheURL)
     }
 
+    func account() async -> CrewAccount {
+        do {
+            switch try await container.accountStatus() {
+            case .available: return .signedIn(try await container.userRecordID().recordName)
+            case .noAccount: return .signedOut
+            default: return .unknown
+            }
+        } catch {
+            return .unknown
+        }
+    }
+
     // MARK: Crews
 
     func createZone(_ crew: Crew) async throws -> URL {
