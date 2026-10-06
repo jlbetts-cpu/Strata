@@ -253,6 +253,11 @@ enum ConsistencySweep {
         "Strata/Views/HeadSticker.swift": 1,
         // The viewer's close, which is a `GlassIconButton`.
         "Strata/Views/PhotoViewer.swift": 1,
+        // The crew photo's reaction face/pill and the Reply and Doodle chips,
+        // all `glassCapsule()`: a scaling press on interactive glass cancelled
+        // the tap on a real phone (the owner, 2026-10-05: "the reaction picker
+        // ... never shows up"), so they answer with the glass alone.
+        "Strata/Views/Crews/CrewReactions.swift": 2,
         // The header's profile picture, built on `GlassIconButton`'s skeleton and
         // drawn on `glassCircle()`.
         "Strata/Views/ProfileAvatar.swift": 1,

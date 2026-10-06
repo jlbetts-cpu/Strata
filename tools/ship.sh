@@ -99,7 +99,7 @@ cat > "$WORK/ExportOptions.plist" <<'PLIST'
     <dict>
         <key>JaydenBetts.Strata</key><string>Strata App Store 49</string>
         <key>JaydenBetts.Strata.StrataWidget</key><string>Strata Widget App Store (cli)</string>
-        <key>JaydenBetts.Strata.Notifications</key><string>Some Wins Notifications App Store</string>
+        <key>JaydenBetts.Strata.Notifications</key><string>Some Wins Notifications App Store 3</string>
     </dict>
     <key>uploadSymbols</key><true/>
     <key>destination</key><string>export</string>

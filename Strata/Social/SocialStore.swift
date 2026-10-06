@@ -30,12 +30,12 @@ final class SocialStore {
         store.incomingPolicy = { CrewSafety.incoming }
         store.incomingCheck = { await CrewSafety.verdict($0) }
         store.announces = true
-        // Off until the notification extension ships with it: its app ID
-        // has to be linked to the iCloud container and the app group in the
-        // developer portal first. Without the extension a ping's alert would
-        // say only "A friend added a win", and the app's own, better
-        // notifications would stand down for it.
-        store.sendsPings = false
+        // On since 2026-10-05: the notification extension ships with the app
+        // now that its app ID is linked to the iCloud container and the app
+        // group, so a ping arrives as "Sam added Morning run" on the lock
+        // screen however long the app has been closed, not only when iOS
+        // happens to wake it.
+        store.sendsPings = true
         NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { _ in
             Task { @MainActor in await SocialStore.shared.accountChanged() }
         }
