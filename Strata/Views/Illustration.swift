@@ -337,7 +337,7 @@ enum IllustrationMotion {
             let u = smile(at: t, play: play)
             let open = max((u - swapAt) / (1 - swapAt), 0)
             let k = smallest + (1 - smallest) * backOut(open)
-            return LayerPose(x: 0, y: grinLift, scaleX: k, scaleY: -k,
+            return LayerPose(x: 0, y: grinLift, scaleX: -k, scaleY: -k,
                              rotation: grinTilt, opacity: u < swapAt ? 0 : 1, anchor: .center)
         }
 
@@ -351,8 +351,14 @@ enum IllustrationMotion {
         /// zigzag both rise and the round of the mouth sits under them, a
         /// smile; past 25 it drops onto his jaw. Lifted 6 of the drawing's
         /// 870 points to keep it clear of the jawline.
-        static let grinTilt = 20.0
-        static let grinLift = -6.0 / 870
+        ///
+        /// **And mirrored, so it is not backwards** (the owner, 2026-10-06:
+        /// "yeah it looks like a smile but it looks backwards on the face").
+        /// Turned over alone, the round of the mouth sat on the wrong side of
+        /// his face; turned over and mirrored, it is where he drew it, and he
+        /// picked it from six laid on his face: "mirrored, 8 cw".
+        static let grinTilt = 8.0
+        static let grinLift = -4.0 / 870
 
         /// How far through the turn from frown to smile: 0 the frown, 1 the
         /// smile, at an even pace (each half eases itself).
