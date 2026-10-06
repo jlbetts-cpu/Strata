@@ -264,6 +264,8 @@ struct DaySheet: View {
     @State private var symbol: String?
     @State private var loaded = false
     @State private var picking = false
+    /// The mark's picker (`StickerPicker`) is open.
+    @State private var choosingMark = false
     /// Suggest's question: the placeholder on an empty note, a faded line
     /// under written words. Written into the note only when that line is
     /// tapped, and then only the question (`JournalSuggestInsert`).
@@ -536,6 +538,11 @@ struct DaySheet: View {
             try? await Task.sleep(for: .seconds(1.5))
             if let question { insert(question) }
         }
+        if DebugHarness.argument("-strataSticker") == "seed", StickerStore.name(in: symbol) == nil,
+           let sample = StickerMaker.sample(), let name = StickerStore.shared.add(sample) {
+            symbol = StickerStore.symbol(for: name)
+            save()
+        }
         if let sketch = DebugHarness.journalSketch {
             try? await Task.sleep(for: .milliseconds(600))
             if sketchName == nil {
@@ -806,10 +813,19 @@ struct DaySheet: View {
     private var emojiButton: some View {
         Button {
             HapticsEngine.lightTap()
-            picking = true
+            choosingMark = true
         } label: {
             ZStack {
-                if let symbol {
+                if let name = StickerStore.name(in: symbol), let image = StickerStore.shared.image(name) {
+                    // One of your stickers (`StickerStore`), a touch bigger
+                    // than the disc so it reads as stuck on.
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: Self.tapTarget - 6, height: Self.tapTarget - 6)
+                        .rotationEffect(.degrees(-6))
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                } else if let symbol, StickerStore.name(in: symbol) == nil {
                     Text(symbol)
                         .font(Typography.headerMedium)
                         .transition(.scale(scale: 0.5).combined(with: .opacity))
@@ -834,6 +850,22 @@ struct DaySheet: View {
         // a phone (`CrewReactions`, 2026-10-05). The Plan's ＋ in this same
         // corner is a `GlassIconButton`, so the two now press alike.
         .buttonStyle(.plain)
+        .popover(isPresented: $choosingMark) {
+            StickerPicker(current: symbol, onPick: { picked in
+                symbol = picked == symbol ? nil : picked
+                save()
+                choosingMark = false
+            }, onEmoji: {
+                choosingMark = false
+                // The keyboard once the popover has gone: a field asked to
+                // take focus under a closing popover does not.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    picking = true
+                }
+            })
+            .presentationCompactAdaptation(.popover)
+        }
         .overlay {
             EmojiField(isActive: $picking) { picked in
                 // The same one again takes it off.
@@ -852,7 +884,7 @@ struct DaySheet: View {
             }
         }
         .animation(reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop, value: symbol)
-        .accessibilityLabel(symbol.map { "The day's emoji, \($0)" } ?? "Add an emoji for the day")
+        .accessibilityLabel(symbol.map { "The day's mark, \(JournalMark.spoken($0))" } ?? "Add a sticker or emoji for the day")
         .accessibilityHint(symbol == nil ? "" : "Choose the same one again to remove it")
     }
 

@@ -378,7 +378,7 @@ struct MonthCalendarCell: View {
             // under it, because the press is a transform and not a redraw.
             .buttonStyle(.pressSurface)
             .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")"
-                                + (symbol.map { ", \($0)" } ?? (hasNote ? ", written" : "")))
+                                + (symbol.map { ", \(JournalMark.spoken($0))" } ?? (hasNote ? ", written" : "")))
         } else if hasNote, !isFuture {
             // **A day with a note and no wins opens** (the cohesion pass,
             // 2026-10-05). It was drawn as a blank day with an emoji in its
@@ -397,7 +397,7 @@ struct MonthCalendarCell: View {
                 empty.overlay(alignment: .topTrailing) { badge(onBlock: false) }
             }
             .buttonStyle(.pressSurface)
-            .accessibilityLabel(symbol.map { "\(day), \($0), written" } ?? "\(day), written")
+            .accessibilityLabel(symbol.map { "\(day), \(JournalMark.spoken($0)), written" } ?? "\(day), written")
             .accessibilityHint("Opens that day.")
         } else {
             // **A day still to come is not a stop.** It carries nothing a
@@ -408,7 +408,7 @@ struct MonthCalendarCell: View {
             // one glance; this is the same skip.
             empty
                 .overlay(alignment: .topTrailing) { badge(onBlock: false) }
-                .accessibilityLabel(symbol.map { "\(day), \($0)" } ?? "\(day), nothing")
+                .accessibilityLabel(symbol.map { "\(day), \(JournalMark.spoken($0))" } ?? "\(day), nothing")
                 .accessibilityHidden(isFuture)
         }
     }
@@ -440,6 +440,24 @@ struct MonthCalendarCell: View {
                 .padding(3)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+        case .sticker(let name):
+            // A little bigger than the emoji, and allowed past the corner a
+            // touch, as a sticker stuck on a calendar would be. On a phone
+            // that does not have the file it is the day's dot.
+            if let image = StickerStore.shared.image(name) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: Self.stickerBox, height: Self.stickerBox)
+                    .rotationEffect(.degrees(-6))
+                    .padding(1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            } else {
+                JournalDot(ink: onBlock ? .white.opacity(0.92) : AppColors.inkSecondary)
+                    .frame(width: Self.badgeBox, height: Self.badgeBox)
+                    .padding(3)
+            }
         case .dot:
             JournalDot(ink: onBlock ? .white.opacity(0.92) : AppColors.inkSecondary)
                 .frame(width: Self.badgeBox, height: Self.badgeBox)
@@ -452,6 +470,8 @@ struct MonthCalendarCell: View {
     /// The box a 15pt emoji takes in the corner, measured off the built
     /// calendar, so the dot centres where the emoji does.
     private static let badgeBox: CGFloat = 18
+    /// A sticker's box in the corner.
+    private static let stickerBox: CGFloat = 24
 
     /// A day with wins: the app's own block, at calendar size.
     private func filled(_ block: MonthTower.Block) -> some View {

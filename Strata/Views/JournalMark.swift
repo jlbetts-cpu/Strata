@@ -15,12 +15,20 @@ import SwiftUI
 nonisolated enum JournalMark: Equatable {
     case none
     case emoji(String)
+    /// One of your stickers (`StickerStore`), by file name.
+    case sticker(String)
     case dot
 
     static func forDay(symbol: String?, written: Bool, hidden: Bool = false) -> JournalMark {
         guard !hidden else { return .none }
+        if let sticker = StickerStore.name(in: symbol) { return .sticker(sticker) }
         if let symbol, !symbol.isEmpty { return .emoji(symbol) }
         return written ? .dot : .none
+    }
+
+    /// The day's mark as VoiceOver says it: the emoji, or "a sticker".
+    static func spoken(_ symbol: String) -> String {
+        StickerStore.name(in: symbol) == nil ? symbol : "a sticker"
     }
 
     /// **The journal button's dot.** On a day's own page only, when the day
