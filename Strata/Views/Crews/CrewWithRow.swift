@@ -15,13 +15,27 @@ struct CrewWithRow: View {
     /// The crews ticked above. Their people are the only ones offered.
     let crews: Set<CrewID>
     @Binding var selection: [UUID]
+    /// One name a line, for the popover behind Add a win's tag button
+    /// (the owner, 2026-10-06: the row "doesnt give space for the photos and
+    /// it feels repetitive and not a feature that the user will need a lot").
+    var stacked = false
 
     private var store: SocialStore { SocialStore.shared }
 
     var body: some View {
         let people = store.taggable(in: crews)
         if CrewsFlag.isOn, !people.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+                if stacked {
+                    Text("Who was there?")
+                        .font(Typography.headerMedium)
+                        .foregroundStyle(AppColors.inkPrimary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(people) { person in
+                            chip(person)
+                        }
+                    }
+                } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     // `gapWide` between choices now there is no capsule to
                     // hold each one apart (2026-10-06).
@@ -36,6 +50,7 @@ struct CrewWithRow: View {
                     }
                 }
                 .scrollClipDisabled()
+                }
                 Text("They'll be asked if they want to keep it too.")
                     .font(Typography.screenSubtitle)
                     .foregroundStyle(AppColors.inkTertiary)

@@ -83,4 +83,16 @@ struct OwnerPicksOctoberSixTests {
         #expect(try code("SomeWinsNotifications/NotificationService.swift").contains("CrewAlertLevel.apply("))
         #expect(try code("Strata/Social/CrewNotifications.swift").contains("CrewAlertLevel.apply("))
     }
+
+    @Test("who it was with is one tag button, not a row between the crews and the photos")
+    func withIsATagButton() throws {
+        let sheet = try code("Strata/Views/AddWinSheet.swift")
+        #expect(sheet.contains("CrewWithRow(crews: crewChoice, selection: $withPeople, stacked: true)"))
+        #expect(!sheet.contains("CrewWithRow(crews: crewChoice, selection: $withPeople)\n"),
+                "the With row is back on the page (the owner, 2026-10-06)")
+        #expect(sheet.contains(".popover(isPresented: $tagging)"))
+        // The strip's own scroll is not moved by the keyboard: it drew the
+        // block 40pt above its frame, over the crew names, and took their taps.
+        #expect(sheet.contains(".ignoresSafeArea(.keyboard)"))
+    }
 }

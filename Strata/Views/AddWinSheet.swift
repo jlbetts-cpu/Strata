@@ -102,6 +102,8 @@ struct AddWinSheet: View {
     /// three at most. Only on a new win; it is sent with it and never kept
     /// on the `HabitLog`.
     @State private var withPeople: [UUID] = []
+    /// The "who was there" popover is open.
+    @State private var tagging = false
     /// Whether today's photographs may be read (`TodaysPhotos`).
     @State private var photoAccess = TodaysPhotos.access
     /// Today's photographs, newest first, for the strip beside the block.
@@ -255,15 +257,21 @@ struct AddWinSheet: View {
                         // Not on a win too old for any crew's tower: ticked,
                         // it would arrive in a day already gone.
                         if crewsCanTakeIt {
-                            CrewPicker(selection: Binding(get: { crewChoice },
-                                                          set: { crewChoice = $0; crewChoiceTouched = true }))
-                                .padding(.top, GridConstants.gapSection)
-                            // Under the crew chips, and only for a win on
-                            // its way to a crew (shared wins, spec 1).
-                            if !isEditing, CrewsFlag.isOn, !crewChoice.isEmpty {
-                                CrewWithRow(crews: crewChoice, selection: $withPeople)
-                                    .padding(.top, GridConstants.gapItem)
+                            HStack(alignment: .center, spacing: GridConstants.gapItem) {
+                                CrewPicker(selection: Binding(get: { crewChoice },
+                                                              set: { crewChoice = $0; crewChoiceTouched = true }))
+                                // **Who it was with, behind one tag button**
+                                // at the end of the crews (the owner,
+                                // 2026-10-06), not a second row of names
+                                // between the crews and the photographs.
+                                // Only for a win on its way to a crew
+                                // (shared wins, spec 1).
+                                if !isEditing, CrewsFlag.isOn, !crewChoice.isEmpty,
+                                   !SocialStore.shared.taggable(in: crewChoice).isEmpty {
+                                    withButton
+                                }
                             }
+                            .padding(.top, GridConstants.gapSection)
                         }
                         subject(pageWidth: proxy.size.width, visibleHeight: proxy.size.height)
                             .padding(.top, GridConstants.gapSection)
@@ -508,6 +516,38 @@ struct AddWinSheet: View {
     /// rather than bands, so it reads as a failure. No capture of that state
     /// exists yet, and putting both labels back everywhere to satisfy a clause
     /// one state cannot otherwise meet would be the audit measuring itself.
+    // MARK: - Who it was with (2026-10-06)
+
+    /// A hollow person-plus in the crew row's ink; once someone is tagged,
+    /// their count beside a person pair. Opens the names in a popover.
+    private var withButton: some View {
+        Button {
+            HapticsEngine.lightTap()
+            tagging = true
+        } label: {
+            HStack(spacing: GridConstants.spacing) {
+                Image(systemName: withPeople.isEmpty ? "person.badge.plus" : "person.2")
+                    .font(Typography.headerMedium)
+                if !withPeople.isEmpty {
+                    Text("\(withPeople.count)")
+                        .font(Typography.headerSmall)
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(withPeople.isEmpty ? AppColors.inkSecondary : AppColors.inkPrimary)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel(withPeople.isEmpty ? "Who was there" : "With \(withPeople.count)")
+        .popover(isPresented: $tagging) {
+            CrewWithRow(crews: crewChoice, selection: $withPeople, stacked: true)
+                .padding(GridConstants.gapWide)
+                .frame(minWidth: 260, alignment: .leading)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
     // MARK: - Today's photographs (2026-10-05)
 
     /// Whether the strip of today's photographs runs on from the block: a
@@ -560,6 +600,9 @@ struct AddWinSheet: View {
         // (measured 2026-10-06: frame at 249, drawn at 207). The page's own
         // scroll answers the keyboard; this one does not need to.
         .ignoresSafeArea(.keyboard)
+        // And no soft edge: iOS 26 draws one where a scroll view meets an
+        // inset, and it faded the crew names above the strip.
+        .modifier(NoScrollEdgeEffect())
         .task(id: photoAccess) { loadTodaysPhotos() }
     }
 
@@ -1716,6 +1759,17 @@ private struct TodaysPhotoTile: View {
         // shape rather than stretching the old picture.
         .task(id: size) {
             image = await TodaysPhotos.thumbnail(for: asset, size: size, scale: displayScale)
+        }
+    }
+}
+
+/// No iOS 26 soft scroll edge on the photo strip (`AddWinSheet.photoStrip`).
+private struct NoScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            content
         }
     }
 }
