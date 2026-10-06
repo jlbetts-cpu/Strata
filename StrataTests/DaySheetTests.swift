@@ -272,21 +272,21 @@ struct DaySheetTests {
         #expect(bad.contains("Capsule") && bad.contains("background("))
     }
 
-    /// Top left is the tab's own button: the emoji on the Journal, ＋ on the
-    /// Plan (the owner, 2026-10-05: "why does there need to be the add to
-    /// plan just have the + button on the top left").
-    @Test("top left is the Journal's emoji and the Plan's ＋")
+    /// Top left is the Journal's emoji, and nothing on the Plan: the ＋ the
+    /// owner asked for on 2026-10-05 ("just have the + button on the top
+    /// left") became the Plan's bar at the foot on 2026-10-06, when he picked
+    /// "Composer for both" from the crew chat's design. Two ways to start a
+    /// line would be one too many.
+    @Test("top left is the Journal's emoji, and the Plan adds from its bar")
     func leadingButtonPerTab() throws {
         let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
         #expect(text.contains("DaySheetToolbar(leading: leadingButton, done: done)"))
         let leading = try #require(text.components(separatedBy: "private var leadingButton: some View {").dropFirst().first)
         let fn = leading.components(separatedBy: "private var emojiButton").first ?? ""
         #expect(fn.contains("case .journal: emojiButton"))
-        #expect(fn.contains("GlassIconButton(systemName: \"plus\""))
-        #expect(fn.contains("planAdds += 1"))
-        let lines = SourceSweep.code(try MorningSource.read("Views/PlanLines.swift"))
-        #expect(lines.contains(".onChange(of: addRequests)"),
-                "the ＋ no longer reaches the plan")
+        #expect(fn.contains("case .plan: EmptyView()"))
+        #expect(!fn.contains("systemName: \"plus\""), "the ＋ is back beside the Plan's bar")
+        #expect(!text.contains("planAdds"), "a second way to start a plan line is back")
     }
 
     // MARK: - The Wins header: one button where there were two

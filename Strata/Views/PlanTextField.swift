@@ -24,7 +24,14 @@ struct PlanTextField: UIViewRepresentable {
     /// Return pressed: make the next line.
     var onReturn: () -> Void
     /// Backspace on an already-empty line: remove this one.
-    var onBackspaceWhenEmpty: () -> Void
+    var onBackspaceWhenEmpty: () -> Void = {}
+    /// `.next` on a line; the Plan's bar (`DayComposer`) sends.
+    var returnKey: UIReturnKeyType = .next
+    /// The Plan's bar: Return hands over the field's own words and empties
+    /// it in the same keystroke. Through the binding, both lagged SwiftUI's
+    /// next pass: fast typing landed on the end of the old words ("Water the
+    /// plantsT") and the next Return sent the old line again (simulator).
+    var onSend: ((String) -> Void)? = nil
 
     final class Field: UITextField {
         var onBackspaceWhenEmpty: (() -> Void)?
@@ -65,7 +72,7 @@ struct PlanTextField: UIViewRepresentable {
         field.delegate = context.coordinator
         field.font = Self.lineFont
         field.adjustsFontForContentSizeCategory = true
-        field.returnKeyType = .next
+        field.returnKeyType = returnKey
         field.autocorrectionType = .default
         field.enablesReturnKeyAutomatically = false
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -124,6 +131,13 @@ struct PlanTextField: UIViewRepresentable {
         }
 
         func textFieldShouldReturn(_ field: UITextField) -> Bool {
+            if let onSend = parent.onSend {
+                let words = field.text ?? ""
+                field.text = ""
+                parent.text = ""
+                onSend(words)
+                return false
+            }
             parent.onReturn()
             return false
         }

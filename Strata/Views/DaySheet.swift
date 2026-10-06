@@ -252,8 +252,10 @@ struct DaySheet: View {
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
     @State private var planFocus: UUID?
-    /// Bumped by the Plan tab's ＋; `PlanLines` starts a line on each change.
-    @State private var planAdds = 0
+    /// What is being typed in the Plan's bar (`DayComposer`). It shares the
+    /// lines' focus: the bar owns the keyboard when `planFocus` is its id.
+    @State private var planDraft = ""
+    @State private var planComposerID = UUID()
     /// Counts tab choices; see `choose`.
     @State private var choices = 0
 
@@ -271,6 +273,9 @@ struct DaySheet: View {
     @State private var asked: [String] = []
     @State private var thinking = false
     @FocusState private var writing: Bool
+    /// What is being typed in the Journal's bar, before it joins the note.
+    @State private var journalDraft = ""
+    @FocusState private var journalComposing: Bool
     /// The day's sketch, by file name (`MoodLog.sketchFileName`).
     @State private var sketchName: String?
     /// The full-screen editor is up, on `sketchAtOpen`.
@@ -298,9 +303,10 @@ struct DaySheet: View {
     /// the sheet names the day exactly as the page under it does.
     private var title: String { DayTitle.title(forKey: dateString) }
 
-    /// The owner's words for an empty note. A past day was not "today".
+    /// The Journal bar's words (the owner's, 2026-10-06). A past day was not
+    /// "today".
     private var invitation: String {
-        isToday ? "What happened today?" : "What happened that day?"
+        isToday ? "Write about today" : "Write about that day"
     }
 
     private var isEmpty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -444,19 +450,46 @@ struct DaySheet: View {
     /// foot, on a phone with Apple's model.
     private var planTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PlanLines(focused: $planFocus, addRequests: planAdds, onComplete: onComplete)
+            PlanLines(focused: $planFocus, onComplete: onComplete)
                 .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if PlanSuggestions.isAvailable {
-                PlanSuggestionsView(
-                    context: { shown in
-                        PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)
-                    },
-                    keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
-                    unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) })
+            VStack(spacing: 0) {
+                if PlanSuggestions.isAvailable {
+                    PlanSuggestionsView(
+                        context: { shown in
+                            PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)
+                        },
+                        keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
+                        unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) })
+                }
+                planComposer
             }
+        }
+    }
+
+    /// **The chat's bar, for the plan** (the owner's pick, 2026-10-06,
+    /// "Composer for both"): type a thing, send it, and it is the plan's next
+    /// line. It replaced the ＋ top left. Return sends too, and the field
+    /// stays up for the next line.
+    private var planComposer: some View {
+        DayComposer(canSend: DayComposing.hasWords(planDraft), onSend: { sendPlanLine(planDraft) }) {
+            PlanTextField(text: $planDraft, placeholder: "Add to the plan",
+                          focused: $planFocus, id: planComposerID, isDone: false,
+                          onReturn: {}, returnKey: .send, onSend: sendPlanLine)
+                // A `UITextField` takes all the height it is offered.
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Add to the plan")
+        }
+    }
+
+    private func sendPlanLine(_ words: String) {
+        planDraft = ""
+        guard DayComposing.hasWords(words) else { return }
+        HapticsEngine.tick()
+        withAnimation(motion) {
+            _ = DayComposing.addPlanLine(words, after: allItems, habits: habits, context: modelContext)
         }
     }
 
@@ -539,10 +572,12 @@ struct DaySheet: View {
                     .transition(.opacity)
             }
             sketch
+            // The spare page writes in the bar at the foot, as a chat's
+            // does; the note itself still takes a tap to edit.
             Color.clear
                 .frame(minHeight: Self.tapTarget, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .onTapGesture { writing = true }
+                .onTapGesture { journalComposing = true }
                 .accessibilityHidden(true)
         }
     }
@@ -564,24 +599,26 @@ struct DaySheet: View {
             .frame(minHeight: Self.tapTarget)
             .fixedSize(horizontal: false, vertical: true)
             .overlay(alignment: .topLeading) {
-                if isEmpty {
-                    // The placeholder, or Suggest's question in its place. It
-                    // is drawn over the editor and never typed into it.
-                    Text(question ?? invitation)
+                if isEmpty, let question {
+                    // Suggest's question, where the words will start. It is
+                    // drawn over the editor and never typed into it. With no
+                    // question the page is empty: the bar at the foot says
+                    // where to write.
+                    Text(question)
                         .font(Typography.bodyLarge)
                         .foregroundStyle(AppColors.inkTertiary)
                         // The text view's own inset, so the placeholder sits
                         // exactly where the first letter will.
                         .padding(.top, 8)
                         .padding(.leading, 5)
-                        .id(question ?? invitation)
+                        .id(question)
                         .transition(.opacity)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
             }
             .accessibilityLabel("Note")
-            .accessibilityHint(isEmpty ? (question ?? invitation) : "")
+            .accessibilityHint(isEmpty ? (question ?? "") : "")
             .padding(.horizontal, GridConstants.horizontalPadding - 5)
     }
 
@@ -642,19 +679,31 @@ struct DaySheet: View {
     /// The journal's own Suggest, offered everywhere (the fixed list answers
     /// without the model), with the pen at the trailing edge, because the
     /// sketch is the journal's. The plan's Suggest is the Plan tab's.
+    ///
+    /// **The chat's bar** (the owner's pick, 2026-10-06, "Composer for
+    /// both"): what is sent joins the note as its next paragraph. The pen
+    /// stands where a chat keeps its attachment, and Suggest sits above.
     private var journalFoot: some View {
-        ZStack {
+        VStack(spacing: 0) {
             journalSuggest
-            HStack {
-                Spacer(minLength: 0)
+            DayComposer(canSend: DayComposing.hasWords(journalDraft), onSend: sendParagraph) {
+                TextField(invitation, text: $journalDraft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .focused($journalComposing)
+            } leading: {
                 GlassIconButton(systemName: "pencil", onPage: true,
                                 accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
                     openEditor()
                 }
             }
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.bottom, GridConstants.gapTight)
         }
+    }
+
+    private func sendParagraph() {
+        guard DayComposing.hasWords(journalDraft) else { return }
+        HapticsEngine.lightTap()
+        withAnimation(motion) { text = DayComposing.appending(journalDraft, to: text) }
+        journalDraft = ""
     }
 
     private var todaysLines: [PlanItem] {
@@ -674,7 +723,6 @@ struct DaySheet: View {
         .buttonStyle(.press)
         .disabled(thinking)
         .opacity(thinking ? 0.5 : 1)
-        .padding(.bottom, GridConstants.gapTight)
         .accessibilityHint("Shows a question about your day")
     }
 
@@ -745,10 +793,8 @@ struct DaySheet: View {
     private var leadingButton: some View {
         switch tab {
         case .journal: emojiButton
-        case .plan:
-            GlassIconButton(systemName: "plus", onPage: true, accessibilityLabel: "Add to the plan") {
-                planAdds += 1
-            }
+        // The Plan's ＋ became its bar at the foot (`planComposer`).
+        case .plan: EmptyView()
         }
     }
 

@@ -36,10 +36,6 @@ struct PlanLines: View {
     /// Journal can put the keyboard away.
     @Binding var focused: UUID?
 
-    /// Bumped by the sheet's ＋ (top left on the Plan tab); each change starts
-    /// a line at the end.
-    var addRequests: Int = 0
-
     /// Called with the line when its block is pressed. The caller opens the
     /// add sheet; the line is ticked at once, and the tick is kept only once
     /// a win is actually saved, so backing out of that sheet does not spend it.
@@ -115,7 +111,6 @@ struct PlanLines: View {
 
     var body: some View {
         content
-            .onChange(of: addRequests) { withAnimation(GridConstants.motionSnappy) { addLine() } }
             .sheet(item: $detail) { item in
                 PlanItemDetailSheet(item: item)
             }
@@ -410,9 +405,9 @@ struct PlanLines: View {
     /// how a win with no category picks one — so a plan reads like the tower
     /// it will become rather than like a list of one colour.
     private func addLine(after item: PlanItem? = nil) {
-        // In the function, not at the three call sites that reach it — the
-        // plus button, the empty state and the tap below the last line all
-        // make the same thing happen and should all feel the same.
+        // In the function, not at the call sites that reach it: Return on a
+        // line and the tap below the last line make the same thing happen and
+        // should feel the same.
         HapticsEngine.tick()
         let colour = QuickWinService.spontaneousCategory(existing: habits)
         let position = (item?.order ?? allItems.last?.order ?? -1) + 1
