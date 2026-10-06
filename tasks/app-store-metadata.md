@@ -1,4 +1,114 @@
-# App Store metadata, drafted for the 4.1(a) resubmission
+# App Store metadata
+
+**Nothing here is live.** App Store Connect is the owner's to edit and nothing
+in this file has been submitted. Text for him to paste.
+
+## Current: the ADHD positioning (owner-approved, 2026-10-05)
+
+Some Wins is designed with ADHD brains as the target, and says so. It is the
+design target, NOT a treatment claim: no word below says the app helps,
+improves, treats or manages anything, and the description ends by saying it
+is not a medical app. That keeps it clear of guideline 1.4.1 (health claims
+are held to a medical standard) and 2.3.7 (metadata must not overclaim). The
+reasoning behind each choice is in the app itself, Settings, "Why It Works
+This Way" (`Strata/Views/WhyItWorksView.swift`), with its sources.
+
+**Brand rule, still binding:** "habit" and "streak" appear nowhere in this
+metadata. Checked: neither word, nor a long dash, is in any field below.
+
+### Name (30 max)
+
+    Some Wins: Daily Photo Journal
+
+30 characters.
+
+### Subtitle (30 max)
+
+    A done list for ADHD brains
+
+27 characters.
+
+### Keywords (100 bytes max)
+
+    diary,planner,friend,group,memory,mood,gratitude,accomplishment,camera,widget,adult,neurodivergent
+
+98 bytes. No word repeats one in the name or the subtitle (Apple
+combines the three), no competitor names, singular forms.
+
+### Promotional text (170 max, changeable without review)
+
+    Log the small things you already did. One tap, a photo if you like. Empty days stay empty, and nothing is counted against you.
+
+126 characters.
+
+### Description (4000 max)
+
+1781 characters.
+
+```
+A list of what you did, not what you didn't.
+
+Some Wins is a done list. You log the small things you already did, and each one lands as a block on today's tower. Made the bed. Sent the email. Went outside. It counts.
+
+ONE TAP, FROM WHEREVER YOU ARE
+Log a win from the Lock Screen, a widget, Control Center or the Action button without opening the app. Or open it and tap the empty slot. Hold and pull for a bigger block when it was a bigger thing.
+
+A PHOTO, IF YOU LIKE
+Take a picture with the built-in camera and the photo becomes the block. A picture is the quickest way to remember a moment later. Photos are optional, always.
+
+THE DAY'S JOURNAL
+Write a few lines about the day, or nothing at all. Give the day an emoji and it shows on that day in your calendar. Suggest offers one question about something you logged, only when you ask for it. Lock Journal keeps your notes behind Face ID.
+
+MEMORIES
+Every day you logged something is a block in your month's calendar. Open a day to see its tower and its photos. Some evenings, a win from a year ago today comes back. Weekly and monthly replays drop every win into one tower you can save as a video.
+
+CREWS, WITHOUT A FEED
+Start a crew with up to 8 friends and share a tower for the day. React to a friend's win, reply with a short line only they see, and tag the people a win was with. There are no likes, no follower counts and nothing to scroll.
+
+EMPTY DAYS ARE FINE
+A day with nothing on it stays empty, and that is all it does. Nothing is counted against you, nothing resets, and nothing nags.
+
+PRIVATE BY DEFAULT
+No account. No ads. No analytics. What you log stays on your phone and in your own iCloud. A win reaches a crew only when you send it there.
+
+Some Wins is not a medical app and does not diagnose or treat ADHD.
+```
+
+### Screenshot captions, in order
+
+1. One tap. It counts.
+2. Log from the Lock Screen
+3. Your day, in blocks
+4. A year ago today
+5. Up to 8 friends, one tower
+6. Empty days are fine
+
+### Categories
+
+- Primary: **Lifestyle**
+- Secondary: **Social Networking** (the owner, 2026-10-05; it was Photo &
+  Video in the 2026-10-03 plan). Crews are the social half of the app and the
+  category says so; Photo & Video put it beside camera and editing apps it does
+  not compete with.
+
+### Age rating: one question to answer carefully
+
+Crew **replies are user messaging**: a short free-text line one person writes
+to another (`SocialStore.reply`). In the age rating questionnaire, answer the
+user-generated content / messaging questions YES. What already limits it, and
+can be cited: a reply is at most 80 characters, is seen only by the win's owner
+and the writer, clears when the crew's day ends, passes a words check on both
+phones (`CrewWords`), and is off for anyone whose age is unknown or who chose
+not to say (`CrewAge`); crews have Report and Block (`CrewSafety`). Reactions
+are a fixed set of emoji and are not messaging.
+
+---
+
+## History: the 2026-09-23 draft for the 4.1(a) resubmission (superseded)
+
+Kept for the reasoning about the rejection and the reply to App Review. The
+name, subtitle, keywords and copy in it are superseded by the section above.
+
 
 Drafted 2026-09-23. **Nothing here is live.** App Store Connect is the owner's
 to edit and this is text for him to paste, once he has settled the name by

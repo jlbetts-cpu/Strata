@@ -73,7 +73,7 @@ measurement beside it.
 | Profile's Done stays **the title's ink** | 2026-10-02 | "Leave it"; monochrome like every other sheet |
 | Add and Edit **read from the top**: name, its controls, the block, air below. The block is not floored | 2026-10-02 | "why is the spacing that spaced out looks odd"; it was 64 under the name and 197 over the block |
 | Tapping the **tower head plays a face**, the camera's twelve, never the same twice running | 2026-10-02 | "when you click on it it will change faces just like the camera" |
-| Dragging the tower head shows a **glass bubble directly left of the Plan button, its size**. Let go in it and he parks; tap it and it pops | 2026-10-02 | "make the glass button right next to the plan and be the same size on the left of the plan right next to it" |
+| ~~Dragging the tower head shows a **glass bubble directly left of the Plan button, its size**. Let go in it and he parks; tap it and it pops~~ **REVERSED 2026-10-05: no head bubble on the Wins header**, so he is never parked (`CompanionParking.hasDock`) | 2026-10-02, reversed 2026-10-05 | "make the glass button right next to the plan and be the same size on the left of the plan right next to it"; then "remove the head from the main home screen because i feel like it would make too many buttons there since we added the journal component" |
 
 ### Crews
 

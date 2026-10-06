@@ -11,8 +11,20 @@ Research only: nothing submitted or changed in App Store Connect.
   search). The name itself is free: no app, no USPTO mark. Search it on a
   phone before submitting; a descriptive suffix anchors it.
 
+## Positioning, chosen 2026-10-05
+**ADHD as the design target, not a treatment claim.** Subtitle "A done list
+for ADHD brains"; the full set is in `tasks/app-store-metadata.md`. Why: the
+app's choices (a list of what you did, logging at the point of performance,
+an immediate block, no penalty for an empty day) are the ones the ADHD
+literature argues for, and saying who it is designed for is a sharper
+position than "photo journal". Why NOT a claim: guideline 1.4.1 holds health
+claims to a medical standard, and 2.3.7 rejects metadata that overclaims, so
+nothing says "helps", "treats" or "manages", and the description ends "Some
+Wins is not a medical app and does not diagnose or treat ADHD." Secondary
+category changed to Social Networking (owner, 2026-10-05).
+
 ## Metadata (counts measured)
-**Chosen 2026-10-03: A.**
+**Chosen 2026-10-03: A. Superseded on 2026-10-05 by the positioning above.**
 
 A (recommended, chosen)
 - Name: `Some Wins: Daily Photo Journal` (30)
@@ -32,8 +44,8 @@ keywords (2025). Ranking also reads downloads, ratings and conversion.
 
 ## Category and charts
 Charts rank recent install velocity within the category. Lifestyle (primary)
-+ Photo & Video (secondary): the lowest bar for an indie, and no health
-framing (1.4.1). Productivity is Google, Microsoft and AI apps.
++ Social Networking (secondary; it was Photo & Video until the owner's call on
+2026-10-05): the lowest bar for an indie, and no health framing (1.4.1). Productivity is Google, Microsoft and AI apps.
 
 ## Launch, in order
 1. Featuring Nomination, "App Launch", 3+ weeks ahead.
