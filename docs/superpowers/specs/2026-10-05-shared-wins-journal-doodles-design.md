@@ -140,3 +140,57 @@ cell, like a reaction badge on a post.
 3. The sketch strip, used by both the journal and doodle replies.
 
 Each part ships on its own with its tests.
+
+## 4. Your own month drawing (approved 2026-10-05)
+
+**Why it is shaped this way.**
+- Lock Screen editing by long press alone had no affordance, and Apple added
+  a Settings path in iOS 16.1.
+- NN/g: hidden gestures need clues and another way to do the action.
+- Meta's Animated Drawings needs a humanoid rig and a server.
+- Image Playground replaces your lines.
+
+**Entry.**
+- A long press on the month drawing opens a system context menu: "Draw Your
+  Own", and "Use Original" once a custom drawing exists. There is no edit
+  button.
+- A TipKit tip appears once, on about the third visit after the drawing has
+  played, and is invalidated on first use.
+- The same action also sits in Settings.
+
+**The ink canvas (`InkCanvas`).**
+- PencilKit, `drawingPolicy = .anyInput`.
+- One black `.monoline` pen at the house width, an eraser toggle and undo.
+  There is no `PKToolPicker`.
+- Export it under a light trait, so the ink stays black.
+- The same component serves the journal sketch and doodle replies.
+
+**The editor.**
+- A full-screen sheet with a canvas at the month art's aspect ratio, and
+  Cancel and Done.
+- One switch, "Bring It to Life", on by default.
+
+**The animation.**
+- **Draw-on:** the saved `PKDrawing`'s strokes replay in order along their
+  interpolated points. It is time-compressed to about 1.8 s, with a cap per
+  stroke.
+- **Settle:** then one gentle sway of the whole drawing, using the existing
+  `IllustrationMotion` springs.
+- **Boil:** a light boil (2 to 3 jittered frames) only while it draws, never
+  at rest.
+- **When:** once on appear and again on tap, like the scarecrow. It never
+  loops.
+- **Reduce Motion:** a short fade only.
+
+**Storage.**
+- One file per calendar month (`2026-10`): the `PKDrawing` data plus a
+  cached template PNG, beside the photographs.
+- A month with no file shows the default drawing. "Use Original" deletes the
+  file, and the default is never touched.
+
+**Do not:**
+- AI restyling
+- a colour picker
+- an idle loop
+- an edit mode straight from the hold
+- edit chrome on the calendar
