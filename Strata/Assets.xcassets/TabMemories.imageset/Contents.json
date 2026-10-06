@@ -1,0 +1,9 @@
+{
+  "images" : [
+    { "idiom" : "universal", "scale" : "1x" },
+    { "filename" : "TabMemories@2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "TabMemories@3x.png", "idiom" : "universal", "scale" : "3x" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 },
+  "properties" : { "template-rendering-intent" : "template" }
+}

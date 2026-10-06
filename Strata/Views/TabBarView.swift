@@ -30,13 +30,26 @@ enum StrataTab: String, CaseIterable {
     /// tab. Wins is the house, where the app opens (his call, over the trophy
     /// he first picked: a trophy reads as a big achievement, not a small daily
     /// one); Memories is the calendar the page
-    /// opens on. `calendar` has no filled form, so it is the same drawing in
-    /// both states and the bar's own highlight says "here".
+    /// opens on.
+    ///
+    /// **And now they are his drawings** (the owner, 2026-10-06, reversing
+    /// "only sf symbols" on seeing Luma: a characterful set on the bottom
+    /// tabs, Apple's own glyphs up top, "instantly adds personality to the
+    /// app while keeping everything clean"; his pick, "You draw them"). Three
+    /// filled shapes he drew in Procreate, a house with a smile, a camera, a
+    /// calendar, made by `docs/tab-icons/make_tab_icons.py`: his white marks
+    /// turned into true holes, so the bar's tint reaches every edge.
+    ///
+    /// **Filled in both states, as Luma's are**, so `selected` no longer
+    /// changes the drawing: the bar's tint and its glass pill say which tab
+    /// you are on. The research behind the choice: a heavy filled set beside
+    /// thin SF Symbols reads as a decision, an outline set reads as SF at the
+    /// wrong weight (`docs/research` icon notes, 2026-10-06).
     func image(selected: Bool) -> Image {
         switch self {
-        case .tower: Image(systemName: selected ? "house.fill" : "house")
-        case .camera: Image(systemName: selected ? "camera.fill" : "camera")
-        case .memories: Image(systemName: "calendar")
+        case .tower: Image("TabWins")
+        case .camera: Image("TabCamera")
+        case .memories: Image("TabMemories")
         }
     }
 
