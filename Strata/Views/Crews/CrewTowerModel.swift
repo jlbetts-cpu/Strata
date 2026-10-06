@@ -20,6 +20,8 @@ final class CrewTowerModel {
     /// observed, so measuring it invalidates nothing.
     @ObservationIgnored let probe = TowerGeometryProbe()
     @ObservationIgnored private var lastDanceMilestone: Int?
+    /// Whether everyone had posted at the last rebuild: nil before the first.
+    @ObservationIgnored private var wasEveryoneIn: Bool?
     @ObservationIgnored private var wired = false
 
     func wire(reduceMotion: Bool) {
@@ -66,8 +68,17 @@ final class CrewTowerModel {
 
     /// Rebuilds from the crew's wins. A win that was not there last time falls
     /// in from above the screen, as yours do; every tenth one sets the tower
-    /// dancing, which is the crew's only celebration.
-    func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String], reactions: (UUID) -> [Reaction] = { _ in [] }) {
+    /// dancing.
+    ///
+    /// **And so does the win that makes everyone in** (2026-10-06, "the
+    /// ritual of winning together"). The last person to post today sets the
+    /// whole crew's tower dancing, the same dance and the same haptic as the
+    /// tenth win, so the crew's two moments read as one family. It never says
+    /// who was last: the dance is the crew's, not anyone's. Only a change
+    /// seen while the tower is open counts, so opening a finished day does
+    /// not dance again.
+    func rebuild(wins: [SharedWin], me: UUID, names: [UUID: String], everyoneIn: Bool = false,
+                 reactions: (UUID) -> [Reaction] = { _ in [] }) {
         let ordered = wins.sorted { $0.createdAt < $1.createdAt }
         var entries: [TowerViewModel.TowerEntry] = []
         for win in ordered {
@@ -92,8 +103,10 @@ final class CrewTowerModel {
         }
         let count = tower.placedBlocks.count
         let milestone = count / GridConstants.danceEvery
+        let justFull = Self.becameFull(was: wasEveryoneIn, now: everyoneIn)
+        wasEveryoneIn = everyoneIn
         guard let last = lastDanceMilestone else { lastDanceMilestone = milestone; return }
-        if count > 0, count % GridConstants.danceEvery == 0, milestone != last {
+        if count > 0, (count % GridConstants.danceEvery == 0 && milestone != last) || justFull {
             lastDanceMilestone = milestone
             Task { @MainActor in
                 // After the tenth has landed, as on the Wins tab.
@@ -105,6 +118,18 @@ final class CrewTowerModel {
         } else {
             lastDanceMilestone = milestone
         }
+    }
+
+    /// Everyone in the crew has a win on the tower today. A crew of one is
+    /// never "everyone": there is nobody to win together with yet.
+    nonisolated static func everyoneIn(wins: [SharedWin], members: [UUID]) -> Bool {
+        let posted = Set(wins.map(\.senderProfileID))
+        return members.count > 1 && members.allSatisfy(posted.contains)
+    }
+
+    /// Only the moment it turns: not the first look, not staying full.
+    nonisolated static func becameFull(was: Bool?, now: Bool) -> Bool {
+        was == false && now
     }
 
     /// The same measurement the Wins tab makes: far enough above its slot

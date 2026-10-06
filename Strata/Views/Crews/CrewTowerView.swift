@@ -7,8 +7,9 @@ import SwiftUI
 /// and the page below is today's tower, drawn by the same blocks, lattice,
 /// drop and dance as your own (`TowerBlocksForEach`).
 ///
-/// A friend's win falls in while you watch. Every tenth win the tower dances.
-/// Nothing else celebrates, and nothing counts anyone against anyone.
+/// A friend's win falls in while you watch. Every tenth win the tower dances,
+/// and so does the win that makes everyone in today. Nothing else
+/// celebrates, and nothing counts anyone against anyone.
 struct CrewTowerView: View {
     let crewID: CrewID
     var onBack: () -> Void
@@ -465,7 +466,9 @@ struct CrewTowerView: View {
 
     private func rebuild() {
         let names = Dictionary(uniqueKeysWithValues: (crew?.members ?? []).map { ($0.profileID, $0.shortName) })
-        model.rebuild(wins: store.today(in: crewID), me: store.me, names: names,
+        let wins = store.today(in: crewID)
+        model.rebuild(wins: wins, me: store.me, names: names,
+                      everyoneIn: CrewTowerModel.everyoneIn(wins: wins, members: (crew?.members ?? []).map(\.profileID)),
                       reactions: { store.reactions(to: $0, in: crewID) })
     }
 
