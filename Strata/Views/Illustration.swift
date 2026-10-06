@@ -44,13 +44,7 @@ struct Illustration: View {
                 // Takes its room before the space around it does, so the
                 // space shrinks first and the drawing only after.
                 .layoutPriority(1)
-            if let line {
-                Text(line)
-                    .font(.system(.subheadline, design: .default, weight: .semibold))
-                    .tracking(0.2)
-                    .foregroundStyle(AppColors.inkPrimary)
-                    .multilineTextAlignment(.center)
-            }
+            if let line { DrawingLine(text: line) }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
@@ -568,5 +562,37 @@ struct LayerPose: ViewModifier {
                     .offset(x: pose.x * proxy.size.width, y: pose.y * proxy.size.height)
             }
             .opacity(pose.opacity)
+    }
+}
+
+/// **The line under a drawing**, set one way wherever a drawing has one: the
+/// owner's (October's quote, the crews' "Winning is better together") and
+/// the one you write under your own month (`MonthDrawingEditor`). SF Pro,
+/// small and close under the drawing, so the two read as one piece.
+struct DrawingLine: View {
+    let text: String
+
+    /// As long as a line under a drawing should be: one breath, two lines
+    /// at most on the smallest phone.
+    static let maxLength = 48
+    static let font = Font.system(.subheadline, design: .default, weight: .semibold)
+    static let tracking: CGFloat = 0.2
+
+    var body: some View {
+        Text(text)
+            .font(Self.font)
+            .tracking(Self.tracking)
+            .foregroundStyle(AppColors.inkPrimary)
+            .multilineTextAlignment(.center)
+    }
+
+    /// A line as it is kept: trimmed, one line, no longer than `maxLength`,
+    /// and nil when nothing is left.
+    static func kept(_ typed: String?) -> String? {
+        let one = (typed ?? "")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !one.isEmpty else { return nil }
+        return String(one.prefix(maxLength)).trimmingCharacters(in: .whitespaces)
     }
 }

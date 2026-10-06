@@ -691,8 +691,13 @@ struct MemoriesView: View {
             // section 4). The default is never touched, so "Use Original"
             // brings it straight back, with October's scarecrow animation.
             if let own = MonthDrawingStore.shared.drawing(for: key) {
-                InkReplay(drawing: own, height: 290, onRest: Self.artPlayed)
-                    .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
+                // Your line under your drawing, set as the owner's are.
+                VStack(spacing: GridConstants.gapItem) {
+                    InkReplay(drawing: own, height: 290, onRest: Self.artPlayed)
+                        .layoutPriority(1)
+                    if let line = own.line { DrawingLine(text: line) }
+                }
+                .modifier(MonthArtHold(month: key, hasOwn: true, editing: $drawingMonth))
             } else if let art = UIImage(named: "Month" + month) {
                 Illustration(art: art, line: Self.monthLine[month], height: 290,
                              motion: UIImage(named: "Month" + month + "Crow").map {
@@ -723,7 +728,7 @@ struct MemoriesView: View {
                 let canvas = CGSize(width: 300, height: 450)
                 MonthDrawingStore.shared.save(
                     InkSamples.sunOverHill(in: canvas, width: InkPen.width(onCanvasOfHeight: 450, shownAt: MonthDrawingEditor.shownHeight)),
-                    canvas: canvas, bringsToLife: which != "still", for: key)
+                    canvas: canvas, bringsToLife: which != "still", line: "Out by noon", for: key)
             }
             if which == "edit" {
                 try? await Task.sleep(for: .seconds(1))
@@ -737,10 +742,15 @@ struct MemoriesView: View {
     /// The month's drawing has played: the tip may now point at it.
     private static func artPlayed() { MonthDrawingTip.artPlayed = true }
 
-    /// The line under a month's drawing, in his words where he has given
-    /// them. October's "Happy Halloween" came off (the owner, 2026-10-03):
-    /// the drawing says it.
-    static let monthLine: [String: String] = [:]
+    /// The line under a month's drawing. October's "Happy Halloween" came
+    /// off (the owner, 2026-10-03): the drawing says it. A quote is another
+    /// thing, and he asked for one (2026-10-06: "should there be like a nice
+    /// quote under the scarecrow drawing"), as the crews' drawing has its
+    /// "Winning is better together". The crow landing on the scarecrow is
+    /// what it says.
+    static let monthLine: [String: String] = [
+        "October": "Even scarecrows have friends",
+    ]
 
     /// The chosen month's photographs, as one untitled section.
     private var monthPhotos: [GallerySection] {

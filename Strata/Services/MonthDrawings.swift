@@ -24,6 +24,11 @@ nonisolated struct MonthDrawing: Codable, Equatable, Sendable {
     var bringsToLife: Bool = true
     /// The cached template PNG's file name.
     var picture: String
+    /// **Your own line under it**, as the owner's drawings have theirs (the
+    /// owner, 2026-10-06: "when you are drawing your own you can add you own
+    /// quote"). Optional, so a drawing saved before there were lines still
+    /// reads.
+    var line: String? = nil
 
     var canvasSize: CGSize { CGSize(width: canvasWidth, height: canvasHeight) }
 }
@@ -68,7 +73,8 @@ final class MonthDrawingStore {
     /// Keeps a drawing for the month, replacing any before it. An empty
     /// drawing keeps nothing and removes what was there: drawn and rubbed
     /// out is the original again.
-    func save(_ drawing: PKDrawing, canvas: CGSize, bringsToLife: Bool, for month: String) {
+    func save(_ drawing: PKDrawing, canvas: CGSize, bringsToLife: Bool, line: String? = nil,
+              for month: String) {
         guard !drawing.strokes.isEmpty, canvas.width > 0, canvas.height > 0 else {
             remove(month)
             return
@@ -79,7 +85,8 @@ final class MonthDrawingStore {
                                       scale: JournalSketches.scale) else { return }
         let record = MonthDrawing(strokes: drawing.dataRepresentation(),
                                   canvasWidth: canvas.width, canvasHeight: canvas.height,
-                                  bringsToLife: bringsToLife, picture: picture)
+                                  bringsToLife: bringsToLife, picture: picture,
+                                  line: DrawingLine.kept(line))
         do {
             try files.write(png, named: picture)
             try files.write(try JSONEncoder().encode(record), named: Self.recordName(month))

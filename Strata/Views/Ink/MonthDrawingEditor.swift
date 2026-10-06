@@ -14,6 +14,11 @@ import TipKit
 /// (`InkPen.width(onCanvasOfHeight:shownAt:)`), and the line arrives on the
 /// page at the house width.
 ///
+/// **A line of your own under it** (the owner, 2026-10-06: "when you are
+/// drawing your own you can add you own quote"): typed under the canvas in
+/// the very type the page sets it in (`DrawingLine`), centred where it will
+/// sit, so what you write is what Memories shows.
+///
 /// Done with nothing drawn is the original again (`MonthDrawingStore.save`).
 struct MonthDrawingEditor: View {
     /// "2026-10".
@@ -24,6 +29,7 @@ struct MonthDrawingEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var ink: InkController
     @State private var bringsToLife: Bool
+    @State private var line: String
     @State private var canvasSize: CGSize = .zero
     /// The strokes as they were when the editor opened, at this canvas's
     /// size, to tell an edit from a look.
@@ -44,6 +50,7 @@ struct MonthDrawingEditor: View {
         let strokes = saved.flatMap { try? PKDrawing(data: $0.strokes) } ?? PKDrawing()
         _ink = State(initialValue: InkController(drawing: strokes))
         _bringsToLife = State(initialValue: saved?.bringsToLife ?? true)
+        _line = State(initialValue: saved?.line ?? "")
     }
 
     var body: some View {
@@ -52,6 +59,17 @@ struct MonthDrawingEditor: View {
                 InkCanvas(controller: ink, aspectRatio: Self.aspect)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fit(width: $0) }
                     .frame(maxHeight: .infinity)
+                TextField("Add a line", text: $line)
+                    .font(DrawingLine.font)
+                    .tracking(DrawingLine.tracking)
+                    .foregroundStyle(AppColors.inkPrimary)
+                    .multilineTextAlignment(.center)
+                    .submitLabel(.done)
+                    .frame(minHeight: GlassIconButton.defaultSide)
+                    .onChange(of: line) { _, now in
+                        if now.count > DrawingLine.maxLength { line = String(now.prefix(DrawingLine.maxLength)) }
+                    }
+                    .accessibilityLabel("Line under the drawing")
                 Toggle(isOn: $bringsToLife) {
                     Text("Bring It to Life")
                         .font(Typography.bodyLarge)
@@ -97,10 +115,11 @@ struct MonthDrawingEditor: View {
         // Opened and closed with nothing changed writes nothing.
         let untouched = saved.map {
             baseline == ink.drawing.dataRepresentation() && $0.bringsToLife == bringsToLife
+                && $0.line == DrawingLine.kept(line)
         } ?? ink.isEmpty
         if !untouched {
             MonthDrawingStore.shared.save(ink.drawing, canvas: canvasSize,
-                                          bringsToLife: bringsToLife, for: month)
+                                          bringsToLife: bringsToLife, line: line, for: month)
         }
         dismiss()
     }
