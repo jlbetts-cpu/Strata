@@ -52,6 +52,8 @@ struct LogWinIntent: AppIntent {
         let tower = activeTower(in: context)
         let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled, size: size,
                                              context: context, tower: tower)
+        // The count the widgets show, before they are asked to redraw it.
+        WidgetSnapshot.read().afterWin(todayCount: TodaysWins.count(in: context)).write()
         WidgetReloader.reload()
         afterWin(context)
         // A win said to Siri goes where the last one went, as a one-tap win

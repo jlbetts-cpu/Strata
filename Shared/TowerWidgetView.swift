@@ -153,6 +153,9 @@ struct TowerWidgetView: View {
             Text(StrataFont.digits(snapshot.today))
                 .font(StrataFont.size(30))
                 .foregroundStyle(.white)
+                // On a tinted Home Screen the count takes the tint; the photo
+                // behind it is the container's and the system removes it.
+                .widgetAccentable()
             Text(snapshot.today == 1 ? "win" : "wins")
                 .font(.system(size: 15, weight: .medium, design: .default))
                 .foregroundStyle(.white.opacity(0.85))

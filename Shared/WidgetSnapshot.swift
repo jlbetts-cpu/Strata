@@ -186,6 +186,20 @@ struct WidgetSnapshot: Codable, Equatable {
 
     /// Writes unconditionally. For a caller that already knows the content
     /// changed, such as the app comparing against the snapshot it last wrote.
+    /// The snapshot after one more win, for a win logged where the app's own
+    /// publisher is not running (a widget, Control Center, the Lock Screen,
+    /// Siri, the reminder's actions). Those only reloaded the timelines, so
+    /// the widgets redrew the count they already had (found 2026-10-06).
+    /// Read as of `now` first, so a new day starts from zero; the streak
+    /// grows by one on the day's first win.
+    func afterWin(todayCount: Int, now: Date = Date(), calendar: Calendar = .current) -> WidgetSnapshot {
+        let current = asOf(now, calendar: calendar)
+        return WidgetSnapshot(total: current.total + 1,
+                              today: max(todayCount, current.today + 1),
+                              streak: current.today == 0 ? current.streak + 1 : current.streak,
+                              blocks: current.blocks, updated: now)
+    }
+
     @discardableResult
     func write() -> Bool {
         guard let url = Self.fileURL,
