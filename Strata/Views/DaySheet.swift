@@ -529,6 +529,9 @@ struct DaySheet: View {
     /// Suggest and the pen stand at the foot (`footer`).
     private var note: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // The day's photographs first: press one and Suggest asks about
+            // that win (`JournalPhotoRow`). Absent on a day without photos.
+            JournalPhotoRow(dateString: dateString) { win in ask(about: win) }
             editor
             if let question, !isEmpty {
                 questionLine(question)
@@ -675,13 +678,17 @@ struct DaySheet: View {
         .accessibilityHint("Shows a question about your day")
     }
 
-    private func ask() {
+    /// `win`: the win a photograph in the row was pressed for, so the question
+    /// is about that one. Nil asks about the day, as Suggest always has.
+    private func ask(about win: String? = nil) {
         HapticsEngine.lightTap()
         thinking = true
         let context = JournalQuestionContext(
             wins: JournalQuestionContext.winTitles(on: dateString, context: modelContext),
             alreadyAsked: asked, isToday: isToday,
-            company: JournalQuestionContext.company(on: dateString, context: modelContext))
+            company: JournalQuestionContext.company(on: dateString, context: modelContext),
+            focus: win,
+            moments: JournalQuestionContext.moments(on: dateString, context: modelContext))
         Task {
             let next = await JournalQuestions.next(context, using: JournalQuestions.questioner)
             question = next

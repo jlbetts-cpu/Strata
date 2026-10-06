@@ -29,6 +29,16 @@ nonisolated struct JournalQuestionContext: Equatable, Sendable {
     /// can come of it ("What was the run with Sam like?") is the best one
     /// the day has, and the model cannot ask it without being told.
     var company: [String: [String]] = [:]
+    /// The win a photograph in the journal's row was pressed for, if one was
+    /// (the owner, 2026-10-06: "we have the photo data already I feel we can
+    /// use that to help the user fill out the journal"). The question is then
+    /// about that win alone.
+    var focus: String? = nil
+    /// What else is known about each win, in the person's own terms: the part
+    /// of the day and the kind of win ("in the morning, a health win"). Never
+    /// a place: a place name would mean asking Apple's servers, and the prompt
+    /// is meant to stay on the phone.
+    var moments: [String: String] = [:]
 
     /// A win's title as the prompt says it: "Morning run (with Sam)".
     func said(_ title: String) -> String {
@@ -38,6 +48,15 @@ nonisolated struct JournalQuestionContext: Equatable, Sendable {
 
     /// The prompt, in plain lines.
     var prompt: String {
+        if let focus {
+            var lines = ["The win they chose from \(isToday ? "today" : "that day"): \(said(focus))"
+                         + (moments[focus].map { ", \($0)" } ?? "") + "."]
+            if !alreadyAsked.isEmpty {
+                lines.append("Already asked, ask something different: \(alreadyAsked.joined(separator: " "))")
+            }
+            lines.append("Ask one question about this win.")
+            return lines.joined(separator: "\n")
+        }
         var lines = ["The wins they logged \(isToday ? "today" : "that day"): \(wins.prefix(8).map(said).joined(separator: ", "))."]
         if !alreadyAsked.isEmpty {
             lines.append("Already asked, ask something different: \(alreadyAsked.joined(separator: " "))")
@@ -67,6 +86,32 @@ nonisolated struct JournalQuestionContext: Equatable, Sendable {
 
     /// The people each of the day's wins was kept with, by title
     /// (`KeptWith`). Only wins kept from a crew tag have any.
+    /// "in the morning, a health win", per titled win on the day.
+    @MainActor
+    static func moments(on dateString: String, context: ModelContext,
+                        calendar: Calendar = .current) -> [String: String] {
+        let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == dateString })
+        var out: [String: String] = [:]
+        for log in (try? context.fetch(descriptor)) ?? [] {
+            let title = (log.habit?.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, title != QuickWinService.untitled, out[title] == nil else { continue }
+            var parts: [String] = []
+            if let at = log.completedAt { parts.append(partOfDay(at, calendar: calendar)) }
+            if let kind = log.habit?.displayCategory, kind != .unlabeled { parts.append("a \(kind.rawValue) win") }
+            if !parts.isEmpty { out[title] = parts.joined(separator: ", ") }
+        }
+        return out
+    }
+
+    static func partOfDay(_ date: Date, calendar: Calendar = .current) -> String {
+        switch calendar.component(.hour, from: date) {
+        case 5..<12: return "in the morning"
+        case 12..<17: return "in the afternoon"
+        case 17..<22: return "in the evening"
+        default: return "at night"
+        }
+    }
+
     @MainActor
     static func company(on dateString: String, context: ModelContext,
                         defaults: UserDefaults = .standard) -> [String: [String]] {
@@ -128,6 +173,14 @@ nonisolated enum JournalQuestionRules {
 
     /// The next one of the list that has not been asked, and round again
     /// once all four have.
+    /// Without the model, a question about the one win that was chosen. Each
+    /// names it, so it passes `namesAWin`.
+    static func fallback(about win: String) -> [String] {
+        ["What do you remember about \(win)?",
+         "How did \(win) go?",
+         "What made \(win) feel good?"]
+    }
+
     static func fallbackQuestion(after alreadyAsked: [String], isToday: Bool) -> String {
         let list = fallback(isToday: isToday)
         return list.first { !alreadyAsked.contains($0) } ?? list[0]
@@ -150,6 +203,7 @@ nonisolated enum JournalQuestionRules {
         - Never mention anything they did not do.
         - Calm and specific, warm and curious, never a test: "What made the early run happen?"
         - Never answer it, never add a second sentence, never praise.
+        - Never say when or how they did it as if you had noticed it; use their words.
         - No emoji, no quotation marks.
         """
 
@@ -247,11 +301,19 @@ enum JournalQuestions {
     /// The question to show. Never throws and never comes back empty: every
     /// way of not having a good question ends on the fixed list.
     static func next(_ context: JournalQuestionContext, using questioner: JournalQuestioner?) async -> String {
-        let fallback = JournalQuestionRules.fallbackQuestion(after: context.alreadyAsked,
+        let fallback: String
+        if let focus = context.focus {
+            let own = JournalQuestionRules.fallback(about: focus)
+            fallback = own.first { !context.alreadyAsked.contains($0) } ?? own[0]
+        } else {
+            fallback = JournalQuestionRules.fallbackQuestion(after: context.alreadyAsked,
                                                              isToday: context.isToday)
+        }
         guard !context.wins.isEmpty, let questioner else { return fallback }
+        // About the chosen win, a question has to name THAT win.
+        let named = context.focus.map { [$0] } ?? context.wins
         guard let raw = try? await questioner.ask(context),
-              let question = JournalQuestionRules.clean(raw, wins: context.wins),
+              let question = JournalQuestionRules.clean(raw, wins: named),
               !context.alreadyAsked.contains(question) else { return fallback }
         return question
     }
