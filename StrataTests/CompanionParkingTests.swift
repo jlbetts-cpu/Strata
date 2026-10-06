@@ -46,6 +46,10 @@ struct CompanionParkingTests {
         #expect(!CompanionParking.hasDock)
         #expect(!CompanionParking.shared.parked, "parked with no bubble on screen is a head that has vanished")
         #expect(row.contains("HStack(alignment: .center, spacing: GridConstants.gapTight)"))
+        // The 2026-10-02 group fused two discs into one peanut, which is what
+        // this guards. Journal and Plan are one `HeaderGlassPair` now
+        // (2026-10-05), whose blend distance is under the gap between them so
+        // they never fuse: `WinsBatchTests.pairDoesNotFuse` holds that number.
         #expect(!header.prefix(1500).contains(".headerGlassGroup"), "one glass group fused the two into a peanut")
     }
 

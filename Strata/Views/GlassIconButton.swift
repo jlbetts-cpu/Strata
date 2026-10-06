@@ -312,3 +312,34 @@ enum GlassRecipe {
     }
 }
 
+
+/// **Two glass buttons that belong together, as one group** (the Wins
+/// header's Journal and Plan, 2026-10-05: "one glass pair, reading as mine").
+///
+/// One `GlassEffectContainer`, so the two discs are rendered as one piece of
+/// glass sampling one backdrop rather than as two materials side by side,
+/// and so a change to either morphs inside the group. **Its blend distance is
+/// under the gap between them**, which is what stops them fusing: on
+/// 2026-10-02 a group at the default distance welded the Plan and the head's
+/// bubble into one peanut-shaped capsule. Two discs, `gap` apart, never
+/// touching. Before iOS 26 there is no container and the two stand as they
+/// always did.
+struct HeaderGlassPair<Content: View>: View {
+    /// The space between the two discs, the header's own `gapTight`.
+    static var gap: CGFloat { GridConstants.gapTight }
+    /// How close two shapes come before the glass starts to join them. Under
+    /// `gap`, so at rest they never do.
+    static var blend: CGFloat { 0 }
+
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: Self.blend) {
+                HStack(spacing: Self.gap) { content }
+            }
+        } else {
+            HStack(spacing: Self.gap) { content }
+        }
+    }
+}

@@ -32,6 +32,9 @@ struct PlanSheet: View {
     @Query private var habits: [Habit]
     @State private var focused: UUID?
     @State private var detail: PlanItem?
+    /// The line whose Delete is showing, if one is. One at a time, as Mail
+    /// and Reminders do: opening another closes it.
+    @State private var swiped: UUID?
 
     /// A hairline is `1 / displayScale` (`docs/design-system-future.md` section
     /// 6), which is one device pixel however dense the screen is.
@@ -108,6 +111,13 @@ struct PlanSheet: View {
                 // `items` reads the fetch and a sheet presented from inside the
                 // same runloop turn as its parent does not appear.
                 #if DEBUG
+                // `-strataPlanSwipe 1` opens the first line's Delete, which is
+                // behind a swipe nothing here can make.
+                .task {
+                    guard DebugHarness.argument("-strataPlanSwipe") == "1" else { return }
+                    try? await Task.sleep(for: .milliseconds(900))
+                    withAnimation(GridConstants.motionSnappy) { swiped = items.first?.id }
+                }
                 .task {
                     guard DebugHarness.openSheet == "planline",
                           let first = items.first else { return }
@@ -618,14 +628,23 @@ struct PlanSheet: View {
         .padding(.vertical, GridConstants.spacing)
         .contentShape(Rectangle())
         .animation(GridConstants.motionSnappy, value: focused)
-        // A context menu, not `.swipeActions`.
-        //
-        // Swipe actions only exist inside a `List`, and this is a
-        // `LazyVStack` — so the swipe-to-delete that was here did nothing at
-        // all. A long press works in any container, and it is also what keeps
-        // both actions reachable on the rows whose info button is not drawn:
-        // VoiceOver surfaces a context menu as custom actions, so nothing is
-        // hidden behind having to focus the line first.
+        // **Swipe left to delete** (2026-10-05). `.swipeActions` only exists
+        // inside a `List` and this is a `LazyVStack`, which is why the one
+        // that was here once did nothing; `PlanSwipeToDelete` draws the
+        // platform's swipe on any row and argues its case. Delete goes
+        // through `PlanItem.remove`, the one delete path. A repeating line
+        // goes whole, with no "just this one" question:
+        // `PlanItem.supportsSingleOccurrenceDelete` says why. No undo: the
+        // app has no undo for a delete to join.
+        .modifier(PlanSwipeToDelete(
+            isOpen: swiped == item.id,
+            setOpen: { swiped = $0 ? item.id : (swiped == item.id ? nil : swiped) },
+            onDelete: { withAnimation(GridConstants.motionSnappy) { delete(item) } }))
+        // And the context menu stays: a long press works in any container,
+        // and it is also what keeps both actions reachable on the rows whose
+        // info button is not drawn. VoiceOver surfaces a context menu as
+        // custom actions, so nothing is hidden behind having to focus the
+        // line first.
         .contextMenu {
             Button { detail = item } label: {
                 Label("Options", systemImage: "info.circle")
@@ -695,8 +714,8 @@ struct PlanSheet: View {
     private func delete(_ item: PlanItem) {
         HapticsEngine.tick()
         if focused == item.id { focused = nil }
-        modelContext.delete(item)
-        StoreReset.commitDelete("deleting a plan line", context: modelContext)
+        if swiped == item.id { swiped = nil }
+        PlanItem.remove(item, context: modelContext)
     }
 
     /// Drops blank lines. An empty bullet you walked away from was never an

@@ -1252,7 +1252,10 @@ enum DebugHarness {
             let words = ["Long walk by the river.", "Finished the draft.", nil, "Dinner with Sam."]
             for back in stride(from: 1, through: seedJournal, by: 2) {
                 guard let day = Calendar.current.date(byAdding: .day, value: -back, to: Date()) else { continue }
-                DayNotes.save(note: words[back % words.count], symbol: marks[back % marks.count],
+                // Every third seeded day is words with no emoji, so the
+                // calendar's note dot can be photographed beside the emoji.
+                DayNotes.save(note: words[back % words.count],
+                              symbol: back % 3 == 0 ? nil : marks[back % marks.count],
                               for: DateUtils.dateString(from: day), context: context)
             }
         }

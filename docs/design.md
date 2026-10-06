@@ -52,7 +52,7 @@ Each line carries the date and, where there is one, his own words.
 | The tab bar is **icons only**, no labels | 2026-10-01 | put to him against keeping them; his call |
 | Profile lives on **Memories only**, never on Wins | settled | "the tower is today's record and its corner belongs to today" |
 | **Replays live in Memories.** The week moved there with the month | 2026-10-01 | "the your month doesnt belong on the wins because its already in memories" |
-| The Wins top-left corner holds the **Crews button** (glass, `person.2`); empty while the Crews flag is off. It was kept empty for a logo until this call | 2026-10-02 | "I want there to be a simple social button on the top left" |
+| ~~The Wins top-left corner holds the **Crews button**~~ **MOVED 2026-10-05: Journal and Plan are one glass pair top LEFT ("mine"), Crews stands alone top RIGHT** with its unread dot, the only dot on the header. Empty right corner while the Crews flag is off. Why the right: the HIG's trailing end is for what must stay available; Instagram and Strava put chat and notification entry points top right; a right thumb reaches top right more easily (Hoober). `WinsBatchTests.headerOrder` | 2026-10-02, moved 2026-10-05 | "I want there to be a simple social button on the top left"; then the approved batch of 2026-10-05 |
 | **No search** in Memories. It had one and it went | settled | — |
 | No Today tab, no checklist, no badge on a tab | settled | — |
 
@@ -69,6 +69,8 @@ measurement beside it.
 | Album card titles **wrap to two lines** rather than truncate | 2026-10-02 | "Wrap to two lines"; one line drew "Read a cha…" (`memories-album-options.png`) |
 | Onboarding's map page draws **the map as it is now**: back disc, no title | 2026-10-02 | "Redraw it"; it drew the map as the Memories tab, which it stopped being on 2026-09-30 |
 | A past day's lattice is **its tower plus one row** | 2026-10-02 | "Tower plus one row"; nothing lands on a past day |
+| **The journal's mark**: an emoji day shows the emoji and nothing extra; a day with a note and no emoji shows a tiny ink dot where the emoji would sit; a past day's journal button stays hollow and gets the same dot. Hidden while Lock Journal is locked (`JournalMark`) | 2026-10-05 | his exact rule, in the approved batch |
+| **Onboarding ends on the first win**: after the thank you, the tower's real slot with five examples ("Made the bed", "Drank water", "Replied to that email", "Went outside", "Called someone"); one tap logs it through `QuickWinService.logWin` and the app opens on Wins. It replaces the "Welcome" block (`OnboardingFirstWin`) | 2026-10-05 | approved in the batch |
 | The head maker **switches to the light page** for its preview | 2026-10-02 | "Keep the switch"; the head is shown where it will live |
 | Profile's Done stays **the title's ink** | 2026-10-02 | "Leave it"; monochrome like every other sheet |
 | Add and Edit **read from the top**: name, its controls, the block, air below. The block is not floored | 2026-10-02 | "why is the spacing that spaced out looks odd"; it was 64 under the name and 197 over the block |
@@ -81,7 +83,8 @@ measurement beside it.
 |---|---|---|
 | The groups are called **Crews** ("New Crew", "Leave Crew") | 2026-10-02 | his answer, over Circles, Squads and Builds |
 | A crew is up to **8 people, you included**; up to 5 crews each | 2026-10-02 | "up to 8 people I think fits the best"; 8 includes you, his answer |
-| Crews are reached from a **glass button top left of Wins**, then a list like Messages, then the crew's tower | 2026-10-02 | "a simple social button on the top left... when you click into a group it shows the shared tower" |
+| Crews are reached from a **glass button on Wins** (top right since 2026-10-05), then a list like Messages, then the crew's tower | 2026-10-02 | "a simple social button on the top left... when you click into a group it shows the shared tower" |
+| **One invitation after your very first win**, as a quiet line under the Wins header ("Your win is up. Who else should see it?"), once more after your first reaction received, then never. Not to under-13s, not with Crews off. A line, not a glass card: the header already holds the screen's three glass controls (`FirstWinInvite`) | 2026-10-05 | his Apollo research, approved in the batch |
 | A crew's **members sit top middle**, name in a capsule under them, like a Messages group | 2026-10-02 | "it will have the members on the top middle just like imessage" |
 | **Anyone in a crew** renames it, changes its picture and invites; only who started it removes people or ends it | 2026-10-02 | his answer: "Everyone, like Messages" |
 | **A notification for every friend's win**, grouped by crew, with Hide Alerts per crew | 2026-10-02 | "notifications work just the same as on imessages" |

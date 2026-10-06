@@ -22,6 +22,9 @@ final class CrewRouter {
     var openChat = false
     /// Something went wrong joining, in words a person can read.
     var joinProblem: String?
+    /// The Crews list should open on New Crew: the first-win invitation was
+    /// answered with no crew to invite into. Cleared by the list.
+    var startsCrew = false
 }
 
 /// The UIKit hooks a SwiftUI app has no modifier for: an accepted CloudKit

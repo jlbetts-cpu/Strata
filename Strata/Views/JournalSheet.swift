@@ -25,18 +25,28 @@ enum JournalIcon {
 /// thing the same way, and it asks `JournalLock` first: with Lock Journal on,
 /// a note opens only after Face ID or the passcode, once a session.
 ///
-/// **Always there, never asking.** No badge, no dot, no reminder: once a week
+/// **Always there, never asking.** No badge and no reminder: once a week
 /// beat three times a week in the research the spec cites, so the journal is
 /// available and never requested.
+///
+/// **One dot, on a day's own page only** (the owner, 2026-10-05). On a past
+/// day the glyph stays hollow and a tiny ink dot sits beside it when that day
+/// has a note: the same dot the calendar puts in the emoji's corner, saying a
+/// note is there, never asking for one. Not on Wins, where Crews is the only
+/// thing that ever carries a dot (`JournalMark.buttonShowsDot`). Hidden while
+/// Lock Journal is locked, as the emoji are.
 struct JournalButton: View {
     let dateString: String
+    /// True on a day's page, where a written day shows its dot.
+    var marksNote: Bool = false
 
     @Query private var entries: [MoodLog]
     @State private var isOpen = false
     @AppStorage(JournalLock.defaultsKey) private var lockOn = false
 
-    init(dateString: String) {
+    init(dateString: String, marksNote: Bool = false) {
         self.dateString = dateString
+        self.marksNote = marksNote
         _entries = Query(filter: #Predicate<MoodLog> { $0.dateString == dateString })
     }
 
@@ -49,6 +59,22 @@ struct JournalButton: View {
             accessibilityLabel: "Journal"
         ) {
             open()
+        }
+        // Inside the disc, up and to the right of the lines, so it reads as
+        // part of the glyph ("written") rather than as a notification badge
+        // on the glass's edge, which is what Crews' dot is.
+        .overlay(alignment: .topTrailing) {
+            if JournalMark.buttonShowsDot(hasNote: hasNote,
+                                          hidden: lockOn && !JournalLock.shared.isUnlocked,
+                                          onDayPage: marksNote) {
+                JournalDot(ink: AppColors.inkPrimary)
+                    // Clear of the glyph's top line by about 3pt, measured
+                    // off the built button: at 10 and 7 it touched the
+                    // line's end and read as a pin on it.
+                    .padding(.top, 5)
+                    .padding(.trailing, 5)
+                    .transition(.opacity)
+            }
         }
         // Not while Lock Journal is locked: "Written" is a fact about the
         // note, and the lock is for the note (the cohesion pass, 2026-10-05).
@@ -89,10 +115,10 @@ struct JournalToolbarItem: ToolbarContent {
     @ToolbarContentBuilder
     var body: some ToolbarContent {
         if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarTrailing) { JournalButton(dateString: dateString) }
+            ToolbarItem(placement: .topBarTrailing) { JournalButton(dateString: dateString, marksNote: true) }
                 .sharedBackgroundVisibility(.hidden)
         } else {
-            ToolbarItem(placement: .topBarTrailing) { JournalButton(dateString: dateString) }
+            ToolbarItem(placement: .topBarTrailing) { JournalButton(dateString: dateString, marksNote: true) }
         }
     }
 }
@@ -125,8 +151,17 @@ struct JournalSheet: View {
     @State private var symbol: String?
     @State private var loaded = false
     @State private var picking = false
-    /// Suggest's question, shown as the placeholder. Never inserted.
+    /// Suggest's question: the placeholder on an empty note, a faded line
+    /// under written words. Written into the note only when that line is
+    /// tapped, and then only the question (`JournalSuggestInsert`).
     @State private var question: String?
+    /// The caret, so a tapped question can put it after the heading it wrote.
+    @State private var selection: TextSelection?
+    /// The editor's height, and the height the written words take in it, so
+    /// the question line stands under the last line while there is room and
+    /// moves to the foot of the page once there is not.
+    @State private var editorHeight: CGFloat = 0
+    @State private var wordsHeight: CGFloat = 0
     @State private var asked: [String] = []
     @State private var thinking = false
     @FocusState private var writing: Bool
@@ -173,6 +208,15 @@ struct JournalSheet: View {
             JournalQuestions.prewarm()
             #if DEBUG
             if DebugHarness.journalAsks { ask() }
+            // `-strataJournalInsert 1`, with `-strataJournalAsk`: taps the
+            // question line once it has come, which nothing here can tap.
+            if DebugHarness.argument("-strataJournalInsert") == "1" {
+                for _ in 0..<40 where question == nil {
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+                if let question { insert(question) }
+            }
             if let sketch = DebugHarness.journalSketch {
                 // After the sheet has laid out, so the strip has its width.
                 try? await Task.sleep(for: .milliseconds(600))
@@ -212,36 +256,86 @@ struct JournalSheet: View {
         }
         .padding(.top, GridConstants.gapTight)
         // Suggest stands at the foot of the page, where the plan's stands
-        // (`PlanSuggestionsView`). Only while the note is empty: the question
-        // is the placeholder, and a written note has no placeholder to show.
+        // (`PlanSuggestionsView`), and now ALWAYS (2026-10-05): on an empty
+        // note its question is the placeholder, and under written words it
+        // is a faded line you can tap to write it in as a heading.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if ink == nil { footer }
         }
         .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: isEmpty)
+        .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: question)
+        // Starting to write under a placeholder question answers it: the
+        // question has done its job and does not follow you down the page.
+        .onChange(of: isEmpty) { was, now in
+            if was && !now { question = nil }
+        }
         .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: ink == nil)
     }
 
-    /// The foot of the page: Suggest in the middle while the note is empty,
-    /// and the pen at the trailing edge, always.
+    /// The foot of the page: Suggest in the middle and the pen at the
+    /// trailing edge, always. Above them, the question line, when the words
+    /// have filled the page and there is no room for it under them.
     private var footer: some View {
-        ZStack {
-            if isEmpty { suggest }
-            HStack {
-                Spacer(minLength: 0)
-                GlassIconButton(systemName: "pencil", onPage: true,
-                                accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
-                    openStrip()
-                }
+        VStack(spacing: 0) {
+            if let question, !isEmpty, !questionFitsUnderWords {
+                questionLine(question)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .transition(.opacity)
             }
-            .padding(.horizontal, GridConstants.horizontalPadding)
-            .padding(.bottom, GridConstants.gapTight)
+            ZStack {
+                suggest
+                HStack {
+                    Spacer(minLength: 0)
+                    GlassIconButton(systemName: "pencil", onPage: true,
+                                    accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
+                        openStrip()
+                    }
+                }
+                .padding(.horizontal, GridConstants.horizontalPadding)
+                .padding(.bottom, GridConstants.gapTight)
+            }
         }
+    }
+
+    /// Whether the question line fits under the last written line inside
+    /// the editor: the text view's 8pt top inset, the words, and a 44pt
+    /// target, against the editor's height.
+    private var questionFitsUnderWords: Bool {
+        editorHeight > 0 && 8 + wordsHeight + Self.tapTarget + 8 <= editorHeight
+    }
+
+    /// **The question, faded, under what you wrote.** A tap writes it into
+    /// the note as a heading line (the question, then a new line) and puts
+    /// the caret after it, so the next thing you type answers it. It never
+    /// writes an answer. "Another" at the foot of the page still cycles.
+    private func questionLine(_ question: String) -> some View {
+        Button { insert(question) } label: {
+            Text(question)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkTertiary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: Self.tapTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .id(question)
+        .accessibilityLabel("Write in: \(question)")
+        .accessibilityHint("Adds the question to your note, so you can answer it")
+    }
+
+    private func insert(_ question: String) {
+        HapticsEngine.lightTap()
+        let out = JournalSuggestInsert.inserting(question, into: text)
+        text = out.text
+        selection = TextSelection(insertionPoint: out.caret)
+        self.question = nil
+        writing = true
     }
 
     /// The words. The whole page below the title is the editor, so a tap
     /// anywhere on it starts writing.
     private var editor: some View {
-        TextEditor(text: $text)
+        TextEditor(text: $text, selection: $selection)
             .font(Typography.bodyLarge)
             .foregroundStyle(AppColors.inkPrimary)
             .scrollContentBackground(.hidden)
@@ -261,8 +355,31 @@ struct JournalSheet: View {
                         .transition(.opacity)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
+                } else if let question, questionFitsUnderWords {
+                    // Under the last line: the words' own height, measured
+                    // below, from the text view's 8pt inset, at its 5pt
+                    // leading inset so it starts where the words do.
+                    questionLine(question)
+                        .padding(.leading, 5)
+                        .padding(.trailing, 5)
+                        .padding(.top, 8 + wordsHeight)
+                        .transition(.opacity)
                 }
             }
+            // The words as the text view lays them out, unseen, for the
+            // height the question line stands under. The same font, the same
+            // insets (8 at the top, 5 a side), and a trailing new line kept
+            // as a line, which a bare `Text` would drop.
+            .background(alignment: .topLeading) {
+                Text(text.hasSuffix("\n") ? text + " " : text)
+                    .font(Typography.bodyLarge)
+                    .padding(.horizontal, 5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
+                    .accessibilityHidden(true)
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { editorHeight = $0 }
             .animation(reduceMotion ? GridConstants.crossFade : GridConstants.motionSnappy, value: question)
             .accessibilityLabel("Note")
             .accessibilityHint(isEmpty ? (question ?? invitation) : "")

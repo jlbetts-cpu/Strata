@@ -581,6 +581,11 @@ struct MainAppView: View {
                                            addWin: { winDraft = WinDraft(crews: [$0]) },
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) }))
         }
+        // The first-win invitation (`FirstWinInvite`): once after your very
+        // first win, once more after your first reaction, never again.
+        .modifier(FirstWinInvitePrompt(blockCount: towerVM.placedBlocks.count,
+                                       crewPath: $crewPath,
+                                       towerCard: { shareCard() }))
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
         // Setting one flag false and another true together asks UIKit to present a sheet
@@ -649,6 +654,17 @@ struct MainAppView: View {
                 onDeleted: { scheduleRefresh() }
             )
         }
+    }
+
+    /// The tower as the 9:16 share card, for an invitation's picture.
+    private func shareCard() -> UIImage? {
+        TowerShare.image(
+            blocks: towerVM.placedBlocks,
+            mergeGroups: towerVM.mergeGroups,
+            groupedIDs: towerVM.groupedBlockIDs,
+            coveredIDs: towerVM.coveredBlockIDs,
+            modelContext: modelContext
+        )
     }
 
     /// Marks the plan line a win was written from as done.
@@ -968,7 +984,7 @@ struct MainAppView: View {
             .background { WarmBackground().ignoresSafeArea() }
     }
 
-    /// The whole header: two controls, and nothing else.
+    /// The whole header: the Journal and Plan pair, Crews, and nothing else.
     ///
     /// It has lost a filter control, a period label, a height and now **the
     /// count**, in that order. The owner, 2026-09-30: "remove the wins number
@@ -1013,31 +1029,39 @@ struct MainAppView: View {
         // sit a baseline on, and two capsules of the same height centre on
         // each other exactly.
         HStack(alignment: .center, spacing: GridConstants.gapTight) {
-            // The corner holds Crews (the owner, 2026-10-02: "a simple social
-            // button on the top left"). It was kept clear for a logo until
-            // then, and stays clear while crews are off.
-            if CrewsFlag.isOn {
-                CrewsButton { crewPath = [.list] }
-            }
-            Spacer(minLength: 0)
-            // **The day's journal, beside the Plan** (spec section 2, approved
-            // 2026-10-05). `JournalButton` owns the sheet and the lock.
-            JournalButton(dateString: DateUtils.dateString(from: Date()))
-                .companionObstacle("journal")
+            // **Mine on the left, the crew on the right** (owner-approved,
+            // 2026-10-05). Journal and Plan are one glass pair at the leading
+            // edge, Journal on the far left and Plan inner, because both are
+            // yours: the day's note and the day's plan. Crews stands alone at
+            // the trailing edge. Three reasons for the right, each pinned in
+            // `WinsBatchTests.headerOrder`: the HIG's trailing end is for what
+            // must stay available; Instagram and Strava both put their chat
+            // and notification entry points top right; and a right thumb
+            // reaches the top right more easily than the top left (Hoober).
+            // It was top left from 2026-10-02 ("a simple social button on the
+            // top left"), which this placement supersedes at his word.
+            //
             // **The head's bubble is gone from this row** (the owner,
             // 2026-10-05: "remove the head from the main home screen because
             // i feel like it would make too many buttons there since we added
-            // the journal component"). It stood here, directly left of the
-            // Plan, from 2026-10-02 ("make the glass button right next to the
-            // plan and be the same size"), and that placement is now reversed
-            // by him. It was where the tower head parked: he started in it,
-            // so for most people it was a third round button with a face in
-            // it. Without it he cannot be parked, so he lives on the tower
-            // whenever Profile's tower switch is on, and off it when it is
-            // off (`CompanionParking.hasDock`). Nothing else went with it:
-            // Profile is still the Memories header's button, and the head
-            // maker is still in Profile.
-            headerPlan
+            // the journal component"). It stood directly left of the Plan
+            // from 2026-10-02, and was where the tower head parked. Without
+            // it he cannot be parked, so he lives on the tower whenever
+            // Profile's tower switch is on (`CompanionParking.hasDock`).
+            HeaderGlassPair {
+                // **The day's journal** (spec section 2, approved
+                // 2026-10-05). `JournalButton` owns the sheet and the lock,
+                // and on Wins it never carries a dot: only Crews does here.
+                JournalButton(dateString: DateUtils.dateString(from: Date()))
+                    .companionObstacle("journal")
+                headerPlan
+            }
+            Spacer(minLength: 0)
+            // Empty while crews are off, so the pair has the row to itself.
+            // The unread dot is `CrewsButton`'s own, from `SocialStore.unread`.
+            if CrewsFlag.isOn {
+                CrewsButton { crewPath = [.list] }
+            }
         }
         .accessibilityElement(children: .contain)
         // Constrained to the GRID's width, not the page's.
@@ -1843,6 +1867,15 @@ struct MainAppView: View {
         let key = Self.welcomeWinKey
         guard UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(false, forKey: key)
+        // **The win you dropped on onboarding's last page** (2026-10-05), on
+        // the active tower through `QuickWinService.logWin`, the path every
+        // one-tap win takes. It replaces "Welcome": the first block is now
+        // one you named.
+        if OnboardingFirstWin.isPending() {
+            OnboardingFirstWin.land(context: modelContext, tower: towerManager.activeTower)
+            scheduleRefresh()
+            return
+        }
         // Belt and braces: never two of them. The flag alone is enough in
         // practice, but a welcome block is the one thing that must not be
         // able to arrive twice — it would be the app's first act, doubled.

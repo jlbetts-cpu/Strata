@@ -61,6 +61,13 @@ import SwiftUI
 /// location, on the page that has just explained it.
 struct OnboardingView: View {
 
+    /// **The walkthrough ends on your first win** (owner-approved,
+    /// 2026-10-05): after the thank you, the last page is the tower's real
+    /// slot. One tap and your first block lands, with five examples of what
+    /// counts, and that win is logged through the normal path
+    /// (`OnboardingFirstWin`) as the app opens on Wins. False when Settings
+    /// replays the tour, which must not log a win.
+    var endsOnFirstWin = true
     var onFinish: () -> Void
 
     @State private var step = 0
@@ -86,13 +93,32 @@ struct OnboardingView: View {
     @State private var location = LocationService.shared
     @State private var heads = HeadStore.shared
     @State private var showsHeadMaker = false
+    /// The walkthrough has handed over; a second finish is ignored.
+    @State private var finished = false
 
     #if DEBUG
     private static let debugStep = DebugHarness.onboardingStep
     #endif
 
     private static let headStep = 4
-    private static let lastStep = 5
+    private static let thanksStep = 5
+    private static let firstWinStep = 6
+    private var lastStep: Int { endsOnFirstWin ? Self.firstWinStep : Self.thanksStep }
+
+    // The first-win page's own state.
+    /// The title the win will carry: typed, or filled in by a chip.
+    @State private var firstTitle = ""
+    /// The size the finger is drawing on the first-win slot.
+    @State private var firstSize: BlockSize = .small
+    /// The block that landed, once it has: its size.
+    @State private var firstLanded: BlockSize?
+    /// Its fall, 0 above the page and 1 in the slot.
+    @State private var firstFell = false
+    @FocusState private var firstTyping: Bool
+    /// The colour the first block wears: the slot shows it before the tap.
+    private static let firstColour: HabitCategory = .mindfulness
+    /// Two rows: room for a Deep, and the board stays a strip under the copy.
+    private static let firstRows = 2
     /// The cell size that takes the tower margin to margin.
     ///
     /// The owner, 2026-09-23: "why is the tower in the onboarding not margin to
@@ -153,6 +179,10 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, GridConstants.horizontalPadding)
             .padding(.bottom, GridConstants.gapWide)
+            // The first-win page's title field raises the keyboard; the
+            // bands stay where they are under it rather than squeezing the
+            // board, and Done puts it away.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .task {
             #if DEBUG
@@ -217,7 +247,7 @@ struct OnboardingView: View {
         }
         .padding(.top, GridConstants.gapItem)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Step \(step + 1) of \(Self.lastStep + 1)")
+        .accessibilityLabel("Step \(step + 1) of \(lastStep + 1)")
     }
 
     /// **The illustration's room, held open before there is an illustration.**
@@ -456,7 +486,8 @@ struct OnboardingView: View {
                 case 2: screenshot("DemoViewfinder", in: box)
                 case 3: memories(in: box)
                 case Self.headStep: headPage
-                case Self.lastStep: thanks
+                case Self.thanksStep: thanks
+                case Self.firstWinStep: firstWinPage(in: box)
                 default: EmptyView()
                 }
             }
@@ -1090,6 +1121,7 @@ struct OnboardingView: View {
         case 2: return "A win can be a photograph"
         case 3: return "Every photo keeps its place"
         case Self.headStep: return heads.head == nil ? "Make your own head" : "That's your head"
+        case Self.firstWinStep: return "Your first win"
         default: return "Thank you, genuinely"
         }
     }
@@ -1144,6 +1176,8 @@ struct OnboardingView: View {
         case Self.headStep: return heads.head == nil
             ? "Fifteen seconds with the front camera. Use it as your picture or add it to your photos, if you like."
             : "Find it in Profile, and on your photos. It stays on this phone."
+        // What counts, said once; the chips say the rest by example.
+        case Self.firstWinStep: return "Anything you already did today counts."
         default: return "You're one of the first people to open my first app. If you find a bug or want something added, I'd love to hear from you."
         }
     }
@@ -1168,7 +1202,7 @@ struct OnboardingView: View {
     /// button, where it costs nothing and the pill is provably identical.
     private var actions: some View {
         VStack(spacing: GridConstants.gapItem) {
-            if step == Self.lastStep { connectButton }
+            if step == Self.thanksStep { connectButton }
 
             // **Only where something is genuinely optional, which is the head**
             // (the owner, 2026-09-23: "there shouldn't be a skip button other
@@ -1275,7 +1309,9 @@ struct OnboardingView: View {
             PrimaryCapsule(title: actionTitle) { advance() }
         } else {
             PrimaryCapsule(waiting: actionTitle,
-                           because: "Not yet. Draw a block to go on.")
+                           because: step == Self.firstWinStep
+                               ? "Not yet. Tap the slot to drop your first win in."
+                               : "Not yet. Draw a block to go on.")
         }
     }
 
@@ -1290,7 +1326,11 @@ struct OnboardingView: View {
     /// against the same number the back disc is.
     private static let tapFloor: CGFloat = GlassIconButton.defaultSide
 
-    private var canAdvance: Bool { step != 1 || hasDrawn }
+    private var canAdvance: Bool {
+        if step == 1 { return hasDrawn }
+        if step == Self.firstWinStep { return firstLanded != nil }
+        return true
+    }
 
     /// The head page, with no head made yet.
     private var offersHead: Bool { step == Self.headStep && heads.head == nil }
@@ -1302,6 +1342,7 @@ struct OnboardingView: View {
         case 2: return "Go on"
         case 3: return location.canAsk ? "Turn on places" : "One more thing"
         case Self.headStep: return heads.head == nil ? "Make my head" : "One more thing"
+        case Self.firstWinStep: return "Go to my tower"
         default: return "Start"
         }
     }
@@ -1320,8 +1361,161 @@ struct OnboardingView: View {
             showsHeadMaker = true
             return
         }
-        guard step < Self.lastStep else { onFinish(); return }
+        guard step < lastStep else { finish(); return }
         withAnimation(GridConstants.motionSnappy) { step += 1 }
+    }
+
+    /// The end of the walkthrough. On the first-win page the win is queued
+    /// first, so `MainAppView` logs it on the active tower and opens on Wins.
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        if step == Self.firstWinStep, let size = firstLanded {
+            OnboardingFirstWin.queue(title: firstTitle, size: size, colour: Self.firstColour)
+        }
+        onFinish()
+    }
+
+    // MARK: - The first win
+
+    /// **The last page is the tower's own slot** (2026-10-05). The title
+    /// field, five chips that say by example what counts, and under them a
+    /// strip of the tower's board with the real slot in it: tap once and the
+    /// block falls into it, draw it out for a bigger one, exactly as on Wins.
+    /// A chip fills the title in; nothing has to be typed.
+    private func firstWinPage(in box: CGSize) -> some View {
+        let gutter = GridConstants.spacing
+        let cell = Self.cell(forWidth: box.width)
+        let width = GridConstants.gridWidth(cellSize: cell)
+        let rows = Self.firstRows
+        let height = CGFloat(rows) * cell + CGFloat(rows - 1) * gutter
+        let shown = firstLanded ?? firstSize
+        let blockW = cell * CGFloat(shown.columnSpan) + gutter * CGFloat(shown.columnSpan - 1)
+        let blockH = cell * CGFloat(shown.rowSpan) + gutter * CGFloat(shown.rowSpan - 1)
+
+        return VStack(alignment: .leading, spacing: GridConstants.gapItem) {
+            TextField("What did you do?", text: $firstTitle,
+                      prompt: Text("What did you do?").foregroundStyle(AppColors.inkTertiary))
+                .font(Typography.headerMedium)
+                .foregroundStyle(AppColors.inkPrimary)
+                .focused($firstTyping)
+                .submitLabel(.done)
+                .disabled(firstLanded != nil)
+                .frame(minHeight: Self.tapFloor)
+
+            ChipFlow(spacing: GridConstants.gapItem) {
+                ForEach(OnboardingFirstWin.examples, id: \.self) { example in
+                    firstChip(example)
+                }
+            }
+
+            Spacer(minLength: GridConstants.gapItem)
+
+            ZStack(alignment: .bottomLeading) {
+                if let landed = firstLanded {
+                    block(Self.firstColour, columns: landed.columnSpan, rows: landed.rowSpan, cell: cell)
+                        .overlay(alignment: .bottomLeading) {
+                            // A named block says its name, in the white every
+                            // block label is set in; an unnamed one shows none.
+                            if !firstTitle.trimmingCharacters(in: .whitespaces).isEmpty {
+                                Text(firstTitle)
+                                    .font(Typography.screenSubtitle)
+                                    .foregroundStyle(.white)
+                                    .lineLimit(2)
+                                    .padding(cell * 0.12)
+                            }
+                        }
+                        .offset(y: firstFell ? 0 : -640)
+                        .opacity(firstFell ? 1 : 0)
+                } else {
+                    NextSlotButton(
+                        reduceMotion: reduceMotion,
+                        cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+                        previewCategory: Self.firstColour,
+                        onSizeChanged: { firstSize = $0 },
+                        action: { size in placeFirst(size) },
+                        onOpenMenu: { HapticsEngine.lightTap() }
+                    )
+                    .frame(width: blockW, height: blockH)
+                }
+            }
+            .frame(width: width, height: height, alignment: .bottomLeading)
+            // The tutorial's board, its seat and all, for the reason written
+            // on `workshop`: on a flat page the cells need a ground to read.
+            .background(alignment: .bottomLeading) {
+                ZStack(alignment: .bottomLeading) {
+                    Rectangle()
+                        .fill(AppColors.slotInk.opacity(Self.boardSeat))
+                        .frame(width: width, height: height)
+                    TowerLattice(cellSize: cell, contentHeight: height, ripple: ripple)
+                        .frame(width: width, height: height, alignment: .bottom)
+                        .clipped()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: GridConstants.blockCornerRadius(forCell: cell),
+                                            style: .continuous))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(width: box.width, height: box.height, alignment: .top)
+        #if DEBUG
+        // `-strataOnboardingFirstWin chip|tap`: picks the first chip, and with
+        // `tap` drops the block too, a beat after the page opens. A simulator
+        // here cannot tap.
+        .task {
+            guard let auto = DebugHarness.argument("-strataOnboardingFirstWin") else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            firstTitle = OnboardingFirstWin.examples[0]
+            if auto == "tap" {
+                try? await Task.sleep(for: .seconds(1))
+                placeFirst(.small, finishes: DebugHarness.argument("-strataOnboardingFinish") == "1")
+            }
+        }
+        #endif
+    }
+
+    /// One example. Pressed, its words become the title; pressed again, the
+    /// title clears. The chosen one is drawn in ink, the rest in the quieter
+    /// ink.
+    ///
+    /// **Words, not glass capsules.** Five glass chips on one page is five
+    /// glass controls where `GlassIconButton.swift` allows three, and the
+    /// slot under them is glass already. The examples are told apart by air,
+    /// and each word still has its full 44pt target.
+    private func firstChip(_ example: String) -> some View {
+        let on = firstTitle == example
+        return Button {
+            HapticsEngine.lightTap()
+            firstTyping = false
+            firstTitle = on ? "" : example
+        } label: {
+            Text(example)
+                .font(Typography.screenSubtitle)
+                .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
+                .lineLimit(1)
+                .frame(minHeight: Self.tapFloor)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .disabled(firstLanded != nil)
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// The tap: the block falls into the slot, the board answers, and a
+    /// beat later the walkthrough hands you to the tower with it standing.
+    private func placeFirst(_ size: BlockSize, finishes: Bool = true) {
+        guard firstLanded == nil else { return }
+        firstTyping = false
+        firstLanded = size
+        firstFell = false
+        let fall = GridConstants.dropFallCurve.speed(1 / fallSeconds)
+        withAnimation(reduceMotion ? GridConstants.motionSnappy : fall) { firstFell = true }
+        ripple = LatticeRipple(column: 0, row: 0, columnSpan: size.columnSpan, rowSpan: size.rowSpan)
+        HapticsEngine.success()
+        guard finishes else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(1600))
+            finish()
+        }
     }
 
     // MARK: - Drawing
@@ -1370,5 +1564,52 @@ struct OnboardingView: View {
             }
         }
         .frame(width: width, height: height)
+    }
+}
+
+/// The first-win chips, wrapped to the page's width: as many to a line as
+/// fit, `spacing` between them and between lines, leading-aligned.
+private struct ChipFlow: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        let width = rows.map(\.width).max() ?? 0
+        return CGSize(width: proposal.width ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.items {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                                      proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = rows[rows.count - 1].items.isEmpty ? size.width
+                : rows[rows.count - 1].width + spacing + size.width
+            if needed > width, !rows[rows.count - 1].items.isEmpty {
+                rows.append(Row())
+            }
+            var row = rows[rows.count - 1]
+            row.width = row.items.isEmpty ? size.width : row.width + spacing + size.width
+            row.height = max(row.height, size.height)
+            row.items.append(index)
+            rows[rows.count - 1] = row
+        }
+        return rows.filter { !$0.items.isEmpty }
     }
 }
