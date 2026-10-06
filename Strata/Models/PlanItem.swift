@@ -151,3 +151,23 @@ final class PlanItem {
         if changed { StoreReset.commitDelete("the overnight plan sweep", context: context) }
     }
 }
+
+// MARK: - Deleting a line
+
+extension PlanItem {
+    /// **One line off the plan**, object by object and logged rather than
+    /// `try?`'d (CLAUDE.md, "A batch delete that deletes nothing"). The path
+    /// the context menu's Delete always took, and now the swipe's too.
+    static func remove(_ item: PlanItem, context: ModelContext) {
+        context.delete(item)
+        StoreReset.commitDelete("deleting a plan line", context: context)
+    }
+
+    /// **Whether a repeating line can lose one day and keep the rest.** It
+    /// cannot: a line is one row with the weekdays it comes back on, and there
+    /// is nothing to record "not this Tuesday" in. So a swipe on a repeating
+    /// line deletes the line, with no "just this one or the repeat" question,
+    /// because offering a choice the model cannot keep would be a lie. Adding
+    /// it means a per-day exception on the model first.
+    static let supportsSingleOccurrenceDelete = false
+}
