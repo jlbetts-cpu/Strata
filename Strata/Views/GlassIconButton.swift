@@ -146,10 +146,16 @@ extension View {
     /// text, and the selected one passed at 5.07, which is how it survived a
     /// reading. With the panel recipe the same word measures 5.83.
     @ViewBuilder
-    func glassCapsule(onPage: Bool = false, carriesType: Bool = false) -> some View {
+    func glassCapsule(onPage: Bool = false, carriesType: Bool = false, interactive: Bool = true) -> some View {
         if #available(iOS 26.0, *) {
+            // `interactive: false` for a capsule that HOLDS buttons rather than
+            // being one (the reaction bar): interactive glass tracks the finger
+            // itself, and around buttons of its own it took their taps on a real
+            // phone (the owner, 2026-10-05: "the reaction picker... never shows
+            // up").
             self.glassEffect(carriesType ? GlassRecipe.typePanel
-                                         : (onPage ? GlassRecipe.onPage : .regular.interactive()),
+                                         : (onPage ? GlassRecipe.onPage
+                                            : (interactive ? Glass.regular.interactive() : Glass.regular)),
                              in: .capsule)
 
         } else {

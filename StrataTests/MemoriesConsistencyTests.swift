@@ -141,7 +141,8 @@ struct MemoriesConsistencyTests {
         // Hide Alerts switch became the Mute menu the same day.
         // Thirteen since 2026-10-03: Crew Info's Heads switch, which turns a
         // crew's heads off on this phone. It wears the token.
-        // Fourteen since 2026-10-05: Settings' "A Past Win", the evening
+        // Fourteen since 2026-10-05: Settings' "Past Wins" (it read "A Past Win"
+        // until the cohesion pass the same day), the evening
         // notification about a past win (`PastWinReminder`).
         // Fifteen since 2026-10-05: Settings' "Lock Journal", off by default,
         // which asks for Face ID or the passcode before the day's journal
@@ -327,7 +328,8 @@ struct MemoriesConsistencyTests {
             "CameraView.swift": "the shutter, the same reason",
             "HeadSticker.swift": "not this worker's file",
             "AddWinSheet.swift": "not this worker's file",
-            "LogWinWidgets.swift": "a widget's button: WidgetKit draws the press itself, and an app press style cannot run in a widget"
+            "LogWinWidgets.swift": "a widget's button: WidgetKit draws the press itself, and an app press style cannot run in a widget",
+            "CrewReactions.swift": "labels are Liquid Glass, which answers the press itself; a scaling press style on interactive glass cancelled taps on a real phone (2026-10-05)"
         ]
         let unexplained = Self.hits(".buttonStyle(.plain)").filter { hit in
             !exempt.keys.contains { hit.hasPrefix($0 + ":") }

@@ -106,7 +106,7 @@ struct ReactionBar: View {
                 }
                 .contentShape(Circle())
         }
-        .buttonStyle(.pressSurface)
+        .buttonStyle(.plain)
         .animation(GridConstants.elasticPop, value: chosen)
         .accessibilityLabel(label)
         .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
@@ -278,7 +278,8 @@ private struct BarGlass: ViewModifier {
     let apply: Bool
     let onPage: Bool
     func body(content: Content) -> some View {
-        if apply { content.glassCapsule(onPage: onPage) } else { content }
+        // A bar of buttons, not a button: its glass must not take their taps.
+        if apply { content.glassCapsule(onPage: onPage, interactive: false) } else { content }
     }
 }
 
@@ -338,8 +339,9 @@ struct CrewReactionsPanel: View {
                             .padding(.horizontal, 16)
                             .frame(minHeight: 44)
                             .glassCapsule(onPage: !onDark)
+                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.pressSurface)
+                    .buttonStyle(.plain)
                     .transition(.opacity)
                 }
             }
@@ -385,8 +387,14 @@ struct CrewReactionsPanel: View {
                     }
                     .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
                     .glassCapsule(onPage: !onDark)
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(.pressSurface)
+                // **Plain, as the viewer's close and ⋯ are.** A scaling press
+                // style on a label that is interactive glass fought the glass's
+                // own tracking of the finger: on a phone the face pressed and
+                // the tap was cancelled, so the bar never opened (the owner,
+                // 2026-10-05). The simulator's instant taps never showed it.
+                .buttonStyle(.plain)
                 .accessibilityLabel(reactions.isEmpty ? "React"
                     : "Reactions: " + reactions.map { "\(CrewReactionsPanel.name($0.profileID, crewID: crewID)) \($0.emoji)" }.joined(separator: ", "))
             }
