@@ -360,6 +360,10 @@ struct MainAppView: View {
     /// never fired and the window stayed light behind a black viewfinder. The
     /// tab bar's icons came up black on black.
     @State private var windowScheme: ColorScheme? = MainAppView.scheme(for: MainAppView.initialTab())
+    /// The scheme the tab bar's pictures are drawn for (`StrataTab.label`):
+    /// the window's, when it forces one, or the system's.
+    @Environment(\.colorScheme) private var systemScheme
+    private var barScheme: ColorScheme { windowScheme ?? systemScheme }
 
     /// The one place that decides. Both the initial value and every later
     /// change go through it, so they cannot disagree.
@@ -737,6 +741,12 @@ struct MainAppView: View {
             // label, the colour or the pill to say it as well — and it is what
             // every tab bar on the platform does, so it needs no learning.
             //
+            // **THE WORDS ARE BACK** (the owner, 2026-10-06: "I think we
+            // should add the label text under again in the sf pro like it
+            // will make everything very cohesive"), with his drawn icons,
+            // grey when not selected, as Luma sets its bar. The note below is
+            // the call it reverses, kept for why it was made.
+            //
             // **AND NO WORDS UNDER IT** (the owner, 2026-10-01: "no tiny text
             // under or anythign like that", asked with the whole app in view,
             // and then specifically for this bar when it was put to him against
@@ -778,9 +788,7 @@ struct MainAppView: View {
                 // "Win deleted · Undo" and "Win added · Undo" (`UndoLine`).
                 towerTabRoot.undoLine()
             } label: {
-                StrataTab.tower.image(selected: selectedTab == .tower)
-                    .symbolVariant(.none)
-                    .accessibilityLabel("Wins")
+                StrataTab.tower.label(selected: selectedTab == .tower, scheme: barScheme)
             }
             // No badge. It counted blocks queued to drop, which is an
             // implementation detail measured in milliseconds — it flashed a
@@ -803,16 +811,12 @@ struct MainAppView: View {
             Tab(value: StrataTab.camera) {
                 cameraTab
             } label: {
-                StrataTab.camera.image(selected: selectedTab == .camera)
-                    .symbolVariant(.none)
-                    .accessibilityLabel("Camera")
+                StrataTab.camera.label(selected: selectedTab == .camera, scheme: barScheme)
             }
             Tab(value: StrataTab.memories) {
                 memoriesTabRoot.undoLine()
             } label: {
-                StrataTab.memories.image(selected: selectedTab == .memories)
-                    .symbolVariant(.none)
-                    .accessibilityLabel("Memories")
+                StrataTab.memories.label(selected: selectedTab == .memories, scheme: barScheme)
             }
         }
         // A crew asked for from outside (a notification, an invitation) is on

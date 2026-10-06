@@ -251,3 +251,4 @@ private struct ReduceMotionSync: ViewModifier {
             .onChange(of: reduceMotion) { _, now in GridConstants.reducedMotion = now }
     }
 }
+

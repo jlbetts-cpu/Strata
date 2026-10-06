@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum StrataTab: String, CaseIterable {
     case tower = "Wins"
@@ -51,6 +52,50 @@ enum StrataTab: String, CaseIterable {
         case .camera: Image("TabCamera")
         case .memories: Image("TabMemories")
         }
+    }
+
+    /// The tab as the bar shows it: his drawing with its name under it, in
+    /// the system's own type (the owner, 2026-10-06, the words back), grey
+    /// when you are not on it, as Luma's are.
+    ///
+    /// **One picture, drawn here, not the bar's own icon and title.** iOS
+    /// 26's glass bar draws an idle tab's word in full ink and ignores every
+    /// way of saying otherwise (`unselectedItemTintColor`, the item
+    /// appearance, `UITabBarItem` title attributes, a coloured `Text`; each
+    /// measured, none moved a pixel). So the drawing and its word are drawn
+    /// together and handed over as the icon: the tab you are on as a
+    /// template, so the bar's tint draws it; an idle one already grey. The
+    /// name still reaches VoiceOver.
+    func label(selected: Bool, scheme: ColorScheme) -> some View {
+        Image(uiImage: picture(selected: selected, scheme: scheme))
+            .accessibilityLabel(rawValue)
+    }
+
+    /// The word's size and weight: the bar's own, measured off its titles.
+    static let wordFont = UIFont.systemFont(ofSize: 10, weight: .medium)
+    static let glyph: CGFloat = 28
+    static let gap: CGFloat = 1
+
+    func picture(selected: Bool, scheme: ColorScheme) -> UIImage {
+        let name = switch self {
+        case .tower: "TabWins"
+        case .camera: "TabCamera"
+        case .memories: "TabMemories"
+        }
+        let traits = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
+        let ink = selected ? UIColor.black : AppColors.tabIdle.resolvedColor(with: traits)
+        let word = NSAttributedString(string: rawValue, attributes: [.font: Self.wordFont, .foregroundColor: ink])
+        let wordSize = word.size()
+        let size = CGSize(width: max(Self.glyph, ceil(wordSize.width)),
+                          height: Self.glyph + Self.gap + ceil(wordSize.height))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let icon = (UIImage(named: name) ?? UIImage()).withTintColor(ink, renderingMode: .alwaysOriginal)
+            icon.draw(in: CGRect(x: (size.width - Self.glyph) / 2, y: 0, width: Self.glyph, height: Self.glyph))
+            word.draw(at: CGPoint(x: (size.width - wordSize.width) / 2, y: Self.glyph + Self.gap))
+        }
+        return image.withRenderingMode(selected ? .alwaysTemplate : .alwaysOriginal)
     }
 
     // **`var icon` is deleted** (2026-10-01). It was the hollow shorthand "for

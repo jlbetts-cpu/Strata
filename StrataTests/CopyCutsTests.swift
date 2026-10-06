@@ -70,34 +70,31 @@ struct CopyCutsTests {
     /// `Image(systemName:)` and the three names exist only as
     /// `accessibilityLabel`. So the mock was teaching a chrome the app does not
     /// have, in the smallest type in the app.
-    @Test("the onboarding tab bar mock draws glyphs and no words")
-    func theMockTabBarIsIconOnly() throws {
+    ///
+    /// **And then the real bar grew words** (the owner, 2026-10-06: "add the
+    /// label text under again in the sf pro"), so the mock grew them too, by
+    /// drawing the very picture the bar is handed (`StrataTab.picture`), not
+    /// a word of its own. Cut 8's rule stands: the mock is the real bar.
+    @Test("the onboarding tab bar mock draws the real bar's own pictures")
+    func theMockTabBarIsTheRealOne() throws {
         let still = try SourceSweep.read("Strata/Views/MemoriesStill.swift")
         #expect(!SourceSweep.code(still).contains("Text(tab.rawValue)"))
+        #expect(SourceSweep.code(still).contains("tab.picture(selected: on, scheme: .light)"))
         // The other half: there is still a bar, and its glyphs still come from
         // the one place in the app that decides filled against hollow. Without
         // this, deleting the whole tab bar would pass the assertion above.
-        // The still draws the bar's own glyphs, from the one function that
-        // decides them (renamed `image(selected:)` when two of them became
-        // drawn assets, 2026-10-03).
-        #expect(SourceSweep.code(still).contains("tab.image(selected: on)"))
     }
 
-    /// And the real bar it is a picture of still has no words, which is the
-    /// fact the cut rests on. If the app's own tab bar ever grows labels, the
-    /// mock is wrong again and this is the test that says so.
-    @Test("the real tab bar has no words either")
-    func theRealTabBarIsIconOnly() throws {
+    /// And the real bar draws the same pictures, so the two cannot part.
+    @Test("the real tab bar draws each tab from the one shared picture")
+    func theRealTabBarSharesThePicture() throws {
         let main = try SourceSweep.code(SourceSweep.read("Strata/Views/MainAppView.swift"))
-        for name in ["Wins", "Camera", "Memories"] {
-            // Each `Tab`'s label is a bare `Image(systemName:)` with the word
-            // on `accessibilityLabel` and nowhere else. A `Text` carrying the
-            // same word would be a drawn label and the mock would be right
-            // again, so this is the assertion that has to hold for cut 8 to
-            // stay true.
-            #expect(main.contains("accessibilityLabel(\"\(name)\")"))
-            #expect(!main.contains("Text(\"\(name)\")"))
+        for tab in ["tower", "camera", "memories"] {
+            #expect(main.contains("StrataTab.\(tab).label(selected: selectedTab == .\(tab), scheme: barScheme)"))
         }
+        let bar = try SourceSweep.code(SourceSweep.read("Strata/Views/TabBarView.swift"))
+        #expect(bar.contains("Image(uiImage: picture(selected: selected, scheme: scheme))"))
+        #expect(bar.contains(".accessibilityLabel(rawValue)"), "VoiceOver lost the tab's name")
     }
 
     // MARK: - Cut 18: the Spotlight subtitle

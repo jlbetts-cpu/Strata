@@ -173,17 +173,17 @@ struct MemoriesStill: View {
         HStack(spacing: 0) {
             ForEach(StrataTab.allCases, id: \.self) { tab in
                 let on = tab == .memories
-                tab.image(selected: on)
-                    // Medium, like every other glyph and every word in the app.
-                    // A drawing of the app's own chrome has to be set the way
-                    // the chrome is set, or onboarding is teaching a weight the
-                    // app does not have. Resizable: two of the three are drawn
-                    // glyphs, which a font size does not reach.
+                // **The bar's own picture of each tab** (`StrataTab.picture`):
+                // his drawing with its word under it, the idle two grey, as
+                // the real bar draws them since 2026-10-06. A drawing of the
+                // app's own chrome has to be the chrome, or onboarding teaches
+                // a bar the app does not have.
+                let picture = tab.picture(selected: on, scheme: .light)
+                Image(uiImage: picture)
                     .resizable()
-                    .fontWeight(.medium)
                     .scaledToFit()
-                    .frame(width: Self.barGlyph * s * 1.15, height: Self.barGlyph * s * 1.15)
-                    .foregroundStyle(on ? AppColors.inkPrimary : AppColors.inkTertiary)
+                    .frame(height: picture.size.height * s)
+                    .foregroundStyle(AppColors.inkPrimary)
                     .frame(maxWidth: .infinity)
             }
         }

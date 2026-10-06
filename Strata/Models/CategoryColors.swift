@@ -281,6 +281,16 @@ enum AppColors {
             : UIColor(white: 0, alpha: 0.62)
     })
 
+    /// **A tab you are not on: grey, as Luma's are** (the owner, 2026-10-06:
+    /// "make the icons grey like luma that arent selected"). Opaque and warm,
+    /// so a filled drawing reads as one even grey on the glass rather than
+    /// letting the bar show through it.
+    static let tabIdle = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.553, green: 0.541, blue: 0.525, alpha: 1)  // #8D8A86
+            : UIColor(red: 0.620, green: 0.604, blue: 0.584, alpha: 1)  // #9E9A95
+    }
+
     /// Captions: a count under a card, a subtitle, a unit.
     static let inkTertiary = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark

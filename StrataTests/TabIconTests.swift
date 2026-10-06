@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 import UIKit
 @testable import Strata
 
@@ -40,7 +41,28 @@ struct TabIconTests {
     @Test("the tab bar asks for his drawings, not SF Symbols")
     func barUsesThem() throws {
         let source = SourceSweep.code(try SourceSweep.read("Strata/Views/TabBarView.swift"))
-        #expect(source.contains("Image(\"TabWins\")"))
+        #expect(source.contains("\"TabWins\""))
         #expect(!source.contains("systemName: selected ? \"house.fill\""))
+    }
+
+    /// "make the icons grey like luma that arent selected" and "add the
+    /// label text under again in the sf pro" (the owner, 2026-10-06).
+    @Test("an idle tab is drawn grey with its word; the one you are on is left to the bar's tint")
+    func idleIsGrey() throws {
+        let idle = StrataTab.tower.picture(selected: false, scheme: .light)
+        let on = StrataTab.tower.picture(selected: true, scheme: .light)
+        #expect(idle.renderingMode == .alwaysOriginal)
+        #expect(on.renderingMode == .alwaysTemplate)
+        #expect(idle.size.height > StrataTab.glyph + 8, "the word is not under the drawing")
+        // The idle picture's ink is the grey, not black.
+        let cg = try #require(idle.cgImage)
+        var bytes = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+        let context = try #require(CGContext(data: &bytes, width: cg.width, height: cg.height, bitsPerComponent: 8,
+                                             bytesPerRow: cg.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        let centre = (cg.height / 3 * cg.width + cg.width / 2) * 4
+        #expect(bytes[centre + 3] == 255)
+        #expect(bytes[centre] > 120 && bytes[centre] < 200, "idle ink is \(bytes[centre]), not the grey")
     }
 }
