@@ -61,10 +61,14 @@ nonisolated enum PastWin {
     }
 
     /// "March 4", or "March 4, 2025" when it was another year.
+    ///
+    /// A caption, so its own shape, but the year is `DayTitle`'s rule and is
+    /// asked of it (the cohesion pass, 2026-10-05): a caption and the title
+    /// of the page it opens must never disagree about whether the year shows.
     static func dateWords(_ key: String, today: Date, calendar: Calendar) -> String {
         guard let date = DateUtils.date(from: key) else { return key }
         var style = Date.FormatStyle.dateTime.month(.wide).day()
-        if calendar.component(.year, from: date) != calendar.component(.year, from: today) {
+        if DayTitle.showsYear(date, now: today, calendar: calendar) {
             style = style.year()
         }
         return date.formatted(style)
@@ -92,7 +96,7 @@ nonisolated enum PastWin {
 /// win of its own and only while the switch in Settings is on.
 enum PastWinReminder {
     static let defaultsKey = "pastWinRemindersOn"
-    static let prefix = "strata.pastwin."
+    static let prefix = NotificationRoute.Prefix.pastWin
     static let hour = 20
 
     static var isEnabled: Bool {
@@ -118,6 +122,16 @@ enum PastWinReminder {
         let content = UNMutableNotificationContent()
         content.title = pick.when
         content.body = pick.title
+        // **Passive, deliberately** (the cohesion pass, 2026-10-05). A past
+        // win is something to enjoy when you next look, never something to
+        // look at now: it arrives silently into Notification Center and the
+        // Lock Screen, without lighting the screen or making a sound, and it
+        // never breaks through a Focus. The research it came from is about
+        // savouring, and nobody savours an interruption.
+        content.interruptionLevel = .passive
+        content.threadIdentifier = NotificationRoute.Thread.pastWin
+        // A tap lands on that day in Memories (`NotificationRoute`).
+        content.userInfo = [NotificationRoute.dayKey: pick.dateString]
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: at)
         try? await center.add(UNNotificationRequest(
             identifier: prefix + today, content: content,

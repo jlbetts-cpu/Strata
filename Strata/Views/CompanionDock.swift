@@ -68,16 +68,28 @@ final class CompanionParking {
 
     private static let key = "strata.companionParked"
 
+    /// **Whether the bubble is on screen anywhere. It is not, since
+    /// 2026-10-05**: the owner took it off the Wins header ("remove the head
+    /// from the main home screen because i feel like it would make too many
+    /// buttons there since we added the journal component"). A head parked
+    /// in a bubble nobody can see is a head that has vanished with no way
+    /// back, so with no dock he is never parked: a remembered `parked` from
+    /// before is let go at launch, and nothing parks him again. `CompanionDock`
+    /// is kept, unmounted, with this switch, so the bubble can return in one
+    /// line if he asks for it.
+    static let hasDock = false
+
     private init() {
         // Never set: he starts in the bubble (the owner, 2026-10-02), so the
         // first thing you learn about the head on your tower is where it
-        // lives and that a tap lets it out.
-        parked = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true
+        // lives and that a tap lets it out. Only while there is a bubble.
+        parked = Self.hasDock ? (UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true) : false
     }
 
     /// The head was just put on the tower: in the bubble first, for the
-    /// same reason.
+    /// same reason, when there is a bubble.
     func containOnArrival() {
+        guard Self.hasDock else { return }
         parked = true
     }
 

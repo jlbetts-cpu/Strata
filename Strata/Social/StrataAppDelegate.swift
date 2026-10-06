@@ -26,8 +26,12 @@ final class CrewRouter {
 final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        guard CrewsFlag.isOn else { return true }
+        // **Always installed** (the cohesion pass, 2026-10-05). It was set
+        // only with Crews on, so with the flag off a tap on any of the app's
+        // own notifications reached nothing and opened the Wins tower. Every
+        // notification lands on its subject now (`NotificationRoute`).
         UNUserNotificationCenter.current().delegate = self
+        guard CrewsFlag.isOn else { return true }
         // The silent push that says a crew changed. Without the Push
         // capability this simply fails, and crews refresh on foreground.
         application.registerForRemoteNotifications()
@@ -39,15 +43,21 @@ final class StrataAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         return true
     }
 
-    /// A crew notification tapped: open that crew, at the win it was about.
+    /// A notification tapped: open what it was about. A crew's opens that
+    /// crew at its win; the app's own land where `NotificationRoute` says.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
-        let info = response.notification.request.content.userInfo
-        guard let raw = info["crew"] as? String else { return }
-        let win = (info["win"] as? String).flatMap(UUID.init(uuidString:))
+        let request = response.notification.request
+        guard let route = NotificationRoute.of(identifier: request.identifier,
+                                               userInfo: request.content.userInfo) else { return }
         await MainActor.run {
-            CrewRouter.shared.openWin = win
-            CrewRouter.shared.open = CrewID(rawValue: raw)
+            if case .crew(let raw, let win) = route {
+                guard CrewsFlag.isOn else { return }
+                CrewRouter.shared.openWin = win
+                CrewRouter.shared.open = CrewID(rawValue: raw)
+            } else {
+                LandingRouter.shared.land(route)
+            }
         }
     }
 

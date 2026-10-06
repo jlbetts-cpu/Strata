@@ -29,6 +29,7 @@ struct MemoriesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Whether a cover above this page has put its heads to sleep.
     @Environment(\.headsAwake) private var coveringHeadsAwake
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
@@ -74,6 +75,33 @@ struct MemoriesView: View {
     }
 
     var openProfile: (() -> Void)?
+
+    @AppStorage(JournalLock.defaultsKey) private var journalLockOn = false
+    /// Lock Journal is on and this session has not opened it yet.
+    private var journalHidden: Bool { journalLockOn && !JournalLock.shared.isUnlocked }
+
+    /// A tapped notification's subject (`NotificationRoute`), once.
+    private func land(_ route: NotificationRoute?) {
+        guard let route else { return }
+        LandingRouter.shared.memories = nil
+        switch route {
+        case .memoriesDay(let day):
+            playing = nil
+            viewing = nil
+            path = [.day(day)]
+        case .replay(let kind, let first):
+            guard let date = DateUtils.date(from: first) else { return }
+            let period = kind == "month" ? ReplayPeriod.month(containing: date)
+                                         : ReplayPeriod.week(containing: date)
+            let replay = ReplayLoader.replay(for: period, context: modelContext)
+            guard replay.count > 0 else { return }
+            path = []
+            viewing = nil
+            playing = replay
+        default:
+            break
+        }
+    }
 
     var body: some View {
         #if DEBUG
@@ -200,6 +228,27 @@ struct MemoriesView: View {
                 .padding(.bottom, GridConstants.tabBarClearance)
                 .id("MemoriesContent")
             }
+            // **A tap on Memories while on Memories goes home** (the cohesion
+            // pass, 2026-10-05): a pushed page comes back first, as every tab
+            // on the phone does; on the page itself, back to this month and
+            // to the top. Months away with no way back but swiping one at a
+            // time was the case this is for.
+            .onChange(of: LandingRouter.shared.memoriesReselected) { _, _ in
+                if !path.isEmpty {
+                    path.removeAll()
+                    return
+                }
+                let calendar = MemoriesViewModel.mondayCalendar
+                if !calendar.isDate(vm.selectedMonth, equalTo: Date(), toGranularity: .month) {
+                    monthStep = 0
+                    withAnimation(reduceMotion ? nil : GridConstants.crossFade) {
+                        vm.select(month: Date(), context: modelContext)
+                    }
+                }
+                withAnimation(reduceMotion ? nil : GridConstants.motionSnappy) {
+                    proxy.scrollTo("MemoriesContent", anchor: .top)
+                }
+            }
             #if DEBUG
             // `-strataPerfProbe`: the first finger on the page opens a 10s
             // window, so a UI test's flings are counted from their start.
@@ -257,6 +306,10 @@ struct MemoriesView: View {
             .onChange(of: path.isEmpty) { _, isEmpty in
                 if isEmpty { vm.refreshSymbols(context: modelContext) }
             }
+            // A tapped notification's subject (`NotificationRoute`): the past
+            // win's day, or the replay it announced, playing.
+            .onChange(of: LandingRouter.shared.memories) { _, route in land(route) }
+            .onAppear { land(LandingRouter.shared.memories) }
             .background { WarmBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
             // The header's head and the map's sleep under a photograph or a
@@ -603,11 +656,16 @@ struct MemoriesView: View {
     /// **The recap, as one glass button beside Profile.** One recap ready:
     /// it plays. A month and a week both ready: a small menu names them.
     /// Nothing ready: no button.
+    ///
+    /// `play`, hollow, not `play.fill` (the cohesion pass, 2026-10-05):
+    /// `docs/research/visual-cohesion.md` §4.3 says "filled = selected,
+    /// outline = not, everywhere", and a header button is never selected.
+    /// Profile beside it went to `person` for the same reason.
     @ViewBuilder
     private var recapButton: some View {
         let rows = replayRows
         if rows.count == 1, let only = rows.first {
-            GlassIconButton(systemName: "play.fill", onPage: true,
+            GlassIconButton(systemName: "play", onPage: true,
                             accessibilityLabel: "Play \(only.title)") {
                 playing = only.replay
             }
@@ -615,10 +673,10 @@ struct MemoriesView: View {
         } else if rows.count > 1 {
             Menu {
                 ForEach(rows) { row in
-                    Button { playing = row.replay } label: { Label(row.title, systemImage: "play.fill") }
+                    Button { playing = row.replay } label: { Label(row.title, systemImage: "play") }
                 }
             } label: {
-                GlassIconLabel(systemName: "play.fill", onPage: true)
+                GlassIconLabel(systemName: "play", onPage: true)
             }
             .accessibilityLabel("Play a recap")
             .transition(.scale.combined(with: .opacity))
@@ -733,7 +791,13 @@ struct MemoriesView: View {
                 width: monthGridWidth,
                 onSelect: { path.append(.day($0)) },
                 transitionNamespace: nil,
-                symbols: vm.symbols
+                // **Lock Journal hides what the journal holds** (the cohesion
+                // pass, 2026-10-05): while it is locked, no emoji in the
+                // corners and no day marked as written. An emoji is part of
+                // the note, and a calendar of them is the journal's summary
+                // shown to whoever is holding the phone.
+                symbols: journalHidden ? [:] : vm.symbols,
+                written: journalHidden ? [] : vm.writtenDays
             )
             .frame(maxWidth: .infinity, alignment: .center)
             // **Air, and the owner asked for it by name**: "make the white

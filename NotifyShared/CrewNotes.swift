@@ -93,17 +93,28 @@ nonisolated struct CrewNoteCache: Codable, Equatable {
     }
 
     /// The words for a ping, from what is known. `title` is the win's title
-    /// when the extension could read it; `emoji` the reaction's.
+    /// when the extension could read it; `emoji` the reaction's; `line` a
+    /// reply's words; `tagsMe` whether the win names you among its people.
+    ///
+    /// The same sentences the app writes for itself (`CrewNotifications.Text`,
+    /// 2026-10-05): a reply reads "Sam: so proud of you", and a win you were
+    /// tagged in reads "Sam added you to Morning run".
     func words(kind: CrewPingRecord.Kind, crew crewTag: String, sender: String,
-               winID: String, title: String?, emoji: String?) -> (title: String, body: String) {
+               winID: String, title: String?, emoji: String?,
+               line: String? = nil, tagsMe: Bool = false) -> (title: String, body: String) {
         let crew = crews[crewTag]
         let name = crew?.members[sender].flatMap { $0.name.isEmpty ? nil : $0.name } ?? "A friend"
         let heading = crew?.title ?? "Some Wins"
         switch kind {
         case .win:
             let said = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if tagsMe {
+                return (heading, said.isEmpty ? "\(name) added you to a win" : "\(name) added you to \(said)")
+            }
             return (heading, said.isEmpty ? "\(name) added a win" : "\(name): \(said)")
         case .reaction:
+            let words = (line ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !words.isEmpty { return (heading, "\(name): \(words)") }
             let mine = (crew?.myWins[winID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let what = emoji.map { "reacted \($0)" } ?? "reacted"
             return (heading, mine.isEmpty ? "\(name) \(what) to your win"

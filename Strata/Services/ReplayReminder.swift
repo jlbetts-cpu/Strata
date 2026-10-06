@@ -53,7 +53,7 @@ enum ReplayEntry {
 /// tops itself up.
 enum ReplayReminder {
     static let defaultsKey = "replayRemindersOn"
-    static let prefix = "strata.replay."
+    static let prefix = NotificationRoute.Prefix.replay
 
     static var isEnabled: Bool {
         get {
@@ -63,32 +63,22 @@ enum ReplayReminder {
         set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
     }
 
-    /// **The body, written ONCE and not twice** (`docs/copy-audit.md` cut 17,
-    /// 2026-10-01). It was "Seven days of wins, stacked into one tower." and
-    /// "A month of wins, stacked into one tower." — 16 words, which is one
-    /// sentence written twice with the length changed, and the length is the
-    /// only thing the two titles already differ by. The audit classed both as
-    /// Explanation and proposed cutting them outright: a notification body that
-    /// describes the feature is the push equivalent of a caption under a
-    /// picture.
+    /// **No body, and the tap is the reason** (the cohesion pass,
+    /// 2026-10-05).
     ///
-    /// **It is trimmed rather than cut, for a reason the audit could not see
-    /// from the strings.** It wrote that the thing described is "one tap away".
-    /// It is not: there is no notification-response handler anywhere in the app
-    /// (`grep didReceive` over `Strata/` and `Shared/` finds only a memory
-    /// warning), so tapping this opens the app on the Wins tower, where nothing
-    /// is "ready" and nothing says where to look. The title carries the news and
-    /// the body now carries the only fact the title cannot and the app does not
-    /// otherwise deliver. 16 words to 4.
+    /// The history, kept because the reasoning was right at each step: the
+    /// bodies were "Seven days of wins, stacked into one tower." and "A month
+    /// of wins, stacked into one tower." (`docs/copy-audit.md` cut 17), a
+    /// sentence describing the feature its own title announces. They were
+    /// trimmed to "Find it in Memories." rather than cut, because a tap then
+    /// opened the Wins tower, where nothing was ready and nothing said where
+    /// to look, so the body carried the one fact the app did not deliver.
+    /// Its comment said: "If a deep link is ever added, cut this line."
     ///
-    /// "Find it in …" is the app's own construction for this, not a new one:
-    /// `OnboardingView`'s head page says "Find it in Profile, and on your
-    /// photos."
-    ///
-    /// **If a deep link is ever added, cut this line.** At that point the tap
-    /// lands on the replay and the sentence is describing a journey the person
-    /// has already finished, which is cut 17 as written.
-    private static let whereToLook = "Find it in Memories."
+    /// The deep link exists now (`NotificationRoute`): a tap opens Memories
+    /// with the replay playing, so the sentence would describe a journey the
+    /// person has already finished. Cut, as written.
+    private static let whereToLook = ""
 
     static func upcoming(now: Date, calendar: Calendar = .current,
                          hasWins: (ReplayPeriod) -> Bool) -> [(period: ReplayPeriod, date: Date, title: String, body: String)] {
@@ -115,6 +105,7 @@ enum ReplayReminder {
             content.title = item.title
             content.body = item.body
             content.sound = .default
+            content.threadIdentifier = NotificationRoute.Thread.replay
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: item.date)
             try? await center.add(UNNotificationRequest(
                 identifier: prefix + item.period.id,

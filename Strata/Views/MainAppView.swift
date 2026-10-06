@@ -35,6 +35,35 @@ enum AppName {
         ?? "Some Wins"
 }
 
+// MARK: - Landing from a notification
+
+/// A tapped notification's tab (`NotificationRoute`): the daily reminder on
+/// Wins, the past win and the replays on Memories, which then shows the day
+/// or plays the replay itself. A modifier because `mainContent` is at the
+/// type checker's ceiling.
+private struct NotificationLanding: ViewModifier {
+    @Binding var selectedTab: StrataTab
+    private var router: LandingRouter { LandingRouter.shared }
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: router.pending) { _, route in land(route) }
+            // A cold launch from the notification: the tap arrived before
+            // this view did.
+            .onAppear { land(router.pending) }
+    }
+
+    private func land(_ route: NotificationRoute?) {
+        guard let route else { return }
+        switch route {
+        case .wins: selectedTab = .tower
+        case .memories, .memoriesDay, .replay: selectedTab = .memories
+        case .crew: break
+        }
+        router.pending = nil
+    }
+}
+
 // MARK: - Tab Bar Collapse (iOS 26+ availability guard)
 private struct TabBarCollapseModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -634,8 +663,26 @@ struct MainAppView: View {
         try? modelContext.save()
     }
 
+    /// **The tab bar's selection, passed straight through, with one thing
+    /// noticed on the way**: a tap on Memories while already on Memories
+    /// (the cohesion pass, 2026-10-05, "jump to today"). The value written is
+    /// always the value given, so this is the plain `$selectedTab` in every
+    /// other respect. The note on `.preferredColorScheme` below records a
+    /// wrapping binding that broke programmatic navigation; that one CHANGED
+    /// the write, and this one never does.
+    private var tabSelection: Binding<StrataTab> {
+        Binding(
+            get: { selectedTab },
+            set: { tab in
+                if tab == .memories, selectedTab == .memories {
+                    LandingRouter.shared.memoriesReselected += 1
+                }
+                selectedTab = tab
+            })
+    }
+
     private var mainContent: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             // Hollow when it is not the page you are on, filled when it
             // is. One glyph in two states says "here" without needing the
             // label, the colour or the pill to say it as well — and it is what
@@ -721,6 +768,8 @@ struct MainAppView: View {
         // A crew asked for from outside (a notification, an invitation) is on
         // the Wins tab: go there, wherever the app was.
         .onChange(of: CrewRouter.shared.open) { _, crew in if crew != nil { selectedTab = .tower } }
+        // The app's own notifications, tapped: the tab their subject is on.
+        .modifier(NotificationLanding(selectedTab: $selectedTab))
         // The window's appearance, changed without an animation.
         //
         // Two things had to be true and they pulled against each other.
@@ -972,17 +1021,22 @@ struct MainAppView: View {
             }
             Spacer(minLength: 0)
             // **The day's journal, beside the Plan** (spec section 2, approved
-            // 2026-10-05). On the far side of the head's bubble rather than
-            // between it and the Plan, because the bubble's place is settled:
-            // "directly left of the Plan button" (the owner, 2026-10-02). So
-            // while he is carried or parked, the journal steps one place left
-            // to make room. `JournalButton` owns the sheet and the lock.
+            // 2026-10-05). `JournalButton` owns the sheet and the lock.
             JournalButton(dateString: DateUtils.dateString(from: Date()))
                 .companionObstacle("journal")
-            // The tower head's bubble, directly left of the Plan button and
-            // its size (the owner, 2026-10-02). Invisible unless he is being
-            // carried or is parked in it. See `CompanionDock`.
-            CompanionDock()
+            // **The head's bubble is gone from this row** (the owner,
+            // 2026-10-05: "remove the head from the main home screen because
+            // i feel like it would make too many buttons there since we added
+            // the journal component"). It stood here, directly left of the
+            // Plan, from 2026-10-02 ("make the glass button right next to the
+            // plan and be the same size"), and that placement is now reversed
+            // by him. It was where the tower head parked: he started in it,
+            // so for most people it was a third round button with a face in
+            // it. Without it he cannot be parked, so he lives on the tower
+            // whenever Profile's tower switch is on, and off it when it is
+            // off (`CompanionParking.hasDock`). Nothing else went with it:
+            // Profile is still the Memories header's button, and the head
+            // maker is still in Profile.
             headerPlan
         }
         .accessibilityElement(children: .contain)

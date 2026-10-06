@@ -17,13 +17,23 @@ nonisolated enum DailyReminder {
     /// How many days ahead are scheduled. iOS keeps at most 64 pending for an
     /// app; this leaves room for everything else.
     static let horizon = 14
-    static let prefix = "strata.reminder."
+    static let prefix = NotificationRoute.Prefix.daily
     /// The repeating request earlier builds scheduled. Removed wherever this
     /// schedules, so an upgrade does not remind twice.
-    static let legacy = "strata.daily.reminder"
+    static let legacy = NotificationRoute.Prefix.dailyLegacy
 
-    static let title = "Nothing on today's tower yet"
-    static let body = "Anything you finished counts."
+    /// **A cue, not a register** (the owner, 2026-10-05: "notifications
+    /// signal witness, not attendance", his rule since May 2026).
+    ///
+    /// It was "Nothing on today's tower yet" over "Anything you finished
+    /// counts.": a title that announced what was MISSING, which is a
+    /// register being called, and then the kind sentence underneath as an
+    /// apology for it. The kind sentence is the whole notification now, and
+    /// there is no body, because anything under it would have to be about
+    /// the day and the only fact about the day is the absence. The logic is
+    /// unchanged: it still comes only on a day with nothing on the tower.
+    static let title = "Anything you finished counts."
+    static let body = ""
 
     /// The days to remind on, at `hour`:`minute`: the next `horizon` days,
     /// without today if today already has a win or the time has gone.
@@ -55,6 +65,7 @@ nonisolated enum DailyReminder {
             content.title = title
             content.body = body
             content.sound = .default
+            content.threadIdentifier = NotificationRoute.Thread.daily
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: at)
             let request = UNNotificationRequest(
                 identifier: identifier(for: at),

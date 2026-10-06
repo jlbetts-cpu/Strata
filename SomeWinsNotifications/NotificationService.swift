@@ -46,13 +46,12 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
         }
         content.userInfo["win"] = winID
         // Words from the names alone first, so a timeout still says who.
-        apply(cache, kind: kind, crew: crew, sender: sender, winID: winID, title: nil, emoji: nil, to: content)
+        apply(cache, kind: kind, crew: crew, sender: sender, winID: winID, read: Read(), to: content)
 
         task = Task {
             let read = await Self.read(kind: kind, crew: crew, sender: sender, winID: winID,
                                        in: cache?.crews[crew])
-            self.apply(cache, kind: kind, crew: crew, sender: sender, winID: winID,
-                       title: read.title, emoji: read.emoji, to: content)
+            self.apply(cache, kind: kind, crew: crew, sender: sender, winID: winID, read: read, to: content)
             self.finish()
         }
     }
@@ -72,34 +71,51 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     }
 
     private func apply(_ cache: CrewNoteCache?, kind: CrewPingRecord.Kind, crew: String, sender: String,
-                       winID: String, title: String?, emoji: String?, to content: UNMutableNotificationContent) {
+                       winID: String, read: Read, to content: UNMutableNotificationContent) {
         guard let cache else { return }
-        let words = cache.words(kind: kind, crew: crew, sender: sender, winID: winID, title: title, emoji: emoji)
+        let words = cache.words(kind: kind, crew: crew, sender: sender, winID: winID,
+                                title: read.title, emoji: read.emoji, line: read.line,
+                                tagsMe: read.withPeople.contains(cache.me))
         content.title = words.title
         content.body = words.body
     }
 
-    /// The one field that makes the words: a win's title, or a reaction's
-    /// emoji. Read only when the record really is from the sender the ping
-    /// names, so a ping cannot put words in someone's mouth.
+    /// What the record said, as far as it was read.
+    struct Read {
+        var title: String?
+        var emoji: String?
+        /// A reply's words, on a reaction record that has them.
+        var line: String?
+        /// The people a win names, as profile ids, so a tagged person is
+        /// told they were added.
+        var withPeople: [String] = []
+    }
+
+    /// The fields that make the words: a win's title and who it names, or a
+    /// reaction's emoji and its reply line. Read only when the record really
+    /// is from the sender the ping names, so a ping cannot put words in
+    /// someone's mouth.
     private static func read(kind: CrewPingRecord.Kind, crew: String, sender: String, winID: String,
-                             in known: CrewNoteCache.Crew?) async -> (title: String?, emoji: String?) {
-        guard let known, let from = known.members[sender]?.profileID else { return (nil, nil) }
+                             in known: CrewNoteCache.Crew?) async -> Read {
+        guard let known, let from = known.members[sender]?.profileID else { return Read() }
         let container = CKContainer(identifier: CrewNoteCache.containerID)
         let db = known.joined ? container.sharedCloudDatabase : container.privateCloudDatabase
         let zone = CKRecordZone.ID(zoneName: known.zoneName, ownerName: known.zoneOwner)
         switch kind {
         case .win:
             let id = CKRecord.ID(recordName: winID, zoneID: zone)
-            guard let record = try? await db.records(for: [id], desiredKeys: ["title", "senderProfileID"])[id]?.get(),
-                  record["senderProfileID"] as? String == from else { return (nil, nil) }
-            return (record["title"] as? String, nil)
+            guard let record = try? await db.records(for: [id], desiredKeys: ["title", "senderProfileID", "withPeople"])[id]?.get(),
+                  record["senderProfileID"] as? String == from else { return Read() }
+            let people = ((record["withPeople"] as? String) ?? "").split(separator: ",").map(String.init)
+            return Read(title: record["title"] as? String, withPeople: people)
         case .reaction:
             let id = CKRecord.ID(recordName: "\(winID)-\(from)", zoneID: zone)
-            guard let record = try? await db.records(for: [id], desiredKeys: ["emoji", "profileID"])[id]?.get(),
+            guard let record = try? await db.records(for: [id], desiredKeys: ["emoji", "profileID", "line"])[id]?.get(),
                   record["profileID"] as? String == from,
-                  let emoji = (record["emoji"] as? String)?.prefix(1), !emoji.isEmpty else { return (nil, nil) }
-            return (nil, String(emoji))
+                  let emoji = (record["emoji"] as? String)?.prefix(1), !emoji.isEmpty else { return Read() }
+            // As long as a reply may be and no longer, as the app reads it.
+            let line = (record["line"] as? String).map { String($0.prefix(80)) }
+            return Read(emoji: String(emoji), line: line)
         }
     }
 }

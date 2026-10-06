@@ -41,14 +41,19 @@ struct LogWinIntent: AppIntent {
 
     /// One win onto today's tower, as the tap makes it: Siri's path, and the
     /// controls' and the Log widget's (`QuickLogIntent`).
+    ///
+    /// `afterWin` is the reminders' half of what the app does after a win
+    /// (`keepRemindersRight`), a parameter only so a test can see it run.
     @MainActor
-    static func log(name: String?, size: BlockSize,
-                    in container: ModelContainer) throws -> (title: String?, colour: HabitCategory, today: Int) {
+    static func log(name: String?, size: BlockSize, in container: ModelContainer,
+                    afterWin: @MainActor (ModelContext) -> Void = LogWinIntent.keepRemindersRight)
+        throws -> (title: String?, colour: HabitCategory, today: Int) {
         let context = ModelContext(container)
         let tower = activeTower(in: context)
         let win = try QuickWinService.logWin(title: name ?? QuickWinService.untitled, size: size,
                                              context: context, tower: tower)
         WidgetReloader.reload()
+        afterWin(context)
         // A win said to Siri goes where the last one went, as a one-tap win
         // does (crews, spec 2.6).
         if let log = (win.habit.logs ?? []).first(where: { $0.id == win.logID }) {
@@ -56,6 +61,20 @@ struct LogWinIntent: AppIntent {
         }
         let named = win.habit.title == QuickWinService.untitled ? nil : win.habit.title
         return (named, win.habit.displayCategory, TodaysWins.count(in: context))
+    }
+
+    /// **A win logged outside the app keeps the reminders right** (the
+    /// cohesion pass, 2026-10-05). The app does this after every win
+    /// (`MainAppView.refreshData`): today's reminder is taken back, because
+    /// it has nothing left to say, and the evening's past win is decided
+    /// again, because it only ever comes on a day with a win of its own. A
+    /// win from the Lock Screen, Control Center, the widget or Siri did
+    /// neither, so the reminder still came at 7pm to a day that had a win,
+    /// and the past win never came at all unless the app was opened later.
+    @MainActor
+    static func keepRemindersRight(_ context: ModelContext) {
+        DailyReminder.skipToday()
+        Task { @MainActor in await PastWinReminder.schedule(context: context) }
     }
 
     /// The controls' and the Log widget's sizes, as the tower's.
@@ -97,8 +116,11 @@ struct ShowTodaysWinsIntent: AppIntent {
         let context = ModelContext(modelContainer)
         let wins = TodaysWins.list(in: context)
         guard !wins.isEmpty else {
-            return .result(dialog: "No wins yet today.") {
-                IntentMessageSnippet(message: "Nothing on today's tower yet")
+            // The owner's empty-state voice (2026-10-05), in place of "No
+            // wins yet today." over "Nothing on today's tower yet": the
+            // same absence said twice, as a count.
+            return .result(dialog: "Quiet here. Yet.") {
+                IntentMessageSnippet(message: "Quiet here. Yet.")
             }
         }
         let dialog: IntentDialog = wins.count == 1 ? "One win today." : "\(wins.count) wins today."

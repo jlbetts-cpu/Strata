@@ -121,47 +121,75 @@ enum CrewNotifications {
         return try? UNNotificationAttachment(identifier: "photo", url: copy)
     }
 
-    /// Reactions to YOUR wins since the last call: "Sam reacted 🔥 to Gym".
-    /// Each crew's own switch, and its mute, decide.
+    /// Reactions to YOUR wins since the last call: "Sam reacted 🔥 to Gym",
+    /// and replies, "Sam: so proud of you". Each crew's own switch, and its
+    /// mute, decide.
+    ///
+    /// **A reply is announced under its own key** (`announceKeys`), so a
+    /// friend who reacted first and wrote a line later is heard both times,
+    /// and one who did both at once is heard once, for the words.
     static func announceReactions(_ store: SocialStore, defaults: UserDefaults = .standard) async {
         let key = "crews.notifiedReactions"
+        // The replies' memory is its own list with its own first run, so the
+        // first build that knows about replies only remembers the ones
+        // already there rather than announcing a day's worth of them at once.
+        let replyKey = "crews.notifiedReplies"
         let seen = Set(defaults.stringArray(forKey: key) ?? [])
+        let seenReplies = Set(defaults.stringArray(forKey: replyKey) ?? [])
         let window = await reach()
         var now: [String] = []
-        var fresh: [Reaction] = []
+        var nowReplies: [String] = []
+        var fresh: [(reaction: Reaction, isReply: Bool)] = []
         for crew in store.crews {
             let mine = Dictionary(uniqueKeysWithValues: store.wins(in: crew.id)
                 .filter { $0.senderProfileID == store.me }.map { ($0.winID, $0) })
             for reaction in store.reactionsByCrew[crew.id] ?? [] where mine[reaction.winID] != nil {
                 // By who and which win, not by emoji: a friend changing ❤️ to
                 // 🔥 is not a second reaction, and it notified again.
-                let tag = reaction.id
-                now.append(tag)
-                if !seen.contains(tag), reaction.profileID != store.me, !store.blocked.contains(reaction.profileID),
+                let keys = announceKeys(reaction)
+                now.append(keys.reaction)
+                if let reply = keys.reply { nowReplies.append(reply) }
+                let isNewReply = keys.reply.map { !seenReplies.contains($0) } ?? false
+                let isNewReaction = !seen.contains(keys.reaction)
+                if isNewReply || isNewReaction, reaction.profileID != store.me, !store.blocked.contains(reaction.profileID),
                    store.reactionAlerts(crew.id), !store.isMuted(crew.id), crew.id != visibleCrew,
                    Date().timeIntervalSince(reaction.createdAt) < window {
-                    fresh.append(reaction)
+                    fresh.append((reaction, isNewReply))
                 }
             }
         }
         defaults.set(now, forKey: key)
-        guard defaults.bool(forKey: key + ".started") else {
-            defaults.set(true, forKey: key + ".started")
-            return
-        }
+        defaults.set(nowReplies, forKey: replyKey)
+        let started = defaults.bool(forKey: key + ".started")
+        let repliesStarted = defaults.bool(forKey: replyKey + ".started")
+        defaults.set(true, forKey: key + ".started")
+        defaults.set(true, forKey: replyKey + ".started")
+        guard started else { return }
         guard !store.pingsLive else { return }
-        for reaction in fresh {
+        for item in fresh {
+            // Before the replies had a memory, a new key there is not news.
+            if item.isReply && !repliesStarted && seen.contains(item.reaction.id) { continue }
+            let reaction = item.reaction
             guard let crew = store.crew(reaction.crewID),
                   let win = store.wins(in: crew.id).first(where: { $0.winID == reaction.winID }) else { continue }
             let content = UNMutableNotificationContent()
             content.title = crew.displayName(excluding: store.me)
-            content.body = Text.reacted(reaction, to: win, in: crew)
+            content.body = item.isReply ? Text.replied(reaction, in: crew) : Text.reacted(reaction, to: win, in: crew)
             content.threadIdentifier = crew.id.rawValue
             content.userInfo = ["crew": crew.id.rawValue, "win": win.winID.uuidString]
             content.sound = .default
+            let id = item.isReply ? (announceKeys(reaction).reply ?? reaction.id) : "reaction-" + reaction.id
             try? await UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: "reaction-" + reaction.id, content: content, trigger: nil))
+                UNNotificationRequest(identifier: id, content: content, trigger: nil))
         }
+    }
+
+    /// The keys a reaction record is remembered by: the reaction's own, and,
+    /// when it carries a line, the reply's (`"reply-…"`), which is the same
+    /// shape as the reply's ping key (`SocialStore.pingKey`).
+    nonisolated static func announceKeys(_ reaction: Reaction) -> (reaction: String, reply: String?) {
+        let line = reaction.line?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return (reaction.id, line.isEmpty ? nil : "reply-" + reaction.id)
     }
 
     /// A crew you left or that ended: its notifications go from the lock
@@ -181,12 +209,27 @@ enum CrewNotifications {
             let who = name.isEmpty ? "A friend" : name
             let title = win.title.trimmingCharacters(in: .whitespacesAndNewlines)
             let body: String
-            if title.isEmpty {
+            // **The person tagged is told so** (the cohesion pass,
+            // 2026-10-05): "Sam added you to Morning run", not the same
+            // "Sam: Morning run" everyone else gets, because for you it is
+            // a question waiting (Keep, or Not This One) and the tap lands
+            // on the crew where it is asked.
+            if win.withPeople.contains(me), win.senderProfileID != me {
+                body = title.isEmpty ? "\(who) added you to a win" : "\(who) added you to \(title)"
+            } else if title.isEmpty {
                 body = win.photo != nil ? "\(who) added a photo" : "\(who) added a win"
             } else {
                 body = "\(who): \(title)"
             }
             return (crew.displayName(excluding: me), body)
+        }
+
+        /// A reply, as Messages says one: "Sam: so proud of you".
+        static func replied(_ reaction: Reaction, in crew: Crew) -> String {
+            let name = crew.member(reaction.profileID)?.shortName ?? ""
+            let who = name.isEmpty ? "A friend" : name
+            let line = reaction.line?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return line.isEmpty ? "\(who) reacted \(reaction.emoji) to your win" : "\(who): \(line)"
         }
 
         static func reacted(_ reaction: Reaction, to win: SharedWin, in crew: Crew) -> String {

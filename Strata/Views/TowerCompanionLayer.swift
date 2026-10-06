@@ -587,7 +587,9 @@ private struct TowerCompanionRunner<Cells: Sequence>: View where Cells.Element =
             .accessibilityHint("Double-tap for a new face.")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { changeFace() }
-            .accessibilityAction(named: "Park in the bubble") { parkWithoutCarrying() }
+            // "Park in the bubble" went with the bubble (2026-10-05,
+            // `CompanionParking.hasDock`): an action for a place that is not
+            // on screen would park him out of sight.
             // Taken back from the bubble in one frame. SwiftUI's default
             // insertion faded him in over 150ms after the pop (filmed).
             .transition(.identity)

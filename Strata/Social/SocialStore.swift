@@ -945,6 +945,19 @@ final class SocialStore {
     /// React to a win, the way a Tapback works: a new emoji replaces yours,
     /// the same one again takes it back. Your own wins take no reactions
     /// from you.
+    ///
+    /// **The same emoji again never unsends a reply** (the cohesion pass,
+    /// 2026-10-05). The record is one per person per win and carries both
+    /// the emoji and today's line, so "take the emoji back" used to delete
+    /// the record and the words went with it: a double-tap's ❤️ on a win you
+    /// had already replied to with ❤️ silently erased what you wrote. Now:
+    /// - no line today: the same emoji takes the reaction back, as before;
+    /// - a line today: nothing changes. The emoji is the reply's own mark
+    ///   (a record without one is not a reaction, `CrewRecords.reaction`),
+    ///   so it cannot come off while the words stand, and the words are not
+    ///   something a tap on an emoji should be able to take back.
+    /// A line from an earlier day is already gone from every screen
+    /// (`replies`, `prune`), so it does not hold the record.
     func react(_ emoji: String, to winID: UUID, in crewID: CrewID) async {
         guard isEnabled(), crew(crewID) != nil,
               let win = winsByCrew[crewID]?.first(where: { $0.winID == winID }),
@@ -952,6 +965,9 @@ final class SocialStore {
         let name = Reaction.name(winID: winID, profileID: me)
         var list = reactionsByCrew[crewID] ?? []
         let previous = list.first { $0.id == name }
+        if let previous, previous.emoji == emoji, previous.line != nil, isToday(previous.createdAt, in: crewID) {
+            return
+        }
         list.removeAll { $0.id == name }
         if previous?.emoji == emoji {
             reactionsByCrew[crewID] = list
@@ -1433,7 +1449,7 @@ final class SocialStore {
                   owner != me else { return }
             ping[CrewPingRecord.kind] = CrewPingRecord.Kind.reaction.rawValue
             ping[CrewPingRecord.recipient] = CrewPingRecord.tag(owner.uuidString)
-            key = "reaction-\(winID.uuidString)"
+            key = Self.pingKey(winID: winID, carriesLine: fields["line"]?.string.map { !$0.isEmpty } ?? false)
         case .crew, .member:
             return
         }
@@ -1449,6 +1465,18 @@ final class SocialStore {
         } catch {
             Self.log.notice("ping not sent: \(error)")
         }
+    }
+
+    /// **Which "first time" a reaction record's ping is** (the cohesion
+    /// pass, 2026-10-05). A reply is its own news, with its own key: it used
+    /// to share the reaction's, so a friend who reacted 🔥 and then wrote
+    /// "so proud of you" under it sent one ping for the emoji and nothing for
+    /// the words, which are the part worth waking a phone for. Still on the
+    /// reaction KIND, so it reaches every phone through the subscription it
+    /// already has (`CrewPingPlan.reactionsPredicate`); the extension reads
+    /// the record's line and says "Sam: so proud of you".
+    nonisolated static func pingKey(winID: UUID, carriesLine: Bool) -> String {
+        (carriesLine ? "reply-" : "reaction-") + winID.uuidString
     }
 
     /// This phone's pings, gone once iCloud has had time to send them: a
