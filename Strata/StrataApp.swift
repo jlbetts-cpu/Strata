@@ -127,6 +127,10 @@ struct StrataApp: App {
     /// takes and the reason every UI test failed to find its first element.
     private var showsOnboarding: Bool {
         #if DEBUG
+        // `-strataOnboardingThrough 1`: the real gate, so a run that starts
+        // onboarding part way (`-strataOnboardingStep`) can finish it and land
+        // in the app, as the first-win page does.
+        if DebugHarness.argument("-strataOnboardingThrough") == "1" { return !hasOnboarded }
         if DebugHarness.isActive { return DebugHarness.showsOnboarding }
         #endif
         return !hasOnboarded

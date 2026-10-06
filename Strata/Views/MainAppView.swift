@@ -1867,6 +1867,15 @@ struct MainAppView: View {
         let key = Self.welcomeWinKey
         guard UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(false, forKey: key)
+        // **The win you dropped on onboarding's last page** (2026-10-05), on
+        // the active tower through `QuickWinService.logWin`, the path every
+        // one-tap win takes. It replaces "Welcome": the first block is now
+        // one you named.
+        if OnboardingFirstWin.isPending() {
+            OnboardingFirstWin.land(context: modelContext, tower: towerManager.activeTower)
+            scheduleRefresh()
+            return
+        }
         // Belt and braces: never two of them. The flag alone is enough in
         // practice, but a welcome block is the one thing that must not be
         // able to arrive twice — it would be the app's first act, doubled.

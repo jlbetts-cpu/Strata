@@ -248,17 +248,29 @@ final class MapGestureTests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 15), "no Start button")
         app.buttons["Start"].tap()
+        Thread.sleep(forTimeInterval: 2)
+
+        // **The first win** (2026-10-05). The walkthrough no longer ends on
+        // Start: its last page is the tower's slot. A chip fills the title in
+        // and one tap drops the block; the walkthrough then hands over by
+        // itself. This replaced the "Welcome" block this test used to look for.
+        let chip = app.buttons["Made the bed"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 15), "no example chips on the last page")
+        chip.tap()
+        let firstSlot = app.descendants(matching: .any)["Log a win"]
+        XCTAssertTrue(firstSlot.waitForExistence(timeout: 15), "no slot on the first-win page")
+        firstSlot.tap()
         // CLAUDE.md: allow ~16s after the app comes up before expecting the
         // tower. A shorter wait catches the loading skeleton, and here it
         // caught a screen with no static text on it at all.
         Thread.sleep(forTimeInterval: 22)
 
-        // **The join.** Onboarding queues the welcome win; `MainAppView` logs
-        // it against the active tower. If that hand-off breaks, a new user
-        // lands on an empty tower and the whole endowed-progress idea is
-        // silently gone.
-        let welcome = app.staticTexts["Welcome"]
-        if !welcome.waitForExistence(timeout: 30) {
+        // **The join.** Onboarding queues the first win; `MainAppView` logs
+        // it against the active tower (`OnboardingFirstWin`). If that
+        // hand-off breaks, a new user lands on an empty tower and the whole
+        // endowed-progress idea is silently gone.
+        let firstWin = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Made th")).firstMatch
+        if !firstWin.waitForExistence(timeout: 30) {
             // Dump the tree rather than guess. `XCTFail(app.debugDescription)`
             // is the only channel that reaches the xcodebuild log — test
             // `print` does not — and CLAUDE.md records that it has settled
