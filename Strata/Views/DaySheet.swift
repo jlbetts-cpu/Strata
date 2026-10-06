@@ -457,7 +457,8 @@ struct DaySheet: View {
     /// foot, on a phone with Apple's model.
     private var planTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            PlanLines(focused: $planFocus, onComplete: onComplete)
+            PlanLines(focused: $planFocus, onComplete: onComplete,
+                      onStart: { planFocus = planComposerID })
                 .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -514,6 +515,20 @@ struct DaySheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) { journalFoot }
+            // **An empty page says so, in the middle, as the chat does**
+            // (the owner, 2026-10-06: "the journal should be like the chat
+            // where it has that empty state message in the middle"; the
+            // chat's is "Quiet here. Yet."). Gone the moment there is a word,
+            // a question or a sketch, and never in the way of a tap.
+            .overlay {
+                if isEmpty && question == nil && sketchName == nil {
+                    Text("Nothing written. Yet.")
+                        .font(Typography.bodyLarge)
+                        .foregroundStyle(AppColors.inkTertiary)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
         }
         // Starting to write under a placeholder question answers it: the
         // question has done its job and does not follow you down the page.

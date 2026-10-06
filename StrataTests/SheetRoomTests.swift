@@ -134,8 +134,13 @@ struct SheetRoomTests {
         let tails = source.components(separatedBy: ".frame(height: Self.tailHeight)").count - 1
         #expect(tails == 1,
                 "the tap-to-write tail is written \(tails) times; two copies is how the two states drift")
-        #expect(!source.contains("if lines.isEmpty"),
-                "the empty day has a branch of its own again; the ＋ top left is the only invitation")
+        // **One empty-day branch, the ghost row** (the owner, 2026-10-06: "i
+        // liked when the plan used to have a empty box to show what the tab
+        // did"). It adds a row above the shared tail and never a second
+        // tail, so the two states still cannot drift.
+        #expect(source.components(separatedBy: "if lines.isEmpty").count - 1 == 1,
+                "the empty day has more than its one ghost row")
+        #expect(source.contains("if lines.isEmpty { ghostRow }"))
         #expect(!source.contains("Text(\"Add to the plan\")"),
                 "the \"Add to the plan\" words are back; the owner asked for the ＋ instead")
     }

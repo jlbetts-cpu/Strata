@@ -40,6 +40,9 @@ struct PlanLines: View {
     /// add sheet; the line is ticked at once, and the tick is kept only once
     /// a win is actually saved, so backing out of that sheet does not spend it.
     var onComplete: (PlanItem) -> Void
+    /// The empty plan's ghost row was tapped: the page's own way to start a
+    /// line (the Plan's bar, `DayComposer`). Without one, it starts a line.
+    var onStart: (() -> Void)? = nil
 
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
@@ -173,11 +176,12 @@ struct PlanLines: View {
                     // 2026-10-05: "it should be more clean... more minimal").
                 }
             }
+            if lines.isEmpty { ghostRow }
 
-            // **No words, one ＋** (the owner, 2026-10-05: "why does there
-            // need to be the add to plan just have the + button on the top
-            // left"). The "Add to the plan" row and the empty day's hint are
-            // gone; the ＋ in the sheet's top left adds a line. The tail stays
+            // **No words under a list** (the owner, 2026-10-05: "why does
+            // there need to be the add to plan just have the + button on the
+            // top left"); the bar at the foot adds a line now, and an empty
+            // day has the ghost row above (`ghostRow`). The tail stays
             // as a silent place to tap, one row deep under the list and the
             // same on an empty day, written once so the two states agree.
             Color.clear
@@ -196,6 +200,35 @@ struct PlanLines: View {
     // MARK: - Suggestions
 
     /// What the model is told: today's lines and the wins it has to go on.
+    /// **The empty plan shows its first box** (the owner, 2026-10-06: "i
+    /// liked when the plan used to have a empty box to show what the tab
+    /// did"). It was cut to words alone on 2026-10-05, then to nothing once
+    /// the bar arrived. One ghost row where the first line will land: the
+    /// unticked block a line wears, and what the page is for, in the quiet
+    /// grey. A tap starts the bar, as the bar's own field does.
+    private var ghostRow: some View {
+        HStack(spacing: GridConstants.spacing) {
+            PlanBullet(category: .unlabeled, isDone: false)
+                .frame(width: Self.tapTarget, height: Self.tapTarget)
+            Text("Plan a few small things for today")
+                .font(Typography.bodyLarge)
+                .foregroundStyle(AppColors.inkTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
+        .padding(.trailing, GridConstants.horizontalPadding)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            HapticsEngine.lightTap()
+            if let onStart { onStart() } else { withAnimation(GridConstants.motionSnappy) { addLine() } }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Plan a few small things for today")
+        .accessibilityAddTraits(.isButton)
+        .transition(.opacity)
+    }
+
     static func suggestionContext(lines: [PlanItem], habits: [Habit],
                                   alreadyShown: [String]) -> PlanSuggestionContext {
         PlanSuggestionContext.make(plan: lines.map(\.text),
