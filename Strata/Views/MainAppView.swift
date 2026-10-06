@@ -581,6 +581,11 @@ struct MainAppView: View {
                                            addWin: { winDraft = WinDraft(crews: [$0]) },
                                            logWin: { logCrewWin(size: $1, colour: $2, to: $0) }))
         }
+        // The first-win invitation (`FirstWinInvite`): once after your very
+        // first win, once more after your first reaction, never again.
+        .modifier(FirstWinInvitePrompt(blockCount: towerVM.placedBlocks.count,
+                                       crewPath: $crewPath,
+                                       towerCard: { shareCard() }))
         // The add sheet opens from the plan's DISMISSAL, not from the same
         // closure that closes it. Setting `isPlanning = false` and
         // Setting one flag false and another true together asks UIKit to present a sheet
@@ -649,6 +654,17 @@ struct MainAppView: View {
                 onDeleted: { scheduleRefresh() }
             )
         }
+    }
+
+    /// The tower as the 9:16 share card, for an invitation's picture.
+    private func shareCard() -> UIImage? {
+        TowerShare.image(
+            blocks: towerVM.placedBlocks,
+            mergeGroups: towerVM.mergeGroups,
+            groupedIDs: towerVM.groupedBlockIDs,
+            coveredIDs: towerVM.coveredBlockIDs,
+            modelContext: modelContext
+        )
     }
 
     /// Marks the plan line a win was written from as done.

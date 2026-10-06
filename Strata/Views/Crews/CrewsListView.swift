@@ -86,6 +86,23 @@ struct CrewsListView: View {
             } }
         }
         .task { await store.refresh() }
+        // Opened from the first-win invitation with no crew to invite into:
+        // straight to New Crew, whose Invite People carries the tower's
+        // picture (`CrewSharing.nextCard`). After the rules and the age,
+        // which this list already stands behind.
+        .task {
+            guard CrewRouter.shared.startsCrew else { return }
+            // The rules sheet comes first on a first visit, and a second
+            // sheet asked for under it would be dropped: wait for the agree,
+            // and for it to have gone.
+            while !CrewRules.accepted {
+                try? await Task.sleep(for: .milliseconds(250))
+                if Task.isCancelled { return }
+            }
+            try? await Task.sleep(for: .milliseconds(450))
+            CrewRouter.shared.startsCrew = false
+            if age.opensCrews { startsCrew = true }
+        }
         #if DEBUG
         .onAppear { if DebugHarness.argument("-strataCrewSheet") == "new" { startsCrew = true } }
         #endif
