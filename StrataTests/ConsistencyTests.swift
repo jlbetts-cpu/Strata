@@ -264,11 +264,5 @@ enum ConsistencySweep {
         // Save Video and Share, both `CapsuleControlLabel`, which is
         // `glassCapsule()`.
         "Strata/Views/ReplayView.swift": 2,
-        // The reactions face and the Reply/Doodle chips, both `glassCapsule()`.
-        // A scaling press on interactive glass cancelled taps on a real phone
-        // (the owner, 2026-10-05). `MemoriesConsistencyTests` already exempts
-        // this file for that reason (91c5ae5); this twin allowlist was never
-        // told, and failed on main before the chat work.
-        "Strata/Views/Crews/CrewReactions.swift": 2,
     ]
 }
