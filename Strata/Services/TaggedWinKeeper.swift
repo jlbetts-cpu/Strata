@@ -31,7 +31,14 @@ enum TaggedWinKeeper {
         // record, as it stays out of your sight.
         if let photo = win.photo, !SocialStore.shared.photoIsShown(photo) { win.photo = nil }
         do {
-            try await keep(win, context: context, tower: LogWinIntent.activeTower(in: context))
+            let kept = try await keep(win, context: context, tower: LogWinIntent.activeTower(in: context))
+            // Who it was with, for the journal's Suggest (`KeptWith`): the
+            // friend who tagged you and anyone else on it, never you.
+            let me = SocialStore.shared.me
+            let crew = SocialStore.shared.crew(win.crewID)
+            let names = ([win.senderProfileID] + win.withPeople).filter { $0 != me }
+                .compactMap { crew?.member($0)?.shortName }
+            KeptWith.record(names, for: kept.id)
             WidgetReloader.reload()
         } catch {
             log.error("could not keep a tagged win: \(error)")

@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import Observation
 import UIKit
 
 /// **Lock Journal: Face ID, or the passcode, once a session.**
@@ -21,17 +22,27 @@ import UIKit
 /// **A phone with no passcode at all opens without asking.** There is nothing
 /// to check against, and refusing would lock a person out of their own notes
 /// with no way back in.
+///
+/// **Locked means locked everywhere, not only at the sheet** (the cohesion
+/// pass, 2026-10-05). While it is locked the calendar shows no emoji and
+/// marks no day as written, the journal button does not tell VoiceOver
+/// "Written", and the app-switcher snapshot is covered. Observable, so all
+/// of those come back the moment the journal is opened.
 @MainActor
+@Observable
 final class JournalLock {
     static let shared = JournalLock()
 
     /// The Settings switch's key.
     nonisolated static let defaultsKey = "journalLocked"
 
-    private let defaults: UserDefaults
-    private let authenticate: @MainActor () async -> Bool
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let authenticate: @MainActor () async -> Bool
     private(set) var isUnlocked = false
-    private var token: NSObjectProtocol?
+    /// Face ID or the passcode is on screen. The app is inactive under it,
+    /// and the snapshot cover must not come up over the thing asking.
+    private(set) var isAsking = false
+    @ObservationIgnored private var token: NSObjectProtocol?
 
     init(defaults: UserDefaults = .standard,
          authenticate: (@MainActor () async -> Bool)? = nil) {
@@ -51,6 +62,8 @@ final class JournalLock {
     /// session, or answered now.
     func unlock() async -> Bool {
         guard isOn, !isUnlocked else { return true }
+        isAsking = true
+        defer { isAsking = false }
         let passed = await authenticate()
         if passed { isUnlocked = true }
         return passed
@@ -58,6 +71,11 @@ final class JournalLock {
 
     /// The session is over: the next note asks again.
     func relock() { isUnlocked = false }
+
+    /// What the journal holds is hidden: the switch is on and this session
+    /// has not opened it. `isOn` is read from the defaults, which nothing
+    /// observes, so a view also reads the switch through `@AppStorage`.
+    var hidesWriting: Bool { isOn && !isUnlocked }
 
     /// The real check.
     private static func deviceOwner() async -> Bool {

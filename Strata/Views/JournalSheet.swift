@@ -32,6 +32,7 @@ struct JournalButton: View {
 
     @Query private var entries: [MoodLog]
     @State private var isOpen = false
+    @AppStorage(JournalLock.defaultsKey) private var lockOn = false
 
     init(dateString: String) {
         self.dateString = dateString
@@ -48,7 +49,9 @@ struct JournalButton: View {
         ) {
             open()
         }
-        .accessibilityValue(hasNote ? "Written" : "")
+        // Not while Lock Journal is locked: "Written" is a fact about the
+        // note, and the lock is for the note (the cohesion pass, 2026-10-05).
+        .accessibilityValue(hasNote && !(lockOn && !JournalLock.shared.isUnlocked) ? "Written" : "")
         .sheet(isPresented: $isOpen) {
             JournalSheet(dateString: dateString)
         }
@@ -131,16 +134,9 @@ struct JournalSheet: View {
 
     private var isToday: Bool { dateString == DateUtils.dateString(from: Date()) }
 
-    /// "Today", or the day: "Sunday 5 October".
-    private var title: String {
-        guard !isToday, let date = DateUtils.date(from: dateString) else { return "Today" }
-        // The same format the day's own page sets its title in
-        // (`DayAlbumDetailView.title`), so the sheet names the day exactly as
-        // the page under it does. The localized template put a comma in it.
-        let out = DateFormatter()
-        out.dateFormat = "EEEE d MMMM"
-        return out.string(from: date)
-    }
+    /// "Today", "Yesterday", or the day: "Sunday 5 October". `DayTitle`, so
+    /// the sheet names the day exactly as the page under it does.
+    private var title: String { DayTitle.title(forKey: dateString) }
 
     /// The owner's words for an empty note. A past day was not "today".
     private var invitation: String {
@@ -326,7 +322,8 @@ struct JournalSheet: View {
         thinking = true
         let context = JournalQuestionContext(
             wins: JournalQuestionContext.winTitles(on: dateString, context: modelContext),
-            alreadyAsked: asked, isToday: isToday)
+            alreadyAsked: asked, isToday: isToday,
+            company: JournalQuestionContext.company(on: dateString, context: modelContext))
         Task {
             let next = await JournalQuestions.next(context, using: JournalQuestions.questioner)
             question = next

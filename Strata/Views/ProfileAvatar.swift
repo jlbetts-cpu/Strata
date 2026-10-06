@@ -167,7 +167,11 @@ struct ProfileButton: View {
     @ViewBuilder
     private var label: some View {
         let head = HeadStore.shared.headForPicture
-        let glyph = Image(systemName: "person.fill")
+        // Hollow, beside the hollow `play` and `map` in the Memories header
+        // (the cohesion pass, 2026-10-05, visual-cohesion §4.3: fill means
+        // selected). The large placeholder on Profile itself stays filled:
+        // it is a picture of a person, not a button.
+        let glyph = Image(systemName: "person")
             .font(Typography.bodyLarge.weight(.medium))
             .foregroundStyle(head == nil && store.photo == nil && store.initials.isEmpty ? Color.primary : .clear)
             .frame(width: side, height: side)

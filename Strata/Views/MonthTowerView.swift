@@ -415,9 +415,19 @@ struct MonthPicker: View {
                 // Layout first, glass after.
                 .padding(.horizontal, GridConstants.gapLabel)
                 .frame(height: GlassIconButton.defaultSide)
-                .glassCapsule(onPage: true)
                 .contentShape(Capsule())
             }
+            // **No glass at rest; the glass comes up under the finger** (the
+            // owner, 2026-10-05: "the october drop down should only have the
+            // liquid glass come up when its pressed... wasnt in liquid glass
+            // on the usual to kinda match the other tabs"). At rest it is a
+            // title with a disclosure mark, set as a sheet's title is, which
+            // is how the other tabs say what they are; the capsule that made
+            // it read as a control is the press response now, not its resting
+            // shape. `.menuStyle(.button)` is what lets a `Menu` take a
+            // `ButtonStyle`, and so a pressed state.
+            .menuStyle(.button)
+            .buttonStyle(GlassWhenPressed())
             .accessibilityLabel("Month, \(title). Choose another")
             .accessibilityIdentifier("MonthPicker")
         }
@@ -427,6 +437,25 @@ struct MonthPicker: View {
         .frame(height: 44)
     }
 
+}
+
+/// A capsule of the page's glass that is there only while the finger is
+/// down (`MonthPicker`). Same glass as `glassCapsule(onPage:)`, so the press
+/// is the app's material and not a new one; it fades in rather than cuts,
+/// so a quick tap still shows it.
+struct GlassWhenPressed: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                Capsule()
+                    .fill(Color.clear)
+                    .glassCapsule(onPage: true)
+                    .opacity(configuration.isPressed ? 1 : 0)
+            }
+            .animation(reduceMotion ? nil : GridConstants.motionSnappy, value: configuration.isPressed)
+    }
 }
 
 extension EnvironmentValues {

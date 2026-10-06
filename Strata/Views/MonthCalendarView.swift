@@ -54,6 +54,9 @@ struct MonthCalendarView: View {
     var transitionNamespace: Namespace.ID?
     /// The month's journal emoji, by `dateString` (`MemoriesViewModel.symbols`).
     var symbols: [String: String] = [:]
+    /// The month's days with a note, by `dateString`
+    /// (`MemoriesViewModel.writtenDays`), so an empty one still opens.
+    var written: Set<String> = []
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -255,7 +258,10 @@ struct MonthCalendarView: View {
                                     onSelect: onSelect,
                                     transitionNamespace: transitionNamespace,
                                     symbol: symbols.isEmpty ? nil
-                                        : symbols[Self.dateString(day: day, in: month, calendar: calendar)]
+                                        : symbols[Self.dateString(day: day, in: month, calendar: calendar)],
+                                    dateString: Self.dateString(day: day, in: month, calendar: calendar),
+                                    hasNote: !written.isEmpty
+                                        && written.contains(Self.dateString(day: day, in: month, calendar: calendar))
                                 )
                             } else {
                                 // **THE TAIL OF THE LAST ROW IS LATTICE.**
@@ -314,6 +320,11 @@ struct MonthCalendarCell: View {
     var transitionNamespace: Namespace.ID?
     /// The day's journal emoji, if it has one.
     var symbol: String? = nil
+    /// This day as the store spells it, for opening an empty day that has
+    /// a note.
+    var dateString: String = ""
+    /// The day has something in its journal.
+    var hasNote: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.blockLight) private var blockLight
@@ -368,6 +379,26 @@ struct MonthCalendarCell: View {
             .buttonStyle(.pressSurface)
             .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")"
                                 + (symbol.map { ", \($0)" } ?? ""))
+        } else if hasNote, !isFuture {
+            // **A day with a note and no wins opens** (the cohesion pass,
+            // 2026-10-05). It was drawn as a blank day with an emoji in its
+            // corner and nothing under a finger, so the one way to reach
+            // the note you wrote was gone. It opens the day's own page, the
+            // same as a day with wins: that page already says "Nothing
+            // logged this day." and carries the journal button in its
+            // corner, so the note is one more tap, from the place it
+            // belongs to. Opening the journal sheet straight from here was
+            // the other choice and was not taken: a cell that opens a page
+            // on one day and a sheet on the next is two meanings for one tap.
+            Button {
+                HapticsEngine.lightTap()
+                onSelect(dateString)
+            } label: {
+                empty.overlay(alignment: .topTrailing) { badge }
+            }
+            .buttonStyle(.pressSurface)
+            .accessibilityLabel(symbol.map { "\(day), \($0), written" } ?? "\(day), written")
+            .accessibilityHint("Opens that day.")
         } else {
             // **A day still to come is not a stop.** It carries nothing a
             // listener can act on, and on the 3rd of a month it was 28 swipes

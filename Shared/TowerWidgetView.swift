@@ -171,7 +171,10 @@ struct TowerWidgetView: View {
                 .stroke(style: StrokeStyle(lineWidth: 1.4, dash: [3, 3]))
                 .foregroundStyle(.tertiary)
                 .frame(width: 30, height: 30)
-            Text(snapshot.total == 0 ? "Your first win goes here" : "Nothing yet today")
+            // "Quiet here. Yet." (the owner's empty-state voice, 2026-10-05)
+            // where it said "Nothing yet today": on a Home Screen all day,
+            // every day, that line was a count of zero read aloud.
+            Text(snapshot.total == 0 ? "Your first win goes here" : "Quiet here. Yet.")
                 .font(.system(size: 15, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

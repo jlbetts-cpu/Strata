@@ -41,13 +41,8 @@ struct CrewDayView: View {
         .background { WarmBackground().ignoresSafeArea().allowsHitTesting(false) }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: play) { Image(systemName: "play.fill") }
-                    .accessibilityLabel("Play \(title)")
-                    .accessibilityHint("You can save it as a video.")
-            }
-        }
+        .toolbar { CrewDayToolbar(title: title, journalDay: day, play: play) }
+        .glassBackButton()
         .task(id: wins) {
             let names = Dictionary(uniqueKeysWithValues: crew.members.map { ($0.profileID, $0.shortName) })
             model.rebuild(wins: wins, me: store.me, names: names,
@@ -86,6 +81,44 @@ struct CrewDayView: View {
     }
 
     private struct Viewed: Identifiable { let id: String }
+
+    // MARK: The bar
+
+    /// **Back, then Play and your journal, all the app's own glass** (the
+    /// cohesion pass, 2026-10-05). Play was a bare `play.fill` in the
+    /// system's toolbar capsule, beside a system back button: two materials
+    /// and a filled glyph on a bar where every other page has hollow glyphs
+    /// on `GlassIconButton`. It is `play`, hollow, now, with the toolbar's
+    /// shared capsule hidden so it is not glass on glass.
+    ///
+    /// **Your journal, for the crew's day** (the same pass): the same
+    /// journal button a past day of your own has, for YOUR note, never sent
+    /// to the crew. It is mapped to the day this page names: the title says
+    /// "Sunday 4 October", so the note is your 4 October, whatever zone the
+    /// crew keeps its days in. A crew day is a `yyyy-MM-dd` in the crew's
+    /// zone and your journal is keyed by the same spelling in yours, so the
+    /// key is the mapping.
+    private struct CrewDayToolbar: ToolbarContent {
+        let title: String
+        let journalDay: String
+        let play: () -> Void
+
+        @ToolbarContentBuilder
+        var body: some ToolbarContent {
+            if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .topBarTrailing) { playButton }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .topBarTrailing) { playButton }
+            }
+            JournalToolbarItem(dateString: journalDay)
+        }
+
+        private var playButton: some View {
+            GlassIconButton(systemName: "play", onPage: true, accessibilityLabel: "Play \(title)", action: play)
+                .accessibilityHint("You can save it as a video.")
+        }
+    }
 
     // MARK: The tower
 

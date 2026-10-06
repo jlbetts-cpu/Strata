@@ -142,6 +142,9 @@ struct DayAlbumDetailView: View {
         // note, with the same icon rule"). The same button as beside the
         // Plan on Wins, with the same glyph (`JournalIcon`).
         .toolbar { JournalToolbarItem(dateString: route.dateString) }
+        // Back in the same glass as the journal beside it, one style per
+        // bar (the cohesion pass, 2026-10-05). See `GlassBackButton`.
+        .glassBackButton()
         .task { reload() }
         .fullScreenCover(item: Binding(
             get: { viewing.map(PhotoID.init) },
@@ -232,15 +235,10 @@ struct DayAlbumDetailView: View {
     // the same" — which is a convention rather than a mechanism.
     // `CountReadout` holds the one 15 now.
 
-    private var title: String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM-dd"
-        guard let date = df.date(from: route.dateString) else { return route.dateString }
-        let out = DateFormatter()
-        out.dateFormat = "EEEE d MMMM"
-        return out.string(from: date)
-    }
+    /// "Today", "Yesterday", "Saturday 5 September", or with the year when
+    /// it is another year's. One spelling for every page that names a day
+    /// (`DayTitle`).
+    private var title: String { DayTitle.title(forKey: route.dateString) }
 
     // MARK: - The day's tower
 

@@ -12,8 +12,11 @@ import WidgetKit
 struct LogWinControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "JaydenBetts.Strata.LogWin") {
+            // Hollow (the cohesion pass, 2026-10-05): `docs/research/
+            // visual-cohesion.md` §4.3, "filled = selected, outline = not,
+            // everywhere", and a control that adds a win is never "selected".
             ControlWidgetButton(action: LogQuickWinIntent()) {
-                Label("Log a Win", systemImage: "plus.square.fill")
+                Label("Log a Win", systemImage: "plus.square")
             }
         }
         .displayName("Log a Win")

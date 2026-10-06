@@ -30,6 +30,21 @@ struct CrewStats: Equatable {
         var today: String
     }
 
+    /// **What the streak needs today, and never WHO** (the owner,
+    /// 2026-10-05, the ADHD positioning).
+    ///
+    /// It said "Waiting on Leo today." A name under a streak is a roll call:
+    /// it tells the whole crew who is holding them up, and it tells Leo,
+    /// who opened the app to see his friends' wins, that he is the problem.
+    /// That is the opposite of what a crew is for here, so nobody who has
+    /// not posted is ever named, anywhere: not here, not in a notification,
+    /// not on the tower. One line when the day is complete, and the rule
+    /// itself otherwise. The waiting list is still counted (`waiting`); only
+    /// its emptiness is ever said out loud.
+    static func streakLine(people: Int, waiting: Int) -> String {
+        people > 1 && waiting == 0 ? "Everyone's in today." : "A day counts when everyone posts a win."
+    }
+
     static func make(_ inputs: Inputs) -> CrewStats {
         var history = inputs.history
         // Today's wins arrive before the next refresh counts them: counted
@@ -122,20 +137,7 @@ struct CrewStatsSections: View {
         .listRowSeparator(.hidden)
     }
 
-    /// What keeps the streak going today, in a few words. Never a scolding:
-    /// a name is an invitation.
-    private var streakLine: String {
-        if stats.people > 1, stats.waiting.isEmpty { return "Everyone's in today." }
-        // Nobody yet, as at the start of a day: one line for the crew, not a
-        // roll call of every name.
-        if stats.people > 1, stats.waiting.count == stats.people {
-            return stats.current > 0 ? "A new day. Everyone's win keeps it going." : "A day counts when everyone posts a win."
-        }
-        let names = stats.waiting.map { $0.profileID == store.me ? "you" : ($0.firstName.isEmpty ? "a friend" : $0.firstName) }
-        guard !names.isEmpty else { return "A day counts when everyone posts a win." }
-        let list = names.formatted(.list(type: .and))
-        return stats.current > 0 ? "Waiting on \(list) today." : "A day counts when everyone posts a win. Waiting on \(list)."
-    }
+    private var streakLine: String { CrewStats.streakLine(people: stats.people, waiting: stats.waiting.count) }
 
     // MARK: - Days
 
@@ -173,14 +175,12 @@ struct CrewStatsSections: View {
         .listRowSeparator(.hidden)
     }
 
+    /// The day's name, in the crew's zone: `DayTitle`, so "Sunday 4 October"
+    /// here is the same words as on your own past day. It was "Sunday, Oct 4"
+    /// until the cohesion pass (2026-10-05). It is also the crew day page's
+    /// title, which is handed this.
     private func dayName(_ key: String) -> String {
-        let today = CrewDay.string(for: Date(), in: crew.timeZone)
-        if key == today { return "Today" }
-        if CrewDay.day(today, offsetBy: -1, in: crew.timeZone) == key { return "Yesterday" }
-        guard let start = CrewDay.start(of: key, in: crew.timeZone) else { return key }
-        var style = Date.FormatStyle.dateTime.weekday(.wide).month(.abbreviated).day()
-        style.timeZone = crew.timeZone
-        return start.formatted(style)
+        DayTitle.title(forKey: key, calendar: Self.calendar(crew.timeZone))
     }
 
     private func playDay(_ key: String) {

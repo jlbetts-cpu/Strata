@@ -75,6 +75,9 @@ final class MemoriesViewModel {
     /// page, and coming back from it must show it without waiting for the
     /// store's counts to say the page is stale. See `refreshSymbols`.
     private(set) var symbols: [String: String] = [:]
+    /// The month's days with anything in their journal, so a day with a
+    /// note and no wins still opens from its cell. Fetched with `symbols`.
+    private(set) var writtenDays: Set<String> = []
     /// Keyed "yyyy-MM", so stepping back and forth is free.
     private var monthCache: [String: MonthTower.Packed] = [:]
     /// The month of the first win ever recorded. One `fetchLimit`-1 query,
@@ -272,9 +275,10 @@ final class MemoriesViewModel {
     /// to the page invalidates nothing when nothing moved.
     func refreshSymbols(context: ModelContext) {
         guard let next = calendar.date(byAdding: .month, value: 1, to: selectedMonth) else { return }
-        let fresh = DayNotes.symbols(from: DateUtils.dateString(from: selectedMonth),
-                                     to: DateUtils.dateString(from: next), context: context)
-        if fresh != symbols { symbols = fresh }
+        let fresh = DayNotes.marks(from: DateUtils.dateString(from: selectedMonth),
+                                   to: DateUtils.dateString(from: next), context: context)
+        if fresh.symbols != symbols { symbols = fresh.symbols }
+        if fresh.written != writtenDays { writtenDays = fresh.written }
     }
 
     /// Pure: records to a packed month. Static so it can be tested directly.

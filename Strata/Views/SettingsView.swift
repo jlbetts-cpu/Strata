@@ -120,6 +120,10 @@ struct SettingsView: View {
         return "\(version) (\(build))"
     }
 
+    #if DEBUG
+    @State private var debugOpensWhy = false
+    #endif
+
     var body: some View {
         // **The reader exists so the LOWER half of this page can be
         // photographed.** This screen is seven sections and about 1,500pt tall,
@@ -317,7 +321,7 @@ struct SettingsView: View {
                 // of its own (`PastWinReminder`).
                 Toggle(isOn: $pastWinRemindersOn) {
                     Label {
-                        Text("A Past Win")
+                        Text("Past Wins")
                             .foregroundStyle(AppColors.inkPrimary)
                     } icon: {
                         SettingsIcon(systemName: "clock.arrow.circlepath")
@@ -696,6 +700,19 @@ struct SettingsView: View {
             // what is hosted. A hosted copy is still required for App Store
             // Connect; see tasks/app-store-readiness.md.
             Section {
+                // **Why It Works This Way** (the owner, 2026-10-05): the
+                // design's reasoning, in plain words and with its sources,
+                // beside the privacy page because both say what the app is.
+                NavigationLink {
+                    WhyItWorksView()
+                } label: {
+                    Label {
+                        Text(WhyItWorksView.title)
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "lightbulb")
+                    }
+                }
                 NavigationLink {
                     PrivacyPolicyView()
                 } label: {
@@ -873,6 +890,14 @@ struct SettingsView: View {
             RestoreBackupView(zip: picked.url) { discardRestoreCopy() }
         }
         #if DEBUG
+        // `-strataOpenWhy 1`: pushes Why It Works This Way, which is a row
+        // below the fold and a tap away, so it can be photographed.
+        .navigationDestination(isPresented: $debugOpensWhy) { WhyItWorksView() }
+        .task {
+            guard DebugHarness.argument("-strataOpenWhy") == "1" else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            debugOpensWhy = true
+        }
         .task {
             // `-strataAutoReset`: runs the same action the button does, so the
             // failure message can be photographed where a person would see it.

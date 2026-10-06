@@ -205,6 +205,8 @@ struct StrataApp: App {
                 appRoot
                 #endif
             }
+            // Lock Journal covers the app-switcher snapshot.
+            .overlay { JournalLockCover() }
             // The launch screen's S, held over the first frame and faded.
             .overlay { LaunchHandoff() }
             // Reduce Motion for every UI token, read here once rather than

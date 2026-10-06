@@ -67,14 +67,26 @@ enum DayNotes {
     /// Every emoji between two days, `from` included and `to` not, keyed by
     /// day: one fetch for a whole month of calendar cells.
     static func symbols(from loKey: String, to hiKey: String, context: ModelContext) -> [String: String] {
+        marks(from: loKey, to: hiKey, context: context).symbols
+    }
+
+    /// Every emoji, and every day with anything written on it, between two
+    /// days: one fetch for a month of calendar cells. `written` is what lets
+    /// a day with a note and no wins be opened from the calendar (the
+    /// cohesion pass, 2026-10-05); an emoji alone counts, as it does for the
+    /// journal button.
+    static func marks(from loKey: String, to hiKey: String,
+                      context: ModelContext) -> (symbols: [String: String], written: Set<String>) {
         let descriptor = FetchDescriptor<MoodLog>(
             predicate: #Predicate { $0.dateString >= loKey && $0.dateString < hiKey },
             sortBy: [SortDescriptor(\.dateString)])
         var out: [String: String] = [:]
+        var written = Set<String>()
         for row in (try? context.fetch(descriptor)) ?? [] {
             if out[row.dateString] == nil, let symbol = row.symbol { out[row.dateString] = symbol }
+            if row.hasContent { written.insert(row.dateString) }
         }
-        return out
+        return (out, written)
     }
 
     private static func rows(for dateString: String, context: ModelContext) -> [MoodLog] {

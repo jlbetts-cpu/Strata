@@ -33,7 +33,16 @@ struct KeepTaggedWinAlert: ViewModifier {
             .alert(Text(asking.map(Self.title) ?? ""),
                    isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
                    presenting: asking) { win in
-                Button("Keep") { Task { await store.answer(win, keep: true) } }
+                // A success when the copy is written, not at the press
+                // (the cohesion pass, 2026-10-05): Keep put a block on your
+                // tower out of sight, and it was the one write in the app
+                // with no answer to the finger.
+                Button("Keep") {
+                    Task {
+                        await store.answer(win, keep: true)
+                        HapticsEngine.success()
+                    }
+                }
                 Button("Not This One", role: .cancel) { Task { await store.answer(win, keep: false) } }
             } message: { win in
                 Text(Self.message(win))

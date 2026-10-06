@@ -24,10 +24,21 @@ nonisolated struct JournalQuestionContext: Equatable, Sendable {
     var alreadyAsked: [String]
     /// A past day's questions say "that day", never "today".
     var isToday: Bool
+    /// **Who a win was with**, by its title: a win kept from a friend's tag
+    /// says "with Sam" (the cohesion pass, 2026-10-05). The question that
+    /// can come of it ("What was the run with Sam like?") is the best one
+    /// the day has, and the model cannot ask it without being told.
+    var company: [String: [String]] = [:]
+
+    /// A win's title as the prompt says it: "Morning run (with Sam)".
+    func said(_ title: String) -> String {
+        guard let people = company[title], !people.isEmpty else { return title }
+        return "\(title) (with \(people.formatted(.list(type: .and))))"
+    }
 
     /// The prompt, in plain lines.
     var prompt: String {
-        var lines = ["The wins they logged \(isToday ? "today" : "that day"): \(wins.prefix(8).joined(separator: ", "))."]
+        var lines = ["The wins they logged \(isToday ? "today" : "that day"): \(wins.prefix(8).map(said).joined(separator: ", "))."]
         if !alreadyAsked.isEmpty {
             lines.append("Already asked, ask something different: \(alreadyAsked.joined(separator: " "))")
         }
@@ -52,6 +63,43 @@ nonisolated struct JournalQuestionContext: Equatable, Sendable {
             out.append(title)
         }
         return out
+    }
+
+    /// The people each of the day's wins was kept with, by title
+    /// (`KeptWith`). Only wins kept from a crew tag have any.
+    @MainActor
+    static func company(on dateString: String, context: ModelContext,
+                        defaults: UserDefaults = .standard) -> [String: [String]] {
+        let descriptor = FetchDescriptor<HabitLog>(predicate: #Predicate { $0.dateString == dateString })
+        var out: [String: [String]] = [:]
+        for log in (try? context.fetch(descriptor)) ?? [] {
+            let names = KeptWith.names(for: log.id, defaults: defaults)
+            let title = (log.habit?.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !names.isEmpty, !title.isEmpty, title != QuickWinService.untitled else { continue }
+            out[title, default: []].append(contentsOf: names.filter { !(out[title] ?? []).contains($0) })
+        }
+        return out
+    }
+}
+
+/// **Who a kept win was with.** A tagged win you Keep becomes a win of your
+/// own with an id of its own (`TaggedWinKeeper`), and nothing on a
+/// `HabitLog` says it came from Sam. Written here at Keep, by the new win's
+/// id, on this phone only; read by Suggest. No schema change: a name next to
+/// a win is a hint for a question, not part of the record.
+nonisolated enum KeptWith {
+    static let defaultsKey = "crews.keptWith"
+
+    static func record(_ names: [String], for logID: UUID, defaults: UserDefaults = .standard) {
+        let kept = names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !kept.isEmpty else { return }
+        var all = defaults.dictionary(forKey: defaultsKey) as? [String: [String]] ?? [:]
+        all[logID.uuidString] = kept
+        defaults.set(all, forKey: defaultsKey)
+    }
+
+    static func names(for logID: UUID, defaults: UserDefaults = .standard) -> [String] {
+        (defaults.dictionary(forKey: defaultsKey) as? [String: [String]])?[logID.uuidString] ?? []
     }
 }
 
@@ -85,13 +133,22 @@ nonisolated enum JournalQuestionRules {
         return list.first { !alreadyAsked.contains($0) } ?? list[0]
     }
 
+    /// The owner's voice rules for a helper (2026-10-05, the same five as
+    /// `PlanSuggestionRules.instructions`): it suggests only when asked,
+    /// observes and never coaches, never sets a target, never mentions what
+    /// was not done, and is calm and specific. The cleaning in `clean` is
+    /// unchanged; these are what the model is told before it answers.
     static let instructions = """
         You help someone start a short journal note about their day.
-        You ask exactly one question, and nothing else.
+        They pressed Suggest, so you ask exactly one question, and nothing else.
         Rules:
         - Ask about ONE of the wins they logged, using its own words.
+        - If a win says who it was with, you may ask about that person.
         - Under twelve plain words, ending with a question mark.
-        - Warm and curious, never a test: "What made the early run happen?"
+        - Observe, never coach: no advice, no lessons, no "should".
+        - Never set a goal or a target, and never ask about doing more.
+        - Never mention anything they did not do.
+        - Calm and specific, warm and curious, never a test: "What made the early run happen?"
         - Never answer it, never add a second sentence, never praise.
         - No emoji, no quotation marks.
         """
