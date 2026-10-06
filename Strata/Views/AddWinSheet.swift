@@ -1163,7 +1163,7 @@ struct AddWinSheet: View {
                                 .renderingMode(.template)
                                 .resizable()
                                 .scaledToFit()
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppColors.drawingInkOnBlock)
                                 .frame(width: w, height: h)
                         }
                     }

@@ -205,7 +205,7 @@ struct CrewChatSheet: View {
                     .fitsLargeType(.subheadline)
             }
             if let sketch = message.sketch {
-                InkImage(url: sketch, tint: ink)
+                InkImage(url: sketch, tint: mine ? ink : AppColors.drawingInk)
                     .frame(maxWidth: Self.doodleSide, maxHeight: Self.doodleSide * 3 / 4)
             }
             if !message.text.isEmpty {

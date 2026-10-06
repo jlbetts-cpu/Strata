@@ -96,7 +96,7 @@ struct Illustration: View {
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
-            .foregroundStyle(AppColors.inkPrimary)
+            .foregroundStyle(AppColors.drawingInk)
     }
 
     /// Starts a play unless one is under way, and lets the timeline rest

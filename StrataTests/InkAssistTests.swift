@@ -143,15 +143,28 @@ struct InkAssistTests {
         #expect(roughness(smoothed) < roughness(raw) * 0.6)
     }
 
-    @Test("the end of a stroke narrows; its start and middle do not")
-    func taperIsAtTheEndOnly() {
-        let points = (0...50).map { CGPoint(x: CGFloat($0) * 2, y: 0) }
+    /// It was the end alone, to 0.6, and this test pinned the start at 1.
+    /// The owner picked "Tapered ends" (2026-10-06) because a line one width
+    /// from touch to lift read as drawn by a computer: both ends now, the
+    /// lift longer and finer than the landing, the body still one weight.
+    @Test("both ends of a stroke narrow, the lift more than the landing; the body keeps its weight")
+    func taperAtBothEnds() {
+        let points = (0...100).map { CGPoint(x: CGFloat($0) * 2, y: 0) }
         let factors = InkAssist.taper(points)
-        #expect(factors.first == 1)
-        #expect(factors[25] == 1)
-        #expect(abs(factors.last! - 0.6) < 0.001)
-        #expect(zip(factors.dropLast(), factors.dropFirst()).allSatisfy { $0 >= $1 })
-        // A tick has no end to taper.
+        #expect(abs(factors.first! - InkAssist.landingTip) < 0.001)
+        #expect(abs(factors.last! - InkAssist.liftTip) < 0.001)
+        #expect(factors[50] == 1, "the body changed width")
+        #expect(factors.last! < factors.first!, "the lift should be finer than the landing")
+        // Widening into the body, narrowing out of it, never a wobble.
+        let rise = factors.prefix(while: { $0 < 1 })
+        #expect(zip(rise, rise.dropFirst()).allSatisfy { $0 <= $1 })
+        let fall = factors.reversed().prefix(while: { $0 < 1 })
+        #expect(zip(fall, fall.dropFirst()).allSatisfy { $0 <= $1 })
+        // Scaled to the pen: a wider line tapers over a longer run.
+        let thin = InkAssist.taper(points, line: 1.5).filter { $0 < 1 }.count
+        let wide = InkAssist.taper(points, line: 3).filter { $0 < 1 }.count
+        #expect(wide > thin)
+        // A tick has no ends to taper.
         #expect(InkAssist.taper([.zero, CGPoint(x: 4, y: 0), CGPoint(x: 8, y: 0)]).allSatisfy { $0 == 1 })
     }
 

@@ -144,7 +144,16 @@ nonisolated enum InkPen {
     static func pointSize(forLine line: CGFloat) -> CGFloat { line / 2 + 2 }
 
     static var tool: PKInkingTool {
-        PKInkingTool(.monoline, color: .black, width: toolWidth(forLine: width))
+        PKInkingTool(.monoline, color: colour, width: toolWidth(forLine: width))
+    }
+
+    /// **The pen's ink while you draw: the warm ink** (`AppColors.drawingInk`,
+    /// the owner's "Warm ink", 2026-10-06), its light value. PencilKit turns
+    /// it to a warm white itself in dark mode and on a block's canvas, so
+    /// the line under your finger is the line the page shows. Saved pictures
+    /// are tinted where they are shown, so this colour never decides theirs.
+    static var colour: UIColor {
+        UIColor(red: 0.149, green: 0.129, blue: 0.114, alpha: 1)
     }
 
     /// The eraser that undoes whole strokes, which is what a one-pen drawing

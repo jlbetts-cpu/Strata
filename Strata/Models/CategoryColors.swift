@@ -250,6 +250,21 @@ enum AppColors {
             : UIColor(white: 0, alpha: 0.85)
     })
 
+    /// **The ink a drawing is in** (the owner, 2026-10-06, "Warm ink"): a
+    /// deep warm black on the page and a warm paper white in dark mode, in
+    /// place of `inkPrimary`'s neutral grey. Ink on paper rather than pixels.
+    /// Opaque, so a line crossing itself does not darken where it overlaps.
+    /// Every drawing takes it: his, yours, sketches, months and doodles.
+    static let drawingInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.949, green: 0.925, blue: 0.886, alpha: 1)  // #F2ECE2
+            : UIColor(red: 0.149, green: 0.129, blue: 0.114, alpha: 1)  // #26211D
+    })
+
+    /// The white ink of a doodle on a block: warm, so it sits on the
+    /// colour as chalk does rather than as a cut-out.
+    static let drawingInkOnBlock = Color(red: 1, green: 0.98, blue: 0.94)  // #FFFAF0
+
     /// A quiet surface: a well, an empty cell, a hairline's fill. Not text,
     /// and not held to a text ratio (1.14:1 light, 1.19:1 dark) — it is there
     /// to be a shape rather than to be read.

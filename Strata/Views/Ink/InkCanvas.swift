@@ -58,7 +58,7 @@ final class InkController {
 
     /// The tool for `penWidth`, the line as seen (`InkPen.toolWidth`).
     var pen: PKInkingTool {
-        PKInkingTool(.monoline, color: .black, width: InkPen.toolWidth(forLine: penWidth))
+        PKInkingTool(.monoline, color: InkPen.colour, width: InkPen.toolWidth(forLine: penWidth))
     }
 
     func undo() {
@@ -455,7 +455,7 @@ final class OwnUndoCanvas: PKCanvasView {
 /// dark mode the way the owner's drawings do.
 struct InkImage: View {
     let url: URL
-    var tint: Color = AppColors.inkPrimary
+    var tint: Color = AppColors.drawingInk
     /// The scale the file was written at, so its natural size is in points.
     var scale: CGFloat = 3
     /// Drawn at its natural size rather than fitted to the space it is

@@ -62,7 +62,7 @@ struct MonthDrawingSettingsView: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(AppColors.inkPrimary)
+                .foregroundStyle(AppColors.drawingInk)
                 .frame(height: 220)
                 .accessibilityLabel("The month's drawing")
         }

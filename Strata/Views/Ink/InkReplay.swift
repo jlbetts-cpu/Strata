@@ -37,7 +37,11 @@ struct InkReplay: View {
     /// One stroke, as the points it passes through, in canvas points.
     struct Line: Equatable {
         var points: [CGPoint]
+        /// The body's width.
         var width: CGFloat
+        /// The width at each point: the body's, narrowing at the tips
+        /// (`InkAssist.taper`), so a replay draws the line the canvas drew.
+        var widths: [CGFloat] = []
     }
 
     private var animates: Bool { drawing.bringsToLife && !reduceMotion }
@@ -93,12 +97,28 @@ struct InkReplay: View {
                     let p = points[0]
                     context.fill(Path(ellipseIn: CGRect(x: p.x - width / 2, y: p.y - width / 2,
                                                         width: width, height: width)),
-                                 with: .color(AppColors.inkPrimary))
-                } else {
+                                 with: .color(AppColors.drawingInk))
+                    continue
+                }
+                // **The line's own widths, not one for the stroke.** It took
+                // the first point's, the thinnest once the start tapered,
+                // so every replayed line drew at its tip's weight. Runs of
+                // one width are one path; the tips step down a segment at a
+                // time. The ink is opaque, so the round caps where segments
+                // meet do not darken.
+                let widths = line.widths.count == line.points.count
+                    ? line.widths.prefix(count).map { $0 * scale }
+                    : Array(repeating: width, count: points.count)
+                var i = 0
+                while i < points.count - 1 {
+                    var j = i + 1
+                    while j < points.count - 1, abs(widths[j] - widths[i]) < 0.05 { j += 1 }
                     var path = Path()
-                    path.addLines(points)
-                    context.stroke(path, with: .color(AppColors.inkPrimary),
-                                   style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+                    path.addLines(Array(points[i...j]))
+                    context.stroke(path, with: .color(AppColors.drawingInk),
+                                   style: StrokeStyle(lineWidth: (widths[i] + widths[j]) / 2,
+                                                      lineCap: .round, lineJoin: .round))
+                    i = j
                 }
             }
         }
@@ -113,14 +133,15 @@ struct InkReplay: View {
 
     static func lines(of drawing: PKDrawing) -> [Line] {
         drawing.strokes.map { stroke in
-            let points = stroke.path.interpolatedPoints(by: .distance(1.5))
-                .map { $0.location.applying(stroke.transform) }
-            // The line PencilKit draws for the recorded size, scaled with the
-            // stroke when a drawing was fitted to another canvas.
+            let sampled = Array(stroke.path.interpolatedPoints(by: .distance(1.5)))
+            let points = sampled.map { $0.location.applying(stroke.transform) }
+            // The line PencilKit draws for each recorded size, scaled with
+            // the stroke when a drawing was fitted to another canvas.
             let t = stroke.transform
             let scale = sqrt(abs(t.a * t.d - t.b * t.c))
-            let size = stroke.path.first?.size.width ?? InkPen.pointSize(forLine: InkPen.width)
-            return Line(points: Array(points), width: InkPen.lineWidth(forPointSize: size) * scale)
+            let widths = sampled.map { InkPen.lineWidth(forPointSize: $0.size.width) * scale }
+            let body = widths.max() ?? InkPen.width * scale
+            return Line(points: points, width: body, widths: widths)
         }
     }
 

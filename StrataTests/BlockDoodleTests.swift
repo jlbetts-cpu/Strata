@@ -89,7 +89,8 @@ struct BlockDoodleTests {
         #expect(keep.components(separatedBy: "private var").first?.contains("photo = nil") == true)
         let editor = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/BlockDoodleSheet.swift"))
         #expect(editor.contains("lightInk: true"))
-        #expect(editor.contains(".foregroundStyle(.white)"))
+        // Warm white since the owner's "Warm ink" (2026-10-06), not pure white.
+        #expect(editor.contains(".foregroundStyle(AppColors.drawingInkOnBlock)"))
         #expect(editor.contains("InkPen.blockWidth(onCanvasOfHeight:"))
     }
 

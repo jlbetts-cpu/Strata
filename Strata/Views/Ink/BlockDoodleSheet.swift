@@ -76,7 +76,7 @@ struct BlockDoodleImage: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(.white)
+                .foregroundStyle(AppColors.drawingInkOnBlock)
                 .accessibilityHidden(true)
         }
     }

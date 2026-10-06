@@ -267,23 +267,45 @@ nonisolated enum InkAssist {
         return out
     }
 
-    /// How much of the line each point keeps, as a factor of its width: 1
-    /// along the stroke, narrowing over its last `over` points of length to
-    /// `to` at the very end. A stroke shorter than three times `over` keeps
-    /// its width: a dot or a tick has no end to taper.
-    static func taper(_ points: [CGPoint], over: CGFloat = 8, to: CGFloat = 0.6) -> [CGFloat] {
+    /// How much of the line each point keeps, as a factor of its width.
+    ///
+    /// **Both ends, like a fine pen landing and lifting** (the owner,
+    /// 2026-10-06: the doodles "look clean but somethings not perfect";
+    /// his pick, "Tapered ends"). A perfect monoline, one width from touch
+    /// to lift, is what reads as drawn by a computer. The body keeps its one
+    /// weight ("one hand, one weight" still holds); only the tips change: a
+    /// short landing to `landingTip`, a longer lift to `liftTip`. It was the
+    /// lift alone, over 8pt to 0.6, and too slight to see.
+    ///
+    /// The lengths are multiples of the line's width, so a tip reads the
+    /// same on the journal's 1.5pt pen as on a block doodle's canvas, drawn
+    /// four times bigger than it is shown. A stroke too short for both tips
+    /// keeps its width: a dot or a tick has no ends to taper.
+    static func taper(_ points: [CGPoint], line: CGFloat = InkPen.width) -> [CGFloat] {
         var factors = [CGFloat](repeating: 1, count: points.count)
-        guard points.count >= 3, pathLength(points) >= over * 3 else { return factors }
+        let start = max(5, line * landingLength), end = max(7, line * liftLength)
+        guard points.count >= 3, pathLength(points) >= (start + end) * 1.5 else { return factors }
+        func ease(_ t: CGFloat) -> CGFloat { t * t * (3 - 2 * t) }
         var fromEnd: CGFloat = 0
         for i in stride(from: points.count - 1, through: 0, by: -1) {
             if i < points.count - 1 { fromEnd += (points[i + 1] - points[i]).length }
-            guard fromEnd < over else { break }
-            let t = fromEnd / over                   // 0 at the end, 1 where it starts
-            let eased = t * t * (3 - 2 * t)
-            factors[i] = to + (1 - to) * eased
+            guard fromEnd < end else { break }
+            factors[i] = liftTip + (1 - liftTip) * ease(fromEnd / end)
+        }
+        var fromStart: CGFloat = 0
+        for i in points.indices {
+            if i > 0 { fromStart += (points[i] - points[i - 1]).length }
+            guard fromStart < start else { break }
+            factors[i] = min(factors[i], landingTip + (1 - landingTip) * ease(fromStart / start))
         }
         return factors
     }
+
+    /// The tips, in multiples of the line's width, and how thin each gets.
+    static let landingLength: CGFloat = 4
+    static let liftLength: CGFloat = 7
+    static let landingTip: CGFloat = 0.45
+    static let liftTip: CGFloat = 0.3
 
     /// Whether the stroke ended on a still finger: its last points stay
     /// within `slop` of where it lifted for at least `hold`. The after-lift
@@ -316,7 +338,9 @@ nonisolated enum InkAssist {
         }
         guard sampled.count >= 3 else { return (stroke, false) }
         let smoothed = smooth(locations)
-        let factors = taper(smoothed)
+        let widths = sampled.map(\.size.width).sorted()
+        let body = InkPen.lineWidth(forPointSize: widths[widths.count / 2])
+        let factors = taper(smoothed, line: body)
         let points = sampled.indices.map { i -> PKStrokePoint in
             let p = sampled[i]
             let line = InkPen.lineWidth(forPointSize: p.size.width) * factors[i]
