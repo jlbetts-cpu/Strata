@@ -306,7 +306,7 @@ struct DaySheet: View {
                     // the 2:3 shape, the pen scaled as the editor scales it.
                     let w = UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
                     let canvas = CGSize(width: w, height: w / JournalSketchEditor.aspect)
-                    let pen = InkPen.width(onCanvasOfHeight: canvas.height, shownAt: JournalSketches.shownHeight)
+                    let pen = InkPen.width
                     keepSketch(InkSamples.sunOverHill(in: canvas, width: pen), canvas: canvas)
                 }
                 if sketch == "open" { openEditor() }

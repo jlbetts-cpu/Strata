@@ -31,10 +31,13 @@ enum JournalSketches {
     /// as tall as its ink takes less.
     static let shownHeight: CGFloat = 240
 
-    /// Shown points per canvas point, for a canvas this tall.
-    static func shownScale(canvasHeight: CGFloat) -> CGFloat {
-        canvasHeight > 0 ? shownHeight / canvasHeight : 1
-    }
+    /// Shown points per canvas point: **one**, so what you draw is what you
+    /// get. Drawing big and showing it shrunk meant a pen thick enough to
+    /// land at 1.5pt was 3.5pt under the finger (the owner, 2026-10-05: "the
+    /// lines are a lot thicker on the drawing canvas than they are in my
+    /// drawings"). The sketch is written at the editor's scale, trimmed to its
+    /// ink, and shown under the note at that size: the same line throughout.
+    static func shownScale(canvasHeight: CGFloat) -> CGFloat { 1 }
 
     /// "sketch-2026-10-05-1A2B3C4D.png" for "…drawing" and back.
     static func drawingName(for png: String) -> String {

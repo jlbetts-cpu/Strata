@@ -57,7 +57,8 @@ struct JournalSketchEditor: View {
         let size = CGSize(width: width, height: width / Self.aspect)
         guard size.width > 0, size != canvasSize else { return }
         canvasSize = size
-        ink.penWidth = InkPen.width(onCanvasOfHeight: size.height, shownAt: JournalSketches.shownHeight)
+        // The line as it will be seen: the sketch is shown at this size.
+        ink.penWidth = InkPen.width
         #if DEBUG
         if let line = DebugHarness.penLine { ink.penWidth = line }
         #endif

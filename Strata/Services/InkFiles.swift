@@ -94,6 +94,17 @@ nonisolated enum InkPen {
         return width * canvas / shown
     }
 
+    /// **The month drawing's line, on the page: the owner's own.** His
+    /// October scarecrow measures 1.3pt where it is shown (4px at 3x). The
+    /// month editor is larger than the art it makes, so its pen is wider by
+    /// that ratio (about 2.3pt under the finger) and lands at his weight.
+    static let monthLine: CGFloat = 1.3
+
+    static func monthWidth(onCanvasOfHeight canvas: CGFloat, shownAt shown: CGFloat) -> CGFloat {
+        guard canvas > 0, shown > 0 else { return monthLine }
+        return monthLine * canvas / shown
+    }
+
     /// **The tool is not set to the line it draws, and that was measured.**
     /// Each point is recorded at the tool's width plus 2, and PencilKit draws
     /// a line TWICE the tool's width: twice the recorded size less 2.

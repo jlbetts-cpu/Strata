@@ -299,7 +299,10 @@ struct JournalTests {
                                                      shownScale: k, files: files))
         let bytes = try #require(files.read(name))
         let picture = try #require(UIImage(data: bytes, scale: JournalSketches.scale))
+        // Shown at the size it is drawn (2026-10-05), so the picture is the
+        // canvas's own width.
         #expect(abs(picture.size.width - 370 * k) < 1, "the picture is the canvas's width at the shown scale")
+        #expect(k == 1)
         // And the strokes are kept at the canvas's own size, to edit again.
         #expect(JournalSketches.drawing(for: name, files: files)?.bounds.width ?? 0 > 190)
     }

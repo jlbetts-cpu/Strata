@@ -97,14 +97,17 @@ struct InkTests {
     /// width where it is shown.** The month editor and the journal's sketch
     /// editor both draw on a canvas taller than the page shows the drawing,
     /// so the pen is widened by the same ratio.
-    @Test("the pen scales with the canvas, and lands at 1.5 where it is shown")
+    // The month lands at the owner's own line (1.3pt, measured off his
+    // scarecrow); the journal is drawn at the size it is shown, so its pen is
+    // the house width under the finger and on the page alike (the owner,
+    // 2026-10-05: "the lines are a lot thicker on the drawing canvas").
+    @Test("the month pen lands at the owner's line, and the journal draws what it shows")
     func penScalesToWhereItIsShown() {
         // The month: a 555pt canvas shown at 290.
-        let month = InkPen.width(onCanvasOfHeight: 555, shownAt: MonthDrawingEditor.shownHeight)
-        #expect(abs(month * MonthDrawingEditor.shownHeight / 555 - 1.5) < 0.001)
-        // The journal: a canvas shown at `JournalSketches.shownHeight`.
-        let journal = InkPen.width(onCanvasOfHeight: 555, shownAt: JournalSketches.shownHeight)
-        #expect(abs(journal * JournalSketches.shownHeight / 555 - 1.5) < 0.001)
+        let month = InkPen.monthWidth(onCanvasOfHeight: 555, shownAt: MonthDrawingEditor.shownHeight)
+        #expect(abs(month * MonthDrawingEditor.shownHeight / 555 - InkPen.monthLine) < 0.001)
+        // The journal: shown at the size it is drawn.
+        #expect(JournalSketches.shownScale(canvasHeight: 555) == 1)
         // A canvas shown at its own size draws the house width itself.
         #expect(InkPen.width(onCanvasOfHeight: 290, shownAt: 290) == InkPen.width)
         // The editors' widest pens are still inside the measured tools (3.30
@@ -115,12 +118,11 @@ struct InkTests {
                                                        shownAt: JournalSketches.shownHeight)) <= 3.30)
     }
 
-    /// The saved journal sketch is written at the scale it is shown at, so
-    /// its picture's natural size is its size under the note.
-    @Test("a journal sketch's picture is written at the size it is shown")
+    /// The journal sketch is shown at the size it is drawn: what you draw is
+    /// what the note shows.
+    @Test("a journal sketch is shown at the size it is drawn")
     func sketchShownScale() {
-        let k = JournalSketches.shownScale(canvasHeight: 555)
-        #expect(abs(k - JournalSketches.shownHeight / 555) < 0.0001)
+        #expect(JournalSketches.shownScale(canvasHeight: 555) == 1)
         #expect(JournalSketches.shownScale(canvasHeight: 0) == 1, "an unmeasured canvas is shown as drawn")
     }
 

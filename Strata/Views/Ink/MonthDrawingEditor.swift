@@ -83,7 +83,7 @@ struct MonthDrawingEditor: View {
         let size = CGSize(width: width, height: width / Self.aspect)
         guard size.width > 0, size != canvasSize else { return }
         canvasSize = size
-        ink.penWidth = InkPen.width(onCanvasOfHeight: size.height, shownAt: Self.shownHeight)
+        ink.penWidth = InkPen.monthWidth(onCanvasOfHeight: size.height, shownAt: Self.shownHeight)
         if !ink.canUndo, let saved, let strokes = try? PKDrawing(data: saved.strokes) {
             let k = size.width / saved.canvasWidth
             ink.load(abs(k - 1) < 0.001 ? strokes
