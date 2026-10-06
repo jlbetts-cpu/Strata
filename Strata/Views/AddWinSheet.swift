@@ -546,12 +546,20 @@ struct AddWinSheet: View {
             .scrollTargetLayout()
         }
         .scrollPosition(id: $stripPosition, anchor: .leading)
+        // The block's height exactly, not whatever a short page leaves.
+        .frame(height: well.size.height)
         .scrollTargetBehavior(.viewAligned)
         .contentMargins(.horizontal, GridConstants.horizontalPadding, for: .scrollContent)
         // Out to the screen's edges: the page's margin is the scroll's
         // content margin instead, so the block still starts on it.
         .padding(.horizontal, -GridConstants.horizontalPadding)
         .scrollClipDisabled()
+        // **Not moved by the keyboard.** A scroll view insets its content
+        // for the keyboard, so with it up the block and photographs were
+        // drawn about 40pt above their own frame, over the crew names
+        // (measured 2026-10-06: frame at 249, drawn at 207). The page's own
+        // scroll answers the keyboard; this one does not need to.
+        .ignoresSafeArea(.keyboard)
         .task(id: photoAccess) { loadTodaysPhotos() }
     }
 

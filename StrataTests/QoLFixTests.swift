@@ -100,6 +100,8 @@ struct QoLFixTests {
             let source = try code(path)
             #expect(!source.contains(".buttonStyle(.pressSurface)"),
                     "\(path) puts a scaling press on interactive glass, which cancels taps on a phone")
+            // Ink since the owner thinned the glass (2026-10-06).
+            #expect(!source.contains(".glassCapsule("), "\(path) is a glass chip again")
         }
         let day = try code("Strata/Views/DaySheet.swift")
         let emoji = try body(of: "private var emojiButton: some View {", until: "EmojiField(", in: day)

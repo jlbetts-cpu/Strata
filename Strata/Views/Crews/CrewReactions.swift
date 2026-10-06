@@ -333,7 +333,7 @@ struct CrewReactionsPanel: View {
                 // is the bar, these two words and who reacted.
                 // Off together when writing is off (`canReply`).
                 if store.canReply() {
-                    HStack(spacing: GridConstants.gapTight) {
+                    HStack(spacing: GridConstants.gapWide) {
                         replyChip("Reply") {
                             draft = ""
                             replying = true
@@ -425,19 +425,20 @@ struct CrewReactionsPanel: View {
     private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
 
     /// One of the two words under the bar: Reply and Doodle, alike.
+    /// **A word, not a chip** (the owner, 2026-10-06: the viewer was six
+    /// glass controls against a budget of three). Reply and Doodle read as
+    /// the plan's Suggest and Others do: plain words in the control ink, a
+    /// 44pt target, the word press. Only the reaction bar keeps glass.
     private func replyChip(_ word: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(word)
                 .font(Typography.headerSmall)
                 .foregroundStyle(onDark ? AppColors.onDarkStrong : AppColors.inkPrimary)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, GridConstants.gapTight)
                 .frame(minHeight: 44)
-                .glassCapsule(onPage: !onDark)
-                .contentShape(Capsule())
+                .contentShape(Rectangle())
         }
-        // Plain on glass, as the face is (see its note): a scaling press on
-        // interactive glass cancelled taps on a real phone.
-        .buttonStyle(.plain)
+        .buttonStyle(.pressWord)
     }
 
     /// Yours first, then in the order they came.

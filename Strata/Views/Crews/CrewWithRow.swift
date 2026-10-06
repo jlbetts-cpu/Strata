@@ -23,7 +23,9 @@ struct CrewWithRow: View {
         if CrewsFlag.isOn, !people.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: GridConstants.gapTight) {
+                    // `gapWide` between choices now there is no capsule to
+                    // hold each one apart (2026-10-06).
+                    HStack(spacing: GridConstants.gapWide) {
                         Text("With…")
                             .font(Typography.headerSmall)
                             .foregroundStyle(AppColors.inkSecondary)
@@ -59,7 +61,7 @@ struct CrewWithRow: View {
                 if on { selection.removeAll { $0 == person.profileID } } else { selection.append(person.profileID) }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: GridConstants.gapTight) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(Typography.headerMedium)
                     .contentTransition(.symbolEffect(.replace))
@@ -70,14 +72,13 @@ struct CrewWithRow: View {
             // Three chosen: the rest go to the quietest ink, the one a
             // control that cannot be pressed wears, not a private opacity.
             .foregroundStyle(on ? AppColors.inkPrimary : (full ? AppColors.inkQuiet : AppColors.inkSecondary))
-            .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .glassCapsule(onPage: true)
+            .contentShape(Rectangle())
         }
-        // `.plain`, not `.pressSurface`: a scaling press on interactive
-        // glass fights the glass's own response and cancels the tap on a
-        // phone (`CrewReactions`, the owner, 2026-10-05). Found 2026-10-06.
-        .buttonStyle(.plain)
+        // **Ink, not glass** (the owner, 2026-10-06): Add a win could pass
+        // ten glass capsules with crews and people ticked, against a budget
+        // of three. The tick and the ink say chosen; the word press answers.
+        .buttonStyle(.pressWord)
         .disabled(!on && full)
         .accessibilityLabel(name)
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)

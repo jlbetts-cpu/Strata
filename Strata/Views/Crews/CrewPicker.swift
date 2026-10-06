@@ -19,7 +19,9 @@ struct CrewPicker: View {
         if CrewsFlag.isOn, !store.crews.isEmpty {
             VStack(alignment: onDark ? .center : .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: GridConstants.gapTight) {
+                    // `gapWide` between choices now there is no capsule to
+                    // hold each one apart (2026-10-06).
+                    HStack(spacing: GridConstants.gapWide) {
                         ForEach(store.crews) { crew in
                             chip(crew)
                         }
@@ -27,6 +29,10 @@ struct CrewPicker: View {
                     .padding(.horizontal, onDark ? GridConstants.gapWide : 0)
                 }
                 .scrollClipDisabled()
+                // Its own height, always: with the keyboard up the page is
+                // short and a horizontal scroll is the first thing squeezed,
+                // which ran the block up over the names (2026-10-06).
+                .fixedSize(horizontal: false, vertical: true)
                 if mentionsPhotos, !CrewAge.current.sendsPhotos {
                     Text("Photos stay with you")
                         .font(Typography.screenSubtitle)
@@ -46,7 +52,7 @@ struct CrewPicker: View {
                 if on { selection.remove(crew.id) } else { selection.insert(crew.id) }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: GridConstants.gapTight) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(Typography.headerMedium)
                     .contentTransition(.symbolEffect(.replace))
@@ -56,14 +62,13 @@ struct CrewPicker: View {
             }
             .foregroundStyle(onDark ? (on ? Color.white : AppColors.onDarkSecondary)
                                     : (on ? AppColors.inkPrimary : AppColors.inkSecondary))
-            .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .glassCapsule(onPage: !onDark)
+            .contentShape(Rectangle())
         }
-        // `.plain`, not `.pressSurface`: a scaling press on interactive
-        // glass fights the glass's own response and cancels the tap on a
-        // phone (`CrewReactions`, the owner, 2026-10-05). Found 2026-10-06.
-        .buttonStyle(.plain)
+        // **Ink, not glass** (the owner, 2026-10-06): Add a win could pass
+        // ten glass capsules with crews and people ticked, against a budget
+        // of three. The tick and the ink say chosen; the word press answers.
+        .buttonStyle(.pressWord)
         .accessibilityLabel(crew.displayName(excluding: store.me))
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
