@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
+import PencilKit
 import UIKit
 @testable import Strata
 
@@ -619,5 +620,38 @@ struct BackupRestoreTests {
             """
         let document = try BackupArchive.decoder().decode(BackupArchive.Document.self, from: Data(json.utf8))
         #expect(document.notes == nil)
+    }
+
+    @Test("a note's sketch travels in its own folder, with its strokes, and comes back drawable")
+    func journalSketchRoundTrip() throws {
+        let folder = try scratch()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let inkBefore = InkTests.folder(), inkAfter = InkTests.folder()
+        let before = ModelContext(try container())
+        // A day with a sketch and nothing else, and a month drawing in the
+        // same folder that is not the journal's and must not travel.
+        let name = try #require(JournalSketches.save(InkTests.drawing(strokes: [60]), width: 300,
+                                                     day: "2027-01-17", replacing: nil, files: inkBefore))
+        DayNotes.setSketch(name, for: "2027-01-17", context: before)
+        try inkBefore.write(Data([9]), named: "month-2027-01.png")
+        let zip = try BackupExport.makeZip(habits: [], logs: [],
+                                           notes: try before.fetch(FetchDescriptor<MoodLog>()),
+                                           appVersion: "1.0 (1)", photographs: [], ink: inkBefore,
+                                           temporaryDirectory: folder)
+
+        let contents = try BackupArchive.read(zipAt: zip)
+        #expect(Set(contents.sketchEntries.keys) == [name, JournalSketches.drawingName(for: name)])
+        #expect(contents.photoEntries.isEmpty, "a sketch is never counted as a photograph")
+        #expect(contents.document.notes?.first?.sketch == name)
+
+        let after = ModelContext(try container())
+        let plan = try BackupRestore.plan(contents, context: after)
+        #expect(plan.notesToAdd.count == 1, "a sketch alone is a note worth restoring")
+        let report = BackupRestore.apply(plan, contents: contents, context: after, ink: inkAfter)
+        #expect(report.failure == nil, "\(report.failure ?? "")")
+        let restored = try #require(DayNotes.entry(for: "2027-01-17", context: after))
+        #expect(restored.sketchFileName == name)
+        #expect(inkAfter.read(name) == inkBefore.read(name))
+        #expect(JournalSketches.drawing(for: name, files: inkAfter)?.strokes.count == 1)
     }
 }

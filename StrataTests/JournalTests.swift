@@ -1,6 +1,8 @@
 import Testing
 import Foundation
+import PencilKit
 import SwiftData
+import UIKit
 @testable import Strata
 
 /// **The day's journal** (`docs/superpowers/specs/2026-10-05-shared-wins-journal-doodles-design.md`,
@@ -247,5 +249,55 @@ struct JournalTests {
         lock.relock()
         #expect(await lock.unlock())
         #expect(prompt.asked == 3)
+    }
+
+    // MARK: - The sketch
+
+    @Test("a sketch is a picture and its strokes, under one name, and a new name each time")
+    func sketchFiles() throws {
+        let files = InkTests.folder()
+        let drawing = InkTests.drawing(strokes: [80, 40])
+        let first = try #require(JournalSketches.save(drawing, width: 358, day: "2026-10-05",
+                                                      replacing: nil, files: files))
+        #expect(first.hasPrefix("sketch-2026-10-05-") && first.hasSuffix(".png"))
+        #expect(files.exists(first))
+        #expect(files.exists(JournalSketches.drawingName(for: first)))
+        #expect(JournalSketches.drawing(for: first, files: files)?.strokes.count == 2)
+        // The picture is the strip's width, so it lands under the words where
+        // it was drawn, and only as tall as its ink.
+        let bytes = try #require(files.read(first))
+        let picture = try #require(UIImage(data: bytes, scale: JournalSketches.scale))
+        #expect(abs(picture.size.width - 358) < 1)
+        #expect(picture.size.height < 80)
+
+        // Drawn on again: a new name, and the old pair is gone.
+        let second = try #require(JournalSketches.save(InkTests.drawing(strokes: [30]), width: 358,
+                                                       day: "2026-10-05", replacing: first, files: files))
+        #expect(second != first)
+        #expect(!files.exists(first))
+        #expect(!files.exists(JournalSketches.drawingName(for: first)))
+
+        // Rubbed out: no sketch, and its files go.
+        #expect(JournalSketches.save(PKDrawing(), width: 358, day: "2026-10-05",
+                                     replacing: second, files: files) == nil)
+        #expect(files.all().isEmpty)
+    }
+
+    @Test("a sketch alone is a note: the day gets a row, and clearing it leaves the words")
+    func sketchOnTheEntry() throws {
+        let ctx = try context()
+        DayNotes.setSketch(nil, for: "2026-10-05", context: ctx)
+        #expect(try ctx.fetchCount(FetchDescriptor<MoodLog>()) == 0, "nothing to keep, no row")
+        DayNotes.setSketch("sketch-a.png", for: "2026-10-05", context: ctx)
+        #expect(DayNotes.entry(for: "2026-10-05", context: ctx)?.sketchFileName == "sketch-a.png")
+        #expect(DayNotes.hasNote(on: "2026-10-05", context: ctx))
+        // Saving the words does not touch the sketch, and the other way round.
+        DayNotes.save(note: "Long walk", symbol: nil, for: "2026-10-05", context: ctx)
+        #expect(DayNotes.entry(for: "2026-10-05", context: ctx)?.sketchFileName == "sketch-a.png")
+        DayNotes.setSketch(nil, for: "2026-10-05", context: ctx)
+        let entry = try #require(DayNotes.entry(for: "2026-10-05", context: ctx))
+        #expect(entry.sketchFileName == nil)
+        #expect(entry.note == "Long walk")
+        #expect(try ctx.fetchCount(FetchDescriptor<MoodLog>()) == 1)
     }
 }

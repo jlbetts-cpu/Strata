@@ -41,8 +41,8 @@ enum DayNotes {
     /// Writes the day's words and emoji, and saves.
     ///
     /// Nothing is made for a day that has no row and nothing to put in one.
-    /// The sketch is not touched here: it has its own file and arrives with
-    /// the sketch strip.
+    /// The sketch is not touched here: it has its own files and its own
+    /// write, `setSketch(_:for:context:)` in `JournalSketches.swift`.
     static func save(note: String?, symbol: String?, for dateString: String, context: ModelContext) {
         let words = note.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         let mark = symbol.flatMap { $0.isEmpty ? nil : $0 }

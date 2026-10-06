@@ -92,7 +92,8 @@ enum BackupExport {
             },
             notes: notes.filter(\.hasContent).map { entry in
                 BackupArchive.ExportNote(dateString: entry.dateString, id: entry.id,
-                                         note: entry.note, symbol: entry.symbol)
+                                         note: entry.note, symbol: entry.symbol,
+                                         sketch: entry.sketchFileName)
             })
     }
 
@@ -110,14 +111,21 @@ enum BackupExport {
     }
 
     /// Builds the whole backup and returns the zip to share.
+    ///
+    /// The journal's sketches go in `sketches/`, each with its strokes, so a
+    /// restored sketch can still be opened and drawn on (`JournalSketches`).
+    /// Only the ones a note names: the ink folder also holds month drawings,
+    /// which are not the day's journal.
     static func makeZip(habits: [Habit], logs: [HabitLog], notes: [MoodLog] = [], appVersion: String,
                         now: Date = Date(),
                         photographs: [URL]? = nil,
+                        ink: InkFiles = .shared,
                         temporaryDirectory: URL = FileManager.default.temporaryDirectory) throws -> URL {
         try BackupArchive.writeZip(
             document: document(habits: habits, logs: logs, notes: notes,
                                appVersion: appVersion, exportDate: now),
             photographs: photographs ?? Self.photographs(),
+            sketches: JournalSketches.files(for: notes.filter(\.hasContent), in: ink),
             named: name(on: now),
             in: temporaryDirectory)
     }
