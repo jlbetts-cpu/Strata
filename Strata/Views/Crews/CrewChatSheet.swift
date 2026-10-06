@@ -16,6 +16,13 @@ import SwiftUI
 /// with their small face and name, told apart by space and never by lines.
 /// Liquid Glass only on the controls (the field and Send). No read receipts
 /// and no seen marks: nothing says who has opened it.
+///
+/// **Hold a friend's line to react** (the owner, 2026-10-06: "make it so you
+/// can react to chat messages with stickers and emojis"): the win's bar and
+/// your stickers open under it (`ChatReactionBar`), and what everyone chose
+/// sits under the line as small chips (`ChatReactionChips`). One a person a
+/// line, as on a win. The hold used to be Report and Block, which are the
+/// bar's ⋯ now.
 struct CrewChatSheet: View {
     let crewID: CrewID
     /// A quoted win was tapped: the crew screen closes this sheet and opens
@@ -31,6 +38,12 @@ struct CrewChatSheet: View {
     @State private var reporting: CrewMessage?
     @State private var reported: CrewMessage?
     @State private var blocking: CrewMessage?
+    /// The line whose reaction bar is open, if one is.
+    @State private var reacting: UUID?
+    /// A quoted line just held: the lift of the finger that opened its bar
+    /// is not also a tap that opens the win.
+    @State private var held: UUID?
+    @State private var stickerRefused = false
     @FocusState private var writing: Bool
 
     private var store: SocialStore { SocialStore.shared }
@@ -43,6 +56,9 @@ struct CrewChatSheet: View {
     private static let faceSide: CGFloat = 28
     /// A doodle's largest side in the chat: a mark, never a second photograph.
     private static let doodleSide: CGFloat = 160
+    /// How long a line is held before its bar opens: shorter than the
+    /// system's half second, which the context menu it replaced waited.
+    private static let holdToReact: Double = 0.35
 
     init(crewID: CrewID, onOpenWin: @escaping (UUID) -> Void = { _ in }) {
         self.crewID = crewID
@@ -53,8 +69,9 @@ struct CrewChatSheet: View {
     var body: some View {
         let crew = store.visible(crewID)
         let messages = store.messages(in: crewID)
+        let reactions = store.messageReactions(in: crewID)
         NavigationStack {
-            thread(messages, crew: crew)
+            thread(messages, reactions: reactions, crew: crew)
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
                 .navigationTitle(crew?.displayName(excluding: store.me) ?? "Chat")
                 .navigationBarTitleDisplayMode(.inline)
@@ -73,12 +90,27 @@ struct CrewChatSheet: View {
         .alert("Try other words", isPresented: $refused) {
             Button("OK", role: .cancel) {}
         }
+        .alert("That sticker stays with you", isPresented: $stickerRefused) {
+            Button("OK", role: .cancel) {}
+        }
         .overlay(alignment: .bottom) { dialogs }
+        // Writing closes an open bar: the field is where the eye went.
+        .onChange(of: writing) { _, now in if now { closeBar() } }
+        #if DEBUG
+        // `-strataChatReact open`: a friend's line held, its bar open, so
+        // the bar can be photographed (the seed is `CrewDebugSeed`).
+        .task {
+            guard DebugHarness.argument("-strataChatReact") == "open" else { return }
+            try? await Task.sleep(for: .milliseconds(900))
+            let lines = store.messages(in: crewID).filter { $0.senderProfileID != store.me }
+            reacting = (lines.dropFirst().first ?? lines.first)?.messageID
+        }
+        #endif
     }
 
     // MARK: - The thread
 
-    private func thread(_ messages: [CrewMessage], crew: Crew?) -> some View {
+    private func thread(_ messages: [CrewMessage], reactions: [UUID: [Reaction]], crew: Crew?) -> some View {
         GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -91,12 +123,20 @@ struct CrewChatSheet: View {
                         } else {
                             LazyVStack(spacing: GridConstants.spacing) {
                                 ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                                    row(message, after: index > 0 ? messages[index - 1] : nil, crew: crew)
+                                    row(message, after: index > 0 ? messages[index - 1] : nil,
+                                        reactions: reactions[message.messageID] ?? [], crew: crew)
                                         .id(message.id)
                                 }
                             }
                             .padding(.horizontal, hPad)
                             .padding(.vertical, GridConstants.gapItem)
+                            // A tap anywhere that is not a line or the bar
+                            // folds the bar away.
+                            .background {
+                                if reacting != nil {
+                                    Color.clear.contentShape(Rectangle()).onTapGesture { closeBar() }
+                                }
+                            }
                             // **Bottom-anchored**: a short chat sits on the
                             // field, newest at the foot, as Messages sits.
                             .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .bottom)
@@ -105,6 +145,10 @@ struct CrewChatSheet: View {
                 }
                 .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.interactively)
+                // A scroll folds the bar, as it folds the keyboard.
+                .onScrollPhaseChange { _, phase in
+                    if phase == .interacting { closeBar() }
+                }
                 // Lines leave under the title softly, as the tower's do.
                 .softScrollEdge(.top)
                 .onChange(of: messages.last?.id) { _, last in
@@ -120,52 +164,74 @@ struct CrewChatSheet: View {
     /// One line: yours on the right, a friend's on the left with their face
     /// and, at the start of their run, their name.
     @ViewBuilder
-    private func row(_ message: CrewMessage, after previous: CrewMessage?, crew: Crew?) -> some View {
+    private func row(_ message: CrewMessage, after previous: CrewMessage?, reactions: [Reaction],
+                     crew: Crew?) -> some View {
         let mine = message.senderProfileID == store.me
         let opensRun = previous?.senderProfileID != message.senderProfileID
         let member = crew?.member(message.senderProfileID)
-        HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
-            if mine {
-                Spacer(minLength: Self.otherSide)
-            } else {
-                Group {
-                    if opensRun, let member, let crew {
-                        CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
-                    } else {
-                        Color.clear
+        VStack(alignment: .leading, spacing: GridConstants.gapTight) {
+            HStack(alignment: .bottom, spacing: GridConstants.gapTight) {
+                if mine {
+                    Spacer(minLength: Self.otherSide)
+                } else {
+                    Group {
+                        if opensRun, let member, let crew {
+                            CrewFace(member: member, crew: crew.id, me: store.me, side: Self.faceSide)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(width: Self.faceSide, height: Self.faceSide)
+                    .accessibilityHidden(true)
                 }
-                .frame(width: Self.faceSide, height: Self.faceSide)
-                .accessibilityHidden(true)
-            }
-            VStack(alignment: mine ? .trailing : .leading, spacing: GridConstants.spacing) {
-                if !mine, opensRun {
-                    Text(name(of: message.senderProfileID))
-                        .font(Typography.screenSubtitle)
-                        .foregroundStyle(AppColors.inkTertiary)
-                        .lineLimit(1)
-                        .fitsLargeType(.subheadline)
-                        .padding(.leading, GridConstants.gapLabel)
-                        .accessibilityHidden(true)
+                VStack(alignment: mine ? .trailing : .leading, spacing: GridConstants.spacing) {
+                    if !mine, opensRun {
+                        Text(name(of: message.senderProfileID))
+                            .font(Typography.screenSubtitle)
+                            .foregroundStyle(AppColors.inkTertiary)
+                            .lineLimit(1)
+                            .fitsLargeType(.subheadline)
+                            .padding(.leading, GridConstants.gapLabel)
+                            .accessibilityHidden(true)
+                    }
+                    bubble(message, mine: mine)
                 }
-                bubble(message, mine: mine)
+                if !mine { Spacer(minLength: Self.otherSide) }
             }
-            if !mine { Spacer(minLength: Self.otherSide) }
+            // What everyone chose, under the line, on the line's side. Out
+            // of the line's own row, so a friend's face stays beside their
+            // words rather than dropping to the chips.
+            if !reactions.isEmpty {
+                ChatReactionChips(reactions: reactions, me: store.me, name: name(of:))
+                    .padding(.leading, mine ? 0 : Self.faceSide + GridConstants.gapTight)
+                    .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
+                    .padding(.top, -GridConstants.spacing)
+            }
+            if reacting == message.messageID, !mine {
+                reactionBar(message)
+                    .transition(.scale(scale: 0.85, anchor: .topLeading).combined(with: .opacity))
+            }
         }
         // Runs are told apart by air, never by a line.
         .padding(.top, opensRun && previous != nil ? GridConstants.gapItem : 0)
+        .animation(motion, value: reacting == message.messageID)
+        .animation(motion, value: reactions)
     }
 
     /// The bubble. **A tap opens the quoted win**, when there is one, so the
-    /// whole bubble is the target and never a 15pt line; a hold on a friend's
-    /// is Report and Block.
+    /// whole bubble is the target and never a 15pt line; **a hold on a
+    /// friend's opens its reaction bar** (2026-10-06), and Report and Block
+    /// are in the bar's ⋯. VoiceOver has all three as actions, since a hold
+    /// is a gesture it cannot make.
     @ViewBuilder
     private func bubble(_ message: CrewMessage, mine: Bool) -> some View {
         let quote = quoted(message)
         let face = bubbleFace(message, mine: mine, quote: quote?.title)
-        Group {
+        let content = Group {
             if let quote {
                 Button {
+                    // The lift that ended a hold is not a tap.
+                    if held == message.messageID { held = nil; return }
                     HapticsEngine.lightTap()
                     onOpenWin(quote.winID)
                 } label: { face }
@@ -175,16 +241,66 @@ struct CrewChatSheet: View {
                 face
             }
         }
-        .contextMenu {
-            if !mine {
-                Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { reporting = message }
-                Button("Block \(name(of: message.senderProfileID))", systemImage: "nosign", role: .destructive) {
-                    blocking = message
-                }
-            }
+        if mine {
+            content
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(spoken(message, quote: quote?.title))
+        } else {
+            content
+                .simultaneousGesture(LongPressGesture(minimumDuration: Self.holdToReact).onEnded { _ in
+                    openBar(on: message, fromQuote: quote != nil)
+                })
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(spoken(message, quote: quote?.title))
+                .accessibilityAction(named: "React") { openBar(on: message, fromQuote: false) }
+                .accessibilityAction(named: "Report") { reporting = message }
+                .accessibilityAction(named: "Block \(name(of: message.senderProfileID))") { blocking = message }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(spoken(message, quote: quote?.title))
+    }
+
+    // MARK: - Reactions
+
+    private var motion: Animation { reduceMotion ? GridConstants.crossFade : GridConstants.elasticPop }
+
+    private func openBar(on message: CrewMessage, fromQuote: Bool) {
+        if fromQuote { held = message.messageID }
+        HapticsEngine.lightTap()
+        writing = false
+        withAnimation(motion) { reacting = message.messageID }
+    }
+
+    private func closeBar() {
+        held = nil
+        guard reacting != nil else { return }
+        withAnimation(motion) { reacting = nil }
+    }
+
+    /// The held line's bar. A pick folds it, and lands as a chip under the
+    /// line; a sticker the photo check holds back says so, as a doodle does.
+    private func reactionBar(_ message: CrewMessage) -> some View {
+        let id = message.messageID
+        let stickers = StickerStore.shared
+        return ChatReactionBar(mine: store.myReaction(toMessage: id, in: crewID),
+                               stickers: stickers.names,
+                               stickersAllowed: store.photosAllowed(),
+                               sender: name(of: message.senderProfileID),
+                               pick: { choice in
+                                   closeBar()
+                                   Task {
+                                       let outcome: SocialStore.ReplyOutcome
+                                       switch choice {
+                                       case .emoji(let emoji):
+                                           outcome = await store.react(.emoji(emoji), toMessage: id, in: crewID)
+                                       case .sticker(let file):
+                                           guard let png = stickers.image(file)?.pngData() else { return }
+                                           outcome = await store.react(.sticker(name: file, png: png),
+                                                                       toMessage: id, in: crewID)
+                                       }
+                                       if outcome == .refusedSketch { stickerRefused = true }
+                                   }
+                               },
+                               report: { closeBar(); reporting = message },
+                               block: { closeBar(); blocking = message })
     }
 
     private func bubbleFace(_ message: CrewMessage, mine: Bool, quote: String?) -> some View {

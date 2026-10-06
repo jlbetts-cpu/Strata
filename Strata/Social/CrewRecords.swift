@@ -176,7 +176,17 @@ nonisolated enum CrewRecords {
         let line = fields["line"]?.string
             .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Reaction.lineLimit)) }
             .flatMap { $0.isEmpty || !CrewWords.isAcceptable($0) ? nil : $0 }
-        return Reaction(winID: win, crewID: crew, profileID: who, emoji: String(emoji.prefix(1)),
+        // **Or a sticker on a chat line** (2026-10-06): its mark whole, a
+        // plain file name after "sticker:", and only with its picture in
+        // `sketch`. A sticker mark with no picture is nothing to show.
+        let mark: String
+        if emoji.hasPrefix(Reaction.stickerPrefix) {
+            guard let name = Reaction.stickerName(in: emoji), fields["sketch"]?.asset != nil else { return nil }
+            mark = Reaction.stickerPrefix + name
+        } else {
+            mark = String(emoji.prefix(1))
+        }
+        return Reaction(winID: win, crewID: crew, profileID: who, emoji: mark,
                         createdAt: fields["createdAt"]?.date ?? .distantPast, line: line,
                         sketch: fields["sketch"]?.asset)
     }

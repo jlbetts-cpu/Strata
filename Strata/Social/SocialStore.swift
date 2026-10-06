@@ -302,6 +302,17 @@ final class SocialStore {
                 changed = true
             }
         }
+        // And a friend's sticker on a chat line (2026-10-06): it is lifted
+        // out of a photograph, so it is checked as one.
+        for reactions in reactionsByCrew.values {
+            for reaction in reactions where reaction.profileID != me && reaction.isSticker {
+                guard let sticker = reaction.sketch, photoVerdicts[sticker.lastPathComponent] == nil,
+                      let data = try? Data(contentsOf: sticker),
+                      let verdict = await incomingCheck(data) else { continue }
+                photoVerdicts[sticker.lastPathComponent] = verdict
+                changed = true
+            }
+        }
         guard changed else { return }
         defaults.set(photoVerdicts, forKey: Self.verdictsKey)
         verdictRevision += 1
@@ -1103,6 +1114,104 @@ final class SocialStore {
         await flush()
     }
 
+    // MARK: Reactions to chat lines
+
+    /// **Today's chat lines' reactions, by line** (the owner, 2026-10-06:
+    /// "make it so you can react to chat messages with stickers and emojis").
+    ///
+    /// Only for lines `messages(in:)` shows, so a reaction is never shown
+    /// under a line nobody can see, and never under a win: a win's id is
+    /// never a line's. Oldest first, nobody you blocked, and a friend's
+    /// sticker only once this phone's photo check has passed it, as a
+    /// friend's doodle is (a sticker is lifted out of a photograph).
+    func messageReactions(in crewID: CrewID) -> [UUID: [Reaction]] {
+        let lines = Set(messages(in: crewID).map(\.messageID))
+        guard !lines.isEmpty else { return [:] }
+        var out: [UUID: [Reaction]] = [:]
+        for reaction in reactionsByCrew[crewID] ?? [] where lines.contains(reaction.winID) {
+            guard !blocked.contains(reaction.profileID) else { continue }
+            if reaction.isSticker, reaction.profileID != me,
+               !(reaction.sketch.map(photoIsShown) ?? false) { continue }
+            out[reaction.winID, default: []].append(reaction)
+        }
+        return out.mapValues { $0.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) } }
+    }
+
+    /// Yours on a line, if you reacted.
+    func myReaction(toMessage messageID: UUID, in crewID: CrewID) -> Reaction? {
+        reactionsByCrew[crewID]?.first { $0.winID == messageID && $0.profileID == me }
+    }
+
+    /// **React to a friend's line**, the way a win's reaction works: a new
+    /// pick replaces yours, the same one again takes it back. Your own lines
+    /// take none from you, as your own wins do not.
+    ///
+    /// **A sticker** is made small (`Reaction.stickerSide`), passes the photo
+    /// check a doodle passes before it leaves (`photoCheck`), and is never
+    /// sent by someone who may not send photographs (13 to 15,
+    /// `photosAllowed`): it is cut out of one. The emoji is for everyone,
+    /// as a win's reactions are.
+    @discardableResult
+    func react(_ pick: Reaction.Pick, toMessage messageID: UUID, in crewID: CrewID) async -> ReplyOutcome {
+        guard isEnabled(), crew(crewID) != nil,
+              let line = messages(in: crewID).first(where: { $0.messageID == messageID }),
+              line.senderProfileID != me else { return .notAllowed }
+        let name = Reaction.name(winID: messageID, profileID: me)
+        let mark = pick.mark
+        guard !mark.isEmpty else { return .notAllowed }
+        var sketch: URL?
+        if reactionsByCrew[crewID]?.first(where: { $0.id == name })?.emoji != mark,
+           case .sticker(_, let png) = pick {
+            guard photosAllowed() else { return .notAllowed }
+            let side = CGFloat(Reaction.stickerSide)
+            guard let small = await Task.detached(priority: .userInitiated, operation: {
+                Self.stickerPNG(png, longestEdge: side)
+            }).value else { return .notAllowed }
+            guard await photoCheck(small) else { return .refusedSketch }
+            let url = directory.appending(
+                path: "Photos/\(crewID.rawValue)/reaction-\(messageID.uuidString)-\(UUID().uuidString.prefix(8)).png")
+            do { try write(small, to: url) } catch {
+                Self.log.error("sticker for \(crewID.rawValue, privacy: .public) not kept: \(error)")
+                return .notAllowed
+            }
+            sketch = url
+        }
+        // Read again after the awaits: the list may have moved meanwhile.
+        var list = reactionsByCrew[crewID] ?? []
+        let previous = list.first { $0.id == name }
+        list.removeAll { $0.id == name }
+        // Yours, so its picture is yours to clear.
+        if let old = previous?.sketch { try? FileManager.default.removeItem(at: old) }
+        if previous?.emoji == mark {
+            if let sketch { try? FileManager.default.removeItem(at: sketch) }
+            reactionsByCrew[crewID] = list
+            enqueue(.init(crew: crewID, type: .reaction, name: name, fields: nil))
+        } else {
+            let reaction = Reaction(winID: messageID, crewID: crewID, profileID: me, emoji: mark,
+                                    createdAt: now(), sketch: sketch)
+            list.append(reaction)
+            reactionsByCrew[crewID] = list
+            enqueue(.init(crew: crewID, type: .reaction, name: name, fields: CrewRecords.fields(reaction)))
+        }
+        await flush()
+        return .sent
+    }
+
+    /// A sticker as it is sent: no longer than `longestEdge` pixels, clear
+    /// where it was clear, as a PNG. Nil for data that is not a picture.
+    nonisolated static func stickerPNG(_ png: Data, longestEdge: CGFloat) -> Data? {
+        guard let image = UIImage(data: png), image.size.width > 0, image.size.height > 0 else { return nil }
+        let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        let k = min(1, longestEdge / max(pixels.width, pixels.height))
+        let size = CGSize(width: max(1, (pixels.width * k).rounded()), height: max(1, (pixels.height * k).rounded()))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
     // MARK: Syncing
 
     /// Everything, from the cloud: on foreground, on opening the list, while a
@@ -1348,11 +1457,18 @@ final class SocialStore {
             }
             // Reactions go with their wins, and a reaction whose win has gone
             // (withdrawn, deleted) goes too, whoever made it.
+            //
+            // **And a chat line's go with the line** (2026-10-06): a reaction
+            // to today's line is live, and one to a line whose day has ended
+            // goes with it, its sticker and all. Without this every line's
+            // reactions were orphans of no win, deleted the moment they came.
             let live = Set((winsByCrew[crew.id] ?? []).filter { $0.crewDay >= cutoff }.map(\.winID))
+                .union((messagesByCrew[crew.id] ?? []).filter { $0.crewDay >= today }.map(\.messageID))
             let orphans = (reactionsByCrew[crew.id] ?? []).filter { !live.contains($0.winID) }
             if !orphans.isEmpty, winsByCrew[crew.id] != nil {
                 reactionsByCrew[crew.id]?.removeAll { !live.contains($0.winID) }
                 for reaction in orphans where reaction.profileID == me {
+                    if reaction.isSticker, let sticker = reaction.sketch { try? FileManager.default.removeItem(at: sticker) }
                     enqueue(.init(crew: crew.id, type: .reaction, name: reaction.id, fields: nil))
                 }
             }
@@ -1362,7 +1478,7 @@ final class SocialStore {
             // Only the writer's phone may change a reaction record, so each
             // phone clears its own; no screen shows them.
             for (index, reaction) in (reactionsByCrew[crew.id] ?? []).enumerated()
-            where reaction.profileID == me && (reaction.line != nil || reaction.sketch != nil)
+            where reaction.profileID == me && !reaction.isSticker && (reaction.line != nil || reaction.sketch != nil)
                 && CrewDay.string(for: reaction.createdAt, in: crew.timeZone) < today {
                 var cleared = reaction
                 cleared.line = nil

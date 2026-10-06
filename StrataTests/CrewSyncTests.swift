@@ -128,6 +128,8 @@ extension CrewSyncTests {
                      // The day chat (2026-10-05), and the doodle sheet that
                      // posts into it.
                      "Views/Crews/CrewChatSheet.swift", "Views/Crews/DoodleSheet.swift",
+                     // Reactions on a chat line, emoji or sticker (2026-10-06).
+                     "Views/Crews/ChatReactions.swift",
                      "Social/CrewNotifications.swift", "Social/StrataAppDelegate.swift", "Social/CrewSafety.swift"]
         for file in files {
             let text = try String(contentsOf: folder.appending(path: file), encoding: .utf8)

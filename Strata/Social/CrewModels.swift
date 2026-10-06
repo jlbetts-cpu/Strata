@@ -222,7 +222,8 @@ nonisolated struct CrewMessage: Identifiable, Codable, Equatable, Sendable {
     static let textLimit = 280
 }
 
-/// One person's reaction to one win, in one crew.
+/// One person's reaction to one win, in one crew. Or to one line of the
+/// crew's chat, under the same record (`Reaction.Pick`, 2026-10-06).
 ///
 /// **One per person per win**, like a Tapback: reacting again with another
 /// emoji replaces it, and with the same one takes it back. Added at the
@@ -261,4 +262,62 @@ nonisolated struct Reaction: Identifiable, Codable, Equatable, Sendable {
     static let more = ["👏", "💪", "🙌", "😂", "😮", "🥹", "🎉", "⚡️", "🌱", "🏆", "✨", "🫡"]
     /// What a double-tap on a block sends.
     static let doubleTap = "❤️"
+}
+
+// MARK: - Reactions to a chat line
+
+/// **A reaction to a line in the crew's chat, with an emoji or one of your
+/// stickers** (the owner, 2026-10-06: "make it so you can react to chat
+/// messages with stickers and emojis").
+///
+/// **No new record and no new field.** It is a `Reaction` record whose
+/// `winID` holds the line's `messageID`: both are UUIDs, so one is never the
+/// other, and every place that reads a win's reactions already asks for that
+/// win's id and so never meets a line's (`SocialStore.reactions(to:in:)`,
+/// the alerts, the badge, the first-win invite). The CloudKit schema the
+/// owner deployed stays exactly as it is.
+///
+/// One per person per line, as a win's is: a new pick replaces yours, the
+/// same one again takes it back.
+extension Reaction {
+    /// **A sticker's mark**, the journal's own spelling of one
+    /// (`StickerStore.symbol`, "sticker:<file>"), so a sticker is told from
+    /// an emoji the same way on a day and on a line. The picture itself
+    /// travels in `sketch`, the asset field an old doodle used, made small
+    /// first (`stickerSide`): a sticker lives only on the phone that made
+    /// it, and a friend's phone draws the copy that came with the reaction.
+    static let stickerPrefix = "sticker:"
+    /// The longest edge a sticker is sent at, in pixels: crisp at the 22pt a
+    /// chip draws it, and a few kilobytes on the wire.
+    static let stickerSide = 256
+
+    /// What was picked on a line's bar.
+    enum Pick: Equatable, Sendable {
+        case emoji(String)
+        /// One of your stickers, by its file name, and its picture.
+        case sticker(name: String, png: Data)
+
+        /// The reaction's `emoji` field for it.
+        var mark: String {
+            switch self {
+            case .emoji(let emoji): String(emoji.prefix(1))
+            case .sticker(let name, _): Reaction.stickerPrefix + name
+            }
+        }
+    }
+
+    /// The sticker's file name, if this reaction is a sticker.
+    var stickerName: String? { Self.stickerName(in: emoji) }
+    var isSticker: Bool { stickerName != nil }
+
+    /// The name in a sticker's mark, and only a plain file name: a record
+    /// can claim anything, and this is shown and compared, never opened.
+    static func stickerName(in mark: String) -> String? {
+        guard mark.hasPrefix(stickerPrefix) else { return nil }
+        let name = String(mark.dropFirst(stickerPrefix.count))
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+        guard (1...64).contains(name.count),
+              name.unicodeScalars.allSatisfy({ $0.isASCII && allowed.contains($0) }) else { return nil }
+        return name
+    }
 }

@@ -218,7 +218,8 @@ struct RoughEdgesTests {
                        "Strata/Views/MemoriesView.swift", "Strata/Views/DayAlbumDetailView.swift",
                        "Strata/Views/PhotoViewer.swift", "Strata/Views/Crews/CrewsListView.swift",
                        "Strata/Views/Crews/CrewTowerView.swift", "Strata/Views/Crews/CrewChatSheet.swift",
-                       "Strata/Views/Crews/CrewReactions.swift", "Strata/Views/Crews/FirstWinInviteCard.swift"]
+                       "Strata/Views/Crews/CrewReactions.swift", "Strata/Views/Crews/FirstWinInviteCard.swift",
+                       "Strata/Views/Crews/ChatReactions.swift"]
         for path in screens {
             let unnamed = Self.unnamedIconButtons(try SourceSweep.read(path))
             #expect(unnamed.isEmpty, "\(path): icon-only buttons with no accessibilityLabel at lines \(unnamed)")

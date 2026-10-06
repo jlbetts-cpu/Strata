@@ -16,6 +16,11 @@ import UIKit
 ///     -strataSeedCrewChat 1                      a few lines in today's chat,
 ///                                                a reply quoting your win among
 ///                                                them (also with -strataCrewSheet chat)
+///     -strataChatReact seed|open                 friends react to the chat's
+///                                                lines, an emoji pair and a
+///                                                sticker among them; "open"
+///                                                also holds a friend's line so
+///                                                its bar shows
 ///
 /// Every friend is a real `SocialStore` on the same `FakeCrewWorld`, posting
 /// through `post` exactly as a phone would, so what is seeded is a state the
@@ -216,6 +221,38 @@ extension DebugHarness {
         }
         await second.refresh()
         await second.send("6 works", in: crew.id)
+        if argument("-strataChatReact") != nil {
+            await seedChatReactions(first: first, second: second, me: me, crew: crew.id)
+        }
+    }
+
+    /// Reactions on the seeded chat (2026-10-06): ❤️ from a friend and from
+    /// you on the morning line, so a shared chip counts two with yours
+    /// lifted; 🔥 and a friend's sticker under your own line; 🙌 on the walk.
+    /// The sticker is the drawn sunflower `StickerMaker.sample` makes, since
+    /// the subject lift does not run in the simulator; one is kept as yours
+    /// too, so the bar has a sticker to offer.
+    @MainActor
+    private static func seedChatReactions(first: SocialStore, second: SocialStore, me: SocialStore,
+                                          crew: CrewID) async {
+        let sample = StickerMaker.sample()
+        if StickerStore.shared.names.isEmpty, let sample { StickerStore.shared.add(sample) }
+        for store in [first, second, me] { await store.refresh() }
+        let lines = me.messages(in: crew)
+        let morning = lines.first { $0.senderProfileID == first.me }
+        let walk = lines.first { $0.senderProfileID == second.me }
+        let mine = lines.first { $0.senderProfileID == me.me }
+        if let morning {
+            await second.react(.emoji("❤️"), toMessage: morning.messageID, in: crew)
+            await me.react(.emoji("❤️"), toMessage: morning.messageID, in: crew)
+        }
+        if let mine {
+            await first.react(.emoji("🔥"), toMessage: mine.messageID, in: crew)
+            if let png = sample?.pngData() {
+                await second.react(.sticker(name: "sticker-sample.png", png: png), toMessage: mine.messageID, in: crew)
+            }
+        }
+        if let walk { await first.react(.emoji("🙌"), toMessage: walk.messageID, in: crew) }
     }
 
     @MainActor
