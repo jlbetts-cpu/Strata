@@ -87,6 +87,37 @@ nonisolated enum InkPen {
     /// of 1.25, inside the calibration below (between 0.71 and 3.30).
     static let width: CGFloat = 2.5
 
+    /// **Two weights, as the drawings have** (the owner, 2026-10-06: "two
+    /// weight strokes, thick and a still thick but a bit thinner to match";
+    /// his pick, "Two pen sizes"). Thick is the pen as it was, for the line
+    /// round the outside; Fine is two thirds of it, for what goes inside,
+    /// the same two-to-three his art's outside and inside lines measure
+    /// (`docs/illustrations/bold_lines.py`). Every canvas's own width
+    /// (the page, a block, the month) is scaled by it, so Fine is the same
+    /// step thinner wherever you draw.
+    enum Weight: CaseIterable, Sendable {
+        case thick, fine
+
+        var factor: CGFloat {
+            switch self {
+            case .thick: 1
+            case .fine: 2.0 / 3.0
+            }
+        }
+
+        var name: String {
+            switch self {
+            case .thick: "Thick"
+            case .fine: "Fine"
+            }
+        }
+
+        var other: Weight { self == .thick ? .fine : .thick }
+
+        /// The weight button's dot, at the pen's two-to-three.
+        var dot: CGFloat { self == .thick ? 12 : 8 }
+    }
+
     /// **The pen for a canvas drawn bigger than it is shown**, so the line
     /// lands at `width` where it is seen: the month editor (shown at 290) and
     /// the journal's sketch editor (shown at `JournalSketches.shownHeight`).

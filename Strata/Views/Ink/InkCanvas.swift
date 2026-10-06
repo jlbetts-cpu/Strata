@@ -39,6 +39,13 @@ final class InkController {
     var penWidth: CGFloat {
         didSet { if !erasing { canvas?.tool = pen } }
     }
+    /// Thick or Fine (`InkPen.Weight`). Thick when a canvas opens. Choosing
+    /// one while the eraser is on puts the pen back in your hand.
+    var weight: InkPen.Weight = .thick {
+        didSet {
+            if erasing { erasing = false } else { canvas?.tool = pen }
+        }
+    }
     var erasing = false {
         didSet { canvas?.tool = erasing ? InkPen.eraser : pen }
     }
@@ -87,7 +94,7 @@ final class InkController {
 
     /// The tool for `penWidth`, the line as seen (`InkPen.toolWidth`).
     var pen: PKInkingTool {
-        PKInkingTool(.monoline, color: InkPen.colour, width: InkPen.toolWidth(forLine: penWidth))
+        PKInkingTool(.monoline, color: InkPen.colour, width: InkPen.toolWidth(forLine: penWidth * weight.factor))
     }
 
     /// Takes back the last step, a stroke or a sticker alike: one history,
@@ -326,6 +333,16 @@ struct InkControls<Accessory: View>: View {
                 controller.erasing.toggle()
             }
             .accessibilityValue(controller.erasing ? "On" : "Off")
+            // **The pen's two weights** (`InkPen.Weight`): one button, its
+            // dot the size of the line it draws, as a size swatch does in
+            // Notes. A tap swaps Thick and Fine.
+            GlassIconButton(systemName: "circle.fill",
+                            glyphSize: controller.weight.dot,
+                            onPage: true, accessibilityLabel: "Pen") {
+                controller.weight = controller.weight.other
+            }
+            .accessibilityValue(controller.weight.name)
+            .animation(GridConstants.motionSnappy, value: controller.weight)
             GlassIconButton(systemName: "arrow.uturn.backward", onPage: true,
                             accessibilityLabel: "Undo") {
                 controller.undo()

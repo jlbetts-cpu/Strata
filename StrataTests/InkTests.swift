@@ -174,4 +174,33 @@ struct InkTests {
         #expect(inked > 0)
         return darkest
     }
+
+    /// The owner, 2026-10-06: "two weight strokes, thick and a still thick
+    /// but a bit thinner to match"; his pick, two pen sizes.
+    @Test("the pen has two weights: Thick is the pen as it was, Fine two thirds of it")
+    func twoWeights() {
+        #expect(InkPen.Weight.thick.factor == 1)
+        #expect(abs(InkPen.Weight.fine.factor - 2.0 / 3.0) < 0.001)
+        #expect(InkPen.Weight.thick.other == .fine && InkPen.Weight.fine.other == .thick)
+        #expect(InkPen.Weight.fine.dot < InkPen.Weight.thick.dot)
+    }
+
+    @Test("Fine draws a thinner line on any canvas, and picking it puts the eraser down")
+    func fineOnTheCanvas() {
+        let controller = InkController(penWidth: InkPen.width)
+        #expect(controller.weight == .thick, "a canvas opens on Thick")
+        let thick = controller.pen.width
+        controller.erasing = true
+        controller.weight = .fine
+        #expect(!controller.erasing)
+        #expect(abs(controller.pen.width - InkPen.toolWidth(forLine: InkPen.width * 2 / 3)) < 0.001)
+        #expect(controller.pen.width < thick)
+    }
+
+    @Test("the drawing tools carry the weight button")
+    func weightButton() throws {
+        let code = SourceSweep.code(try SourceSweep.read("Strata/Views/Ink/InkCanvas.swift"))
+        #expect(code.contains("controller.weight = controller.weight.other"))
+        #expect(code.contains("penWidth * weight.factor"))
+    }
 }
