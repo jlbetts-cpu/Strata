@@ -70,7 +70,9 @@ struct InkTests {
         // measured on screen: the October scarecrow's lines about 1.3pt (4px
         // at 3x) and the crews drawing about 1.7pt. 2.5 drew a line nearly
         // twice his; 1.5 sits between the two.
-        #expect(InkPen.width == 1.5)
+        // 2.5 since 2026-10-06 (the owner, bold as HeyTea, with his drawings
+        // made bolder at the same time).
+        #expect(InkPen.width == 2.5)
         let controller = InkController()
         #expect(controller.penWidth == InkPen.width)
         // The tool is set to DRAW 1.5, not to 1.5 (`InkPen.toolWidth`).

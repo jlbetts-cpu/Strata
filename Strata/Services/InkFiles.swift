@@ -78,13 +78,14 @@ nonisolated struct InkFiles: Sendable {
 nonisolated enum InkPen {
     /// The line as it is SEEN, in points where the drawing is shown.
     ///
-    /// **1.5, and it was 2.5** (2026-10-05, the owner: a thinner pen
-    /// everywhere). His own drawings, measured on screen: the October
-    /// scarecrow's lines are about 1.3pt (4px at 3x) and the crews drawing's
-    /// about 1.7pt, so 2.5 drew nearly twice his weight. 1.5 sits between the
-    /// two. It needs a tool of 0.75, inside the calibration below (between
-    /// its 0.71 and 1.46 measurements) and clear of the 0.5 floor.
-    static let width: CGFloat = 1.5
+    /// **2.5, bold as HeyTea draws** (the owner, 2026-10-06: "there lines
+    /// feel a lot thicker and just feel more premium... we need to go much
+    /// thicker on the line"; his pick, "About 2.5pt"). It was 1.5 from
+    /// 2026-10-05, to sit at his drawings' then 1.3pt; his drawings are
+    /// bolder now too (`docs/illustrations/bold_lines.py`, the scarecrow at
+    /// about 2.3pt), so the pen and the art moved together. It needs a tool
+    /// of 1.25, inside the calibration below (between 0.71 and 3.30).
+    static let width: CGFloat = 2.5
 
     /// **The pen for a canvas drawn bigger than it is shown**, so the line
     /// lands at `width` where it is seen: the month editor (shown at 290) and
@@ -95,17 +96,21 @@ nonisolated enum InkPen {
     }
 
     /// **The month drawing's line, on the page: the owner's own.** His
-    /// October scarecrow measures 1.3pt where it is shown (4px at 3x). The
-    /// month editor is larger than the art it makes, so its pen is wider by
-    /// that ratio (about 2.3pt under the finger) and lands at his weight.
-    static let monthLine: CGFloat = 1.3
+    /// October scarecrow, at the bold weight (2026-10-06), measures about
+    /// 2.3pt where it is shown (7px at 3x; it was 1.3). The month editor is
+    /// larger than the art it makes, so its pen is wider by that ratio and
+    /// lands at his weight.
+    static let monthLine: CGFloat = 2.3
 
     /// **A doodle's line on the tower's block.** White on a colour, at a
     /// block's size, needs a little more than the page's 1.5 to read. The
     /// doodle sheet draws the block much bigger than the tower shows it (a
     /// Quick block's canvas is about four times its tower height), so its
     /// pen is wider by that ratio and the line lands at this on the tower.
-    static let blockLine: CGFloat = 1.8
+    ///
+    /// 3.0 since the bold pen (2026-10-06): 1.8 in the same proportion as the
+    /// page's pen went from 1.5 to 2.5.
+    static let blockLine: CGFloat = 3.0
 
     static func blockWidth(onCanvasOfHeight canvas: CGFloat, shownAt shown: CGFloat) -> CGFloat {
         guard canvas > 0, shown > 0 else { return blockLine }
