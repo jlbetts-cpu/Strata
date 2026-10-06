@@ -1,4 +1,5 @@
 import PencilKit
+import SwiftUI
 import UIKit
 
 /// **The doodles on blocks** (`HabitLog.doodleFileName`): each one two files
@@ -74,4 +75,25 @@ enum BlockDoodles {
     }
 
     private static let cache = NSCache<NSString, UIImage>()
+
+    /// **The doodled block as one picture, for a crew** (the owner,
+    /// 2026-10-06: "make doodles show on crew tower and replays too"). A
+    /// friend's phone draws a crew win from its photograph, so a doodle goes
+    /// as one: the block's colour with the white ink on it, at the shape it
+    /// was drawn. No new field on the crew's record, so no CloudKit schema
+    /// change, and every friend's phone shows it as it stands.
+    static func crewPicture(_ png: String, colour: HabitCategory, files: InkFiles = .shared) -> Data? {
+        guard let ink = image(png, files: files) else { return nil }
+        // The picture was written at `scale` pixels a point.
+        let size = CGSize(width: ink.size.width * ink.scale / scale, height: ink.size.height * ink.scale / scale)
+        guard size.width > 0, size.height > 0 else { return nil }
+        let block = ZStack {
+            Rectangle().fill(EtherealFill.fill(colour.style.baseColor))
+            BlockDoodleImage(fileName: png)
+        }
+        .frame(width: size.width, height: size.height)
+        let renderer = ImageRenderer(content: block)
+        renderer.scale = 2
+        return renderer.uiImage?.jpegData(compressionQuality: 0.9)
+    }
 }

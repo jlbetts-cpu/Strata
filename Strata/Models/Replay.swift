@@ -31,6 +31,8 @@ struct ReplayWin: Identifiable, Equatable {
     let size: BlockSize
     let photo: ReplayPhoto?
     var crop: CGPoint = .zero
+    /// A doodle on the block (`BlockDoodles`), on a win with no photograph.
+    var doodle: String? = nil
 }
 
 /// A period's wins, ordered and packed into one tower.
@@ -111,7 +113,8 @@ struct Replay: Equatable {
                 category: habit.displayCategory,
                 size: habit.blockSize,
                 photo: log.imageFileName.map { .stored($0) },
-                crop: CGPoint(x: log.cropPositionX ?? 0, y: log.cropPositionY ?? 0)
+                crop: CGPoint(x: log.cropPositionX ?? 0, y: log.cropPositionY ?? 0),
+                doodle: log.imageFileName == nil ? log.doodleFileName : nil
             )
         }
     }

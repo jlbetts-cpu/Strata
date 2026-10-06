@@ -511,7 +511,10 @@ struct ReplayFrame: View {
                               width: f.width, height: f.height, cornerRadius: radius,
                               hasPhoto: image != nil || block.win.photo.map { expectsPhoto?($0) ?? false } == true,
                               showOverlay: titleOpacity > 0,
-                              overlayOpacity: titleOpacity) {
+                              overlayOpacity: titleOpacity,
+                              // The doodle reads its picture at once, from a
+                              // cache, so a rendered frame has it too.
+                              doodle: block.win.doodle) {
                         if let image, let source = block.win.photo {
                             photo(image, crop: block.win.crop, width: f.width, height: f.height)
                                 .opacity(photoOpacity?(source) ?? 1)

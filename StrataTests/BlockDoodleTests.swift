@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import PencilKit
 import SwiftData
+import UIKit
 @testable import Strata
 
 /// **A doodle on the block** (the owner, 2026-10-06: "should we add doodling
@@ -90,5 +91,45 @@ struct BlockDoodleTests {
         #expect(editor.contains("lightInk: true"))
         #expect(editor.contains(".foregroundStyle(.white)"))
         #expect(editor.contains("InkPen.blockWidth(onCanvasOfHeight:"))
+    }
+
+    /// The owner, 2026-10-06: "make doodles show on crew tower and replays
+    /// too". A friend's phone draws a crew win from its photograph, so a
+    /// doodle is sent as one: the colour with the white ink on it.
+    @Test("a crew gets the doodled block as one picture: its colour, the ink white")
+    func crewPicture() throws {
+        let files = InkTests.folder()
+        // One thick stroke across the middle of a 300 by 300 canvas.
+        let name = try #require(BlockDoodles.save(InkTests.drawing(strokes: [260], width: 20),
+                                                  canvas: CGSize(width: 300, height: 300),
+                                                  replacing: nil, files: files))
+        let data = try #require(BlockDoodles.crewPicture(name, colour: .health, files: files))
+        let picture = try #require(UIImage(data: data)?.cgImage)
+        #expect(picture.width == 600 && picture.height == 600, "the block's shape at 2x")
+        var bytes = [UInt8](repeating: 0, count: picture.width * picture.height * 4)
+        let context = try #require(CGContext(data: &bytes, width: picture.width, height: picture.height,
+                                             bitsPerComponent: 8, bytesPerRow: picture.width * 4,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(picture, in: CGRect(x: 0, y: 0, width: picture.width, height: picture.height))
+        // Somewhere is white ink, and the bottom corner is the block's colour.
+        var white = 0
+        for i in stride(from: 0, to: bytes.count, by: 4) where bytes[i] > 240 && bytes[i + 1] > 240 && bytes[i + 2] > 240 {
+            white += 1
+        }
+        #expect(white > 500, "no white ink in the picture")
+        let corner = 4 * (picture.width * 5 + 5)
+        #expect(!(bytes[corner] > 240 && bytes[corner + 1] > 240 && bytes[corner + 2] > 240),
+                "the ground is white, not the block's colour")
+    }
+
+    @Test("crews and replays are handed the doodle")
+    func crewsAndReplays() throws {
+        let sync = SourceSweep.code(try SourceSweep.read("Strata/Social/CrewSync.swift"))
+        #expect(sync.contains("BlockDoodles.crewPicture($0, colour: habit.displayCategory)"))
+        let replay = SourceSweep.code(try SourceSweep.read("Strata/Models/Replay.swift"))
+        #expect(replay.contains("doodle: log.imageFileName == nil ? log.doodleFileName : nil"))
+        let frame = SourceSweep.code(try SourceSweep.read("Strata/Views/ReplayFrame.swift"))
+        #expect(frame.contains("doodle: block.win.doodle"))
     }
 }

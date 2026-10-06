@@ -120,9 +120,12 @@ enum CrewSync {
     /// as it is on disk. `ShareDerivative` makes what is actually sent.
     static func ownWin(_ entry: HabitLog) -> OwnWin? {
         guard let habit = entry.habit, entry.completed else { return nil }
+        // A doodle with no photograph goes as a picture of the doodled block
+        // (`BlockDoodles.crewPicture`), keyed by its file so a redraw is sent.
+        let doodle = entry.imageFileName == nil ? entry.doodleFileName : nil
         let photo = entry.imageFileName.flatMap {
             try? Data(contentsOf: ImageManager.shared.imageDirectory.appendingPathComponent($0))
-        }
+        } ?? doodle.flatMap { BlockDoodles.crewPicture($0, colour: habit.displayCategory) }
         return OwnWin(winID: entry.id,
                       // The placeholder name is not a name: an unnamed win
                       // shows no text on anyone's tower.
@@ -131,7 +134,9 @@ enum CrewSync {
                       icon: habit.category,
                       blockSize: habit.blockSize,
                       photoJPEG: photo,
-                      photoKey: entry.imageFileName,
+                      // The colour is in a doodle's picture, so a recolour
+                      // sends it again.
+                      photoKey: entry.imageFileName ?? doodle.map { "\($0)-\(habit.displayCategory.rawValue)" },
                       cropX: entry.cropPositionX,
                       cropY: entry.cropPositionY,
                       createdAt: entry.createdAt,
