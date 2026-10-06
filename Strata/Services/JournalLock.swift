@@ -69,6 +69,19 @@ final class JournalLock {
         return passed
     }
 
+    /// Whether the lock may come off. It could be switched off in Settings
+    /// without asking, which made it a lock anyone holding the phone could
+    /// open (found 2026-10-06). Called after the switch has gone off, so it
+    /// does not read `isOn`: already unlocked this session, or asked now.
+    func mayTurnOff() async -> Bool {
+        guard !isUnlocked else { return true }
+        isAsking = true
+        defer { isAsking = false }
+        let passed = await authenticate()
+        if passed { isUnlocked = true }
+        return passed
+    }
+
     /// The session is over: the next note asks again.
     func relock() { isUnlocked = false }
 

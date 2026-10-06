@@ -74,7 +74,10 @@ struct CrewWithRow: View {
             .frame(minHeight: 44)
             .glassCapsule(onPage: true)
         }
-        .buttonStyle(.pressSurface)
+        // `.plain`, not `.pressSurface`: a scaling press on interactive
+        // glass fights the glass's own response and cancels the tap on a
+        // phone (`CrewReactions`, the owner, 2026-10-05). Found 2026-10-06.
+        .buttonStyle(.plain)
         .disabled(!on && full)
         .accessibilityLabel(name)
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)

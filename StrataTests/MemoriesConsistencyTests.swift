@@ -332,7 +332,11 @@ struct MemoriesConsistencyTests {
             "HeadSticker.swift": "not this worker's file",
             "AddWinSheet.swift": "not this worker's file",
             "LogWinWidgets.swift": "a widget's button: WidgetKit draws the press itself, and an app press style cannot run in a widget",
-            "CrewReactions.swift": "labels are Liquid Glass, which answers the press itself; a scaling press style on interactive glass cancelled taps on a real phone (2026-10-05)"
+            "CrewReactions.swift": "labels are Liquid Glass, which answers the press itself; a scaling press style on interactive glass cancelled taps on a real phone (2026-10-05)",
+            "CrewPicker.swift": "the crew chip is `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06 audit)",
+            "CrewWithRow.swift": "the person chip is `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06 audit)",
+            "CrewTowerView.swift": "the name capsule is `glassCapsule(onPage:)`; the CrewReactions reason (2026-10-06 audit)",
+            "DaySheet.swift": "the emoji disc is `glassCircle(onPage:)`, as `GlassIconButton` is; the CrewReactions reason (2026-10-06 audit)"
         ]
         let unexplained = Self.hits(".buttonStyle(.plain)").filter { hit in
             !exempt.keys.contains { hit.hasPrefix($0 + ":") }

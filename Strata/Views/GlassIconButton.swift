@@ -153,8 +153,13 @@ extension View {
             // itself, and around buttons of its own it took their taps on a real
             // phone (the owner, 2026-10-05: "the reaction picker... never shows
             // up").
-            self.glassEffect(carriesType ? GlassRecipe.typePanel
-                                         : (onPage ? GlassRecipe.onPage
+            //
+            // **On the page too** (found 2026-10-06): the `onPage` branch was
+            // taken first and `GlassRecipe.onPage` is interactive, so the chat
+            // composer and the crew page's reaction bar got the glass that
+            // takes taps whatever they asked for.
+            self.glassEffect(carriesType ? (interactive ? GlassRecipe.typePanel : GlassRecipe.typePanelStill)
+                                         : (onPage ? (interactive ? GlassRecipe.onPage : GlassRecipe.onPageStill)
                                             : (interactive ? Glass.regular.interactive() : Glass.regular)),
                              in: .capsule)
 
@@ -309,6 +314,10 @@ enum GlassRecipe {
     /// scene's colour: blue over sky, olive over grass, warm over a dark room.
     static var typePanel: Glass {
         .regular.tint(.black.opacity(0.30)).interactive()
+    }
+    /// The panel without the press response, for one holding buttons.
+    static var typePanelStill: Glass {
+        .regular.tint(.black.opacity(0.30))
     }
 }
 

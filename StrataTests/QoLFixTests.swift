@@ -90,4 +90,39 @@ struct QoLFixTests {
     func restoreHolds() throws {
         #expect(try code("Strata/Views/RestoreBackupView.swift").contains(".interactiveDismissDisabled(isRestoring)"))
     }
+
+    @Test("glass that holds buttons is still on the page too, and glass buttons press plainly")
+    func glassTakesNoTaps() throws {
+        let glass = try code("Strata/Views/GlassIconButton.swift")
+        #expect(glass.contains("onPage ? (interactive ? GlassRecipe.onPage : GlassRecipe.onPageStill)"),
+                "`interactive: false` is ignored on the page again")
+        for path in ["Strata/Views/Crews/CrewPicker.swift", "Strata/Views/Crews/CrewWithRow.swift"] {
+            let source = try code(path)
+            #expect(!source.contains(".buttonStyle(.pressSurface)"),
+                    "\(path) puts a scaling press on interactive glass, which cancels taps on a phone")
+        }
+        let day = try code("Strata/Views/DaySheet.swift")
+        let emoji = try body(of: "private var emojiButton: some View {", until: "EmojiField(", in: day)
+        #expect(emoji.contains(".buttonStyle(.plain)"))
+    }
+
+    @Test("Lock Journal comes off only for whoever can open it")
+    func lockNeedsUnlockToTurnOff() throws {
+        let settings = try code("Strata/Views/SettingsView.swift")
+        #expect(settings.contains("if !(await JournalLock.shared.mayTurnOff()) { locksJournal = true }"))
+    }
+
+    @MainActor
+    @Test("turning the lock off asks, and a refusal keeps it")
+    func mayTurnOffAsks() async {
+        let defaults = UserDefaults(suiteName: "qol.lock.\(UUID())")!
+        var asked = 0
+        let refusing = JournalLock(defaults: defaults) { asked += 1; return false }
+        #expect(await refusing.mayTurnOff() == false)
+        #expect(asked == 1)
+        let passing = JournalLock(defaults: defaults) { true }
+        #expect(await passing.mayTurnOff())
+        // Already open this session: no second prompt.
+        #expect(await passing.mayTurnOff())
+    }
 }

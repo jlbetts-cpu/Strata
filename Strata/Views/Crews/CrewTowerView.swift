@@ -538,7 +538,9 @@ struct CrewTowerView: View {
                         .padding(.vertical, 7)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.pressSurface)
+                    // `.plain`: a scaling press on interactive glass cancels
+                    // the tap on a phone (`CrewReactions`). Found 2026-10-06.
+                    .buttonStyle(.plain)
                     // **Over the bubble, always.** With heads parked the
                     // bubble's crowd spills onto the capsule, and the bubble
                     // sat above it and took the tap: the details were nearly

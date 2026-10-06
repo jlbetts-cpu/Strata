@@ -758,7 +758,9 @@ struct DaySheet: View {
                 } else {
                     Image(systemName: "face.smiling")
                         .iconSize(GridConstants.iconToolbar, relativeTo: .body, weight: .medium)
-                        .foregroundStyle(AppColors.inkSecondary)
+                        // `GlassIconButton`'s ink, as the Plan's ＋ in this
+                        // corner wears: switching tabs changed the glyph's ink.
+                        .foregroundStyle(.primary)
                         .transition(.opacity)
                 }
             }
@@ -769,9 +771,11 @@ struct DaySheet: View {
             .glassCircle(onPage: true)
             .contentShape(Circle())
         }
-        // `.pressSurface`, as the crew reaction panel's glass buttons take: the
-        // disc gives under a finger rather than dimming.
-        .buttonStyle(.pressSurface)
+        // `.plain`, as `GlassIconButton` is: the glass answers the finger
+        // itself, and a scaling press on interactive glass cancels the tap on
+        // a phone (`CrewReactions`, 2026-10-05). The Plan's ＋ in this same
+        // corner is a `GlassIconButton`, so the two now press alike.
+        .buttonStyle(.plain)
         .overlay {
             EmojiField(isActive: $picking) { picked in
                 // The same one again takes it off.

@@ -57,6 +57,7 @@ struct CrewInfoSheet: View {
                         FormSectionLabel(crew.members.count == 1 ? "1 Person" : "\(crew.members.count) People")
                     } footer: {
                         Text("Up to 8 people. Everyone here sees the wins sent to this crew.")
+                            .formFooter()
                     }
                     .listRowSeparator(.hidden)
                     Section {
@@ -69,6 +70,7 @@ struct CrewInfoSheet: View {
                     } footer: {
                         Text(store.showsHeads(crewID) ? "Everyone's heads live on this crew's tower."
                                                      : "Only the wins, on your phone. Nobody else is told.")
+                            .formFooter()
                     }
                     .listRowSeparator(.hidden)
                     notifications
@@ -101,6 +103,7 @@ struct CrewInfoSheet: View {
                     } footer: {
                         Text(isOwner ? "Ending the crew removes it, and every win in it, for everyone. A crew can't be handed to someone else."
                                      : "Your wins and reactions leave the crew with you.")
+                            .formFooter()
                     }
                     .listRowSeparator(.hidden)
                 }
@@ -201,6 +204,7 @@ struct CrewInfoSheet: View {
         } footer: {
             Text(store.isMuted(crewID) ? "Nothing from this crew until the mute ends. Its wins still arrive."
                                        : "A notification for every win, and for reactions to yours.")
+                .formFooter()
         }
         .listRowSeparator(.hidden)
         .task {
@@ -375,6 +379,7 @@ struct CrewInfoSheet: View {
                 FormSectionLabel("Blocked")
             } footer: {
                 Text("Blocked people stay hidden from you in every crew.")
+                    .formFooter()
             }
             .listRowSeparator(.hidden)
         }

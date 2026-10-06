@@ -258,6 +258,14 @@ enum ConsistencySweep {
         // the tap on a real phone (the owner, 2026-10-05: "the reaction picker
         // ... never shows up"), so they answer with the glass alone.
         "Strata/Views/Crews/CrewReactions.swift": 2,
+        // The crew chips on Add a win, the "With…" chips under them and the
+        // crew page's name capsule, all `glassCapsule(onPage:)`, and the day
+        // sheet's emoji disc on `glassCircle(onPage:)`: the same fault as the
+        // reaction face, found in the 2026-10-06 cohesion audit.
+        "Strata/Views/Crews/CrewPicker.swift": 1,
+        "Strata/Views/Crews/CrewWithRow.swift": 1,
+        "Strata/Views/Crews/CrewTowerView.swift": 1,
+        "Strata/Views/DaySheet.swift": 1,
         // The header's profile picture, built on `GlassIconButton`'s skeleton and
         // drawn on `glassCircle()`.
         "Strata/Views/ProfileAvatar.swift": 1,

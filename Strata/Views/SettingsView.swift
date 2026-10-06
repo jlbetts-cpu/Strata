@@ -542,7 +542,11 @@ struct SettingsView: View {
                 .onChange(of: locksJournal) { _, on in
                     // Switching it on starts a locked session, so the next
                     // note asks; it does not wait for the app to leave.
-                    if on { JournalLock.shared.relock() }
+                    if on { JournalLock.shared.relock(); return }
+                    // Off only for whoever can open it; refused, it stays on.
+                    Task {
+                        if !(await JournalLock.shared.mayTurnOff()) { locksJournal = true }
+                    }
                 }
             } header: {
                 FormSectionLabel("Journal")

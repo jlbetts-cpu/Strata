@@ -58,7 +58,7 @@ nonisolated enum CrewError: LocalizedError, Equatable, Sendable {
         case .flagOff: "Crews are off on this phone."
         case .notOwner: "Only the person who started the crew can do that."
         case .notSignedIn: "Sign in to iCloud in Settings to use crews."
-        case .unknownCrew: "This phone lost track of that crew. Try again in a moment."
+        case .unknownCrew: "This phone can't find that crew right now. Try again in a moment."
         case .photoNotAllowed: "That photo stays with you."
         case .photoNeeded: "Choose a photo for the crew first."
         }
