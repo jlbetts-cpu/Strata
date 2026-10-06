@@ -93,3 +93,47 @@ for scale in (2, 3):
     black = Image.new('L', g.size, 0)
     Image.merge('RGBA', [black, black, black, g]).save(f'BrandCamera@{scale}x.png')
 print('mark', g.size)
+
+# iOS 26's own icon format (Icon Composer): a flat ground and the camera as
+# one layer, with the glass, specular, shadow and translucency off. Given a
+# flat PNG icon, iOS 26 dresses it in glass itself, and the owner saw that as
+# "a bit blurry and it has that weird outline" (2026-10-06): a dark rim, a
+# grey fill and a halo round each hole. Here the camera layer is drawn as it
+# is, ink in light and warm white in dark and tinted.
+import json, os
+bundle = '../../Strata/AppIcon.icon'
+os.makedirs(f'{bundle}/Assets', exist_ok=True)
+for old in os.listdir(f'{bundle}/Assets'):
+    os.remove(f'{bundle}/Assets/{old}')
+layer = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+layer.paste(Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255)), (0, 0), mask)
+layer.save(f'{bundle}/Assets/camera.png')
+def srgb(rgb):
+    return 'srgb:' + ','.join(f'{v / 255:.5f}' for v in rgb) + ',1.00000'
+icon = {
+    'fill-specializations': [
+        {'value': {'solid': srgb(paper)}},
+        {'appearance': 'dark', 'value': {'solid': srgb((28, 26, 24))}},
+    ],
+    'groups': [{
+        'layers': [{
+            'name': 'camera',
+            'image-name': 'camera.png',
+            # Coloured by the layer's fill, Icon Composer's own way: ink in
+            # light, warm white in dark. (A per-appearance image was not
+            # taken: the build left the dark one out.)
+            'fill-specializations': [
+                {'value': {'solid': srgb(ink)}},
+                {'appearance': 'dark', 'value': {'solid': srgb(warm_white)}},
+            ],
+            'glass': False,
+        }],
+        'shadow': {'kind': 'none', 'opacity': 0},
+        'specular': False,
+        'translucency': {'enabled': False, 'value': 0},
+    }],
+    'supported-platforms': {'squares': 'shared'},
+}
+with open(f'{bundle}/icon.json', 'w') as f:
+    json.dump(icon, f, indent=2)
+print('icon bundle written')
