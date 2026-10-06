@@ -106,7 +106,8 @@ struct ReactionBar: View {
                 }
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        // An emoji on the bar is ink, not glass, so it takes the app's press.
+        .buttonStyle(.pressSurface)
         .animation(GridConstants.elasticPop, value: chosen)
         .accessibilityLabel(label)
         .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
@@ -391,7 +392,7 @@ struct CrewReactionsPanel: View {
                 }
                 // **Plain, as the viewer's close and ⋯ are.** A scaling press
                 // style on a label that is interactive glass fought the glass's
-                // own tracking of the finger: on a phone the face pressed and
+                // own response to the finger: on a phone the face pressed and
                 // the tap was cancelled, so the bar never opened (the owner,
                 // 2026-10-05). The simulator's instant taps never showed it.
                 .buttonStyle(.plain)
