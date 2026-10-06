@@ -141,8 +141,10 @@ struct MemoriesConsistencyTests {
         // Hide Alerts switch became the Mute menu the same day.
         // Thirteen since 2026-10-03: Crew Info's Heads switch, which turns a
         // crew's heads off on this phone. It wears the token.
-        #expect(rowTints.count == 13,
-                "there are \(rowTints.count) switches in the app and there were 13; a new one needs the token too")
+        // Fourteen since 2026-10-05: Settings' "A Past Win", the evening
+        // notification about a past win (`PastWinReminder`).
+        #expect(rowTints.count == 14,
+                "there are \(rowTints.count) switches in the app and there were 14; a new one needs the token too")
     }
 
     /// **The rule the two retired colours each broke, as arithmetic.**
@@ -321,7 +323,8 @@ struct MemoriesConsistencyTests {
             "HeadMakerView.swift": "the shutter hand-rolls its own press, measured, because a disabled plain button is dimmed by the environment and the block came out at 128 of 255",
             "CameraView.swift": "the shutter, the same reason",
             "HeadSticker.swift": "not this worker's file",
-            "AddWinSheet.swift": "not this worker's file"
+            "AddWinSheet.swift": "not this worker's file",
+            "LogWinWidgets.swift": "a widget's button: WidgetKit draws the press itself, and an app press style cannot run in a widget"
         ]
         let unexplained = Self.hits(".buttonStyle(.plain)").filter { hit in
             !exempt.keys.contains { hit.hasPrefix($0 + ":") }

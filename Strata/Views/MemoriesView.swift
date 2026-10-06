@@ -34,6 +34,8 @@ struct MemoriesView: View {
     /// The direction of the last swipe, for the month's slide. 0 is the picker.
     @State private var monthStep = 0
     @State private var vm = MemoriesViewModel()
+    /// Today's past win (`PastWin`), the line under the calendar.
+    @State private var pastWin: PastWin.Pick?
     @State private var path: [MemoriesRoute] = []
     @State private var viewing: ViewedPhoto?
     /// The Replays shelf, and the replay playing out of one of its cards.
@@ -163,6 +165,7 @@ struct MemoriesView: View {
                         // alone, the emptiness you then fill being the point.
                         if !pageIsUndecided || pageIsEmpty {
                             monthTower
+                            pastWinLine
                         }
                     }
                     // The scroll view already stops above the tab bar; the
@@ -345,6 +348,8 @@ struct MemoriesView: View {
             let reloadStart = CACurrentMediaTime()
             #endif
             await vm.reload(context: modelContext)
+            pastWin = PastWin.pick(from: PastWin.candidates(context: modelContext), today: Date(),
+                                   calendar: .current)
             #if DEBUG
             PerfProbe.duration("MemoriesViewModel.reload wall", since: reloadStart)
             #endif
@@ -558,6 +563,29 @@ struct MemoriesView: View {
     /// the screen, and the photos are a scroll away. It was a fold with a
     /// chevron; the owner, 2026-10-03, "make the photos expanded by default...
     /// actually i dont think theres a point to closing them at all".
+    /// **A past ordinary win, under this month's calendar** (`PastWin`): one
+    /// line in the photo count's grey, never a card, and a tap opens that day.
+    /// Only on the month you are living in; an older month is already a look
+    /// back.
+    @ViewBuilder
+    private var pastWinLine: some View {
+        if let pick = pastWin,
+           MemoriesViewModel.mondayCalendar.isDate(vm.selectedMonth, equalTo: Date(), toGranularity: .month) {
+            Button { path.append(.day(pick.dateString)) } label: {
+                Text(pick.line)
+                    .font(Typography.screenSubtitle)
+                    .foregroundStyle(AppColors.inkSecondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.horizontal, GridConstants.horizontalPadding)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressSurface)
+            .accessibilityHint("Opens that day.")
+            .transition(.opacity)
+        }
+    }
+
     private func photosCaption(_ count: Int) -> some View {
         Text(count == 1 ? "1 Photo" : "\(count) Photos")
             .font(Typography.screenSubtitle)

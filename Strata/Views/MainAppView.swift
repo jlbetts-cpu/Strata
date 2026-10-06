@@ -1734,7 +1734,11 @@ struct MainAppView: View {
     /// question for itself, so asking it here first was asking twice.
     private func refreshReplayWindow() {
         replayEdge = ReplayEntry.nextEdge(after: Date())
-        Task { await ReplayReminder.schedule(context: modelContext) }
+        Task {
+            await ReplayReminder.schedule(context: modelContext)
+            // Tonight's past win, once today has a win of its own.
+            await PastWinReminder.schedule(context: modelContext)
+        }
     }
 
     /// The colour the next win will be — decided ONCE, held, and handed to

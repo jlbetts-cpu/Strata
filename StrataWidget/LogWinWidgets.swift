@@ -80,7 +80,7 @@ struct LogWinWidgetView: View {
                     .stroke(style: StrokeStyle(lineWidth: 1.4, dash: [3, 3]))
                     .foregroundStyle(.tertiary)
                 Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             .frame(width: width, height: height)

@@ -41,6 +41,7 @@ struct SettingsView: View {
     @AppStorage(LocationService.defaultsKey) private var remembersPlaces = true
     /// On by default, the same default `ReplayReminder.isEnabled` registers.
     @AppStorage(ReplayReminder.defaultsKey) private var replayRemindersOn = true
+    @AppStorage(PastWinReminder.defaultsKey) private var pastWinRemindersOn = true
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
     /// The sample replay being previewed, from the Replays section.
@@ -308,6 +309,21 @@ struct SettingsView: View {
                 .tint(AppColors.switchTrack)
                 .onChange(of: replayRemindersOn) { _, on in
                     Task { on ? await ReplayReminder.schedule(context: modelContext) : await ReplayReminder.removePending() }
+                }
+
+                // An evening line about a past win, only on a day with one
+                // of its own (`PastWinReminder`).
+                Toggle(isOn: $pastWinRemindersOn) {
+                    Label {
+                        Text("A Past Win")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "clock.arrow.circlepath")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+                .onChange(of: pastWinRemindersOn) { _, on in
+                    Task { on ? await PastWinReminder.schedule(context: modelContext) : await PastWinReminder.removePending() }
                 }
             } header: {
                 FormSectionLabel("Notifications")
