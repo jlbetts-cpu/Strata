@@ -52,8 +52,19 @@ struct MonthCalendarView: View {
     let width: CGFloat
     var onSelect: (String) -> Void = { _ in }
     var transitionNamespace: Namespace.ID?
+    /// The month's journal emoji, by `dateString` (`MemoriesViewModel.symbols`).
+    var symbols: [String: String] = [:]
 
     @Environment(\.colorScheme) private var colorScheme
+
+    /// A day of this month as the store spells it, through `DateUtils` so it
+    /// is the same string `HabitLog` and `MoodLog` were written with.
+    static func dateString(day: Int, in month: Date, calendar: Calendar) -> String {
+        let comps = calendar.dateComponents([.year, .month], from: month)
+        guard let first = calendar.date(from: comps),
+              let date = calendar.date(byAdding: .day, value: day - 1, to: first) else { return "" }
+        return DateUtils.dateString(from: date)
+    }
 
     // MARK: - Geometry
 
@@ -242,7 +253,9 @@ struct MonthCalendarView: View {
                                     // the lamp hangs underneath the month.
                                     rowFromBottom: rows - 1 - row,
                                     onSelect: onSelect,
-                                    transitionNamespace: transitionNamespace
+                                    transitionNamespace: transitionNamespace,
+                                    symbol: symbols.isEmpty ? nil
+                                        : symbols[Self.dateString(day: day, in: month, calendar: calendar)]
                                 )
                             } else {
                                 // **THE TAIL OF THE LAST ROW IS LATTICE.**
@@ -299,6 +312,8 @@ struct MonthCalendarCell: View {
     let rowFromBottom: Int
     var onSelect: (String) -> Void
     var transitionNamespace: Namespace.ID?
+    /// The day's journal emoji, if it has one.
+    var symbol: String? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.blockLight) private var blockLight
@@ -351,7 +366,8 @@ struct MonthCalendarCell: View {
             // with no answer to a finger. The month's slideshow keeps running
             // under it, because the press is a transform and not a redraw.
             .buttonStyle(.pressSurface)
-            .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")")
+            .accessibilityLabel("\(day), \(block.winCount) \(block.winCount == 1 ? "win" : "wins")"
+                                + (symbol.map { ", \($0)" } ?? ""))
         } else {
             // **A day still to come is not a stop.** It carries nothing a
             // listener can act on, and on the 3rd of a month it was 28 swipes
@@ -360,8 +376,29 @@ struct MonthCalendarCell: View {
             // is a fact about that day. A sighted person skips the future in
             // one glance; this is the same skip.
             empty
-                .accessibilityLabel("\(day), nothing")
+                .overlay(alignment: .topTrailing) { badge }
+                .accessibilityLabel(symbol.map { "\(day), \($0)" } ?? "\(day), nothing")
                 .accessibilityHidden(isFuture)
+        }
+    }
+
+    /// **The day's journal emoji, small in the corner** (spec section 2: "A
+    /// day with an emoji shows it small in the corner of its cell, like a
+    /// reaction badge on a post").
+    ///
+    /// Drawn the way a crew block's `ReactionBadge` draws its one emoji: the
+    /// page's smallest size, which is the 15pt floor, and on no chip, so on a
+    /// 49pt cell it is a mark in the corner rather than a second picture. Top
+    /// and trailing, because the numeral holds the bottom leading corner. Not
+    /// a button: the day opens from the cell, and its note from the day.
+    @ViewBuilder
+    private var badge: some View {
+        if let symbol {
+            Text(symbol)
+                .font(Typography.screenSubtitle)
+                .padding(3)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
@@ -389,6 +426,8 @@ struct MonthCalendarCell: View {
         }
         .frame(width: side, height: side)
         .overlay(alignment: .bottomLeading) { number(.white.opacity(0.92), onPhoto: !block.photoFileNames.isEmpty) }
+        // Inside the button's label, so it gives with the press.
+        .overlay(alignment: .topTrailing) { badge }
         .modifier(DayTransitionSource(id: block.dateString, namespace: transitionNamespace))
     }
 

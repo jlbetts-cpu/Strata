@@ -42,6 +42,8 @@ struct SettingsView: View {
     /// On by default, the same default `ReplayReminder.isEnabled` registers.
     @AppStorage(ReplayReminder.defaultsKey) private var replayRemindersOn = true
     @AppStorage(PastWinReminder.defaultsKey) private var pastWinRemindersOn = true
+    /// Off by default (spec section 2). `JournalLock` reads the same key.
+    @AppStorage(JournalLock.defaultsKey) private var locksJournal = false
     @State private var location = LocationService.shared
     @State private var replayOnboarding = false
     /// The sample replay being previewed, from the Replays section.
@@ -478,6 +480,32 @@ struct SettingsView: View {
                         .formFooter()
                         .padding(.top, GridConstants.gapTight)
                 }
+            }
+
+            // MARK: - Journal
+
+            // **Lock Journal** (the owner approved it on 2026-10-05, spec
+            // section 2): Face ID or the passcode, asked once a session before
+            // a note opens. Off by default, because the journal is already in
+            // the person's own iCloud and a lock nobody asked for is a door
+            // between them and their own words. See `JournalLock`.
+            Section {
+                Toggle(isOn: $locksJournal) {
+                    Label {
+                        Text("Lock Journal")
+                            .foregroundStyle(AppColors.inkPrimary)
+                    } icon: {
+                        SettingsIcon(systemName: "lock")
+                    }
+                }
+                .tint(AppColors.switchTrack)
+                .onChange(of: locksJournal) { _, on in
+                    // Switching it on starts a locked session, so the next
+                    // note asks; it does not wait for the app to leave.
+                    if on { JournalLock.shared.relock() }
+                }
+            } header: {
+                FormSectionLabel("Journal")
             }
 
             // MARK: - How Strata works
@@ -1011,7 +1039,9 @@ struct SettingsView: View {
     /// the step that failed.
     private func exportData() {
         do {
-            exportURL = try BackupExport.makeZip(habits: habits, logs: logs,
+            // The day's journal goes in the backup too: see `BackupExport.document`.
+            let notes = (try? modelContext.fetch(FetchDescriptor<MoodLog>())) ?? []
+            exportURL = try BackupExport.makeZip(habits: habits, logs: logs, notes: notes,
                                                  appVersion: appVersion)
             showExportShare = true
         } catch let failure as BackupArchive.WriteFailure {

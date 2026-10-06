@@ -68,6 +68,13 @@ final class MemoriesViewModel {
     /// "SEPTEMBER", or "SEPTEMBER 2025" for another year.
     private(set) var monthTitle: String = MemoriesViewModel.title(for: Date(), calendar: MemoriesViewModel.mondayCalendar)
     private(set) var month: MonthTower.Packed = .empty
+    /// The month's journal emoji, by `dateString`, for the corner of each
+    /// day's cell (spec section 2: "A day with an emoji shows it small in the
+    /// corner of its cell, like a reaction badge on a post"). One fetch a
+    /// month, and NOT in `monthCache`: an emoji is chosen from a pushed day
+    /// page, and coming back from it must show it without waiting for the
+    /// store's counts to say the page is stale. See `refreshSymbols`.
+    private(set) var symbols: [String: String] = [:]
     /// Keyed "yyyy-MM", so stepping back and forth is free.
     private var monthCache: [String: MonthTower.Packed] = [:]
     /// The month of the first win ever recorded. One `fetchLimit`-1 query,
@@ -241,6 +248,7 @@ final class MemoriesViewModel {
     /// would be wrong rather than slow: those are paged eight weeks deep, so
     /// anything older would silently come back as a partial month.
     private func loadMonth(context: ModelContext) {
+        refreshSymbols(context: context)
         let key = monthKey(selectedMonth)
         if let cached = monthCache[key] { month = cached; return }
 
@@ -257,6 +265,16 @@ final class MemoriesViewModel {
         let packed = Self.pack(Album.records(from: logs), calendar: calendar)
         monthCache[key] = packed
         month = packed
+    }
+
+    /// The month's emoji, fetched again. Cheap (one month of at most one row
+    /// a day) and assigned only when it changed, so calling it on every return
+    /// to the page invalidates nothing when nothing moved.
+    func refreshSymbols(context: ModelContext) {
+        guard let next = calendar.date(byAdding: .month, value: 1, to: selectedMonth) else { return }
+        let fresh = DayNotes.symbols(from: DateUtils.dateString(from: selectedMonth),
+                                     to: DateUtils.dateString(from: next), context: context)
+        if fresh != symbols { symbols = fresh }
     }
 
     /// Pure: records to a packed month. Static so it can be tested directly.

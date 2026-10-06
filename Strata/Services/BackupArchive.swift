@@ -47,8 +47,24 @@ nonisolated enum BackupArchive {
         let appVersion: String
         let habits: [ExportHabit]
         let logs: [ExportLog]
+        /// The day's journal (2026-10-05). Optional like every field after
+        /// version 1, so no bump: a backup made before the journal decodes with
+        /// this nil, and a reader from before the journal skips the key.
+        var notes: [ExportNote]? = nil
 
         var version: Int { formatVersion ?? 1 }
+    }
+
+    /// One day's journal entry (`MoodLog`, through `DayNotes`). The words and
+    /// the emoji: both are the person's own, so they travel. `mood` and
+    /// `motivation` are not written, because the journal never asks for them.
+    /// The sketch is not written yet either; it arrives with the sketch strip,
+    /// and its file will need a folder of its own beside `photos/`.
+    struct ExportNote: Codable, Sendable {
+        let dateString: String
+        var id: UUID?
+        var note: String?
+        var symbol: String?
     }
 
     /// A win's template: what it is called, what colour it draws in, how big

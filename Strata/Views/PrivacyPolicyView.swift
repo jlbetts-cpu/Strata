@@ -59,7 +59,8 @@ struct PrivacyPolicyView: View {
         ("What Some Wins stores",
          "Your wins: their names, sizes, colours, dates, any photo you attach, and "
          + "where a photo was taken if you turn that on. And, if you add them, "
-         + "your name and a profile photo. That is the whole of it."),
+         + "your name and a profile photo. Your journal stays in your own iCloud "
+         + "and is never shared with a crew. That is the whole of it."),
         ("Where it is stored",
          "On your device. Some Wins has no account, no server, and no analytics. "
          + "Nothing you log is sent anywhere unless you send a win to a crew, "

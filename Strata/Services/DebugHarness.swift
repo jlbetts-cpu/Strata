@@ -186,6 +186,24 @@ enum DebugHarness {
         argument("-strataSeedPlan").flatMap(Int.init)
     }
 
+    /// Opens the day's journal, from `-strataOpenJournal today|day`: `today`
+    /// from the Wins tab's button, `day` from a past day's corner (with
+    /// `-strataOpenDay <n>`). `JournalButton` reads it.
+    static var openJournal: String? {
+        guard let raw = argument("-strataOpenJournal") else { return nil }
+        return raw == "1" ? "today" : raw
+    }
+
+    /// Presses the journal's Suggest once it opens, from `-strataJournalAsk`.
+    static var journalAsks: Bool { ProcessInfo.processInfo.arguments.contains("-strataJournalAsk") }
+
+    /// Seeds the journal, from `-strataSeedJournal <n>`: a note and an emoji
+    /// on every other day of the last n, today left empty, so the calendar's
+    /// badges and a past day's note can be photographed.
+    static var seedJournal: Int {
+        Int(argument("-strataSeedJournal") ?? "0") ?? 0
+    }
+
     /// Seeds mood rows, from `-strataSeedMood <n>`.
     ///
     /// **Added because a schema check that cannot see `MoodLog` is not a
@@ -1221,6 +1239,17 @@ enum DebugHarness {
                                        note: notes[i % notes.count]))
             }
             do { try context.save() } catch { NSLog("[strata-seed] moods did not save: \(error)") }
+        }
+
+        if seedJournal > 0 {
+            StoreReset.deleteEvery(MoodLog.self, context: context)
+            let marks = ["🌊", "🔥", "🌙", "🎂", "☀️", "🍜"]
+            let words = ["Long walk by the river.", "Finished the draft.", nil, "Dinner with Sam."]
+            for back in stride(from: 1, through: seedJournal, by: 2) {
+                guard let day = Calendar.current.date(byAdding: .day, value: -back, to: Date()) else { continue }
+                DayNotes.save(note: words[back % words.count], symbol: marks[back % marks.count],
+                              for: DateUtils.dateString(from: day), context: context)
+            }
         }
 
         let scheduled = Int(argument("-strataSeedHabits") ?? "0") ?? 0

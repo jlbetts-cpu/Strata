@@ -971,6 +971,14 @@ struct MainAppView: View {
                 CrewsButton { crewPath = [.list] }
             }
             Spacer(minLength: 0)
+            // **The day's journal, beside the Plan** (spec section 2, approved
+            // 2026-10-05). On the far side of the head's bubble rather than
+            // between it and the Plan, because the bubble's place is settled:
+            // "directly left of the Plan button" (the owner, 2026-10-02). So
+            // while he is carried or parked, the journal steps one place left
+            // to make room. `JournalButton` owns the sheet and the lock.
+            JournalButton(dateString: DateUtils.dateString(from: Date()))
+                .companionObstacle("journal")
             // The tower head's bubble, directly left of the Plan button and
             // its size (the owner, 2026-10-02). Invisible unless he is being
             // carried or is parked in it. See `CompanionDock`.
