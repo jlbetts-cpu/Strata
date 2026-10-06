@@ -6,10 +6,9 @@ Run from docs/app-icon: reads source.png, writes AppIcon-light.png,
 AppIcon-dark.png and AppIcon-tinted.png (1024 px) for
 Assets.xcassets/AppIcon.appiconset.
 
-Same cleanup as the tab icons (docs/tab-icons): the drawn edge and the light
-gap inside it close into one clean silhouette; his white marks (the two
-eyes, the lens, the smile) become true holes; the outline is smoothed at 4x
-and his marks more gently, so the lens ring stays whole.
+The mark was redrawn the same day as an outline ("here is the new and
+improved some wins logo"): his strokes are the shape and the rest is
+see-through, so the icon is the line on a flat ground.
 
 - light: opaque, the camera in ink on a warm white ground (the App Store
   icon must have no transparency).
@@ -20,53 +19,23 @@ and his marks more gently, so the lens ring stays whole.
 import numpy as np
 from PIL import Image, ImageFilter
 
-src = np.array(Image.open('source.png').convert('RGBA')).astype(float)
-A = src[..., 3] / 255
-L = (0.299 * src[..., 0] + 0.587 * src[..., 1] + 0.114 * src[..., 2]) / 255
-EDGE = 6
-UP = 4
-SMOOTH = 2.2
-HOLES = 1.0
+# **The owner's redrawn mark** (2026-10-06: "here is the new and improved
+# some wins logo"): clean black strokes on white, an outline camera rather
+# than the filled one. It is already drawn clean, so nothing is closed or
+# smoothed: the strokes are the shape, their own antialiasing kept, and
+# everything else, the inside of the camera included, is see-through.
+src = np.array(Image.open('source.png').convert('RGB')).astype(float)
+L = src.mean(-1)
+# Levels: paper (and the faint grey a white ground picks up) to nothing, ink
+# to solid, the edge between as it was drawn.
+ink_alpha = np.clip((215 - L) / (215 - 45), 0, 1)
 SIZE = 1024
-GLYPH = 0.58        # the camera's width, as a share of the icon
+GLYPH = 0.62        # the camera's width, as a share of the icon
 
-def shift_or(m, k):
-    out = m.copy()
-    for dy in range(-k, k + 1):
-        for dx in range(-k, k + 1):
-            if dx * dx + dy * dy <= k * k:
-                out |= np.roll(np.roll(m, dy, 0), dx, 1)
-    return out
-
-def outside_of(solid):
-    h, w = solid.shape
-    out = np.zeros_like(solid)
-    stack = [(y, x) for y in (0, h - 1) for x in range(w)] + [(y, x) for x in (0, w - 1) for y in range(h)]
-    while stack:
-        y, x = stack.pop()
-        if 0 <= y < h and 0 <= x < w and not out[y, x] and not solid[y, x]:
-            out[y, x] = True
-            stack += [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
-    return out
-
-ys, xs = np.nonzero(A > 0.1)
-pad = 24
-a = A[ys.min() - pad:ys.max() + pad, xs.min() - pad:xs.max() + pad]
-l = L[ys.min() - pad:ys.max() + pad, xs.min() - pad:xs.max() + pad]
-drawn = a > 0.35
-outside = outside_of(drawn)
-silhouette = ~outside
-holes = (a > 0.35) & (l > 0.45) & ~shift_or(outside, EDGE)
-
-def smooth(mask, sigma):
-    img = Image.fromarray(mask.astype(np.uint8) * 255)
-    big = img.resize((img.width * UP, img.height * UP), Image.BICUBIC)
-    return np.array(big.filter(ImageFilter.GaussianBlur(sigma * UP))) >= 128
-
-glyph = Image.fromarray(((smooth(silhouette, SMOOTH) & ~smooth(holes, HOLES)) * 255).astype(np.uint8))
-glyph = glyph.crop(glyph.getbbox())
-k = SIZE * GLYPH / glyph.width
-glyph = glyph.resize((round(glyph.width * k), round(glyph.height * k)), Image.LANCZOS)
+full = Image.fromarray((ink_alpha * 255).astype(np.uint8))
+full = full.crop(full.point(lambda v: 255 if v > 20 else 0).getbbox())
+k = SIZE * GLYPH / full.width
+glyph = full.resize((round(full.width * k), round(full.height * k)), Image.LANCZOS)
 mask = Image.new('L', (SIZE, SIZE), 0)
 # Optically centred: a touch above the middle, as a camera with a top bump sits.
 mask.paste(glyph, ((SIZE - glyph.width) // 2, (SIZE - glyph.height) // 2 - 8))
@@ -84,9 +53,7 @@ tint = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0)); tint.paste(Image.new('RGBA
 print('ok', glyph.size)
 
 # The mark alone, for the launch and Settings: a template the code colours,
-# 128pt wide (the launch S was 122 x 128), holes and all.
-full = Image.fromarray(((smooth(silhouette, SMOOTH) & ~smooth(holes, HOLES)) * 255).astype(np.uint8))
-full = full.crop(full.getbbox())
+# 128pt wide (the launch S was 122 x 128).
 for scale in (2, 3):
     w = 128 * scale
     g = full.resize((w, round(full.height * w / full.width)), Image.LANCZOS)
