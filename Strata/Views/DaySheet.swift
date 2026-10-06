@@ -10,14 +10,15 @@ import SwiftData
 /// owner, on seeing it (2026-10-05): the glyph is HOLLOW, never filled, and
 /// the book is off the app's theme. He then chose `text.alignleft`, at the
 /// default weight. It is the glyph in a past day's corner; the Wins header
-/// carries the whole day's page under `DayIcon` since the two became one.
+/// carries the whole day's sheet, Plan and Journal tabs, under `DayIcon`.
 enum JournalIcon {
     static let name = "text.alignleft"
 }
 
-/// **The day's page, from Wins: one glass button, `checklist`** (the
+/// **The day's sheet, from Wins: one glass button, `checklist`** (the
 /// owner's pick, 2026-10-05). It replaced the Journal and Plan pair when the
-/// two sheets became one page: one page, one way in.
+/// two became one sheet, now with a Plan tab and a Journal tab: one sheet,
+/// one way in.
 enum DayIcon {
     static let name = "checklist"
 }
@@ -27,10 +28,10 @@ enum DayIcon {
 /// owner, 2026-10-05). VoiceOver still hears "Written" on a day that has one.
 ///
 /// It stands in the top-right corner of a past day (a day's album, a crew's
-/// day). It owns its sheet, the day's page (`DaySheet`) with the note part
-/// only, and it asks `JournalLock` first: with Lock Journal on, a note opens
-/// only after Face ID or the passcode, once a session. On Wins the day's page
-/// opens from `DayIcon` instead, plan and note together.
+/// day). It owns its sheet, the day's sheet (`DaySheet`) with the Journal tab
+/// only and no switch, and it asks `JournalLock` first: with Lock Journal on,
+/// a note opens only after Face ID or the passcode, once a session. On Wins
+/// the day's sheet opens from `DayIcon` instead, with both tabs.
 ///
 /// **Always there, never asking.** No badge and no reminder: once a week
 /// beat three times a week in the research the spec cites, so the journal is
@@ -87,12 +88,12 @@ struct JournalButton: View {
         // note, and the lock is for the note (the cohesion pass, 2026-10-05).
         .accessibilityValue(hasNote && !(lockOn && !JournalLock.shared.isUnlocked) ? "Written" : "")
         .sheet(isPresented: $isOpen) {
-            // **A past day is the note alone.** Plan lines look forward: the
-            // overnight sweep deletes a finished one-off and unticks a repeat
-            // (`PlanItem.sweep`), so the model keeps no record of what a past
-            // day planned, and a plan part here would show today's list under
-            // another day's title.
-            DaySheet(dateString: dateString, parts: DayParts(plan: false, note: true))
+            // **A past day is the Journal alone, with no switch.** Plan lines
+            // look forward: the overnight sweep deletes a finished one-off and
+            // unticks a repeat (`PlanItem.sweep`), so the model keeps no
+            // record of what a past day planned, and a Plan tab here would
+            // show today's list under another day's title (`DayTabSet`).
+            DaySheet(dateString: dateString, tabs: .pastDay)
         }
         #if DEBUG
         // `-strataOpenJournal day` on a past day (with `-strataOpenDay`).
@@ -134,73 +135,107 @@ struct JournalToolbarItem: ToolbarContent {
     }
 }
 
-// MARK: - Which parts a day shows
+// MARK: - The two tabs
 
-/// **What the day's page holds.** Today: the plan, then the note. A past day:
-/// the note alone, because the model keeps no past plan (`PlanItem.sweep`).
-/// With Lock Journal on and Face ID refused, the note is left out and the
-/// plan still opens: the lock is for the note, and the plan was never behind
-/// it.
-struct DayParts: Equatable {
-    var plan: Bool
-    var note: Bool
+/// **The day's sheet has two tabs, Plan and Journal** (the owner, 2026-10-05,
+/// on seeing the merged page: "everything looks a bit weird"; his choice was
+/// one sheet with two tabs rather than one mixed page). Still one button on
+/// Wins (`DayIcon`); the switch is two plain words under the title.
+enum DayTab: String, CaseIterable, Equatable {
+    case plan, journal
 
-    static func forDay(isToday: Bool, noteOpen: Bool) -> DayParts {
-        DayParts(plan: isToday, note: noteOpen)
+    var title: String {
+        switch self {
+        case .plan: "Plan"
+        case .journal: "Journal"
+        }
     }
 }
 
-/// The two parts of the page, for whichever had focus last.
-enum DayPart: Equatable { case plan, note }
+/// **Which tabs a sheet offers.** From Wins, both, with the switch. A past
+/// day (`DayAlbumDetailView`, `CrewDayView`) is the Journal alone and shows
+/// no switch: plan lines look forward, the overnight sweep deletes a finished
+/// one-off and unticks a repeat (`PlanItem.sweep`), so the model keeps no
+/// record of what a past day planned, and a Plan tab there would show
+/// today's list under another day's title.
+struct DayTabSet: Equatable {
+    let tabs: [DayTab]
 
-/// **One Suggest, serving the part you are in.** In the plan it offers plan
-/// lines (`PlanSuggestionsView`); in the note it asks the journal's question
-/// (`JournalQuestions`). Which part is decided by the field that last had
-/// focus, and kept when focus goes, so the control does not change under
-/// you as the keyboard comes down. The page opens on its first part.
-enum SuggestTarget {
-    static func initial(parts: DayParts) -> DayPart {
-        parts.plan ? .plan : .note
+    var showsSwitch: Bool { tabs.count > 1 }
+
+    /// The tab a sheet with this set opens on, given the one asked for: a
+    /// past day's set has only the Journal, so it opens there whatever is
+    /// asked.
+    func opening(_ wanted: DayTab) -> DayTab {
+        tabs.contains(wanted) ? wanted : (tabs.first ?? .journal)
     }
 
-    static func after(focus: DayPart?, current: DayPart, parts: DayParts) -> DayPart {
-        switch focus {
-        case .plan? where parts.plan: return .plan
-        case .note? where parts.note: return .note
-        default: return current
-        }
+    static let wins = DayTabSet(tabs: [.plan, .journal])
+    static let pastDay = DayTabSet(tabs: [.journal])
+}
+
+/// **The sheet opens on the tab used last** (`@AppStorage`, default Plan).
+///
+/// Lock Journal guards the Journal and never the Plan: when the last tab was
+/// the Journal and Face ID is refused, the sheet opens on the Plan instead,
+/// and the stored choice is left alone so the next open asks again.
+enum DayTabs {
+    /// The `@AppStorage` key `MainAppView` reads and `DaySheet` writes.
+    nonisolated static let defaultsKey = "daySheetTab"
+
+    /// The stored tab, Plan when nothing (or nothing readable) is stored.
+    static func stored(_ raw: String?) -> DayTab {
+        raw.flatMap(DayTab.init(rawValue:)) ?? .plan
+    }
+
+    /// The tab a sheet from Wins opens on.
+    static func opening(stored raw: String?, journalMayOpen: Bool) -> DayTab {
+        let tab = stored(raw)
+        return tab == .journal && !journalMayOpen ? .plan : tab
+    }
+
+    /// The same two steps against any defaults, for the tests: what
+    /// `@AppStorage(defaultsKey)` writes on a switch and reads at the next open.
+    static func remember(_ tab: DayTab, in defaults: UserDefaults) {
+        defaults.set(tab.rawValue, forKey: defaultsKey)
+    }
+
+    static func last(in defaults: UserDefaults) -> DayTab {
+        stored(defaults.string(forKey: defaultsKey))
     }
 }
 
 // MARK: - The sheet
 
-/// **The day, on one page: what you mean to do, then what happened**
-/// (owner-approved, 2026-10-05: "the plan and journal screen could probably
-/// be merged like a place where you can jot down the day while also planning
-/// the day there uis are pretty similar... the plan stuff obviously wouldnt
-/// show up in the final journal entry").
+/// **The day, in one sheet with two tabs: Plan and Journal** (the owner,
+/// 2026-10-05). It was one mixed page for an evening, the plan stacked over
+/// the note with one Suggest serving whichever had focus; on seeing it he
+/// said "everything looks a bit weird" and chose two tabs.
 ///
-/// The chrome both sheets already shared: a large detent, the drag
-/// indicator, the page's own ground as the sheet's material, the day as the
-/// title (`DayTitle`), the emoji's glass top left and Done top right. Then
-/// the plan's lines exactly as the Plan sheet drew them (`PlanLines`), a
-/// quiet gap of space and no rule, and the note: the words, the faded
-/// question, the sketch.
+/// The chrome both tabs share: a large detent, the drag indicator, the
+/// page's own ground as the sheet's material, the day as the title
+/// (`DayTitle`), Done top right. Under the title, the switch: two plain
+/// words, the chosen one in ink at the heading weight, the other faint. No
+/// capsule, no glass, no segmented control.
+///
+/// - **Plan** is the plan exactly as the Plan screen was (`PlanLines`): the
+///   checkboxes, swipe to delete, the long-press menu, "Add to the plan",
+///   and the plan's own Suggest at the foot (`PlanSuggestionsView`). The top
+///   left corner is empty.
+/// - **Journal** is the journal as it was: the emoji's glass top left, the
+///   note with the faded question under it and the sketch right under the
+///   note, the journal's Suggest and the pen at the foot.
 ///
 /// **The plan never reaches the note.** What is saved as the day's entry
 /// (`MoodLog.note`) is the note's words and nothing else; `keep` is the one
 /// write and it is handed the note alone (`DaySheetTests`).
-///
-/// **One Suggest at the foot**, for whichever part you are in
-/// (`SuggestTarget`). In the note it shares the foot with the pen, which
-/// opens the full-screen sketch editor (`JournalSketchEditor`).
 ///
 /// **What it does not have**, each from the journal spec's "Do not build":
 /// no streak, no reminder, no summary, no mood chart, no template, no tool
 /// picker. The emoji is the day's symbol, not a score, so it has no scale.
 struct DaySheet: View {
     let dateString: String
-    let parts: DayParts
+    let tabSet: DayTabSet
     /// A plan line's block pressed: the caller opens the add sheet.
     var onComplete: (PlanItem) -> Void = { _ in }
 
@@ -209,12 +244,16 @@ struct DaySheet: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The tab on screen, and the one remembered for the next open from Wins.
+    @State private var tab: DayTab
+    @AppStorage(DayTabs.defaultsKey) private var lastTab = DayTab.plan.rawValue
+
     // The plan.
     @Query(sort: \PlanItem.order) private var allItems: [PlanItem]
     @Query private var habits: [Habit]
     @State private var planFocus: UUID?
 
-    // The note.
+    // The journal.
     @State private var text = ""
     @State private var symbol: String?
     @State private var loaded = false
@@ -233,21 +272,20 @@ struct DaySheet: View {
     /// The full-screen editor is up, on `sketchAtOpen`.
     @State private var sketching = false
     @State private var sketchAtOpen = PKDrawing()
-
-    @State private var suggestTarget: DayPart
+    #if DEBUG
+    @State private var journalHarnessRan = false
+    #endif
 
     private static let tapTarget: CGFloat = 44
-    /// **The quiet gap between the plan and the note**: space, never a rule
-    /// (the owner: "we dont use lines we use space throughout the app").
-    /// `gapSection`, the ladder's step between two groups, under the plan's
-    /// one-row tail.
-    static let quietGap: CGFloat = GridConstants.gapSection
 
-    init(dateString: String, parts: DayParts, onComplete: @escaping (PlanItem) -> Void = { _ in }) {
+    /// `opening` is the tab to show first; a past day's set has only the
+    /// Journal, so it opens there whatever is passed.
+    init(dateString: String, tabs: DayTabSet, opening: DayTab = .plan,
+         onComplete: @escaping (PlanItem) -> Void = { _ in }) {
         self.dateString = dateString
-        self.parts = parts
+        self.tabSet = tabs
         self.onComplete = onComplete
-        _suggestTarget = State(initialValue: SuggestTarget.initial(parts: parts))
+        _tab = State(initialValue: tabs.opening(opening))
     }
 
     private var isToday: Bool { dateString == DateUtils.dateString(from: Date()) }
@@ -271,7 +309,9 @@ struct DaySheet: View {
                 // The title centred and alone (the owner, 2026-10-05), set as
                 // every sheet that names data rather than itself is.
                 .sheetTitle(title, drawn: false)
-                .toolbar { DaySheetToolbar(emoji: emojiButton, showsEmoji: parts.note, done: done) }
+                // The emoji is the Journal's, so the Plan tab's top left
+                // corner is empty (the owner, 2026-10-05).
+                .toolbar { DaySheetToolbar(emoji: emojiButton, showsEmoji: tab == .journal, done: done) }
         }
         // Full height, stated; the drag indicator; the page's own ground as
         // the sheet's material. Through the default frosted glass the
@@ -283,35 +323,6 @@ struct DaySheet: View {
             JournalSketchEditor(title: title, drawing: sketchAtOpen) { drawing, canvas in
                 keepSketch(drawing, canvas: canvas)
             }
-        }
-        .task {
-            load()
-            guard parts.note else { return }
-            JournalQuestions.prewarm()
-            #if DEBUG
-            if DebugHarness.journalAsks { retarget(.note); ask() }
-            // `-strataJournalInsert 1`, with `-strataJournalAsk`: taps the
-            // question line once it has come, which nothing here can tap.
-            if DebugHarness.argument("-strataJournalInsert") == "1" {
-                for _ in 0..<40 where question == nil {
-                    try? await Task.sleep(for: .milliseconds(250))
-                }
-                try? await Task.sleep(for: .seconds(1.5))
-                if let question { insert(question) }
-            }
-            if let sketch = DebugHarness.journalSketch {
-                try? await Task.sleep(for: .milliseconds(600))
-                if sketchName == nil {
-                    // The editor's canvas on this phone: the page's width at
-                    // the 2:3 shape, the pen scaled as the editor scales it.
-                    let w = UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
-                    let canvas = CGSize(width: w, height: w / JournalSketchEditor.aspect)
-                    let pen = InkPen.width
-                    keepSketch(InkSamples.sunOverHill(in: canvas, width: pen), canvas: canvas)
-                }
-                if sketch == "open" { openEditor() }
-            }
-            #endif
         }
         // Saved a beat after typing stops, so a note survives the app being
         // closed mid-sentence, and once more on the way out.
@@ -326,36 +337,136 @@ struct DaySheet: View {
         }
         .onDisappear {
             save()
-            if parts.plan { PlanLines.tidy(allItems, keeping: nil, context: modelContext) }
+            if tabSet.tabs.contains(.plan) { PlanLines.tidy(allItems, keeping: nil, context: modelContext) }
         }
     }
 
     // MARK: - The page
 
+    /// The switch, fixed under the title, then the tab on screen. Each tab is
+    /// its own scroll with its own foot, and the two cross-fade on the page's
+    /// own ground: both tabs stand on the same `WarmBackground`, so the
+    /// handover has nothing under it that must not show.
     private var page: some View {
-        // **One scroll for the whole day.** The page is held to at least the
-        // viewport's height so the note's tail takes whatever the lines and
-        // the words leave, and a tap anywhere under the note writes in it.
+        VStack(spacing: 0) {
+            if tabSet.showsSwitch { tabSwitch }
+            ZStack {
+                switch tab {
+                case .plan:
+                    planTab.transition(.opacity)
+                case .journal:
+                    journalTab.transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    // MARK: - The switch
+
+    /// **Two plain words, side by side, centred** (the owner, 2026-10-05).
+    /// The chosen one in `inkPrimary` at the heading weight, the other in
+    /// `inkTertiary` at the prose weight: the app's two weights, and no
+    /// capsule, no glass and no segmented control behind either. Each word
+    /// is a 44pt target. VoiceOver hears a tab bar with the chosen tab
+    /// selected.
+    private var tabSwitch: some View {
+        HStack(spacing: GridConstants.gapTight) {
+            ForEach(tabSet.tabs, id: \.self) { item in
+                tabWord(item)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, GridConstants.gapTight)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
+    }
+
+    private func tabWord(_ item: DayTab) -> some View {
+        let chosen = item == tab
+        return Button { choose(item) } label: {
+            // The heading-weight word sets the width, hidden, so the pair
+            // does not shift sideways when the weight moves between them.
+            Text(item.title)
+                .font(Typography.headerMedium)
+                .hidden()
+                .overlay {
+                    Text(item.title)
+                        .font(chosen ? Typography.headerMedium : Typography.bodyLarge)
+                        .foregroundStyle(chosen ? AppColors.inkPrimary : AppColors.inkTertiary)
+                }
+                .padding(.horizontal, GridConstants.gapTight)
+                .frame(minWidth: Self.tapTarget, minHeight: Self.tapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressWord)
+        .accessibilityLabel(item.title)
+        .accessibilityAddTraits(chosen ? [.isSelected] : [])
+        .animation(GridConstants.crossFade, value: chosen)
+    }
+
+    /// The Journal asks `JournalLock` when it is chosen; the Plan never does.
+    /// Refused, the sheet stays where it was.
+    private func choose(_ next: DayTab) {
+        guard next != tab else { return }
+        if next == .journal {
+            Task {
+                guard await JournalLock.shared.unlock() else { return }
+                show(next)
+            }
+        } else {
+            show(next)
+        }
+    }
+
+    private func show(_ next: DayTab) {
+        HapticsEngine.tick()
+        // The keyboard goes with the tab it was typing in.
+        writing = false
+        if tab == .plan {
+            planFocus = nil
+            PlanLines.tidy(allItems, keeping: nil, context: modelContext)
+        }
+        withAnimation(GridConstants.crossFade) { tab = next }
+        if tabSet.showsSwitch { lastTab = next.rawValue }
+    }
+
+    // MARK: - The Plan tab
+
+    /// The plan exactly as the Plan screen drew it, and its own Suggest at the
+    /// foot, on a phone with Apple's model.
+    private var planTab: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            PlanLines(focused: $planFocus, onComplete: onComplete)
+                .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if PlanSuggestions.isAvailable {
+                PlanSuggestionsView(
+                    context: { shown in
+                        PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)
+                    },
+                    keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
+                    unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) })
+            }
+        }
+    }
+
+    // MARK: - The Journal tab
+
+    /// **One scroll for the journal.** The page is held to at least the
+    /// viewport's height so the note's tail takes whatever the words leave,
+    /// and a tap anywhere under the note writes in it.
+    private var journalTab: some View {
         GeometryReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if parts.plan {
-                        PlanLines(focused: $planFocus, onComplete: onComplete)
-                    }
-                    if parts.plan && parts.note {
-                        Color.clear
-                            .frame(height: Self.quietGap)
-                            .accessibilityHidden(true)
-                    }
-                    if parts.note { note }
-                }
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
+                note
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+            .safeAreaInset(edge: .bottom, spacing: 0) { journalFoot }
         }
-        .onChange(of: planFocus) { _, id in if id != nil { retarget(.plan) } }
-        .onChange(of: writing) { _, now in if now { retarget(.note) } }
         // Starting to write under a placeholder question answers it: the
         // question has done its job and does not follow you down the page.
         .onChange(of: isEmpty) { was, now in
@@ -363,11 +474,40 @@ struct DaySheet: View {
         }
         .animation(motion, value: isEmpty)
         .animation(motion, value: question)
-        .animation(motion, value: suggestTarget)
+        .task { await journalShown() }
     }
 
-    private func retarget(_ focus: DayPart) {
-        suggestTarget = SuggestTarget.after(focus: focus, current: suggestTarget, parts: parts)
+    /// The note is read only once the Journal is on screen, which is only
+    /// ever after Lock Journal has let it open.
+    private func journalShown() async {
+        load()
+        JournalQuestions.prewarm()
+        #if DEBUG
+        guard !journalHarnessRan else { return }
+        journalHarnessRan = true
+        if DebugHarness.journalAsks { ask() }
+        // `-strataJournalInsert 1`, with `-strataJournalAsk`: taps the
+        // question line once it has come, which nothing here can tap.
+        if DebugHarness.argument("-strataJournalInsert") == "1" {
+            for _ in 0..<40 where question == nil {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            try? await Task.sleep(for: .seconds(1.5))
+            if let question { insert(question) }
+        }
+        if let sketch = DebugHarness.journalSketch {
+            try? await Task.sleep(for: .milliseconds(600))
+            if sketchName == nil {
+                // The editor's canvas on this phone: the page's width at
+                // the 2:3 shape, the pen scaled as the editor scales it.
+                let w = UIScreen.main.bounds.width - GridConstants.horizontalPadding * 2
+                let canvas = CGSize(width: w, height: w / JournalSketchEditor.aspect)
+                let pen = InkPen.width
+                keepSketch(InkSamples.sunOverHill(in: canvas, width: pen), canvas: canvas)
+            }
+            if sketch == "open" { openEditor() }
+        }
+        #endif
     }
 
     /// The note: the words, the question under them, the sketch, and the
@@ -487,43 +627,23 @@ struct DaySheet: View {
         }
     }
 
-    // MARK: - The foot of the page
+    // MARK: - The Journal's foot
 
-    /// **One Suggest, for the part you are in** (`SuggestTarget`). The plan's
-    /// is `PlanSuggestionsView`, on a phone with Apple's model; the note's is
-    /// the journal question, offered everywhere (the fixed list answers
+    /// The journal's own Suggest, offered everywhere (the fixed list answers
     /// without the model), with the pen at the trailing edge, because the
-    /// sketch is the note's. Switching parts closes any plan suggestions
-    /// still showing: they are about the plan, and you have gone to write.
-    @ViewBuilder
-    private var footer: some View {
-        switch suggestTarget {
-        case .plan:
-            if parts.plan && PlanSuggestions.isAvailable {
-                PlanSuggestionsView(
-                    context: { shown in
-                        PlanLines.suggestionContext(lines: todaysLines, habits: habits, alreadyShown: shown)
-                    },
-                    keep: { PlanLines.keep($0, after: allItems, context: modelContext) },
-                    unkeep: { PlanLines.unkeep($0, from: allItems, context: modelContext) })
-                .transition(.opacity)
-            }
-        case .note:
-            if parts.note {
-                ZStack {
-                    journalSuggest
-                    HStack {
-                        Spacer(minLength: 0)
-                        GlassIconButton(systemName: "pencil", onPage: true,
-                                        accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
-                            openEditor()
-                        }
-                    }
-                    .padding(.horizontal, GridConstants.horizontalPadding)
-                    .padding(.bottom, GridConstants.gapTight)
+    /// sketch is the journal's. The plan's Suggest is the Plan tab's.
+    private var journalFoot: some View {
+        ZStack {
+            journalSuggest
+            HStack {
+                Spacer(minLength: 0)
+                GlassIconButton(systemName: "pencil", onPage: true,
+                                accessibilityLabel: sketchName == nil ? "Sketch" : "Edit Sketch") {
+                    openEditor()
                 }
-                .transition(.opacity)
             }
+            .padding(.horizontal, GridConstants.horizontalPadding)
+            .padding(.bottom, GridConstants.gapTight)
         }
     }
 
@@ -567,7 +687,7 @@ struct DaySheet: View {
     // MARK: - The sketch
 
     private func openEditor() {
-        guard parts.note else { return }
+        guard tab == .journal else { return }
         writing = false
         sketchAtOpen = sketchName.flatMap { JournalSketches.drawing(for: $0) } ?? PKDrawing()
         sketching = true
@@ -661,12 +781,12 @@ struct DaySheet: View {
     private func done() {
         HapticsEngine.lightTap()
         save()
-        if parts.plan { PlanLines.tidy(allItems, keeping: planFocus, context: modelContext) }
+        if tabSet.tabs.contains(.plan) { PlanLines.tidy(allItems, keeping: planFocus, context: modelContext) }
         dismiss()
     }
 
     private func load() {
-        guard !loaded, parts.note else { return }
+        guard !loaded else { return }
         let entry = DayNotes.entry(for: dateString, context: modelContext)
         text = entry?.note ?? ""
         symbol = entry?.symbol
@@ -694,8 +814,7 @@ struct DaySheet: View {
 /// Typed `ToolbarContent`, so the availability gate for
 /// `sharedBackgroundVisibility` can live in it: the emoji button brings its
 /// own glass, and inside the system's toolbar capsule it would be glass on
-/// glass. The emoji is the note's, so with the note left out (Lock Journal,
-/// refused) the corner is empty.
+/// glass. The emoji is the Journal's, so on the Plan tab the corner is empty.
 private struct DaySheetToolbar<Emoji: View>: ToolbarContent {
     let emoji: Emoji
     let showsEmoji: Bool

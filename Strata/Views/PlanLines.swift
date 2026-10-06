@@ -20,21 +20,20 @@ import SwiftData
 /// you got through. `PlanItem.sweep` does the clearing at the next launch on a
 /// new day.
 ///
-/// **The plan is the first part of the day's page now, not a sheet of its
-/// own** (owner-approved, 2026-10-05: "the plan and journal screen could
-/// probably be merged like a place where you can jot down the day while also
-/// planning the day"). `DaySheet` holds the chrome, the title, Done and
-/// Suggest; this is the lines exactly as the Plan sheet drew them, with their
-/// checkboxes, swipe to delete, the long-press menu, repeats, sizes and
-/// colours. What moved: the ＋ that stood top left (the emoji stands there
-/// now; a line is added by its ghost row, by return, or by the tap under the
+/// **The plan is the Plan tab of the day's sheet, not a sheet of its own**
+/// (the owner, 2026-10-05: one sheet with two tabs, Plan and Journal, after
+/// an evening as one mixed page). `DaySheet` holds the chrome, the title, the
+/// switch, Done and the plan's Suggest; this is the lines exactly as the Plan
+/// sheet drew them, with their checkboxes, swipe to delete, the long-press
+/// menu, repeats, sizes and colours. What moved: the ＋ that stood top left
+/// (a line is added by "Add to the plan", by return, or by the tap under the
 /// last line), and the tail, which was every point of page left under the
-/// list and is one row deep now, because the note is under it.
+/// list and is one row deep now.
 struct PlanLines: View {
     @Environment(\.modelContext) private var modelContext
 
-    /// The line being typed in, shared with the page so Suggest knows which
-    /// part you are in (`SuggestTarget`).
+    /// The line being typed in, shared with the sheet so switching to the
+    /// Journal can put the keyboard away.
     @Binding var focused: UUID?
 
     /// Called with the line when its block is pressed. The caller opens the
@@ -82,10 +81,10 @@ struct PlanLines: View {
     private static let textLeading: CGFloat =
         GridConstants.horizontalPadding - bulletInset + tapTarget + GridConstants.spacing
     /// The tap-to-write space under the last line: **one row deep** since the
-    /// day became one page (2026-10-05). It was 160, and on a short list it
-    /// took every point of page that was left; the note stands under it now,
-    /// so the space under the list is the place the next line lands, drawn as
-    /// that line's ghost, and the page's quiet gap follows. See `content`.
+    /// day became one page (2026-10-05), and kept when the page became two
+    /// tabs the same evening. It was 160, and on a short list it took every
+    /// point of page that was left; the space under the list is the place the
+    /// next line lands, with "Add to the plan" in it. See `content`.
     ///
     /// Not `private`: `SheetRoomTests` checks it is still there.
     static let tailHeight: CGFloat = tapTarget + GridConstants.spacing * 2
@@ -170,7 +169,8 @@ struct PlanLines: View {
                     // re-identified every time a line above it was added or
                     // backspaced away, which is how a caret ends up jumping
                     // rows.
-                    if item.id != lines.last?.id { separator }
+                    // No hairline between lines: space does it (the owner,
+                    // 2026-10-05: "it should be more clean... more minimal").
                 }
             }
 
@@ -194,13 +194,19 @@ struct PlanLines: View {
             // **Outside the branch, so the empty page and the written one are
             // the same page** (`SheetRoomTests.bothStatesAreOnePage`). One
             // copy of the tail is how the two states stopped disagreeing.
+            // **Words, not a dashed box** (the owner, 2026-10-05: "more
+            // minimal"). The next line's place is the invitation in the same
+            // faint ink as the note's, in the column a line's words sit in.
             HStack(spacing: GridConstants.spacing) {
-                if !lines.isEmpty { ghostBullet }
+                if !lines.isEmpty { invitation }
                 Spacer(minLength: 0)
             }
-            .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
+            .padding(.leading, Self.textLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: Self.tailHeight)
+            // Collapsed on an empty day: the invitation above is already the
+            // place to start, and a second empty row only pushed the note away.
+            .frame(height: lines.isEmpty ? 0 : Self.tailHeight)
+            .clipped()
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
             .accessibilityElement()
@@ -211,18 +217,12 @@ struct PlanLines: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The bullet's silhouette: the exact shape of what will land in it, at
-    /// `bulletSide`, in `PlanBullet`'s outline ink and weight, dashed.
-    private var ghostBullet: some View {
-        RoundedRectangle(
-            cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
-            style: .continuous)
-            .strokeBorder(PlanBullet.outlineInk,
-                          style: StrokeStyle(
-                            lineWidth: PlanBullet.outlineWidth(forSide: Self.bulletSide),
-                            dash: [GridConstants.ghostBlockDashLength]))
-            .frame(width: Self.bulletSide, height: Self.bulletSide)
-            .frame(width: Self.tapTarget, height: Self.tapTarget)
+    /// "Add to the plan", in the note placeholder's faint ink and size: the
+    /// day page's two parts invite you the same way.
+    private var invitation: some View {
+        Text("Add to the plan")
+            .font(Typography.bodyLarge)
+            .foregroundStyle(AppColors.inkTertiary)
             .accessibilityHidden(true)
     }
 
@@ -252,24 +252,6 @@ struct PlanLines: View {
         guard let line = all.first(where: { $0.id == id }) else { return }
         context.delete(line)
         StoreReset.commitDelete("taking back a suggested plan line", context: context)
-    }
-
-    /// **A hairline in ink, not a `Divider`.**
-    ///
-    /// Section 6: chrome separates with a hairline and with translucency, and a
-    /// hairline is `1 / displayScale` in ink at low alpha, never a grey line.
-    /// `Divider` draws the platform's separator colour at the platform's
-    /// weight, which is the one grey this page had.
-    ///
-    /// Inset to `textLeading`, so it runs under the words and not under the
-    /// bullets: the bullets are a column of objects and a rule through them
-    /// would cut the column rather than divide the lines.
-    private var separator: some View {
-        Rectangle()
-            .fill(AppColors.quietFill)
-            .frame(height: 1 / displayScale)
-            .padding(.leading, Self.textLeading)
-            .padding(.trailing, GridConstants.horizontalPadding)
     }
 
     /// What the page looks like before anything is written on it.
@@ -352,43 +334,17 @@ struct PlanLines: View {
             // 0.40 at 1.5 measured 2.13:1 against this page where the real
             // bullet measures 3.31:1, so the ghost missed the 3:1 a UI shape
             // is held to while claiming to be the same shape.
-            RoundedRectangle(
-                cornerRadius: GridConstants.blockCornerRadius(forCell: Self.bulletSide),
-                style: .continuous)
-                .strokeBorder(PlanBullet.outlineInk,
-                              style: StrokeStyle(
-                                lineWidth: PlanBullet.outlineWidth(forSide: Self.bulletSide),
-                                dash: [GridConstants.ghostBlockDashLength]))
-                .frame(width: Self.bulletSide, height: Self.bulletSide)
-                .frame(width: Self.tapTarget, height: Self.tapTarget)
-
-            // A line's own size and a line's own column, one step quieter.
-            // `bodySmall` put the invitation a tier below everything it is
-            // standing in for, which is how it ended up reading as a notice
-            // ABOUT the page rather than as the first thing written on it.
-            // **One line, and the second clause is cut** (2026-10-01). It read
-            // "Write what you mean to do, then press its block when you have."
-            // and wrapped to two lines at 15pt Medium, which on a page whose
-            // whole composition is one small figure in a big field made the
-            // figure a paragraph.
-            //
-            // What went is a forward reference: "press its block" describes
-            // something that happens on the WINS tab, to a block this page has
-            // not drawn yet, at a moment that has not arrived. The owner, the
-            // same day: "the areas are very self explanitory and I think over
-            // explaining components loses the charm." The behaviour is learned
-            // the first time a line exists, where the block is in front of you.
-            //
-            // **The accessibility label was already the short version**, which
-            // is the tell: whoever wrote it had decided what the sentence was
-            // for and only said it to VoiceOver.
-            Text("Write what you mean to do")
+            // No dashed block (2026-10-05): the words alone, in the column
+            // a line's words sit in, as the note's placeholder is.
+            Text("Add to the plan")
                 .font(Typography.bodyLarge)
-                .foregroundStyle(AppColors.inkSecondary)
+                .foregroundStyle(AppColors.inkTertiary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.leading, GridConstants.horizontalPadding - Self.bulletInset)
+        // On the page margin, where the note's own placeholder starts: an
+        // empty day is one column of two invitations (2026-10-05).
+        .padding(.leading, GridConstants.horizontalPadding)
         .padding(.trailing, GridConstants.horizontalPadding)
         .padding(.vertical, GridConstants.spacing)
         .contentShape(Rectangle())
@@ -399,7 +355,7 @@ struct PlanLines: View {
         // rung for a layout answering a press.
         .onTapGesture { withAnimation(GridConstants.motionSnappy) { addLine() } }
         .accessibilityElement()
-        .accessibilityLabel("Write what you mean to do")
+        .accessibilityLabel("Add to the plan")
         .accessibilityAddTraits(.isButton)
     }
 

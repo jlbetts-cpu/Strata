@@ -194,6 +194,11 @@ enum DebugHarness {
         return raw == "1" ? "today" : raw
     }
 
+    /// The day sheet's tab, from `-strataDayTab plan|journal`, overriding the
+    /// one used last when `-strataOpenJournal today` or `-strataSeedPlan`
+    /// opens it. A screenshot script cannot press the switch.
+    static var dayTab: String? { argument("-strataDayTab") }
+
     /// The journal's sketch, from `-strataJournalSketch seed|open`: `seed`
     /// writes `InkSamples.sunOverHill` as the day's sketch and shows it under
     /// the words; `open` opens the full-screen editor on it. A simulator cannot draw.

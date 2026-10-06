@@ -9,9 +9,14 @@ import SwiftUI
 /// down the day while also planning the day there uis are pretty similar...
 /// the plan stuff obviously wouldnt show up in the final journal entry."
 ///
+/// **Then one sheet with two tabs** (the owner, 2026-10-05, on seeing the
+/// merged page: "everything looks a bit weird"). His choice: still one button
+/// on Wins, a Plan tab and a Journal tab under the title, each with its own
+/// Suggest, opening on the tab used last.
+///
 /// Pinned here: the plan never reaches the saved note, the Wins header has
-/// one button where it had two, which parts a day shows, which part Suggest
-/// serves, and the thinner pen.
+/// one button where it had two, which tabs a day offers and which it opens
+/// on, that each tab has its own Suggest, and the switch's plain words.
 @MainActor
 @Suite("The day's page")
 struct DaySheetTests {
@@ -74,57 +79,191 @@ struct DaySheetTests {
         #expect(bad.contains(".text"))
     }
 
-    // MARK: - Which parts a day shows
+    /// **And a plan line written on the Plan tab never reaches the Journal.**
+    /// Re-asked for the tabs (2026-10-05): the two tabs share one sheet and
+    /// one save, so the save is driven with a plan line whose words are also
+    /// the note's neighbour, and the Plan tab's body is swept for any write
+    /// to the entry at all.
+    @Test("the Plan tab never writes the journal entry, and a plan line never lands in the note")
+    func planTabNeverWritesTheNote() throws {
+        let ctx = try context()
+        ctx.insert(PlanItem(text: "Book the dentist", order: 0))
+        try ctx.save()
+        DaySheet.keep(note: "Quiet morning", symbol: nil, for: "2026-10-05", context: ctx)
+        DaySheet.keep(note: "Quiet morning, then the park", symbol: nil, for: "2026-10-05", context: ctx)
+        let entry = try #require(DayNotes.entry(for: "2026-10-05", context: ctx))
+        #expect(entry.note == "Quiet morning, then the park")
+        #expect(!(entry.note ?? "").contains("Book the dentist"), "a plan line leaked into the journal entry")
 
-    /// Plan lines are forward-looking: the overnight sweep deletes a finished
-    /// one-off and unticks a repeat (`PlanItem.sweep`), so a past day keeps no
-    /// record of what was planned. The simplest honest page for a past day
-    /// is the note alone.
-    @Test("today shows the plan and the note; a past day shows only the note")
-    func parts() {
-        #expect(DayParts.forDay(isToday: true, noteOpen: true) == DayParts(plan: true, note: true))
-        #expect(DayParts.forDay(isToday: false, noteOpen: true) == DayParts(plan: false, note: true))
+        let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        let plan = try #require(text.components(separatedBy: "private var planTab: some View {").dropFirst().first)
+        let body = plan.components(separatedBy: "private var journalTab: some View {").first ?? ""
+        #expect(!body.isEmpty)
+        for write in ["save()", "keep(note:", "DayNotes."] {
+            #expect(!body.contains(write), "the Plan tab writes the journal entry through \(write)")
+        }
     }
 
-    /// Lock Journal guards the note, not the plan: a refused Face ID on Wins
-    /// still opens the day's plan, with the note left out.
-    @Test("a locked journal keeps the note out and still opens the plan")
-    func lockedNote() {
-        #expect(DayParts.forDay(isToday: true, noteOpen: false) == DayParts(plan: true, note: false))
-        #expect(DayParts.forDay(isToday: false, noteOpen: false) == DayParts(plan: false, note: false))
+    // MARK: - Which tabs a day offers
+
+    /// Was "today shows the plan and the note; a past day shows only the
+    /// note" (`DayParts`), re-aimed at the tabs. Plan lines are
+    /// forward-looking: the overnight sweep deletes a finished one-off and
+    /// unticks a repeat (`PlanItem.sweep`), so a past day keeps no record of
+    /// what was planned. The simplest honest sheet for a past day is the
+    /// Journal alone, with no switch, as it was before the tabs.
+    @Test("Wins offers Plan and Journal with a switch; a past day is the Journal alone, with none")
+    func pastDaysShowJournalOnly() throws {
+        #expect(DayTabSet.wins.tabs == [.plan, .journal])
+        #expect(DayTabSet.wins.showsSwitch)
+        #expect(DayTabSet.pastDay.tabs == [.journal])
+        #expect(!DayTabSet.pastDay.showsSwitch, "a past day shows the Plan and Journal switch")
+        // Whatever the last tab was, a past day opens on its Journal.
+        #expect(DayTabSet.pastDay.opening(.plan) == .journal)
+        #expect(DayTabSet.pastDay.opening(.journal) == .journal)
+        #expect(DayTabSet.wins.opening(.journal) == .journal)
+
+        // Both past-day pages reach the sheet through `JournalButton`, and it
+        // asks for the past day's set, never the Wins one.
+        let sheet = try MorningSource.read("Views/DaySheet.swift")
+        let button = try #require(sheet.components(separatedBy: "struct JournalButton: View {").dropFirst().first)
+        let open = button.components(separatedBy: "struct JournalToolbarItem").first ?? ""
+        #expect(open.contains("DaySheet(dateString: dateString, tabs: .pastDay)"))
+        #expect(!open.contains(".wins"), "a past day's journal opens with the Plan tab")
+        for page in ["Views/DayAlbumDetailView.swift", "Views/Crews/CrewDayView.swift"] {
+            let text = try MorningSource.read(page)
+            #expect(text.contains("JournalToolbarItem("), "\(page) no longer opens its journal through the button")
+            #expect(!text.contains("DaySheet("), "\(page) builds the day's sheet itself")
+        }
     }
 
-    // MARK: - One Suggest, serving the part you are in
+    /// Was "a locked journal keeps the note out and still opens the plan",
+    /// re-aimed: Lock Journal guards the Journal tab, never the Plan. A
+    /// refused Face ID on the way in opens the Plan tab instead.
+    @Test("a locked Journal opens the sheet on the Plan; the Plan never asks")
+    func lockedJournalOpensThePlan() throws {
+        #expect(DayTabs.opening(stored: "journal", journalMayOpen: false) == .plan)
+        #expect(DayTabs.opening(stored: "journal", journalMayOpen: true) == .journal)
+        #expect(DayTabs.opening(stored: "plan", journalMayOpen: false) == .plan)
+        // Structurally: the switch asks the lock for the Journal only.
+        let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        let choose = try #require(text.components(separatedBy: "private func choose(").dropFirst().first)
+        let fn = choose.components(separatedBy: "private func show(").first ?? ""
+        #expect(fn.contains("if next == .journal {"))
+        #expect(fn.components(separatedBy: "JournalLock.shared.unlock()").count - 1 == 1,
+                "the switch asks for Face ID somewhere other than the Journal")
+        let main = SourceSweep.code(try MorningSource.read("Views/MainAppView.swift"))
+        let openDay = try #require(main.components(separatedBy: "private func openDay() {").dropFirst().first)
+        #expect(openDay.contains("wants == .journal ? await JournalLock.shared.unlock() : true"),
+                "the Plan tab waits on Face ID")
+    }
 
-    @Test("Suggest serves the part that last had focus")
-    func suggestFollowsFocus() {
-        let both = DayParts(plan: true, note: true)
-        #expect(SuggestTarget.initial(parts: both) == .plan, "the plan is first on the page")
-        #expect(SuggestTarget.after(focus: .note, current: .plan, parts: both) == .note)
-        #expect(SuggestTarget.after(focus: .plan, current: .note, parts: both) == .plan)
-        // Losing focus keeps the last part, so the button does not flicker
-        // while the keyboard goes down.
-        #expect(SuggestTarget.after(focus: nil, current: .note, parts: both) == .note)
+    // MARK: - The tab used last
+
+    /// "From Wins, the sheet opens on the tab used last (`@AppStorage`,
+    /// default Plan)." The round trip through real defaults, and the source
+    /// check that the sheet and Wins share the one key.
+    @Test("the sheet opens on the tab used last, and on the Plan the first time")
+    func tabPersists() throws {
+        let suite = "DaySheetTests.tabPersists.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(DayTabs.last(in: defaults) == .plan, "the first open is not the Plan")
+        DayTabs.remember(.journal, in: defaults)
+        #expect(DayTabs.last(in: defaults) == .journal)
+        DayTabs.remember(.plan, in: defaults)
+        #expect(DayTabs.last(in: defaults) == .plan)
+        // Something unreadable stored there is the Plan, never a crash.
+        defaults.set("diary", forKey: DayTabs.defaultsKey)
+        #expect(DayTabs.last(in: defaults) == .plan)
+        #expect(DayTabs.stored(nil) == .plan)
+
+        let sheet = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        #expect(sheet.contains("@AppStorage(DayTabs.defaultsKey) private var lastTab = DayTab.plan.rawValue"))
+        let show = try #require(sheet.components(separatedBy: "private func show(").dropFirst().first)
+        #expect((show.components(separatedBy: "private var planTab: some View {").first ?? "").contains("lastTab = next.rawValue"),
+                "a switch is not remembered")
+        let main = SourceSweep.code(try MorningSource.read("Views/MainAppView.swift"))
+        #expect(main.contains("@AppStorage(DayTabs.defaultsKey) private var lastDayTab = DayTab.plan.rawValue"))
+        #expect(main.contains("tabs: .wins, opening: dayOpeningTab"))
+    }
+
+    // MARK: - Each tab has its own Suggest
+
+    /// Was "Suggest serves the part that last had focus" (`SuggestTarget`).
+    /// The owner, 2026-10-05: each tab has its own Suggest, and the focus
+    /// switching is gone because nothing is left to switch between.
+    @Test("each tab has its own Suggest, and the focus-switching is gone")
+    func eachTabHasItsOwnSuggest() throws {
+        let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        #expect(!text.contains("SuggestTarget"), "the focus-switching Suggest is back")
+        #expect(!text.contains("switch suggestTarget"))
+        let plan = try #require(text.components(separatedBy: "private var planTab: some View {").dropFirst().first)
+        let planBody = plan.components(separatedBy: "private var journalTab: some View {").first ?? ""
+        #expect(planBody.contains("PlanSuggestionsView("), "the Plan tab lost its Suggest")
+        #expect(!planBody.contains("journalSuggest"), "the journal's Suggest is on the Plan tab")
+        let foot = try #require(text.components(separatedBy: "private var journalFoot: some View {").dropFirst().first)
+        let footBody = foot.components(separatedBy: "private var todaysLines").first ?? ""
+        #expect(footBody.contains("journalSuggest"))
+        #expect(footBody.contains("systemName: \"pencil\""), "the pen left the Journal's foot")
+        #expect(!footBody.contains("PlanSuggestionsView"), "the plan's Suggest is on the Journal tab")
     }
 
     @Test("a past day's Suggest only ever asks the journal question")
     func pastDaySuggestsTheQuestion() {
-        let note = DayParts(plan: false, note: true)
-        #expect(SuggestTarget.initial(parts: note) == .note)
-        #expect(SuggestTarget.after(focus: .plan, current: .note, parts: note) == .note)
-        let plan = DayParts(plan: true, note: false)
-        #expect(SuggestTarget.initial(parts: plan) == .plan)
-        #expect(SuggestTarget.after(focus: .note, current: .plan, parts: plan) == .plan)
+        // The Plan tab, and with it the plan's Suggest, is not on a past day.
+        #expect(!DayTabSet.pastDay.tabs.contains(.plan))
     }
 
-    @Test("the page draws one Suggest control, never two")
+    @Test("each tab draws one Suggest control, never two")
     func oneSuggest() throws {
         let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
         #expect(text.components(separatedBy: "Label(\"Suggest\"").count - 1 <= 1,
-                "the day's page draws its own Suggest more than once")
-        // The plan's Suggest and the journal's are chosen between in one
-        // switch, never stacked.
-        #expect(text.contains("switch suggestTarget"))
+                "the journal draws its own Suggest more than once")
+        #expect(text.components(separatedBy: "PlanSuggestionsView(").count - 1 == 1,
+                "the plan's Suggest is drawn more than once")
+    }
+
+    // MARK: - The switch
+
+    /// **Two plain words, side by side, centred** (the owner, 2026-10-05):
+    /// the chosen one in ink at the heading weight, the other faint; no
+    /// capsule, no glass, no segmented control; a cross-fade on the motion
+    /// tokens and a light haptic; 44pt targets; a tab bar for VoiceOver.
+    @Test("the switch is two plain words: no capsule, no glass, no segmented control")
+    func switchIsTwoWords() throws {
+        #expect(DayTab.allCases.map(\.title) == ["Plan", "Journal"])
+        let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        let start = try #require(text.components(separatedBy: "private var tabSwitch: some View {").dropFirst().first)
+        let body = start.components(separatedBy: "private func choose(").first ?? ""
+        for chrome in ["Capsule", "glass", "Glass", "Picker", ".segmented", "background(", "Divider", "Rectangle().fill"] {
+            #expect(!body.contains(chrome), "the switch draws \(chrome)")
+        }
+        #expect(body.contains("chosen ? AppColors.inkPrimary : AppColors.inkTertiary"))
+        #expect(body.contains("chosen ? Typography.headerMedium : Typography.bodyLarge"),
+                "the switch uses a weight outside the app's two")
+        #expect(body.contains("minWidth: Self.tapTarget, minHeight: Self.tapTarget"))
+        #expect(body.contains(".isTabBar"))
+        #expect(body.contains(".isSelected"))
+        let show = try #require(text.components(separatedBy: "private func show(").dropFirst().first)
+        let fn = show.components(separatedBy: "private var planTab: some View {").first ?? ""
+        #expect(fn.contains("withAnimation(GridConstants.crossFade)"))
+        #expect(fn.contains("HapticsEngine.tick()"))
+    }
+
+    @Test("the switch sweep catches a capsule behind the words")
+    func switchSweepCanFail() {
+        // The injection: a segmented look the sweep above must refuse.
+        let bad = ".background(Capsule().fill(AppColors.quietFill))"
+        #expect(bad.contains("Capsule") && bad.contains("background("))
+    }
+
+    /// The emoji is the Journal's: the Plan tab's top left corner is empty.
+    @Test("the emoji's glass is on the Journal tab only")
+    func emojiOnTheJournalOnly() throws {
+        let text = SourceSweep.code(try MorningSource.read("Views/DaySheet.swift"))
+        #expect(text.contains("DaySheetToolbar(emoji: emojiButton, showsEmoji: tab == .journal, done: done)"))
     }
 
     // MARK: - The Wins header: one button where there were two

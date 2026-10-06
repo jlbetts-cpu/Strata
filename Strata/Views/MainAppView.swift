@@ -233,11 +233,13 @@ struct MainAppView: View {
     @State private var tickAwaitingWin: UUID?
     /// The orphan sweep runs once a launch, not once a refresh.
     @State private var hasPrunedImages = false
-    /// The day's page is up (`DaySheet`, the plan and the note on one page).
+    /// The day's sheet is up (`DaySheet`, a Plan tab and a Journal tab).
     @State private var isPlanning = false
-    /// Whether that page carries the note: false only when Lock Journal is on
-    /// and Face ID was refused, which still opens the plan.
-    @State private var dayNoteOpen = true
+    /// The tab it opens on: the one used last, unless that is the Journal and
+    /// Lock Journal was refused, which opens the Plan (`DayTabs.opening`).
+    @State private var dayOpeningTab: DayTab = .plan
+    /// The tab used last, written by the sheet's switch. Default Plan.
+    @AppStorage(DayTabs.defaultsKey) private var lastDayTab = DayTab.plan.rawValue
 
     // Skeleton build-up animation
     @State private var visibleSkeletonCount: Int = 0
@@ -605,11 +607,11 @@ struct MainAppView: View {
                 pendingDraft = nil
             }
         }) {
-            // **The day's page: the plan, then the note** (owner-approved,
+            // **The day's sheet: a Plan tab and a Journal tab** (the owner,
             // 2026-10-05). It replaced the Plan sheet and today's Journal
-            // sheet, which were two pages of nearly the same shape.
+            // sheet, then was one mixed page for an evening.
             DaySheet(dateString: DateUtils.dateString(from: Date()),
-                     parts: .forDay(isToday: true, noteOpen: dayNoteOpen)) { item in
+                     tabs: .wins, opening: dayOpeningTab) { item in
                 // Hand the line to the add sheet rather than completing it
                 // here: a win needs a size and a colour, and the block has to
                 // be dropped rather than ticked.
@@ -1146,12 +1148,19 @@ struct MainAppView: View {
         // Memories tab's subject.
     }
 
-    /// Opens the day's page. The note asks `JournalLock` first, once a
-    /// session, as the journal always did; refused, the page still opens on
-    /// the plan, because the lock is for the note.
+    /// Opens the day's sheet on the tab used last. Only the Journal asks
+    /// `JournalLock`, once a session, as it always did; refused, the sheet
+    /// opens on the Plan, because the lock is for the note.
     private func openDay() {
         Task {
-            dayNoteOpen = await JournalLock.shared.unlock()
+            var stored = lastDayTab
+            #if DEBUG
+            // `-strataDayTab plan|journal`: a screenshot script picks the tab.
+            if let pick = DebugHarness.dayTab { stored = pick }
+            #endif
+            let wants = DayTabs.stored(stored)
+            let mayOpen = wants == .journal ? await JournalLock.shared.unlock() : true
+            dayOpeningTab = DayTabs.opening(stored: stored, journalMayOpen: mayOpen)
             isPlanning = true
         }
     }
@@ -2145,8 +2154,9 @@ struct MainAppView: View {
         if DebugHarness.reportsLocation {
             DebugHarness.runLocationProbe(LocationService.shared)
         }
-        // `-strataOpenJournal today` is the day's page from the Wins header
-        // now (2026-10-05), the same page the plan's flags open.
+        // `-strataOpenJournal today` is the day's sheet from the Wins header
+        // (2026-10-05), the same sheet the plan's flags open; `-strataDayTab`
+        // picks its tab.
         if DebugHarness.seedPlan != nil || DebugHarness.openJournal == "today" {
             selectedTab = .tower
             openDay()
