@@ -1,4 +1,51 @@
-# Making money from Strata
+# Making money from Some Wins
+
+## Revised 2026-10-06: Some Wins Plus, a subscription with a free trial
+
+The owner, on the one-time plan below: "9.99 really isnt that much money for
+lifetime and they should be a free trial and monthy or weekly, or yearly plan."
+He also ruled out third-party ads after the trade-off was laid out (a tracking
+prompt and a "Data Used to Track You" label against the app's privacy story).
+This section replaces "The shape of it" and the price below; the rest of the
+file (where it is asked, what blocks charging) still applies.
+
+**Plans** (his picks):
+
+| Product | Price | Notes |
+|---|---|---|
+| `somewins.plus.yearly` | $24.99 a year | Shown first, with a 7-day free trial (introductory offer) |
+| `somewins.plus.monthly` | $3.99 a month | No trial |
+| `somewins.plus.lifetime` | $59.99 once | Non-consumable, for people who refuse subscriptions |
+
+Weekly was offered and not picked: highest short-term revenue, fastest churn and
+angriest reviews, wrong for a calm app.
+
+**Free forever:** logging a win every way it can be logged, the tower, photos and
+the camera, today's photos, the map, albums and the month, the journal (note,
+emoji, sketch), Undo, widgets and Siri, backup, and up to **3 crews**.
+
+**Plus:**
+- Keepsakes: saving a replay as video, Your Month, the film looks
+- Your head: the head maker, and the head as picture, map marker and sticker
+- Smart help: Suggest in the plan and the journal, and tracing a sketch from a phrase
+- Crew extras: more than 3 crews (proposed: up to 10)
+
+**Why a subscription is allowed here** (App Review 3.1.2(a) asks for ongoing
+value): crews are a live service, a new month drawing arrives every month, and
+replays are made every week and month. Say that on the paywall and the product page.
+
+**App Store Connect, for the owner:** one subscription group "Some Wins Plus" with the
+monthly and yearly products (yearly: introductory offer, free, 1 week, new
+subscribers), one non-consumable for lifetime, Family Sharing on, Small Business
+Program enrolled (15%).
+
+**Still to decide with the owner before UI:** the paywall's look (it is the most
+visible screen nobody wants to see), and whether Plus extras show a lock or simply
+open the paywall when pressed.
+
+---
+
+## The original plan, 2026-09-15 (superseded on price and shape)
 
 The plan, agreed 2026-09-15. Paid comes later: the app ships free first, and the
 unlock is added before launch. Full research, with sources and numbers, is in
