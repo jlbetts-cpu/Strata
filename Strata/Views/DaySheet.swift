@@ -570,9 +570,10 @@ struct DaySheet: View {
     /// Suggest and the pen stand at the foot (`footer`).
     private var note: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // The day's photographs first: press one and Suggest asks about
-            // that win (`JournalPhotoRow`). Absent on a day without photos.
-            JournalPhotoRow(dateString: dateString) { win in ask(about: win) }
+            // **No photographs here** (the owner, 2026-10-06: "why is there
+            // pictures in the journal tab I dont think i like that"). The row
+            // of the day's photos came out; Suggest still asks about the
+            // day's own wins, so the help to start remains without them.
             editor
             if let question, !isEmpty {
                 questionLine(question)

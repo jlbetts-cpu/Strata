@@ -223,7 +223,7 @@ enum IllustrationMotion {
                 pose.x = look.x; pose.y = look.y
             } else if roles[index].0 == .smile {
                 pose = Face.grin(at: t, play: play)
-                pose.x = look.x; pose.y = look.y
+                pose.x += look.x; pose.y += look.y
             } else {
                 pose = look
             }
@@ -337,9 +337,19 @@ enum IllustrationMotion {
             let u = smile(at: t, play: play)
             let open = max((u - swapAt) / (1 - swapAt), 0)
             let k = smallest + (1 - smallest) * backOut(open)
-            return LayerPose(x: 0, y: 0, scaleX: k, scaleY: -k,
-                             rotation: 0, opacity: u < swapAt ? 0 : 1, anchor: .center)
+            return LayerPose(x: 0, y: grinLift, scaleX: k, scaleY: -k,
+                             rotation: grinTilt, opacity: u < swapAt ? 0 : 1, anchor: .center)
         }
+
+        /// **Tilted back to his head, and lifted off the jaw** (the owner,
+        /// 2026-10-06: "the smile looks wrong on the scarecrow not angles
+        /// correctly"). Turned over flat, the mouth sloped against the tilt
+        /// of his face and its weight sat on the jawline. Four ways were laid
+        /// on the face side by side (flat, both tilts, and a mirror across the
+        /// mouth's own edge, which pushed it up into the nose); this one reads
+        /// as a smile: 14 degrees clockwise, 4 of the drawing's 870 points up.
+        static let grinTilt = 14.0
+        static let grinLift = -4.0 / 870
 
         /// How far through the turn from frown to smile: 0 the frown, 1 the
         /// smile, at an even pace (each half eases itself).

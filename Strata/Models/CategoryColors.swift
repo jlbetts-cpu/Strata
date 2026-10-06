@@ -275,10 +275,27 @@ enum AppColors {
     })
 
     /// Headings, labels, and anything that names a run of content.
+    ///
+    /// **The greys are one warm family now** (the owner, 2026-10-06: "use
+    /// that same light greying throughout the app... it will help elevate
+    /// some elements"; his pick, "Same warm grey family"). Each is the tab
+    /// grey's hue (`tabIdle`, #9E9A95), opaque, at the darkness its job
+    /// needs, chosen to sit where the old neutral grey sat so nothing got
+    /// harder to read. Measured on the page (#FDFDFD light, #1D1C1C dark):
+    ///
+    /// | | light | dark | needs |
+    /// |---|---|---|---|
+    /// | `inkSecondary` | #5C5853, 6.9:1 | #B2AEA9, 7.7:1 | text |
+    /// | `inkTertiary` | #74706B, 4.8:1 | #94908B, 5.4:1 | 4.5:1 |
+    /// | `inkQuiet` | #8E8A85, 3.3:1 | #7C7873, 3.9:1 | 3:1 |
+    ///
+    /// They were black and white at an opacity, which is a neutral grey
+    /// that picks up whatever is under it; these are the warm grey wherever
+    /// they stand, the same grey as an idle tab.
     static let inkSecondary = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.70)
-            : UIColor(white: 0, alpha: 0.62)
+            ? UIColor(red: 0.698, green: 0.682, blue: 0.663, alpha: 1)  // #B2AEA9
+            : UIColor(red: 0.361, green: 0.345, blue: 0.325, alpha: 1)  // #5C5853
     })
 
     /// **A tab you are not on: grey, as Luma's are** (the owner, 2026-10-06:
@@ -294,8 +311,8 @@ enum AppColors {
     /// Captions: a count under a card, a subtitle, a unit.
     static let inkTertiary = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.60)
-            : UIColor(white: 0, alpha: 0.55)
+            ? UIColor(red: 0.580, green: 0.565, blue: 0.545, alpha: 1)  // #94908B
+            : UIColor(red: 0.455, green: 0.439, blue: 0.420, alpha: 1)  // #74706B
     })
 
     /// The quietest ink the app uses: a chevron, a divider glyph, a disclosure.
@@ -321,8 +338,8 @@ enum AppColors {
     /// volume rather than as a category.
     static let inkQuiet = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.55)
-            : UIColor(white: 0, alpha: 0.45)
+            ? UIColor(red: 0.486, green: 0.471, blue: 0.451, alpha: 1)  // #7C7873
+            : UIColor(red: 0.557, green: 0.541, blue: 0.522, alpha: 1)  // #8E8A85
     })
 
     /// The app's accent: what a switch, a link and a selected control wear.

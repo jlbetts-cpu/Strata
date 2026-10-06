@@ -57,14 +57,13 @@ struct JournalPhotoTests {
         #expect(JournalQuestionRules.instructions.contains("as if you had noticed it"))
     }
 
-    @Test("the row lives in the journal, and finds its photos even when it starts empty")
-    func rowIsWired() throws {
+    /// The row of the day's photographs above the note came out (the owner,
+    /// 2026-10-06: "why is there pictures in the journal tab I dont think i
+    /// like that"). The question about one win stays, for Suggest.
+    @Test("the journal has no row of photographs")
+    func noPhotoRow() throws {
         let sheet = SourceSweep.code(try SourceSweep.read("Strata/Views/DaySheet.swift"))
-        #expect(sheet.contains("JournalPhotoRow(dateString: dateString) { win in ask(about: win) }"))
-        let row = SourceSweep.code(try SourceSweep.read("Strata/Views/JournalPhotoRow.swift"))
-        // A `.task` on an empty `Group` never runs, which is how the row
-        // first shipped showing nothing.
-        #expect(row.contains("ZStack {"))
-        #expect(!row.contains("Group {"))
+        #expect(!sheet.contains("JournalPhotoRow("))
+        #expect((try? SourceSweep.read("Strata/Views/JournalPhotoRow.swift")) == nil, "the row's file is back")
     }
 }

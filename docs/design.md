@@ -49,7 +49,8 @@ Each line carries the date and, where there is one, his own words.
 |---|---|---|
 | Three tabs: Wins, Camera, Memories | settled | — |
 | The app opens on the **camera** | settled | "logging a win is meant to be the fastest thing in the app" |
-| The tab bar is **icons only**, no labels | 2026-10-01 | put to him against keeping them; his call |
+| The tab bar is **his drawn icons with SF Pro labels under them**, idle tabs grey (Luma's way) | 2026-10-06 | reverses "icons only" (2026-10-01); his call after seeing Luma |
+| The greys are **one warm family** in the idle tab's hue (`inkSecondary`/`inkTertiary`/`inkQuiet`, opaque) | 2026-10-06 | his pick, "Same warm grey family" |
 | Profile lives on **Memories only**, never on Wins | settled | "the tower is today's record and its corner belongs to today" |
 | **Replays live in Memories.** The week moved there with the month | 2026-10-01 | "the your month doesnt belong on the wins because its already in memories" |
 | ~~The Wins top-left corner holds the **Crews button**~~ **MOVED 2026-10-05: the day's page is ONE glass button top LEFT, `checklist` (`DayIcon`), Crews stands alone top RIGHT** with its unread dot, the only dot on the header. It was a Journal and Plan glass pair for the morning of 2026-10-05, until the two became one page. Empty right corner while the Crews flag is off. Why the right: the HIG's trailing end is for what must stay available; Instagram and Strava put chat and notification entry points top right; a right thumb reaches top right more easily (Hoober). `WinsBatchTests.headerOrder`, `DaySheetTests.oneHeaderButton` | 2026-10-02, moved 2026-10-05 | "I want there to be a simple social button on the top left"; then the approved batch of 2026-10-05; `checklist` is his pick for the one button |
